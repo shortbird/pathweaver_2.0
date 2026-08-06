@@ -99,7 +99,7 @@ describe('ClassesPage', () => {
     fireEvent.click(screen.getByText('Pottery')) // card opens the editor modal
     expect(await screen.findByDisplayValue('Pottery')).toBeInTheDocument() // name field
     expect(screen.getByLabelText('Tuition')).toHaveValue(120)
-    expect(screen.getByLabelText('Supply Fee')).toHaveValue(15)
+    expect(screen.getByLabelText('Supply fee')).toHaveValue(15)
     expect(screen.getByRole('switch')).toBeInTheDocument() // registration toggle lives in the modal now
   })
 
@@ -107,7 +107,7 @@ describe('ClassesPage', () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')
     fireEvent.click(screen.getByText('Create class')) // page button opens modal
-    fireEvent.change(screen.getByLabelText(/Class Name/), { target: { value: 'Drawing' } })
+    fireEvent.change(screen.getByLabelText('Class name'), { target: { value: 'Drawing' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Class' })) // modal submit
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/classes', expect.objectContaining({
@@ -382,7 +382,7 @@ describe('ClassesPage', () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')
     fireEvent.click(screen.getByText('Create class'))
-    fireEvent.change(screen.getByLabelText(/Class Name/), { target: { value: 'Drawing' } })
+    fireEvent.change(screen.getByLabelText('Class name'), { target: { value: 'Drawing' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Class' }))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/classes', expect.objectContaining({
@@ -396,7 +396,9 @@ describe('ClassesPage', () => {
     await screen.findByText('Pottery')
     fireEvent.click(screen.getByTitle('Table view'))
     fireEvent.click(await screen.findByText('Pottery'))
-    fireEvent.click(await screen.findByLabelText('Pottery requires a full day of classes'))
+    // The label no longer names the class: the field lives inside that class's
+    // own expanded panel now, and only one row is ever expanded.
+    fireEvent.click(await screen.findByLabelText('Requires a full day of classes'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({

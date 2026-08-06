@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { ChevronDownIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline'
-import SearchSelect from '../ui/SearchSelect'
-import { meetingsToForm, blockMinutes, blockEndOptions, addMin, minutesBetween, hhmm } from './CreateClassModal'
+import ClassFieldsEditor from './ClassFieldsEditor'
+import { toDraft, draftToPayload, meetingsToForm, hhmm, fmt12ap, DAY_LETTER } from './classFields'
 
 // Spreadsheet-style view of the org's classes. Rows stay scannable — name,
 // teacher, days, time, enrollment — and clicking a row expands an inline
@@ -19,59 +19,20 @@ import { meetingsToForm, blockMinutes, blockEndOptions, addMin, minutesBetween, 
 
 const cell = 'w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
 
-const DAY_OPTS = [
-  { dow: 1, label: 'M' }, { dow: 2, label: 'T' }, { dow: 3, label: 'W' },
-  { dow: 4, label: 'T' }, { dow: 5, label: 'F' },
-]
-const DAY_LETTER = { 0: 'Su', 1: 'M', 2: 'T', 3: 'W', 4: 'Th', 5: 'F', 6: 'Sa' }
-
-const fmt12 = (t) => {
-  const [h, m] = hhmm(t).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
 const daysText = (meetings = []) => {
   const dows = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))].sort()
   return dows.map((d) => DAY_LETTER[d]).join(' ') || '—'
 }
 const timeText = (meetings = []) => {
   const first = meetings.find((m) => m.start_time && m.end_time)
-  return first ? `${fmt12(first.start_time)}–${fmt12(first.end_time)}` : '—'
+  return first ? `${fmt12ap(first.start_time)}–${fmt12ap(first.end_time)}` : '—'
 }
 const agesText = (c) => {
-  if (c.min_age != null && c.max_age != null) return `${c.min_age}–${c.max_age}`
+  if (c.min_age != null && c.max_age != null) return `${c.min_age}\u2013${c.max_age}`
   if (c.min_age != null) return `${c.min_age}+`
   if (c.max_age != null) return `Up to ${c.max_age}`
   return '—'
 }
-
-// A class's editable attributes as flat draft fields.
-const toDraft = (c) => {
-  const seed = meetingsToForm(c.meetings || [])
-  return {
-    name: c.name || '',
-    description: c.description || '',
-    primary_instructor_id: c.primary_instructor_id || '',
-    assistant_instructor_ids: c.assistant_instructor_ids || [],
-    show_assistants: c.show_assistants !== false,
-    location: c.location || '',
-    days_of_week: (seed.days_of_week || []).map((code) => ({ mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 }[code])),
-    start_time: seed.start_time || '',
-    duration_minutes: String(seed.duration_minutes || ''),
-    capacity: c.capacity != null ? String(c.capacity) : '',
-    tuition: c.price_cents != null ? String(c.price_cents / 100) : '',
-    supply_fee: c.supply_fee != null ? String(c.supply_fee) : '',
-    supply_budget_per_student: c.supply_budget_per_student != null ? String(c.supply_budget_per_student) : '',
-    min_age: c.min_age != null ? String(c.min_age) : '',
-    max_age: c.max_age != null ? String(c.max_age) : '',
-    requires_full_day: !!c.requires_full_day,
-  }
-}
-
-const numOrUndef = (v) => (v === '' || v == null ? undefined : Number(v))
 
 const teacherName = (c) => c.primary_instructor?.name || c.primary_instructor?.display_name || ''
 // Sort keys -> a comparable value for a class row. Missing values sort last.
@@ -95,31 +56,6 @@ const SORT_LABELS = {
   name: 'Name', teacher: 'Teacher', days: 'Days', time: 'Time',
   ages: 'Ages', enrolled: 'Enrolled', waitlist: 'Waitlist',
 }
-
-const draftToPayload = (d) => ({
-  name: d.name.trim(),
-  description: d.description,
-  location: d.location.trim() || null,
-  primary_instructor_id: d.primary_instructor_id || null,
-  assistant_instructor_ids: (d.assistant_instructor_ids || []).filter(Boolean),
-  show_assistants: !!d.show_assistants,
-  days_of_week: d.days_of_week,
-  start_time: d.start_time || undefined,
-  duration_minutes: numOrUndef(d.duration_minutes),
-  capacity: numOrUndef(d.capacity),
-  price_cents: d.tuition === '' ? null : Math.round(Number(d.tuition) * 100),
-  supply_fee: numOrUndef(d.supply_fee),
-  min_age: numOrUndef(d.min_age),
-  max_age: numOrUndef(d.max_age),
-  requires_full_day: d.requires_full_day,
-})
-
-const Field = ({ label, children, className = '' }) => (
-  <div className={className}>
-    <label className="block text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-1">{label}</label>
-    {children}
-  </div>
-)
 
 // Multi-level sort: `sort` is an ordered list of {key, dir}. Index 0 is the
 // primary sort; each further click on a new column adds a deeper tiebreaker, so
@@ -146,6 +82,11 @@ const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
 
 const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
+  // Picked-but-not-yet-uploaded images, by class. The file rides along with the
+  // Save (the upload needs the class id, so it can't happen on pick), and the
+  // object URL is revoked when the row is saved or cancelled.
+  const [imageFiles, setImageFiles] = useState({})
+  const [imagePreviews, setImagePreviews] = useState({})
   const [expandedId, setExpandedId] = useState(null)
   const [saving, setSaving] = useState(null) // class_id mid-save
   const [offering, setOffering] = useState(null) // class_id mid seat-offer
@@ -184,14 +125,39 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
     ...ds,
     [c.id]: { ...(ds[c.id] || toDraft(c)), ...patch },
   }))
-  const cancel = (id) => setDrafts(({ [id]: _, ...rest }) => rest)
+  const pickImage = (c, file) => {
+    setImageFiles((f) => ({ ...f, [c.id]: file }))
+    setImagePreviews((p) => {
+      if (p[c.id]) URL.revokeObjectURL(p[c.id])
+      return { ...p, [c.id]: URL.createObjectURL(file) }
+    })
+    // Selecting an image makes the row dirty so Save lights up for it.
+    edit(c, {})
+  }
+
+  const clearImage = (c) => {
+    setImageFiles(({ [c.id]: _f, ...rest }) => rest)
+    setImagePreviews(({ [c.id]: url, ...rest }) => {
+      if (url && url !== c.image_url) URL.revokeObjectURL(url)
+      return rest
+    })
+  }
+
+  const cancel = (id) => {
+    setDrafts(({ [id]: _, ...rest }) => rest)
+    setImageFiles(({ [id]: _f, ...rest }) => rest)
+    setImagePreviews(({ [id]: url, ...rest }) => {
+      if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+      return rest
+    })
+  }
 
   const save = async (c) => {
     const d = drafts[c.id]
     if (!d || !d.name.trim()) return
     setSaving(c.id)
     try {
-      const ok = await onSave(c, draftToPayload(d))
+      const ok = await onSave(c, draftToPayload(d), imageFiles[c.id] || null)
       if (ok) cancel(c.id)
     } finally { setSaving(null) }
   }
@@ -311,191 +277,57 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
                     <td colSpan={8} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
-                        <Field label="Name" className="col-span-2">
-                          <input className={cell} value={d.name} onChange={(e) => edit(c, { name: e.target.value })} />
-                        </Field>
-                        <Field label="Teacher" className="col-span-2">
-                          <SearchSelect
-                            value={d.primary_instructor_id}
-                            onChange={(id) => edit(c, { primary_instructor_id: id })}
-                            options={staff}
-                            getId={(s) => s.id}
-                            getLabel={(s) => s.name}
-                            placeholder="Search staff…"
-                          />
-                        </Field>
-                        {/* Assistant teachers. The class editor has had this for
-                            a while; the row editor is where the office actually
-                            works, so leaving it out here made the feature
-                            invisible. Same shape as the modal: chips to remove,
-                            a search box to add, and the families-can-see-them
-                            switch only once there is somebody to hide. */}
-                        <Field label="Assistant teacher(s)" className="col-span-2 md:col-span-4">
-                          {d.assistant_instructor_ids.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-1.5">
-                              {d.assistant_instructor_ids.map((id) => {
-                                const s = staff.find((x) => x.id === id)
-                                return (
-                                  <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
-                                    {s?.name || 'Staff member'}
-                                    <button
-                                      type="button"
-                                      aria-label={`Remove ${s?.name || 'assistant'}`}
-                                      onClick={() => edit(c, {
-                                        assistant_instructor_ids: d.assistant_instructor_ids.filter((x) => x !== id),
-                                      })}
-                                      className="hover:text-optio-pink font-bold leading-none"
-                                    >×</button>
-                                  </span>
-                                )
-                              })}
-                            </div>
-                          )}
-                          <SearchSelect
-                            value=""
-                            onChange={(id) => {
-                              if (!id || d.assistant_instructor_ids.includes(id) || id === d.primary_instructor_id) return
-                              edit(c, { assistant_instructor_ids: [...d.assistant_instructor_ids, id] })
-                            }}
-                            options={staff.filter((s) => s.id !== d.primary_instructor_id
-                              && !d.assistant_instructor_ids.includes(s.id))}
-                            getId={(s) => s.id}
-                            getLabel={(s) => s.name}
-                            placeholder="Add an assistant…"
-                          />
-                          {d.assistant_instructor_ids.length > 0 && (
-                            <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={d.show_assistants}
-                                onChange={(e) => edit(c, { show_assistants: e.target.checked })}
-                                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-                              />
-                              <span>Show the assistant to families in the class catalog</span>
-                            </label>
-                          )}
-                        </Field>
-                        <Field label="Days">
-                          <div className="inline-flex gap-1">
-                            {DAY_OPTS.map((day, i) => {
-                              const selected = d.days_of_week.includes(day.dow)
-                              return (
-                                <button key={i} type="button" aria-pressed={selected}
-                                  onClick={() => edit(c, {
-                                    days_of_week: selected
-                                      ? d.days_of_week.filter((x) => x !== day.dow)
-                                      : [...d.days_of_week, day.dow],
-                                  })}
-                                  className={`w-7 h-7 rounded text-xs font-semibold border transition-colors ${
-                                    selected
-                                      ? 'bg-optio-purple text-white border-transparent'
-                                      : 'bg-white text-neutral-400 border-gray-200 hover:border-optio-purple'
-                                  }`}>
-                                  {day.label}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </Field>
-                        <Field label="Time">
-                          {pickable.length ? (
-                            <div className="flex items-center gap-1">
-                              <select className={cell} value={d.start_time} aria-label="Start block"
-                                onChange={(e) => {
-                                  const b = pickable.find((x) => hhmm(x.start) === e.target.value)
-                                  if (b) edit(c, { start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
-                                }}>
-                                <option value="" disabled>Start</option>
-                                {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12(b.start)}</option>)}
-                              </select>
-                              <span className="text-neutral-300">–</span>
-                              <select className={cell} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
-                                disabled={!d.start_time}
-                                onChange={(e) => edit(c, { duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
-                                {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
-                                  <option key={end} value={end}>{fmt12(end)}</option>
-                                ))}
-                              </select>
-                            </div>
-                          ) : (
-                            <div className="flex gap-1.5">
-                              <input type="time" className={cell} value={d.start_time}
-                                onChange={(e) => edit(c, { start_time: e.target.value })} />
-                              <input type="number" className={`${cell} w-20`} min={5} step={5} placeholder="min"
-                                aria-label="Duration (minutes)" value={d.duration_minutes}
-                                onChange={(e) => edit(c, { duration_minutes: e.target.value })} />
-                            </div>
-                          )}
-                        </Field>
-                        <Field label="Classroom">
-                          <input className={cell} placeholder="Room" value={d.location}
-                            onChange={(e) => edit(c, { location: e.target.value })} />
-                        </Field>
-                        <Field label="Capacity">
-                          <input type="number" min={1} className={cell} placeholder="Unlimited" value={d.capacity}
-                            aria-label="Capacity" onChange={(e) => edit(c, { capacity: e.target.value })} />
-                        </Field>
-                        <Field label="Tuition">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
-                            <input type="number" min={0} step="0.01" className={`${cell} pl-5`} value={d.tuition}
-                              aria-label="Tuition" onChange={(e) => edit(c, { tuition: e.target.value })} />
-                          </div>
-                        </Field>
-                        <Field label="Supply fee">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
-                            <input type="number" min={0} step="0.01" className={`${cell} pl-5`} value={d.supply_fee}
-                              aria-label="Supply fee" onChange={(e) => edit(c, { supply_fee: e.target.value })} />
-                          </div>
-                        </Field>
-                        <Field label="Ages">
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={0} className={cell} placeholder="Min" value={d.min_age}
-                              aria-label="Minimum age" onChange={(e) => edit(c, { min_age: e.target.value })} />
-                            <span className="text-neutral-300">–</span>
-                            <input type="number" min={0} className={cell} placeholder="Max" value={d.max_age}
-                              aria-label="Maximum age" onChange={(e) => edit(c, { max_age: e.target.value })} />
-                          </div>
-                        </Field>
-                        <Field label="Registration">
-                          <button
-                            type="button" role="switch" aria-checked={isOpen}
-                            aria-label={`Toggle registration for ${c.name}`}
-                            onClick={() => onToggleRegistration(c)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isOpen ? 'bg-green-500' : 'bg-neutral-300'}`}>
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                          </button>
-                          <span className="ml-2 text-xs text-neutral-500 align-middle">{isOpen ? 'Open' : 'Closed'}</span>
-                        </Field>
-                        <Field label="Full-day program">
-                          <label className="inline-flex items-center gap-2 cursor-pointer py-1.5">
-                            <input type="checkbox" checked={d.requires_full_day}
-                              aria-label={`${c.name} requires a full day of classes`}
-                              onChange={(e) => edit(c, { requires_full_day: e.target.checked })}
-                              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                            <span className="text-xs text-neutral-500">Students must fill its meeting days</span>
-                          </label>
-                        </Field>
-                        <Field label="Description" className="col-span-2 md:col-span-4">
-                          <textarea rows={2} className={`${cell} resize-y`} value={d.description}
-                            onChange={(e) => edit(c, { description: e.target.value })} />
-                        </Field>
+                      {/* Registration lives here, above the fields: it saves
+                          the moment you flip it, while everything below is a
+                          draft you Save. Mixing a live switch into the field
+                          grid is how a class gets published by accident. */}
+                      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 mb-4">
+                        <span className="text-sm text-neutral-600">
+                          Registration is <span className={isOpen ? 'font-medium text-green-600' : 'font-medium text-neutral-500'}>{isOpen ? 'open' : 'closed'}</span>
+                          <span className="text-neutral-400"> · saves immediately</span>
+                        </span>
+                        <button
+                          type="button" role="switch" aria-checked={isOpen}
+                          aria-label={`Toggle registration for ${c.name}`}
+                          onClick={() => onToggleRegistration(c)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isOpen ? 'bg-green-500' : 'bg-neutral-300'}`}>
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </button>
                       </div>
+
+                      <ClassFieldsEditor
+                        draft={d}
+                        onChange={(patch) => edit(c, patch)}
+                        staff={staff}
+                        timeBlocks={timeBlocks}
+                        imagePreview={imagePreviews[c.id] ?? c.image_url ?? null}
+                        onImageChange={(file) => pickImage(c, file)}
+                        onImageRemove={() => clearImage(c)}
+                      />
+
                       <div className="flex items-center justify-between mt-3">
                         <div className="flex items-center gap-4">
-                          <button onClick={() => (onRoster ? onRoster(c) : onOpen(c))} className="text-sm text-optio-purple hover:underline">
-                            View roster
+                          {/* One link, not two. "View roster" and "Full editor"
+                              now go to the same place: every field is editable
+                              right here, so the modal is only worth what it
+                              uniquely has — the roster, the waitlist and the
+                              parent preview. "Full editor" also implied this
+                              editor was the partial one, which was the whole
+                              complaint. */}
+                          <button onClick={() => (onRoster ? onRoster(c) : onOpen(c))}
+                            className="text-sm text-optio-purple hover:underline">
+                            Roster &amp; waitlist
                           </button>
                           {onDuplicate && (
                             <button onClick={() => onDuplicate(c)} className="text-sm text-neutral-500 hover:text-optio-purple hover:underline">
                               Duplicate
                             </button>
                           )}
-                          <button onClick={() => onOpen(c)} className="text-sm text-neutral-500 hover:text-optio-purple hover:underline">
-                            Full editor
-                          </button>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {/* Archive is destructive and sat inline with three
+                              navigations. It lives on the far side now, away
+                              from anything you click routinely. */}
                           {c.status === 'archived'
                             ? onRestore && (
                               <button onClick={() => onRestore(c)} className="text-sm font-medium text-optio-purple hover:underline">
@@ -503,12 +335,10 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                               </button>
                             )
                             : onArchive && (
-                              <button onClick={() => onArchive(c)} className="text-sm text-red-500 hover:underline">
-                                Archive class
+                              <button onClick={() => onArchive(c)} className="text-sm text-red-500 hover:underline mr-2">
+                                Archive
                               </button>
                             )}
-                        </div>
-                        <div className="flex items-center gap-3">
                           {dirty && (
                             <button onClick={() => cancel(c.id)} disabled={busy}
                               className="text-sm text-neutral-500 hover:underline disabled:opacity-50">Cancel</button>

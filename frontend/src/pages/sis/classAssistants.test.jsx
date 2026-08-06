@@ -137,3 +137,45 @@ describe('assigning an assistant teacher', () => {
     ))
   })
 })
+
+/**
+ * The fields that used to need the "full editor".
+ *
+ * iCreate, 2026-08-06: "maybe remove the need for the full editor?" The row
+ * editor was missing exactly two things — the image and the materials allowance
+ * — and the allowance was worse than missing: it was already read into the row's
+ * draft and then dropped by the payload builder, so setting it did nothing.
+ */
+describe('the row editor is now the whole editor', () => {
+  it('saves the materials allowance, which the payload used to drop', async () => {
+    await openRow()
+    fireEvent.change(screen.getByLabelText('Materials allowance per student'), { target: { value: '75' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/classes/c1',
+      expect.objectContaining({ supply_budget_per_student: 75 }),
+    ))
+  })
+
+  it('offers the class image without leaving the row', async () => {
+    await openRow()
+    expect(screen.getByLabelText('Class image')).toBeInTheDocument()
+  })
+
+  it('sends you to the modal only for what it uniquely has', async () => {
+    await openRow()
+    expect(screen.getByRole('button', { name: 'Roster & waitlist' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Full editor' })).not.toBeInTheDocument()
+  })
+
+  it('keeps registration out of the draft — it saves on its own', async () => {
+    await openRow()
+    fireEvent.click(screen.getByRole('switch', { name: /Toggle registration/ }))
+    // Straight to the API, with no Save press.
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/classes/c1',
+      expect.objectContaining({ registration_status: 'open' }),
+    ))
+  })
+})
