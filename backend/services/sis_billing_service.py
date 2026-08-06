@@ -1530,6 +1530,11 @@ def outstanding_invoices(org_id: str) -> List[Dict[str, Any]]:
             'amount_due_cents': (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0),
             'days_overdue': _days_overdue(inv, unpaid, today),
             'unpaid_installments': unpaid,
+            # The number is the only identifier a family recognises — it is on
+            # their invoice, their receipt and their portal. Chasing a payment
+            # without it has the office and the parent naming the same invoice
+            # two different ways.
+            'invoice_number': inv.get('invoice_number'),
         })
     out.sort(key=lambda r: (-r['days_overdue'], r.get('due_date') or '9999-12-31'))
     return out

@@ -235,6 +235,10 @@ const BillingPage = () => {
                   <tr className="text-left text-xs uppercase tracking-wide text-neutral-400 border-b border-gray-200">
                     <th className="px-4 py-2">Family</th>
                     <th className="px-4 py-2">Student</th>
+                    {/* The number the family sees on their own invoice and
+                        receipt. Without it, chasing a payment means the office
+                        and the parent naming the same invoice two ways. */}
+                    <th className="px-4 py-2">Invoice</th>
                     <th className="px-4 py-2 text-right">Amount due</th>
                     <th className="px-4 py-2 text-right">Days overdue</th>
                     <th className="px-4 py-2">Due date</th>
@@ -245,6 +249,7 @@ const BillingPage = () => {
                     <tr key={row.invoice_id}>
                       <td className="px-4 py-2 font-medium text-neutral-900">{row.family_name || '—'}</td>
                       <td className="px-4 py-2">{row.student_name || '—'}</td>
+                      <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{row.invoice_number || '—'}</td>
                       <td className="px-4 py-2 text-right font-medium">{money(row.amount_due_cents)}</td>
                       <td className={`px-4 py-2 text-right ${row.days_overdue > 0 ? 'text-red-700 font-medium' : 'text-neutral-500'}`}>
                         {row.days_overdue > 0 ? row.days_overdue : '—'}
