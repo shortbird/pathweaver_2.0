@@ -37,6 +37,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -115,17 +116,67 @@ ANON_READABLE_BY_DESIGN = {
 #       20260803_revoke_data_api_on_bounties_and_attachments.sql.
 
 
+# Transient upstream conditions worth retrying. The management API sits behind
+# Cloudflare, which intermittently answers 502/503/504 (and 520/522/524 on its
+# own account) and 429 under load; run 31114013213 failed the whole job on a
+# single 502 and filed a spurious "could not run" issue. A momentary blip must
+# not do that -- but a *sustained* outage still must exit 2, because a silent
+# skip is exactly how C1/C2 survived. So: bounded retries with backoff, then
+# exit 2. Nothing here ever downgrades an API failure to "clean" (0) or lets it
+# masquerade as an exposure (1).
+_RETRY_STATUS = {429, 500, 502, 503, 504, 520, 522, 524}
+_MAX_ATTEMPTS = 4
+_BACKOFF_BASE = 2  # seconds between attempts: 2, 4, 8 (worst case ~14s per call)
+
+
+def _open(req: urllib.request.Request):
+    """Send one management-API request, retrying transient upstream failures.
+
+    Returns the decoded JSON body. On any failure that survives the retries this
+    exits 2 ("could not run") rather than raising, so an API problem is never
+    misreported as clean (0) or as a data exposure (1) via an uncaught traceback.
+    """
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors='ignore')[:400]
+            if e.code in _RETRY_STATUS and attempt < _MAX_ATTEMPTS:
+                wait = _BACKOFF_BASE ** attempt
+                print(f"::warning::Supabase management API {e.code} "
+                      f"(attempt {attempt}/{_MAX_ATTEMPTS}); retrying in {wait}s",
+                      file=sys.stderr)
+                time.sleep(wait)
+                continue
+            # Deterministic error (auth/client) or retries exhausted: report and stop.
+            print(f"::error::Supabase management API {e.code}: {body}", file=sys.stderr)
+            sys.exit(2)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt < _MAX_ATTEMPTS:
+                wait = _BACKOFF_BASE ** attempt
+                print(f"::warning::Could not reach the Supabase management API ({e}); "
+                      f"attempt {attempt}/{_MAX_ATTEMPTS}, retrying in {wait}s",
+                      file=sys.stderr)
+                time.sleep(wait)
+                continue
+            print(f"::error::Could not reach the Supabase management API: {e}", file=sys.stderr)
+            sys.exit(2)
+        except Exception as e:  # noqa: BLE001 -- e.g. a malformed body; not transient
+            print(f"::error::Unexpected error calling the Supabase management API: {e}",
+                  file=sys.stderr)
+            sys.exit(2)
+
+
 def _get(url: str, token: str):
-    req = urllib.request.Request(url, headers={
+    return _open(urllib.request.Request(url, headers={
         'Authorization': f'Bearer {token}',
         'User-Agent': 'optio-db-exposure-audit/1.0',
-    })
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read().decode())
+    }))
 
 
 def q(ref: str, token: str, sql: str):
-    req = urllib.request.Request(
+    return _open(urllib.request.Request(
         API.format(ref=ref),
         data=json.dumps({'query': sql}).encode(),
         headers={
@@ -136,17 +187,7 @@ def q(ref: str, token: str, sql: str):
             'User-Agent': 'optio-db-exposure-audit/1.0',
         },
         method='POST',
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors='ignore')[:400]
-        print(f"::error::Supabase management API {e.code}: {body}", file=sys.stderr)
-        sys.exit(2)
-    except Exception as e:  # noqa: BLE001
-        print(f"::error::Could not reach the Supabase management API: {e}", file=sys.stderr)
-        sys.exit(2)
+    ))
 
 
 # ── Checks ───────────────────────────────────────────────────────────────────
