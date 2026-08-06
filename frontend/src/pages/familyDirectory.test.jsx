@@ -7,7 +7,11 @@
  * it so that people wanting carpools could see who wanted to carpool."
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+
+// The page carries a BackToSchool link, so it needs a router around it.
+const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -36,8 +40,13 @@ beforeEach(() => {
   optIn = { opted_in: true, default_in: false, carpool_interest: false,
             share_email: true, share_phone: true, share_address: false }
   api.get.mockImplementation((url) => {
-    if (url.includes('/parent/context')) {
-      return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
+    // The directory is a school-wide read: it bootstraps from the membership
+    // context, not the guardian one.
+    if (url.includes('/school/context')) {
+      return Promise.resolve({ data: {
+        orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }],
+        is_guardian: true,
+      } })
     }
     if (url.includes('/directory/opt-in')) return Promise.resolve({ data: optIn })
     if (url.includes('/directory')) return Promise.resolve({ data: { families: FAMILIES } })

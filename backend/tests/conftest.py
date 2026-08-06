@@ -42,6 +42,64 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
+def _no_outbound_email():
+    """The test suite may not send mail or touch the live Brevo account.
+
+    On 2026-08-06 a run of the full backend suite delivered real
+    "Your Optio account now has teacher access" emails to `real@example.com`,
+    the fixture address in test_sis_staff_link. The merge path of
+    link_staff_account calls send_staff_access_added_email, that test never
+    patched it, and a local .env carrying the production BREVO_API_KEY did the
+    rest. Every full-suite run sent another batch.
+
+    Patching the individual call in that one test would fix that one test. This
+    blocks the door instead: `_send_via_brevo` is the single choke point for all
+    transactional mail, and brevo_service is the only other thing that writes to
+    the Brevo account (contact/list sync). A test that reaches either one now
+    FAILS AT TEARDOWN naming the recipient.
+
+    Teardown, not on the spot: send_email wraps everything in `except Exception:
+    return False`, so raising here would be swallowed and the guard would go
+    quiet exactly when it mattered. Recording the attempt and failing afterwards
+    can't be caught by the code under test.
+
+    A test that genuinely means to exercise the wire can mark itself
+    `@pytest.mark.sends_real_email`, but prefer patching the send.
+    """
+    attempted = []
+
+    def _refuse_email(_self, payload):
+        recipients = payload.get('to') or []
+        addresses = [r.get('email') for r in recipients if isinstance(r, dict)]
+        attempted.append(f"{payload.get('subject') or '(no subject)'} -> "
+                         f"{', '.join(a for a in addresses if a) or '(unknown)'}")
+        return False  # the caller's "email failed" path, which is always handled
+
+    try:
+        from services.email_service import EmailService
+    except Exception:  # email service unavailable in a stripped test env
+        yield
+        return
+
+    brevo_stub = Mock()
+    brevo_stub.post.side_effect = lambda *a, **k: attempted.append(f'brevo POST {a[0] if a else ""}')
+    brevo_stub.put.side_effect = lambda *a, **k: attempted.append(f'brevo PUT {a[0] if a else ""}')
+
+    with patch.object(EmailService, '_send_via_brevo', _refuse_email), \
+         patch('services.brevo_service.requests', brevo_stub):
+        yield
+
+    if attempted:
+        pytest.fail(
+            'This test tried to send real email / write to the live Brevo account:\n  '
+            + '\n  '.join(attempted)
+            + '\n\nPatch the send in the test (e.g. patch '
+              '"services.email_service.email_service.send_staff_access_added_email"). '
+              'See the _no_outbound_email fixture.'
+        )
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter_state():
     """Stop rate-limit counters leaking between tests.
 

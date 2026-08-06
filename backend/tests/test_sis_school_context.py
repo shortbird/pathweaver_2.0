@@ -26,7 +26,9 @@ from services import sis_parent_service as parent
 
 def _table_returning(rows):
     table = Mock()
-    for chained in ('select', 'eq', 'in_', 'limit', 'order', 'lt', 'or_'):
+    # `range` is here because the directory read pages through fetch_all_rows();
+    # without it the paged call resolves to a bare Mock instead of these rows.
+    for chained in ('select', 'eq', 'in_', 'limit', 'order', 'lt', 'or_', 'range'):
         getattr(table, chained).return_value = table
     table.execute.return_value = Mock(data=rows)
     return table
