@@ -38,6 +38,14 @@ ADMIN_ROLES = ('org_admin', CAMPUS_COORDINATOR, 'superadmin')
 # The money. Deliberately excludes campus coordinators.
 FINANCE_ROLES = ('org_admin', 'superadmin')
 
+# Who may change somebody else's role. Deliberately excludes campus
+# coordinators, and this is the one tier that is not about the money directly:
+# the whole point of the coordinator role is to withhold finance access, and a
+# coordinator who can grant roles can grant themselves org_admin and take it
+# back. Same membership as FINANCE_ROLES, different reason — kept separate so
+# neither can be widened by accident on the other's behalf.
+ROLE_GRANT_ROLES = ('org_admin', 'superadmin')
+
 
 def is_campus_coordinator(roles) -> bool:
     """True when this set of effective roles is a coordinator and NOT an admin.

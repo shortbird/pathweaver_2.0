@@ -1127,6 +1127,81 @@ def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
             'email_sent': email_sent, 'onboarding_assigned': onboarding_assigned}
 
 
+def set_staff_roles(org_id: str, staff_id: str, roles: Any,
+                    actor_id: Optional[str] = None) -> Dict[str, Any]:
+    """Set which staff roles somebody holds in this org.
+
+    The campus coordinator role shipped on 2026-08-04 with every gate and
+    redaction it needs, and no way to actually give it to anyone — iCreate could
+    read about the role but not put Kate in it. This is that missing half.
+
+    Only the STAFF roles are set here. Any non-staff role the account holds
+    (parent, observer) is preserved untouched, because "make Kate a coordinator"
+    must not stop Kate being a parent in the family portal — the same one
+    person, one login rule that grant_teacher_role follows.
+
+    Two refusals, both about not locking anybody out of their own school:
+      - an org must keep at least one org_admin, so the last one can't be demoted;
+      - you can't take away your own admin role, which is the same mistake with
+        one extra step (and the one an admin makes by tidying up their own row).
+    """
+    if not isinstance(roles, list):
+        return {'error': 'roles must be a list'}
+    wanted = [r for r in STAFF_ORG_ROLES if r in set(roles)]
+    unknown = set(roles) - set(STAFF_ORG_ROLES)
+    if unknown:
+        return {'error': f'Not a staff role: {", ".join(sorted(unknown))}'}
+    if not wanted:
+        return {'error': 'Pick at least one role. To remove somebody from the '
+                         'school, use Remove instead.'}
+
+    admin = _admin()
+    rows = (admin.table('users')
+            .select('id, email, role, org_role, org_roles, organization_id, first_name, last_name, display_name')
+            .eq('id', staff_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Staff member not found'}
+    target = rows[0]
+    current = _user_org_roles(target)
+
+    losing_admin = 'org_admin' in current and 'org_admin' not in wanted
+    if losing_admin:
+        if actor_id and actor_id == staff_id:
+            return {'error': 'You cannot remove your own admin role. Ask another '
+                             'admin to change it for you.'}
+        others = [s for s in list_org_staff(org_id)
+                  if s['id'] != staff_id and 'org_admin' in (s.get('roles') or [])]
+        if not others:
+            return {'error': 'This is the school\'s only admin. Make somebody '
+                             'else an admin first.'}
+
+    # Keep whatever non-staff roles they hold; the staff set is replaced wholesale.
+    kept = [r for r in current if r not in STAFF_ORG_ROLES and r != 'org_managed']
+    merged = list(dict.fromkeys(wanted + kept))
+    # org_role is the single-value legacy column; the highest staff role wins it
+    # (STAFF_ORG_ROLES is ordered most- to least-privileged).
+    primary = wanted[0]
+    admin.table('users').update({
+        'organization_id': org_id, 'role': 'org_managed',
+        'org_role': primary, 'org_roles': merged,
+    }).eq('id', staff_id).execute()
+
+    added = [r for r in wanted if r not in current]
+    if added:
+        try:
+            from services import sis_notifications
+            labels = ', '.join(_STAFF_ROLE_LABEL.get(r, r) for r in added)
+            sis_notifications.notify(
+                staff_id, 'Your access changed',
+                f'You are now: {labels} at {_org_name(org_id)}.',
+                link='/sis', organization_id=org_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'set_staff_roles: notification skipped: {e}')
+
+    return {'staff_id': staff_id, 'roles': wanted, 'all_roles': merged,
+            'name': _full_name(target) or target.get('email')}
+
+
 def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]:
     """Connect a placeholder staff row to the teacher's real email.
 

@@ -5,7 +5,7 @@ import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { RolePill } from '../../components/ui/RolePill'
 import { useAuth } from '../../contexts/AuthContext'
-import { canSeeFinance } from '../../pages/sis/sisRole'
+import { canSeeFinance, canGrantRoles } from '../../pages/sis/sisRole'
 
 /**
  * StaffDetailModal — opens when a Staff card is clicked (same pattern as the
@@ -33,11 +33,52 @@ const Row = ({ label, value }) => (
 
 const actionBtn = 'px-3 py-2 rounded-lg text-sm font-medium transition-colors'
 
-export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal, onRemoved }) {
+/**
+ * The staff roles somebody can hold, most privileged first — the same order and
+ * membership as the backend's sis_service.STAFF_ORG_ROLES.
+ *
+ * The descriptions are here because the difference between an admin and a
+ * campus coordinator is exactly one thing, and a role picker that doesn't say
+ * what that thing is makes the choice a guess.
+ */
+const ASSIGNABLE_ROLES = [
+  { key: 'org_admin', label: 'Admin',
+    hint: 'The whole console, including tuition, invoices, timesheets and payroll.' },
+  { key: 'campus_coordinator', label: 'Campus Coordinator',
+    hint: 'Runs the campus — people, classes, registration, attendance, paperwork. No money: billing, timesheets and pay rates stay hidden.' },
+  { key: 'advisor', label: 'Teacher',
+    hint: 'Their own classes, in the teacher portal.' },
+]
+
+export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal, onRemoved, onRolesChanged }) {
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [resending, setResending] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [roles, setRoles] = useState(staff.roles || [])
+  const [editingRoles, setEditingRoles] = useState(false)
+  const [savingRoles, setSavingRoles] = useState(false)
+
+  const toggleRole = (key) => setRoles((prev) => (
+    prev.includes(key) ? prev.filter((r) => r !== key) : [...prev, key]
+  ))
+
+  const saveRoles = async () => {
+    setSavingRoles(true)
+    try {
+      await api.put(`/api/sis/staff/${staff.id}/roles?organization_id=${orgId}`, { roles })
+      toast.success(`${staff.name}'s role updated`)
+      setEditingRoles(false)
+      onRolesChanged?.()
+    } catch (e) {
+      // The backend refuses the two lockout cases (last admin, your own admin
+      // role) with a sentence that says what to do instead — show it verbatim.
+      toast.error(e?.response?.data?.error || 'Could not change their role')
+      setRoles(staff.roles || [])
+    } finally {
+      setSavingRoles(false)
+    }
+  }
 
   /**
    * Remove this person. Asks the backend first what removal would affect, then
@@ -152,6 +193,53 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
           <Row label="Last active" value={fmtDate(staff.last_active)} />
           {profile && profile.is_active === false && (
             <p className="text-sm font-medium text-red-600">Inactive</p>
+          )}
+          {/* Role. The campus coordinator role has existed since 2026-08-04 with
+              no way to give it to anybody; this is where you do that. */}
+          {canGrantRoles(user) && (
+            <div className="pt-3">
+              {!editingRoles ? (
+                <div className="flex gap-2 text-sm items-center">
+                  <span className="w-32 shrink-0 text-neutral-400">Role</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(staff.roles || []).map((r) => <RolePill key={r} role={r} />)}
+                    <button type="button"
+                      onClick={() => { setRoles(staff.roles || []); setEditingRoles(true) }}
+                      className="text-sm font-medium text-optio-purple hover:underline ml-1">
+                      Change
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+                  <p className="text-sm font-medium text-neutral-800">Role at this school</p>
+                  {ASSIGNABLE_ROLES.map((r) => (
+                    <label key={r.key} className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={roles.includes(r.key)}
+                        onChange={() => toggleRole(r.key)}
+                        className="mt-1 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                      />
+                      <span className="text-sm">
+                        <span className="font-medium text-neutral-800">{r.label}</span>
+                        <span className="block text-xs text-neutral-500">{r.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button type="button" onClick={saveRoles} disabled={savingRoles}
+                      className={`${actionBtn} text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50`}>
+                      {savingRoles ? 'Saving…' : 'Save role'}
+                    </button>
+                    <button type="button" onClick={() => setEditingRoles(false)}
+                      className={`${actionBtn} text-neutral-600 hover:bg-gray-100`}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {staff.bio && <p className="text-sm text-neutral-600 pt-2">{staff.bio}</p>}
           {staff.is_placeholder && (

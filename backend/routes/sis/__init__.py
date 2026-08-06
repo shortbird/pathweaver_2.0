@@ -23,7 +23,7 @@ from services import sis_service
 from services import sis_staff_service
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES, ROLE_GRANT_ROLES
 
 logger = get_logger(__name__)
 
@@ -165,6 +165,26 @@ def grant_staff_role(user_id):
     result = sis_service.grant_teacher_role(org_id, target_id, data, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/staff/<staff_id>/roles', methods=['PUT'])
+@require_role(*ROLE_GRANT_ROLES)
+def set_staff_roles(user_id, staff_id):
+    """Set a staff member's roles (teacher / campus coordinator / admin).
+
+    ROLE_GRANT_ROLES, not ADMIN_ROLES: a campus coordinator must not be able to
+    hand themselves the admin role and with it the finance access the
+    coordinator tier exists to withhold.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    roles = (request.get_json() or {}).get('roles')
+    result = sis_service.set_staff_roles(org_id, staff_id, roles, actor_id=user_id)
+    if result.get('error'):
+        status = 404 if 'not found' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), status
     return jsonify({'success': True, **result})
 
 

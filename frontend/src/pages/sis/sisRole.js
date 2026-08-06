@@ -39,3 +39,12 @@ export const isCampusCoordinator = (user) => {
 
 /** False for a campus coordinator — the money pages and the pay fields. */
 export const canSeeFinance = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
+ * Who may change somebody's role (backend: sis_roles.ROLE_GRANT_ROLES).
+ *
+ * Same membership as canSeeFinance, kept as its own name because it is a
+ * different reason: a coordinator who can grant roles can grant themselves
+ * org_admin, which hands back the finance access the role exists to withhold.
+ */
+export const canGrantRoles = (user) => isSisAdmin(user) && !isCampusCoordinator(user)

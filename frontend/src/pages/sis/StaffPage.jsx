@@ -347,6 +347,7 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
           onLink={() => { setLinking(viewing); setViewing(null) }}
           onViewPortal={() => openPortalPreview(viewing)}
           onRemoved={() => { setViewing(null); load() }}
+          onRolesChanged={() => { setViewing(null); load() }}
         />
       )}
 

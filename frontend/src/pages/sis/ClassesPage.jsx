@@ -148,6 +148,15 @@ const ClassesPage = () => {
     supply_budget_per_student: payload.supply_budget_per_student ?? null,
     min_age: payload.min_age ?? null,
     max_age: payload.max_age ?? null,
+    // Assistants are sent only when the editor that produced this payload
+    // actually edits them. They were omitted entirely until 2026-08-06, so the
+    // picker in the class editor looked like it worked and then dropped the
+    // assistant on save — which is why iCreate reported not being able to find
+    // the feature at all. Spread rather than `?? null`: an editor that doesn't
+    // offer the field must leave a class's assistants alone, not wipe them.
+    ...(payload.assistant_instructor_ids !== undefined
+      ? { assistant_instructor_ids: payload.assistant_instructor_ids } : {}),
+    ...(payload.show_assistants !== undefined ? { show_assistants: payload.show_assistants } : {}),
     ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
     ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
     organization_id: orgId,

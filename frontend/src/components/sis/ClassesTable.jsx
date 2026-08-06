@@ -55,6 +55,8 @@ const toDraft = (c) => {
     name: c.name || '',
     description: c.description || '',
     primary_instructor_id: c.primary_instructor_id || '',
+    assistant_instructor_ids: c.assistant_instructor_ids || [],
+    show_assistants: c.show_assistants !== false,
     location: c.location || '',
     days_of_week: (seed.days_of_week || []).map((code) => ({ mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 }[code])),
     start_time: seed.start_time || '',
@@ -99,6 +101,8 @@ const draftToPayload = (d) => ({
   description: d.description,
   location: d.location.trim() || null,
   primary_instructor_id: d.primary_instructor_id || null,
+  assistant_instructor_ids: (d.assistant_instructor_ids || []).filter(Boolean),
+  show_assistants: !!d.show_assistants,
   days_of_week: d.days_of_week,
   start_time: d.start_time || undefined,
   duration_minutes: numOrUndef(d.duration_minutes),
@@ -320,6 +324,57 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                             getLabel={(s) => s.name}
                             placeholder="Search staff…"
                           />
+                        </Field>
+                        {/* Assistant teachers. The class editor has had this for
+                            a while; the row editor is where the office actually
+                            works, so leaving it out here made the feature
+                            invisible. Same shape as the modal: chips to remove,
+                            a search box to add, and the families-can-see-them
+                            switch only once there is somebody to hide. */}
+                        <Field label="Assistant teacher(s)" className="col-span-2 md:col-span-4">
+                          {d.assistant_instructor_ids.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-1.5">
+                              {d.assistant_instructor_ids.map((id) => {
+                                const s = staff.find((x) => x.id === id)
+                                return (
+                                  <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
+                                    {s?.name || 'Staff member'}
+                                    <button
+                                      type="button"
+                                      aria-label={`Remove ${s?.name || 'assistant'}`}
+                                      onClick={() => edit(c, {
+                                        assistant_instructor_ids: d.assistant_instructor_ids.filter((x) => x !== id),
+                                      })}
+                                      className="hover:text-optio-pink font-bold leading-none"
+                                    >×</button>
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          )}
+                          <SearchSelect
+                            value=""
+                            onChange={(id) => {
+                              if (!id || d.assistant_instructor_ids.includes(id) || id === d.primary_instructor_id) return
+                              edit(c, { assistant_instructor_ids: [...d.assistant_instructor_ids, id] })
+                            }}
+                            options={staff.filter((s) => s.id !== d.primary_instructor_id
+                              && !d.assistant_instructor_ids.includes(s.id))}
+                            getId={(s) => s.id}
+                            getLabel={(s) => s.name}
+                            placeholder="Add an assistant…"
+                          />
+                          {d.assistant_instructor_ids.length > 0 && (
+                            <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={d.show_assistants}
+                                onChange={(e) => edit(c, { show_assistants: e.target.checked })}
+                                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                              />
+                              <span>Show the assistant to families in the class catalog</span>
+                            </label>
+                          )}
                         </Field>
                         <Field label="Days">
                           <div className="inline-flex gap-1">
