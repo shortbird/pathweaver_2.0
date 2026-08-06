@@ -24,6 +24,18 @@ def _admin_client_for_role(role):
     return client
 
 
+@pytest.fixture(autouse=True)
+def _silence_admin_notification():
+    """Submitting a report emails the admin inbox. That is a REAL send: with a
+    BREVO_API_KEY in the environment these tests delivered a live "Complete
+    button froze" report from t@e.com to tanner@optioeducation.com on every run
+    (found 2026-08-06). The repository was mocked, so nothing reached the
+    database and only the mail escaped — which is exactly why it went unnoticed.
+    """
+    with patch('routes.bug_reports._notify_admin_email') as notify:
+        yield notify
+
+
 @pytest.mark.unit
 class TestCreateBugReport:
 

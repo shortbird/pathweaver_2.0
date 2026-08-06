@@ -42,7 +42,14 @@ def _admin_with(responses):
 def _link(responses, email='real@example.com'):
     from services import sis_service
     client, table = _admin_with(responses)
+    # The merge path tells the teacher their login now carries teacher access.
+    # Patched because it is a real send: with a BREVO_API_KEY in the environment
+    # these three tests delivered live mail to real@example.com on every run
+    # (2026-08-06). The conftest guard now catches this class of mistake; this
+    # patch is what makes the tests correct rather than merely blocked.
     with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+         patch('services.email_service.email_service.send_staff_access_added_email',
+               return_value=True), \
          patch('services.class_group_sync_service.sync_class_group') as sync:
         result = sis_service.link_staff_account(ORG, PH_ID, email)
     return result, client, table, sync
