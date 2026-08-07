@@ -24,6 +24,7 @@ Admin (service_role) client — SIS tables are RLS-locked to backend-only;
 authorization is the FINANCE_ROLES gate on the /api/sis/tuition routes.
 """
 
+import uuid
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
@@ -243,6 +244,10 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
         logger.warning(f'tuition preview: CLP record lookup failed for {student_id[:8]}: {e}')
 
     return {
+        # Reserved here so the PDF the approver previews carries the very
+        # invoice number and pay link the family will receive. Nothing is
+        # written until they send; an id they never use costs nothing.
+        'provisional_invoice_id': str(uuid.uuid4()),
         'student': {'id': student_id, 'name': _full_name(u)},
         'household_id': household_id,
         'household_name': household_name,
@@ -265,7 +270,8 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
 def preview_invoice_document(org_id: str, student_id: str,
                              line_items: List[Dict[str, Any]],
                              discount_cents: int = 0,
-                             due_date: Optional[str] = None) -> Dict[str, Any]:
+                             due_date: Optional[str] = None,
+                             invoice_id: Optional[str] = None) -> Dict[str, Any]:
     """The invoice document for a student who has NOT been invoiced yet.
 
     Same shape sis_billing_service.invoice_document() returns for a real
@@ -274,9 +280,11 @@ def preview_invoice_document(org_id: str, student_id: str,
     from the same shape, as the one the family will receive. A preview built any
     other way is a drawing of an invoice rather than the invoice.
 
-    The number and issue date are necessarily absent: they are assigned when the
-    invoice is created, and inventing them here would show the approver a
-    reference the family will never see.
+    `invoice_id` is the id the approver RESERVED when they opened this student
+    (tuition_preview returns one). Both the invoice number and the pay link are
+    derived from the id, so reserving it up front is what lets the preview show
+    the real number and a working pay link instead of blanks — and what makes
+    the preview and the sent PDF the same document rather than two similar ones.
     """
     if not sis_service.student_in_org(student_id, org_id):
         return {'error': 'Student not found'}
@@ -303,8 +311,10 @@ def preview_invoice_document(org_id: str, student_id: str,
 
     return {'document': {
         'organization': billing._org_branding([org_id]).get(org_id) or {},
-        'invoice_number': None,
+        'invoice_number': billing._make_invoice_number(invoice_id) if invoice_id else None,
         'status': 'preview',
+        # Issued when it is sent, so a preview showing today's date would be
+        # wrong for any invoice reviewed today and sent tomorrow.
         'issued_at': None,
         'due_date': due_date,
         'family': {'name': household_name, 'address': address},
@@ -325,7 +335,8 @@ def preview_invoice_document(org_id: str, student_id: str,
 def send_tuition_invoice(org_id: str, student_id: str, actor_id: str,
                          line_items: List[Dict[str, Any]], discount_cents: int = 0,
                          note: Optional[str] = None,
-                         due_date: Optional[str] = None) -> Dict[str, Any]:
+                         due_date: Optional[str] = None,
+                         invoice_id: Optional[str] = None) -> Dict[str, Any]:
     """Create one 'sent' tuition invoice for the student from the approver-verified
     line items and email the family. Returns {invoice, emailed} or {error}."""
     if not sis_service.student_in_org(student_id, org_id):
@@ -334,7 +345,10 @@ def send_tuition_invoice(org_id: str, student_id: str, actor_id: str,
     result = billing.create_tuition_invoice(
         org_id, student_user_id=student_id, household_id=household_id,
         line_items=line_items, discount_cents=discount_cents, note=note,
-        due_date=due_date, status='sent', actor_user_id=actor_id)
+        due_date=due_date, status='sent', actor_user_id=actor_id,
+        # The id the approver reserved at preview, so the invoice they checked
+        # is the invoice that goes out — same number, same pay link.
+        invoice_id=invoice_id)
     if result.get('error'):
         return result
     invoice = result['invoice']

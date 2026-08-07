@@ -76,7 +76,8 @@ def send_tuition_invoice(user_id, student_id):
         return jsonify({'success': False, 'error': 'discount_cents must be a non-negative integer'}), 400
     result = tuition.send_tuition_invoice(
         org_id, student_id, actor_id=user_id, line_items=line_items,
-        discount_cents=discount, note=data.get('note'), due_date=data.get('due_date'))
+        discount_cents=discount, note=data.get('note'), due_date=data.get('due_date'),
+        invoice_id=data.get('invoice_id'))
     if result.get('error'):
         code = 404 if result['error'] == 'Student not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code
@@ -94,10 +95,10 @@ def preview_tuition_invoice(user_id, student_id):
     attachment uses, from the same document shape, so "preview" means the file
     and not an impression of it.
 
-    The honest differences from the sent article: no invoice number, no issue
-    date, and no live pay link, because all three come into being when the
-    invoice does. Better a preview that omits them than one that shows a
-    reference the family will never receive.
+    Pass the `invoice_id` reserved by the preview call and the PDF carries the
+    real invoice number and pay link — the id is what both derive from, so
+    reserving it is what makes this the document rather than a likeness of it.
+    The only remaining difference is the issue date, which is stamped on send.
     """
     org_id, err = _org_or_error(user_id)
     if err:
@@ -110,15 +111,28 @@ def preview_tuition_invoice(user_id, student_id):
     if not isinstance(discount, int) or discount < 0:
         return jsonify({'success': False, 'error': 'discount_cents must be a non-negative integer'}), 400
 
+    invoice_id = data.get('invoice_id')
     result = tuition.preview_invoice_document(
         org_id, student_id, line_items=line_items,
-        discount_cents=discount, due_date=data.get('due_date'))
+        discount_cents=discount, due_date=data.get('due_date'),
+        invoice_id=invoice_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
 
+    # The pay link the family will get. It resolves once the invoice exists —
+    # clicking it from a preview lands on "this invoice isn't payable", which is
+    # the right answer for an invoice nobody has sent yet.
+    pay_link = None
+    if invoice_id:
+        try:
+            from services.sis_pay_links import pay_url
+            pay_link = pay_url(invoice_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'[SIS tuition] preview pay link unavailable: {e}')
+
     from services.sis_invoice_pdf import render_invoice_pdf
     try:
-        pdf = render_invoice_pdf(result['document'], pay_url=None)
+        pdf = render_invoice_pdf(result['document'], pay_url=pay_link)
     except Exception as e:  # noqa: BLE001
         logger.error(f'[SIS tuition] invoice preview render failed: {e}')
         return jsonify({'success': False, 'error': 'Could not render the preview'}), 500

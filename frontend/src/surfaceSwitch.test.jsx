@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, startTransition } from 'react'
 import { MemoryRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { subscribeSurface, switchSurfaceInApp } from './utils/appSurface'
 
@@ -9,6 +9,11 @@ import { subscribeSurface, switchSurfaceInApp } from './utils/appSurface'
 // location update ever commit in separate renders, the foreign tree's catch-all
 // hijacks the navigation and the user lands on "/" instead of the requested
 // path. Mirrors SurfaceRoutes in App.jsx.
+//
+// The router MUST carry the same `future` flags as App.jsx: under
+// v7_startTransition, navigate() is a transition while a bare setState is urgent,
+// so the two commit separately and the bug reappears. This test passed without
+// the flag while the real app was broken — keep them in lockstep.
 
 const Probe = ({ label }) => {
   const loc = useLocation()
@@ -43,8 +48,10 @@ function SurfaceRoutes() {
   const [surface, setSurface] = useState('sis')
   const navigate = useNavigate()
   useEffect(() => subscribeSurface((target, path) => {
-    setSurface(target)
-    navigate(path || '/')
+    startTransition(() => {
+      setSurface(target)
+      navigate(path || '/')
+    })
   }), [navigate])
   return surface === 'sis' ? <SisTree /> : <LearningTree />
 }
@@ -52,7 +59,7 @@ function SurfaceRoutes() {
 describe('surface switch routing', () => {
   it('lands on /dashboard when switching to the learning surface from a SIS subpage', async () => {
     render(
-      <MemoryRouter initialEntries={['/users']}>
+      <MemoryRouter initialEntries={['/users']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <SurfaceRoutes />
       </MemoryRouter>,
     )

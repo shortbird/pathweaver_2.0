@@ -83,6 +83,10 @@ const TuitionApprovalPage = () => {
   // approver checks is built from exactly what sending would submit.
   const payload = () => ({
     organization_id: orgId,
+    // The id reserved when this student was opened. Sent with both the preview
+    // and the send so the PDF checked here is the one the family receives —
+    // same invoice number, same pay link, both derived from this id.
+    invoice_id: preview?.provisional_invoice_id || undefined,
     line_items: lines
       .filter((l) => l.description.trim())
       .map((l) => ({ description: l.description.trim(), amount_cents: toCents(l.amountStr), class_id: l.class_id })),

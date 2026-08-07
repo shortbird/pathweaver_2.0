@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense } from 'react'
+import React, { useEffect, useState, lazy, Suspense, startTransition } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -343,9 +343,17 @@ function AppContent() {
 function SurfaceRoutes({ renderLearning }) {
   const [surface, setSurface] = useState(() => getAppSurface());
   const navigate = useNavigate();
+  // Both updates MUST land in the same render. The Router runs with
+  // v7_startTransition, so navigate() schedules a low-priority transition while a
+  // bare setSurface() is urgent — React would commit the new route tree at the OLD
+  // location, whose `path="*"` catch-all redirects to "/" and eats the pending
+  // navigation (SIS -> "Switch to Learning app" landed on the marketing homepage
+  // instead of /dashboard). Marking both as transitions batches them.
   useEffect(() => subscribeSurface((target, path) => {
-    setSurface(target);
-    navigate(path || '/');
+    startTransition(() => {
+      setSurface(target);
+      navigate(path || '/');
+    });
   }), [navigate]);
   // Public embeddable widgets live in the learning route tree and must render
   // regardless of the sticky SIS/learning surface (a staff member with the SIS

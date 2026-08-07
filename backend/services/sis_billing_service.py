@@ -14,6 +14,7 @@ from app_config import Config
 from database import get_supabase_admin_client
 from services import sis_pricing as pricing
 from utils.db_fetch import fetch_all_rows
+from utils.validation import validate_uuid
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -326,7 +327,8 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
                            discount_cents: int = 0, note: Optional[str] = None,
                            due_date: Optional[str] = None,
                            status: str = 'sent',
-                           actor_user_id: Optional[str] = None) -> Dict[str, Any]:
+                           actor_user_id: Optional[str] = None,
+                           invoice_id: Optional[str] = None) -> Dict[str, Any]:
     """Create a tuition invoice for one student from explicit, approver-verified
     line items (the tuition-approver flow, where the schedule was finalized in a
     CLP meeting rather than through the registration funnel).
@@ -351,8 +353,25 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
     subtotal = sum(li['amount_cents'] for li in clean)
     discount = max(0, min(int(discount_cents or 0), subtotal))
     total = subtotal - discount
+
+    # The approver may have RESERVED an id when previewing, so the PDF they
+    # checked carries the invoice number and pay link the family will actually
+    # get. Both derive from the id, so the id has to exist before the invoice
+    # does. Refuse a reused one rather than colliding with a real invoice.
+    reserved: Dict[str, Any] = {}
+    if invoice_id:
+        ok, _ = validate_uuid(invoice_id)
+        if not ok:
+            return {'error': 'Invalid invoice id'}
+        exists = (_admin().table('sis_invoices').select('id')
+                  .eq('id', invoice_id).limit(1).execute()).data
+        if exists:
+            return {'error': 'That invoice has already been created'}
+        reserved['id'] = invoice_id
+
     invoice = (
         _admin().table('sis_invoices').insert({
+            **reserved,
             'organization_id': org_id,
             'household_id': household_id,
             'student_user_id': student_user_id,

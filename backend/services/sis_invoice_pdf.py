@@ -23,6 +23,77 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# A school logo is a few KB from Supabase storage. The cap and the timeout are
+# there because this runs inside sending an email: a slow or enormous image must
+# degrade to the school's name in text, never hold up the invoice.
+_LOGO_TIMEOUT_SECONDS = 4
+_LOGO_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _fetch_logo(url: Optional[str]) -> Optional[BytesIO]:
+    """The school's logo as an image buffer, or None to fall back to its name.
+
+    Handles both shapes a logo comes in: a hosted URL, and a `data:` URI —
+    iCreate's is stored inline as base64 on the org record, which an
+    http-only fetch silently skipped.
+    """
+    url = str(url or '')
+    if url.startswith('data:'):
+        try:
+            import base64
+            header, _, payload = url.partition(',')
+            if not payload or 'base64' not in header:
+                return None
+            raw = base64.b64decode(payload)
+            if not raw or len(raw) > _LOGO_MAX_BYTES:
+                return None
+            return BytesIO(raw)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'inline invoice logo could not be decoded: {e}')
+            return None
+    if not url.startswith(('http://', 'https://')):
+        return None
+    try:
+        import requests
+        r = requests.get(url, timeout=_LOGO_TIMEOUT_SECONDS, stream=True)
+        r.raise_for_status()
+        content = r.raw.read(_LOGO_MAX_BYTES + 1, decode_content=True)
+        if not content or len(content) > _LOGO_MAX_BYTES:
+            logger.warning(f'invoice logo skipped (empty or over {_LOGO_MAX_BYTES}B): {url}')
+            return None
+        return BytesIO(content)
+    except Exception as e:  # noqa: BLE001 — a missing logo is not a failed invoice
+        logger.warning(f'invoice logo unavailable, using the school name instead: {e}')
+        return None
+
+
+def _logo_flowable(url: Optional[str], max_height: float):
+    """A right-sized Image flowable for the logo, or None.
+
+    Scaled to a fixed height with the aspect ratio preserved and a width ceiling,
+    so a wide banner logo cannot push the invoice metadata off the page.
+    """
+    buf = _fetch_logo(url)
+    if not buf:
+        return None
+    try:
+        from reportlab.lib.utils import ImageReader
+        from reportlab.platypus import Image
+        iw, ih = ImageReader(buf).getSize()
+        if not iw or not ih:
+            return None
+        height = max_height
+        width = iw * (height / ih)
+        max_width = 2.4 * 72  # 2.4in
+        if width > max_width:
+            width = max_width
+            height = ih * (width / iw)
+        buf.seek(0)
+        return Image(buf, width=width, height=height)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'invoice logo could not be drawn, using the school name: {e}')
+        return None
+
 # Optio brand. Kept as literals rather than imported from a theme module because
 # a PDF is not a web page and shouldn't drift with the site's CSS.
 PURPLE = '#6d469b'
@@ -96,8 +167,11 @@ def render_invoice_pdf(document: Dict[str, Any], pay_url: Optional[str] = None) 
         meta.append(f"Issued {issued}")
     if due:
         meta.append(f"Due {due}")
+    # The school's logo is its letterhead; the name in text is what we fall back
+    # to when there is no logo, or fetching it fails.
+    masthead = _logo_flowable(org.get('logo_url'), max_height=0.7 * inch) or Paragraph(org_name, h1)
     story.append(Table(
-        [[Paragraph(org_name, h1), Paragraph('<br/>'.join(meta), right_small)]],
+        [[masthead, Paragraph('<br/>'.join(meta), right_small)]],
         colWidths=[doc.width * 0.6, doc.width * 0.4],
         style=TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
                           ('LEFTPADDING', (0, 0), (-1, -1), 0),

@@ -199,3 +199,59 @@ class TestRecordingAnOnlinePayment:
         the payment to a staff member would put a falsehood in the audit trail."""
         _, recorded = _settle(self.INVOICE, _stripe_session())
         assert recorded['recorded_by'] is None
+
+
+@pytest.mark.unit
+class TestTheSchoolsLetterhead:
+    """iCreate, 2026-08-06: "use the school's logo instead of the text name"."""
+
+    # A 1x1 PNG, as a data: URI — the shape iCreate's logo is actually stored in.
+    PNG = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ'
+           'AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+
+    def test_an_inline_logo_is_drawn(self):
+        """Stored as base64 on the org record, not a hosted URL — an http-only
+        fetch skipped it silently and fell back to the name."""
+        assert pdf._fetch_logo(self.PNG) is not None
+
+    def test_the_logo_reaches_the_page(self):
+        import fitz
+        out = pdf.render_invoice_pdf({**DOC, 'organization': {'name': 'iCreate', 'logo_url': self.PNG}})
+        with fitz.open(stream=out, filetype='pdf') as d:
+            assert len(d[0].get_images()) == 1
+
+    def test_the_name_is_the_fallback_when_there_is_no_logo(self):
+        assert 'iCreate' in _text(pdf.render_invoice_pdf(DOC))
+
+    def test_a_broken_logo_does_not_break_the_invoice(self):
+        """An unreachable or malformed logo must degrade to the name, never take
+        an invoice down — this runs inside sending the email."""
+        for bad in ('data:image/png;base64,!!!not-base64!!!', 'https://nope.invalid/logo.png',
+                    'ftp://x/logo.png', '', None):
+            assert pdf._fetch_logo(bad) is None
+        out = pdf.render_invoice_pdf({**DOC, 'organization': {'name': 'iCreate', 'logo_url': 'ftp://x'}})
+        assert 'iCreate' in _text(out)
+
+    def test_an_oversized_logo_is_refused(self):
+        import base64
+        huge = 'data:image/png;base64,' + base64.b64encode(b'x' * (pdf._LOGO_MAX_BYTES + 10)).decode()
+        assert pdf._fetch_logo(huge) is None
+
+
+@pytest.mark.unit
+class TestTheReservedInvoiceNumber:
+    """The preview showed no invoice number and no pay link, because both derive
+    from an invoice id that did not exist yet. Reserving the id at preview is
+    what makes the previewed PDF the document rather than a likeness of it."""
+
+    def test_the_number_comes_from_the_reserved_id(self):
+        assert billing._make_invoice_number(INVOICE_ID, '2026-08-06') == 'INV-2026-AAAAAA'
+
+    def test_the_same_id_gives_the_same_number_every_time(self):
+        # Otherwise the number on the preview is not the number on the invoice.
+        first = billing._make_invoice_number(INVOICE_ID, '2026-08-06')
+        assert billing._make_invoice_number(INVOICE_ID, '2026-08-06') == first
+
+    def test_the_pay_link_is_derived_from_the_same_id(self):
+        token = sis_pay_links.pay_url(INVOICE_ID).rsplit('/', 1)[1]
+        assert sis_pay_links.invoice_id_from_token(token) == INVOICE_ID
