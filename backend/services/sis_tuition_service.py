@@ -262,6 +262,66 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
     }
 
 
+def preview_invoice_document(org_id: str, student_id: str,
+                             line_items: List[Dict[str, Any]],
+                             discount_cents: int = 0,
+                             due_date: Optional[str] = None) -> Dict[str, Any]:
+    """The invoice document for a student who has NOT been invoiced yet.
+
+    Same shape sis_billing_service.invoice_document() returns for a real
+    invoice, assembled from the approver's edited line items instead of from
+    saved rows — so the PDF the approver previews is rendered by the same code,
+    from the same shape, as the one the family will receive. A preview built any
+    other way is a drawing of an invoice rather than the invoice.
+
+    The number and issue date are necessarily absent: they are assigned when the
+    invoice is created, and inventing them here would show the approver a
+    reference the family will never see.
+    """
+    if not sis_service.student_in_org(student_id, org_id):
+        return {'error': 'Student not found'}
+    urow = (_admin().table('users')
+            .select('id, first_name, last_name, display_name, username, email')
+            .eq('id', student_id).limit(1).execute()).data
+    if not urow:
+        return {'error': 'Student not found'}
+
+    household_id, household_name, funding = _student_household(org_id, student_id)
+    address = None
+    if household_id:
+        rows = (_admin().table('households')
+                .select('name, address_line1, address_line2, city, state, postal_code')
+                .eq('id', household_id).limit(1).execute()).data
+        address = rows[0] if rows else None
+
+    items = [{'description': (li.get('description') or 'Charge'),
+              'amount_cents': int(li.get('amount_cents') or 0)}
+             for li in (line_items or [])]
+    subtotal = sum(li['amount_cents'] for li in items)
+    discount = max(0, min(int(discount_cents or 0), subtotal))
+    total = subtotal - discount
+
+    return {'document': {
+        'organization': billing._org_branding([org_id]).get(org_id) or {},
+        'invoice_number': None,
+        'status': 'preview',
+        'issued_at': None,
+        'due_date': due_date,
+        'family': {'name': household_name, 'address': address},
+        'student_name': _full_name(urow[0]),
+        'funding_source': funding,
+        'funding_label': billing._FUNDING_LABELS.get(funding) if funding else None,
+        'line_items': items,
+        'subtotal_cents': subtotal,
+        'discount_cents': discount,
+        'processing_fee_cents': 0,
+        'total_cents': total,
+        'amount_due_cents': total,
+        'amount_paid_cents': 0,
+        'payments': [],
+    }}
+
+
 def send_tuition_invoice(org_id: str, student_id: str, actor_id: str,
                          line_items: List[Dict[str, Any]], discount_cents: int = 0,
                          note: Optional[str] = None,

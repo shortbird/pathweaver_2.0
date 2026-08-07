@@ -122,3 +122,8 @@ uritemplate==4.2.0
 urllib3==2.7.0
 cachetools==5.5.2
 charset_normalizer==3.4.3
+# Invoice PDFs (backend/services/sis_invoice_pdf.py). Must stay in step with
+# backend/requirements.txt: THIS is the file Render installs (render.yaml
+# rootDir "" + pip install -r requirements.txt), so a backend-only dep is a
+# backend that boots without it.
+reportlab>=4.2,<5

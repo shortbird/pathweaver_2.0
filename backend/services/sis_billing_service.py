@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional
 from app_config import Config
 from database import get_supabase_admin_client
 from services import sis_pricing as pricing
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -406,19 +407,52 @@ def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
     total = inv.get('total_cents') or 0
     number = inv.get('invoice_number') or ''
     link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
+
+    # A one-click pay link, and the invoice itself as a PDF. Before 2026-08-06
+    # this email was a link to a portal the parent had to sign into to see what
+    # they owed — the invoice existed only inside our app, so it could not be
+    # forwarded to whoever actually pays, printed, or filed.
+    #
+    # Both are best-effort: a school with no Stripe key still gets an invoice
+    # (payable at the office), and a PDF that fails to build must not stop the
+    # family being told they have been invoiced.
+    pay_link = None
+    if _org_stripe_secret(org_id) and (inv.get('total_cents') or 0) > (inv.get('amount_paid_cents') or 0):
+        try:
+            from services.sis_pay_links import pay_url
+            pay_link = pay_url(invoice_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'[SIS billing] pay link unavailable for {invoice_id}: {e}')
+
+    attachments = None
+    try:
+        from services.sis_invoice_pdf import render_invoice_pdf, invoice_filename
+        document = (invoice_document(org_id, invoice_id) or {}).get('document')
+        if document:
+            attachments = [{'filename': invoice_filename(document),
+                            'content': render_invoice_pdf(document, pay_url=pay_link)}]
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[SIS billing] invoice PDF failed for {invoice_id}: {e}')
+
     subject = f"{org_name}: tuition invoice for {student_name}"
+    pay_text = (f"Pay by card here: {pay_link}\n\n" if pay_link else '')
+    pay_html = (f'<p><a href="{pay_link}">Pay this invoice by card</a></p>' if pay_link else '')
+    attached = 'The invoice is attached as a PDF.' if attachments else ''
     text = (
         f"Hello,\n\n"
         f"{org_name} has issued a tuition invoice ({number}) for {student_name} "
-        f"totaling {_money(total)}.\n\n"
-        f"View the invoice and pay online — in full or on a payment plan — here: {link}\n\n"
+        f"totaling {_money(total)}. {attached}\n\n"
+        f"{pay_text}"
+        f"You can also see your balance and pay — in full or on a payment plan — here: {link}\n\n"
         f"Thank you,\n{org_name}"
     )
     html = (
         f"<p>Hello,</p>"
         f"<p>{org_name} has issued a tuition invoice (<strong>{number}</strong>) for "
-        f"<strong>{student_name}</strong> totaling <strong>{_money(total)}</strong>.</p>"
-        f"<p><a href=\"{link}\">View the invoice and pay online</a> — in full or on a "
+        f"<strong>{student_name}</strong> totaling <strong>{_money(total)}</strong>."
+        f"{' ' + attached if attached else ''}</p>"
+        f"{pay_html}"
+        f"<p><a href=\"{link}\">See your balance and payment options</a> — pay in full or on a "
         f"payment plan.</p>"
         f"<p>Thank you,<br/>{org_name}</p>"
     )
@@ -428,11 +462,11 @@ def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
     for g in guardians:
         try:
             if svc.send_email(to_email=g['email'], subject=subject,
-                              html_body=html, text_body=text):
+                              html_body=html, text_body=text, attachments=attachments):
                 emailed += 1
         except Exception as e:  # noqa: BLE001 — one bad address must not break the send
             logger.warning(f"[SIS billing] invoice email failed for {g['email']}: {e}")
-    return {'emailed': emailed}
+    return {'emailed': emailed, 'attached_pdf': bool(attachments), 'pay_link': bool(pay_link)}
 
 
 # ── Charges ledger (staff table: who owes / who paid) ────────────────────────
@@ -552,7 +586,7 @@ def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
 
 def record_payment(org_id: str, invoice_id: str, amount_cents: int,
                    method: Optional[str], external_ref: Optional[str],
-                   installment_id: Optional[str], recorded_by: str,
+                   installment_id: Optional[str], recorded_by: Optional[str],
                    note: Optional[str] = None) -> Dict[str, Any]:
     inv = (
         _admin().table('sis_invoices').select('id')
@@ -1037,18 +1071,27 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
     return {'checkout_url': session.url}
 
 
-def confirm_invoice_payment(user_id: str, invoice_id: str) -> Dict[str, Any]:
-    """After the family returns from Stripe, find a PAID session for this invoice
-    and record the payment once (idempotent). Sets the processing fee so the
-    branded receipt reflects it, and generates a receipt."""
-    inv = _guardian_invoice(user_id, invoice_id)
-    if not inv:
-        return {'error': 'Invoice not found'}
-    org_id = inv['organization_id']
+def settle_invoice_from_stripe(invoice: Dict[str, Any],
+                               recorded_by: Optional[str] = None) -> Dict[str, Any]:
+    """Find a PAID Stripe session for this invoice and record it, once.
+
+    The single place an online payment becomes a payment record, reached from
+    all three directions a card payment can arrive from:
+      - a guardian returning to the family portal (confirm_invoice_payment),
+      - somebody returning from the emailed pay link (routes/sis/pay.py),
+      - the nightly sweep, for the parent who paid and closed the tab
+        (sweep_online_payments) — without which that payment is invisible to
+        the school until somebody reconciles Stripe by hand.
+
+    Idempotent on the payment intent, because all three of those can fire for
+    the same payment and a family charged once must be recorded once.
+    """
+    invoice_id = invoice['id']
+    org_id = invoice['organization_id']
     secret = _org_stripe_secret(org_id)
     if not secret:
         return {'error': 'Online card payment is not set up for this school'}
-    session_ids = list(inv.get('stripe_session_ids') or [])
+    session_ids = list(invoice.get('stripe_session_ids') or [])
     if not session_ids:
         return {'paid': False}
     try:
@@ -1076,11 +1119,131 @@ def confirm_invoice_payment(user_id: str, invoice_id: str) -> Dict[str, Any]:
                 {'processing_fee_cents': fee, 'updated_at': _now()}).eq('id', invoice_id).execute()
         result = record_payment(
             org_id, invoice_id, amount_cents=amount_total, method='card',
-            external_ref=pi or sid, installment_id=None, recorded_by=user_id,
+            external_ref=pi or sid, installment_id=None,
+            # No signed-in actor on the emailed-link and sweep paths. The payer
+            # is the family; attributing it to a staff member would be a lie in
+            # the audit trail.
+            recorded_by=recorded_by,
             note='Online card payment (Stripe)')
-        _audit(org_id, invoice_id, user_id, 'online_payment', {'session_id': sid, 'amount_cents': amount_total})
+        _audit(org_id, invoice_id, recorded_by, 'online_payment',
+               {'session_id': sid, 'amount_cents': amount_total})
         return {'paid': True, 'payment': result.get('payment'), 'invoice': result.get('invoice')}
     return {'paid': False}
+
+
+def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
+    """Start a Checkout for the emailed pay link — no signed-in guardian.
+
+    Same money as create_invoice_checkout (remaining balance + the school's
+    processing fee, on the school's own Stripe account); what differs is only
+    that authorization came from the signed token rather than from a session,
+    so there is no guardian to prefill the email from.
+
+    Returns {'error', 'reason'} rather than raising: the caller is a redirect
+    route facing a parent, and a stack trace is not an answer to "why can't I
+    pay my bill".
+    """
+    rows = (_admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()).data
+    if not rows:
+        return {'error': 'Invoice not found', 'reason': 'missing'}
+    inv = rows[0]
+    if inv.get('status') in ('paid', 'void', 'draft'):
+        return {'error': 'This invoice is not payable', 'reason': 'settled'}
+    balance = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+    if balance <= 0:
+        return {'error': 'This invoice has no balance due', 'reason': 'settled'}
+    org_id = inv['organization_id']
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school',
+                'reason': 'not_configured'}
+
+    fee = compute_processing_fee(org_id, balance)
+    org = _org_branding([org_id]).get(org_id) or {}
+    org_name = org.get('name') or 'School'
+    try:
+        import stripe
+        line_items = [{
+            'price_data': {'currency': 'usd',
+                           'product_data': {'name': f"{org_name} tuition · {inv.get('invoice_number') or ''}".strip()},
+                           'unit_amount': balance},
+            'quantity': 1,
+        }]
+        if fee > 0:
+            line_items.append({
+                'price_data': {'currency': 'usd',
+                               'product_data': {'name': 'Card processing fee'},
+                               'unit_amount': fee},
+                'quantity': 1,
+            })
+        session = stripe.checkout.Session.create(
+            api_key=secret, mode='payment', line_items=line_items,
+            metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee,
+                      'source': 'pay_link'},
+            success_url=f'{return_url}?payment=return',
+            cancel_url=f'{return_url}?payment=canceled',
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS billing] pay-link checkout failed for {invoice_id}: {e}')
+        return {'error': 'Could not start the payment', 'reason': 'stripe_error'}
+
+    history = list(inv.get('stripe_session_ids') or [])
+    history.append(session.id)
+    _admin().table('sis_invoices').update(
+        {'stripe_session_ids': history[-10:], 'updated_at': _now()}).eq('id', invoice_id).execute()
+    return {'checkout_url': session.url}
+
+
+def confirm_invoice_payment(user_id: str, invoice_id: str) -> Dict[str, Any]:
+    """A guardian returning from Stripe in the family portal."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    return settle_invoice_from_stripe(inv, recorded_by=user_id)
+
+
+def settle_invoice_by_id(invoice_id: str) -> Dict[str, Any]:
+    """Settle by invoice id alone — for the emailed pay link, where the token is
+    the authorization and there is no signed-in user to scope the read by."""
+    rows = (_admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()).data
+    if not rows:
+        return {'error': 'Invoice not found'}
+    return settle_invoice_from_stripe(rows[0])
+
+
+def sweep_online_payments(org_id: Optional[str] = None) -> Dict[str, Any]:
+    """Record card payments whose payer never came back to the return URL.
+
+    Everything else about SIS billing is poll-verified with no webhook
+    infrastructure, which is fine while the parent lands back on our page. They
+    often don't: they pay on a phone, see Stripe's receipt, and close the tab.
+    Without this the money is in the school's Stripe account and shows as unpaid
+    in the console, which is the worst way to be wrong about a bill.
+
+    Only looks at invoices that have a Stripe session and still owe something.
+    """
+    q = (_admin().table('sis_invoices')
+         .select('id, organization_id, stripe_session_ids, total_cents, amount_paid_cents, status')
+         .in_('status', list(OPEN_INVOICE_STATUSES)))
+    if org_id:
+        q = q.eq('organization_id', org_id)
+    candidates = [
+        i for i in (fetch_all_rows(lambda: q) or [])
+        if (i.get('stripe_session_ids') or [])
+        and (i.get('total_cents') or 0) > (i.get('amount_paid_cents') or 0)
+    ]
+    recorded, errors = 0, 0
+    for inv in candidates:
+        try:
+            result = settle_invoice_from_stripe(inv)
+            # already_recorded means another path got there first — not news.
+            if result.get('paid') and not result.get('already_recorded'):
+                recorded += 1
+                logger.info(f"[SIS billing] swept an unreturned card payment for {inv['id']}")
+        except Exception as e:  # noqa: BLE001 — one bad invoice must not stop the sweep
+            errors += 1
+            logger.warning(f"[SIS billing] payment sweep failed for {inv['id']}: {e}")
+    return {'checked': len(candidates), 'recorded': recorded, 'errors': errors}
 
 
 # ── Pay the whole family at once (one Checkout across a household's invoices) ──

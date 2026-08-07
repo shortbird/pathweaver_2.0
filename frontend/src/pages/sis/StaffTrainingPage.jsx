@@ -224,9 +224,7 @@ const StaffTrainingPage = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">
-          {admin ? 'Quests' : 'Training'}
-        </h1>
+        <h1 className="text-2xl font-bold text-neutral-900">Training</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">

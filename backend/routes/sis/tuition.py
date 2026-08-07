@@ -7,7 +7,7 @@ an invoice, previews one student's tuition for verification, and sends one invoi
 per student to the family.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
@@ -81,3 +81,49 @@ def send_tuition_invoice(user_id, student_id):
         code = 404 if result['error'] == 'Student not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/tuition/students/<student_id>/invoice-preview.pdf', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def preview_tuition_invoice(user_id, student_id):
+    """The exact PDF the family will receive, built from what the approver is
+    looking at right now.
+
+    A POST because the line items being previewed are unsaved edits — there is
+    no invoice to GET yet. It renders through the same renderer the email
+    attachment uses, from the same document shape, so "preview" means the file
+    and not an impression of it.
+
+    The honest differences from the sent article: no invoice number, no issue
+    date, and no live pay link, because all three come into being when the
+    invoice does. Better a preview that omits them than one that shows a
+    reference the family will never receive.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    line_items = data.get('line_items')
+    if not isinstance(line_items, list) or not line_items:
+        return jsonify({'success': False, 'error': 'line_items must be a non-empty list'}), 400
+    discount = data.get('discount_cents', 0)
+    if not isinstance(discount, int) or discount < 0:
+        return jsonify({'success': False, 'error': 'discount_cents must be a non-negative integer'}), 400
+
+    result = tuition.preview_invoice_document(
+        org_id, student_id, line_items=line_items,
+        discount_cents=discount, due_date=data.get('due_date'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+
+    from services.sis_invoice_pdf import render_invoice_pdf
+    try:
+        pdf = render_invoice_pdf(result['document'], pay_url=None)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS tuition] invoice preview render failed: {e}')
+        return jsonify({'success': False, 'error': 'Could not render the preview'}), 500
+    return Response(pdf, mimetype='application/pdf', headers={
+        # inline: the approver is checking it, not filing it.
+        'Content-Disposition': 'inline; filename="invoice-preview.pdf"',
+        'Cache-Control': 'no-store',
+    })

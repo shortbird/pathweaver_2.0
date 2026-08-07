@@ -78,10 +78,7 @@ const NAV_SECTIONS = [
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
-      // One page, two readings: a teacher has only their own training, while an
-      // admin sets quests for teachers AND families there (2026-08-06). Naming
-      // it "Training" for an admin hid where family quests live.
-      { name: 'Training', adminName: 'Quests', path: '/training', d: ICONS.check },
+      { name: 'Training', path: '/training', d: ICONS.check },
       { name: 'Forms', path: '/forms', d: ICONS.clipboard },
       { name: 'Onboarding', path: '/onboarding', d: ICONS.check },
       { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, d: ICONS.doc },
@@ -177,7 +174,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
                 <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}
                   onClick={onNavigate}>
                   <span className="text-neutral-500">{icon(item.d)}</span>
-                  {(isAdmin && item.adminName) || item.name}
+                  {item.name}
                 </NavLink>
               ))}
             </React.Fragment>

@@ -28,7 +28,6 @@ const FamilyDirectoryPage = () => {
   const [carpool, setCarpool] = useState(false)
   const [carpoolOnly, setCarpoolOnly] = useState(false)
   const [shares, setShares] = useState({ share_email: true, share_phone: true, share_address: false })
-  const [savingOptIn, setSavingOptIn] = useState(false)
 
   useEffect(() => {
     if (orgs?.length && !orgId) setOrgId(orgs[0].organization_id)
@@ -53,21 +52,37 @@ const FamilyDirectoryPage = () => {
       .catch(() => setOptedIn(false))
   }, [orgId])
 
+  /**
+   * Save a directory preference optimistically.
+   *
+   * The switch used to wait on a PUT and then a full re-fetch of every family
+   * before moving, while disabling the other switches and dimming itself — so
+   * one click looked like the page reloading. A preference toggle should move
+   * when you press it.
+   *
+   * The list still refreshes, because opting in or out changes who is in it —
+   * but in the background, without blocking or clearing anything. If the save
+   * fails, the switch goes back to where it was and says why.
+   */
   const saveOptIn = async (nextOptedIn, nextShares, nextCarpool = carpool) => {
-    setSavingOptIn(true)
+    const prev = { optedIn, shares, carpool }
+    setOptedIn(nextOptedIn)
+    setShares(nextShares)
+    setCarpool(nextCarpool)
     try {
       await api.put(`/api/sis/parent/directory/opt-in?organization_id=${orgId}`,
         { opted_in: nextOptedIn, carpool_interest: nextCarpool, ...nextShares })
-      setOptedIn(nextOptedIn)
-      setShares(nextShares)
-      setCarpool(nextCarpool)
-      const r = await api.get(`/api/sis/parent/directory?organization_id=${orgId}`)
-      setFamilies(r.data?.families || [])
+      api.get(`/api/sis/parent/directory?organization_id=${orgId}`)
+        .then((r) => setFamilies(r.data?.families || []))
+        .catch(() => { /* the list is stale, not wrong — leave what's on screen */ })
       return true
     } catch (e) {
+      setOptedIn(prev.optedIn)
+      setShares(prev.shares)
+      setCarpool(prev.carpool)
       toast.error(e?.response?.data?.error || 'Could not update your directory setting')
       return false
-    } finally { setSavingOptIn(false) }
+    }
   }
 
   const toggleOptIn = async () => {
@@ -134,8 +149,8 @@ const FamilyDirectoryPage = () => {
             </div>
             <button
               type="button" role="switch" aria-checked={optedIn} aria-label="Include our family in the directory"
-              onClick={toggleOptIn} disabled={savingOptIn}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${optedIn ? 'bg-optio-purple' : 'bg-neutral-300'} ${savingOptIn ? 'opacity-50' : ''}`}
+              onClick={toggleOptIn}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${optedIn ? 'bg-optio-purple' : 'bg-neutral-300'}`}
             >
               <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${optedIn ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
@@ -146,7 +161,7 @@ const FamilyDirectoryPage = () => {
                 {[['share_email', 'Parent emails'], ['share_phone', 'Family phone'], ['share_address', 'Street address']].map(([key, label]) => (
                   <label key={key} className="inline-flex items-center gap-1.5 text-sm text-neutral-700 cursor-pointer">
                     <input
-                      type="checkbox" checked={!!shares[key]} disabled={savingOptIn}
+                      type="checkbox" checked={!!shares[key]}
                       onChange={() => toggleShare(key)}
                       className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
                     />
@@ -157,7 +172,7 @@ const FamilyDirectoryPage = () => {
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <label className="inline-flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
                   <input
-                    type="checkbox" checked={carpool} disabled={savingOptIn}
+                    type="checkbox" checked={carpool}
                     onChange={toggleCarpool}
                     className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
                   />

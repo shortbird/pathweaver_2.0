@@ -41,6 +41,7 @@ const TuitionApprovalPage = () => {
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [sending, setSending] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
 
   const loadQueue = useCallback(() => {
     if (!orgId) { setQueue([]); return }
@@ -78,21 +79,55 @@ const TuitionApprovalPage = () => {
   const removeLine = (i) => setLines((ls) => ls.filter((_, idx) => idx !== i))
   const addLine = () => setLines((ls) => [...ls, { description: '', amountStr: '0.00', class_id: null }])
 
-  const send = async () => {
-    const lineItems = lines
+  // The lines as the API wants them — shared by Preview and Send so the file the
+  // approver checks is built from exactly what sending would submit.
+  const payload = () => ({
+    organization_id: orgId,
+    line_items: lines
       .filter((l) => l.description.trim())
-      .map((l) => ({ description: l.description.trim(), amount_cents: toCents(l.amountStr), class_id: l.class_id }))
-    if (!lineItems.length) { toast.error('Add at least one line item'); return }
-    if (lineItems.some((l) => l.amount_cents < 0)) { toast.error('Amounts must be zero or more'); return }
+      .map((l) => ({ description: l.description.trim(), amount_cents: toCents(l.amountStr), class_id: l.class_id })),
+    discount_cents: discountCents,
+    note: note.trim() || null,
+    due_date: dueDate || null,
+  })
+
+  /**
+   * Open the PDF the family will receive.
+   *
+   * Rendered server-side by the same renderer that produces the email
+   * attachment, so this is the artifact and not a mock-up of it. Opened as a
+   * blob in a new tab: the response is a POST (the line items are unsaved, so
+   * there is nothing to GET yet), which a plain link cannot do.
+   */
+  const previewInvoice = async () => {
+    const body = payload()
+    if (!body.line_items.length) { toast.error('Add at least one line item'); return }
+    setPreviewing(true)
+    let url
+    try {
+      const r = await api.post(
+        `/api/sis/tuition/students/${selectedId}/invoice-preview.pdf`, body,
+        { responseType: 'blob' })
+      url = URL.createObjectURL(new Blob([r.data], { type: 'application/pdf' }))
+      if (!window.open(url, '_blank', 'noopener')) {
+        toast.error('Allow pop-ups to see the preview')
+      }
+    } catch (e) {
+      toast.error('Could not build the preview')
+    } finally {
+      setPreviewing(false)
+      // Give the new tab a moment to take the blob before releasing it.
+      if (url) setTimeout(() => URL.revokeObjectURL(url), 60000)
+    }
+  }
+
+  const send = async () => {
+    const body = payload()
+    if (!body.line_items.length) { toast.error('Add at least one line item'); return }
+    if (body.line_items.some((l) => l.amount_cents < 0)) { toast.error('Amounts must be zero or more'); return }
     setSending(true)
     try {
-      const r = await api.post(`/api/sis/tuition/students/${selectedId}/invoice`, {
-        organization_id: orgId,
-        line_items: lineItems,
-        discount_cents: discountCents,
-        note: note.trim() || null,
-        due_date: dueDate || null,
-      })
+      const r = await api.post(`/api/sis/tuition/students/${selectedId}/invoice`, body)
       const emailed = r.data?.emailed ?? 0
       toast.success(`Invoice sent${emailed ? ` · emailed ${emailed} guardian${emailed > 1 ? 's' : ''}` : ''}`)
       setSelectedId(null); setPreview(null); loadQueue()
@@ -264,6 +299,9 @@ const TuitionApprovalPage = () => {
               <div className="mt-6 flex items-center justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={() => { setSelectedId(null); setPreview(null) }}>
                   Cancel
+                </Button>
+                <Button size="sm" variant="secondary" onClick={previewInvoice} disabled={previewing}>
+                  {previewing ? 'Building…' : 'Preview invoice'}
                 </Button>
                 <Button size="sm" onClick={send} disabled={sending || total < 0}>
                   {sending ? 'Sending…' : `Send invoice · ${money(total)}`}

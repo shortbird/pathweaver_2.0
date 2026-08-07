@@ -25,7 +25,12 @@ PyMuPDF>=1.23.0
 pdfplumber>=0.10.0
 pdfminer.six>=20221105
 python-docx>=1.0.0
-weasyprint>=60.0
+# Invoice PDFs (services/sis_invoice_pdf.py). reportlab and not weasyprint,
+# which was declared here for two years, imported by nothing, and cannot import
+# at all without Pango/cairo system libraries that neither this machine nor the
+# Render image has. reportlab is pure Python: no system deps, and a much smaller
+# memory footprint on a backend with an OOM history.
+reportlab>=4.2,<5
 psutil>=5.9.0
 pywebpush>=2.0.0
 py-vapid>=1.9.0

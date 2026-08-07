@@ -322,7 +322,14 @@ def billing_reminders_cron():
             is_super = bool(row and row[0].get('role') == 'superadmin')
         if not is_super:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    return jsonify({'success': True, **billing.run_payment_reminders()})
+    # The online-payment sweep rides on this daily run rather than getting a
+    # cron entry of its own: a new schedule means new Render config, and a
+    # half-applied cron change already took every job down for two days
+    # (CRON_SECRET, July 2026). It runs first so a payment made yesterday is
+    # recorded before we consider nagging that family about it.
+    swept = billing.sweep_online_payments()
+    return jsonify({'success': True, 'payment_sweep': swept,
+                    **billing.run_payment_reminders()})
 
 
 @bp.route('/internal/tuition-autopay', methods=['POST'])

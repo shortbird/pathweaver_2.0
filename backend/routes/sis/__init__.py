@@ -938,6 +938,10 @@ def register_sis_routes(app):
     app.register_blueprint(billing_bp)
     from routes.sis.tuition import bp as tuition_bp
     app.register_blueprint(tuition_bp)
+    # The pay link from an emailed invoice. Unauthenticated by design — the
+    # signed token is the authorization (see services/sis_pay_links.py).
+    from routes.sis.pay import bp as pay_bp
+    app.register_blueprint(pay_bp)
     from routes.sis.attendance import bp as attendance_bp
     app.register_blueprint(attendance_bp)
     from routes.sis.reports import bp as reports_bp
