@@ -117,3 +117,49 @@ class TestAssignableRolesMatchTheEnum:
         """Same for PUT /api/sis/staff/<id>/roles."""
         from services.sis_service import STAFF_ORG_ROLES
         assert set(STAFF_ORG_ROLES) <= {r.value for r in OrgRole}
+
+
+@pytest.mark.unit
+class TestIsOrgAdminIsDerivedNotWritten:
+    """users.is_org_admin grants org admin access on its own in four gates
+    (require_school_admin, require_org_admin, require_advisor, PrivateRoute.jsx)
+    while ~15 code paths write the role columns and only 4 write the flag. A
+    trigger derives it now, so those paths cannot leave it behind. Demotion was
+    the dangerous direction: an org_admin made a campus coordinator kept the
+    admin access — finance included — that the coordinator role exists to
+    withhold.
+    """
+
+    TRIGGER = r"CREATE\s+TRIGGER\s+sync_is_org_admin_trigger(.*?);"
+    FUNCTION = r"CREATE\s+OR\s+REPLACE\s+FUNCTION\s+sync_is_org_admin\(\)(.*?)\$func\$\s+LANGUAGE"
+
+    def test_a_trigger_keeps_the_flag_in_step(self):
+        source, body = _last_match(self.TRIGGER)
+        assert 'BEFORE INSERT OR UPDATE ON users' in ' '.join(body.split()), source
+        assert 'sync_is_org_admin()' in body
+
+    def test_it_derives_from_all_three_role_columns(self):
+        """Leaving `role` out would clear the flag for a platform-level org
+        admin, who holds org_admin in users.role and nothing in org_role."""
+        _, body = _last_match(self.FUNCTION)
+        for column in ('NEW.role', 'NEW.org_role', 'NEW.org_roles'):
+            assert column in body, f'{column} missing from the derivation'
+
+    def test_existing_drifted_rows_are_backfilled(self):
+        """The trigger only fixes rows on their next write. Everyone who is
+        already carrying a wrong flag has to be corrected once, explicitly."""
+        source, _ = _last_match(r"(UPDATE\s+users\s+SET\s+is_org_admin.*?);")
+        assert source.endswith('.sql')
+
+    def test_set_staff_roles_does_not_write_the_flag(self):
+        """The one path iCreate uses to demote an admin. It must write the role
+        columns and let the trigger derive — a hand-written flag here is how the
+        two got out of step in the first place."""
+        from tests.test_sis_staff_roles import _person, _run
+        _, updates = _run({**_person(), 'org_roles': ['org_admin']}, ['campus_coordinator'],
+                          actor_id='someone-else',
+                          staff_list=[{'id': 'other', 'roles': ['org_admin']}])
+        assert updates, 'expected the demotion to write'
+        for payload in updates:
+            assert 'is_org_admin' not in payload
+        assert updates[0]['org_roles'] == ['campus_coordinator']

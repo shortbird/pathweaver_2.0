@@ -1181,6 +1181,10 @@ def set_staff_roles(org_id: str, staff_id: str, roles: Any,
     # org_role is the single-value legacy column; the highest staff role wins it
     # (STAFF_ORG_ROLES is ordered most- to least-privileged).
     primary = wanted[0]
+    # users.is_org_admin is deliberately absent: a trigger derives it from these
+    # role columns (20260807_campus_coordinator_org_role_constraints.sql). Before
+    # that trigger, demoting an admin here left the flag TRUE and four auth gates
+    # kept letting them in as an admin. Write the roles; read the flag back.
     admin.table('users').update({
         'organization_id': org_id, 'role': 'org_managed',
         'org_role': primary, 'org_roles': merged,

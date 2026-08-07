@@ -42,6 +42,21 @@ Users fall into two categories:
 
 **Use `get_effective_role(user)` to get the actual role** - this handles org_managed users automatically.
 
+**Never write `users.is_org_admin`.** It is derived from `role`/`org_role`/`org_roles`
+by the `sync_is_org_admin` trigger
+([20260807](supabase/migrations/20260807_campus_coordinator_org_role_constraints.sql)).
+Write the role columns and read the flag back. It matters because the flag alone
+grants org admin access in `require_school_admin`, `require_org_admin`,
+`require_advisor` and `PrivateRoute.jsx` — before the trigger, the ~11 paths that
+set roles without it left demoted admins holding admin access.
+
+**Adding a role to `OrgRole` needs a migration.** Two CHECK constraints on `users`
+(`valid_org_role`, `valid_org_roles`) list the valid values, and nothing in the app
+notices when they disagree — the role validates all the way down and dies at the
+write as an unreadable 500. This is how `campus_coordinator` shipped assignable
+everywhere except the database. `backend/tests/test_org_role_constraints.py` now
+fails CI on that gap.
+
 ### Valid Roles (7 total)
 | Role | Access Level |
 |------|-------------|
