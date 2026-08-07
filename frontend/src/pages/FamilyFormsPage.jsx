@@ -84,7 +84,7 @@ const FamilyFormsPage = () => {
         body: form.body.trim(),
         student_user_id: studentId || undefined,
       })
-      toast.success('Submitted — the school has been notified')
+      toast.success(`Submitted — ${org?.organization_name || 'the office'} has been notified`)
       setForm({ form_type: Object.keys(formTypes)[0] || '', title: '', body: '' })
       setStudentId('')
       load()
@@ -166,7 +166,7 @@ const FamilyFormsPage = () => {
         <label className="text-sm block">
           <span className="block text-neutral-500 mb-1">Details</span>
           <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })}
-            rows={4} placeholder="Tell the school what you need."
+            rows={4} placeholder={`Tell ${org?.organization_name || 'us'} what you need.`}
             className={`${inputClass} resize-none`} />
         </label>
         <div className="flex justify-end">

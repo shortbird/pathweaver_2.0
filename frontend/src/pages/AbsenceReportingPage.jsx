@@ -76,7 +76,7 @@ const AbsenceReportingPage = () => {
         class_id: form.class_id || null,
         reason: form.reason || null,
       })
-      toast.success('Absence reported — the school has been notified')
+      toast.success(`Absence reported — ${org?.organization_name || 'the office'} has been notified`)
       setForm({ absence_date: today(), class_id: '', reason: '' })
       loadAbsences()
     } catch (e) {

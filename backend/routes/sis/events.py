@@ -257,19 +257,30 @@ def calendar_ics(org_id):
     so access is the per-org token alone. Optional ?category= narrows the feed."""
     import secrets as _secrets
     token = (request.args.get('token') or '').strip()
-    from utils.org_secrets import get_org_secret, CALENDAR_FEED_TOKEN
+    from utils.org_secrets import (get_org_secret, CALENDAR_FEED_TOKEN,
+                                   CALENDAR_FEED_TOKEN_FAMILY)
     org = (get_supabase_admin_client().table('organizations')
            .select('name, feature_flags').eq('id', org_id).single().execute()).data
     if not org:
         return 'Not found', 404
-    expected = get_org_secret(org_id, CALENDAR_FEED_TOKEN)
-    if not expected or not token or not _secrets.compare_digest(str(expected), token):
+
+    def _match(name):
+        expected = get_org_secret(org_id, name)
+        return bool(expected and token and _secrets.compare_digest(str(expected), token))
+
+    # Two tokens open this feed: the staff one (school + teacher events) and the
+    # family one (school events only — the same rule the in-app calendar
+    # enforces). Which token arrived decides how much the feed shows.
+    is_staff_token = _match(CALENDAR_FEED_TOKEN)
+    if not is_staff_token and not _match(CALENDAR_FEED_TOKEN_FAMILY):
         return 'Not authorized', 403
     q = (get_supabase_admin_client().table('sis_events').select('*')
          .eq('organization_id', org_id)
-         # The token can be shared with families, so never leak admin-only events
-         # through the subscribable feed (school + teacher events only).
+         # The token can be shared, so never leak admin-only events through the
+         # subscribable feed.
          .neq('audience', 'admins'))
+    if not is_staff_token:
+        q = q.eq('audience', 'school')
     events = (q.order('start_at').execute()).data or []
     # A per-category feed keeps every event that CARRIES that category, not only
     # the ones where it happens to be primary.

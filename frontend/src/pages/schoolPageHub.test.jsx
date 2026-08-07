@@ -80,7 +80,7 @@ describe('what a guardian gets', () => {
 
   it('offers every school surface as a card', async () => {
     expect(await cardNames()).toEqual(expect.arrayContaining([
-      'Schedule Builder', 'Billing', 'Absences', 'School Calendar',
+      'Schedule Builder', 'Billing', 'Absences', 'Calendar',
       'Resources', 'Directory', 'Portal', 'Requests',
     ]))
   })
@@ -91,7 +91,7 @@ describe('what a guardian gets', () => {
       within(grid).getByRole('heading', { name }).closest('a').getAttribute('href')
     expect(href('Billing')).toBe('/family/billing')
     expect(href('Absences')).toBe('/absences')
-    expect(href('School Calendar')).toBe('/school-calendar')
+    expect(href('Calendar')).toBe('/school-calendar')
     expect(href('Resources')).toBe('/resources')
     expect(href('Directory')).toBe('/family-directory')
     expect(href('Portal')).toBe('/family/portal')
@@ -117,7 +117,7 @@ describe('what a student or teacher gets', () => {
 
   it('offers the school-wide surfaces', async () => {
     expect(await cardNames()).toEqual(expect.arrayContaining([
-      'School Calendar', 'Resources', 'Directory',
+      'Calendar', 'Resources', 'Directory',
     ]))
   })
 
@@ -148,6 +148,25 @@ describe('a school that is not on the SIS', () => {
     })
     renderPage()
     expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+  })
+})
+
+describe('the school logo', () => {
+  it('crowns the page when the school has one', async () => {
+    schoolContext = {
+      success: true, is_guardian: true,
+      orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo' }],
+    }
+    const { container } = renderPage()
+    await screen.findByText('Picture day is Thursday')
+    expect(container.querySelector('img[src="data:image/png;base64,logo"]')).toBeTruthy()
+  })
+
+  it('falls back to a neutral tile, never a broken image, without one', async () => {
+    schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
+    const { container } = renderPage()
+    await screen.findByText('Picture day is Thursday')
+    expect(container.querySelector('header img')).toBeNull()
   })
 })
 

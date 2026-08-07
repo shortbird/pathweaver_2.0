@@ -120,7 +120,7 @@ const FamilyDirectoryPage = () => {
         Connect with other {org?.organization_name || 'school'} families.{' '}
         {defaultIn
           ? 'Every family is listed unless they ask to be left out, and you choose what of yours is shown.'
-          : 'Only families who opt in appear here — the school can always reach everyone either way.'}
+          : `Only families who opt in appear here — ${org?.organization_name || 'staff'} can always reach everyone either way.`}
       </p>
 
       {orgs && orgs.length > 1 && (

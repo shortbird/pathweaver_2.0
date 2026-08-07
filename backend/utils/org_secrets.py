@@ -39,8 +39,13 @@ TABLE = 'organization_secrets'
 # and disabling card payment for a whole school.
 STRIPE_SECRET_KEY = 'stripe_secret_key'
 CALENDAR_FEED_TOKEN = 'calendar_feed_token'
+# The family variant of the calendar feed token: same public .ics endpoint, but
+# it only ever serves school-audience events (staff tokens also see teacher
+# ones). Handed out to any member of the school via /api/sis/parent/events/feed.
+CALENDAR_FEED_TOKEN_FAMILY = 'calendar_feed_token_family'
 
-KNOWN_SECRETS = frozenset({STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN})
+KNOWN_SECRETS = frozenset({STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN,
+                           CALENDAR_FEED_TOKEN_FAMILY})
 
 
 def _admin():
@@ -153,9 +158,11 @@ def strip_secrets_from_feature_flags(feature_flags: Optional[dict]) -> dict:
         cleaned['icreate_registration'] = icreate
 
     sis = cleaned.get('sis_settings')
-    if isinstance(sis, dict) and CALENDAR_FEED_TOKEN in sis:
+    if isinstance(sis, dict) and (CALENDAR_FEED_TOKEN in sis
+                                  or CALENDAR_FEED_TOKEN_FAMILY in sis):
         sis = dict(sis)
         sis.pop(CALENDAR_FEED_TOKEN, None)
+        sis.pop(CALENDAR_FEED_TOKEN_FAMILY, None)
         cleaned['sis_settings'] = sis
 
     return cleaned

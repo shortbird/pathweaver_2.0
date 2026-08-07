@@ -22,6 +22,7 @@ function effectiveRole(user) {
  * - org_admin -> their organization console (or partner-simplified dashboard)
  * - advisor (teacher) in a SIS org -> the SIS console (via /sis-launch)
  * - advisor (teacher) otherwise -> the advisor dashboard
+ * - parent / student in a school that opted in -> the school's page (/school)
  * - parent / superadmin -> parent dashboard
  * - observer -> feed (or welcome on first visit)
  * - student and everything else -> student dashboard
@@ -40,6 +41,14 @@ export function getPostLoginPath(user) {
       return '/sis-launch'
     }
     return '/advisor/dashboard'
+  }
+  // Schools that opted in (feature_flags.sis_settings.school_homepage — iCreate,
+  // 2026-08-06) front-door their families through the school's own page. Only
+  // families: staff run the school from the SIS console, and an observer's
+  // whole account is about one student, not one school. `school` rides on the
+  // login payload and on /me (routes/auth/login/core.py).
+  if ((role === 'parent' || role === 'student') && user.school?.homepage) {
+    return '/school'
   }
   if (role === 'superadmin' || role === 'parent') {
     return '/parent/dashboard'

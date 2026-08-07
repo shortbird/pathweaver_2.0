@@ -48,13 +48,23 @@ EVENT = {
 }
 
 
+CARPOOL_POST = {
+    'id': 'c1', 'organization_id': 'org-1', 'created_by': 'parent-1',
+    'author_name': 'Dana C.', 'type': 'offer',
+    'message': 'Two seats from Lehi, Tue & Thu mornings.',
+    'area': 'Lehi', 'days': 'Tue & Thu', 'contact': 'text me: 555-0100',
+    'status': 'active', 'created_at': '2026-08-05T10:00:00',
+}
+
+
 def _feed(announcements=(ANNOUNCEMENT,), lost=(LOST_ITEM,), recognition=(SHOUT_OUT,),
-          events=(EVENT,)):
+          events=(EVENT,), carpool=(CARPOOL_POST,), viewer_id=None):
     with patch.object(community, 'list_announcements', return_value=list(announcements)) as la, \
          patch.object(community, 'list_lost_found', return_value=list(lost)) as lf, \
          patch.object(community, 'list_recognition', return_value=list(recognition)), \
-         patch.object(community, 'upcoming_events', return_value=list(events)):
-        out = community.family_feed('org-1')
+         patch.object(community, 'upcoming_events', return_value=list(events)), \
+         patch.object(community, 'list_carpool', return_value=list(carpool)):
+        out = community.family_feed('org-1', viewer_id=viewer_id)
     return out, la, lf
 
 
@@ -125,8 +135,9 @@ class TestWhatStaysInTheOffice:
 @pytest.mark.unit
 class TestEmptyBoard:
     def test_a_school_with_nothing_posted_returns_empty_lists(self):
-        feed, _, _ = _feed(announcements=(), lost=(), recognition=(), events=())
-        assert feed == {'announcements': [], 'lost_found': [], 'recognition': [], 'events': []}
+        feed, _, _ = _feed(announcements=(), lost=(), recognition=(), events=(), carpool=())
+        assert feed == {'announcements': [], 'lost_found': [], 'recognition': [],
+                        'events': [], 'carpool': []}
 
 
 @pytest.mark.unit
@@ -208,8 +219,9 @@ class TestTheSchoolOnTheProfile:
             return _member_school(client, 'user-1')
 
     def test_a_member_gets_their_school_by_name(self):
+        # `homepage` rides along for the post-login landing (school-homepage opt-in).
         assert self._school('org-1', {'id': 'org-1', 'name': 'iCreate'}) == {
-            'id': 'org-1', 'name': 'iCreate'}
+            'id': 'org-1', 'name': 'iCreate', 'homepage': False}
 
     def test_no_school_means_no_school_page(self):
         assert self._school(None, None) is None
@@ -221,3 +233,70 @@ class TestTheSchoolOnTheProfile:
         client.table.side_effect = RuntimeError('db down')
         with patch('services.sis_service.member_org_id', return_value='org-1'):
             assert _member_school(client, 'user-1') is None
+
+
+@pytest.mark.unit
+class TestCarpoolBoard:
+    """The first family-AUTHORED module: posts carry an author display name and
+    a computed `mine`, never an account id or a phone number — contact happens
+    through in-app messaging, addressed by post id."""
+
+    def test_posts_reach_the_family_feed(self):
+        feed, _, _ = _feed()
+        post = feed['carpool'][0]
+        assert post['message'] == 'Two seats from Lehi, Tue & Thu mornings.'
+        assert post['author_name'] == 'Dana C.'
+
+    def test_the_author_account_id_and_contact_stay_internal(self):
+        feed, _, _ = _feed()
+        assert 'created_by' not in feed['carpool'][0]
+        assert 'contact' not in feed['carpool'][0]
+
+    def test_the_viewer_sees_which_posts_are_theirs(self):
+        feed, _, _ = _feed(viewer_id='parent-1')
+        assert feed['carpool'][0]['mine'] is True
+        feed, _, _ = _feed(viewer_id='parent-2')
+        assert feed['carpool'][0]['mine'] is False
+
+    def test_a_post_needs_a_message(self):
+        assert community.create_carpool_post('org-1', 'u1', {})['error']
+        assert community.create_carpool_post(
+            'org-1', 'u1', {'message': 'x' * 501})['error']
+
+
+@pytest.mark.unit
+class TestCarpoolMessagingRule:
+    """An active carpool post connects two adults of the same school for as
+    long as it is up — the DM-permission clause behind "Message this person"."""
+
+    def _connected(self, posts, org_a='org-1', org_b='org-1',
+                   sender_role='parent', target_role='parent'):
+        from unittest.mock import Mock, patch as _patch
+        from services.direct_message_service import DirectMessageService
+        svc = DirectMessageService.__new__(DirectMessageService)
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'in_', 'eq', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=list(posts))
+        svc._get_client = lambda: client
+        with _patch('services.sis_service.member_org_id',
+                    side_effect=lambda uid: org_a if uid == 'a' else org_b):
+            return svc._carpool_connection('a', 'b', sender_role=sender_role,
+                                           target_role=target_role)
+
+    def test_an_active_post_in_the_shared_school_connects_them(self):
+        assert self._connected([{'organization_id': 'org-1'}]) is True
+
+    def test_no_post_no_connection(self):
+        assert self._connected([]) is False
+
+    def test_different_schools_never_connect(self):
+        assert self._connected([{'organization_id': 'org-1'}], org_b='org-2') is False
+
+    def test_students_never_qualify_in_either_direction(self):
+        assert self._connected([{'organization_id': 'org-1'}],
+                               sender_role='student') is False
+        assert self._connected([{'organization_id': 'org-1'}],
+                               target_role='student') is False

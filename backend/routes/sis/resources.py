@@ -16,6 +16,7 @@ from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.storage_url import fix_storage_url
 
 logger = get_logger(__name__)
 
@@ -123,6 +124,8 @@ def list_resources(user_id):
         mine = acks.get(r['id'])
         current = bool(mine) and ((r.get('version_date') or '') <= (mine.get('version_date') or ''))
         r['my_ack'] = {'acknowledged_at': mine.get('acknowledged_at'), 'current': current} if mine else None
+        # Documents open on the branded domain, never the raw supabase.co host.
+        r['url'] = fix_storage_url(r.get('url'))
     payload = {'success': True, 'resources': rows}
     if is_admin:
         payload['paperwork'] = _org_paperwork(supabase, org_id)
@@ -223,7 +226,8 @@ def create_resource(user_id):
         return err
     data = request.json or {}
     title = (data.get('title') or '').strip()
-    url = (data.get('url') or '').strip()
+    # Store the branded domain, not the raw supabase.co host the uploader returns.
+    url = fix_storage_url((data.get('url') or '').strip())
     if not title:
         return jsonify({'success': False, 'error': 'Title is required'}), 400
     if not url:
@@ -282,6 +286,8 @@ def update_resource(user_id, resource_id):
     for k in ('title', 'description', 'url', 'category'):
         if k in data:
             fields[k] = (data.get(k) or '').strip() or None
+    if fields.get('url'):
+        fields['url'] = fix_storage_url(fields['url'])
     if 'sort_order' in data:
         fields['sort_order'] = int(data.get('sort_order') or 0)
     if 'audience' in data:

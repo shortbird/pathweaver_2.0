@@ -3,12 +3,13 @@ import { Navigate, Link } from 'react-router-dom'
 import {
   BuildingLibraryIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
   BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
-  DocumentTextIcon, CheckCircleIcon, CalendarIcon, TableCellsIcon,
+  DocumentTextIcon, CheckCircleIcon, CalendarIcon, TableCellsIcon, EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
-import SchoolCommunity, { hasCommunityContent } from '../components/announcements/SchoolCommunity'
+import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
+import CarpoolBoard from '../components/announcements/CarpoolBoard'
 import { htmlToText } from '../utils/richText'
 
 const PAGE_SIZE = 20
@@ -24,13 +25,15 @@ const PAGE_SIZE = 20
  *   a parent at a SIS school saw fourteen nav items, eight of them the same
  *   school. The cards link to the same routes, which did not move, so every
  *   emailed link and bookmark still works.
- * - Announcements — the searchable archive of what the school has sent
- *   (GET /api/announcements/archive), newest first, with a "Load more" pager.
- *   Deliberately still ON the page rather than behind a card: it is the
- *   most-read thing here and putting it a click away would be a downgrade.
- * - Community — the school's board: noticeboard posts, what's on, lost & found,
- *   shout-outs (GET /api/sis/community/feed). iCreate, 2026-08-01: "I can't see
- *   the shoutouts or lost and found or other things from the non-admin side."
+ * - One feed (2026-08-06, tabs removed): the community sections — noticeboard,
+ *   what's on, lost & found, shout-outs (GET /api/sis/community/feed; iCreate,
+ *   2026-08-01: "I can't see the shoutouts or lost and found or other things
+ *   from the non-admin side.") — followed by the searchable archive of what the
+ *   school has sent (GET /api/announcements/archive), newest first with a
+ *   "Load more" pager. The archive closes the feed because it paginates:
+ *   anywhere higher and twenty cards bury every section below it. Deliberately
+ *   ON the page rather than behind a card: it is the most-read thing here and
+ *   putting it a click away would be a downgrade.
  *
  * Only for people who are in a school. Someone with no school has nothing this
  * page could show, so they are sent home rather than shown an empty shell — and
@@ -48,9 +51,12 @@ const PAGE_SIZE = 20
  * (sis_parent_service authorizes those by family relationship); this list only
  * decides what to offer.
  */
+// Copy note (iCreate, 2026-08-06): the word "school" is unwelcome here — "iCreate
+// is an education center". Card copy stays neutral ("Calendar", "Let us know…");
+// where a sentence needs a subject the page uses the org's own name instead.
 const SCHOOL_CARDS = [
   {
-    name: 'School Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
+    name: 'Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
     description: 'Field trips, showcases and closures.',
   },
   {
@@ -67,11 +73,11 @@ const SCHOOL_CARDS = [
   },
   {
     name: 'Absences', path: '/absences', Icon: CalendarIcon,
-    description: 'Tell the school a child will be out.', guardianOnly: true,
+    description: 'Let us know when your child will be out.', guardianOnly: true,
   },
   {
     name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
-    description: 'Checklists the school has assigned to you.', guardianOnly: true,
+    description: 'Checklists assigned to your family.', guardianOnly: true,
   },
   {
     name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
@@ -112,7 +118,7 @@ export default function SchoolPage() {
   const [expanded, setExpanded] = useState(() => new Set())
   const { school, loading: orgLoading } = useOrganization()
   const [feed, setFeed] = useState(null)
-  const [tab, setTab] = useState('sent')
+  const [carpoolPerms, setCarpoolPerms] = useState({ canPost: false, canModerate: false })
   const [schoolOrg, setSchoolOrg] = useState(null)
   const debounceRef = useRef(null)
 
@@ -160,18 +166,25 @@ export default function SchoolPage() {
   }, [])
 
   // The community board, loaded once. A failure here is silent: the archive is
-  // the page, the board is the extra.
+  // the page, the board is the extra. Re-fetched after a carpool post/removal
+  // (refreshFeed) so the board reflects the change without a reload.
+  const [feedNonce, setFeedNonce] = useState(0)
+  const refreshFeed = useCallback(() => setFeedNonce((n) => n + 1), [])
   useEffect(() => {
     let active = true
     api.get('/api/sis/community/feed')
       .then(({ data }) => {
         if (!active || !data?.success) return
         setFeed(data.feed)
+        setCarpoolPerms({
+          canPost: Boolean(data.can_post_carpool),
+          canModerate: Boolean(data.can_moderate),
+        })
         if (data.organization_name) setOrgName(data.organization_name)
       })
       .catch(() => { /* no board for this user */ })
     return () => { active = false }
-  }, [])
+  }, [feedNonce])
 
   const onSearchChange = (value) => {
     setSearch(value)
@@ -210,24 +223,39 @@ export default function SchoolPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header — the school's own page, so it opens with the school, not with
-          any one tab. The monogram stands in for a crest; the subtitle is
-          static (it used to flip with the active tab, two viewports away from
-          the tabs themselves). */}
-      <div className="flex items-center gap-3.5">
-        <div
-          aria-hidden="true"
-          className="w-12 h-12 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0"
-        >
-          {schoolName
-            ? <span className="text-xl font-bold text-white">{schoolName.trim().charAt(0).toUpperCase()}</span>
-            : <BuildingLibraryIcon className="w-6 h-6 text-white" />}
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 truncate">{schoolName || 'My school'}</h1>
-          <p className="text-sm text-gray-500">Everything from your school, in one place.</p>
-        </div>
-      </div>
+      {/* Header — the school's own page opens with the school's own mark,
+          centered like a letterhead. The logo comes from the org's branding
+          (branding_config.logo_url via /api/sis/school/context); a school
+          without one gets a neutral tile, never a broken image. The subtitle
+          is static (it used to flip with the active tab, two viewports away
+          from the tabs themselves). */}
+      <header className="flex flex-col items-center text-center">
+        {schoolOrg?.logo_url ? (
+          <>
+            {/* The logo IS the title here — the name rides along for screen
+                readers and the page's accessible heading, not on screen. */}
+            <img
+              src={schoolOrg.logo_url}
+              alt={schoolName || 'School logo'}
+              className="h-[120px] max-w-full object-contain"
+            />
+            <h1 className="sr-only">{schoolName || 'My school'}</h1>
+          </>
+        ) : (
+          <>
+            <div
+              aria-hidden="true"
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center"
+            >
+              <BuildingLibraryIcon className="w-7 h-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mt-3">{schoolName || 'My school'}</h1>
+          </>
+        )}
+        <p className="text-sm text-gray-500 mt-1">
+          Everything from {schoolName || 'your school'}, in one place.
+        </p>
+      </header>
 
       {/* The school's other surfaces. These are doors, not content — kept to a
           quiet row height so the feed below stays the page. (Bare h2/h3 inherit
@@ -257,42 +285,48 @@ export default function SchoolPage() {
         </nav>
       )}
 
-      {/* The feed. Underline tabs anchor it as its own section; with no
-          community content there is nothing to switch, so a plain heading
-          holds the same place in the layout. */}
-      {hasCommunityContent(feed) ? (
-        <div className="flex gap-6 border-b border-gray-200 mt-8 mb-6">
-          {[['sent', 'Announcements'], ['community', 'Community']].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              aria-pressed={tab === key}
-              className={`pb-2.5 -mb-px border-b-2 text-sm font-semibold transition-colors ${
-                tab === key
-                  ? 'border-optio-purple text-optio-purple'
-                  : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2.5 mt-8 mb-6">
-          Announcements
-        </h2>
-      )}
+      {/* One feed, no tabs (2026-08-06). The community sections lead — they
+          are short and timely — and each renders only when the school has used
+          it. Every section is a block with an icon header, echoing the card
+          grid above (iCreate: "the 8 blocks is easy to see all the things
+          clearly. Could we do that same thing for the community section?"). */}
+      <div className="mt-8">
+        <SchoolCommunity feed={feed} />
+        {/* Carpool renders even when empty (someone has to post first) — but
+            only once the feed has loaded, and never a bare board to students,
+            who cannot post (feed === null means no board for this user). */}
+        {feed !== null && (
+          <CarpoolBoard
+            posts={feed?.carpool || []}
+            canPost={carpoolPerms.canPost}
+            canModerate={carpoolPerms.canModerate}
+            onChanged={refreshFeed}
+          />
+        )}
+      </div>
 
-      {tab === 'community' && <SchoolCommunity feed={feed} orgName={schoolName} />}
-
-      {tab === 'sent' && (<>
+      {/* The archive of SENT messages (email / notification fan-outs) closes
+          the feed — it paginates, so anywhere higher it buries the sections
+          below. Titled "Messages", NOT "Announcements": staff post
+          announcements on the board above, and titling this section that way
+          had a parent reporting the page broken because her two board posts
+          "didn't appear on the announcements tab" (iCreate, 2026-08-06). A
+          school that has never sent one shows nothing here at all — unless the
+          whole feed is empty, in which case the empty state explains itself. */}
+      {(loading || error || announcements.length > 0 || Boolean(query)
+        || !hasCommunityContent(feed)) && (
+      <FeedSection
+        title={schoolName ? `Messages from ${schoolName}` : 'Messages'}
+        Icon={EnvelopeIcon}
+      >
       {/* Search */}
-      <div className="relative mb-6">
+      <div className="relative mb-4">
         <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search announcements…"
-          aria-label="Search announcements"
+          placeholder="Search messages…"
+          aria-label="Search messages"
           className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
         />
       </div>
@@ -307,18 +341,18 @@ export default function SchoolPage() {
           <p className="text-sm text-red-600">{error}</p>
         </div>
       ) : announcements.length === 0 ? (
-        <div className="text-center py-16">
+        <div className="text-center py-12">
           <p className="text-gray-500 font-medium">
-            {query ? 'No announcements match your search.' : 'No announcements yet.'}
+            {query ? 'No messages match your search.' : 'No messages yet.'}
           </p>
           {!query && (
             <p className="text-sm text-gray-400 mt-1">
-              When your school sends an announcement, it will appear here.
+              When {schoolName || 'your school'} sends you a message, it will appear here.
             </p>
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {announcements.map((a) => {
             const isExpanded = expanded.has(a.id)
             const body = a.content || a.message || ''
@@ -326,11 +360,11 @@ export default function SchoolPage() {
             // announcement doesn't collapse itself for two lines of tags.
             const isLong = htmlToText(body).length > 280
             return (
-              <article key={a.id} className="bg-white border border-gray-200 rounded-xl p-5">
+              <article key={a.id} className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">
                 <div className="flex items-start justify-between gap-3">
-                  {/* Explicit size — a bare h2 inherits text-3xl from the base styles. */}
-                  <h2 className="text-base font-semibold text-gray-900">{a.title}</h2>
-                  <time className="text-xs text-gray-400 whitespace-nowrap mt-1">
+                  {/* Explicit size — a bare h3 inherits from the base styles. */}
+                  <h3 className="text-sm font-semibold text-gray-900">{a.title}</h3>
+                  <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">
                     {formatDate(a.created_at)}
                   </time>
                 </div>
@@ -370,7 +404,8 @@ export default function SchoolPage() {
           )}
         </div>
       )}
-      </>)}
+      </FeedSection>
+      )}
     </div>
   )
 }

@@ -53,7 +53,8 @@ def _school_context(user_id, guardian_orgs=(), member_org=None, sis_enabled=True
 
 
 ICREATE = {'organization_id': 'org-1', 'organization_name': 'iCreate', 'students': []}
-ICREATE_ROW = {'id': 'org-1', 'name': 'iCreate'}
+ICREATE_ROW = {'id': 'org-1', 'name': 'iCreate',
+               'branding_config': {'logo_url': 'data:image/png;base64,x'}}
 
 
 @pytest.mark.unit
@@ -64,7 +65,8 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
-                                'post_registration_flow': 'schedule'}]
+                                'post_registration_flow': 'schedule',
+                                'logo_url': 'data:image/png;base64,x'}]
 
     def test_a_student_gets_their_own_school(self):
         """The regression this whole change exists for: a student guards nobody,
@@ -74,7 +76,13 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
-                                'post_registration_flow': 'schedule'}]
+                                'post_registration_flow': 'schedule',
+                                'logo_url': 'data:image/png;base64,x'}]
+
+    def test_a_school_without_a_logo_sends_none_not_a_broken_image(self):
+        ctx = _school_context('student-1', member_org='org-1',
+                              org_rows=[{'id': 'org-1', 'name': 'Hearthwood'}])
+        assert ctx['orgs'][0]['logo_url'] is None
 
     def test_a_teacher_who_guards_nobody_still_gets_their_school(self):
         ctx = _school_context('teacher-1', member_org='org-1', org_rows=[ICREATE_ROW])

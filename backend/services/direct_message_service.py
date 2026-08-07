@@ -147,12 +147,49 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
                 return True
 
+            # Carpool board (iCreate, 2026-08-06): an ACTIVE ride offer/need is an
+            # invitation to be contacted, so it connects two ADULTS of the same
+            # school for as long as it is up. Author deletes the post -> new
+            # messages stop (history stays readable); students never qualify in
+            # either direction.
+            if self._carpool_connection(user_id, target_id,
+                                        sender_role=sender_effective_role,
+                                        target_role=target_effective_role):
+                print(f"[can_message_user] ALLOWED: Active carpool post in shared school", file=sys.stderr, flush=True)
+                return True
+
             print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
             return False
 
         except Exception as e:
             print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
             import traceback
+            return False
+
+    def _carpool_connection(self, user_id: str, target_id: str,
+                            sender_role: str = None, target_role: str = None) -> bool:
+        """True when either party has an ACTIVE carpool post in a school both
+        belong to, and neither is a student. Membership resolves the way the
+        board itself does (sis_service.member_org_id — platform parents belong
+        through their children)."""
+        try:
+            if sender_role == 'student' or target_role == 'student':
+                return False
+            supabase = self._get_client()
+            posts = supabase.table('sis_carpool_posts') \
+                .select('organization_id') \
+                .in_('created_by', [user_id, target_id]) \
+                .eq('status', 'active').limit(20).execute().data or []
+            if not posts:
+                return False
+            post_orgs = {p['organization_id'] for p in posts}
+            from services import sis_service
+            org_a = sis_service.member_org_id(user_id)
+            if not org_a or org_a not in post_orgs:
+                return False
+            return sis_service.member_org_id(target_id) == org_a
+        except Exception as e:
+            print(f"[can_message_user] carpool check failed (denying): {e}", file=sys.stderr, flush=True)
             return False
 
     # ==================== Conversation Management ====================

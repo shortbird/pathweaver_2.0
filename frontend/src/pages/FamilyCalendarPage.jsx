@@ -45,6 +45,7 @@ const FamilyCalendarPage = () => {
   const [orgId, setOrgId] = useState(null)
   const [events, setEvents] = useState(null)
   const [openDay, setOpenDay] = useState(null) // 'YYYY-MM-DD' whose events are shown
+  const [subscribeUrl, setSubscribeUrl] = useState(null) // the .ics feed; null = modal closed
 
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -68,6 +69,31 @@ const FamilyCalendarPage = () => {
   const shift = (delta) => {
     const d = new Date(year, month + delta, 1)
     setYear(d.getFullYear()); setMonth(d.getMonth()); setOpenDay(null)
+  }
+
+  // The subscribe URL is fetched on demand — it lazily mints the org's family
+  // feed token, so there is no reason to do that for people who never ask.
+  const openSubscribe = async () => {
+    try {
+      const { data } = await api.get(`/api/sis/parent/events/feed?organization_id=${orgId}`)
+      if (data?.feed_url) setSubscribeUrl(data.feed_url)
+      else toast.error('Could not get the calendar link')
+    } catch {
+      toast.error('Could not get the calendar link')
+    }
+  }
+
+  // webcal:// is what makes Apple Calendar (and most others) open straight into
+  // "Subscribe" instead of downloading a one-off .ics file.
+  const webcalUrl = subscribeUrl ? subscribeUrl.replace(/^https?:\/\//, 'webcal://') : ''
+
+  const copyFeedUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(subscribeUrl)
+      toast.success('Link copied')
+    } catch {
+      toast.error('Could not copy — long-press the link to copy it')
+    }
   }
 
   // Multi-day events appear on every day they span.
@@ -104,7 +130,7 @@ const FamilyCalendarPage = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">School Calendar</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Calendar</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Events at {org?.organization_name || 'your school'} — field trips, showcases, closures, and more.
       </p>
@@ -132,6 +158,10 @@ const FamilyCalendarPage = () => {
             <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); setOpenDay(null) }}
               className="text-sm text-optio-purple hover:underline">Today</button>
             {events === null && <span className="text-sm text-neutral-400">Loading…</span>}
+            <button onClick={openSubscribe}
+              className="ml-auto px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors">
+              Add to my calendar
+            </button>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -183,6 +213,41 @@ const FamilyCalendarPage = () => {
             <p className="mt-3 text-sm text-neutral-400">No events on the calendar this month.</p>
           )}
         </>
+      )}
+
+      {subscribeUrl && (
+        <ModalOverlay onClose={() => setSubscribeUrl(null)} className="items-end sm:items-center">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 pt-4">
+              <h2 className="text-base font-semibold text-neutral-900">Add to my calendar</h2>
+              <button onClick={() => setSubscribeUrl(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="text-sm text-neutral-500 mb-3">
+                Subscribe once and new school events show up in your own calendar automatically.
+              </p>
+              <a
+                href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+              >
+                Google Calendar
+              </a>
+              <a
+                href={webcalUrl}
+                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+              >
+                Apple Calendar (iPhone, iPad, Mac)
+              </a>
+              <button
+                onClick={copyFeedUrl}
+                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+              >
+                Copy link for another calendar app
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
 
       {openDay && (

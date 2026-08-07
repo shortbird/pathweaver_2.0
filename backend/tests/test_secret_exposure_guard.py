@@ -31,6 +31,7 @@ import pytest
 
 from utils.org_secrets import (
     CALENDAR_FEED_TOKEN,
+    CALENDAR_FEED_TOKEN_FAMILY,
     KNOWN_SECRETS,
     STRIPE_SECRET_KEY,
     secret_shaped_keys,
@@ -95,13 +96,14 @@ class TestStripSecretsFromFeatureFlags:
         would leave the new credential sitting in the client-visible blob."""
         blob = {
             'icreate_registration': {STRIPE_SECRET_KEY: 'v'},
-            'sis_settings': {CALENDAR_FEED_TOKEN: 'v'},
+            'sis_settings': {CALENDAR_FEED_TOKEN: 'v', CALENDAR_FEED_TOKEN_FAMILY: 'v'},
         }
         cleaned = strip_secrets_from_feature_flags(blob)
         remaining = secret_shaped_keys(cleaned)
         assert remaining == [], f"known secrets left in the blob: {remaining}"
         # If this fails, a name was added to KNOWN_SECRETS but not to the stripper.
-        assert KNOWN_SECRETS == {STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN}, (
+        assert KNOWN_SECRETS == {STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN,
+                                 CALENDAR_FEED_TOKEN_FAMILY}, (
             "KNOWN_SECRETS changed -- add the new name to "
             "strip_secrets_from_feature_flags() and to this test's blob above."
         )

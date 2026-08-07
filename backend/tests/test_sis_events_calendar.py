@@ -117,3 +117,37 @@ class TestMultipleCategories:
     def test_the_list_is_capped(self):
         fields = _clean({'categories': [f'C{i}' for i in range(20)]})
         assert len(fields['categories']) == 8
+
+
+@pytest.mark.unit
+class TestFamilyFeedUrl:
+    """The family subscribe URL (/api/sis/parent/events/feed): membership-gated,
+    one lazily-minted token per org, never the staff token."""
+
+    def _url(self, member=True, existing_token='tok123'):
+        from unittest.mock import patch
+        from services import sis_parent_service as parent
+        minted = {}
+
+        def fake_set(org_id, name, value, updated_by=None):
+            minted['name'] = name
+            minted['value'] = value
+
+        with patch.object(parent, '_is_org_member', return_value=member), \
+             patch('utils.org_secrets.get_org_secret', return_value=existing_token), \
+             patch('utils.org_secrets.set_org_secret', side_effect=fake_set):
+            return parent.calendar_feed_url('u1', 'org-1', 'https://api.example.com'), minted
+
+    def test_a_member_gets_the_tokened_ics_url(self):
+        url, minted = self._url()
+        assert url == 'https://api.example.com/api/sis/calendar/org-1.ics?token=tok123'
+        assert minted == {}  # existing token reused, nothing minted
+
+    def test_a_non_member_gets_nothing(self):
+        url, _ = self._url(member=False)
+        assert url is None
+
+    def test_the_family_token_is_minted_lazily_and_is_the_family_one(self):
+        url, minted = self._url(existing_token=None)
+        assert minted['name'] == 'calendar_feed_token_family'
+        assert minted['value'] and f"token={minted['value']}" in url

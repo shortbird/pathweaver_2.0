@@ -180,7 +180,7 @@ def school_context(user_id: str) -> Dict[str, Any]:
 
     rows_by_id: Dict[str, Dict[str, Any]] = {}
     try:
-        rows = (_admin().table('organizations').select('id, name, feature_flags')
+        rows = (_admin().table('organizations').select('id, name, feature_flags, branding_config')
                 .in_('id', org_ids).execute()).data or []
         rows_by_id = {r['id']: r for r in rows}
     except Exception as e:  # noqa: BLE001
@@ -195,6 +195,10 @@ def school_context(user_id: str) -> Dict[str, Any]:
             'organization_name': row.get('name'),
             'is_guardian': oid in guardian_org_ids,
             'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
+            # The school's own mark, for the hub's header. Often a data: URI
+            # (that's how SisOrgSettings stores uploads), so it can be large —
+            # this endpoint is one page's one call.
+            'logo_url': (row.get('branding_config') or {}).get('logo_url'),
         })
     return {'orgs': orgs, 'is_guardian': any(o['is_guardian'] for o in orgs)}
 
@@ -989,13 +993,18 @@ def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     Staff-only knowledge-base entries (audience='staff') never reach families."""
     if not _is_org_member(user_id, org_id):
         return None
-    return (
+    from utils.storage_url import fix_storage_url
+    rows = (
         _admin().table('org_resources')
         .select('id, title, description, url, category, sort_order')
         .eq('organization_id', org_id)
         .in_('audience', ['families', 'all'])
         .order('sort_order').order('title').execute()
     ).data or []
+    for r in rows:
+        # Documents open on the branded domain, never the raw supabase.co host.
+        r['url'] = fix_storage_url(r.get('url'))
+    return rows
 
 
 def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
@@ -1015,6 +1024,27 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
     if to_iso:
         q = q.lt('start_at', to_iso)
     return q.order('start_at').execute().data or []
+
+
+def calendar_feed_url(user_id: str, org_id: str, base_url: str) -> Optional[str]:
+    """The family subscribe URL for the school calendar, or None if this user
+    is not a member of the school.
+
+    Calendar apps poll the .ics endpoint without cookies, so the URL carries the
+    org's FAMILY feed token (minted lazily; school-audience events only — see
+    routes/sis/events.py calendar_ics). One token per org, shared by its
+    families: revocable in one place, and no per-user URL to leak.
+    """
+    if not _is_org_member(user_id, org_id):
+        return None
+    import secrets
+    from utils.org_secrets import (get_org_secret, set_org_secret,
+                                   CALENDAR_FEED_TOKEN_FAMILY)
+    token = get_org_secret(org_id, CALENDAR_FEED_TOKEN_FAMILY)
+    if not token:
+        token = secrets.token_urlsafe(24)
+        set_org_secret(org_id, CALENDAR_FEED_TOKEN_FAMILY, token, updated_by=user_id)
+    return f'{base_url}/api/sis/calendar/{org_id}.ics?token={token}'
 
 
 # ── Family directory (opt-in) ─────────────────────────────────────────────────

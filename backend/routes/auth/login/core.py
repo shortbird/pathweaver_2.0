@@ -31,8 +31,20 @@ from .security import (
 logger = get_logger(__name__)
 
 
+def _school_payload(org_row):
+    """The `school` dict the frontend routes on: {'id', 'name', 'homepage'}.
+
+    `homepage` is the per-org opt-in (feature_flags.sis_settings.school_homepage)
+    that makes /school the front door for the school's families — iCreate,
+    2026-08-06. Reads one boolean; never emits the feature_flags blob.
+    """
+    settings = ((org_row.get('feature_flags') or {}).get('sis_settings') or {})
+    return {'id': org_row['id'], 'name': org_row.get('name'),
+            'homepage': bool(settings.get('school_homepage'))}
+
+
 def _member_school(admin_client, user_id):
-    """{'id', 'name'} of the school this user belongs to, or None.
+    """The school payload for this user's school, or None.
 
     Only reached for users with no organization_id of their own — in practice
     parents, who are members through their children. Best-effort: a failure here
@@ -43,12 +55,34 @@ def _member_school(admin_client, user_id):
         org_id = sis_service.member_org_id(user_id)
         if not org_id:
             return None
-        row = (admin_client.table('organizations').select('id, name')
+        row = (admin_client.table('organizations').select('id, name, feature_flags')
                .eq('id', org_id).maybe_single().execute()).data
-        return {'id': org_id, 'name': (row or {}).get('name')} if row else None
+        return _school_payload(row) if row else None
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not resolve school for {mask_user_id(user_id)}: {e}")
         return None
+
+
+def _attach_school(admin_client, user_row):
+    """Set user_row['school'] the same way /me does, on a login response.
+
+    The post-login landing (getPostLoginPath) runs on the LOGIN payload, before
+    /me has ever been called — without this, a school could never be anyone's
+    homepage on the session's very first navigation. Best-effort, like
+    _member_school: no login ever fails over a landing hint.
+    """
+    if not user_row:
+        return
+    try:
+        if user_row.get('organization_id'):
+            org = (admin_client.table('organizations').select('id, name, feature_flags')
+                   .eq('id', user_row['organization_id']).maybe_single().execute()).data
+            user_row['school'] = _school_payload(org) if org else None
+        else:
+            user_row['school'] = _member_school(admin_client, user_row['id'])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not attach school at login for {mask_user_id(user_row.get('id', ''))}: {e}")
+        user_row['school'] = None
 
 
 def register_routes(bp):
@@ -158,10 +192,7 @@ def register_routes(bp):
                                 # `school` is derived from the STRIPPED row, not
                                 # the raw one, so the credential-removal above
                                 # can't be routed around by a second reference.
-                                # (Only id/name are used, but keeping one source
-                                # means a future field added here stays clean.)
-                                response_data['school'] = {'id': org_row['id'],
-                                                           'name': org_row.get('name')}
+                                response_data['school'] = _school_payload(org_row)
                         except Exception as org_error:
                             logger.warning(f"Could not fetch organization for user {mask_user_id(user_id)}: {org_error}")
                     else:
@@ -354,6 +385,9 @@ def register_routes(bp):
                 user_response_data = user_data.data
                 if isinstance(user_response_data, list):
                     user_response_data = user_response_data[0] if user_response_data else None
+
+                # The landing decision runs on this payload, not on /me.
+                _attach_school(admin_client, user_response_data)
 
                 # Reset login attempts after successful login
                 reset_login_attempts(email)
@@ -707,6 +741,10 @@ def register_routes(bp):
                 # Generate app tokens for Authorization header usage
                 app_access_token = session_manager.generate_access_token(auth_response.user.id)
                 app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+
+                # The landing decision runs on this payload too (username
+                # students at /login/<slug> are exactly a school's own users).
+                _attach_school(admin_client, user_response_data)
 
                 # Return user data and tokens
                 response_data = {

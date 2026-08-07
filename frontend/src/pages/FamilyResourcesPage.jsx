@@ -54,7 +54,7 @@ const FamilyResourcesPage = () => {
 
       {(orgs === null || (orgId && resources === null)) && <p className="text-neutral-500">Loading…</p>}
       {orgs?.length === 0 && <p className="text-neutral-500">Your account isn't linked to a school yet.</p>}
-      {resources?.length === 0 && <p className="text-neutral-500">Your school hasn't published any resources yet.</p>}
+      {resources?.length === 0 && <p className="text-neutral-500">{org?.organization_name || 'Your school'} hasn't published any resources yet.</p>}
 
       {Object.entries(grouped).map(([category, items]) => (
         <div key={category} className="mb-6">

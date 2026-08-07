@@ -353,6 +353,72 @@ def _add_year(d: date) -> date:
         return date(d.year + 1, 3, 1)
 
 
+# ── Carpool board (family-authored — iCreate, 2026-08-06) ─────────────────────
+# The first module families WRITE to, not just read. Guardrails: org members
+# only, no students (drivers and ride-seekers are adults), a hard length cap,
+# and delete by the author or an org admin — moderation is deletion.
+
+CARPOOL_TYPES = ('offer', 'need')
+_CARPOOL_MAX_LEN = 500
+
+
+def list_carpool(org_id: str) -> List[Dict[str, Any]]:
+    """Active carpool posts, newest first."""
+    return (
+        _admin().table('sis_carpool_posts').select('*')
+        .eq('organization_id', org_id).eq('status', 'active')
+        .order('created_at', desc=True).limit(50).execute()
+    ).data or []
+
+
+def create_carpool_post(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    message = _text(data.get('message'))
+    if not message:
+        return {'error': 'Say what you are offering or looking for'}
+    if len(message) > _CARPOOL_MAX_LEN:
+        return {'error': f'Keep it under {_CARPOOL_MAX_LEN} characters'}
+    post_type = data.get('type') if data.get('type') in CARPOOL_TYPES else 'offer'
+    author = (
+        _admin().table('users').select('display_name, first_name, last_name')
+        .eq('id', user_id).limit(1).execute()
+    ).data
+    a = (author or [{}])[0]
+    author_name = a.get('display_name') \
+        or ' '.join(filter(None, [a.get('first_name'), a.get('last_name')])) or 'A family'
+    row = (_admin().table('sis_carpool_posts').insert({
+        'organization_id': org_id,
+        'created_by': user_id,
+        'author_name': author_name,
+        'type': post_type,
+        'message': message,
+        'area': _text(data.get('area')),
+        'days': _text(data.get('days')),
+        # No contact column on purpose: arranging happens over in-app messaging
+        # ("Message this person"), never phone numbers on a board.
+    }).execute()).data
+    return {'post': row[0] if row else None}
+
+
+def get_carpool_post(org_id: str, post_id: str) -> Optional[Dict[str, Any]]:
+    row = (_admin().table('sis_carpool_posts').select('*')
+           .eq('id', post_id).eq('organization_id', org_id)
+           .eq('status', 'active').limit(1).execute()).data
+    return row[0] if row else None
+
+
+def delete_carpool_post(org_id: str, user_id: str, post_id: str,
+                        is_moderator: bool) -> bool:
+    """Remove a post — its author taking it down, or an admin moderating."""
+    row = (_admin().table('sis_carpool_posts').select('id, created_by')
+           .eq('id', post_id).eq('organization_id', org_id).limit(1).execute()).data
+    if not row:
+        return False
+    if not is_moderator and row[0].get('created_by') != user_id:
+        return False
+    _admin().table('sis_carpool_posts').delete().eq('id', post_id).execute()
+    return True
+
+
 # ── Events (read-only surface of the existing sis_events) ─────────────────────
 
 def upcoming_events(org_id: str, limit: int = 10) -> List[Dict[str, Any]]:
@@ -411,20 +477,33 @@ _FAMILY_RECOGNITION = ('id', 'type', 'recipient_name', 'message', 'created_at')
 _FAMILY_ANNOUNCEMENT = ('id', 'title', 'body', 'pinned', 'priority', 'created_at')
 _FAMILY_EVENT = ('id', 'title', 'description', 'location', 'start_at', 'end_at',
                  'all_day', 'category', 'categories')
+# author_name is the snapshot column, never a users join; created_by is replaced
+# by a computed `mine` so the author sees their own delete button without any
+# account id reaching the client — "Message this person" goes through the post
+# id (POST /feed/carpool/<id>/message), so the author's id never needs to.
+_FAMILY_CARPOOL = ('id', 'type', 'message', 'area', 'days',
+                   'author_name', 'created_at')
 
 
 def _project(rows: List[Dict[str, Any]], fields) -> List[Dict[str, Any]]:
     return [{k: r.get(k) for k in fields} for r in rows]
 
 
-def family_feed(org_id: str) -> Dict[str, Any]:
+def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     """The Community Hub as a family sees it.
 
     Same posts, fewer columns, and three things left out entirely: scheduled or
     expired announcements (not published yet, or over), claimed lost & found (not
     yours to collect, and the claim names a family), and admin/teacher-only
     events. Birthdays stay in the office — a staff convenience, not a broadcast.
+
+    `viewer_id` marks the viewer's own carpool posts (`mine`) so the frontend
+    can offer "remove" on exactly those.
     """
+    carpool_rows = list_carpool(org_id)
+    carpool = _project(carpool_rows, _FAMILY_CARPOOL)
+    for projected, raw in zip(carpool, carpool_rows):
+        projected['mine'] = bool(viewer_id) and raw.get('created_by') == viewer_id
     return {
         'announcements': _project(
             list_announcements(org_id, include_hidden=False)[:20], _FAMILY_ANNOUNCEMENT),
@@ -434,4 +513,5 @@ def family_feed(org_id: str) -> Dict[str, Any]:
         'events': _project(
             [e for e in upcoming_events(org_id, limit=20) if e.get('audience') == 'school'],
             _FAMILY_EVENT),
+        'carpool': carpool,
     }

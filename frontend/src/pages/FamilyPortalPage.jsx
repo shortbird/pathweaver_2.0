@@ -122,7 +122,7 @@ const FamilyPortalPage = () => {
           </select>
         )}
       </div>
-      <p className="text-neutral-500 mb-6">Checklists your school has shared with you. Mark each step done as you finish it.</p>
+      <p className="text-neutral-500 mb-6">Checklists shared with your family. Mark each step done as you finish it.</p>
 
       {/* Quests the school set for families — back to school night and the like.
           Yours, on your own account: this is not your child's work. */}

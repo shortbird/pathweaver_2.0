@@ -644,6 +644,20 @@ def org_events(user_id):
     return jsonify({'success': True, 'events': events})
 
 
+@bp.route('/events/feed', methods=['GET'])
+@require_auth
+def org_events_feed(user_id):
+    """Subscribe URL for the school calendar — the .ics feed Google Calendar,
+    Apple Calendar and Outlook can poll (family token: school events only)."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    url = parent.calendar_feed_url(user_id, org_id, request.host_url.rstrip('/'))
+    if url is None:
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
+    return jsonify({'success': True, 'feed_url': url})
+
+
 # ── Family directory (opt-in) ─────────────────────────────────────────────────
 @bp.route('/directory', methods=['GET'])
 @require_auth

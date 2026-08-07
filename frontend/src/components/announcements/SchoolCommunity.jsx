@@ -1,4 +1,7 @@
 import React from 'react'
+import {
+  MegaphoneIcon, CalendarDaysIcon, ArchiveBoxIcon, SparklesIcon,
+} from '@heroicons/react/24/outline'
 import AnnouncementBody from './AnnouncementBody'
 
 /**
@@ -9,6 +12,13 @@ import AnnouncementBody from './AnnouncementBody'
  * Community Hub is meant for families too, and lost & found carries the item,
  * not the child ("just the item that was lost so parents can see it and know to
  * come pick it up").
+ *
+ * Naming (iCreate, 2026-08-06): what staff post here is what families call
+ * "announcements" — the section is titled that way, and the SENT-message
+ * archive on SchoolPage is titled "Messages" instead, so the two stop fighting
+ * over one word. Each section is a block with an icon header, echoing the card
+ * grid at the top of /school ("the 8 blocks is easy to see all the things
+ * clearly. Could we do that same thing for the community section?").
  *
  * Read-only, and deliberately a projection: the feed endpoint sends only the
  * columns a family should see (no `claimed_by`, no author ids, no birthdays, no
@@ -34,34 +44,50 @@ const fmtWhen = (e) => {
   if (!e.start_at) return ''
   try {
     const d = new Date(e.start_at)
-    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' }
+    // All-day events are stored date-only (00:00 UTC); format them in UTC or
+    // the date renders as the previous evening anywhere west of Greenwich —
+    // Labor Day on the 7th was showing as "Sun, Sep 6 · all day".
+    if (e.all_day) opts.timeZone = 'UTC'
+    // A school calendar runs across New Year. Without the year, "Mon, Jan 11"
+    // under "Mon, Dec 14" reads as out of order instead of as next year.
+    const year = e.all_day ? d.getUTCFullYear() : d.getFullYear()
+    if (year !== new Date().getFullYear()) opts.year = 'numeric'
+    const day = d.toLocaleDateString(undefined, opts)
     if (e.all_day) return `${day} · all day`
     return `${day} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
   } catch { return '' }
 }
 
-const Section = ({ title, count, children }) => (
-  <section className="mb-8">
-    <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
-      {title}{count ? ` (${count})` : ''}
-    </h2>
+/** A feed block: white card, icon-tile header — the cards' language, reused. */
+export const FeedSection = ({ title, Icon, count, intro, children }) => (
+  <section className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 mb-4">
+    <div className="flex items-center gap-2.5 mb-3">
+      <span className="w-8 h-8 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+        <Icon className="w-[18px] h-[18px] text-optio-purple" />
+      </span>
+      <h2 className="text-sm font-semibold text-gray-900">
+        {title}{count ? ` (${count})` : ''}
+      </h2>
+    </div>
+    {intro && <p className="text-sm text-gray-500 -mt-1 mb-3">{intro}</p>}
     {children}
   </section>
 )
 
-export default function SchoolCommunity({ feed, orgName }) {
+export default function SchoolCommunity({ feed }) {
   const { announcements = [], lost_found: lostFound = [], recognition = [], events = [] } = feed || {}
 
   return (
     <div>
       {announcements.length > 0 && (
-        <Section title={orgName ? `Noticeboard · ${orgName}` : 'Noticeboard'}>
+        <FeedSection title="Announcements" Icon={MegaphoneIcon}>
           <div className="space-y-3">
             {announcements.map((a) => (
               <article
                 key={a.id}
-                className={`bg-white border rounded-xl p-4 ${
-                  a.priority === 'urgent' ? 'border-red-200' : 'border-gray-200'}`}
+                className={`border rounded-lg p-4 ${
+                  a.priority === 'urgent' ? 'border-red-200 bg-red-50/30' : 'border-gray-100 bg-gray-50/60'}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -75,7 +101,7 @@ export default function SchoolCommunity({ feed, orgName }) {
                         Urgent
                       </span>
                     )}
-                    <h3 className="font-semibold text-gray-900">{a.title}</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">{a.title}</h3>
                   </div>
                   <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">
                     {fmtDate(a.created_at)}
@@ -85,16 +111,16 @@ export default function SchoolCommunity({ feed, orgName }) {
               </article>
             ))}
           </div>
-        </Section>
+        </FeedSection>
       )}
 
       {events.length > 0 && (
-        <Section title="What's on">
-          <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <FeedSection title="Upcoming events" Icon={CalendarDaysIcon}>
+          <div className="divide-y divide-gray-100">
             {events.map((e) => (
-              <div key={e.id} className="p-4">
+              <div key={e.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-medium text-gray-900">{e.title}</h3>
+                  <h3 className="text-sm font-medium text-gray-900">{e.title}</h3>
                   <span className="text-xs text-gray-500 whitespace-nowrap">{fmtWhen(e)}</span>
                 </div>
                 {e.location && <p className="text-xs text-gray-500 mt-0.5">{e.location}</p>}
@@ -102,23 +128,23 @@ export default function SchoolCommunity({ feed, orgName }) {
               </div>
             ))}
           </div>
-        </Section>
+        </FeedSection>
       )}
 
       {lostFound.length > 0 && (
-        <Section title="Lost &amp; found" count={lostFound.length}>
-          <p className="text-sm text-gray-500 -mt-1 mb-3">
-            Recognize something? Collect it from the office.
-          </p>
+        <FeedSection
+          title="Lost &amp; found" Icon={ArchiveBoxIcon} count={lostFound.length}
+          intro="Recognize something? Collect it from the office."
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {lostFound.map((item) => (
-              <div key={item.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div key={item.id} className="border border-gray-100 bg-gray-50/60 rounded-lg overflow-hidden">
                 {item.image_url && (
                   <img src={item.image_url} alt="" loading="lazy"
                     className="w-full h-36 object-cover bg-gray-50" />
                 )}
                 <div className="p-4">
-                  <p className="font-medium text-gray-900">{item.description}</p>
+                  <p className="text-sm font-medium text-gray-900">{item.description}</p>
                   <p className="text-xs text-gray-500 mt-1">
                     {[item.category, item.location_found && `found at ${item.location_found}`,
                       item.date_found && `on ${fmtDate(item.date_found)}`]
@@ -137,20 +163,20 @@ export default function SchoolCommunity({ feed, orgName }) {
               </div>
             ))}
           </div>
-        </Section>
+        </FeedSection>
       )}
 
       {recognition.length > 0 && (
-        <Section title="Shout-outs">
+        <FeedSection title="Shout-outs" Icon={SparklesIcon}>
           <div className="space-y-3">
             {recognition.map((r) => (
-              <article key={r.id} className="bg-white border border-gray-200 rounded-xl p-4">
+              <article key={r.id} className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-pink/10 text-optio-pink">
                     {RECOGNITION_LABEL[r.type] || 'Shout-out'}
                   </span>
                   {r.recipient_name && (
-                    <h3 className="font-semibold text-gray-900">{r.recipient_name}</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">{r.recipient_name}</h3>
                   )}
                   <time className="text-xs text-gray-400 ml-auto">{fmtDate(r.created_at)}</time>
                 </div>
@@ -158,14 +184,14 @@ export default function SchoolCommunity({ feed, orgName }) {
               </article>
             ))}
           </div>
-        </Section>
+        </FeedSection>
       )}
     </div>
   )
 }
 
-/** True when the school has posted anything a family can see. */
+/** True when the board holds anything a family can see. */
 export const hasCommunityContent = (feed) => Boolean(
-  feed && ['announcements', 'lost_found', 'recognition', 'events']
+  feed && ['announcements', 'lost_found', 'recognition', 'events', 'carpool']
     .some((k) => (feed[k] || []).length > 0),
 )

@@ -125,7 +125,7 @@ describe('SchoolPage', () => {
       api.get.mockResolvedValue(mockArchiveResponse({ announcements: [], total: 0 }))
       renderPage()
       await waitFor(() => {
-        expect(screen.getByText('No announcements yet.')).toBeInTheDocument()
+        expect(screen.getByText('No messages yet.')).toBeInTheDocument()
       })
     })
   })
@@ -136,7 +136,7 @@ describe('SchoolPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
-      const input = screen.getByLabelText('Search announcements')
+      const input = screen.getByLabelText('Search messages')
       fireEvent.change(input, { target: { value: 'newsletter' } })
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledWith(
@@ -154,10 +154,10 @@ describe('SchoolPage', () => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
       api.get.mockResolvedValue(mockArchiveResponse({ announcements: [], total: 0 }))
-      const input = screen.getByLabelText('Search announcements')
+      const input = screen.getByLabelText('Search messages')
       fireEvent.change(input, { target: { value: 'zzz' } })
       await waitFor(() => {
-        expect(screen.getByText('No announcements match your search.')).toBeInTheDocument()
+        expect(screen.getByText('No messages match your search.')).toBeInTheDocument()
       })
     })
   })

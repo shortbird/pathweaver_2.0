@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -10,10 +10,11 @@ import { MemoryRouter } from 'react-router-dom'
  * "just the item that was lost so parents can see it and know to come pick it
  * up."
  *
- * It is the second tab of the school's own page (/school, titled with the
- * school's name), and appears only when the school has actually posted
- * something. Someone who is in no school never reaches this page at all — see
- * schoolPageAccess.test.jsx.
+ * It lives on the school's own page (/school, titled with the school's name)
+ * as ONE feed with the sent-announcements archive — the Announcements/Community
+ * toggle was removed 2026-08-06; nothing here is behind a click. Each community
+ * section appears only when the school has actually used it. Someone who is in
+ * no school never reaches this page at all — see schoolPageAccess.test.jsx.
  */
 
 vi.mock('../contexts/OrganizationContext', () => ({
@@ -40,6 +41,11 @@ const FEED = {
   events: [
     { id: 'e1', title: 'Open house', description: 'Come see the studios',
       location: 'Main hall', start_at: '2026-08-10T17:00:00Z', all_day: false },
+    // All-day events are stored date-only (00:00 UTC), and a school calendar
+    // crosses New Year — both used to render misleadingly (previous local day;
+    // no year, so January read as out of order under December).
+    { id: 'e2', title: 'Classes resume', description: null,
+      location: null, start_at: '2027-01-11T00:00:00Z', all_day: true },
   ],
 }
 
@@ -66,40 +72,37 @@ const renderPage = () => render(
   <MemoryRouter initialEntries={['/announcements']}><SchoolPage /></MemoryRouter>,
 )
 
-const openCommunity = async () => {
-  const view = renderPage()
-  fireEvent.click(await screen.findByRole('button', { name: 'Community' }))
-  return view
-}
-
 beforeEach(() => { vi.clearAllMocks(); mockApi(FEED) })
 
-describe('the school community tab', () => {
-  it('is offered once the school has posted something', async () => {
+describe('the school community feed', () => {
+  it('is one feed — board and sent announcements together, no toggle', async () => {
     renderPage()
-    expect(await screen.findByRole('button', { name: 'Community' })).toBeInTheDocument()
+    expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
+    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Announcements' })).not.toBeInTheDocument()
   })
 
-  it('stays hidden for a family whose school posts nothing', async () => {
+  it('is simply the announcements when the school posts nothing to the board', async () => {
     mockApi(EMPTY_FEED)
     renderPage()
-    await screen.findByText('Fall Newsletter')
-    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
+    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })
 
-  it('stays hidden for someone who is not in a school at all', async () => {
+  it('survives a board the viewer cannot read at all', async () => {
     api.get.mockImplementation((url) => (
       url.includes('/api/sis/community/feed')
         ? Promise.reject(new Error('403'))
         : Promise.resolve(archive)
     ))
     renderPage()
-    await screen.findByText('Fall Newsletter')
-    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
+    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })
 
   it('shows the noticeboard post, formatting and all', async () => {
-    const { container } = await openCommunity()
+    const { container } = renderPage()
     expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Urgent')).toBeInTheDocument()
@@ -107,7 +110,7 @@ describe('the school community tab', () => {
   })
 
   it('shows a lost item by what it is and where to collect it', async () => {
-    await openCommunity()
+    renderPage()
     expect(await screen.findByText('Blue water bottle')).toBeInTheDocument()
     expect(screen.getByText(/Collect it from the office/)).toBeInTheDocument()
     expect(screen.getByText(/found at Gym/)).toBeInTheDocument()
@@ -116,30 +119,38 @@ describe('the school community tab', () => {
   })
 
   it('shows shout-outs', async () => {
-    await openCommunity()
+    renderPage()
     expect(await screen.findByText('Van S.')).toBeInTheDocument()
     expect(screen.getByText('Student spotlight')).toBeInTheDocument()
     expect(screen.getByText('Built the whole robot arm himself.')).toBeInTheDocument()
   })
 
-  it('shows what is coming up', async () => {
-    await openCommunity()
-    expect(await screen.findByText('Open house')).toBeInTheDocument()
+  it('shows upcoming events', async () => {
+    renderPage()
+    expect(await screen.findByText('Upcoming events')).toBeInTheDocument()
+    expect(screen.getByText('Open house')).toBeInTheDocument()
     expect(screen.getByText('Main hall')).toBeInTheDocument()
+  })
+
+  it('keeps an all-day event on its own calendar day, year included across New Year', async () => {
+    renderPage()
+    await screen.findByText('Classes resume')
+    // Jan 11 2027 00:00 UTC: local formatting showed "Jan 10" (previous
+    // evening) and, with no year, January read as out of order under December.
+    expect(screen.getByText(/Jan 11, 2027 · all day/)).toBeInTheDocument()
   })
 
   it('leaves out a section the school has not used', async () => {
     mockApi({ ...FEED, recognition: [] })
-    await openCommunity()
+    renderPage()
     await screen.findByText('Early dismissal')
     expect(screen.queryByText('Shout-outs')).not.toBeInTheDocument()
   })
 
-  it('goes back to the announcements the school sent', async () => {
-    await openCommunity()
-    await screen.findByText('Early dismissal')
-    fireEvent.click(screen.getByRole('button', { name: 'Announcements' }))
-    expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
-    expect(screen.queryByText('Early dismissal')).not.toBeInTheDocument()
+  it('keeps the board above the archive — timely first, paginated last', async () => {
+    renderPage()
+    const board = await screen.findByText('Early dismissal')
+    const sent = await screen.findByText('Fall Newsletter')
+    expect(board.compareDocumentPosition(sent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
