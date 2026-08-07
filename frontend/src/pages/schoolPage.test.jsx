@@ -100,11 +100,14 @@ describe('SchoolPage', () => {
       })
     })
 
-    it('attributes each announcement to the school', async () => {
+    it('names the school once, in the header, not under every card', async () => {
+      // The page is titled with the school; repeating it on each announcement
+      // was noise and went in the 2026-08-06 redesign.
       renderPage()
       await waitFor(() => {
-        expect(screen.getAllByText('iCreate').length).toBeGreaterThan(1)
+        expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
+      expect(screen.getAllByText('iCreate')).toHaveLength(1)
     })
 
     it('shows a Read more toggle for long bodies', async () => {

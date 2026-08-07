@@ -56,7 +56,36 @@ def org_settings(org_id: str) -> Dict[str, Any]:
         'timezone': row.get('timezone') or DEFAULT_TZ,
         'school_start_hour': int(s.get('school_start_hour', DEFAULT_SCHOOL_START_HOUR)),
         'school_end_hour': int(s.get('school_end_hour', DEFAULT_SCHOOL_END_HOUR)),
+        # The hours window says when in a DAY to sweep; this says which days
+        # exist at all. Without it the sweep treated August like term time.
+        'first_day_of_school': s.get('first_day_of_school') or None,
     }
+
+
+def term_has_started(org_id: str, on: Optional[date] = None) -> bool:
+    """Whether the school year has begun for this org.
+
+    iCreate, 2026-08-06: teachers were getting "take attendance" reminders weeks
+    before the first day. The sweep only ever asked whether it was between the
+    school's start and end HOUR — nothing asked whether school was in session at
+    all, so every weekday of the summer looked like a school day with a suspicious
+    number of absences.
+
+    A school with no first day configured is treated as in session: that is the
+    setting's absence, not a statement that term hasn't started, and going quiet
+    on every org that hasn't filled it in would be a worse failure than the one
+    being fixed.
+    """
+    first_day = org_settings(org_id).get('first_day_of_school')
+    if not first_day:
+        return True
+    try:
+        return (on or org_today(org_id)) >= date.fromisoformat(str(first_day)[:10])
+    except (ValueError, TypeError):
+        # A malformed date is a typo in a settings field, not a reason to stop
+        # taking attendance for the rest of the year.
+        logger.warning(f'[SIS attendance] unreadable first_day_of_school for org {org_id}: {first_day!r}')
+        return True
 
 
 def _zone(org_id: str) -> ZoneInfo:
@@ -198,6 +227,12 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
     now = org_now(org_id)
     today = now.date()
     now_minutes = now.hour * 60 + now.minute
+
+    # School hasn't started yet — no attendance to chase, and nagging teachers
+    # through the summer teaches them to ignore the reminder that matters in
+    # September.
+    if not term_has_started(org_id, today):
+        return counts
 
     # only run during the org's school-hours window
     if not (settings['school_start_hour'] * 60 <= now_minutes <= settings['school_end_hour'] * 60):

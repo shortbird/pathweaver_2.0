@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import {
-  MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
+  BuildingLibraryIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
   BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
   DocumentTextIcon, CheckCircleIcon, CalendarIcon, TableCellsIcon,
 } from '@heroicons/react/24/outline'
@@ -210,66 +210,77 @@ export default function SchoolPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
-          <MegaphoneIcon className="w-5 h-5 text-white" />
+      {/* Header — the school's own page, so it opens with the school, not with
+          any one tab. The monogram stands in for a crest; the subtitle is
+          static (it used to flip with the active tab, two viewports away from
+          the tabs themselves). */}
+      <div className="flex items-center gap-3.5">
+        <div
+          aria-hidden="true"
+          className="w-12 h-12 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0"
+        >
+          {schoolName
+            ? <span className="text-xl font-bold text-white">{schoolName.trim().charAt(0).toUpperCase()}</span>
+            : <BuildingLibraryIcon className="w-6 h-6 text-white" />}
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{schoolName || 'My school'}</h1>
-          <p className="text-sm text-gray-500">
-            {tab === 'sent'
-              ? 'Every announcement your school has sent, newest first.'
-              : 'What is happening around school right now.'}
-          </p>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 truncate">{schoolName || 'My school'}</h1>
+          <p className="text-sm text-gray-500">Everything from your school, in one place.</p>
         </div>
       </div>
 
-      {/* The school's other surfaces. Above the archive, not in front of it. */}
+      {/* The school's other surfaces. These are doors, not content — kept to a
+          quiet row height so the feed below stays the page. (Bare h2/h3 inherit
+          text-3xl from index.css base styles; every size here is explicit.) */}
       {cards.length > 0 && (
         <nav
           aria-label="School surfaces"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-6"
         >
           {cards.map(({ name, path, description, Icon }) => (
             <Link
               key={path}
               to={path}
-              className="group bg-white border border-gray-200 rounded-xl p-4 hover:border-optio-purple hover:shadow-sm transition-all"
+              className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all"
             >
-              <span className="flex items-start gap-3">
-                <span className="w-9 h-9 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-5 h-5 text-white" />
-                </span>
-                <span className="min-w-0">
-                  <h2 className="font-semibold text-gray-900 group-hover:text-optio-purple">
-                    {name}
-                  </h2>
-                  <span className="block text-xs text-gray-500 mt-0.5">{description}</span>
-                </span>
+              <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-to-br group-hover:from-optio-purple group-hover:to-optio-pink transition-colors">
+                <Icon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
+              </span>
+              <span className="min-w-0">
+                <h2 className="text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">
+                  {name}
+                </h2>
+                <span className="block text-xs text-gray-500 truncate">{description}</span>
               </span>
             </Link>
           ))}
         </nav>
       )}
 
-      {hasCommunityContent(feed) && (
-        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6 mt-6">
+      {/* The feed. Underline tabs anchor it as its own section; with no
+          community content there is nothing to switch, so a plain heading
+          holds the same place in the layout. */}
+      {hasCommunityContent(feed) ? (
+        <div className="flex gap-6 border-b border-gray-200 mt-8 mb-6">
           {[['sent', 'Announcements'], ['community', 'Community']].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
               aria-pressed={tab === key}
-              className={`px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === key ? 'bg-optio-purple text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`pb-2.5 -mb-px border-b-2 text-sm font-semibold transition-colors ${
+                tab === key
+                  ? 'border-optio-purple text-optio-purple'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'}`}
             >
               {label}
             </button>
           ))}
         </div>
+      ) : (
+        <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2.5 mt-8 mb-6">
+          Announcements
+        </h2>
       )}
-
-      {!hasCommunityContent(feed) && <div className="mb-6" />}
 
       {tab === 'community' && <SchoolCommunity feed={feed} orgName={schoolName} />}
 
@@ -317,15 +328,15 @@ export default function SchoolPage() {
             return (
               <article key={a.id} className="bg-white border border-gray-200 rounded-xl p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-semibold text-gray-900">{a.title}</h2>
+                  {/* Explicit size — a bare h2 inherits text-3xl from the base styles. */}
+                  <h2 className="text-base font-semibold text-gray-900">{a.title}</h2>
                   <time className="text-xs text-gray-400 whitespace-nowrap mt-1">
                     {formatDate(a.created_at)}
                   </time>
                 </div>
-                {schoolName && <p className="text-xs text-gray-400 mt-0.5">{schoolName}</p>}
                 <AnnouncementBody
                   text={body}
-                  className={`text-sm text-gray-700 mt-3 leading-relaxed ${
+                  className={`text-sm text-gray-700 mt-2 leading-relaxed ${
                     !isExpanded && isLong ? 'line-clamp-4' : ''
                   }`}
                 />
@@ -346,10 +357,12 @@ export default function SchoolPage() {
 
           {hasMore && (
             <div className="text-center pt-2">
+              {/* A quiet pager, not a call to action — the gradient belongs to
+                  the header, not to "show me older posts". */}
               <button
                 onClick={() => fetchPage(announcements.length, query, true)}
                 disabled={loadingMore}
-                className="px-6 py-2.5 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity disabled:opacity-40"
+                className="px-6 py-2 text-sm font-medium text-gray-700 rounded-lg border border-gray-300 bg-white hover:border-optio-purple hover:text-optio-purple transition-colors disabled:opacity-40"
               >
                 {loadingMore ? 'Loading…' : 'Load more'}
               </button>
