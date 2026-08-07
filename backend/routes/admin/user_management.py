@@ -728,18 +728,21 @@ def update_user_org_role(admin_user_id, user_id):
     Also sets role to 'org_managed' if not already.
     Only platform admins (superadmin) can use this endpoint.
 
-    Valid org_role values: student, parent, advisor, org_admin, observer
+    Valid org_role values: whatever OrgRole holds (utils.roles.VALID_ORG_ROLES).
     """
+    from utils.roles import VALID_ORG_ROLES
+
     try:
         data = request.json
         org_role = data.get('org_role')
 
-        # Valid organization roles
-        valid_org_roles = ['student', 'parent', 'advisor', 'org_admin', 'observer']
-        if org_role not in valid_org_roles:
+        # OrgRole is the one list, not a copy of it — a hardcoded copy here is
+        # what left campus_coordinator unsettable from this endpoint after the
+        # role shipped.
+        if org_role not in VALID_ORG_ROLES:
             return jsonify({
                 'success': False,
-                'error': f'Invalid org_role. Must be one of: {valid_org_roles}'
+                'error': f'Invalid org_role. Must be one of: {sorted(VALID_ORG_ROLES)}'
             }), 400
 
         from database import get_supabase_admin_client
