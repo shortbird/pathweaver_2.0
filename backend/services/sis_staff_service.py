@@ -709,16 +709,52 @@ def _staff_history(org_id: str, staff_id: str) -> Dict[str, int]:
                 q = q.eq(k, v)
             return len(q.limit(50).execute().data or [])
         except Exception:  # noqa: BLE001 — a missing table must not block the check
-            logger.debug('history probe failed for %s.%s', table, column, exc_info=True)
+            # warning, not debug: this probe fails OPEN. A silent failure here
+            # reads as "no history" and lets a delete through that should have
+            # been refused, so it needs to be visible when it happens.
+            logger.warning('history probe failed for %s.%s', table, column, exc_info=True)
             return 0
 
     return {
         'classes': _count('org_classes', 'primary_instructor_id', organization_id=org_id),
         'time_entries': _count('sis_time_entries', 'user_id', organization_id=org_id),
         'forms': _count('sis_form_submissions', 'submitted_by', organization_id=org_id),
-        'onboarding': _count('sis_onboarding_assignments', 'user_id', organization_id=org_id),
+        'onboarding': _onboarding_with_work(org_id, staff_id),
         'attendance': _count('class_attendance', 'recorded_by'),
     }
+
+
+def _onboarding_with_work(org_id: str, staff_id: str) -> int:
+    """Onboarding checklists that record something that actually happened.
+
+    A checklist that was assigned and never touched is not history — it is a
+    blank form. Counting those blocked iCreate from deleting a test staff
+    account over an onboarding template nobody had filled in, and archiving was
+    the only way out. Deleting the user cascades the assignment away
+    (sis_onboarding_assignments.user_id references users on delete cascade), so
+    there is nothing to orphan.
+
+    "Something happened" is the same definition unassign() already uses when it
+    warns before removing a checklist: a completed item, or an uploaded
+    document. A complete status counts too, for a checklist with no required
+    items to tick.
+    """
+    try:
+        rows = (_admin().table('sis_onboarding_assignments').select('status, items')
+                .eq('organization_id', org_id).eq('user_id', staff_id)
+                .limit(50).execute()).data or []
+    except Exception:  # noqa: BLE001 — same fail-open rule as the other probes
+        logger.warning('history probe failed for sis_onboarding_assignments.user_id',
+                       exc_info=True)
+        return 0
+
+    def _touched(assignment: Dict[str, Any]) -> bool:
+        if assignment.get('status') == 'complete':
+            return True
+        return any(i.get('status') in ('complete', 'approved') or i.get('document_url')
+                   for i in (assignment.get('items') or []))
+
+    return len([r for r in rows if _touched(r)])
 
 
 def staff_removal_preview(org_id: str, staff_id: str) -> Dict[str, Any]:
@@ -780,11 +816,15 @@ def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:
         return preview
     now = _now_iso()
     _detach_from_classes(preview, staff_id)
-    existing = (_admin().table('sis_staff_profiles').select('id')
+    # sis_staff_profiles is keyed by user_id — it has no `id` column at all
+    # (20260722_sis_teacher_portal.sql). Selecting one raised 42703 and archiving
+    # failed outright for everybody.
+    existing = (_admin().table('sis_staff_profiles').select('user_id')
                 .eq('organization_id', org_id).eq('user_id', staff_id).limit(1).execute()).data
     payload = {'is_active': False, 'archived_at': now, 'archived_by': actor_id}
     if existing:
-        _admin().table('sis_staff_profiles').update(payload).eq('id', existing[0]['id']).execute()
+        _admin().table('sis_staff_profiles').update(payload) \
+            .eq('organization_id', org_id).eq('user_id', staff_id).execute()
     else:
         _admin().table('sis_staff_profiles').insert(
             {'organization_id': org_id, 'user_id': staff_id, **payload}).execute()
@@ -820,11 +860,11 @@ def delete_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
 def restore_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
     """Undo an archive. Classes are not reassigned — that's a deliberate choice
     each time, not something to guess at."""
-    rows = (_admin().table('sis_staff_profiles').select('id')
+    rows = (_admin().table('sis_staff_profiles').select('user_id')
             .eq('organization_id', org_id).eq('user_id', staff_id).limit(1).execute()).data
     if not rows:
         return {'error': 'Staff member not found'}
     _admin().table('sis_staff_profiles').update(
         {'is_active': True, 'archived_at': None, 'archived_by': None}
-    ).eq('id', rows[0]['id']).execute()
+    ).eq('organization_id', org_id).eq('user_id', staff_id).execute()
     return {'restored': True}
