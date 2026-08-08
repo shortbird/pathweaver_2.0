@@ -191,8 +191,11 @@ jobs:
           done
           exit 1
       - name: npm audit (high/critical only)
-        working-directory: frontend-v2
-        run: npm audit --omit=dev --audit-level=high
+        # Same high/critical bar as before, but advisories with no published fix
+        # can be accepted individually in frontend-v2/audit-allowlist.json, with
+        # a reason and an expiry date, instead of the whole gate being lowered.
+        # See scripts/audit-gate.mjs.
+        run: node scripts/audit-gate.mjs --dir frontend-v2
       - name: TypeScript check (informational)
         working-directory: frontend-v2
         continue-on-error: true

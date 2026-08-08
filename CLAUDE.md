@@ -581,6 +581,7 @@ npm run test:coverage              # Must be 60%+ coverage
 - `Mobile (v2) Tests` (`Jest Integration Tests` check) — 95%+ pass rate.
 - `Backend Tests` (`test` check).
 - A GitHub ruleset on `main` makes all three required before merge.
+- The mobile job's `npm audit` runs through [scripts/audit-gate.mjs](scripts/audit-gate.mjs): same high/critical bar, but an advisory with **no published fix** can be accepted in [frontend-v2/audit-allowlist.json](frontend-v2/audit-allowlist.json) with a reason and a `recheck_after` date, rather than dropping the whole gate to `critical`. Expired entries fail the build. Check that a fix genuinely doesn't exist before adding one — compare the advisory's vulnerable range against `npm view <pkg> versions`, since npm's own "fix available" line sometimes proposes a downgrade.
 - Prod Render deploys are triggered by the `deploy` job in `release.yml` (auto-deploy off), so only commits with green backend + web tests deploy. Dev services remain on "On commit" for fast iteration on `develop`.
 
 **Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)

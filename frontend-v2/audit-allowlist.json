@@ -1,0 +1,12 @@
+{
+  "GHSA-w3rx-r6r6-pgpr": {
+    "package": "image-size",
+    "reason": "No fixed release exists: the advisory covers <=2.0.2 and 2.0.2 is the newest version published. npm's suggested fix (expo@53.0.27) is a downgrade off SDK 55, not a fix. Reaches us only through metro, which is build tooling — it parses the images in this repo at bundle time, not anything a user supplies at runtime — and the impact is a parser that loops rather than anything that reads or writes data. Remove this entry the moment image-size ships a fixed release.",
+    "recheck_after": "2026-09-08"
+  },
+  "GHSA-5p2g-fcmc-qvqq": {
+    "package": "image-size",
+    "reason": "Same package, same release, same reasoning as GHSA-w3rx-r6r6-pgpr — JXL/HEIF parsers instead of ICNS. Both clear together when image-size publishes a fix.",
+    "recheck_after": "2026-09-08"
+  }
+}
