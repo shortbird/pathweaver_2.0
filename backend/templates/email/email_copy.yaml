@@ -485,13 +485,14 @@ emails:
     salutation: "Hi {{ name }},"
     paragraphs:
       - "Thank you for your interest in Optio! We're excited to share how our platform helps students build real-world skills through self-directed learning."
-      - "Someone from our team will be in touch shortly to answer your questions and discuss how Optio can work for you."
+      - "I'd love to hear what you're looking for. Reply to this email with a bit about your student and your questions, and I'll get back to you personally."
+      - "Or, if you'd rather talk it through live, <a href='https://calendar.app.google/rqSPUvuUdbti18ZQ8' style='color: #6D469B;'>book a time on my calendar</a> and we'll find a slot that works for you."
     cta:
       text: "Try Our Interactive Demo"
       url: "https://www.optioeducation.com/demo"
     highlight_box:
       title: "What to Expect"
-      content: "When we connect, we'll explore:"
+      content: "When we talk, I can walk you through:"
       bullet_points:
         - "How students <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=demo_confirmation' style='color: #6D469B;'>earn credit for real-world learning experiences</a>"
         - "The quest-based learning system and skill pillars"
@@ -500,7 +501,7 @@ emails:
     closing_paragraphs:
       - "The best way to get a feel for Optio is the app your student would actually use:"
       - "<a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='text-decoration: none; display: inline-block; margin: 0 10px 8px 0;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png' alt='Download on the App Store' height='44' style='height: 44px; border: 0;'></a><a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='text-decoration: none; display: inline-block;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png' alt='Get it on Google Play' height='44' style='height: 44px; border: 0;'></a>"
-      - "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+      - "And whenever questions come up, just hit reply. I read and answer every message myself."
     signature: "tanner"
 
   academy_inquiry_confirmation:

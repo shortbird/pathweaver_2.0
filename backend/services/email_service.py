@@ -1083,6 +1083,9 @@ class EmailService(BaseService):
                 'name': user_name,
                 'organization': organization or ''
             },
+            # The copy asks them to reply; the default sender is the unwatched
+            # support@ inbox, so route replies to a watched one.
+            reply_to=Config.ADMIN_EMAIL,
             brevo_funnel=brevo_funnel
         )
 
