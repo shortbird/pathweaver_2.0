@@ -5,11 +5,15 @@ import {
   XMarkIcon,
   TrashIcon,
   ArrowPathIcon,
-  CameraIcon
+  CameraIcon,
+  PrinterIcon
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { taskStepsAPI } from '../../services/api'
 import { useAIAccess } from '../../contexts/AIAccessContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { useOrganization, useOrgFeature } from '../../contexts/OrganizationContext'
+import { printStepsReceipt } from '../../utils/stepsReceiptPrinter'
 import StepItem from './StepItem'
 import logger from '../../utils/logger'
 
@@ -25,6 +29,11 @@ import logger from '../../utils/logger'
  */
 const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted }) => {
   const { canUseTaskGeneration } = useAIAccess()
+  const { user } = useAuth()
+  const { organization } = useOrganization()
+  // Per-org tool: schools with a kiosk receipt printer opt in via
+  // organizations.feature_flags.step_printing (org Settings tab).
+  const canPrintSteps = useOrgFeature('step_printing')
 
   // State
   const [steps, setSteps] = useState([])
@@ -107,6 +116,18 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
       toast.error('Failed to break down step')
     } finally {
       setDrillingDownStepId(null)
+    }
+  }
+
+  const handlePrintSteps = () => {
+    const opened = printStepsReceipt({
+      orgName: organization?.name,
+      studentName: user?.first_name || user?.display_name,
+      taskTitle,
+      steps
+    })
+    if (!opened) {
+      toast.error('Could not open the print window. Allow pop-ups and try again.')
     }
   }
 
@@ -349,15 +370,27 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                       Clear all
                     </button>
 
-                    <button
-                      onClick={handleGenerate}
-                      disabled={isGenerating}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                      style={{ fontFamily: 'Poppins' }}
-                    >
-                      <ArrowPathIcon className="w-4 h-4" />
-                      Regenerate
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {canPrintSteps && (
+                        <button
+                          onClick={handlePrintSteps}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:shadow-md transition-all"
+                          style={{ fontFamily: 'Poppins' }}
+                        >
+                          <PrinterIcon className="w-4 h-4" />
+                          Print my steps
+                        </button>
+                      )}
+                      <button
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        <ArrowPathIcon className="w-4 h-4" />
+                        Regenerate
+                      </button>
+                    </div>
                   </div>
                 )}
               </Dialog.Panel>

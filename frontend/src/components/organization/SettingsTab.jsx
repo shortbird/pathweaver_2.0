@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
 import SchoolLoginLinkCard from './SchoolLoginLinkCard'
@@ -157,6 +157,29 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
       alert(error.response?.data?.error || 'Failed to save the video URL')
     } finally {
       setSavingVideo(false)
+    }
+  }
+
+  // Step printing: schools with a kiosk receipt printer opt in to a "Print my
+  // steps" button on the AI step breakdown (TaskStepsModal). Off by default.
+  const [stepPrinting, setStepPrinting] = useState(
+    orgData?.organization?.feature_flags?.step_printing ?? false
+  )
+  const [savingStepPrinting, setSavingStepPrinting] = useState(false)
+
+  const handleToggleStepPrinting = async () => {
+    const newValue = !stepPrinting
+    setSavingStepPrinting(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: { ...(orgData?.organization?.feature_flags || {}), step_printing: newValue },
+      })
+      setStepPrinting(newValue)
+      onUpdate()
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update step printing setting')
+    } finally {
+      setSavingStepPrinting(false)
     }
   }
 
@@ -515,6 +538,19 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
           enabled={hidePublicBounties}
           onToggle={handleToggleHidePublicBounties}
           disabled={savingBounties}
+        />
+      </div>
+
+      {/* Step printing (kiosk receipt printer) */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-2">Printing</h2>
+        <FeatureToggle
+          label="Print task steps"
+          description="Adds a Print button to the AI step breakdown so students can print their checklist and carry it to a work station. Formatted for an 80mm receipt printer; works on any printer the device can reach."
+          icon={PrinterIcon}
+          enabled={stepPrinting}
+          onToggle={handleToggleStepPrinting}
+          disabled={savingStepPrinting}
         />
       </div>
 
