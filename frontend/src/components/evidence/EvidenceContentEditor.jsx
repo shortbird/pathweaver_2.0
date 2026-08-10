@@ -8,17 +8,19 @@ import {
   DocumentIcon,
   PlusIcon,
   TrashIcon,
-  CheckIcon
+  CheckIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, ALLOWED_VIDEO_EXTENSIONS } from './EvidenceMediaHandlers';
 import { detectMediaType, validateFileSize, CAMERA_ACCEPT_STRING } from '../../utils/mediaUtils';
+import DocumentScannerModal from '../scan/DocumentScannerModal';
 
 export const EVIDENCE_TYPES = [
   { id: 'text', label: 'Text', Icon: DocumentTextIcon, description: 'Write notes or reflections' },
   { id: 'camera', label: 'Camera', Icon: PhotoIcon, description: 'Upload photos or videos' },
   { id: 'link', label: 'Link', Icon: LinkIcon, description: 'Share URLs' },
-  { id: 'document', label: 'Document', Icon: DocumentIcon, description: 'Upload files' },
+  { id: 'document', label: 'Document', Icon: DocumentIcon, description: 'Upload files or scan with camera' },
 ];
 
 /**
@@ -36,6 +38,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
   const [selectedType, setSelectedType] = useState(null);
   const [evidenceItems, setEvidenceItems] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
+  const [showScanner, setShowScanner] = useState(false);
   const fileInputRef = useRef(null);
   const isEditMode = !!editingBlock;
 
@@ -184,10 +187,8 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     setEvidenceItems(evidenceItems.filter((_, i) => i !== index));
   };
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
+  // Shared by the document file input and the camera scanner.
+  const addFiles = (files) => {
     const newItems = files.map(file => ({
       url: URL.createObjectURL(file),
       file: file,
@@ -195,13 +196,18 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
       title: file.name
     }));
 
-    setCurrentItem({
-      ...currentItem,
+    setCurrentItem(prev => ({
+      ...prev,
       content: {
-        items: [...(currentItem.content.items || []), ...newItems]
+        items: [...(prev.content.items || []), ...newItems]
       }
-    });
+    }));
+  };
 
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    addFiles(files);
     e.target.value = '';
   };
 
@@ -247,6 +253,9 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
             <type.Icon className="w-8 h-8 text-gray-400 group-hover:text-optio-purple mb-2" />
             <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple" style={{ fontFamily: 'Poppins' }}>
               {type.label}
+            </span>
+            <span className="text-xs text-gray-500 mt-1 text-center">
+              {type.description}
             </span>
           </button>
         ))}
@@ -521,6 +530,21 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         </p>
         <p className="text-sm text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
       </div>
+
+      <button
+        onClick={() => setShowScanner(true)}
+        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+      >
+        <CameraIcon className="w-5 h-5" />
+        <span className="font-medium" style={{ fontFamily: 'Poppins' }}>Scan with camera</span>
+      </button>
+
+      {showScanner && (
+        <DocumentScannerModal
+          onClose={() => setShowScanner(false)}
+          onScan={(file) => addFiles([file])}
+        />
+      )}
 
       <input
         ref={fileInputRef}

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   PlusIcon,
   TrashIcon,
@@ -7,8 +7,10 @@ import {
   PhotoIcon,
   VideoCameraIcon,
   LinkIcon,
-  DocumentIcon
+  DocumentIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
+import DocumentScannerModal from '../scan/DocumentScannerModal';
 import { useEvidenceEditor } from './EvidenceEditorContext';
 import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL } from './EvidenceMediaHandlers';
 import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
@@ -100,6 +102,7 @@ export const EvidenceBlockRenderer = ({
   } = useEvidenceEditor();
 
   const fileInputRef = useRef(null);
+  const [showScanner, setShowScanner] = useState(false);
   const config = blockTypes[block.type];
   const isCollapsed = collapsedBlocks.has(block.id);
   const isUploading = uploadingBlocks.has(block.id);
@@ -518,10 +521,8 @@ export const EvidenceBlockRenderer = ({
   };
 
   const renderDocumentBlock = (block) => {
-    const handleFileSelect = async (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
-
+    // Shared by the file input and the document scanner.
+    const addDocumentFiles = async (files) => {
       for (const file of files) {
         try {
           const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'document');
@@ -535,6 +536,12 @@ export const EvidenceBlockRenderer = ({
           toast.error(`Failed to upload ${file.name}`);
         }
       }
+    };
+
+    const handleFileSelect = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      await addDocumentFiles(files);
       e.target.value = ''; // Reset input
     };
 
@@ -594,6 +601,22 @@ export const EvidenceBlockRenderer = ({
           </p>
           <p className="text-xs text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowScanner(true)}
+          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+        >
+          <CameraIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">Scan with camera</span>
+        </button>
+
+        {showScanner && (
+          <DocumentScannerModal
+            onClose={() => setShowScanner(false)}
+            onScan={(file) => addDocumentFiles([file])}
+          />
+        )}
 
         <input
           ref={fileInputRef}

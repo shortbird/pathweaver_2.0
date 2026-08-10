@@ -23,9 +23,11 @@
 
     <!-- ✅ SECURITY HEADERS (Phase 1 Security Fix - January 2025) -->
     <!-- Content Security Policy: Prevents XSS, clickjacking, and other injection attacks -->
+    <!-- 'wasm-unsafe-eval' permits ONLY WebAssembly compilation (not JS eval) -
+         required by the document scanner's OpenCV.js wasm build. -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev;
+      script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev;
       worker-src 'self' blob:;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
@@ -46,11 +48,14 @@
     <!-- Referrer Policy: Controls referrer information -->
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
-    <!-- Permissions Policy: Disable unnecessary browser features -->
+    <!-- Permissions Policy: Disable unnecessary browser features.
+         NOTE: browsers only honor Permissions-Policy as an HTTP header, so this
+         meta tag is inert - kept as documentation of intent. camera=(self)
+         because the document scanner and Treehouse capture use getUserMedia. -->
     <meta http-equiv="Permissions-Policy" content="
       geolocation=(),
       microphone=(),
-      camera=(),
+      camera=(self),
       payment=(),
       usb=(),
       magnetometer=(),

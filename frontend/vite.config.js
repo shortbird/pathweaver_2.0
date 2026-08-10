@@ -84,6 +84,13 @@ export default defineConfig(({ mode }) => {
       '@legal': join(process.cwd(), '..', 'shared', 'legal'),
     },
   },
+  optimizeDeps: {
+    // The document scanner's deps are only ever reached via dynamic import,
+    // so the dev server doesn't discover them until the first scan — and
+    // Vite's on-demand re-optimization aborts that first import ("The
+    // scanner couldn't load"). Pre-bundle them at server start instead.
+    include: ['@techstark/opencv-js', 'pdf-lib'],
+  },
   server: {
     port: 3000,
     // Allow Vite's dev server to read the shared/ folder, which sits one level
@@ -130,6 +137,16 @@ export default defineConfig(({ mode }) => {
             // PostHog is large and React-independent, safe to separate
             if (id.includes('posthog')) {
               return 'posthog'
+            }
+            // Document scanner deps are only ever dynamically imported
+            // (services/documentScanner.js) and must NOT fall into the eager
+            // vendor chunk: opencv-js alone is a ~10MB wasm build. Naming
+            // them keeps each in its own lazy chunk, fetched on first scan.
+            if (id.includes('@techstark/opencv-js')) {
+              return 'opencv'
+            }
+            if (id.includes('pdf-lib')) {
+              return 'pdf-lib'
             }
             // All other vendor deps in one chunk to prevent load order / TDZ issues
             // between React and React-dependent libraries
