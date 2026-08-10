@@ -5,7 +5,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import api from '../../services/api'
 import SisSidebar from './SisSidebar'
-import SisFeedbackFab from './SisFeedbackFab'
 import { isSisAdmin } from '../../pages/sis/sisRole'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
@@ -139,8 +138,8 @@ const SisLayout = () => {
           <Outlet />
         </div>
       </main>
-      {/* Beta feedback FAB (bug / idea / "I don't get this") — pilot support */}
-      <SisFeedbackFab />
+      {/* Staff issue reporting is the Perch FAB, mounted app-wide in App.jsx
+          (PerchReporter) — it replaced the beta FeedbackFab here. */}
     </div>
   )
 }

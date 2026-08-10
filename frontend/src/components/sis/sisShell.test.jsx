@@ -4,7 +4,6 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 let authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
-// SisLayout mounts the feedback FAB, which reads the org context.
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
 // The teacher chrome (onboarding nudge) fetches assignments on mount.
 vi.mock('../../services/api', () => ({
@@ -60,12 +59,6 @@ describe('SisLayout gate', () => {
     authState = { isAuthenticated: false, effectiveRole: null, user: null, loading: false }
     renderLayout()
     expect(nav.goToLearningSurface).toHaveBeenCalledWith('/login')
-  })
-
-  it('mounts the feedback FAB for teachers, not just admins', () => {
-    authState = { isAuthenticated: true, effectiveRole: 'advisor', user: { role: 'org_managed', org_role: 'advisor' }, loading: false }
-    renderLayout()
-    expect(screen.getByLabelText('Send beta feedback')).toBeInTheDocument()
   })
 
   it('bounces non-staff (students) back to the web platform', () => {
