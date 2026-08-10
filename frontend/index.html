@@ -25,13 +25,13 @@
     <!-- Content Security Policy: Prevents XSS, clickjacking, and other injection attacks -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com;
+      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev;
       worker-src 'self' blob:;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
       media-src 'self' blob: https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com;
-      connect-src 'self' http://localhost:5001 ws://localhost:3000 https://www.google-analytics.com https://www.google.com/g/ https://optio-dev-backend.onrender.com https://optio-prod-backend.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com https://us.i.posthog.com https://us-assets.i.posthog.com https://www.facebook.com https://connect.facebook.net;
+      connect-src 'self' http://localhost:5001 ws://localhost:3000 https://www.google-analytics.com https://www.google.com/g/ https://optio-dev-backend.onrender.com https://optio-prod-backend.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com https://us.i.posthog.com https://us-assets.i.posthog.com https://www.facebook.com https://connect.facebook.net https://ewdgdrhvdwantdgqkpvd.supabase.co;
       frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com https://drive.google.com https://docs.google.com https://www.slideshare.net https://www.loom.com https://loom.com https://www.googletagmanager.com https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com;
       object-src 'none';
       base-uri 'self';

@@ -1,0 +1,49 @@
+import { useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useOrganization } from '../contexts/OrganizationContext';
+
+/**
+ * Perch — Shortbird's in-app issue reporting button (perch.shortbird.dev).
+ *
+ * Org admins only: the people who commissioned their org's customization
+ * report on it; students, parents, and staff never see the button. Reports
+ * carry the org's slug (PerchConfig.tenant, read by the widget at send time),
+ * so each org's feedback lands under its own client in Perch instead of one
+ * undifferentiated Optio pile.
+ *
+ * The widget script is injected once per page load when an eligible session
+ * appears, and removed (window.__perch.remove) if eligibility goes away —
+ * logout, or acting-as dropping the admin role. Platform superadmins with no
+ * organization get no button: there is no org to attribute the report to.
+ */
+const PERCH_SRC = 'https://perch.shortbird.dev/perch.js';
+const PERCH_KEY = '6ec0c483-232c-4f0e-85b7-d5b38cbca50f';
+
+export default function PerchReporter() {
+  const { isAdmin } = useAuth();
+  const { organization } = useOrganization();
+  const slug = organization?.slug || '';
+
+  useEffect(() => {
+    if (!isAdmin || !slug) {
+      window.__perch?.remove?.();
+      return;
+    }
+    // Config before script: perch.js reads key/position at load, tenant at
+    // send time — updating tenant here also covers an org switch without a
+    // reload.
+    window.PerchConfig = Object.assign(window.PerchConfig || {}, {
+      key: PERCH_KEY,
+      tenant: slug,
+      release: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev',
+    });
+    if (!document.querySelector(`script[src="${PERCH_SRC}"]`)) {
+      const s = document.createElement('script');
+      s.src = PERCH_SRC;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+  }, [isAdmin, slug]);
+
+  return null;
+}

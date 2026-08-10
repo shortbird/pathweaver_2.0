@@ -22,6 +22,7 @@ import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
 import InstallPrompt from './components/common/InstallPrompt'
+import PerchReporter from './components/PerchReporter'
 import { initPostHog, captureErrorToast, setMasqueradeSuperProperties, clearMasqueradeSuperProperties } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
@@ -432,6 +433,7 @@ function App() {
             <ActingAsProvider>
             <AppContent />
             <InstallPrompt />
+            <PerchReporter />
             <Toaster
             position="top-right"
             toastOptions={{
