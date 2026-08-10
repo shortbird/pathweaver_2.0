@@ -25,6 +25,9 @@ let orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, l
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
+}))
 
 const ANNOUNCEMENT = {
   id: 'a1', title: 'Picture day is Thursday', content: 'Wear something you like.',

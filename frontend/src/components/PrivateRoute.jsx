@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { roleHomePath } from '../utils/postLoginPath'
 
 const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
@@ -78,10 +79,7 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   // student dashboard, personal journal) without changing access for students,
   // advisors, org_admins, or superadmin. Superadmin is never blocked.
   if (blockRoles && effectiveRole !== 'superadmin' && blockRoles.includes(effectiveRole)) {
-    const redirectPath = effectiveRole === 'parent' ? '/parent/dashboard'
-      : effectiveRole === 'observer' ? '/observer/feed'
-      : '/dashboard'
-    return <Navigate to={redirectPath} replace />
+    return <Navigate to={roleHomePath(effectiveRole)} replace />
   }
 
   if (requiredRole) {
@@ -103,10 +101,7 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
 
     if (!hasAccess) {
       // Redirect to role-appropriate dashboard
-      const redirectPath = effectiveRole === 'parent' ? '/parent/dashboard'
-        : effectiveRole === 'observer' ? '/observer/feed'
-        : '/dashboard'
-      return <Navigate to={redirectPath} replace />
+      return <Navigate to={roleHomePath(effectiveRole)} replace />
     }
   }
 

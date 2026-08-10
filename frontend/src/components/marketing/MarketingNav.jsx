@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { captureEvent } from '../../services/posthog'
+import { useAuth } from '../../contexts/AuthContext'
+import { getPostLoginPath } from '../../utils/postLoginPath'
+import { hasLocalSessionHint } from '../../utils/sessionHint'
 
 const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png'
 
@@ -17,6 +20,14 @@ const MarketingNav = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
+  // Signed-in users browsing marketing pages get a single way back into the
+  // app; offering them "Login" made them believe their session was gone. While
+  // the session check is still resolving, the session_sync hint decides whether
+  // to hold the CTA slot empty (probable session) or show the anonymous CTAs
+  // immediately (no hint — the anonymous majority and every crawler).
+  const { isAuthenticated, user, loading } = useAuth()
+  const dashboardPath = isAuthenticated && user ? getPostLoginPath(user) : null
+  const hideAuthCtas = !dashboardPath && loading && hasLocalSessionHint()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -71,22 +82,35 @@ const MarketingNav = () => {
 
           {/* Desktop CTA buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              to="/login"
-              onClick={() => captureEvent('marketing_nav_login_click')}
-              className="text-sm font-semibold text-gray-700 hover:text-optio-purple transition-colors px-4 py-2"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Login
-            </Link>
-            <Link
-              to="/register"
-              onClick={() => captureEvent('marketing_nav_signup_click')}
-              className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Create Free Account
-            </Link>
+            {dashboardPath ? (
+              <Link
+                to={dashboardPath}
+                onClick={() => captureEvent('marketing_nav_dashboard_click')}
+                className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Go to my dashboard
+              </Link>
+            ) : hideAuthCtas ? null : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => captureEvent('marketing_nav_login_click')}
+                  className="text-sm font-semibold text-gray-700 hover:text-optio-purple transition-colors px-4 py-2"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => captureEvent('marketing_nav_signup_click')}
+                  className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Create Free Account
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile hamburger */}
@@ -131,22 +155,35 @@ const MarketingNav = () => {
             </Link>
           ))}
           <div className="pt-3 border-t border-gray-100 flex flex-col gap-2">
-            <Link
-              to="/login"
-              onClick={() => captureEvent('marketing_nav_login_click', { mobile: true })}
-              className="block text-center px-4 py-3 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Login
-            </Link>
-            <Link
-              to="/register"
-              onClick={() => captureEvent('marketing_nav_signup_click', { mobile: true })}
-              className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Create Free Account
-            </Link>
+            {dashboardPath ? (
+              <Link
+                to={dashboardPath}
+                onClick={() => captureEvent('marketing_nav_dashboard_click', { mobile: true })}
+                className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Go to my dashboard
+              </Link>
+            ) : hideAuthCtas ? null : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => captureEvent('marketing_nav_login_click', { mobile: true })}
+                  className="block text-center px-4 py-3 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => captureEvent('marketing_nav_signup_click', { mobile: true })}
+                  className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Create Free Account
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

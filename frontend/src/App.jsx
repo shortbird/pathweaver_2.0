@@ -32,7 +32,7 @@ import ScrollToTop from './components/ScrollToTop'
 import MetaPixelTracker from './components/MetaPixelTracker'
 import GaTracker from './components/GaTracker'
 import { initGa } from './services/googleAnalytics'
-import HomePage from './pages/marketing/HomePage'
+import HomeRoute, { NotFoundRedirect } from './components/HomeRoute'
 import LoginPage from './pages/LoginPage'
 import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -454,8 +454,10 @@ function App() {
                 re-initialized. SIS console shares the providers + session above. */}
             <SurfaceRoutes renderLearning={() => (
             <Routes>
-              {/* Marketing pages (standalone, use MarketingLayout) */}
-              <Route path="/" element={<HomePage />} />
+              {/* Marketing pages (standalone, use MarketingLayout). The root is
+                  auth-aware: signed-in users are forwarded to their landing page
+                  instead of the marketing homepage — see HomeRoute. */}
+              <Route path="/" element={<HomeRoute />} />
               <Route path="classes" element={<ClassesPage />} />
               {/* /for-students is the legacy URL for the same offering; preserve external links by redirecting. */}
               <Route path="for-students" element={<Navigate to="/classes" replace />} />
@@ -665,7 +667,11 @@ function App() {
                 <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Unknown paths: signed-in users to their app home, everyone
+                  else to the homepage. A bare Navigate-to-"/" here used to dump
+                  signed-in users on the marketing page (it also once ate the
+                  SIS surface-switch navigation — see SurfaceRoutes). */}
+              <Route path="*" element={<NotFoundRedirect />} />
             </Route>
 
             {/* Help Center / Docs (public, no auth, standalone layout) */}

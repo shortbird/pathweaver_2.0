@@ -1,5 +1,7 @@
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
+import { roleHomePath } from '../../utils/postLoginPath'
 
 // Pages where a back button doesn't make sense — the top-level destinations
 // users reach from the sidebar / topbar tabs, plus auth and marketing landings.
@@ -55,6 +57,7 @@ const TAB_ROOTS = new Set([
 const BackButton = ({ className = '' }) => {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user, effectiveRole } = useAuth()
 
   if (TAB_ROOTS.has(location.pathname)) {
     return null
@@ -75,7 +78,9 @@ const BackButton = ({ className = '' }) => {
     if (segments.length > 1) {
       navigate('/' + segments.slice(0, -1).join('/'))
     } else {
-      navigate('/')
+      // Single-segment dead end: a signed-in user's "back" goes to their app
+      // home, not to "/" — that landed them on the marketing homepage.
+      navigate(user ? roleHomePath(effectiveRole) : '/')
     }
   }
 

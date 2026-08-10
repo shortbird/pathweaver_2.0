@@ -20,15 +20,20 @@ let orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, l
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
+}))
 vi.mock('../services/api', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { success: true, announcements: [], total: 0 } })) },
 }))
 import SchoolPage from './SchoolPage'
 
+// "Home" is the member's own app home (roleHomePath), never "/" — the marketing
+// homepage told signed-in members they had been logged out.
 const renderAt = (path = '/school') => render(
   <MemoryRouter initialEntries={[path]}>
     <Routes>
-      <Route path="/" element={<div>Dashboard</div>} />
+      <Route path="/dashboard" element={<div>Dashboard</div>} />
       <Route path="/school" element={<SchoolPage />} />
       <Route path="/announcements" element={<SchoolPage />} />
     </Routes>

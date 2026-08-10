@@ -7,6 +7,8 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
+import { useAuth } from '../contexts/AuthContext'
+import { roleHomePath } from '../utils/postLoginPath'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
@@ -117,6 +119,7 @@ export default function SchoolPage() {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(() => new Set())
   const { school, loading: orgLoading } = useOrganization()
+  const { effectiveRole } = useAuth()
   const [feed, setFeed] = useState(null)
   const [carpoolPerms, setCarpoolPerms] = useState({ canPost: false, canModerate: false })
   const [schoolOrg, setSchoolOrg] = useState(null)
@@ -218,8 +221,11 @@ export default function SchoolPage() {
   const cards = cardsFor(schoolOrg)
 
   // Wait for /me before deciding — redirecting on a not-yet-loaded context
-  // would bounce every member of a school on a hard refresh.
-  if (!orgLoading && !school) return <Navigate to="/" replace />
+  // would bounce every member of a school on a hard refresh. When the school
+  // context is genuinely missing (fetch failed, or the homepage was turned
+  // off), send the signed-in member to their own home: bouncing to "/" put
+  // them on the marketing homepage seconds after logging in.
+  if (!orgLoading && !school) return <Navigate to={roleHomePath(effectiveRole)} replace />
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

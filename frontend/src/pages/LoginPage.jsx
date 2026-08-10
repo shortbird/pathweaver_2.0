@@ -6,10 +6,11 @@ import logger from '../utils/logger'
 import GoogleButton from '../components/auth/GoogleButton'
 import { observerAPI } from '../services/api'
 import { getPostLoginPath } from '../utils/postLoginPath'
+import { isDifferentAccountActiveElsewhere } from '../utils/sessionHint'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
-  const { login, isAuthenticated, user, effectiveRole, loading: authLoading } = useAuth()
+  const { login, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -39,6 +40,12 @@ const LoginPage = () => {
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [wantsToSwitch, setWantsToSwitch] = useState(false)
+  // While a pending observer invitation is being accepted we hold on the
+  // loader; flipping this false re-runs the redirect effect if acceptance
+  // fails, so the visitor is never stranded on the spinner.
+  const [invitationProcessing, setInvitationProcessing] = useState(() =>
+    Boolean(localStorage.getItem('pendingObserverInvitation'))
+  )
 
   // Store invitation code in localStorage so we can accept it after login
   useEffect(() => {
@@ -69,34 +76,43 @@ const LoginPage = () => {
     return null
   }
 
-  // Auto-redirect only for pending observer invitations (special deep-link case)
-  // Normal authenticated users see the account selection screen instead
+  // A signed-in visitor never stays on /login: pending observer invitations
+  // resolve first, then a return path wins, and otherwise they go straight to
+  // their landing page. The one exception is a DIFFERENT account signed in from
+  // another tab (session_sync mismatch) — that is the only case that earns the
+  // "Continue as / switch account" interstitial below.
   useEffect(() => {
-    const handlePendingInvitationRedirect = async () => {
-      if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
-        const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
-        if (pendingInvitation) {
-          logger.debug('[LoginPage] User already authenticated with pending invitation, handling redirect')
-          const acceptResult = await handlePendingObserverInvitation()
-          if (acceptResult && acceptResult.status === 'success') {
-            const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-            const dest = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
-            logger.debug(`[LoginPage] Observer invitation accepted, redirecting to ${dest}`)
-            navigate(dest, { replace: true, state: { freshInvitation: true } })
-            return
-          }
-        }
-        // No pending invitation - if we have a return path, auto-redirect there
-        if (fromPath) {
-          goToReturnPath(fromPath, { replace: true })
+    const handleAuthenticatedRedirect = async () => {
+      if (!(isAuthenticated && user && !authLoading && !wantsToSwitch)) return
+
+      if (localStorage.getItem('pendingObserverInvitation')) {
+        logger.debug('[LoginPage] User already authenticated with pending invitation, handling redirect')
+        const acceptResult = await handlePendingObserverInvitation()
+        if (acceptResult && acceptResult.status === 'success') {
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          const dest = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
+          logger.debug(`[LoginPage] Observer invitation accepted, redirecting to ${dest}`)
+          navigate(dest, { replace: true, state: { freshInvitation: true } })
           return
         }
-        // Otherwise account selection screen will handle navigation
+        // Acceptance failed (and the pending code was cleared) — fall through
+        // to the normal redirect on the re-run this state change triggers.
+        setInvitationProcessing(false)
+        return
+      }
+
+      if (fromPath) {
+        goToReturnPath(fromPath, { replace: true })
+        return
+      }
+
+      if (!isDifferentAccountActiveElsewhere(user)) {
+        navigate(getPostLoginPath(user), { replace: true })
       }
     }
 
-    handlePendingInvitationRedirect()
-  }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch, fromPath])
+    handleAuthenticatedRedirect()
+  }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch, fromPath, invitationProcessing])
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -111,14 +127,20 @@ const LoginPage = () => {
     setLoading(false)
   }
 
-  // Show account selection screen if already authenticated and not switching
+  // Signed in already: the effect above is forwarding — show a loader, not the
+  // interstitial. The "You are logged in as / Continue as" screen renders only
+  // when a different account is active in another tab.
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
+    if (!isDifferentAccountActiveElsewhere(user) || fromPath || invitationProcessing) {
+      return (
+        <div role="status" aria-label="Loading" className="min-h-screen flex items-center justify-center bg-background">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+        </div>
+      )
+    }
+
     const displayName = user.first_name || user.display_name || user.email || 'User'
-    // Marketing accounts (can_view_showcase=true and not actively a student/parent/etc.)
-    // get bounced straight to the showcase page on login.
-    const showcaseOnly = user.can_view_showcase === true && effectiveRole === 'student' && !user.has_dependents && !user.has_linked_students
-    const defaultPath = showcaseOnly ? '/showcase' : getPostLoginPath(user)
-    const redirectPath = fromPath || defaultPath
+    const redirectPath = getPostLoginPath(user)
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">

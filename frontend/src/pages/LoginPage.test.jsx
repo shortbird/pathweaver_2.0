@@ -250,9 +250,13 @@ describe('LoginPage', () => {
     })
   })
 
-  // --- Account selection when already authenticated ---
-  describe('account selection when already authenticated', () => {
-    it('shows account selection screen for student', () => {
+  // --- Already authenticated ---
+  // A signed-in user landing on /login goes straight to their app home. The
+  // "Continue as / switch account" interstitial is reserved for the one case it
+  // was built for: a DIFFERENT account signed in from another tab (detected via
+  // the session_sync record AuthContext writes on every login).
+  describe('already authenticated, no other account elsewhere', () => {
+    beforeEach(() => {
       authState = {
         login: mockLogin,
         isAuthenticated: true,
@@ -260,116 +264,132 @@ describe('LoginPage', () => {
         effectiveRole: 'student',
         loading: false
       }
+    })
+
+    it('forwards a student to the dashboard without showing the interstitial', async () => {
       renderLoginPage()
 
-      expect(screen.getByText(/You are logged in as/)).toBeInTheDocument()
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
+      })
+      expect(screen.queryByText(/You are logged in as/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Welcome back')).not.toBeInTheDocument()
+    })
+
+    it('still forwards when the latest cross-tab login is this same account', async () => {
+      localStorage.setItem('session_sync', JSON.stringify({ userId: '1', action: 'login', timestamp: 1 }))
+      renderLoginPage()
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
+      })
+    })
+
+    it('forwards a parent to the parent dashboard', async () => {
+      authState = { ...authState, user: { id: '1', role: 'parent', first_name: 'Bob' }, effectiveRole: 'parent' }
+      renderLoginPage()
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard', { replace: true })
+      })
+    })
+
+    it('forwards showcase-only marketing accounts to the showcase', async () => {
+      authState = { ...authState, user: { id: '1', role: 'student', first_name: 'Mark', can_view_showcase: true } }
+      renderLoginPage()
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/showcase', { replace: true })
+      })
+    })
+
+    it('honors a return path from a protected page', async () => {
+      renderLoginPage({ pathname: '/login', state: { from: '/quests/42' } })
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/quests/42', { replace: true })
+      })
+    })
+  })
+
+  describe('another account signed in from a different tab', () => {
+    beforeEach(() => {
+      localStorage.setItem('session_sync', JSON.stringify({ userId: 'other-user', action: 'login', timestamp: 1 }))
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'student', first_name: 'Alice' },
+        effectiveRole: 'student',
+        loading: false
+      }
+    })
+
+    it('shows the account interstitial instead of auto-forwarding', async () => {
+      renderLoginPage()
+
+      expect(await screen.findByText(/You are logged in as/)).toBeInTheDocument()
       expect(screen.getByText('Alice')).toBeInTheDocument()
       expect(screen.getByText('Continue as Alice')).toBeInTheDocument()
       expect(screen.getByText('Sign in with a different account')).toBeInTheDocument()
+      expect(screen.getByText(/Signing in as a different account will end your current session/)).toBeInTheDocument()
+      expect(mockNavigate).not.toHaveBeenCalled()
     })
 
     it('navigates to dashboard when Continue is clicked (student)', async () => {
-      authState = {
-        login: mockLogin,
-        isAuthenticated: true,
-        user: { id: '1', role: 'student', first_name: 'Alice' },
-        effectiveRole: 'student',
-        loading: false
-      }
       renderLoginPage()
 
-      fireEvent.click(screen.getByText('Continue as Alice'))
+      fireEvent.click(await screen.findByText('Continue as Alice'))
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
-    })
-
-    it('navigates to parent dashboard when Continue is clicked (parent)', async () => {
-      authState = {
-        login: mockLogin,
-        isAuthenticated: true,
-        user: { id: '1', role: 'parent', first_name: 'Bob' },
-        effectiveRole: 'parent',
-        loading: false
-      }
-      renderLoginPage()
-
-      fireEvent.click(screen.getByText('Continue as Bob'))
-      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
     it('navigates to parent dashboard when Continue is clicked (org-managed parent)', async () => {
       authState = {
-        login: mockLogin,
-        isAuthenticated: true,
+        ...authState,
         // Org parents have role 'org_managed'; effectiveRole resolves org_role
         user: { id: '1', role: 'org_managed', org_role: 'parent', first_name: 'Bob' },
-        effectiveRole: 'parent',
-        loading: false
+        effectiveRole: 'parent'
       }
       renderLoginPage()
 
-      fireEvent.click(screen.getByText('Continue as Bob'))
+      fireEvent.click(await screen.findByText('Continue as Bob'))
       expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
     it('navigates new observer to welcome when Continue is clicked', async () => {
       localStorage.removeItem('observerWelcomeSeen')
       authState = {
-        login: mockLogin,
-        isAuthenticated: true,
+        ...authState,
         user: { id: '1', role: 'observer', first_name: 'Carol' },
-        effectiveRole: 'observer',
-        loading: false
+        effectiveRole: 'observer'
       }
       renderLoginPage()
 
-      fireEvent.click(screen.getByText('Continue as Carol'))
+      fireEvent.click(await screen.findByText('Continue as Carol'))
       expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome')
     })
 
     it('navigates returning observer to feed when Continue is clicked', async () => {
       localStorage.setItem('observerWelcomeSeen', 'true')
       authState = {
-        login: mockLogin,
-        isAuthenticated: true,
+        ...authState,
         user: { id: '1', role: 'observer', first_name: 'Carol' },
-        effectiveRole: 'observer',
-        loading: false
+        effectiveRole: 'observer'
       }
       renderLoginPage()
 
-      fireEvent.click(screen.getByText('Continue as Carol'))
+      fireEvent.click(await screen.findByText('Continue as Carol'))
       expect(mockNavigate).toHaveBeenCalledWith('/observer/feed')
     })
 
     it('shows login form when switch account is clicked', async () => {
-      authState = {
-        login: mockLogin,
-        isAuthenticated: true,
-        user: { id: '1', role: 'student', first_name: 'Alice' },
-        effectiveRole: 'student',
-        loading: false
-      }
       renderLoginPage()
 
-      fireEvent.click(screen.getByText('Sign in with a different account'))
+      fireEvent.click(await screen.findByText('Sign in with a different account'))
 
       await waitFor(() => {
         expect(screen.getByText('Welcome back')).toBeInTheDocument()
         expect(screen.getByText(/Signing in below will end your current session/)).toBeInTheDocument()
       })
-    })
-
-    it('shows session switch warning', () => {
-      authState = {
-        login: mockLogin,
-        isAuthenticated: true,
-        user: { id: '1', role: 'student', first_name: 'Alice' },
-        effectiveRole: 'student',
-        loading: false
-      }
-      renderLoginPage()
-
-      expect(screen.getByText(/Signing in as a different account will end your current session/)).toBeInTheDocument()
     })
   })
 

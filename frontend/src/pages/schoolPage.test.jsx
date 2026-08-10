@@ -6,6 +6,9 @@ import SchoolPage from './SchoolPage'
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate' }, loading: false }),
 }))
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
+}))
 vi.mock('../services/api', () => ({
   default: {
     get: vi.fn(),

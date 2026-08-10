@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import logger from '../../utils/logger'
 import { getPostLoginPath } from '../../utils/postLoginPath'
+import { isDifferentAccountActiveElsewhere } from '../../utils/sessionHint'
 
 /**
  * Organization-specific login page for username-based authentication.
@@ -50,9 +51,11 @@ const OrgLoginPage = () => {
     }
   }, [slug])
 
-  // Redirect if already authenticated (unless user wants to switch accounts)
+  // Redirect if already authenticated — unless the user asked to switch, or a
+  // DIFFERENT account signed in from another tab (session_sync mismatch), which
+  // is the only case that shows the "Continue as / switch" interstitial.
   useEffect(() => {
-    if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
+    if (isAuthenticated && user && !authLoading && !wantsToSwitch && !isDifferentAccountActiveElsewhere(user)) {
       logger.debug('[OrgLoginPage] User already authenticated, redirecting')
       navigate(getPostLoginPath(user), { replace: true })
     }
@@ -103,12 +106,22 @@ const OrgLoginPage = () => {
     )
   }
 
-  // Show account selection screen if already authenticated and not switching
+  // Signed in already: the effect above is forwarding — show a loader, not the
+  // interstitial. The interstitial renders only when a different account is
+  // active in another tab.
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
+    if (!isDifferentAccountActiveElsewhere(user)) {
+      return (
+        <div role="status" aria-label="Loading" className="min-h-screen flex items-center justify-center bg-background">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+        </div>
+      )
+    }
+
     const displayName = user.first_name || user.display_name || user.email
-    const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-      : user.role === 'observer' ? (localStorage.getItem('observerWelcomeSeen') ? '/observer/feed' : '/observer/welcome')
-      : '/dashboard'
+    // getPostLoginPath resolves org_managed users via org_role — the old inline
+    // map read user.role directly and sent org parents to the student dashboard.
+    const redirectPath = getPostLoginPath(user)
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
