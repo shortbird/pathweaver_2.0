@@ -49,6 +49,17 @@ export interface User {
     slug?: string;
     feature_flags?: Record<string, any> | null;
   } | null;
+  // The SCHOOL this user belongs to, which is NOT the same question as
+  // `organization`: a parent is usually a platform user with no
+  // organization_id and belongs to a school through their child. /api/auth/me
+  // resolves it that way (routes/auth/login/core.py _school_payload) and the
+  // School page is offered only when this is set. `homepage` is the per-org
+  // opt-in (feature_flags.sis_settings.school_homepage).
+  school?: {
+    id: string;
+    name?: string | null;
+    homepage?: boolean;
+  } | null;
 }
 
 interface AuthState {

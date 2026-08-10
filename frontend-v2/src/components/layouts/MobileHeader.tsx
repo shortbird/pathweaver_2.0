@@ -52,6 +52,7 @@ function PreviewRolePill() {
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
 import { useIsParent, useIsObserver } from '@/src/hooks/useStartSomething';
+import { useSchool } from '@/src/hooks/useSchool';
 import { VStack, UIText, Heading } from '../ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -360,6 +361,29 @@ function MessagesButton() {
   );
 }
 
+// The user's school, one tap from anywhere — announcements, events, the
+// carpool board, absence reporting. Rendered only for members of a SIS school
+// (/me attaches user.school; useSchool also excludes observers). Sits left of
+// the bell like MessagesButton: the School page is notification-driven too
+// (school pushes deep-link into it).
+function SchoolButton() {
+  const c = useThemeColors();
+  const school = useSchool();
+  if (!school) return null;
+
+  return (
+    <Pressable
+      onPress={() => router.push('/(app)/school' as any)}
+      style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+      accessibilityRole="button"
+      accessibilityLabel={school.name ? `${school.name} school page` : 'School page'}
+      testID="header-school-button"
+    >
+      <Ionicons name="business-outline" size={22} color={c.icon} />
+    </Pressable>
+  );
+}
+
 // Small badge shown next to the page title while an admin is masquerading as
 // another user, so it's always obvious whose account you're viewing.
 function MasqueradeBadge() {
@@ -415,6 +439,7 @@ export function PageHeader({ title }: PageHeaderProps) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PreviewRolePill />
+          <SchoolButton />
           {showMessages && <MessagesButton />}
           <NotificationBell />
           <AvatarMenu />

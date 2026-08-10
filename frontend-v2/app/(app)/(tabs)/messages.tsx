@@ -4,9 +4,9 @@
  * Desktop: split-panel (list on left, chat on right).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, BackHandler } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading } from '@/src/components/ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -28,6 +28,7 @@ import { CreateGroupModal } from '@/src/components/communication/CreateGroupModa
 import { ChildMessagesView } from '@/src/components/communication/ChildMessagesView';
 import { ComposeSheet } from '@/src/components/communication/ComposeSheet';
 import { requestNotificationsRefresh } from '@/src/hooks/useNotifications';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 interface SelectedConversation {
   id: string;
@@ -44,7 +45,7 @@ export default function MessagesScreen() {
 
   // Parents get the read-only "view my child's messages" entry point. Superadmins
   // who are also linked as a parent (e.g. to their own kids) see it too.
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
+  const effectiveRole = effectiveRoleOf(user);
   const isParent = effectiveRole === 'parent';
   const isSuperadmin = effectiveRole === 'superadmin';
 
@@ -85,6 +86,25 @@ export default function MessagesScreen() {
   };
 
   const handleBack = () => setSelected(null);
+
+  // A DM push notification arrives as "/(tabs)/messages?user=<sender>" (the
+  // deep-link router carries the param through — see deepLinkRouter). Open
+  // that conversation directly instead of leaving the user on the list; this
+  // is the whole tap-through for carpool replies. Consumed once per param
+  // value so pressing Back doesn't bounce straight back into the chat.
+  const params = useLocalSearchParams<{ user?: string }>();
+  const openedForUser = useRef<string | null>(null);
+  useEffect(() => {
+    const targetUser = typeof params.user === 'string' ? params.user : null;
+    if (!targetUser || openedForUser.current === targetUser) return;
+    if (convoLoading || contactsLoading) return;
+    const convo = conversations.find((cv: any) => cv.other_user?.id === targetUser);
+    const contact = contacts.find((ct: any) => ct.id === targetUser) || convo?.other_user;
+    if (!contact) return; // sender not reachable for this account — stay on the list
+    openedForUser.current = targetUser;
+    setShowChildMessages(false);
+    setSelected({ id: convo?.id || contact.id, type: 'dm', contact });
+  }, [params.user, convoLoading, contactsLoading, conversations, contacts]);
 
   // When a thread is read, refresh the conversation-list unread dots AND ask the
   // notification bell to refetch — reading a thread clears its 'message_received'

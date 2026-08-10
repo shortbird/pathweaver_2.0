@@ -133,6 +133,19 @@ class TestPublish:
         assert out['sent'] == 1
         assert out['announcement_id'] is None
 
+    def test_the_notification_links_to_the_school_page(self):
+        """The sent message lives in the school page's archive, on web (/school)
+        and mobile (deep-link remap to the School stack) alike — not on the
+        notification bell list, which only holds the preview."""
+        client, _ = _client(insert_returns=[{'id': 'ann-1'}])
+        notifier = Mock()
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=notifier), \
+             patch('services.announcement_service._email_fanout'):
+            svc.publish('org-1', 'admin-1', 'T', 'B', ['parents'])
+        assert notifier.create_notification.call_args.kwargs['link'] == '/school'
+
     def test_one_failed_notification_does_not_stop_the_others(self):
         client, _ = _client(insert_returns=[{'id': 'ann-1'}])
         notifier = Mock()

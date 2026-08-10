@@ -15,6 +15,7 @@ import { desktopNavItems, navItems } from '@/src/config/navigation';
 import type { NavItem } from '@/src/config/navigation';
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -98,9 +99,9 @@ export function Sidebar() {
 
   useEffect(() => {
     if (!user) return;
-    const effectiveRole = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+    const effectiveRole = effectiveRoleOf(user);
     // Superadmin/org_admin/advisor always see courses
-    if (['superadmin', 'org_admin', 'advisor'].includes(effectiveRole)) {
+    if (effectiveRole && ['superadmin', 'org_admin', 'advisor'].includes(effectiveRole)) {
       setHasCourses(true);
       return;
     }
@@ -135,8 +136,8 @@ export function Sidebar() {
           // Role-gated items
           if (!item.roles) return true;
           if (!user) return false;
-          const effectiveRole = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-          return item.roles.includes(effectiveRole) || effectiveRole === 'superadmin';
+          const effectiveRole = effectiveRoleOf(user);
+          return (effectiveRole && item.roles.includes(effectiveRole)) || effectiveRole === 'superadmin';
         }).map((item) => (
           <NavLink key={item.key} item={item} />
         ))}

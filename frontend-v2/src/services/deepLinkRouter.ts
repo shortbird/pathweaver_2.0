@@ -40,6 +40,11 @@ const REMAP: Array<[RegExp, string]> = [
   [/^\/communication\/?$/, '/(app)/(tabs)/messages'],
   [/^\/bounties\/?$/, '/(app)/(tabs)/bounties'],
   [/^\/notifications\/?$/, '/(app)/notifications'],
+  // The school surface. "/announcements" is the web page's legacy alias, kept
+  // so older emailed/notification links land on the same screen.
+  [/^\/school\/?$/, '/(app)/school'],
+  [/^\/announcements\/?$/, '/(app)/school'],
+  [/^\/absences\/?$/, '/(app)/school/absences'],
 ];
 
 /**
@@ -80,6 +85,19 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
         ...(claimId ? { params: { claim: claimId } } : {}),
       };
     }
+  }
+
+  // DM notifications link "/communication?user=<sender>" (and groups
+  // "?group=<id>"). The param is the whole point — without it a tapped
+  // carpool-reply push lands on the conversation LIST, not the conversation —
+  // so carry it through to the messages screen.
+  if (/^\/(communication|messages)\/?$/.test(path)) {
+    const user = getQueryParam(query, 'user');
+    const group = getQueryParam(query, 'group');
+    return {
+      target: '/(app)/(tabs)/messages',
+      ...(user ? { params: { user } } : group ? { params: { group } } : {}),
+    };
   }
 
   // Exact remaps first (matched on path, query ignored)

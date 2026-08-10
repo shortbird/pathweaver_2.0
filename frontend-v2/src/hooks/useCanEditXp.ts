@@ -12,6 +12,7 @@
  */
 
 import { useAuthStore } from '@/src/stores/authStore';
+import { userHasRole } from '@/src/utils/effectiveRole';
 
 const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor'];
 
@@ -23,17 +24,11 @@ export function useCanEditXp(): boolean {
   const locked = Boolean(user?.organization?.feature_flags?.lock_xp_editing);
   if (!locked) return true;
 
-  // A role can arrive in three shapes: the platform `role` column, the
-  // `org_roles` array (multi-role org users), or the legacy `org_role`. Check
-  // all three -- an org teacher who is also a parent has role='org_managed' with
-  // 'advisor' in org_roles, and a primary-role check would withhold their XP
-  // control. Mirrors userHasRole in the web app's utils/userRoles.
-  return XP_GUIDE_ROLES.some(
-    (role) =>
-      user?.role === role ||
-      (Array.isArray(user?.org_roles) && user.org_roles.includes(role)) ||
-      user?.org_role === role,
-  );
+  // userHasRole checks all three shapes a role arrives in (role, org_roles[],
+  // org_role) -- an org teacher who is also a parent has role='org_managed'
+  // with 'advisor' in org_roles, and a primary-role check would withhold
+  // their XP control.
+  return userHasRole(user, ...XP_GUIDE_ROLES);
 }
 
 export default useCanEditXp;

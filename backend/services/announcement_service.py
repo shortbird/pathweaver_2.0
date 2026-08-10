@@ -119,7 +119,11 @@ def publish(org_id: str, author_id: str, title: str, content: str,
                 notification_type='announcement',
                 title=title,
                 message=preview,
-                link='/notifications',
+                # The school page holds the sent-message archive this refers
+                # to. Web routes /school directly; the mobile app's deep-link
+                # router remaps it to the School stack — so a push tap lands on
+                # the message itself, not the bell list.
+                link='/school',
                 # full_content is what the notification expands to, on web and
                 # mobile alike — both render it as text (react-markdown escapes
                 # raw HTML; React Native has no notion of it), so it is the

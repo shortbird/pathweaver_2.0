@@ -83,9 +83,29 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/bounties?tab=my-bounties')?.target).toBe('/(app)/(tabs)/bounties');
   });
 
-  it('maps the web communication route to the messages tab', () => {
-    expect(resolveDeepLink('/communication?user=u1')?.target).toBe('/(app)/(tabs)/messages');
-    expect(resolveDeepLink('/communication?group=g1')?.target).toBe('/(app)/(tabs)/messages');
+  it('maps the web communication route to the messages tab AND carries ?user through', () => {
+    // The DM push notification links "/communication?user=<sender>". Dropping
+    // the param landed carpool-reply taps on the conversation LIST instead of
+    // the conversation.
+    const resolved = resolveDeepLink('/communication?user=u1');
+    expect(resolved?.target).toBe('/(app)/(tabs)/messages');
+    expect(resolved?.params?.user).toBe('u1');
+    const group = resolveDeepLink('/communication?group=g1');
+    expect(group?.target).toBe('/(app)/(tabs)/messages');
+    expect(group?.params?.group).toBe('g1');
+    // No params object at all for a bare link.
+    expect(resolveDeepLink('/communication')?.params).toBeUndefined();
+  });
+
+  it('carries ?user on the plain /messages path too', () => {
+    expect(resolveDeepLink('/messages?user=u2')?.params?.user).toBe('u2');
+  });
+
+  it('maps school links to the mobile School stack', () => {
+    expect(resolveDeepLink('/school')?.target).toBe('/(app)/school');
+    // /announcements is the legacy web alias for the school page.
+    expect(resolveDeepLink('/announcements')?.target).toBe('/(app)/school');
+    expect(resolveDeepLink('/absences')?.target).toBe('/(app)/school/absences');
   });
 
   it('routes /credit-dashboard to view-on-web', () => {

@@ -17,10 +17,10 @@ import {
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 function getRedirectForRole(user: User): string {
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  switch (role) {
+  switch (effectiveRoleOf(user)) {
     case 'parent': return '/(app)/(tabs)/family';
     case 'advisor':
     case 'org_admin': return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/dashboard';

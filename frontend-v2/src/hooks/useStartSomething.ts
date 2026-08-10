@@ -17,6 +17,7 @@ import { useCallback } from 'react';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 
@@ -26,8 +27,7 @@ export function useIsObserver(): boolean {
   // Superadmin can preview other role shells without swapping tokens.
   if (user?.role === 'superadmin' && previewRole) return previewRole === 'observer';
   if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  return role === 'observer';
+  return effectiveRoleOf(user) === 'observer';
 }
 
 export function useIsParent(): boolean {
@@ -35,9 +35,8 @@ export function useIsParent(): boolean {
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
   if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   return (
-    role === 'parent' ||
+    effectiveRoleOf(user) === 'parent' ||
     (user as any).has_dependents === true ||
     (user as any).has_linked_students === true
   );
