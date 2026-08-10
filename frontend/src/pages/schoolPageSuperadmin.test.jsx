@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 /**
@@ -69,33 +69,47 @@ beforeEach(() => {
 })
 
 describe('the superadmin school-page preview', () => {
-  it('renders the selected school instead of redirecting, with an org sidebar', async () => {
+  it('renders the selected school instead of redirecting, with a compact org dropdown', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { name: 'iCreate' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Aardvark Academy' })).toBeInTheDocument()
+    const picker = screen.getByRole('combobox', { name: 'Previewing organization' })
+    expect(picker).toHaveValue('org-i')
+    expect(screen.getByRole('option', { name: 'Aardvark Academy' })).toBeInTheDocument()
     expect(screen.queryByTestId('student-dashboard')).not.toBeInTheDocument()
   })
 
-  it('scopes every read to the selected org', async () => {
+  it('scopes every read to the selected org, viewed as a parent by default', async () => {
     renderPage()
     await screen.findByRole('heading', { name: 'iCreate' })
-    const urls = get.mock.calls.map((c) => c[0])
-    expect(urls).toContain('/api/sis/school/context?organization_id=org-i')
-    expect(urls).toContain('/api/sis/community/feed?organization_id=org-i')
-    const archiveCall = get.mock.calls.find((c) => c[0].startsWith('/api/announcements/archive'))
-    expect(archiveCall[1].params.organization_id).toBe('org-i')
+    const paramsFor = (path) => get.mock.calls.find((c) => c[0] === path)?.[1]?.params
+    expect(paramsFor('/api/sis/school/context')).toMatchObject({ organization_id: 'org-i', view_as: 'parent' })
+    expect(paramsFor('/api/sis/community/feed')).toMatchObject({ organization_id: 'org-i', view_as: 'parent' })
+    expect(paramsFor('/api/announcements/archive')).toMatchObject({ organization_id: 'org-i', view_as: 'parent' })
   })
 
-  it('switches org through the sidebar', async () => {
+  it('offers the three role views and re-reads everything as the chosen one', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Aardvark Academy' }))
+    const rolePicker = await screen.findByRole('combobox', { name: 'Viewing as' })
+    expect(screen.getByRole('option', { name: 'View as parent' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'View as student' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'View as admin' })).toBeInTheDocument()
+    fireEvent.change(rolePicker, { target: { value: 'student' } })
+    await waitFor(() => {
+      const call = get.mock.calls.filter((c) => c[0] === '/api/sis/school/context').at(-1)
+      expect(call[1].params.view_as).toBe('student')
+    })
+    fireEvent.change(rolePicker, { target: { value: 'admin' } })
+    await waitFor(() => {
+      const call = get.mock.calls.filter((c) => c[0] === '/api/sis/school/context').at(-1)
+      expect(call[1].params.view_as).toBe('admin')
+    })
+  })
+
+  it('switches org through the dropdown', async () => {
+    renderPage()
+    const picker = await screen.findByRole('combobox', { name: 'Previewing organization' })
+    fireEvent.change(picker, { target: { value: 'org-a' } })
     expect(sisOrg.setOrgId).toHaveBeenCalledWith('org-a')
-  })
-
-  it('marks the selected org', async () => {
-    renderPage()
-    const selected = await screen.findByRole('button', { name: 'iCreate' })
-    expect(selected).toHaveAttribute('aria-current', 'true')
   })
 
   it('holds with a loader until the org list resolves a selection', () => {
@@ -104,13 +118,13 @@ describe('the superadmin school-page preview', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
-  it('does not offer the sidebar to a school member', async () => {
+  it('does not offer the dropdown to a school member', async () => {
     authState = { user: { id: 'u1' }, effectiveRole: 'parent' }
     orgState = { school: { id: 'org-1', name: 'iCreate' }, loading: false }
     sisOrg = { orgId: null, setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false }
     renderPage()
     await screen.findByRole('heading', { name: 'iCreate' })
-    expect(screen.queryByText('Organizations')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Previewing organization' })).not.toBeInTheDocument()
     // A member's reads stay membership-resolved — no org param.
     const urls = get.mock.calls.map((c) => c[0])
     expect(urls).toContain('/api/sis/school/context')

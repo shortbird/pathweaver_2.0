@@ -186,21 +186,66 @@ def school_context(user_id: str) -> Dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'school_context: org lookup failed for {user_id[:8]}: {e}')
 
-    orgs = []
-    for oid in org_ids:
-        row = rows_by_id.get(oid) or {}
-        settings = ((row.get('feature_flags') or {}).get('sis_settings') or {})
-        orgs.append({
-            'organization_id': oid,
-            'organization_name': row.get('name'),
-            'is_guardian': oid in guardian_org_ids,
-            'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
-            # The school's own mark, for the hub's header. Often a data: URI
-            # (that's how SisOrgSettings stores uploads), so it can be large —
-            # this endpoint is one page's one call.
-            'logo_url': (row.get('branding_config') or {}).get('logo_url'),
-        })
+    orgs = [_hub_org_entry(oid, rows_by_id.get(oid) or {}, oid in guardian_org_ids)
+            for oid in org_ids]
     return {'orgs': orgs, 'is_guardian': any(o['is_guardian'] for o in orgs)}
+
+
+def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str, Any]:
+    """One org as the school hub consumes it — shared by the membership answer
+    and the superadmin preview so the two can never drift apart."""
+    settings = ((row.get('feature_flags') or {}).get('sis_settings') or {})
+    return {
+        'organization_id': oid,
+        'organization_name': row.get('name'),
+        'is_guardian': is_guardian,
+        'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
+        # The school's own mark, for the hub's header. Often a data: URI
+        # (that's how SisOrgSettings stores uploads), so it can be large —
+        # this endpoint is one page's one call.
+        'logo_url': (row.get('branding_config') or {}).get('logo_url'),
+    }
+
+
+def school_preview_orgs() -> Dict[str, Any]:
+    """Every org that has turned the school page on — the superadmin preview
+    listing. A superadmin belongs to no school, so membership answers nothing
+    for them; this is what the mobile app bootstraps its preview from (the
+    web preview picks from the SIS console's own org list instead). Entries
+    are never guardian: a superadmin has no family here, and the guardian
+    endpoints behind the family cards would refuse them anyway."""
+    try:
+        rows = (_admin().table('organizations')
+                .select('id, name, feature_flags, branding_config')
+                .eq('is_active', True).execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'school_preview_orgs: org lookup failed: {e}')
+        rows = []
+    enabled = [r for r in rows
+               if (((r.get('feature_flags') or {}).get('sis_settings') or {})
+                   .get('school_homepage'))]
+    enabled.sort(key=lambda r: (r.get('name') or '').lower())
+    return {'orgs': [_hub_org_entry(r['id'], r, False) for r in enabled],
+            'is_guardian': False}
+
+
+def school_context_for_org(org_id: str, as_guardian: bool = False) -> Dict[str, Any]:
+    """One school's hub context with the membership question skipped — the
+    superadmin school-page preview (routes/sis/school.py gates it). as_guardian
+    picks the previewed role's view: True shows the family-only cards a parent
+    gets. Cards are links, not data — the guardian endpoints behind them still
+    authorize by real family relationship."""
+    try:
+        rows = (_admin().table('organizations')
+                .select('id, name, feature_flags, branding_config')
+                .eq('id', org_id).limit(1).execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'school_context_for_org: org lookup failed for {org_id}: {e}')
+        rows = []
+    if not rows:
+        return {'orgs': [], 'is_guardian': False}
+    return {'orgs': [_hub_org_entry(org_id, rows[0], as_guardian)],
+            'is_guardian': as_guardian}
 
 
 def _has_org_access(user_id: str, org_id: str) -> bool:

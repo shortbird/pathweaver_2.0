@@ -224,6 +224,46 @@ def delete_recognition(user_id, recognition_id):
 
 # ── Members (recipient picker for Recognition) ────────────────────────────────
 # ── The family-facing feed ────────────────────────────────────────────────────
+def _caller_effective_role(user_id):
+    from utils.roles import get_effective_role
+    try:
+        row = (get_supabase_admin_client().table('users')
+               .select('role, org_role, org_roles').eq('id', user_id)
+               .limit(1).execute()).data
+        return get_effective_role(row[0]) if row else None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'community feed: role lookup failed for {user_id[:8]}: {e}')
+        return None
+
+
+def _feed_org_for(user_id, requested_org):
+    """Which org's board to serve. Members get their own school; a superadmin
+    may name any org (?organization_id — the school-page preview). Anyone else
+    naming an org that is not theirs is refused, mirroring the announcements
+    archive's contract. Returns (org_id, error, preview): error is 'forbidden'
+    or None; preview is True only on the superadmin path.
+    """
+    from services import sis_service
+    member_org = sis_service.member_org_id(user_id)
+    if not requested_org or requested_org == member_org:
+        return member_org, None, False
+    if _caller_effective_role(user_id) == 'superadmin':
+        return requested_org, None, True
+    return None, 'forbidden', False
+
+
+def _feed_affordances(user_id, preview, view_as):
+    """Carpool affordances on the feed: adults post, admins moderate. A
+    superadmin preview models a member of the chosen role instead — students
+    read without posting, family members don't moderate, admins do both."""
+    from services import sis_service
+    if preview:
+        return {'can_post_carpool': view_as != 'student',
+                'can_moderate': view_as == 'admin'}
+    return {'can_post_carpool': not _is_student(user_id),
+            'can_moderate': sis_service.caller_is_admin(user_id)}
+
+
 @bp.route('/feed', methods=['GET'])
 @require_role('student', 'parent', 'observer', 'advisor', 'org_admin', 'superadmin')
 def family_feed(user_id):
@@ -233,9 +273,11 @@ def family_feed(user_id):
     org through membership (a platform parent has no organization_id of their
     own — they are a member through their child), and the service projects each
     module onto a family-safe field list rather than returning the row.
+    Superadmins may name an org instead (_feed_org_for) to preview its board.
     """
-    from services import sis_service
-    org_id = sis_service.member_org_id(user_id)
+    org_id, err, preview = _feed_org_for(user_id, request.args.get('organization_id'))
+    if err:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
     if not org_id:
         # Not in a school — an empty board, not an error.
         return jsonify({'success': True, 'feed': {'announcements': [], 'lost_found': [],
@@ -244,9 +286,7 @@ def family_feed(user_id):
                         'organization_name': None})
     return jsonify({'success': True, 'feed': community.family_feed(org_id, viewer_id=user_id),
                     'organization_name': _org_name(org_id),
-                    # Carpool affordances: adults post; admins remove anything.
-                    'can_post_carpool': not _is_student(user_id),
-                    'can_moderate': sis_service.caller_is_admin(user_id)})
+                    **_feed_affordances(user_id, preview, request.args.get('view_as'))})
 
 
 def _is_student(user_id):

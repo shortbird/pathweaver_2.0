@@ -154,10 +154,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // The school's own page — announcements and the community board — named after
   // the school itself. Only for people who are in one: `school` is resolved
   // through membership, so a parent with no organization_id of their own still
-  // gets it through their child, and everyone else never sees the item.
-  if (school?.name || school?.id) {
+  // gets it through their child. Superadmins are in no school but get the same
+  // door as "School Pages" — /school shows them an org and role picker to
+  // preview each school's page. Everyone else never sees the item.
+  if (school?.name || school?.id || user?.role === 'superadmin') {
     navItems.push({
-      name: school.name || 'My school',
+      name: school?.name || (user?.role === 'superadmin' ? 'School Pages' : 'My school'),
       path: '/school',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

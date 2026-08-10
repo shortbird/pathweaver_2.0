@@ -47,10 +47,18 @@ export function setLoading(v) {
   emit()
 }
 
-/** Store the fetched org list; default the selection to the first org. */
+// With no prior selection, land on iCreate — the active customer, and what a
+// superadmin opening the school-page preview or the console wants first.
+const preferredDefault = (orgs) =>
+  orgs.find((o) => (o.slug || '').toLowerCase() === 'icreate')?.id
+  ?? orgs.find((o) => /icreate/i.test(o.name || ''))?.id
+  ?? orgs[0]?.id
+  ?? null
+
+/** Store the fetched org list; default the selection to iCreate, else the first org. */
 export function setOrgs(list) {
   const orgs = Array.isArray(list) ? list : []
-  const orgId = state.orgId || orgs[0]?.id || null
+  const orgId = state.orgId || preferredDefault(orgs)
   persist(orgId)
   state = { ...state, orgs, orgId, fetched: true, loading: false }
   emit()

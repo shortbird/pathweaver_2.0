@@ -102,6 +102,19 @@ def list_announcements(user_id):
         return jsonify({'success': False, 'error': 'Failed to load announcements'}), 500
 
 
+_AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents'}
+
+
+def _archive_audience_token(effective_role, view_as):
+    """Audience filter for the archive. Members are filtered by their own role;
+    a superadmin previewing a school page (?view_as) is filtered by the
+    previewed role, and with no view_as sees everything, as before. Nobody
+    else's view_as is honored."""
+    if effective_role == 'superadmin':
+        return _AUDIENCE_TOKENS.get(view_as)
+    return _AUDIENCE_TOKENS.get(effective_role)
+
+
 @bp.route('/api/announcements/archive', methods=['GET'])
 @require_role('org_admin', 'advisor', 'superadmin', 'student', 'parent')
 def announcements_archive(user_id):
@@ -151,7 +164,8 @@ def announcements_archive(user_id):
         # Audience visibility: students/parents only see announcements that
         # target their role or the whole org. target_audience is 'everyone' or
         # a comma-joined role list (e.g. 'parents,students').
-        audience_token = {'student': 'students', 'parent': 'parents'}.get(effective_role)
+        audience_token = _archive_audience_token(effective_role,
+                                                 request.args.get('view_as'))
         if audience_token:
             query = query.or_(
                 f"target_audience.eq.everyone,target_audience.ilike.%{audience_token}%"

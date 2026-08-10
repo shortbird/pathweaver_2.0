@@ -9,6 +9,7 @@ import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
 import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
+import { useSisOrg } from './sis/useSisOrg'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
@@ -120,6 +121,17 @@ export default function SchoolPage() {
   const [expanded, setExpanded] = useState(() => new Set())
   const { school, loading: orgLoading } = useOrganization()
   const { effectiveRole } = useAuth()
+  // Superadmins belong to no school, so membership answers nothing for them.
+  // They preview one org at a time instead, through the same shared selection
+  // the SIS console uses (sisOrgStore — persisted, defaults to iCreate), and
+  // every read on this page carries that org explicitly.
+  const isSuperadmin = effectiveRole === 'superadmin'
+  const { orgId: selectedOrgId, setOrgId, orgs: previewOrgs, loading: previewLoading } = useSisOrg()
+  const previewOrgId = isSuperadmin ? selectedOrgId : null
+  // Which role's view of the school page the preview renders (guardian cards,
+  // message audience filtering, carpool affordances). Parent is the fuller view.
+  const [viewAs, setViewAs] = useState('parent')
+  const previewParams = previewOrgId ? { organization_id: previewOrgId, view_as: viewAs } : null
   const [feed, setFeed] = useState(null)
   const [carpoolPerms, setCarpoolPerms] = useState({ canPost: false, canModerate: false })
   const [schoolOrg, setSchoolOrg] = useState(null)
@@ -131,7 +143,8 @@ export default function SchoolPage() {
       else setLoading(true)
       setError(null)
       const { data } = await api.get('/api/announcements/archive', {
-        params: { limit: PAGE_SIZE, offset, ...(q ? { q } : {}) },
+        params: { limit: PAGE_SIZE, offset, ...(q ? { q } : {}),
+                  ...(previewOrgId ? { organization_id: previewOrgId, view_as: viewAs } : {}) },
       })
       if (data.success) {
         setAnnouncements((prev) => (append ? [...prev, ...(data.announcements || [])] : (data.announcements || [])))
@@ -146,7 +159,7 @@ export default function SchoolPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [])
+  }, [previewOrgId, viewAs])
 
   // Initial load + reload on (debounced) search
   useEffect(() => {
@@ -159,14 +172,15 @@ export default function SchoolPage() {
   // silently degrades to the announcements page rather than an error.
   useEffect(() => {
     let active = true
-    api.get('/api/sis/school/context')
+    api.get('/api/sis/school/context', previewParams ? { params: previewParams } : undefined)
       .then(({ data }) => {
         if (!active || !data?.success) return
         setSchoolOrg((data.orgs || [])[0] || null)
       })
       .catch(() => { /* not a SIS school, or the lookup is down */ })
     return () => { active = false }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- previewParams derives from these
+  }, [previewOrgId, viewAs])
 
   // The community board, loaded once. A failure here is silent: the archive is
   // the page, the board is the extra. Re-fetched after a carpool post/removal
@@ -175,7 +189,7 @@ export default function SchoolPage() {
   const refreshFeed = useCallback(() => setFeedNonce((n) => n + 1), [])
   useEffect(() => {
     let active = true
-    api.get('/api/sis/community/feed')
+    api.get('/api/sis/community/feed', previewParams ? { params: previewParams } : undefined)
       .then(({ data }) => {
         if (!active || !data?.success) return
         setFeed(data.feed)
@@ -187,7 +201,8 @@ export default function SchoolPage() {
       })
       .catch(() => { /* no board for this user */ })
     return () => { active = false }
-  }, [feedNonce])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- previewParams derives from these
+  }, [feedNonce, previewOrgId, viewAs])
 
   const onSearchChange = (value) => {
     setSearch(value)
@@ -224,11 +239,56 @@ export default function SchoolPage() {
   // would bounce every member of a school on a hard refresh. When the school
   // context is genuinely missing (fetch failed, or the homepage was turned
   // off), send the signed-in member to their own home: bouncing to "/" put
-  // them on the marketing homepage seconds after logging in.
-  if (!orgLoading && !school) return <Navigate to={roleHomePath(effectiveRole)} replace />
+  // them on the marketing homepage seconds after logging in. Superadmins have
+  // no school and stay: they preview one via the org sidebar below.
+  if (!isSuperadmin && !orgLoading && !school) {
+    return <Navigate to={roleHomePath(effectiveRole)} replace />
+  }
+
+  // Superadmin with no org resolved yet: the org list is still loading (or,
+  // pathologically, empty). The page can't fetch anything meaningful without
+  // an org, so hold here rather than flashing an empty school.
+  if (isSuperadmin && !previewOrgId) {
+    return (
+      <div role="status" aria-label="Loading" className="flex justify-center items-center py-24">
+        {previewLoading ? (
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+        ) : (
+          <p className="text-sm text-gray-500">No organizations to preview.</p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      {/* Superadmin preview controls: which school, seen as which role. Kept
+          to two small dropdowns — the page below should look like the page,
+          not like an admin console. */}
+      {isSuperadmin && (
+        <div className="flex flex-wrap justify-end gap-2 mb-4">
+          <select
+            aria-label="Previewing organization"
+            value={previewOrgId || ''}
+            onChange={(e) => setOrgId(e.target.value)}
+            className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+          >
+            {previewOrgs.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Viewing as"
+            value={viewAs}
+            onChange={(e) => setViewAs(e.target.value)}
+            className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+          >
+            <option value="parent">View as parent</option>
+            <option value="student">View as student</option>
+            <option value="admin">View as admin</option>
+          </select>
+        </div>
+      )}
       {/* Header — the school's own page opens with the school's own mark,
           centered like a letterhead. The logo comes from the org's branding
           (branding_config.logo_url via /api/sis/school/context); a school
