@@ -10,11 +10,26 @@ import { range12h } from '../../utils/timeFormat'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
- * one tap away; every student defaults to PRESENT and the teacher only taps the
- * absent ones, then saves once. Saving records the entire roster (present +
- * absent) in one request, so "attendance was taken" is explicit and any student
- * can be toggled and re-saved later.
+ * one tap away; every student defaults to PRESENT and the teacher only marks
+ * the exceptions (absent, late, excused), then saves once. Saving records the
+ * entire roster in one request, so "attendance was taken" is explicit and any
+ * student can be changed and re-saved later. Status set mirrors
+ * TeacherClassPage and the backend's ATTENDANCE_STATUSES.
  */
+
+const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
+const ATT_COLORS = {
+  present: 'bg-green-600 text-white',
+  absent: 'bg-red-600 text-white',
+  late: 'bg-amber-500 text-white',
+  excused: 'bg-blue-600 text-white',
+}
+const CARD = {
+  present: 'border-gray-200 bg-white hover:border-neutral-300',
+  absent: 'border-red-300 bg-red-50',
+  late: 'border-amber-300 bg-amber-50',
+  excused: 'border-blue-300 bg-blue-50',
+}
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const today = () => new Date().toISOString().slice(0, 10)
@@ -72,7 +87,9 @@ const AttendancePage = () => {
     api.get(`/api/sis/classes/${classId}/attendance?date=${date}&organization_id=${orgId}`)
       .then((r) => {
         const rows = r.data?.roster || []
-        setRoster(rows.map((s) => ({ ...s, absent: s.status === 'absent' })))
+        // Default is present; a status already recorded (including an excusal
+        // an admin set) loads in and wins over the default.
+        setRoster(rows.map((s) => ({ ...s, mark: s.status || 'present' })))
         setAlreadyTaken(rows.some((s) => s.status != null))
         setDirty(false)
       })
@@ -82,26 +99,32 @@ const AttendancePage = () => {
 
   useEffect(() => { loadRoster() }, [loadRoster])
 
-  const toggleAbsent = (studentId) => {
-    setRoster((rs) => rs.map((s) => (s.student_user_id === studentId ? { ...s, absent: !s.absent } : s)))
+  const setMark = (studentId, mark) => {
+    setRoster((rs) => rs.map((s) => (s.student_user_id === studentId ? { ...s, mark } : s)))
     setDirty(true)
   }
 
-  const absentCount = roster.filter((s) => s.absent).length
+  const countOf = (st) => roster.filter((s) => s.mark === st).length
+  const absentCount = countOf('absent')
+  const lateCount = countOf('late')
+  const excusedCount = countOf('excused')
 
   const save = async () => {
     // The whole roster is recorded: untouched students are saved as present.
     const entries = roster.map((s) => ({
       student_user_id: s.student_user_id,
-      status: s.absent ? 'absent' : 'present',
+      status: s.mark || 'present',
     }))
     if (!entries.length) return
     setSaving(true)
     try {
       await api.post(`/api/sis/classes/${classId}/attendance`, { date, entries, organization_id: orgId })
-      toast.success(absentCount
-        ? `Saved — ${absentCount} absent, ${entries.length - absentCount} present`
-        : `Saved — all ${entries.length} present`)
+      const exceptions = [
+        absentCount && `${absentCount} absent`,
+        lateCount && `${lateCount} late`,
+        excusedCount && `${excusedCount} excused`,
+      ].filter(Boolean).join(', ')
+      toast.success(exceptions ? `Saved — ${exceptions}` : `Saved — all ${entries.length} present`)
       setAlreadyTaken(true)
       setDirty(false)
     } catch { toast.error('Could not save attendance') }
@@ -164,7 +187,10 @@ const AttendancePage = () => {
             <div className="text-sm text-neutral-600">
               <span className="font-semibold text-neutral-900">{selectedClass?.name}</span>
               {selectedClass && meetingText(selectedClass.meetings) ? <span className="text-neutral-400"> · {meetingText(selectedClass.meetings)}</span> : null}
-              {' · '}{roster.length - absentCount} present · <span className={absentCount ? 'text-red-600 font-medium' : ''}>{absentCount} absent</span>
+              {' · '}{countOf('present')} present
+              {absentCount ? <> · <span className="text-red-600 font-medium">{absentCount} absent</span></> : null}
+              {lateCount ? ` · ${lateCount} late` : ''}
+              {excusedCount ? ` · ${excusedCount} excused` : ''}
             </div>
             {alreadyTaken && !dirty && (
               <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Attendance taken</span>
@@ -175,23 +201,18 @@ const AttendancePage = () => {
           </div>
 
           <p className="px-4 pt-3 text-xs text-neutral-400">
-            Everyone is counted present — tap only the students who are absent.
+            Everyone is counted present — mark only the students who are absent, late, or excused.
           </p>
 
           <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {roster.map((s) => (
-              <button
+              <div
                 key={s.student_user_id}
-                onClick={() => toggleAbsent(s.student_user_id)}
-                aria-pressed={s.absent}
-                className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-3 text-left transition-colors ${
-                  s.absent
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-200 bg-white hover:border-neutral-300'
-                }`}
+                data-student-row
+                className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-3 transition-colors ${CARD[s.mark] || CARD.present}`}
               >
                 <span className="min-w-0">
-                  <span className={`block text-sm font-medium truncate ${s.absent ? 'text-red-700' : 'text-neutral-800'}`}>
+                  <span className={`block text-sm font-medium truncate ${s.mark === 'absent' ? 'text-red-700' : 'text-neutral-800'}`}>
                     {s.name}
                     {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
                   </span>
@@ -204,19 +225,29 @@ const AttendancePage = () => {
                     </span>
                   )}
                 </span>
-                <span className={`shrink-0 text-xs font-semibold rounded-full px-2.5 py-1 ${
-                  s.absent ? 'bg-red-100 text-red-700' : 'bg-green-50 text-green-600'
-                }`}>
-                  {s.absent ? 'Absent' : 'Present'}
+                <span className="flex gap-1 shrink-0">
+                  {ATT_STATUSES.map((st) => (
+                    <button
+                      key={st}
+                      aria-label={st.charAt(0).toUpperCase() + st.slice(1)}
+                      aria-pressed={s.mark === st}
+                      onClick={() => setMark(s.student_user_id, st)}
+                      className={`px-2 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
+                        s.mark === st ? ATT_COLORS[st] : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
                 </span>
-              </button>
+              </div>
             ))}
           </div>
 
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
             <span className="text-xs text-neutral-400">Untouched students are saved as present. You can edit and re-save anytime.</span>
             <Button size="sm" onClick={save} loading={saving}>
-              {absentCount ? `Save (${absentCount} absent)` : 'Save — all present'}
+              {absentCount ? `Save (${absentCount} absent)` : 'Save'}
             </Button>
           </div>
         </div>

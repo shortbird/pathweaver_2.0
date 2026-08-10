@@ -15,7 +15,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 from utils.storage_url import fix_storage_url
 
 logger = get_logger(__name__)
@@ -112,6 +112,9 @@ def list_resources(user_id):
     is_admin = sis_service.caller_is_admin(user_id)
     if not is_admin:
         rows = [r for r in rows if (r.get('audience') or 'families') in ('staff', 'all')]
+        # A row narrowed to roles the caller does not hold is not theirs to see
+        # (iCreate 2026-08-09: coordinator procedures are not teacher reading).
+        rows = sis_service.filter_role_visible(user_id, rows)
     # Caller's own acknowledgments (stale when the resource was re-versioned since).
     acks = {}
     if rows:
@@ -209,7 +212,9 @@ def resource_acks(user_id, resource_id):
         .eq('resource_id', resource_id).execute()
     ).data or []}
     out = []
-    for s in sis_service.list_org_staff(org_id):
+    # A role-narrowed resource reports against its targeted staff only —
+    # "3 of 3 coordinators", not "3 of 19 staff, 16 of whom were never asked".
+    for s in _targeted_staff(org_id, resource.get('visible_to_roles')):
         a = acks.get(s['id'])
         current = bool(a) and ((resource.get('version_date') or '') <= (a.get('version_date') or ''))
         out.append({'user_id': s['id'], 'name': s['name'], 'roles': s['roles'],
@@ -241,6 +246,9 @@ def create_resource(user_id):
     audience = data.get('audience') or 'families'
     if audience not in ('families', 'staff', 'all'):
         return jsonify({'success': False, 'error': 'Invalid audience'}), 400
+    visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+    if roles_err:
+        return jsonify({'success': False, 'error': roles_err}), 400
     requires_ack = bool(data.get('requires_ack'))
     row = (supabase.table('org_resources').insert({
         'organization_id': org_id,
@@ -251,19 +259,29 @@ def create_resource(user_id):
         'sort_order': int(data.get('sort_order') or 0),
         'paperwork_key': paperwork_key,
         'audience': audience,
+        'visible_to_roles': visible_to_roles,
         'requires_ack': requires_ack,
         'version_date': datetime.utcnow().isoformat() if requires_ack else None,
         'created_by': user_id,
     }).execute()).data
     resource = row[0] if row else None
     if requires_ack and audience in ('staff', 'all') and resource:
-        _notify_staff_required_read(org_id, title)
+        _notify_staff_required_read(org_id, title, visible_to_roles=visible_to_roles)
     return jsonify({'success': True, 'resource': resource}), 201
 
 
-def _notify_staff_required_read(org_id, title):
+def _targeted_staff(org_id, visible_to_roles=None):
+    """The staff a role-narrowed resource is for — everyone when untargeted."""
+    staff = sis_service.list_org_staff(org_id)
+    if not visible_to_roles:
+        return staff
+    wanted = set(visible_to_roles)
+    return [s for s in staff if wanted & set(s.get('roles') or [])]
+
+
+def _notify_staff_required_read(org_id, title, visible_to_roles=None):
     from services import sis_notifications
-    for s in sis_service.list_org_staff(org_id):
+    for s in _targeted_staff(org_id, visible_to_roles):
         sis_notifications.notify(
             s['id'], 'Required reading',
             f'Please review and acknowledge: {title}',
@@ -294,6 +312,11 @@ def update_resource(user_id, resource_id):
         if data['audience'] not in ('families', 'staff', 'all'):
             return jsonify({'success': False, 'error': 'Invalid audience'}), 400
         fields['audience'] = data['audience']
+    if 'visible_to_roles' in data:
+        visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+        if roles_err:
+            return jsonify({'success': False, 'error': roles_err}), 400
+        fields['visible_to_roles'] = visible_to_roles
     if 'requires_ack' in data:
         fields['requires_ack'] = bool(data.get('requires_ack'))
     # "Everyone must re-read this" — bump the version so prior acks go stale.
@@ -318,7 +341,8 @@ def update_resource(user_id, resource_id):
     updated = row[0] if row else None
     if data.get('reack') and updated and updated.get('requires_ack') \
             and (updated.get('audience') or 'families') in ('staff', 'all'):
-        _notify_staff_required_read(org_id, updated.get('title') or 'A policy update')
+        _notify_staff_required_read(org_id, updated.get('title') or 'A policy update',
+                                    visible_to_roles=updated.get('visible_to_roles'))
     return jsonify({'success': True, 'resource': updated})
 
 

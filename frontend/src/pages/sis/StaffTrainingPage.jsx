@@ -47,7 +47,10 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
   const [questId, setQuestId] = useState('')
   const [category, setCategory] = useState('')
   const [required, setRequired] = useState(false)
+  const [roles, setRoles] = useState([])
   const [busy, setBusy] = useState(false)
+  const toggleRole = (value) => setRoles((rs) =>
+    rs.includes(value) ? rs.filter((r) => r !== value) : [...rs, value])
   // "Where does the quest get built?" (iCreate, 2026-08-06). Attaching an
   // existing quest is a dead end if you have not made one, and sending somebody
   // to the learning app to author one and come back is not a flow people
@@ -72,6 +75,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
       await api.post('/api/sis/training', {
         organization_id: orgId, quest_id: questId, audience,
         category: category.trim(), is_required: required,
+        visible_to_roles: roles.length ? roles : undefined,
       })
       toast.success(audience === 'family' ? 'Set for families' : 'Added to training')
       onAdded()
@@ -91,6 +95,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
         title: title.trim(), description: description.trim(),
         tasks: tasks.filter((t) => t.title.trim()),
         category: category.trim(), is_required: required,
+        visible_to_roles: roles.length ? roles : undefined,
       })
       toast.success(audience === 'family' ? 'Quest built and set for families' : 'Quest built and added')
       onAdded()
@@ -148,6 +153,19 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
           {audience === 'family' ? 'Required for all families' : 'Required for all staff'}
         </label>
+        {audience !== 'family' && (
+          <div className="sm:col-span-2 text-xs text-neutral-500">
+            <span className="block mb-1">Which staff roles <span className="text-neutral-400">(none ticked = all staff)</span></span>
+            <div className="flex items-center gap-3">
+              {[['org_admin', 'Admins'], ['campus_coordinator', 'Coordinators'], ['advisor', 'Teachers']].map(([value, label]) => (
+                <label key={value} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                  <input type="checkbox" checked={roles.includes(value)} onChange={() => toggleRole(value)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>

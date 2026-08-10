@@ -1,0 +1,139 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+
+/**
+ * The internal task system on the forms queue (iCreate Phase 2, 2026-08-09).
+ *
+ * The backend has carried an assigned_to column since 20260722 that no UI
+ * could ever set. This locks the queue's task controls: assign to a staff
+ * member, set priority and due date, move through the working statuses, and
+ * comment on the thread.
+ */
+
+const authState = { user: { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] } }
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+vi.mock('react-hot-toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+  default: { success: vi.fn(), error: vi.fn() },
+}))
+vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+vi.mock('./useSisOrg', () => ({
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, activeOrg: null }),
+  withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
+}))
+vi.mock('./teacherPreview', () => ({
+  getPreviewTeacher: () => null,
+  withPreview: (p) => p,
+  setPreviewTeacher: vi.fn(),
+  clearPreviewTeacher: vi.fn(),
+}))
+
+const { api } = vi.hoisted(() => ({
+  api: {
+    get: vi.fn(),
+    post: vi.fn(() => Promise.resolve({ data: {} })),
+    patch: vi.fn(() => Promise.resolve({ data: {} })),
+  },
+}))
+vi.mock('../../services/api', () => ({ default: api }))
+
+import StaffFormsPage from './StaffFormsPage'
+
+const SUBMISSION = {
+  id: 'f1', form_type: 'maintenance', form_type_label: 'Maintenance request',
+  title: 'Printer in Room 3', status: 'submitted', priority: 'normal',
+  submitted_by_name: 'A Teacher', submitter_role: 'staff',
+  payload: { body: 'It is jammed' }, created_at: '2026-08-09T12:00:00Z',
+}
+const STAFF = [
+  { id: 'cc-1', name: 'Kate Coordinator', roles: ['campus_coordinator'] },
+  { id: 't-1', name: 'A Teacher', roles: ['advisor'] },
+]
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  api.get.mockImplementation((url) => {
+    if (url.includes('/comments')) {
+      return Promise.resolve({ data: { comments: [{ id: 'c1', body: 'On it', author_name: 'Kate Coordinator', created_at: '2026-08-09T13:00:00Z' }] } })
+    }
+    if (url.includes('/api/sis/staff-admin/forms')) {
+      return Promise.resolve({ data: { submissions: [SUBMISSION], form_types: { maintenance: 'Maintenance request', task: 'Task' } } })
+    }
+    if (url.includes('/api/sis/teacher/forms')) {
+      return Promise.resolve({ data: { submissions: [], form_types: { maintenance: 'Maintenance request', task: 'Task' } } })
+    }
+    if (url.includes('/api/sis/staff')) {
+      return Promise.resolve({ data: { staff: STAFF } })
+    }
+    return Promise.resolve({ data: {} })
+  })
+})
+
+const renderPage = () => render(<MemoryRouter><StaffFormsPage /></MemoryRouter>)
+
+describe('the task queue', () => {
+  it('assigns a submission to a staff member', async () => {
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const assignee = within(row).getByLabelText(/assign/i)
+    fireEvent.change(assignee, { target: { value: 'cc-1' } })
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    const [url, body] = api.patch.mock.calls[0]
+    expect(url).toContain('/api/sis/staff-admin/forms/f1')
+    expect(body.assigned_to).toBe('cc-1')
+  })
+
+  it('offers the working statuses', async () => {
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const status = within(row).getByLabelText(/status/i)
+    const options = [...status.querySelectorAll('option')].map((o) => o.value)
+    for (const s of ['submitted', 'under_review', 'in_progress', 'waiting', 'resolved']) {
+      expect(options).toContain(s)
+    }
+    fireEvent.change(status, { target: { value: 'in_progress' } })
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.patch.mock.calls[0][1].status).toBe('in_progress')
+  })
+
+  it('sets priority and due date', async () => {
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    fireEvent.change(within(row).getByLabelText(/priority/i), { target: { value: 'high' } })
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.patch.mock.calls[0][1].priority).toBe('high')
+
+    fireEvent.change(within(row).getByLabelText(/due/i), { target: { value: '2026-08-15' } })
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(2))
+    expect(api.patch.mock.calls[1][1].due_date).toBe('2026-08-15')
+  })
+
+  it('shows and posts comments on the thread', async () => {
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    fireEvent.click(within(row).getByRole('button', { name: /comments/i }))
+    await screen.findByText('On it')
+    const input = within(row).getByPlaceholderText(/add a comment/i)
+    fireEvent.change(input, { target: { value: 'Fixed the jam' } })
+    fireEvent.click(within(row).getByRole('button', { name: /^post$/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const [url, body] = api.post.mock.calls.find(([u]) => u.includes('/comments'))
+    expect(url).toContain('/api/sis/staff-admin/forms/f1/comments')
+    expect(body.body).toBe('Fixed the jam')
+  })
+
+  it('lets an admin create a task assigned to someone', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    // The admin submit form carries assignment fields; posting goes through
+    // the staff-admin create door, which may assign.
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
+    fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Replace supplies in Room 4' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const [url, body] = api.post.mock.calls.find(([u]) => u.includes('/staff-admin/forms'))
+    expect(url).toContain('/api/sis/staff-admin/forms')
+    expect(body.assigned_to).toBe('cc-1')
+  })
+})

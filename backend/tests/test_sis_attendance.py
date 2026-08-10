@@ -69,6 +69,9 @@ class TestRecordBatching:
         ]
         fake = self._fake_admin(prior, captured)
         with patch.object(att, 'get_supabase_admin_client', return_value=fake), \
+             patch('services.sis_planned_absence_service.for_class_date',
+                   return_value={}), \
+             patch.object(att, '_record_unaccounted', return_value=1), \
              patch.object(att, '_notify_admins_of_absences', return_value=2) as notify:
             result = att.record('org-1', 'c1', '2026-09-01', entries, recorded_by='t1')
 

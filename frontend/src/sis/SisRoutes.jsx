@@ -4,7 +4,7 @@ import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
 import { isPathHidden, isCommunityEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
-import { canSeeFinance } from '../pages/sis/sisRole'
+import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
 
 // Guards a route whose module the active org has hidden (feature_flags.
@@ -35,6 +35,14 @@ const CommunityRoute = ({ children }) => {
 const FinanceRoute = ({ children }) => {
   const { user } = useAuth()
   if (!canSeeFinance(user)) return <Navigate to="/" replace />
+  return children
+}
+
+// The HR store — contracts, background checks. Same chrome-guard idea as
+// FinanceRoute; the backend's HR_ROLES is the real gate.
+const HrRoute = ({ children }) => {
+  const { user } = useAuth()
+  if (!canSeeHr(user)) return <Navigate to="/" replace />
   return children
 }
 
@@ -121,7 +129,7 @@ const SisRoutes = () => (
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
       <Route path="reports" element={<ReportsPage />} />
-      <Route path="secure-documents" element={<ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute>} />
+      <Route path="secure-documents" element={<HrRoute><ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute></HrRoute>} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<CalendarPage />} />

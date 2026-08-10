@@ -3,8 +3,10 @@ SIS secure documents — a private, admin-managed store for sensitive files
 (contracts, background checks, custody/medical docs) attached to a staff
 member/parent (owner_user_id) OR a student (student_user_id).
 
-NEW, additive (/api/sis), ADMIN-ONLY (org_admin / superadmin). v1 has no
-per-person visibility — that's a follow-up. Files live in the PRIVATE
+HR-GATED (org_admin / superadmin — NOT campus coordinators): this store holds
+contracts, background checks and HR paperwork, which iCreate's coordinator
+requirements explicitly withhold from coordinators. v1 has no per-person
+visibility — that's a follow-up. Files live in the PRIVATE
 'sis-secure-documents' storage bucket; reads always go through short-lived
 signed URLs. Org scoping is enforced on every route via
 sis_service.resolve_org_id, mirroring routes/sis/reports.py.
@@ -18,13 +20,14 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
-from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+from utils.sis_roles import HR_ROLES as STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 
-# Sensitive-document store is org-management, not teacher-facing.
+# Sensitive-document store is HR paperwork, not campus operations — a campus
+# coordinator never reaches it (see utils/sis_roles.HR_ROLES).
 
 _SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE bucket
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}

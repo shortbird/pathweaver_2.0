@@ -48,3 +48,12 @@ export const canSeeFinance = (user) => isSisAdmin(user) && !isCampusCoordinator(
  * org_admin, which hands back the finance access the role exists to withhold.
  */
 export const canGrantRoles = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
+ * The HR store — secure documents: contracts, background checks, custody and
+ * medical files (backend: sis_roles.HR_ROLES). iCreate requirements 2026-08-09:
+ * coordinators get operational information, not employment paperwork. Same
+ * membership as canSeeFinance, separate name for a separate reason, so neither
+ * gate can be widened on the other's behalf.
+ */
+export const canSeeHr = (user) => isSisAdmin(user) && !isCampusCoordinator(user)

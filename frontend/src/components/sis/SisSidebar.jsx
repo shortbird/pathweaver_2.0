@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
-import { isSisAdmin, canSeeFinance } from '../../pages/sis/sisRole'
+import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
 import { isPathHidden, isCommunityEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
@@ -81,7 +81,7 @@ const NAV_SECTIONS = [
       { name: 'Training', path: '/training', d: ICONS.check },
       { name: 'Forms', path: '/forms', d: ICONS.clipboard },
       { name: 'Onboarding', path: '/onboarding', d: ICONS.check },
-      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, d: ICONS.doc },
+      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
       { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
       { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
       { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
@@ -118,8 +118,10 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
   const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
-  // Campus coordinators run the console but not the money (iCreate, 2026-08-01).
+  // Campus coordinators run the console but not the money (iCreate, 2026-08-01)
+  // and not the HR store (contracts, background checks — iCreate, 2026-08-09).
   const seesFinance = canSeeFinance(user) && !getPreviewTeacher()
+  const seesHr = canSeeHr(user) && !getPreviewTeacher()
 
   return (
     // Below lg the sidebar is a drawer: off-canvas until the header's menu
@@ -154,6 +156,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.adminOnly && !isAdmin) return false
             if (it.teacherOnly && isAdmin) return false
             if (it.financeOnly && !seesFinance) return false
+            if (it.hrOnly && !seesHr) return false
             // Org opted out of this module (feature_flags.sis_settings.hidden_modules).
             if (isPathHidden(it.path, activeOrg)) return false
             // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).

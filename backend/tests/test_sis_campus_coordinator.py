@@ -184,3 +184,74 @@ class TestTheFinanceModulesAreActuallyGated:
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_templates')
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_forms')
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'get_profile')
+
+
+@pytest.mark.unit
+class TestTheHrTier:
+    """The fourth door to confidential data, found in the iCreate requirements
+    review (2026-08-09): the secure-documents store holds contracts, background
+    checks and HR files, and was gated on ADMIN_ROLES — which a coordinator
+    passes. iCreate's requirements are explicit that coordinators do not see
+    contracts or HR documentation, so the store gets its own tier. Not
+    FINANCE_ROLES, because the reason is different (HR confidentiality, not
+    money) and neither tier should be widened on the other's behalf.
+    """
+
+    def test_hr_roles_exclude_coordinators(self):
+        assert 'campus_coordinator' not in sis_roles.HR_ROLES
+        assert not has_any_role(_user('campus_coordinator'), list(sis_roles.HR_ROLES))
+
+    def test_hr_roles_admit_admins(self):
+        assert has_any_role(_user('org_admin'), list(sis_roles.HR_ROLES))
+
+    def test_the_whole_secure_documents_module_is_hr_gated(self):
+        """secure_documents.py imports its role tuple under the name STAFF_ROLES,
+        so asserting the alias covers every @require_role in the module."""
+        from routes.sis import secure_documents
+        assert secure_documents.STAFF_ROLES == sis_roles.HR_ROLES
+
+
+@pytest.mark.unit
+class TestOnboardingOffersCoordinators:
+    """The onboarding recipient list predated the role: it filtered staff to
+    advisor/org_admin, so 'Campus Coordinator onboarding' (iCreate Phase 1)
+    could not be assigned to the one role it is named after."""
+
+    def _client_with(self, rows):
+        from unittest.mock import Mock
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'in_', 'order'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        return client
+
+    def test_a_coordinator_is_offered_staff_onboarding(self):
+        from unittest.mock import patch
+        from services import sis_onboarding_service as onboarding
+        rows = [
+            {'id': 'cc-1', 'display_name': 'Kate', 'email': 'kate@icreate.com',
+             'org_role': 'campus_coordinator', 'role': 'org_managed', 'org_roles': None},
+        ]
+        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+                   return_value=self._client_with(rows)):
+            people = onboarding.list_recipients('org-1', 'staff')
+        assert [p['id'] for p in people] == ['cc-1']
+
+    def test_the_org_roles_array_is_honoured_too(self):
+        """Role assignment writes org_roles; org_role is the legacy mirror. A
+        recipient whose truth lives only in the array must still be offered."""
+        from unittest.mock import patch
+        from services import sis_onboarding_service as onboarding
+        rows = [
+            {'id': 'cc-2', 'display_name': 'Julia', 'email': 'julia@icreate.com',
+             'org_role': None, 'role': 'org_managed',
+             'org_roles': ['campus_coordinator']},
+            {'id': 'p-1', 'display_name': 'A Parent', 'email': 'p@x.com',
+             'org_role': None, 'role': 'org_managed', 'org_roles': ['parent']},
+        ]
+        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+                   return_value=self._client_with(rows)):
+            people = onboarding.list_recipients('org-1', 'staff')
+        assert [p['id'] for p in people] == ['cc-2']

@@ -246,6 +246,7 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
     url: resource?.url || '', category: resource?.category || '',
     paperwork_key: resource?.paperwork_key || '',
     audience: resource?.audience || 'families',
+    visible_to_roles: resource?.visible_to_roles || [],
     requires_ack: Boolean(resource?.requires_ack),
     reack: false,
   })
@@ -312,6 +313,24 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
             <option value="all">Families + staff</option>
           </select>
         </label>
+        {f.audience !== 'families' && (
+          <div className="text-xs text-neutral-500 pt-4">
+            <span className="block mb-1">Which staff <span className="text-neutral-400">(none ticked = all staff)</span></span>
+            <div className="flex items-center gap-3">
+              {[['org_admin', 'Admins'], ['campus_coordinator', 'Coordinators'], ['advisor', 'Teachers']].map(([value, label]) => (
+                <label key={value} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                  <input type="checkbox" checked={(f.visible_to_roles || []).includes(value)}
+                    onChange={() => {
+                      const roles = new Set(f.visible_to_roles || [])
+                      if (roles.has(value)) roles.delete(value); else roles.add(value)
+                      set('visible_to_roles', [...roles])
+                    }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         {f.audience !== 'families' && (
           <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4">
             <input type="checkbox" checked={f.requires_ack} onChange={(e) => set('requires_ack', e.target.checked)} />

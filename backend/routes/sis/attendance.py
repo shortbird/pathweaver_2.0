@@ -86,6 +86,35 @@ def student_attendance(user_id, student_id):
     return jsonify({'success': True, **attendance.student_history(org_id, student_id)})
 
 
+@bp.route('/attendance/alerts', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def attendance_alerts(user_id):
+    """Open student-accountability alerts ("not accounted for"), optionally for
+    one date (?date=YYYY-MM-DD). The coordinator dashboard's safety board."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'alerts': attendance.open_alerts(org_id, request.args.get('date')),
+                    'resolutions': list(attendance.ALERT_RESOLUTIONS)})
+
+
+@bp.route('/attendance/alerts/<alert_id>/resolve', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def resolve_attendance_alert(user_id, alert_id):
+    """Close an alert with what happened. 'late' and 'mismarked' also correct
+    the roll — see sis_attendance_service.resolve_alert."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = attendance.resolve_alert(org_id, alert_id, data.get('resolution'),
+                                      data.get('note'), actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/internal/attendance-sweep', methods=['POST'])
 def attendance_sweep():
     """Cron entrypoint: start-of-class reminders + attendance-gap alerts.

@@ -129,6 +129,44 @@ def update_form(user_id, submission_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/forms', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_form(user_id):
+    """Admin files a request/task, optionally already assigned, prioritised and
+    dated — the internal task system's create door (iCreate Phase 2)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = forms.submit(org_id, user_id, request.get_json() or {},
+                          submitter_role='staff', allow_assign=True)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/forms/<submission_id>/comments', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_form_comments(user_id, submission_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'comments': forms.list_comments(org_id, submission_id)})
+
+
+@bp.route('/forms/<submission_id>/comments', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_form_comment(user_id, submission_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = forms.add_comment(org_id, submission_id, user_id, data.get('body'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
 # ── Onboarding admin ─────────────────────────────────────────────────────────
 
 @bp.route('/onboarding/templates', methods=['GET'])

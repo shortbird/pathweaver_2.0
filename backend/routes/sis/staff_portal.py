@@ -275,6 +275,18 @@ def submit_form(user_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/tasks', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def my_tasks(user_id):
+    """Open requests/tasks assigned to the caller — any staff member can be an
+    assignee ("Family requests can be assigned to any staff member")."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'tasks': forms.list_assigned(org_id, _read_target(user_id, org_id))})
+
+
 # ── Onboarding (mine) ────────────────────────────────────────────────────────
 
 @bp.route('/onboarding', methods=['GET'])

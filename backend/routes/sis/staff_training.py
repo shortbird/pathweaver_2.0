@@ -31,7 +31,7 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from database import get_supabase_admin_client
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 
 logger = get_logger(__name__)
 
@@ -117,7 +117,7 @@ def _catalog(org_id, audience='staff'):
     """The org's quests for one audience, in order, with quest titles."""
     rows = (_admin().table('sis_staff_training')
             .select('id, quest_id, category, is_required, sequence_order, audience, '
-                    'quests(id, title, description, is_active)')
+                    'visible_to_roles, quests(id, title, description, is_active)')
             .eq('organization_id', org_id).eq('audience', _audience(audience))
             .order('sequence_order').execute()).data or []
     out = []
@@ -136,6 +136,7 @@ def _catalog(org_id, audience='staff'):
             'is_required': bool(r.get('is_required')),
             'sequence_order': r.get('sequence_order') or 0,
             'audience': _audience(r.get('audience')),
+            'visible_to_roles': r.get('visible_to_roles'),
         })
     return out
 
@@ -193,6 +194,10 @@ def list_training(user_id):
         return err
     audience = _audience(request.args.get('audience'))
     catalog = _catalog(org_id, audience)
+    # Role-narrowed staff training only reaches the roles it targets — a
+    # teacher's list does not carry the coordinator's campus-operations course.
+    if audience == 'staff':
+        catalog = sis_service.filter_role_visible(user_id, catalog)
     progress = _progress_for([user_id], [c['quest_id'] for c in catalog])
     for c in catalog:
         c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
@@ -257,6 +262,9 @@ def add_training(user_id):
         return jsonify({'success': False, 'error': 'That quest is not available'}), 404
 
     audience = _audience(data.get('audience'))
+    visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+    if roles_err:
+        return jsonify({'success': False, 'error': roles_err}), 400
     last = (_admin().table('sis_staff_training').select('sequence_order')
             .eq('organization_id', org_id).eq('audience', audience)
             .order('sequence_order', desc=True).limit(1).execute()).data
@@ -266,6 +274,7 @@ def add_training(user_id):
         'audience': audience,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
+        'visible_to_roles': visible_to_roles if audience == 'staff' else None,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
     }, on_conflict='organization_id,quest_id,audience').execute()).data
@@ -329,6 +338,9 @@ def create_training_quest(user_id):
             t['quest_id'] = quest_id
         admin.table('quest_template_tasks').insert(cleaned).execute()
 
+    visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+    if roles_err:
+        return jsonify({'success': False, 'error': roles_err}), 400
     last = (admin.table('sis_staff_training').select('sequence_order')
             .eq('organization_id', org_id).eq('audience', audience)
             .order('sequence_order', desc=True).limit(1).execute()).data
@@ -336,6 +348,7 @@ def create_training_quest(user_id):
         'organization_id': org_id, 'quest_id': quest_id, 'audience': audience,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
+        'visible_to_roles': visible_to_roles if audience == 'staff' else None,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
     }).execute()
@@ -362,6 +375,11 @@ def update_training(user_id, training_id):
         fields['category'] = (data.get('category') or '').strip() or None
     if 'is_required' in data:
         fields['is_required'] = bool(data.get('is_required'))
+    if 'visible_to_roles' in data:
+        visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+        if roles_err:
+            return jsonify({'success': False, 'error': roles_err}), 400
+        fields['visible_to_roles'] = visible_to_roles
     if 'sequence_order' in data:
         try:
             fields['sequence_order'] = int(data.get('sequence_order'))
@@ -410,17 +428,29 @@ def training_progress(user_id):
     quest_ids = [c['quest_id'] for c in catalog]
     progress = _progress_for([s['id'] for s in staff], quest_ids)
 
+    def _applies(c, person):
+        """Role-narrowed training only counts for the roles it targets. Family
+        rows carry no roles, and family training carries no targeting."""
+        targets = c.get('visible_to_roles')
+        if not targets or audience == 'family':
+            return True
+        return bool(set(targets) & set(person.get('roles') or []))
+
     rows = []
     for s in staff:
         cells = [{'quest_id': c['quest_id'],
+                  'applies': _applies(c, s),
                   **progress.get((s['id'], c['quest_id']), dict(_NOT_STARTED))}
                  for c in catalog]
         required_done = len([c for c, cell in zip(catalog, cells)
-                             if c['is_required'] and cell['completed']])
+                             if c['is_required'] and cell['applies'] and cell['completed']])
         rows.append({
             'user_id': s['id'], 'name': s['name'], 'cells': cells,
             'completed': len([c for c in cells if c['completed']]),
             'required_completed': required_done,
+            # A person's own denominator: only the required quests aimed at them.
+            'required_total': len([c for c, cell in zip(catalog, cells)
+                                   if c['is_required'] and cell['applies']]),
         })
     required_total = len([c for c in catalog if c['is_required']])
     return jsonify({'success': True, 'training': catalog, 'staff': rows,

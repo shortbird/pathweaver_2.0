@@ -159,6 +159,22 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     renderSidebar()
     expect(screen.getByText('School Admin')).toBeInTheDocument()
   })
+
+  it('shows the launcher for a campus coordinator at a flagged org', () => {
+    // Coordinators run the console (minus finance); without the launcher the
+    // only way in is a typed URL.
+    authState.user = { id: 'u1', role: 'org_managed', org_roles: ['campus_coordinator'], organization_id: 'org-1', email: 'c@example.com' }
+    orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: { sis_enabled: true } } }
+    renderSidebar()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
+  })
+
+  it('shows the launcher for a coordinator stored in the legacy org_role field', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'campus_coordinator', organization_id: 'org-1', email: 'c@example.com' }
+    orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: { sis_enabled: true } } }
+    renderSidebar()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
+  })
 })
 
 describe('Sidebar — the school item', () => {

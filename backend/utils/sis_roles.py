@@ -46,6 +46,14 @@ FINANCE_ROLES = ('org_admin', 'superadmin')
 # neither can be widened by accident on the other's behalf.
 ROLE_GRANT_ROLES = ('org_admin', 'superadmin')
 
+# HR-confidential records: the secure-documents store (contracts, background
+# checks, custody/medical files). iCreate's coordinator requirements (2026-08-09)
+# are explicit that coordinators see operational information, not employment
+# paperwork. Same membership as FINANCE_ROLES, different reason again — HR
+# confidentiality, not money — so it gets its own name for the same
+# don't-widen-by-accident logic as ROLE_GRANT_ROLES.
+HR_ROLES = ('org_admin', 'superadmin')
+
 
 def is_campus_coordinator(roles) -> bool:
     """True when this set of effective roles is a coordinator and NOT an admin.
@@ -57,3 +65,31 @@ def is_campus_coordinator(roles) -> bool:
     if 'superadmin' in roles or 'org_admin' in roles:
         return False
     return CAMPUS_COORDINATOR in roles
+
+
+# The roles a resource / training item can be narrowed to (org_resources.
+# visible_to_roles, sis_staff_training.visible_to_roles). Mirrors the CHECK
+# constraints added in 20260809_campus_coordinator_portal.sql — widening one
+# without the other leaves the value validating in the app and dying at the
+# write, which is exactly how campus_coordinator itself first shipped.
+TARGETABLE_STAFF_ROLES = ('org_admin', CAMPUS_COORDINATOR, 'advisor')
+
+
+def clean_visible_roles(value):
+    """Normalise a visible_to_roles payload.
+
+    Returns (roles, error): roles is None for "everyone" (null/empty input),
+    otherwise a de-duped list; error is set when a value is not a targetable
+    staff role.
+    """
+    if not value:
+        return None, None
+    if not isinstance(value, (list, tuple)):
+        return None, 'visible_to_roles must be a list of staff roles'
+    out = []
+    for r in value:
+        if r not in TARGETABLE_STAFF_ROLES:
+            return None, f'Unknown staff role: {r}'
+        if r not in out:
+            out.append(r)
+    return (out or None), None

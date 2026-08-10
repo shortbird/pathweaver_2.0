@@ -170,14 +170,128 @@ def record(org_id: str, class_id: str, on_date: str,
     newly_absent = [p['student_user_id'] for p in payloads
                     if p['status'] == 'absent' and prior.get(p['student_user_id']) != 'absent']
 
-    admins_notified = _notify_admins_of_absences(org_id, class_id, on_date, newly_absent)
+    # The accountability rule (iCreate, 2026-08-09): an absence a guardian
+    # already reported needs no alert; an absence nobody reported means the
+    # school does not know where the student is — flag it until someone does.
+    unaccounted = []
+    if newly_absent:
+        from services import sis_planned_absence_service as planned
+        try:
+            covered = planned.for_class_date(org_id, class_id, on_date)
+        except Exception as e:  # noqa: BLE001 — the roll save must not fail here;
+            # and when in doubt, a false alert beats a missed student.
+            logger.error(f'Planned-absence lookup failed during record(): {e}')
+            covered = {}
+        unaccounted = [sid for sid in newly_absent if sid not in covered]
+
+    _record_unaccounted(org_id, class_id, on_date, unaccounted)
+    admins_notified = _notify_admins_of_absences(org_id, class_id, on_date, unaccounted)
     return {'saved': saved, 'count': len(saved),
-            'absences_flagged': len(newly_absent), 'admins_notified': admins_notified}
+            'absences_flagged': len(unaccounted), 'admins_notified': admins_notified}
+
+
+# What a coordinator can decide happened to an unaccounted student. 'late' and
+# 'mismarked' also correct the roll — see resolve_alert.
+ALERT_RESOLUTIONS = ('elsewhere_on_campus', 'late', 'absent_no_notice',
+                     'mismarked', 'other')
+
+
+def _record_unaccounted(org_id: str, class_id: str, on_date: str,
+                        student_ids: List[str]) -> int:
+    """Open one 'unaccounted' alert per student per day. The unique constraint
+    (student, date, alert_type) means a student absent from two classes raises
+    one alert, and a re-save cannot duplicate it."""
+    if not student_ids:
+        return 0
+    rows = [{
+        'organization_id': org_id,
+        'student_user_id': sid,
+        'date': on_date,
+        'alert_type': 'unaccounted',
+        'class_id': class_id,
+        'status': 'open',
+    } for sid in student_ids]
+    try:
+        _admin().table('sis_attendance_alerts').upsert(
+            rows, on_conflict='student_user_id,date,alert_type',
+            ignore_duplicates=True).execute()
+    except Exception as e:  # noqa: BLE001 — the roll save must not fail on the alert
+        logger.error(f'Unaccounted-alert insert failed: {e}')
+        return 0
+    return len(rows)
+
+
+def open_alerts(org_id: str, on_date: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Open student-accountability alerts, hydrated with student + class names."""
+    q = (_admin().table('sis_attendance_alerts').select('*')
+         .eq('organization_id', org_id).eq('alert_type', 'unaccounted')
+         .eq('status', 'open').order('created_at', desc=True))
+    if on_date:
+        q = q.eq('date', on_date)
+    rows = q.execute().data or []
+    if not rows:
+        return []
+    students = {u['id']: _student_name(u) for u in (
+        _admin().table('users')
+        .select('id, display_name, first_name, last_name, username, email')
+        .in_('id', list({r['student_user_id'] for r in rows})).execute()
+    ).data or []}
+    class_ids = list({r['class_id'] for r in rows if r.get('class_id')})
+    classes = {}
+    if class_ids:
+        classes = {c['id']: c['name'] for c in (
+            _admin().table('org_classes').select('id, name')
+            .in_('id', class_ids).execute()
+        ).data or []}
+    for r in rows:
+        r['student_name'] = students.get(r['student_user_id'], 'Unnamed')
+        r['class_name'] = classes.get(r.get('class_id'))
+    return rows
+
+
+def resolve_alert(org_id: str, alert_id: str, resolution: str,
+                  note: Optional[str], actor_id: str) -> Dict[str, Any]:
+    """Close an accountability alert with what actually happened.
+
+    Two outcomes contradict the roll and correct it: 'late' (the student
+    arrived) and 'mismarked' (they were present all along). Leaving the roll
+    wrong under a resolved alert would keep the daily report — the record a
+    guardian or an accreditor sees — saying a present student was absent.
+    """
+    if resolution not in ALERT_RESOLUTIONS:
+        return {'error': 'Unknown resolution'}
+    rows = (_admin().table('sis_attendance_alerts').select('*')
+            .eq('id', alert_id).limit(1).execute()).data or []
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Alert not found'}
+    alert = rows[0]
+
+    fields = {
+        'status': 'resolved',
+        'resolution': resolution,
+        'resolution_note': (note or '').strip() or None,
+        'resolved_by': actor_id,
+        'resolved_at': _now(),
+    }
+    updated = (_admin().table('sis_attendance_alerts').update(fields)
+               .eq('id', alert_id).execute()).data
+
+    corrected_to = {'late': 'late', 'mismarked': 'present'}.get(resolution)
+    if corrected_to and alert.get('class_id'):
+        _admin().table('sis_attendance').update({
+            'status': corrected_to, 'updated_at': _now(),
+        }).eq('class_id', alert['class_id']) \
+          .eq('student_user_id', alert['student_user_id']) \
+          .eq('date', alert['date']).execute()
+
+    return {'alert': updated[0] if updated else dict(alert, **fields)}
 
 
 def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
                                student_ids: List[str]) -> int:
-    """Notify the org admin team that students were marked absent. Best-effort."""
+    """Notify the front office that students are absent with no guardian report
+    — the accountability alert, not a general absence digest. Guardian-reported
+    absences never reach here (record() filters them out). Best-effort."""
     if not student_ids:
         return 0
     from services import sis_notifications
@@ -202,9 +316,9 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
     for admin_id in admin_ids:
         sis_notifications.notify(
             admin_id,
-            'Student marked absent',
-            f"{who} marked absent in {class_name} on {on_date}.",
-            link='/attendance',
+            'Student not accounted for',
+            f"{who} marked absent in {class_name} on {on_date} with no guardian report.",
+            link='/',
             organization_id=org_id,
             metadata={'class_id': class_id, 'date': on_date, 'student_ids': student_ids},
         )

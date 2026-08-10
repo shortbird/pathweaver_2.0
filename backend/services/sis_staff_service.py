@@ -301,12 +301,13 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     onboarding = my_onboarding_summary(org_id, user_id)
 
     # Required staff resources not yet acknowledged (or re-required after update).
-    resources = (
+    # Role-narrowed resources only nag the roles they target.
+    resources = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
-        .select('id, title, url, version_date, updated_at')
+        .select('id, title, url, version_date, updated_at, visible_to_roles')
         .eq('organization_id', org_id).eq('requires_ack', True)
         .in_('audience', ['staff', 'all']).execute()
-    ).data or []
+    ).data or [])
     acked = {}
     if resources:
         rows = (_admin().table('sis_resource_acks').select('resource_id, version_date')
@@ -332,13 +333,13 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     # teacher had no way to find the handbook again afterwards.
     staff_resources = [
         {'id': r['id'], 'title': r['title'], 'url': r.get('url'), 'category': r.get('category')}
-        for r in (
+        for r in sis_service.filter_role_visible(user_id, (
             _admin().table('org_resources')
-            .select('id, title, url, category, audience')
+            .select('id, title, url, category, audience, visible_to_roles')
             .eq('organization_id', org_id)
             .in_('audience', ['staff', 'all'])
             .order('title').limit(8).execute()
-        ).data or []
+        ).data or [])
     ]
 
     return {

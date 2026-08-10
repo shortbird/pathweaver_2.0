@@ -634,6 +634,31 @@ def caller_sees_pay(user_id: str) -> bool:
     return not is_campus_coordinator(_user_org_roles(ctx))
 
 
+def caller_org_roles(user_id: str) -> List[str]:
+    """The caller's org roles (['superadmin'] for a superadmin) — for
+    role-visibility checks on resources, training, and quick links."""
+    ctx = get_user_org_context(user_id)
+    if ctx.get('role') == 'superadmin':
+        return ['superadmin']
+    return _user_org_roles(ctx)
+
+
+def filter_role_visible(user_id: str, rows: List[Dict[str, Any]],
+                        field: str = 'visible_to_roles') -> List[Dict[str, Any]]:
+    """Drop rows narrowed to roles the caller does not hold.
+
+    NULL/empty targets everyone. The admin tier (org_admin, campus coordinator,
+    superadmin) always sees every row — they curate this content, and an admin
+    list that hides what it manages just lies. The filter bites for advisors,
+    which is the point: a teacher does not see the coordinator's opening
+    checklist, and vice versa when a teacher-only row exists.
+    """
+    if caller_is_admin(user_id):
+        return rows
+    held = set(caller_org_roles(user_id))
+    return [r for r in rows if not r.get(field) or held & set(r[field] or [])]
+
+
 def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
     """Class ids this advisor teaches: primary instructor, named assistant, or
     active class_advisors row.

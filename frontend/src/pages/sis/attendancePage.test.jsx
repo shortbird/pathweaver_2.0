@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
@@ -61,12 +61,14 @@ describe('AttendancePage', () => {
     render(<AttendancePage />)
     await pickClass('Pottery')
 
-    // roster appears, everyone defaults to present
+    // roster appears, everyone defaults to present (four-chip control per row
+    // since the 2026-08-09 coordinator build — Present is the active chip)
     expect(await screen.findByText('Bo')).toBeInTheDocument()
-    expect(screen.getAllByText('Present')).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Present', pressed: true })).toHaveLength(2)
 
-    // tap Bo absent — save sends both students, Ada untouched as present
-    fireEvent.click(screen.getByText('Bo'))
+    // mark Bo absent — save sends both students, Ada untouched as present
+    const boRow = screen.getByText('Bo').closest('[data-student-row]')
+    fireEvent.click(within(boRow).getByRole('button', { name: 'Absent' }))
     fireEvent.click(screen.getByText('Save (1 absent)'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/classes/c1/attendance', expect.objectContaining({
@@ -107,13 +109,14 @@ describe('AttendancePage', () => {
     render(<AttendancePage />)
     await pickClass('Pottery')
 
-    // prior save is reflected
+    // prior save is reflected — Absent is the active chip
     expect(await screen.findByText('Attendance taken')).toBeInTheDocument()
-    expect(screen.getByText('Absent')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Absent', pressed: true })).toBeInTheDocument()
 
-    // toggle back to present and re-save
-    fireEvent.click(screen.getByText('Bo'))
-    fireEvent.click(screen.getByText('Save — all present'))
+    // set back to present and re-save
+    const boRow = screen.getByText('Bo').closest('[data-student-row]')
+    fireEvent.click(within(boRow).getByRole('button', { name: 'Present' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/classes/c1/attendance', expect.objectContaining({
         entries: [{ student_user_id: 's1', status: 'present' }],

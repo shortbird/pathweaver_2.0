@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
  * making Kate a coordinator would silently take billing away from her.
  */
 
-import { isSisAdmin, isCampusCoordinator, canSeeFinance } from './sisRole'
+import { isSisAdmin, isCampusCoordinator, canSeeFinance, canSeeHr } from './sisRole'
 
 const orgUser = (...roles) => ({ id: 'u1', role: 'org_managed', org_roles: roles })
 
@@ -59,5 +59,16 @@ describe('campus coordinator chrome', () => {
     expect(isSisAdmin(null)).toBe(false)
     expect(isCampusCoordinator(null)).toBe(false)
     expect(canSeeFinance(null)).toBe(false)
+    expect(canSeeHr(null)).toBe(false)
+  })
+
+  it('does not get the HR store (contracts, background checks)', () => {
+    // iCreate requirements 2026-08-09: coordinators see operational info, not
+    // employment paperwork. Same membership as finance today, separate helper
+    // so neither gate can be widened on the other's behalf.
+    expect(canSeeHr(orgUser('campus_coordinator'))).toBe(false)
+    expect(canSeeHr(orgUser('org_admin'))).toBe(true)
+    expect(canSeeHr(orgUser('campus_coordinator', 'org_admin'))).toBe(true)
+    expect(canSeeHr({ id: 'u1', role: 'superadmin' })).toBe(true)
   })
 })

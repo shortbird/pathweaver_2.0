@@ -195,14 +195,20 @@ def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]
     org's guardians (parents); 'staff' returns teachers/admins."""
     audience = _clean_audience(audience)
     rows = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, email, org_role, role')
+            .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
             .eq('organization_id', org_id).execute()).data or []
     if audience == 'family':
         wanted = {'parent'}
     else:
-        wanted = {'advisor', 'org_admin'}
+        wanted = {'advisor', 'org_admin', 'campus_coordinator'}
+
+    def _holds_wanted(u):
+        held = set(u.get('org_roles') or [])
+        held.update(r for r in (u.get('org_role'), u.get('role')) if r)
+        return bool(held & wanted)
+
     people = [u for u in rows
-              if (u.get('org_role') in wanted or u.get('role') in wanted)
+              if _holds_wanted(u)
               # Placeholder staff (schedule-import rows with no real login) can
               # never open the portal to complete a checklist — don't offer them.
               and not sis_service.is_placeholder_staff_email(u.get('email'))]

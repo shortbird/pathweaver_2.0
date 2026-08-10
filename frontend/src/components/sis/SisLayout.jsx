@@ -69,10 +69,11 @@ const Spinner = () => (
 /**
  * Gate + chrome for the SIS console.
  *
- * Only staff (org_admin, advisor, superadmin) may use the SIS surface. Students
- * and parents who land here are bounced back to the Learning app. Unauthenticated
- * visitors are sent to the Learning login (the cookie session is shared across
- * subdomains, so logging in there authenticates the SIS host too).
+ * Only staff (org_admin, campus_coordinator, advisor, superadmin) may use the
+ * SIS surface. Students and parents who land here are bounced back to the
+ * Learning app. Unauthenticated visitors are sent to the Learning login (the
+ * cookie session is shared across subdomains, so logging in there authenticates
+ * the SIS host too).
  */
 const SisLayout = () => {
   const { isAuthenticated, effectiveRole, user, loading } = useAuth()
@@ -90,7 +91,12 @@ const SisLayout = () => {
     return <Spinner />
   }
 
-  const isStaff = ['org_admin', 'advisor', 'superadmin'].includes(effectiveRole) || user?.is_org_admin
+  // isSisAdmin also catches a coordinator or admin whose org_roles array leads
+  // with another role (e.g. ['parent', 'campus_coordinator']), where the primary
+  // effectiveRole alone would bounce them.
+  const isStaff = ['org_admin', 'campus_coordinator', 'advisor', 'superadmin'].includes(effectiveRole)
+    || user?.is_org_admin
+    || isSisAdmin(user)
   if (!isStaff) {
     goToLearningSurface('/')
     return <Spinner />

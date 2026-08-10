@@ -962,6 +962,8 @@ def register_sis_routes(app):
     app.register_blueprint(staff_portal_bp)
     from routes.sis.staff_admin import bp as staff_admin_bp
     app.register_blueprint(staff_admin_bp)
+    from routes.sis.coordinator import bp as coordinator_bp
+    app.register_blueprint(coordinator_bp)
     from routes.sis.submissions import bp as submissions_bp
     app.register_blueprint(submissions_bp)
     from routes.sis.class_discussions import bp as class_discussions_bp

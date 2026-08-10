@@ -74,6 +74,20 @@ describe('SisLayout gate', () => {
     expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
     expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
   })
+
+  it('lets a campus coordinator into the console', () => {
+    // The coordinator runs the campus from this console — the launcher on the
+    // learning sidebar is pointless if the gate here bounces them back out.
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'campus_coordinator',
+      user: { id: 'u1', role: 'org_managed', org_roles: ['campus_coordinator'] },
+      loading: false,
+    }
+    renderLayout()
+    expect(screen.getByText('CHILD CONTENT')).toBeInTheDocument()
+    expect(nav.goToLearningSurface).not.toHaveBeenCalled()
+  })
 })
 
 describe('SisSidebar', () => {
@@ -92,5 +106,38 @@ describe('SisSidebar', () => {
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
+  })
+
+  it('gives a campus coordinator the admin nav, without the teacher or money pages', () => {
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'campus_coordinator',
+      user: { id: 'u1', role: 'org_managed', org_roles: ['campus_coordinator'] },
+      loading: false,
+    }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    // The front office: same console an admin gets.
+    expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Classes')).toBeInTheDocument()
+    expect(screen.getByText('Registration')).toBeInTheDocument()
+    // Not the teacher portal — a coordinator is not a teacher.
+    expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Schedule')).not.toBeInTheDocument()
+    expect(screen.queryByText('Directory')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Documents')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Time')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Profile')).not.toBeInTheDocument()
+    // Not the money.
+    expect(screen.queryByText('Billing')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tuition')).not.toBeInTheDocument()
+    expect(screen.queryByText('Timesheets')).not.toBeInTheDocument()
+    // Not the HR store (contracts, background checks).
+    expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
+  })
+
+  it('keeps Secure Documents for an org admin', () => {
+    authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getByText('Secure Documents')).toBeInTheDocument()
   })
 })

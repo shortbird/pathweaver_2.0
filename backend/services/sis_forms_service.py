@@ -1,8 +1,11 @@
 """
-SIS staff forms — incident reports, supply requests, and the rest of the
-"complete common forms inside the system" iCreate ask. One generic submission
-table (sis_form_submissions) with a typed payload; routing is "notify the org
-admins", status tracking is submitted → under_review → resolved.
+SIS staff forms and internal tasks — incident reports, supply requests, and the
+rest of the "complete common forms inside the system" iCreate ask, now grown
+into the internal request/task system from the coordinator requirements
+(2026-08-09). One generic submission table (sis_form_submissions) with a typed
+payload; a submission can be assigned to a staff member, given a priority and a
+due date, and discussed in comments. Status tracking:
+submitted → under_review → in_progress → waiting → resolved.
 """
 
 from datetime import datetime, timezone
@@ -19,17 +22,24 @@ FORM_TYPES = {
     'incident': 'Incident report',
     'injury': 'Injury report',
     'behavior': 'Student behavior report',
+    'student_concern': 'Student concern',
     'supply_request': 'Supply request',
     'maintenance': 'Maintenance request',
     'technology': 'Technology problem',
+    'teacher_support': 'Teacher support request',
+    'substitute_request': 'Substitute request',
     'substitute_notes': 'Substitute notes',
     'end_of_day': 'End-of-day checklist',
     'parent_contact': 'Parent-contact record',
     'reimbursement': 'Reimbursement request',
     'training_idea': 'Training idea',
+    'task': 'Task',
     'other': 'Other',
 }
-STATUSES = ('submitted', 'under_review', 'resolved')
+# Maps to iCreate's task vocabulary: submitted=New, under_review(+assignee)=
+# Assigned, in_progress=In Progress, waiting=Waiting, resolved=Completed.
+STATUSES = ('submitted', 'under_review', 'in_progress', 'waiting', 'resolved')
+PRIORITIES = ('low', 'normal', 'high', 'urgent')
 
 # Form types a parent/guardian may file from the family Learning app. These land
 # in the SAME staff review queue as staff-filed forms (submitter_role='parent').
@@ -51,7 +61,11 @@ ALL_FORM_TYPES = {**FORM_TYPES, **PARENT_FORM_TYPES}
 
 
 def submit(org_id: str, user_id: str, data: Dict[str, Any],
-           submitter_role: str = 'staff') -> Dict[str, Any]:
+           submitter_role: str = 'staff', allow_assign: bool = False) -> Dict[str, Any]:
+    """File a form/request. With allow_assign (the admin route's privilege),
+    the submission can be created already assigned, prioritised and dated —
+    that is what makes it a task ("Printer in Room 3 is not working → assign to
+    the campus coordinator")."""
     form_type = data.get('form_type')
     # Staff callers use FORM_TYPES; parent callers use PARENT_FORM_TYPES.
     allowed = PARENT_FORM_TYPES if submitter_role == 'parent' else FORM_TYPES
@@ -66,7 +80,7 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
         'location': (data.get('location') or '').strip() or None,
         'occurred_at': (data.get('occurred_at') or '').strip() or None,
     }
-    row = (_admin().table('sis_form_submissions').insert({
+    row_fields = {
         'organization_id': org_id,
         'submitted_by': user_id,
         'submitter_role': submitter_role,
@@ -75,13 +89,32 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
         'payload': payload,
         'student_user_id': data.get('student_user_id') or None,
         'class_id': data.get('class_id') or None,
-    }).execute()).data
+    }
+    assigned_to = None
+    if allow_assign:
+        priority = data.get('priority')
+        if priority is not None:
+            if priority not in PRIORITIES:
+                return {'error': 'Invalid priority'}
+            row_fields['priority'] = priority
+        if data.get('due_date'):
+            row_fields['due_date'] = data['due_date']
+        assigned_to = data.get('assigned_to') or None
+        if assigned_to:
+            row_fields['assigned_to'] = assigned_to
+    row = (_admin().table('sis_form_submissions').insert(row_fields).execute()).data
     submission = row[0] if row else None
+    title = (submission or {}).get('title') or label
+    if assigned_to and assigned_to != user_id:
+        sis_notifications.notify(
+            assigned_to, 'New task assigned to you', title,
+            link='/forms', organization_id=org_id)
     prefix = 'family' if submitter_role == 'parent' else 'staff'
     for admin_id in sis_service.org_admin_ids(org_id):
+        if admin_id == user_id or admin_id == assigned_to:
+            continue
         sis_notifications.notify(
-            admin_id, f'New {prefix} {label.lower()}',
-            (submission or {}).get('title') or label,
+            admin_id, f'New {prefix} {label.lower()}', title,
             link='/forms', organization_id=org_id)
     return {'submission': submission}
 
@@ -142,16 +175,80 @@ def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],
         if status == 'resolved':
             payload['resolved_by'] = actor_id
             payload['resolved_at'] = payload['updated_at']
+    if 'priority' in fields:
+        if fields['priority'] not in PRIORITIES:
+            return {'error': 'Invalid priority'}
+        payload['priority'] = fields['priority']
+    if 'due_date' in fields:
+        payload['due_date'] = fields.get('due_date') or None
     if 'resolution_notes' in fields:
         payload['resolution_notes'] = (fields.get('resolution_notes') or '').strip() or None
+    newly_assigned = None
     if 'assigned_to' in fields:
         payload['assigned_to'] = fields.get('assigned_to') or None
+        if payload['assigned_to'] and payload['assigned_to'] != rows[0].get('assigned_to'):
+            newly_assigned = payload['assigned_to']
     row = (_admin().table('sis_form_submissions').update(payload)
            .eq('id', submission_id).execute()).data
     updated = row[0] if row else None
+    label = ALL_FORM_TYPES.get(rows[0].get('form_type'), 'form')
+    title = rows[0].get('title') or label
+    if newly_assigned and newly_assigned != actor_id:
+        sis_notifications.notify(
+            newly_assigned, 'New task assigned to you', title,
+            link='/forms', organization_id=org_id)
     if status and rows[0].get('submitted_by') != actor_id:
-        label = ALL_FORM_TYPES.get(rows[0].get('form_type'), 'form')
         sis_notifications.notify(
             rows[0]['submitted_by'], f'Your {label.lower()} is {status.replace("_", " ")}',
-            rows[0].get('title') or label, link='/forms', organization_id=org_id)
+            title, link='/forms', organization_id=org_id)
     return {'submission': updated}
+
+
+def list_assigned(org_id: str, user_id: str) -> List[Dict[str, Any]]:
+    """The caller's open tasks — everything assigned to them that is not yet
+    resolved. Dashboard fuel."""
+    rows = (
+        _admin().table('sis_form_submissions').select('*')
+        .eq('organization_id', org_id).eq('assigned_to', user_id)
+        .neq('status', 'resolved')
+        .order('due_date', desc=False).order('created_at', desc=True)
+        .limit(100).execute()
+    ).data or []
+    return _decorate(rows)
+
+
+def add_comment(org_id: str, submission_id: str, author_id: str,
+                body: str) -> Dict[str, Any]:
+    """A note on a submission's thread. The other parties (submitter, assignee)
+    hear about it; the author does not."""
+    body = (body or '').strip()
+    if not body:
+        return {'error': 'Comment is empty'}
+    rows = (_admin().table('sis_form_submissions').select('*')
+            .eq('id', submission_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Submission not found'}
+    sub = rows[0]
+    inserted = (_admin().table('sis_form_comments').insert({
+        'submission_id': submission_id,
+        'organization_id': org_id,
+        'author_id': author_id,
+        'body': body,
+    }).execute()).data
+    title = sub.get('title') or ALL_FORM_TYPES.get(sub.get('form_type'), 'form')
+    for uid in {sub.get('submitted_by'), sub.get('assigned_to')}:
+        if uid and uid != author_id:
+            sis_notifications.notify(
+                uid, 'New comment', f'{title}: {body[:120]}',
+                link='/forms', organization_id=org_id)
+    return {'comment': inserted[0] if inserted else None}
+
+
+def list_comments(org_id: str, submission_id: str) -> List[Dict[str, Any]]:
+    rows = (_admin().table('sis_form_comments').select('*')
+            .eq('organization_id', org_id).eq('submission_id', submission_id)
+            .order('created_at', desc=False).limit(200).execute()).data or []
+    names = _names_for([r.get('author_id') for r in rows])
+    for r in rows:
+        r['author_name'] = names.get(r.get('author_id'))
+    return rows

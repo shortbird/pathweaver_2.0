@@ -406,8 +406,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     navItems = navItems.filter((item) => !SIS_MOVED_ITEMS.has(item.name))
   }
   // Superadmin always gets a way into the SIS console; org staff get it once their
-  // org is flagged into the SIS beta.
-  const showSisLauncher = user?.role === 'superadmin' || (sisEnabled && (hasOrgAdminAccess || isAdvisor))
+  // org is flagged into the SIS beta. Campus coordinators run the console (minus
+  // finance), so they count as staff here.
+  const isCampusCoordinator = userHasRole('campus_coordinator')
+  const showSisLauncher = user?.role === 'superadmin' || (sisEnabled && (hasOrgAdminAccess || isAdvisor || isCampusCoordinator))
 
   const handleNavClick = () => {
     if (onClose) {
