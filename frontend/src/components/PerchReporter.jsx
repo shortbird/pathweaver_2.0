@@ -27,17 +27,21 @@ export default function PerchReporter() {
   const slug = organization?.slug || '';
   const eligible = isStaffUser(user);
 
+  const email = user?.email || '';
+
   useEffect(() => {
     if (!eligible) {
       window.__perch?.remove?.();
       return;
     }
-    // Config before script: perch.js reads key/position at load, tenant at
-    // send time — updating tenant here also covers an org switch without a
-    // reload.
+    // Config before script: perch.js reads key/position at load, tenant and
+    // email at panel-open/send time — updating them here also covers an org
+    // switch without a reload. The email turns the widget's type-your-email
+    // field into a one-tap "email me when it's fixed" checkbox.
     window.PerchConfig = Object.assign(window.PerchConfig || {}, {
       key: PERCH_KEY,
       tenant: slug,
+      email,
       release: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev',
     });
     if (!document.querySelector(`script[src="${PERCH_SRC}"]`)) {
@@ -46,7 +50,7 @@ export default function PerchReporter() {
       s.defer = true;
       document.head.appendChild(s);
     }
-  }, [eligible, slug]);
+  }, [eligible, slug, email]);
 
   return null;
 }

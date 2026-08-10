@@ -23,11 +23,13 @@ beforeEach(() => {
 describe('PerchReporter', () => {
   it('injects the widget for teachers, not just admins', () => {
     // The org_managed + org_role shape is how iCreate teachers arrive.
-    authState = { user: { role: 'org_managed', org_role: 'advisor' } }
+    authState = { user: { role: 'org_managed', org_role: 'advisor', email: 'teach@school.org' } }
     orgState = { organization: { slug: 'icreate' } }
     render(<PerchReporter />)
     expect(perchScript()).toBeTruthy()
     expect(window.PerchConfig.tenant).toBe('icreate')
+    // The widget turns this into the "email me when it's fixed" checkbox.
+    expect(window.PerchConfig.email).toBe('teach@school.org')
   })
 
   it('injects for staff with no org, with an empty tenant', () => {
