@@ -10,14 +10,18 @@ the codebase.
 
 ## The stack
 
-Optio runs four measurement systems, each with a distinct job:
+Optio runs three measurement systems, each with a distinct job:
 
 | System | What it's for | Where | Gating |
 |---|---|---|---|
 | **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `frontend/src/services/posthog.js`, `posthog-react-native` in v2 | `VITE_POSTHOG_KEY` — off in local dev |
 | **Google Analytics 4** | Acquisition funnel + Google Ads attribution (marketing site, logged-out) | `frontend/src/services/googleAnalytics.js` + `components/GaTracker.jsx` | **prod host only**, logged-out only |
 | **Meta Pixel** | Ad audiences / conversions (marketing site, logged-out) | `frontend/src/utils/metaPixel.js` + `components/MetaPixelTracker.jsx` | **prod host only**, logged-out only |
-| **Google Tag Manager** | Container for any other marketing tags | `frontend/index.html` | **prod host only** |
+
+> Google Tag Manager (`GTM-P9TZN8P3`) was removed 2026-08-05 — the container held
+> no tags and GA4/Meta/PostHog all load directly, so it was dead weight. If you
+> ever want a non-developer to manage marketing tags without code changes, add
+> GTM back (gated to the prod host) and move GA4 into it.
 
 **Rule of thumb:** in-app product events go to **PostHog**. GA/Meta get only the
 handful of **acquisition conversions** (sign-up, lead) and pre-login pageviews.
@@ -58,10 +62,8 @@ kept out of dev data:
 - **Measurement ID**: `VITE_GA_MEASUREMENT_ID` (falls back to the live prod
   property `G-KPKTXS36W3` if unset, since GA only runs on the prod host anyway).
   Point a different property per environment by setting the env var.
-- **GTM container**: `GTM-P9TZN8P3`, gated to the prod host in `index.html`.
-  > ⚠️ GA4 is initialized in-app. If the GTM container **also** has a GA4
-  > Configuration / Google tag for `G-KPKTXS36W3`, disable it in the GTM UI or
-  > every pageview is double-counted.
+- **No GTM** — GA4 is the only Google tag, initialized in-app, so there is no
+  container to keep in sync and no double-counting risk.
 
 ---
 
