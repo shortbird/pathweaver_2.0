@@ -9,8 +9,16 @@ Rules:
 - Dependent/placeholder accounts (`*@optio-internal-placeholder.local`,
   `*@pending.optio.local`) never receive email; their managing parent is
   emailed instead.
-- Emails are deduped by address, so a parent with three kids in the org gets
-  exactly one copy.
+- Emails are deduped by canonical mailbox, not just exact address: lowercased,
+  `+tag` stripped, and gmail's dot-insensitivity applied — so a parent with
+  three kids gets one copy, and so does someone whose accounts are plus-aliases
+  of the same inbox (how Tanner got four copies of an iCreate announcement on
+  2026-08-07).
+- Per-recipient sends never generate a [COPY] to SUPPORT_COPY_EMAIL — a
+  school-wide announcement would flood it, and the recipient-org lookup inside
+  send_email can't see platform parents of an excluded org's students anyway.
+  Instead, ONE summary copy per announcement is sent here, honoring the org
+  opt-out list.
 - Every send is wrapped in try/except; a failure is logged and never bubbles
   up to the announcement request.
 
@@ -37,6 +45,20 @@ _CHUNK = 100  # keep .in_() URL lengths sane
 def _is_placeholder(email):
     e = (email or '').strip().lower()
     return (not e) or any(e.endswith(sfx) for sfx in PLACEHOLDER_EMAIL_SUFFIXES)
+
+
+def _canonical_mailbox(email):
+    """Dedup key for 'same inbox': lowercase, drop any `+tag`, and apply
+    gmail's dot-insensitivity (googlemail == gmail). Used only as a key —
+    the message is always sent to a real address that was on the list."""
+    e = (email or '').strip().lower()
+    local, _, domain = e.partition('@')
+    base = local.split('+', 1)[0]
+    if domain == 'googlemail.com':
+        domain = 'gmail.com'
+    if domain == 'gmail.com':
+        base = base.replace('.', '')
+    return f"{base}@{domain}" if base and domain else e
 
 
 def _fresh_admin_client():
@@ -90,13 +112,20 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
         admin = _fresh_admin_client()
 
         org_name = 'Your school'
+        org_slug = None
+        reply_to = None
         try:
-            org = admin.table('organizations').select('name')\
+            org = admin.table('organizations').select('name, slug, feature_flags')\
                 .eq('id', org_id).single().execute().data
-            if org and org.get('name'):
-                org_name = org['name']
+            if org:
+                org_name = org.get('name') or org_name
+                org_slug = org.get('slug')
+                # Same rule as send_email's per-recipient lookup, decided once
+                # here so platform parents get the school's Reply-To too.
+                value = (org.get('feature_flags') or {}).get('email_reply_to')
+                reply_to = value.strip() if isinstance(value, str) and value.strip() else None
         except Exception as oe:  # noqa: BLE001
-            logger.warning(f"Announcement email: org name lookup failed for {org_id}: {oe}")
+            logger.warning(f"Announcement email: org lookup failed for {org_id}: {oe}")
 
         # Fetch recipient rows in chunks
         rows = []
@@ -111,13 +140,21 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
                 logger.warning(f"Announcement email: user fetch chunk failed: {ce}")
 
         # Resolve target addresses. Dependents with placeholder emails route to
-        # their managing parent; dedupe by lowercased address.
-        emails = set()
+        # their managing parent; dedupe by canonical mailbox (one inbox, one
+        # copy), delivering to the first real address seen for that inbox.
+        mailboxes = {}
+
+        def _add(addr):
+            a = addr.lower()
+            key = _canonical_mailbox(a)
+            if key not in mailboxes or a < mailboxes[key]:
+                mailboxes[key] = a
+
         parent_ids_needed = set()
         for row in rows:
             email = (row.get('email') or '').strip()
             if not _is_placeholder(email):
-                emails.add(email.lower())
+                _add(email)
             elif row.get('managed_by_parent_id'):
                 parent_ids_needed.add(row['managed_by_parent_id'])
 
@@ -131,10 +168,11 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
                     for p in (res.data or []):
                         pe = (p.get('email') or '').strip()
                         if not _is_placeholder(pe):
-                            emails.add(pe.lower())
+                            _add(pe)
                 except Exception as ce:  # noqa: BLE001
                     logger.warning(f"Announcement email: parent fetch chunk failed: {ce}")
 
+        emails = list(mailboxes.values())
         if not emails:
             logger.info(f"Announcement email: no emailable recipients for org {org_id}")
             return 0, len(rows)
@@ -144,7 +182,7 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
         text_body = (f"{rich_text.to_text(message)}\n\n"
                      f"Read in Optio: {Config.FRONTEND_URL}/school")
 
-        from services.email_service import email_service
+        from services.email_service import email_service, SUPPORT_COPY_EXCLUDE_ORG_SLUGS
 
         sent = 0
         failed = 0
@@ -155,6 +193,8 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
                     subject=subject,
                     html_body=html_body,
                     text_body=text_body,
+                    reply_to=reply_to,
+                    support_copy=False,
                 ):
                     sent += 1
                 else:
@@ -162,6 +202,26 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
             except Exception as se:  # noqa: BLE001
                 failed += 1
                 logger.warning(f"Announcement email failed for {addr}: {se}")
+
+        # One monitoring copy for the whole announcement (not per recipient),
+        # unless the org has opted out of copies.
+        if sent and org_slug not in SUPPORT_COPY_EXCLUDE_ORG_SLUGS:
+            try:
+                banner = (
+                    f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; '
+                    f'border-left: 4px solid #6D469B;"><strong>Copy:</strong> '
+                    f'{org_name} announcement emailed to {sent} recipients</div>'
+                )
+                email_service.send_email(
+                    to_email=Config.SUPPORT_COPY_EMAIL,
+                    subject=f"[COPY] {subject}",
+                    html_body=banner + html_body,
+                    text_body=(f"[{org_name} announcement emailed to {sent} recipients]\n\n"
+                               f"{text_body}"),
+                    support_copy=False,
+                )
+            except Exception as se:  # noqa: BLE001
+                logger.warning(f"Announcement summary copy failed: {se}")
 
         logger.info(
             f"Announcement email fan-out for org {org_id}: {sent} sent, "

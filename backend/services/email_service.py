@@ -106,7 +106,8 @@ class EmailService(BaseService):
         sender_email_override: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         reply_to: Optional[str] = None,
-        brevo_funnel: Optional[str] = None
+        brevo_funnel: Optional[str] = None,
+        support_copy: Optional[bool] = None
     ) -> bool:
         """
         Send an email via the Brevo transactional API
@@ -131,6 +132,13 @@ class EmailService(BaseService):
                 return value of the brevo_service sync that ran alongside the
                 send — it reflects whether the automation actually started for
                 this recipient, not just which flow this is.
+            support_copy: Force the monitoring copy on (True) or off (False).
+                None (default) keeps the automatic rule: copy unless the
+                recipient's org is in SUPPORT_COPY_EXCLUDE_ORG_SLUGS. Bulk
+                fan-outs pass False per recipient and send one summary copy
+                themselves — the recipient-org lookup can't see platform
+                parents of an excluded org's students, and a copy per family
+                floods the support inbox either way.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -143,7 +151,10 @@ class EmailService(BaseService):
 
             # One org lookup drives two things: the Reply-To header and whether
             # this org's mail is copied to SUPPORT_COPY_EMAIL for monitoring.
-            recipient_org = self._recipient_org(to_email)
+            # When the caller has already decided both (bulk fan-outs), skip it.
+            recipient_org = None
+            if not reply_to or support_copy is None:
+                recipient_org = self._recipient_org(to_email)
             org_flags = (recipient_org or {}).get('feature_flags') or {}
 
             # An explicit reply_to from the caller wins; otherwise recipients
@@ -190,8 +201,9 @@ class EmailService(BaseService):
             support_copy_email = Config.SUPPORT_COPY_EMAIL
             # Skip the monitoring copy for opted-out orgs (e.g. iCreate) so their
             # high-volume, stable system mail doesn't flood the support inbox.
-            org_opted_out = (recipient_org or {}).get('slug') in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
-            if (not org_opted_out
+            if support_copy is None:
+                support_copy = (recipient_org or {}).get('slug') not in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
+            if (support_copy
                     and support_email not in cc
                     and to_email.lower() != support_copy_email.lower()):
                 try:
