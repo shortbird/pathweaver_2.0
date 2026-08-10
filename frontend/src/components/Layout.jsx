@@ -9,7 +9,7 @@ import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
 const Layout = () => {
-  const { isAuthenticated, effectiveRole, user, logout } = useAuth()
+  const { isAuthenticated, effectiveRole, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
