@@ -12,20 +12,50 @@ vi.mock('pdf-lib', () => ({
 }))
 
 /**
- * loadScanner resolves its deps with dynamic imports, so each test that needs
- * a different OpenCV module shape re-imports the service with vi.doMock.
+ * The service talks to the scan worker over postMessage. FakeWorker answers
+ * each op from `FakeWorker.handlers`, so tests script the worker's side.
  */
-async function importService({ cvModule, jscanifyModule } = {}) {
-  vi.resetModules()
-  vi.doMock('@techstark/opencv-js', () => cvModule ?? { default: { Mat: function Mat() {} } })
-  vi.doMock('../vendor/jscanify.js', () => jscanifyModule ?? fakeJscanifyModule())
-  return await import('./documentScanner')
+class FakeWorker {
+  static instances = []
+  static handlers = {}
+
+  constructor(url, opts) {
+    this.url = url
+    this.opts = opts
+    this.onmessage = null
+    this.onerror = null
+    this.sent = []
+    this.terminated = false
+    FakeWorker.instances.push(this)
+  }
+
+  postMessage(msg) {
+    this.sent.push(msg)
+    const respond = (data) => queueMicrotask(() => this.onmessage?.({ data }))
+    const handler = FakeWorker.handlers[msg.op]
+    if (!handler) {
+      respond({ id: msg.id, ok: false, error: `no handler for ${msg.op}` })
+      return
+    }
+    try {
+      respond({ id: msg.id, ok: true, result: handler(msg.payload, this) })
+    } catch (err) {
+      respond({ id: msg.id, ok: false, error: err.message })
+    }
+  }
+
+  terminate() {
+    this.terminated = true
+  }
 }
 
-function fakeJscanifyModule() {
-  const setOpenCv = vi.fn()
-  class FakeScanner {}
-  return { default: FakeScanner, setOpenCv }
+/** The service caches its worker at module scope, so import it fresh. */
+async function importService() {
+  vi.resetModules()
+  FakeWorker.instances = []
+  FakeWorker.handlers = { load: () => true }
+  global.Worker = FakeWorker
+  return await import('./documentScanner')
 }
 
 /** Corner set for a rectangle from (x, y) to (x + w, y + h). */
@@ -38,17 +68,16 @@ function rectCorners(x, y, w, h) {
   }
 }
 
-/** Minimal cv + scanner pair for the detection/extraction helpers. */
-function fakeDeps({ contour, corners, extracted } = {}) {
-  const mat = { cols: 1000, rows: 800, delete: vi.fn() }
-  const contourObj = contour === null ? null : { delete: vi.fn(), ...contour }
-  const cv = { imread: vi.fn(() => mat) }
-  const scanner = {
-    findPaperContour: vi.fn(() => contourObj),
-    getCornerPoints: vi.fn(() => corners),
-    extractPaper: vi.fn(() => extracted ?? { width: 1, height: 1 }),
+/** Canvas stand-in whose 2d context yields a width x height ImageData. */
+function fakeSourceCanvas(width = 1000, height = 800) {
+  return {
+    width,
+    height,
+    getContext: () => ({
+      getImageData: () => ({ width, height, data: new Uint8Array(4) }),
+      putImageData: vi.fn(),
+    }),
   }
-  return { cv, scanner, mat, contourObj }
 }
 
 describe('loadScanner', () => {
@@ -56,126 +85,90 @@ describe('loadScanner', () => {
     vi.clearAllMocks()
   })
 
-  it('initializes from a ready cv module and injects it into jscanify', async () => {
-    const cv = { Mat: function Mat() {} }
-    const jscanifyModule = fakeJscanifyModule()
-    const svc = await importService({ cvModule: { default: cv }, jscanifyModule })
-
-    const result = await svc.loadScanner()
-
-    expect(jscanifyModule.setOpenCv).toHaveBeenCalledWith(cv)
-    expect(result.cv).toBe(cv)
-    expect(result.scanner).toBeInstanceOf(jscanifyModule.default)
-  })
-
-  it('awaits a promise-shaped cv module', async () => {
-    const cv = { Mat: function Mat() {} }
-    const svc = await importService({ cvModule: { default: Promise.resolve(cv) } })
-
-    const result = await svc.loadScanner()
-
-    expect(result.cv).toBe(cv)
-  })
-
-  it('waits for onRuntimeInitialized when cv is not ready yet', async () => {
-    const cvModule = {} // no Mat, not a promise
-    const svc = await importService({ cvModule: { default: cvModule } })
-
-    const pending = svc.loadScanner()
-    await vi.waitFor(() => {
-      expect(typeof cvModule.onRuntimeInitialized).toBe('function')
-    })
-    cvModule.onRuntimeInitialized()
-
-    const result = await pending
-    expect(result.cv).toBe(cvModule)
-  })
-
-  it('returns the same instance on repeated calls', async () => {
+  it('spawns the worker as a same-origin module worker and awaits its load', async () => {
     const svc = await importService()
-    const first = await svc.loadScanner()
-    const second = await svc.loadScanner()
-    expect(second).toBe(first)
+
+    await svc.loadScanner()
+
+    expect(FakeWorker.instances).toHaveLength(1)
+    const w = FakeWorker.instances[0]
+    expect(String(w.url)).toMatch(/documentScanner\.worker\.js/)
+    expect(w.opts).toEqual({ type: 'module' })
+    expect(w.sent[0]).toMatchObject({ op: 'load' })
   })
 
-  it('allows a retry after a failed load', async () => {
-    // The module itself loads fine, but the first attempt to use it blows up
-    // (stand-in for a flaky wasm-chunk fetch): accessing `default` throws once.
-    let calls = 0
-    vi.resetModules()
-    vi.doMock('@techstark/opencv-js', () => ({
-      get default() {
-        calls += 1
-        if (calls === 1) throw new Error('network error')
-        return { Mat: function Mat() {} }
-      },
-    }))
-    vi.doMock('../vendor/jscanify.js', () => fakeJscanifyModule())
-    const svc = await import('./documentScanner')
+  it('returns the same promise on repeated calls', async () => {
+    const svc = await importService()
+    const first = svc.loadScanner()
+    const second = svc.loadScanner()
+    expect(second).toBe(first)
+    await first
+    expect(FakeWorker.instances).toHaveLength(1)
+  })
 
-    await expect(svc.loadScanner()).rejects.toThrow('network error')
-    const result = await svc.loadScanner()
-    expect(result.scanner).toBeTruthy()
+  it('tears down and allows a retry after a failed load', async () => {
+    const svc = await importService()
+    let calls = 0
+    FakeWorker.handlers.load = () => {
+      calls += 1
+      if (calls === 1) throw new Error('wasm fetch failed')
+      return true
+    }
+
+    await expect(svc.loadScanner()).rejects.toThrow('wasm fetch failed')
+    expect(FakeWorker.instances[0].terminated).toBe(true)
+
+    await expect(svc.loadScanner()).resolves.toBeTruthy()
+    expect(FakeWorker.instances).toHaveLength(2)
   })
 })
 
 describe('detectDocumentCorners', () => {
   let svc
   beforeEach(async () => {
+    vi.clearAllMocks()
     svc = await importService()
   })
 
-  it('returns the corner points of a detected page', () => {
+  it('sends the frame pixels to the worker and returns its corners', async () => {
     const corners = rectCorners(100, 100, 700, 500)
-    const deps = fakeDeps({ corners })
+    FakeWorker.handlers.detect = (payload) => {
+      expect(payload.imageData).toMatchObject({ width: 1000, height: 800 })
+      return corners
+    }
 
-    const result = svc.detectDocumentCorners(deps, 'source')
+    const result = await svc.detectDocumentCorners({}, fakeSourceCanvas())
 
-    expect(deps.cv.imread).toHaveBeenCalledWith('source')
     expect(result).toEqual(corners)
   })
 
-  it('returns null when no contour is found', () => {
-    const deps = fakeDeps({ contour: null })
-    expect(svc.detectDocumentCorners(deps, 'source')).toBeNull()
+  it('returns null when the worker finds no contour', async () => {
+    FakeWorker.handlers.detect = () => null
+    expect(await svc.detectDocumentCorners({}, fakeSourceCanvas())).toBeNull()
   })
 
-  it('returns null when a corner is missing', () => {
+  it('returns null when a corner is missing', async () => {
     const corners = rectCorners(100, 100, 700, 500)
     delete corners.bottomRightCorner
-    const deps = fakeDeps({ corners })
-    expect(svc.detectDocumentCorners(deps, 'source')).toBeNull()
+    FakeWorker.handlers.detect = () => corners
+    expect(await svc.detectDocumentCorners({}, fakeSourceCanvas())).toBeNull()
   })
 
-  it('returns null when the detected quad is too small to be the page', () => {
+  it('returns null when the detected quad is too small to be the page', async () => {
     // 50x40 blob in a 1000x800 frame: 0.25% of the frame — noise, not paper.
-    const deps = fakeDeps({ corners: rectCorners(10, 10, 50, 40) })
-    expect(svc.detectDocumentCorners(deps, 'source')).toBeNull()
-  })
-
-  it('frees the mat and contour even on the null paths', () => {
-    const deps = fakeDeps({ corners: rectCorners(10, 10, 50, 40) })
-    svc.detectDocumentCorners(deps, 'source')
-    expect(deps.mat.delete).toHaveBeenCalled()
-    expect(deps.contourObj.delete).toHaveBeenCalled()
+    FakeWorker.handlers.detect = () => rectCorners(10, 10, 50, 40)
+    expect(await svc.detectDocumentCorners({}, fakeSourceCanvas())).toBeNull()
   })
 })
 
 describe('extractDocument', () => {
-  it('warps using the corner geometry to size the output page', async () => {
-    const svc = await importService()
-    const corners = rectCorners(100, 50, 600, 800)
-    const extracted = { width: 600, height: 800 }
-    const deps = fakeDeps({ extracted })
-
-    const result = svc.extractDocument(deps, 'source', corners)
-
-    expect(deps.scanner.extractPaper).toHaveBeenCalledWith('source', 600, 800, corners)
-    expect(result).toBe(extracted)
+  let svc
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    svc = await importService()
   })
 
-  it('uses the longer of each opposing edge pair for the output size', async () => {
-    const svc = await importService()
+  it('sizes the output from the longer of each opposing edge pair', async () => {
     // Keystoned trapezoid: top edge 500 wide, bottom edge 620 wide, both
     // slanted sides hypot(60, 700) ≈ 702.57 tall.
     const corners = {
@@ -184,13 +177,35 @@ describe('extractDocument', () => {
       bottomLeftCorner: { x: 100, y: 800 },
       bottomRightCorner: { x: 720, y: 800 },
     }
-    const deps = fakeDeps({})
+    let received
+    FakeWorker.handlers.extract = (payload) => {
+      received = payload
+      return { width: payload.width, height: payload.height, data: new Uint8Array(4) }
+    }
 
-    svc.extractDocument(deps, 'source', corners)
+    const canvas = await svc.extractDocument({}, fakeSourceCanvas(), corners)
 
-    const [, width, height] = deps.scanner.extractPaper.mock.calls[0]
-    expect(width).toBe(620)
-    expect(height).toBe(703)
+    expect(received.width).toBe(620)
+    expect(received.height).toBe(703)
+    expect(received.corners).toEqual(corners)
+    expect(canvas.width).toBe(620)
+    expect(canvas.height).toBe(703)
+  })
+
+  it('paints the returned page pixels onto the result canvas', async () => {
+    const page = { width: 600, height: 800, data: new Uint8Array(4) }
+    FakeWorker.handlers.extract = () => page
+    const putImageData = vi.fn()
+    const origCreate = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      const el = origCreate(tag)
+      if (tag === 'canvas') el.getContext = () => ({ putImageData })
+      return el
+    })
+
+    await svc.extractDocument({}, fakeSourceCanvas(), rectCorners(0, 0, 600, 800))
+
+    expect(putImageData).toHaveBeenCalledWith(page, 0, 0)
   })
 })
 

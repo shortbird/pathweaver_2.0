@@ -89,7 +89,9 @@ describe('DocumentScannerModal', () => {
     return utils
   }
 
-  it('requests the back camera and shows the capture UI', async () => {
+  // Generous timeout: the first test in the file pays the component's
+  // one-time import cost, which can exceed the 5s default on a loaded machine.
+  it('requests the back camera and shows the capture UI', { timeout: 15000 }, async () => {
     await renderReady()
     expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
       expect.objectContaining({

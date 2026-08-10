@@ -1,66 +1,86 @@
 /**
- * Web document scanner: OpenCV.js edge detection + perspective correction
- * (via the vendored jscanify), assembled into a single multi-page PDF with
- * pdf-lib — the browser counterpart of the mobile app's native scanner
- * (frontend-v2/src/services/documentScanner.ts), which produces the same
- * "one scan == exactly one page, page box == image box" PDFs.
+ * Web document scanner: edge detection + perspective correction, assembled
+ * into a single multi-page PDF — the browser counterpart of the mobile app's
+ * native scanner (frontend-v2/src/services/documentScanner.ts).
  *
- * Everything heavy is behind dynamic imports: OpenCV.js is a ~10MB wasm
- * build, so nothing here may be imported eagerly from a page bundle. Callers
- * invoke loadScanner() on user intent (opening the scan modal), not on mount.
+ * The OpenCV work runs in a dedicated Web Worker
+ * (workers/documentScanner.worker.js) because OpenCV's embind generates code
+ * with `new Function(...)`, which the page CSP blocks — see the worker's
+ * header comment. This module is the worker's client: it converts canvases
+ * to ImageData, makes the calls, and applies the geometry policy (quad-area
+ * sanity filter, output page sizing). detect/extract are therefore async.
+ *
+ * The worker (with its ~10MB OpenCV bundle) and pdf-lib are only fetched on
+ * first use — never import this module's dependencies eagerly.
  */
 
-let scannerPromise = null
-
-const OPENCV_INIT_TIMEOUT_MS = 30000
+let worker = null
+let readyPromise = null
+let callSeq = 0
+const pending = new Map()
 
 // A paper quad smaller than this fraction of the frame is treated as noise:
 // jscanify always returns the *largest* contour, which on a paperless desk is
 // some stray object, and warping to it would produce garbage.
 const MIN_PAPER_AREA_FRACTION = 0.08
 
-/**
- * The @techstark/opencv-js module has shipped three init shapes across
- * versions: an already-initialized cv, a promise of one, and the classic
- * onRuntimeInitialized callback. Handle all three.
- */
-async function resolveOpenCv(mod) {
-  if (typeof mod?.then === 'function') return await mod
-  if (mod?.Mat) return mod
-  return await new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error('OpenCV failed to initialize')),
-      OPENCV_INIT_TIMEOUT_MS
-    )
-    mod.onRuntimeInitialized = () => {
-      clearTimeout(timer)
-      resolve(mod)
+function teardownWorker(error) {
+  for (const p of pending.values()) p.reject(error || new Error('Scanner worker stopped'))
+  pending.clear()
+  worker?.terminate?.()
+  worker = null
+  readyPromise = null
+}
+
+function getWorker() {
+  if (!worker) {
+    worker = new Worker(new URL('../workers/documentScanner.worker.js', import.meta.url), {
+      type: 'module',
+    })
+    worker.onmessage = (event) => {
+      const { id, ok, result, error } = event.data
+      const call = pending.get(id)
+      if (!call) return
+      pending.delete(id)
+      if (ok) call.resolve(result)
+      else call.reject(new Error(error))
     }
+    worker.onerror = (event) => {
+      // Script-level failure (e.g. the OpenCV chunk failed to fetch): every
+      // in-flight call is dead, and so is the worker.
+      teardownWorker(new Error(event?.message || 'Scanner worker failed'))
+    }
+  }
+  return worker
+}
+
+function callWorker(op, payload, transfer) {
+  return new Promise((resolve, reject) => {
+    const id = ++callSeq
+    pending.set(id, { resolve, reject })
+    getWorker().postMessage({ id, op, payload }, transfer || [])
   })
 }
 
 /**
- * Lazy-load OpenCV + jscanify once and return `{ cv, scanner }`.
- * A failed load (flaky network fetching the wasm chunk) clears the cache so
- * the next call retries instead of replaying the rejection forever.
+ * Start the worker and have it load OpenCV + jscanify. Returns an opaque
+ * ready handle. A failed load tears the worker down so the next call retries
+ * instead of replaying the rejection forever.
  */
 export function loadScanner() {
-  if (!scannerPromise) {
-    scannerPromise = (async () => {
-      const [cvModule, jscanifyModule] = await Promise.all([
-        import('@techstark/opencv-js'),
-        import('../vendor/jscanify.js'),
-      ])
-      const cv = await resolveOpenCv(cvModule.default ?? cvModule)
-      jscanifyModule.setOpenCv(cv)
-      const Scanner = jscanifyModule.default
-      return { cv, scanner: new Scanner() }
-    })().catch((err) => {
-      scannerPromise = null
+  if (!readyPromise) {
+    readyPromise = callWorker('load').catch((err) => {
+      teardownWorker(err)
       throw err
     })
   }
-  return scannerPromise
+  return readyPromise
+}
+
+function toImageData(source) {
+  const ctx = source.getContext('2d')
+  if (!ctx) throw new Error('Could not read pixels from the capture canvas')
+  return ctx.getImageData(0, 0, source.width, source.height)
 }
 
 function distance(p1, p2) {
@@ -80,24 +100,18 @@ function quadArea({ topLeftCorner: tl, topRightCorner: tr, bottomRightCorner: br
 }
 
 /**
- * Detect the document in `source` (a canvas, img, or video frame) and return
- * its corner points, or null when nothing page-like is in view.
+ * Detect the document in `source` (a canvas) and return its corner points,
+ * or null when nothing page-like is in view.
  */
-export function detectDocumentCorners({ cv, scanner }, source) {
-  const mat = cv.imread(source)
-  let contour = null
-  try {
-    contour = scanner.findPaperContour(mat)
-    if (!contour) return null
-    const corners = scanner.getCornerPoints(contour)
-    const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = corners || {}
-    if (!topLeftCorner || !topRightCorner || !bottomLeftCorner || !bottomRightCorner) return null
-    if (quadArea(corners) < mat.cols * mat.rows * MIN_PAPER_AREA_FRACTION) return null
-    return corners
-  } finally {
-    if (contour && typeof contour.delete === 'function') contour.delete()
-    mat.delete()
-  }
+export async function detectDocumentCorners(_scanner, source) {
+  const imageData = toImageData(source)
+  const frameArea = imageData.width * imageData.height
+  const corners = await callWorker('detect', { imageData }, [imageData.data.buffer])
+  if (!corners) return null
+  const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = corners
+  if (!topLeftCorner || !topRightCorner || !bottomLeftCorner || !bottomRightCorner) return null
+  if (quadArea(corners) < frameArea * MIN_PAPER_AREA_FRACTION) return null
+  return corners
 }
 
 /**
@@ -106,11 +120,21 @@ export function detectDocumentCorners({ cv, scanner }, source) {
  * pair — so the flattened scan keeps the paper's real aspect ratio.
  * Returns a canvas.
  */
-export function extractDocument({ scanner }, source, corners) {
+export async function extractDocument(_scanner, source, corners) {
   const { topLeftCorner: tl, topRightCorner: tr, bottomLeftCorner: bl, bottomRightCorner: br } = corners
   const width = Math.round(Math.max(distance(tl, tr), distance(bl, br)))
   const height = Math.round(Math.max(distance(tl, bl), distance(tr, br)))
-  return scanner.extractPaper(source, width, height, corners)
+
+  const imageData = toImageData(source)
+  const page = await callWorker('extract', { imageData, corners, width, height }, [imageData.data.buffer])
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not render the extracted page')
+  ctx.putImageData(page, 0, 0)
+  return canvas
 }
 
 function canvasToJpegBytes(canvas) {

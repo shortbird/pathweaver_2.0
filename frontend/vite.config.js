@@ -91,6 +91,11 @@ export default defineConfig(({ mode }) => {
     // scanner couldn't load"). Pre-bundle them at server start instead.
     include: ['@techstark/opencv-js', 'pdf-lib'],
   },
+  worker: {
+    // The scanner worker lazy-imports OpenCV; dynamic import inside a worker
+    // bundle requires the ES output format (the default iife forbids it).
+    format: 'es',
+  },
   server: {
     port: 3000,
     // Allow Vite's dev server to read the shared/ folder, which sits one level

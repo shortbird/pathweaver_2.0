@@ -91,11 +91,14 @@ export default function DocumentScannerModal({ onClose, onScan }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
 
-  const updateOverlay = () => {
+  const detectBusyRef = useRef(false)
+
+  const updateOverlay = async () => {
     const video = videoRef.current
     const overlay = overlayRef.current
     const deps = depsRef.current
     if (!video || !overlay || !deps || !video.videoWidth) return
+    if (detectBusyRef.current) return // previous frame still in the worker
 
     const scale = Math.min(1, DETECT_MAX_WIDTH / video.videoWidth)
     const work = (workCanvasRef.current ||= document.createElement('canvas'))
@@ -106,10 +109,13 @@ export default function DocumentScannerModal({ onClose, onScan }) {
     workCtx.drawImage(video, 0, 0, work.width, work.height)
 
     let corners = null
+    detectBusyRef.current = true
     try {
-      corners = detectDocumentCorners(deps, work)
+      corners = await detectDocumentCorners(deps, work)
     } catch {
       return // skip this frame; OpenCV hiccups on odd frames are not fatal
+    } finally {
+      detectBusyRef.current = false
     }
 
     overlay.width = video.videoWidth
@@ -145,18 +151,18 @@ export default function DocumentScannerModal({ onClose, onScan }) {
   // Detect + flatten `source` (a full-res canvas) into a page. When no page
   // outline is found we keep the raw frame — a slightly skewed capture beats
   // losing the shot.
-  const capturePage = (source) => {
+  const capturePage = async (source) => {
     const deps = depsRef.current
     let corners = null
     try {
-      corners = detectDocumentCorners(deps, source)
+      corners = await detectDocumentCorners(deps, source)
     } catch {
       corners = null
     }
     let page = source
     if (corners) {
       try {
-        page = extractDocument(deps, source, corners) || source
+        page = (await extractDocument(deps, source, corners)) || source
       } catch {
         page = source
       }
@@ -212,7 +218,7 @@ export default function DocumentScannerModal({ onClose, onScan }) {
           img.src = url
         })
       }
-      capturePage(source)
+      await capturePage(source)
     } catch {
       toast.error('Could not read that photo.')
     }
