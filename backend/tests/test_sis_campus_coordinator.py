@@ -255,3 +255,50 @@ class TestOnboardingOffersCoordinators:
                    return_value=self._client_with(rows)):
             people = onboarding.list_recipients('org-1', 'staff')
         assert [p['id'] for p in people] == ['cc-2']
+
+
+def _require_role_line(module, view_name):
+    """The @require_role(...) line above a view, read off the module source —
+    the same trick TestTheFinanceModulesAreActuallyGated uses."""
+    import inspect
+    lines = inspect.getsource(module).split('\n')
+    for i, line in enumerate(lines):
+        if line.startswith(f'def {view_name}('):
+            for back in range(i - 1, max(0, i - 5), -1):
+                if 'require_role' in lines[back]:
+                    return lines[back]
+    raise AssertionError(f'no require_role found for {view_name}')
+
+
+@pytest.mark.unit
+class TestTheSchoolPageAdmitsCoordinators:
+    """/school renders from member reads that list their roles literally
+    (they admit students and parents, so the SIS staff tiers don't fit), and
+    campus_coordinator was missing from every list: a coordinator opening
+    their own school's page got no community board and a failed message
+    archive (found 2026-08-10). The school-context read is @require_auth and
+    needs no entry here.
+    """
+
+    def test_the_community_feed_admits_coordinators(self):
+        from routes.sis import community
+        assert 'campus_coordinator' in _require_role_line(community, 'family_feed')
+
+    def test_the_carpool_writes_admit_coordinators(self):
+        """canPost/canModerate are True for a coordinator (caller_is_admin),
+        so the routes behind those buttons must not 403 them."""
+        from routes.sis import community
+        for view in ('create_carpool', 'message_carpool_author', 'delete_carpool'):
+            assert 'campus_coordinator' in _require_role_line(community, view), view
+
+    def test_the_announcements_archive_admits_coordinators(self):
+        from routes import announcements
+        assert 'campus_coordinator' in _require_role_line(announcements, 'announcements_archive')
+
+    def test_a_coordinator_reads_the_archive_unfiltered_like_an_admin(self):
+        """No audience token means no filter: staff see every sent message —
+        a superset of what any family member sees."""
+        from routes.announcements import _archive_audience_token
+        assert _archive_audience_token('campus_coordinator', None) is None
+        assert _archive_audience_token('org_admin', None) is None
+        assert _archive_audience_token('parent', None) == 'parents'

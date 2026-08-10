@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   MegaphoneIcon, CalendarDaysIcon, ArchiveBoxIcon, SparklesIcon,
 } from '@heroicons/react/24/outline'
@@ -59,9 +59,10 @@ const fmtWhen = (e) => {
   } catch { return '' }
 }
 
-/** A feed block: white card, icon-tile header — the cards' language, reused. */
-export const FeedSection = ({ title, Icon, count, intro, children }) => (
-  <section className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 mb-4">
+/** A feed block: white card, icon-tile header — the cards' language, reused.
+ * `id` is the jump-bar anchor; scroll-mt keeps the sticky bar off the title. */
+export const FeedSection = ({ id, title, Icon, count, intro, children }) => (
+  <section id={id} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 mb-4 scroll-mt-14">
     <div className="flex items-center gap-2.5 mb-3">
       <span className="w-8 h-8 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
         <Icon className="w-[18px] h-[18px] text-optio-purple" />
@@ -75,15 +76,49 @@ export const FeedSection = ({ title, Icon, count, intro, children }) => (
   </section>
 )
 
-export default function SchoolCommunity({ feed }) {
+/**
+ * A section shows its first few items; the rest wait behind "Show all". The
+ * page holds six sections stacked — uncapped, one busy noticeboard pushes
+ * everything below it out of reach (the "scrolling way down" complaint,
+ * 2026-08-10).
+ */
+const useCapped = (items, cap) => {
+  const [showAll, setShowAll] = useState(false)
+  const overflows = items.length > cap
+  return {
+    visible: showAll || !overflows ? items : items.slice(0, cap),
+    overflows,
+    showAll,
+    toggle: () => setShowAll((v) => !v),
+  }
+}
+
+const ShowAllToggle = ({ capped, total, noun }) => (
+  capped.overflows ? (
+    <button
+      onClick={capped.toggle}
+      className="mt-3 text-sm font-medium text-optio-purple hover:underline"
+    >
+      {capped.showAll ? 'Show fewer' : `Show all ${total} ${noun}`}
+    </button>
+  ) : null
+)
+
+/** `expanded` lifts every cap — the page passes it when a single section tab
+ * is active, where that section IS the panel and capping it would be odd. */
+export default function SchoolCommunity({ feed, expanded = false }) {
   const { announcements = [], lost_found: lostFound = [], recognition = [], events = [] } = feed || {}
+  const ann = useCapped(announcements, expanded ? Infinity : 3)
+  const evts = useCapped(events, expanded ? Infinity : 5)
+  const lost = useCapped(lostFound, expanded ? Infinity : 4)
+  const recog = useCapped(recognition, expanded ? Infinity : 3)
 
   return (
     <div>
       {announcements.length > 0 && (
-        <FeedSection title="Announcements" Icon={MegaphoneIcon}>
+        <FeedSection id="board-announcements" title="Announcements" Icon={MegaphoneIcon}>
           <div className="space-y-3">
-            {announcements.map((a) => (
+            {ann.visible.map((a) => (
               <article
                 key={a.id}
                 className={`border rounded-lg p-4 ${
@@ -111,13 +146,14 @@ export default function SchoolCommunity({ feed }) {
               </article>
             ))}
           </div>
+          <ShowAllToggle capped={ann} total={announcements.length} noun="announcements" />
         </FeedSection>
       )}
 
       {events.length > 0 && (
-        <FeedSection title="Upcoming events" Icon={CalendarDaysIcon}>
+        <FeedSection id="board-events" title="Upcoming events" Icon={CalendarDaysIcon}>
           <div className="divide-y divide-gray-100">
-            {events.map((e) => (
+            {evts.visible.map((e) => (
               <div key={e.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-sm font-medium text-gray-900">{e.title}</h3>
@@ -128,16 +164,18 @@ export default function SchoolCommunity({ feed }) {
               </div>
             ))}
           </div>
+          <ShowAllToggle capped={evts} total={events.length} noun="events" />
         </FeedSection>
       )}
 
       {lostFound.length > 0 && (
         <FeedSection
+          id="board-lost-found"
           title="Lost &amp; found" Icon={ArchiveBoxIcon} count={lostFound.length}
           intro="Recognize something? Collect it from the office."
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {lostFound.map((item) => (
+            {lost.visible.map((item) => (
               <div key={item.id} className="border border-gray-100 bg-gray-50/60 rounded-lg overflow-hidden">
                 {item.image_url && (
                   <img src={item.image_url} alt="" loading="lazy"
@@ -163,13 +201,14 @@ export default function SchoolCommunity({ feed }) {
               </div>
             ))}
           </div>
+          <ShowAllToggle capped={lost} total={lostFound.length} noun="items" />
         </FeedSection>
       )}
 
       {recognition.length > 0 && (
-        <FeedSection title="Shout-outs" Icon={SparklesIcon}>
+        <FeedSection id="board-shout-outs" title="Shout-outs" Icon={SparklesIcon}>
           <div className="space-y-3">
-            {recognition.map((r) => (
+            {recog.visible.map((r) => (
               <article key={r.id} className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-pink/10 text-optio-pink">
@@ -184,6 +223,7 @@ export default function SchoolCommunity({ feed }) {
               </article>
             ))}
           </div>
+          <ShowAllToggle capped={recog} total={recognition.length} noun="shout-outs" />
         </FeedSection>
       )}
     </div>

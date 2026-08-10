@@ -42,6 +42,79 @@ describe('AnnouncementBody', () => {
   })
 })
 
+describe('links render as buttons, not URLs', () => {
+  it('turns a URL pasted into a plain body into a hostname-labeled button', () => {
+    const { container } = render(
+      <AnnouncementBody text={'Sign up here: https://www.signupgenius.com/go/abc123. Thanks!'} />,
+    )
+    const a = container.querySelector('a')
+    expect(a).toHaveAttribute('href', 'https://www.signupgenius.com/go/abc123')
+    expect(a).toHaveAttribute('target', '_blank')
+    expect(a).toHaveTextContent('signupgenius.com')
+    // The trailing period stays with the sentence, not the link.
+    expect(container).toHaveTextContent('. Thanks!')
+  })
+
+  it('keeps the text the author wrote on an editor link', () => {
+    const { container } = render(
+      <AnnouncementBody text={'<p>Please <a href="https://forms.example.com/x">fill out the form</a>.</p>'} />,
+    )
+    const a = container.querySelector('a')
+    expect(a).toHaveTextContent('fill out the form')
+    expect(a.className).toContain('bg-optio-purple/10')
+  })
+
+  it('relabels an editor link whose text is just its own URL', () => {
+    const { container } = render(
+      <AnnouncementBody text={'<p>See <a href="https://docs.google.com/document/d/1">https://docs.google.com/document/d/1</a></p>'} />,
+    )
+    expect(container.querySelector('a')).toHaveTextContent('docs.google.com')
+    // The external-link icon must survive the render site's re-sanitize
+    // (LINK_BUTTON_CONFIG admits exactly it).
+    expect(container.querySelector('a svg path')).not.toBeNull()
+  })
+
+  it('turns a bare URL typed as editor text into a button too', () => {
+    const { container } = render(
+      <AnnouncementBody text={'<p>Details at https://acme-school.org/handbook</p>'} />,
+    )
+    const a = container.querySelector('a')
+    expect(a).toHaveAttribute('href', 'https://acme-school.org/handbook')
+    expect(a).toHaveTextContent('acme-school.org')
+  })
+
+  it('heals an auto-linker truncation — the stranded URL tail rejoins the href', () => {
+    // The real iCreate case: the editor closed the anchor before ".html",
+    // leaving a button that pointed at the wrong URL with ".html" dangling.
+    const { container } = render(
+      <AnnouncementBody
+        text={'<p>More camps too. <a href="https://www.icreatecollab.com/camps--workshops">https://www.icreatecollab.com/camps--workshops</a>.html</p>'}
+      />,
+    )
+    const a = container.querySelector('a')
+    expect(a).toHaveAttribute('href', 'https://www.icreatecollab.com/camps--workshops.html')
+    expect(a).toHaveTextContent('icreatecollab.com')
+    expect(container).not.toHaveTextContent('.html')
+  })
+
+  it('leaves sentence punctuation after a link alone', () => {
+    const { container } = render(
+      <AnnouncementBody text={'<p>See <a href="https://x.com">https://x.com</a>. Thanks!</p>'} />,
+    )
+    expect(container.querySelector('a')).toHaveAttribute('href', 'https://x.com')
+    expect(container).toHaveTextContent('. Thanks!')
+  })
+
+  it('never linkifies a javascript: href', () => {
+    const { container } = render(
+      <AnnouncementBody text={'<p><a href="javascript:alert(1)">click</a></p>'} />,
+    )
+    // DOMPurify strips the href; whatever remains must not be executable.
+    const a = container.querySelector('a')
+    expect(a?.getAttribute('href') || '').not.toContain('javascript:')
+  })
+})
+
 describe('richText helpers', () => {
   it('tells a formatted body from a typed one', () => {
     expect(isHtml('<p>Hi</p>')).toBe(true)

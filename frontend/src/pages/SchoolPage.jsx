@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
   BuildingLibraryIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
   BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
@@ -28,15 +29,17 @@ const PAGE_SIZE = 20
  *   a parent at a SIS school saw fourteen nav items, eight of them the same
  *   school. The cards link to the same routes, which did not move, so every
  *   emailed link and bookmark still works.
- * - One feed (2026-08-06, tabs removed): the community sections — noticeboard,
- *   what's on, lost & found, shout-outs (GET /api/sis/community/feed; iCreate,
- *   2026-08-01: "I can't see the shoutouts or lost and found or other things
- *   from the non-admin side.") — followed by the searchable archive of what the
- *   school has sent (GET /api/announcements/archive), newest first with a
- *   "Load more" pager. The archive closes the feed because it paginates:
- *   anywhere higher and twenty cards bury every section below it. Deliberately
- *   ON the page rather than behind a card: it is the most-read thing here and
- *   putting it a click away would be a downgrade.
+ * - The community sections — noticeboard, what's on, lost & found, shout-outs
+ *   (GET /api/sis/community/feed; iCreate, 2026-08-01: "I can't see the
+ *   shoutouts or lost and found or other things from the non-admin side.") —
+ *   plus the searchable archive of what the school has sent
+ *   (GET /api/announcements/archive), newest first with a "Load more" pager.
+ *   Behind a glass tab bar, one tab per section (2026-08-10): the stacked
+ *   single feed of 2026-08-06 meant finding a lower section was an exercise
+ *   in scrolling, so a tab now swaps the panel to that section instead. With
+ *   fewer than two sections there is no bar and everything just stacks. The
+ *   archive is still ON the page rather than behind a card: it is the
+ *   most-read thing here and a route away would be a downgrade.
  *
  * Only for people who are in a school. Someone with no school has nothing this
  * page could show, so they are sent home rather than shown an empty shell — and
@@ -136,6 +139,9 @@ export default function SchoolPage() {
   const [carpoolPerms, setCarpoolPerms] = useState({ canPost: false, canModerate: false })
   const [schoolOrg, setSchoolOrg] = useState(null)
   const debounceRef = useRef(null)
+  // The tab the viewer chose, if any — see `showing` for what actually renders.
+  const [activeTab, setActiveTab] = useState(null)
+  const panelRef = useRef(null)
 
   const fetchPage = useCallback(async (offset, q, append) => {
     try {
@@ -234,6 +240,59 @@ export default function SchoolPage() {
   const hasMore = announcements.length < total
   const schoolName = school?.name || orgName
   const cards = cardsFor(schoolOrg)
+
+  // The Messages section renders unless the school has literally never sent
+  // one AND the board has content (then the board is the page and an empty
+  // "Messages" block would be dead weight). Named because the jump bar below
+  // and the JSX both need the same answer.
+  const showMessages = loading || Boolean(error) || announcements.length > 0
+    || Boolean(query) || !hasCommunityContent(feed)
+
+  // The section tabs: "All" (the whole feed, the default) plus one tab per
+  // section that actually exists. The sections are stacked cards and a busy
+  // board pushes the lower ones viewports down — a tab swaps the panel to
+  // just that section rather than scrolling to it. Tabs mirror the render
+  // conditions of their sections exactly, so no tab ever shows nothing.
+  const sectionTabs = [
+    (feed?.announcements || []).length > 0 && { id: 'board-announcements', label: 'Announcements' },
+    (feed?.events || []).length > 0 && { id: 'board-events', label: 'Events' },
+    (feed?.lost_found || []).length > 0 && { id: 'board-lost-found', label: 'Lost & found' },
+    (feed?.recognition || []).length > 0 && { id: 'board-shout-outs', label: 'Shout-outs' },
+    feed !== null && ((feed?.carpool || []).length > 0 || carpoolPerms.canPost)
+      && { id: 'board-carpool', label: 'Carpool' },
+    showMessages && { id: 'school-messages', label: 'Messages' },
+  ].filter(Boolean)
+  const tabs = sectionTabs.length >= 2 ? sectionTabs : []
+
+  // What the panel shows. With no bar (fewer than two sections) everything
+  // renders stacked, which the rest of the file spells 'all'. With a bar, the
+  // remembered selection — or the first tab when there is no valid selection
+  // yet (first load, or the section vanished on a feed reload / preview org
+  // switch). Derived, not an effect, so there is never a blank-panel render.
+  const showing = tabs.length === 0
+    ? 'all'
+    : (tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id)
+
+  const selectTab = (id) => {
+    setActiveTab(id)
+    // Deep in the page, switching tabs would land the viewer mid-section;
+    // bring them back to the top of the panel. Near the top, don't move.
+    const el = panelRef.current
+    if (!el) return
+    const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--navbar-height'), 10) || 64
+    const target = Math.max(el.getBoundingClientRect().top + window.scrollY - navH - 60, 0)
+    if (window.scrollY > target) window.scrollTo({ top: target, behavior: 'smooth' })
+  }
+
+  // One section with the rest emptied out — SchoolCommunity already hides a
+  // section with no items, so filtering the feed IS the tab switch.
+  const shownFeed = showing === 'all' ? feed : feed && {
+    ...feed,
+    announcements: showing === 'board-announcements' ? feed.announcements : [],
+    events: showing === 'board-events' ? feed.events : [],
+    lost_found: showing === 'board-lost-found' ? feed.lost_found : [],
+    recognition: showing === 'board-shout-outs' ? feed.recognition : [],
+  }
 
   // Wait for /me before deciding — redirecting on a not-yet-loaded context
   // would bounce every member of a school on a hard refresh. When the school
@@ -351,17 +410,57 @@ export default function SchoolPage() {
         </nav>
       )}
 
+      {/* The section tab bar — a glass pill that sticks just below the fixed
+          navbar (top-0 slid it underneath, out of sight). Tapping a tab swaps
+          the panel below to that section; the first section is the default.
+          The active tab's highlight slides between tabs (framer-motion
+          layoutId). Sized to its tabs and centered; on a screen too narrow to
+          fit them it scrolls sideways. Hidden when there's only one section
+          to choose from. */}
+      {tabs.length > 0 && (
+        <div
+          role="tablist"
+          aria-label="Sections on this page"
+          className="sticky z-10 mx-auto mt-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full border border-white/60 bg-white/65 p-1.5 shadow-lg shadow-gray-900/10 backdrop-blur-xl"
+          style={{ top: 'calc(var(--navbar-height, 64px) + 8px)' }}
+        >
+          {tabs.map(({ id, label }) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={showing === id}
+              onClick={() => selectTab(id)}
+              className={`relative whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                showing === id ? 'text-optio-purple' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {showing === id && (
+                <motion.span
+                  layoutId="school-section-glass"
+                  transition={{ type: 'spring', bounce: 0.25, duration: 0.55 }}
+                  className="absolute inset-0 rounded-full border border-white/80 bg-gradient-to-b from-white to-white/70 shadow-md shadow-optio-purple/20"
+                  aria-hidden="true"
+                />
+              )}
+              <span className="relative">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* One feed, no tabs (2026-08-06). The community sections lead — they
           are short and timely — and each renders only when the school has used
           it. Every section is a block with an icon header, echoing the card
           grid above (iCreate: "the 8 blocks is easy to see all the things
           clearly. Could we do that same thing for the community section?"). */}
-      <div className="mt-8">
-        <SchoolCommunity feed={feed} />
+      <div className="mt-8" ref={panelRef}>
+        {/* A section that is the whole panel shows every item; the stacked
+            no-bar layout keeps sections capped. */}
+        <SchoolCommunity feed={shownFeed} expanded={showing !== 'all'} />
         {/* Carpool renders even when empty (someone has to post first) — but
             only once the feed has loaded, and never a bare board to students,
             who cannot post (feed === null means no board for this user). */}
-        {feed !== null && (
+        {feed !== null && (showing === 'all' || showing === 'board-carpool') && (
           <CarpoolBoard
             posts={feed?.carpool || []}
             canPost={carpoolPerms.canPost}
@@ -379,9 +478,9 @@ export default function SchoolPage() {
           "didn't appear on the announcements tab" (iCreate, 2026-08-06). A
           school that has never sent one shows nothing here at all — unless the
           whole feed is empty, in which case the empty state explains itself. */}
-      {(loading || error || announcements.length > 0 || Boolean(query)
-        || !hasCommunityContent(feed)) && (
+      {showMessages && (showing === 'all' || showing === 'school-messages') && (
       <FeedSection
+        id="school-messages"
         title={schoolName ? `Messages from ${schoolName}` : 'Messages'}
         Icon={EnvelopeIcon}
       >

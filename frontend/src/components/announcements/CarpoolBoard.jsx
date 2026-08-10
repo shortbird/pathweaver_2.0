@@ -86,7 +86,7 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
 
   return (
     <FeedSection
-      title="Carpool" Icon={TruckIcon}
+      id="board-carpool" title="Carpool" Icon={TruckIcon}
       intro="Offer seats or find a ride with other families. Arranging happens over Messages — right here or in the mobile app."
     >
       {canPost && !showForm && (

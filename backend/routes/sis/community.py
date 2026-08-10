@@ -265,7 +265,7 @@ def _feed_affordances(user_id, preview, view_as):
 
 
 @bp.route('/feed', methods=['GET'])
-@require_role('student', 'parent', 'observer', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'parent', 'observer', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def family_feed(user_id):
     """The Community Hub as families and students see it.
 
@@ -304,7 +304,7 @@ def _is_student(user_id):
 
 # ── Carpool board (family-authored — iCreate, 2026-08-06) ─────────────────────
 @bp.route('/feed/carpool', methods=['POST'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def create_carpool(user_id):
     """A family (or staff member) posts a ride offer or need."""
     from services import sis_service
@@ -320,7 +320,7 @@ def create_carpool(user_id):
 
 
 @bp.route('/feed/carpool/<post_id>/message', methods=['POST'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def message_carpool_author(user_id, post_id):
     """First contact about a ride, addressed by POST ID — the author's account
     id never reaches the client. Delivered as a normal DM (web + mobile app);
@@ -354,7 +354,7 @@ def message_carpool_author(user_id, post_id):
 
 
 @bp.route('/feed/carpool/<post_id>', methods=['DELETE'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def delete_carpool(user_id, post_id):
     """The author takes their post down, or an admin moderates it away."""
     from services import sis_service

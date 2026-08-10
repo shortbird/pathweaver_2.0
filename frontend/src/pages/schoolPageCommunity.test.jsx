@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -11,10 +11,12 @@ import { MemoryRouter } from 'react-router-dom'
  * up."
  *
  * It lives on the school's own page (/school, titled with the school's name)
- * as ONE feed with the sent-announcements archive — the Announcements/Community
- * toggle was removed 2026-08-06; nothing here is behind a click. Each community
- * section appears only when the school has actually used it. Someone who is in
- * no school never reaches this page at all — see schoolPageAccess.test.jsx.
+ * behind a glass tab bar — one tab per section, the first section as the
+ * default (2026-08-10; the stacked one-feed layout of 2026-08-06 buried the
+ * lower sections a few viewports down). A tab exists only when the school has
+ * actually used its section; with fewer than two sections there is no bar and
+ * everything stacks. Someone who is in no school never reaches this page at
+ * all — see schoolPageAccess.test.jsx.
  */
 
 vi.mock('../contexts/OrganizationContext', () => ({
@@ -78,12 +80,23 @@ const renderPage = () => render(
 beforeEach(() => { vi.clearAllMocks(); mockApi(FEED) })
 
 describe('the school community feed', () => {
-  it('is one feed — board and sent announcements together, no toggle', async () => {
+  it('opens on the board announcements — the archive waits behind its tab', async () => {
     renderPage()
     expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
-    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    expect(screen.queryByText('Fall Newsletter')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Messages' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Announcements' })).not.toBeInTheDocument()
+  })
+
+  it('swaps the panel to a section when its tab is tapped', async () => {
+    renderPage()
+    expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Events' }))
+    expect(screen.queryByText('Early dismissal')).not.toBeInTheDocument()
+    expect(screen.getByText('Open house')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Messages' }))
+    expect(screen.queryByText('Open house')).not.toBeInTheDocument()
+    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
   })
 
   it('is simply the announcements when the school posts nothing to the board', async () => {
@@ -114,6 +127,7 @@ describe('the school community feed', () => {
 
   it('shows a lost item by what it is and where to collect it', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: /Lost & found/ }))
     expect(await screen.findByText('Blue water bottle')).toBeInTheDocument()
     expect(screen.getByText(/Collect it from the office/)).toBeInTheDocument()
     expect(screen.getByText(/found at Gym/)).toBeInTheDocument()
@@ -123,6 +137,7 @@ describe('the school community feed', () => {
 
   it('shows shout-outs', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Shout-outs' }))
     expect(await screen.findByText('Van S.')).toBeInTheDocument()
     expect(screen.getByText('Student spotlight')).toBeInTheDocument()
     expect(screen.getByText('Built the whole robot arm himself.')).toBeInTheDocument()
@@ -130,6 +145,7 @@ describe('the school community feed', () => {
 
   it('shows upcoming events', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Events' }))
     expect(await screen.findByText('Upcoming events')).toBeInTheDocument()
     expect(screen.getByText('Open house')).toBeInTheDocument()
     expect(screen.getByText('Main hall')).toBeInTheDocument()
@@ -137,6 +153,7 @@ describe('the school community feed', () => {
 
   it('keeps an all-day event on its own calendar day, year included across New Year', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Events' }))
     await screen.findByText('Classes resume')
     // Jan 11 2027 00:00 UTC: local formatting showed "Jan 10" (previous
     // evening) and, with no year, January read as out of order under December.
@@ -150,10 +167,11 @@ describe('the school community feed', () => {
     expect(screen.queryByText('Shout-outs')).not.toBeInTheDocument()
   })
 
-  it('keeps the board above the archive — timely first, paginated last', async () => {
+  it('keeps Messages as the last tab — timely sections first, paginated last', async () => {
     renderPage()
-    const board = await screen.findByText('Early dismissal')
-    const sent = await screen.findByText('Fall Newsletter')
-    expect(board.compareDocumentPosition(sent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await screen.findByText('Early dismissal')
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs[0]).toHaveTextContent('Announcements')
+    expect(tabs[tabs.length - 1]).toHaveTextContent('Messages')
   })
 })

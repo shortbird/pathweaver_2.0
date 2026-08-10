@@ -116,13 +116,15 @@ def _archive_audience_token(effective_role, view_as):
 
 
 @bp.route('/api/announcements/archive', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin', 'student', 'parent')
+@require_role('org_admin', 'campus_coordinator', 'advisor', 'superadmin', 'student', 'parent')
 def announcements_archive(user_id):
     """
     Paginated, searchable communications archive for the caller's org.
 
     Any member of the org can read it: students and parents see announcements
-    targeted at their role (or org-wide); org_admin/advisor/superadmin see all.
+    targeted at their role (or org-wide); org_admin, campus_coordinator,
+    advisor and superadmin see all (no audience token), so staff always see a
+    superset of what any family member sees.
     Platform parents of org students count as members (resolved via their kids).
     """
     try:
