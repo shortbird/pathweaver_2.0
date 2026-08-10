@@ -16,7 +16,7 @@ const renderGate = () => render(
       <Route element={<RequireParentRegistration />}>
         <Route path="/schedule-builder" element={<div>Schedule Builder</div>} />
       </Route>
-      <Route path="/register/icreate/resume" element={<div>Registration Funnel</div>} />
+      <Route path="/enroll/resume" element={<div>Registration Funnel</div>} />
     </Routes>
   </MemoryRouter>
 )

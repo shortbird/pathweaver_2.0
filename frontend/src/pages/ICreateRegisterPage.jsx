@@ -424,7 +424,7 @@ const ICreateRegisterPage = () => {
         .catch((e) => { if (alive) setFatal(e.response?.data?.error || 'This registration link is not valid.') })
         .finally(() => { if (alive) setLoading(false) })
     } else {
-      // /register/icreate/resume — logged-in continuation of an unfinished
+      // /enroll/resume — logged-in continuation of an unfinished
       // registration (PrivateRoute forces iCreate parents here).
       api.get('/api/icreate/my-registration')
         .then((r) => {
@@ -1532,7 +1532,7 @@ const ICreateRegisterPage = () => {
               </a>
               <div className="border-t border-gray-100 mt-7 pt-6">
                 <p className="text-neutral-500 mb-5">
-                  Then book an appointment with iCreate staff to build your Customized Learning
+                  Then book an appointment with {org.name || 'the school'} staff to build your Customized Learning
                   Plan — our team will review your schedule with you at the meeting.
                   {scheduling.emailed && ' We also emailed you the booking link.'}
                 </p>

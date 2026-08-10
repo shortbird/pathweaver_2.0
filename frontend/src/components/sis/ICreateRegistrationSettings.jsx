@@ -116,8 +116,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   if (!cfg) return null
 
   // Always the www (learning) origin — a link copied from the SIS console must
-  // never point families at sis.optioeducation.com.
-  const regLinkUrl = regLink ? `${getLearningOrigin()}/invitation/${regLink.invitation_code}` : ''
+  // never point families at sis.optioeducation.com. /enroll/<code> goes straight
+  // into the funnel (org-neutral path; no /invitation redirect hop).
+  const regLinkUrl = regLink ? `${getLearningOrigin()}/enroll/${regLink.invitation_code}` : ''
 
   const copyRegLink = async () => {
     await navigator.clipboard.writeText(regLinkUrl)
@@ -292,7 +293,7 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
           {regLink && (
             <>
               {' '}
-              <a href={`${getLearningOrigin()}/register/icreate/${regLink.invitation_code}?preview=1`}
+              <a href={`${getLearningOrigin()}/enroll/${regLink.invitation_code}?preview=1`}
                 target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">
                 Preview the form
               </a>

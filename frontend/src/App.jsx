@@ -700,10 +700,14 @@ function App() {
 
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />
-            {/* iCreate branded parent registration funnel (AcceptInvitationPage
-                redirects iCreate parent links here; other orgs are unaffected).
+            {/* Branded parent registration funnel for funnel-enabled orgs
+                (iCreate, Gryffin, Optio Academy, ...). /enroll/<code> is the
+                canonical org-neutral path; /register/icreate/* is a legacy
+                alias kept alive for links already distributed to families.
                 /resume is the logged-in continuation for unfinished registrations
-                (PrivateRoute forces iCreate parents here until they complete it). */}
+                (PrivateRoute forces registering parents here until they complete it). */}
+            <Route path="enroll/resume" element={<ICreateRegisterPage />} />
+            <Route path="enroll/:code" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
             {/* Staff walkthrough of the parent Schedule Builder (nothing saved),

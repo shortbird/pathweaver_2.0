@@ -66,12 +66,14 @@ export default function AcceptInvitationPage() {
 
         if (response.data.valid) {
           const inv = response.data.invitation;
-          // iCreate parent links use a dedicated branded, multi-step registration
-          // funnel (parent + kids -> paperwork -> fee -> scheduling). Every other
-          // org keeps this standard single-account flow.
-          if (inv.organization?.slug === 'icreate' && inv.role === 'parent' && inv.is_link_based) {
+          // Orgs with the registration funnel enabled (iCreate, Gryffin, Optio
+          // Academy, ...) send parent link-invites into the dedicated branded,
+          // multi-step flow (parent + kids -> paperwork -> fee). Every other
+          // org keeps this standard single-account flow. The slug check covers
+          // a stale backend that doesn't return uses_registration_funnel yet.
+          if ((inv.uses_registration_funnel || inv.organization?.slug === 'icreate') && inv.role === 'parent' && inv.is_link_based) {
             // Keep the query string — ?preview=1 rides along to the funnel.
-            navigate(`/register/icreate/${code}${window.location.search}`, { replace: true });
+            navigate(`/enroll/${code}${window.location.search}`, { replace: true });
             return;
           }
           setInvitation(inv);

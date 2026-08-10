@@ -509,13 +509,13 @@ emails:
     salutation: "Hi {{ name }},"
     paragraphs:
       - "Thank you for your interest in Optio Academy. We're excited to learn more about your student and talk through whether Optio is the right fit."
-      - "<a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>Optio Academy</a> is a fully online private school with daily contact between students and a dedicated teacher. The rest of the day is theirs to dive deep into <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>projects that earn real high school credit</a> toward a diploma."
+      - "<a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>Optio Academy</a> is a fully online, WASC-accredited private school where <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>real projects earn real high school credit</a> toward a diploma. Families choose the path that fits: in the Full-Time Academy your student works one-on-one with a dedicated Optio teacher, with support tailored to their needs, while the Parent-Supported Diploma lets you lead the learning as their teacher for $100 per credit."
     highlight_box:
       title: "What to Expect Next"
       bullet_points:
         - "I'll personally reply within 1 – 2 business days"
         - "We'll set up a short discovery call with you and your student"
-        - "We'll talk through enrollment, the school year, and how to get started"
+        - "We'll talk through both programs, tuition, and how to get started"
     closing_paragraphs:
       - "In the meantime, feel free to reply with any questions about the program or the schedule. I read every message personally."
       - "Students do their daily work in the Optio app, so feel free to download it and look around before we talk:"

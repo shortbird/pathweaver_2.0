@@ -486,7 +486,7 @@ describe('ScheduleBuilderPage', () => {
     await screen.findByTestId('schedule-day-2')
     expect(screen.getByText(/Registration fee due/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Finish your registration fee' }))
-      .toHaveAttribute('href', '/register/icreate/resume')
+      .toHaveAttribute('href', '/enroll/resume')
   })
 
   // ── Missing birthdate ────────────────────────────────────────────────────────

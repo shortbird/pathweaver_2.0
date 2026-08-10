@@ -732,7 +732,7 @@ def _send_release_email(entry: Dict[str, Any], fee_due_cents: int) -> bool:
             action = (
                 f"<p>One step first: your registration fee of "
                 f"<strong>${fee_due_cents / 100:.2f}</strong> is now due. "
-                f"<a href=\"{base}/register/icreate/resume\">Finish it here</a>, "
+                f"<a href=\"{base}/enroll/resume\">Finish it here</a>, "
                 f"then build {student_first}'s schedule.</p>"
             )
         else:

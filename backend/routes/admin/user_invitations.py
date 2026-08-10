@@ -873,7 +873,7 @@ def validate_invitation_code(invitation_code):
 
         # Find the invitation
         result = supabase.table('org_invitations') \
-            .select('id, organization_id, email, invited_name, role, status, expires_at, metadata, organizations(name, slug, branding_config)') \
+            .select('id, organization_id, email, invited_name, role, status, expires_at, metadata, organizations(name, slug, branding_config, feature_flags)') \
             .eq('invitation_code', invitation_code) \
             .single() \
             .execute()
@@ -906,14 +906,22 @@ def validate_invitation_code(invitation_code):
         # Check if this is a link-based invitation (no specific email required)
         is_link_based = inv['email'].startswith('link-invite-') and inv['email'].endswith('@pending.optio.local')
 
+        org = inv['organizations'] or {}
+        # feature_flags stays server-side (may hold internal config); the frontend
+        # only needs to know whether parent link-invites route into the branded
+        # registration funnel (/enroll/<code>).
+        feature_flags = org.pop('feature_flags', None) or {}
+        uses_registration_funnel = bool((feature_flags.get('icreate_registration') or {}).get('enabled'))
+
         response_data = {
             'valid': True,
             'invitation': {
                 'email': '' if is_link_based else inv['email'],  # Don't show placeholder
                 'invited_name': inv['invited_name'],
                 'role': inv['role'],
-                'organization': inv['organizations'],
-                'is_link_based': is_link_based  # Frontend uses this to show email input
+                'organization': org,
+                'is_link_based': is_link_based,  # Frontend uses this to show email input
+                'uses_registration_funnel': uses_registration_funnel
             }
         }
 

@@ -635,7 +635,7 @@ const ScheduleBuilderPage = () => {
             ? schedule.registration_hold_reason
             : `please contact ${org?.organization_name || 'your school'} to resolve it before signing up for classes.`}
           {schedule?.registration_hold_reason?.toLowerCase().includes('registration fee') && (
-            <> <a href="/register/icreate/resume" className="font-semibold underline">Finish your registration fee</a>.</>
+            <> <a href="/enroll/resume" className="font-semibold underline">Finish your registration fee</a>.</>
           )}
         </div>
       )}

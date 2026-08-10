@@ -23,7 +23,7 @@ const RequireParentRegistration = () => {
     )
   }
   if (gate.mustRegister) {
-    return <Navigate to="/register/icreate/resume" replace />
+    return <Navigate to="/enroll/resume" replace />
   }
   return <Outlet />
 }

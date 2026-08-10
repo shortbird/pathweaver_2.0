@@ -113,6 +113,7 @@ const SisRoutes = () => (
     {/* Family-facing paths escape the staff console entirely */}
     <Route path="invitation/:code" element={<LearningRedirect />} />
     <Route path="register/icreate/*" element={<LearningRedirect />} />
+    <Route path="enroll/*" element={<LearningRedirect />} />
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
       <Route path="people" element={<PeoplePage />} />

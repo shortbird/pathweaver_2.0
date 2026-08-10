@@ -3,8 +3,8 @@ import api from '../../services/api'
 import { captureEvent } from '../../services/posthog'
 import { gaTrackEvent } from '../../services/googleAnalytics'
 
-const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subheading = 'Drop your info and we\'ll reach out with everything you need.', placeholder = 'Tell us about your situation...' }) => {
-  const [form, setForm] = useState({ name: '', email: '', message: '' })
+const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subheading = 'Drop your info and we\'ll reach out with everything you need.', placeholder = 'Tell us about your situation...', choicesLabel, choices }) => {
+  const [form, setForm] = useState({ name: '', email: '', message: '', choice: '' })
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,15 +14,22 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
     setError('')
     setLoading(true)
 
+    // The backend only stores name/email/message, so the selected choice rides
+    // along at the top of the message where it lands in contact_submissions
+    // and the inquiry email.
+    const message = form.choice
+      ? `${choicesLabel} ${form.choice}${form.message ? `\n\n${form.message}` : ''}`
+      : form.message
+
     try {
       await api.post('/api/contact', {
         name: form.name,
         email: form.email,
-        message: form.message || undefined,
+        message: message || undefined,
         type: source,
       })
       setSubmitted(true)
-      captureEvent('marketing_form_submitted', { source, has_message: !!form.message })
+      captureEvent('marketing_form_submitted', { source, has_message: !!form.message, choice: form.choice || undefined })
       gaTrackEvent('generate_lead', { source }) // GA4 acquisition conversion (no PII)
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong. Try again.')
@@ -83,6 +90,37 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                 placeholder="you@email.com"
               />
             </div>
+            {choices?.length > 0 && (
+              <fieldset>
+                <legend className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  {choicesLabel}
+                </legend>
+                <div className="space-y-2">
+                  {choices.map((choice) => (
+                    <label
+                      key={choice}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
+                        form.choice === choice
+                          ? 'bg-white/20 border-optio-pink'
+                          : 'bg-white/10 border-white/20 hover:bg-white/15'
+                      }`}
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      <input
+                        type="radio"
+                        name={`${source}-choice`}
+                        required
+                        value={choice}
+                        checked={form.choice === choice}
+                        onChange={() => setForm({ ...form, choice })}
+                        className="w-4 h-4 accent-[#ef597b] flex-shrink-0"
+                      />
+                      <span className="text-white text-sm sm:text-base">{choice}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div>
               <label htmlFor={`${source}-message`} className="block text-sm font-medium text-gray-300 mb-1" style={{ fontFamily: 'Poppins' }}>
                 Message <span className="text-gray-500">(optional)</span>

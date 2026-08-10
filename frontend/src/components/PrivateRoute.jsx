@@ -71,7 +71,7 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
     )
   }
   if (icreateGate.mustRegister) {
-    return <Navigate to="/register/icreate/resume" replace />
+    return <Navigate to="/enroll/resume" replace />
   }
 
   // blockRoles: deny these effective roles and bounce them to their own home.

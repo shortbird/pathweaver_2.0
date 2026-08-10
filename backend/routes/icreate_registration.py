@@ -946,8 +946,9 @@ def login():
     current_org_role = user.get('org_role') or ((user.get('org_roles') or [None])[0])
     if user.get('role') == 'superadmin':
         return jsonify({'error': 'This account cannot be used here.'}), 403
+    org_name = org.get('name') or 'the school'
     if user.get('organization_id') and user['organization_id'] != org_id:
-        return jsonify({'error': 'This account belongs to another school. Please contact iCreate.'}), 409
+        return jsonify({'error': f'This account belongs to another school. Please contact {org_name}.'}), 409
     # Platform NON-parent accounts must not be silently repurposed as iCreate
     # parents (that used to convert e.g. a student's own account into a parent).
     # BUT: the main Optio signup defaults EVERYONE to role='student', so an
@@ -961,13 +962,13 @@ def login():
                                      "email — you can connect your child's account on the family step."}), 409
     if not user.get('organization_id') and user.get('role') in ('advisor', 'observer'):
         return jsonify({'error': 'This account can\'t be used to register a family. '
-                                 'Please use a parent email or contact iCreate.'}), 409
+                                 f'Please use a parent email or contact {org_name}.'}), 409
     if (user.get('organization_id') == org_id and current_org_role
             and current_org_role not in ('parent',) + STAFF_ORG_ROLES):
         return jsonify({'error': 'This is not a parent account. Please register with a parent email.'}), 409
 
     if not _password_ok(email, password):
-        return jsonify({'error': 'Incorrect password. If you signed up with Google, use "Create account" with a different email or contact iCreate.'}), 401
+        return jsonify({'error': f'Incorrect password. If you signed up with Google, use "Create account" with a different email or contact {org_name}.'}), 401
 
     if user.get('organization_id') == org_id and current_org_role in STAFF_ORG_ROLES:
         # Staff registering their own kids: append 'parent' to org_roles but keep
@@ -1142,9 +1143,9 @@ def submit_family(reg_id):
                                              f'mark {kf} as managed by you (no email needed).'}), 409
                 if why == 'other_org':
                     return jsonify({'error': f"{kf}'s Optio account belongs to another school. "
-                                             'Please contact iCreate.'}), 409
+                                             'Please contact the school.'}), 409
                 return jsonify({'error': f'{kf} already has an Optio account with this email that '
-                                         "we can't connect automatically. Please contact iCreate."}), 409
+                                         "we can't connect automatically. Please contact the school."}), 409
         # Re-registration guard: even with no matching email, this kid may
         # already have a pre-existing org account (e.g. a school-imported roster
         # account). Match by name + DOB and attach it instead of creating a
@@ -1216,7 +1217,7 @@ def submit_family(reg_id):
                     }).eq('id', entry['user_id']).execute()
         except Exception as e:  # noqa: BLE001
             logger.error(f'iCreate family re-edit: teardown failed for {reg_id}: {e}')
-            return jsonify({'error': 'Could not update your family. Please contact iCreate.'}), 500
+            return jsonify({'error': 'Could not update your family. Please contact the school.'}), 500
 
     # A parent who already had an Optio account may already have these kids as
     # COPPA dependents. Reuse those accounts instead of creating duplicates.

@@ -33,8 +33,12 @@ const FAQS = [
     a: 'Optio Academy students spend more time out in the real world than students sitting in a classroom. Sports teams, volunteering, jobs, clubs, and community projects are not extracurriculars here; they are part of school itself, and they keep students connected to people of all ages. Their mentor actively encourages that involvement.',
   },
   {
+    q: 'How much does Optio Academy cost?',
+    a: 'It depends on the program. Full-Time Academy tuition is customized to the level of teacher support your student needs, from daily working sessions to a quick weekly check-in, and we set it together during your discovery call. The Parent-Supported Diploma costs $100 per credit, which comes to $2,400 for the full 24-credit diploma.',
+  },
+  {
     q: 'How much do I need to do as a parent?',
-    a: 'Far less than homeschooling. Your student\'s mentor carries the accountability: goals, check-ins, follow-through, and teacher review of every piece of work. You get full visibility into their journal, portfolio, and progress toward credits, so you always know how things are going without having to run the school day yourself.',
+    a: 'That is your choice. In the Full-Time Academy, your student\'s Optio teacher carries the accountability: goals, check-ins, follow-through, and review of every piece of work. You get full visibility into their journal, portfolio, and progress toward graduation without having to run the school day yourself. In the Parent-Supported Diploma, you take on the teacher\'s role and guide the learning day to day, while Optio provides the platform, the structure, and the accredited transcript.',
   },
   {
     q: 'How does my student earn credit without tests and seat time?',
@@ -101,6 +105,7 @@ const AcademyPage = () => {
   const heroRef = useSectionView('hero', PAGE)
   const accreditationRef = useSectionView('accreditation', PAGE)
   const factsRef = useSectionView('quick_facts', PAGE)
+  const programsRef = useSectionView('programs', PAGE)
   const howRef = useSectionView('how_it_works', PAGE)
   const dayRef = useSectionView('day_in_life', PAGE)
   const thriveRef = useSectionView('who_thrives', PAGE)
@@ -116,12 +121,12 @@ const AcademyPage = () => {
         <title>Optio Academy | A WASC-Accredited Online Private School</title>
         <meta
           name="description"
-          content="Optio Academy is a WASC-accredited, fully online private school. Students learn at their own pace, guided by a dedicated mentor, and graduate with an accredited high school diploma."
+          content="Optio Academy is a WASC-accredited, fully online private school. Enroll full time with a dedicated Optio teacher, or lead the learning yourself with the Parent-Supported Diploma at $100 per credit."
         />
         <meta property="og:title" content="Optio Academy | WASC-Accredited Online Private School" />
         <meta
           property="og:description"
-          content="A fully online private school where students learn at their own pace with a dedicated mentor and graduate with a WASC-accredited diploma."
+          content="A fully online private school with two paths to a WASC-accredited diploma: full-time enrollment with a dedicated Optio teacher, or a parent-supported diploma at $100 per credit."
         />
         <meta property="og:url" content="https://www.optioeducation.com/academy" />
         <link rel="canonical" href="https://www.optioeducation.com/academy" />
@@ -155,9 +160,9 @@ const AcademyPage = () => {
             className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md"
             style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
           >
-            A high school built around your student. They learn at their own pace, guided by a
-            dedicated mentor, and graduate with an accredited diploma earned through work they
-            actually care about.
+            A high school built around your student. They learn at their own pace and graduate
+            with an accredited diploma earned through work they actually care about, with a
+            dedicated Optio teacher or with you leading the way.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a
@@ -169,12 +174,12 @@ const AcademyPage = () => {
               Schedule a Discovery Call
             </a>
             <a
-              href="#how-it-works"
-              onClick={() => trackCta('hero_how_it_works')}
+              href="#programs"
+              onClick={() => trackCta('hero_programs')}
               className="bg-white/10 backdrop-blur-sm border border-white/30 text-white px-7 py-3 rounded-full text-base font-semibold hover:bg-white/20 transition-all duration-200"
               style={{ fontFamily: 'Poppins' }}
             >
-              See How It Works
+              Compare the Two Programs
             </a>
           </div>
         </div>
@@ -249,9 +254,9 @@ const AcademyPage = () => {
                 detail: 'Students move through their classes at their own speed on the Optio platform, turning their interests into real coursework.',
               },
               {
-                label: 'Mentorship',
-                value: 'A dedicated mentor',
-                detail: 'Every student is matched with a mentor who meets with them one-on-one, sets goals, and keeps them on track.',
+                label: 'Tuition',
+                value: 'Customized or $100 per credit',
+                detail: 'Full-Time Academy tuition is tailored to the support your student needs. The Parent-Supported Diploma is $100 per credit, $2,400 for a full diploma.',
               },
               {
                 label: 'Accreditation',
@@ -288,6 +293,130 @@ const AcademyPage = () => {
               </RevealItem>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ========== PROGRAMS & TUITION ========== */}
+      <section id="programs" ref={programsRef} className="py-16 sm:py-20 bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 scroll-mt-20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <RevealSection>
+            <div className="text-center mb-12">
+              <p
+                className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Programs & Tuition
+              </p>
+              <h2
+                className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
+                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              >
+                Two Ways to Earn the Diploma
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Every family is different, so Optio Academy offers two paths. The platform, the
+                accreditation, and the diploma are the same on both. What changes is who guides
+                the learning.
+              </p>
+            </div>
+          </RevealSection>
+
+          <div className="grid md:grid-cols-2 gap-6 items-stretch">
+            <RevealItem index={0}>
+              <div className="bg-white rounded-2xl border-2 border-optio-purple/30 shadow-lg p-6 sm:p-8 h-full flex flex-col">
+                <p
+                  className="inline-flex self-start text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-full px-3 py-1 mb-4"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Full Support
+                </p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Full-Time Academy
+                </h3>
+                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  Your student works one-on-one with a dedicated Optio teacher who knows them by
+                  name and carries the accountability for their progress, all the way to
+                  graduation.
+                </p>
+                <div className="space-y-3 mb-8 flex-1">
+                  {[
+                    'Individualized support built around your student, from daily working sessions to a quick weekly check-in',
+                    'Their teacher sets goals with them, reviews their work, and awards credit',
+                    'You get full visibility into progress without running the school day',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  ))}
+                </div>
+                <div className="border-t border-gray-200 pt-6">
+                  <p className="text-2xl font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                    Customized tuition
+                  </p>
+                  <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Because support ranges from daily sessions to weekly check-ins, tuition is
+                    tailored to each student. We set it together on your discovery call.
+                  </p>
+                  <a
+                    href="#get-info"
+                    onClick={() => trackCta('programs_full_time')}
+                    className="inline-flex w-full items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    Schedule a Discovery Call
+                  </a>
+                </div>
+              </div>
+            </RevealItem>
+
+            <RevealItem index={1}>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 h-full flex flex-col">
+                <p
+                  className="inline-flex self-start text-xs font-semibold uppercase tracking-wider text-optio-purple bg-optio-purple/10 rounded-full px-3 py-1 mb-4"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  You Lead
+                </p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Parent-Supported Diploma
+                </h3>
+                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  You act as your student's teacher and guide the learning day to day. Optio
+                  provides the platform, the structure, and the accredited transcript and diploma.
+                </p>
+                <div className="space-y-3 mb-8 flex-1">
+                  {[
+                    'You direct the learning while your student documents it all on the Optio platform',
+                    'Credit is added to an official Optio Academy transcript as your student earns it',
+                    'The same WASC-accredited diploma as the full-time program',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  ))}
+                </div>
+                <div className="border-t border-gray-200 pt-6">
+                  <p className="text-2xl font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                    $100 per credit
+                  </p>
+                  <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    A full diploma is 24 credits, so the complete path to graduation costs $2,400.
+                  </p>
+                  <a
+                    href="#get-info"
+                    onClick={() => trackCta('programs_parent_supported')}
+                    className="inline-flex w-full items-center justify-center border-2 border-optio-purple text-optio-purple px-6 py-3 rounded-full font-semibold hover:bg-optio-purple hover:text-white transition-all duration-200"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    Get Started
+                  </a>
+                </div>
+              </div>
+            </RevealItem>
+          </div>
+
+          <RevealSection delay={200}>
+            <p className="text-center text-gray-600 mt-10 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              Not sure which program fits your family? That is exactly what the discovery call is
+              for. Tell us about your student and we will help you choose.
+            </p>
+          </RevealSection>
         </div>
       </section>
 
@@ -866,6 +995,8 @@ const AcademyPage = () => {
         heading="Schedule a Discovery Call"
         subheading="Tell us a little about your student and we'll reach out to set up a time to talk."
         placeholder="Grade level, interests, and anything else you'd like us to know"
+        choicesLabel="Which program are you interested in?"
+        choices={['Full-Time Academy', 'Parent-Supported Diploma', "Let's discuss this in our call"]}
       />
     </MarketingLayout>
   )
