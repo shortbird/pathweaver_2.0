@@ -52,7 +52,11 @@ export default function SchoolScreen() {
   const school = useSchool();
   const { org, feed, carpool, loading, refreshing, refresh, schoolName, isGuardian } = useSchoolHub();
 
-  const name = schoolName || school?.name || 'My school';
+  // The org's own name is the word — never "school" (iCreate: "we are an
+  // education center"). It is known almost immediately (members carry it on
+  // /me; the superadmin preview resolves it via useSchool), so the fallback
+  // is a neutral placeholder, not a label.
+  const name = schoolName || school?.name || 'Community';
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top']}>
@@ -100,7 +104,12 @@ export default function SchoolScreen() {
               icon="mail-outline"
               title={`Messages from ${name}`}
               description="Everything the office has sent, searchable."
-              onPress={() => router.push('/(app)/school/archive' as any)}
+              // The org rides along for the superadmin preview — the archive
+              // endpoint can't resolve it from a superadmin's (non-)membership.
+              onPress={() => router.push({
+                pathname: '/(app)/school/archive',
+                ...(org ? { params: { org: org.organization_id } } : {}),
+              } as any)}
               testID="school-door-archive"
             />
             {isGuardian && (

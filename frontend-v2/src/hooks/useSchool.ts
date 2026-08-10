@@ -118,16 +118,54 @@ export const hasCommunityContent = (feed: SchoolFeed | null): boolean => Boolean
 
 // ── The gate ──
 
+// The superadmin preview's org name, resolved once per session from the
+// context listing. Module-level so the header button and the sidebar don't
+// each pay a fetch; undefined = never fetched, null = fetch in flight/empty.
+let previewNameCache: string | null | undefined;
+const previewNameListeners = new Set<(name: string | null) => void>();
+export const __resetSchoolPreviewCache = () => { previewNameCache = undefined; };
+
 /**
- * The user's school, or null when there is nothing to show. Observers are
- * excluded in v1: the archive endpoint rejects them, and their shell has no
- * school entry point.
+ * The user's school, or null when there is nothing to show.
+ *
+ * Per-organization: /me attaches `school` for members of ANY org, but the
+ * mobile School surface is offered only where the org opted in via
+ * feature_flags.sis_settings.school_homepage (`school.homepage` — iCreate
+ * first). Superadmins always see it, as the preview (the backend context
+ * call lists the opted-in orgs for them, and this hook resolves that org's
+ * NAME so no label ever has to say "school" — the org's own name is the
+ * word, per iCreate: "we are an education center"). Observers are excluded
+ * in v1: the archive endpoint rejects them, and their shell has no school
+ * entry point.
  */
 export function useSchool() {
   const user = useAuthStore((s) => s.user);
   const isObserver = useIsObserver();
+  const isSuperadmin = user?.role === 'superadmin';
+  const [previewName, setPreviewName] = useState<string | null>(previewNameCache ?? null);
+
+  useEffect(() => {
+    if (!isSuperadmin) return undefined;
+    const listener = (name: string | null) => setPreviewName(name);
+    previewNameListeners.add(listener);
+    if (previewNameCache === undefined) {
+      previewNameCache = null;
+      api.get('/api/sis/school/context')
+        .then(({ data }) => {
+          previewNameCache = ((data?.orgs || [])[0]?.organization_name as string) || null;
+          previewNameListeners.forEach((l) => l(previewNameCache ?? null));
+        })
+        .catch(() => { previewNameCache = undefined; /* retry on next mount */ });
+    } else {
+      setPreviewName(previewNameCache);
+    }
+    return () => { previewNameListeners.delete(listener); };
+  }, [isSuperadmin]);
+
   if (isObserver) return null;
-  return user?.school ?? null;
+  if (isSuperadmin) return { id: '', name: previewName, homepage: true };
+  const school = user?.school;
+  return school?.homepage ? school : null;
 }
 
 // ── The hub: school context + community feed + carpool actions ──
@@ -141,19 +179,31 @@ export function useSchoolHub() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const school = useAuthStore((s) => s.user?.school);
+  // Superadmins preview: they have no membership for the backend to resolve
+  // an org from, so every feed read names the org (from the context listing)
+  // and renders the parent view — mirroring the web SchoolPage preview.
+  const isSuperadmin = useAuthStore((s) => s.user?.role === 'superadmin');
+  const feedParamsRef = useRef<Record<string, string> | null>(null);
 
-  const fetchContext = useCallback(async () => {
+  const fetchContext = useCallback(async (): Promise<SchoolOrg | null> => {
     try {
       const { data } = await api.get('/api/sis/school/context');
-      if (data?.success) setOrg((data.orgs || [])[0] || null);
+      if (data?.success) {
+        const first = (data.orgs || [])[0] || null;
+        setOrg(first);
+        return first;
+      }
     } catch {
       // Not a SIS school, or the lookup is down — the hub degrades to the feed.
     }
+    return null;
   }, []);
 
-  const fetchFeed = useCallback(async () => {
+  const fetchFeed = useCallback(async (params?: Record<string, string> | null) => {
     try {
-      const { data } = await api.get('/api/sis/community/feed');
+      const { data } = params
+        ? await api.get('/api/sis/community/feed', { params })
+        : await api.get('/api/sis/community/feed');
       if (data?.success) {
         setFeed(data.feed || null);
         setCanPost(Boolean(data.can_post_carpool));
@@ -165,32 +215,46 @@ export function useSchoolHub() {
     }
   }, []);
 
+  const loadAll = useCallback(async () => {
+    if (isSuperadmin) {
+      // Sequential on purpose: the feed read can't be issued until the
+      // context listing has named an org to preview.
+      const first = await fetchContext();
+      feedParamsRef.current = first
+        ? { organization_id: first.organization_id, view_as: 'parent' }
+        : null;
+      if (first) await fetchFeed(feedParamsRef.current);
+    } else {
+      await Promise.all([fetchContext(), fetchFeed()]);
+    }
+  }, [isSuperadmin, fetchContext, fetchFeed]);
+
   useEffect(() => {
     let active = true;
     (async () => {
-      await Promise.all([fetchContext(), fetchFeed()]);
+      await loadAll();
       if (active) setLoading(false);
     })();
     return () => { active = false; };
-  }, [fetchContext, fetchFeed]);
+  }, [loadAll]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchContext(), fetchFeed()]);
+      await loadAll();
     } finally {
       setRefreshing(false);
     }
-  }, [fetchContext, fetchFeed]);
+  }, [loadAll]);
 
   const postCarpool = useCallback(async (form: { type: string; message: string; area?: string; days?: string }) => {
     await api.post('/api/sis/community/feed/carpool', form);
-    await fetchFeed();
+    await fetchFeed(feedParamsRef.current);
   }, [fetchFeed]);
 
   const removeCarpool = useCallback(async (id: string) => {
     await api.delete(`/api/sis/community/feed/carpool/${id}`);
-    await fetchFeed();
+    await fetchFeed(feedParamsRef.current);
   }, [fetchFeed]);
 
   const messageCarpool = useCallback(async (id: string, message: string) => {
@@ -222,7 +286,11 @@ export function useSchoolHub() {
 
 const ARCHIVE_PAGE_SIZE = 20;
 
-export function useSchoolArchive() {
+export function useSchoolArchive(options?: { organizationId?: string }) {
+  // Superadmin preview: the archive resolves the org from membership, which a
+  // superadmin lacks — so the preview names it (backend allows the param for
+  // superadmins only) and renders the parent view's audience filtering.
+  const organizationId = options?.organizationId;
   const [announcements, setAnnouncements] = useState<ArchivedMessage[]>([]);
   const [total, setTotal] = useState(0);
   const [orgName, setOrgName] = useState<string | null>(null);
@@ -240,7 +308,12 @@ export function useSchoolArchive() {
     setError(null);
     try {
       const { data } = await api.get('/api/announcements/archive', {
-        params: { limit: ARCHIVE_PAGE_SIZE, offset, ...(q ? { q } : {}) },
+        params: {
+          limit: ARCHIVE_PAGE_SIZE,
+          offset,
+          ...(q ? { q } : {}),
+          ...(organizationId ? { organization_id: organizationId, view_as: 'parent' } : {}),
+        },
       });
       if (requestId !== requestRef.current) return;
       if (data?.success) {
@@ -259,7 +332,7 @@ export function useSchoolArchive() {
         setLoadingMore(false);
       }
     }
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => {
     fetchPage(0, query.trim(), false);

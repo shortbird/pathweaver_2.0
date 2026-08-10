@@ -16,6 +16,7 @@ import type { NavItem } from '@/src/config/navigation';
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { useSchool } from '@/src/hooks/useSchool';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -23,7 +24,7 @@ const LOGO_URI =
 function NavLink({ item }: { item: NavItem }) {
   const c = useThemeColors();
   const pathname = usePathname();
-  const routePath = item.href.replace('/(app)/(tabs)', '');
+  const routePath = item.href.replace('/(app)/(tabs)', '').replace('/(app)', '');
   const isActive = pathname === routePath || pathname.startsWith(routePath + '/');
   const isAdminOnly = !!item.roles;
 
@@ -95,6 +96,7 @@ function SidebarNotificationLink() {
 export function Sidebar() {
   const c = useThemeColors();
   const { user, logout } = useAuthStore();
+  const school = useSchool();
   const [hasCourses, setHasCourses] = useState(false);
 
   useEffect(() => {
@@ -147,6 +149,23 @@ export function Sidebar() {
           user?.org_role === 'parent' ||
           (user as any)?.has_dependents || (user as any)?.has_linked_students) && (
           <NavLink item={navItems.find((n) => n.key === 'family')!} />
+        )}
+
+        {/* The user's school — same gate as the mobile header button (members
+            of an opted-in school, superadmin preview; useSchool excludes
+            observers). Data-driven like the Courses item above, not a
+            navigation.ts entry: whether it exists depends on the account. */}
+        {school && (
+          <NavLink
+            item={{
+              key: 'school',
+              label: school.name || 'Community',
+              icon: 'business-outline',
+              iconActive: 'business',
+              href: '/(app)/school',
+              platforms: ['web'],
+            }}
+          />
         )}
       </View>
 

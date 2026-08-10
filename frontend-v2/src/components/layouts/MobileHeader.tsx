@@ -376,7 +376,7 @@ function SchoolButton() {
       onPress={() => router.push('/(app)/school' as any)}
       style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
       accessibilityRole="button"
-      accessibilityLabel={school.name ? `${school.name} school page` : 'School page'}
+      accessibilityLabel={school.name || 'Community'}
       testID="header-school-button"
     >
       <Ionicons name="business-outline" size={22} color={c.icon} />

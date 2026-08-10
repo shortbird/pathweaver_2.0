@@ -11,12 +11,13 @@
 import React, { useRef, useState } from 'react';
 import { View, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Heading, HStack, Input, InputField, InputIcon, InputSlot, UIText, VStack,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useAuthStore } from '@/src/stores/authStore';
 import { useSchool, useSchoolArchive, type ArchivedMessage } from '@/src/hooks/useSchool';
 import { htmlToText } from '@/src/utils/richText';
 import RichBody from '@/src/components/school/RichBody';
@@ -64,9 +65,17 @@ function MessageCard({ item }: { item: ArchivedMessage }) {
 export default function SchoolArchiveScreen() {
   const c = useThemeColors();
   const school = useSchool();
+  // Superadmin preview: the hub passes the previewed org along (?org=) because
+  // the archive endpoint resolves the org from membership, which a superadmin
+  // lacks. Members never send the param — the backend treats it as
+  // superadmin-only.
+  const { org: orgParam } = useLocalSearchParams<{ org?: string }>();
+  const isSuperadmin = useAuthStore((s) => s.user?.role === 'superadmin');
   const {
     announcements, hasMore, loading, loadingMore, error, query, setQuery, loadMore, refresh, orgName,
-  } = useSchoolArchive();
+  } = useSchoolArchive(
+    isSuperadmin && typeof orgParam === 'string' ? { organizationId: orgParam } : undefined,
+  );
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,7 +151,7 @@ export default function SchoolArchiveScreen() {
                   <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
                     {query
                       ? 'No messages match your search.'
-                      : `When ${name || 'your school'} sends you a message, it will appear here.`}
+                      : `When ${name || 'the office'} sends you a message, it will appear here.`}
                   </UIText>
                 </>
               )}

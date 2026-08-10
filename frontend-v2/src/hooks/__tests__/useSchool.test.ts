@@ -13,6 +13,7 @@ import {
   useSchoolHub,
   useSchoolArchive,
   useSchoolAbsences,
+  __resetSchoolPreviewCache,
 } from '../useSchool';
 
 const setUser = (user: any) => {
@@ -24,6 +25,7 @@ const setUser = (user: any) => {
 afterEach(() => {
   setUser(null);
   jest.clearAllMocks();
+  __resetSchoolPreviewCache();
 });
 
 describe('useSchool', () => {
@@ -32,15 +34,43 @@ describe('useSchool', () => {
     expect(renderHook(() => useSchool()).result.current).toBeNull();
   });
 
-  it('returns the school when /me attached one', () => {
+  it('returns the school when the org has opted in (school_homepage flag)', () => {
     setUser({ id: 'u1', role: 'parent', school: { id: 'org-1', name: 'iCreate', homepage: true } });
     expect(renderHook(() => useSchool()).result.current)
       .toEqual({ id: 'org-1', name: 'iCreate', homepage: true });
   });
 
-  it('returns null for observers — no school surface for them in v1', () => {
-    setUser({ id: 'u1', role: 'observer', school: { id: 'org-1', name: 'iCreate' } });
+  it('returns null when the org has not opted in — the surface is per-organization', () => {
+    // /me attaches `school` for members of ANY org; the mobile School surface
+    // is enabled per-org via feature_flags.sis_settings.school_homepage.
+    setUser({ id: 'u1', role: 'parent', school: { id: 'org-2', name: 'Elsewhere Academy', homepage: false } });
     expect(renderHook(() => useSchool()).result.current).toBeNull();
+  });
+
+  it('returns null for observers — no school surface for them in v1', () => {
+    setUser({ id: 'u1', role: 'observer', school: { id: 'org-1', name: 'iCreate', homepage: true } });
+    expect(renderHook(() => useSchool()).result.current).toBeNull();
+  });
+
+  it('superadmin always sees the surface — the preview, with no school of their own', () => {
+    setUser({ id: 'sa', role: 'superadmin', school: null });
+    const school = renderHook(() => useSchool()).result.current;
+    expect(school).not.toBeNull();
+    expect(school?.homepage).toBe(true);
+  });
+
+  it('superadmin preview resolves the org\'s NAME so no surface has to say "school"', async () => {
+    // iCreate: "we are an education center" — every label uses the org's own
+    // name. The preview has no user.school to read it from, so useSchool
+    // fetches the context listing once and caches the name.
+    __resetSchoolPreviewCache();
+    (api.get as jest.Mock).mockResolvedValue({
+      data: { success: true, orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] },
+    });
+    setUser({ id: 'sa', role: 'superadmin', school: null });
+    const { result } = renderHook(() => useSchool());
+    await waitFor(() => expect(result.current?.name).toBe('iCreate'));
+    expect(api.get).toHaveBeenCalledWith('/api/sis/school/context');
   });
 });
 
@@ -141,6 +171,24 @@ describe('useSchoolHub', () => {
     });
     expect(api.delete).toHaveBeenCalledWith('/api/sis/community/feed/carpool/c1');
   });
+
+  it('superadmin preview: waits for context, then reads the feed with the org named', async () => {
+    setUser({ id: 'sa', role: 'superadmin', school: null });
+    (api.get as jest.Mock).mockImplementation((url: string, config?: any) => {
+      if (url.startsWith('/api/sis/school/context')) return Promise.resolve(contextPayload);
+      if (url.startsWith('/api/sis/community/feed')) {
+        // The preview MUST name the org — a superadmin has no membership to
+        // resolve it from.
+        expect(config?.params).toEqual({ organization_id: 'org-1', view_as: 'parent' });
+        return Promise.resolve(feedPayload);
+      }
+      return Promise.resolve({ data: {} });
+    });
+    const { result } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.feed?.announcements).toHaveLength(1);
+    expect(result.current.org?.organization_id).toBe('org-1');
+  });
 });
 
 describe('useSchoolArchive', () => {
@@ -194,6 +242,14 @@ describe('useSchoolArchive', () => {
     const { result } = renderHook(() => useSchoolArchive());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe('nope');
+  });
+
+  it('names the org on every read when given one (superadmin preview)', async () => {
+    (api.get as jest.Mock).mockResolvedValue(page([item('1')], 1));
+    renderHook(() => useSchoolArchive({ organizationId: 'org-1' }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/announcements/archive', {
+      params: { limit: 20, offset: 0, organization_id: 'org-1', view_as: 'parent' },
+    }));
   });
 });
 

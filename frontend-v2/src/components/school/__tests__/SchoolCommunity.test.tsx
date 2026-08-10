@@ -43,6 +43,24 @@ describe('SchoolCommunity', () => {
     expect(queryByText(/Lost & found/)).toBeNull();
   });
 
+  it('each section collapses and expands on a header tap', () => {
+    const feed: SchoolFeed = {
+      ...emptyFeed,
+      announcements: [{ id: 'a1', title: 'Picture day', body: null, pinned: false, priority: 'normal', created_at: '2026-08-01T00:00:00Z' }],
+      events: [{ id: 'e1', title: 'Open house', description: null, location: null, start_at: '2026-08-20T16:00:00Z', end_at: null, all_day: false }],
+    };
+    const { getByTestId, getByText, queryByText } = render(<SchoolCommunity feed={feed} />);
+
+    expect(getByText('Picture day')).toBeTruthy();
+    fireEvent.press(getByTestId('section-toggle-Announcements'));
+    expect(queryByText('Picture day')).toBeNull();
+    // Only that section collapsed — the next one keeps its content.
+    expect(getByText('Open house')).toBeTruthy();
+
+    fireEvent.press(getByTestId('section-toggle-Announcements'));
+    expect(getByText('Picture day')).toBeTruthy();
+  });
+
   it('shows the donation countdown on lost & found items', () => {
     const feed: SchoolFeed = {
       ...emptyFeed,

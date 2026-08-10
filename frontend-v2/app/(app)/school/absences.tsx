@@ -136,7 +136,8 @@ export default function AbsencesScreen() {
           <Ionicons name="calendar-outline" size={44} color={c.iconMuted} />
           <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
             Absence reporting isn't available for your family yet. If your
-            school uses Optio for attendance, ask them to add your family.
+            family's organization uses Optio for attendance, ask them to add
+            your family.
           </UIText>
         </VStack>
       ) : (
@@ -150,10 +151,11 @@ export default function AbsencesScreen() {
             Let {orgName || 'the office'} know ahead of time when your child will be out.
           </UIText>
 
-          {/* School picker — only for the rare multi-school family */}
+          {/* Org picker — only for the rare family enrolled in two orgs. The
+              chips are the org names themselves, so the label stays generic. */}
           {orgs.length > 1 && (
             <View className="mb-4">
-              <UIText size="xs" className="font-poppins-medium text-typo-400 dark:text-dark-typo-400 mb-2">School</UIText>
+              <UIText size="xs" className="font-poppins-medium text-typo-400 dark:text-dark-typo-400 mb-2">Organization</UIText>
               <HStack space="sm" className="flex-wrap">
                 {orgs.map((o: any) => (
                   <Chip key={o.organization_id} selected={o.organization_id === orgId} onPress={() => setOrgId(o.organization_id)}>

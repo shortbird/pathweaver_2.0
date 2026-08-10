@@ -208,6 +208,83 @@ class TestSchoolWideReadsOpenToEveryMember:
 
 
 @pytest.mark.unit
+class TestSuperadminPreviewListing:
+    """A superadmin belongs to no school, so membership answers nothing for
+    them. The mobile app bootstraps its school-page preview from the same
+    context call members use: with no org named, a superadmin gets every org
+    that has turned the page on (sis_settings.school_homepage)."""
+
+    ENABLED = {'id': 'org-1', 'name': 'iCreate',
+               'feature_flags': {'sis_settings': {'school_homepage': True}},
+               'branding_config': {'logo_url': 'data:image/png;base64,x'}}
+    SIS_ONLY = {'id': 'org-2', 'name': 'Gryffin',
+                'feature_flags': {'sis_enabled': True}}
+
+    def _preview(self, org_rows):
+        with patch.object(parent, 'get_supabase_admin_client',
+                          return_value=_admin_returning(list(org_rows))):
+            return parent.school_preview_orgs()
+
+    def test_lists_only_orgs_that_turned_the_page_on(self):
+        out = self._preview([self.ENABLED, self.SIS_ONLY])
+        assert [o['organization_id'] for o in out['orgs']] == ['org-1']
+
+    def test_entries_carry_the_hub_shape_and_are_never_guardian(self):
+        out = self._preview([self.ENABLED])
+        assert out['orgs'][0] == {'organization_id': 'org-1',
+                                  'organization_name': 'iCreate',
+                                  'is_guardian': False,
+                                  'post_registration_flow': 'schedule',
+                                  'logo_url': 'data:image/png;base64,x'}
+        assert out['is_guardian'] is False
+
+    def test_empty_when_nobody_opted_in(self):
+        assert self._preview([self.SIS_ONLY])['orgs'] == []
+
+
+@pytest.mark.unit
+class TestContextRouteSuperadminFallback:
+    """routes/sis/school._context_payload: membership answers first; only a
+    superadmin whose membership came back empty falls through to the preview
+    listing, so the common member path never pays the role lookup."""
+
+    def test_a_superadmin_with_no_school_gets_the_preview_listing(self):
+        from routes.sis import school as school_routes
+        listing = {'orgs': [{'organization_id': 'org-1'}], 'is_guardian': False}
+        with patch.object(school_routes, '_caller_is_superadmin', return_value=True), \
+             patch.object(school_routes.parent, 'school_context',
+                          return_value={'orgs': [], 'is_guardian': False}), \
+             patch.object(school_routes.parent, 'school_preview_orgs',
+                          return_value=listing):
+            assert school_routes._context_payload('sa-1', None, None) == listing
+
+    def test_a_member_never_pays_the_role_lookup(self):
+        from routes.sis import school as school_routes
+        ctx = {'orgs': [{'organization_id': 'org-1'}], 'is_guardian': True}
+        with patch.object(school_routes, '_caller_is_superadmin') as role_check, \
+             patch.object(school_routes.parent, 'school_context', return_value=ctx):
+            assert school_routes._context_payload('parent-1', None, None) == ctx
+        role_check.assert_not_called()
+
+    def test_an_ordinary_user_with_no_school_still_gets_nothing(self):
+        from routes.sis import school as school_routes
+        with patch.object(school_routes, '_caller_is_superadmin', return_value=False), \
+             patch.object(school_routes.parent, 'school_context',
+                          return_value={'orgs': [], 'is_guardian': False}):
+            assert school_routes._context_payload('u-1', None, None)['orgs'] == []
+
+    def test_naming_an_org_still_uses_the_single_org_preview(self):
+        from routes.sis import school as school_routes
+        with patch.object(school_routes, '_caller_is_superadmin', return_value=True), \
+             patch.object(school_routes.parent, 'school_context_for_org',
+                          return_value={'orgs': [{'organization_id': 'org-9'}],
+                                        'is_guardian': True}) as single:
+            out = school_routes._context_payload('sa-1', 'org-9', 'parent')
+        single.assert_called_once_with('org-9', as_guardian=True)
+        assert out['orgs'][0]['organization_id'] == 'org-9'
+
+
+@pytest.mark.unit
 class TestGuardianOnlySurfacesDidNotWiden:
     """The point of a separate membership check is that it did NOT leak into the
     surfaces that act on a family. A student is a member of the school; that must
