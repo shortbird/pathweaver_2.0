@@ -223,7 +223,7 @@ Tests are organized by user journey and feature area, prioritized by:
 ## Notes
 
 - All tests should use actual test account: `test@optioeducation.com` / `TestPassword123!`
-- Tests run against live dev: https://optio-dev-frontend.onrender.com
+- Tests run against live dev: https://optio-dev-frontend-r3v8.onrender.com
 - No retries during debugging (set to 0 in playwright.config.js)
 - Each test file should be independent (no shared state between files)
 - Use beforeEach hooks for common setup (like login)

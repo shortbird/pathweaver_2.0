@@ -142,12 +142,12 @@ The application will be available at `http://localhost:3000`
 **Current Hosting**: Render.com
 
 ### Development Environment
-- **Frontend**: https://optio-dev-frontend.onrender.com (deploys from `develop` branch)
-- **Backend**: https://optio-dev-backend.onrender.com (deploys from `develop` branch)
+- **Frontend**: https://optio-dev-frontend-r3v8.onrender.com (deploys from `develop` branch)
+- **Backend**: https://optio-dev-backend-5flj.onrender.com (deploys from `develop` branch)
 
 ### Production Environment
 - **Frontend**: https://www.optioeducation.com (deploys from `main` branch)
-- **Backend**: https://optio-prod-backend.onrender.com (deploys from `main` branch)
+- **Backend**: https://optio-prod-backend-966k.onrender.com (deploys from `main` branch)
 
 ### Deployment Workflow
 1. Push changes to `develop` branch for immediate testing

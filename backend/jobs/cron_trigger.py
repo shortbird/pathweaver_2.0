@@ -5,7 +5,7 @@ Lightweight standalone script executed by Render's cron service.
 POSTs to the backend API endpoint with the cron secret header.
 
 Required env vars:
-  BACKEND_URL  - Base URL of the backend (e.g. https://optio-prod-backend.onrender.com)
+  BACKEND_URL  - Base URL of the backend (e.g. https://optio-prod-backend-966k.onrender.com)
   CRON_SECRET  - Shared secret for authenticating cron requests
 """
 

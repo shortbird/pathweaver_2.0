@@ -196,7 +196,7 @@ EOF
 | Local (v1 web) | http://localhost:3000 | any |
 | Local (v2 mobile, web preview) | http://localhost:8081 | any |
 | Local (v2 mobile, native) | exp://192.168.86.20:8081 | any |
-| Dev | https://optio-dev-frontend.onrender.com | `develop` |
+| Dev | https://optio-dev-frontend-r3v8.onrender.com | `develop` |
 | Prod | https://www.optioeducation.com | `main` |
 | API | https://api.optioeducation.com | `main` |
 
@@ -356,8 +356,14 @@ Render deploys + production OTA publishes when tests pass.
 > test: once on the develop push, once on the PR). The 3 separate test
 > workflows were consolidated into `release.yml`; the OTA pipeline is described
 > under "EAS Update / OTA" — `eas-update.yml` is now develop-only (preview).
-> Note: the apex domain optioeducation.com may still be served by Vercel —
-> verify the host before assuming a Render deploy is what users see.
+> Prod web hosting (verified 2026-08-09): both the apex `optioeducation.com`
+> and `www.optioeducation.com` are served by **Render** — 100% Render, no
+> Vercel anywhere. DNS is at GoDaddy (`domaincontrol.com` nameservers); the
+> apex A record is Render's shared anycast IP `216.24.57.1` (never changes),
+> and `www`/`api`/`sis` are CNAMEs to the services' `.onrender.com` targets.
+> Render routes custom domains by domain *attachment*, not CNAME target. The
+> `Server: cloudflare` response header is Render's own CDN, not a Cloudflare
+> zone we control. A Render deploy is what users see.
 
 **IMPORTANT: When the user says "push", always stage and commit ALL outstanding changes (staged, unstaged, and untracked relevant files) before pushing. Never selectively unstage files -- push everything.**
 
@@ -761,15 +767,25 @@ Verify with `claude mcp list` -- should show `render: ... - ✓ Connected`. Rest
 
 **Not working:** `@anthropic-ai/mcp-server-render` -- 404 on npm. The `claude mcp add ... --api-key ...` pattern also fails because `-y` is parsed by the Claude CLI; hence the `configure` step above.
 
-**Service IDs:**
+**Service IDs** (all in the **Shortbird** workspace, `tea-d9ah63qq4dsc739armqg`,
+as of 2026-08-09 — migrated from the old Optio workspace, which Render cannot
+transfer between; the old `srv-d2t...` services are decommissioned):
 | Environment | Service | ID | Branch |
 |-------------|---------|-----|--------|
-| Dev | Backend | `srv-d2tnvlvfte5s73ae8npg` | `develop` |
-| Dev | Frontend | `srv-d2tnvrffte5s73ae8s4g` | `develop` |
-| Prod | Backend | `srv-d2to00vfte5s73ae9310` | `main` |
-| Prod | Frontend | `srv-d2to04vfte5s73ae97ag` | `main` |
+| Dev | Backend | `srv-d9sjl22fngtc73ffenl0` | `develop` |
+| Dev | Frontend | `srv-d9sjl3n10e5c73a14b2g` | `develop` |
+| Dev | v2 Frontend | `srv-d9sjl42fngtc73fff1d0` | `develop` |
+| Prod | Backend | `srv-d9sjl1f10e5c73a14610` | `main` |
+| Prod | Frontend | `srv-d9sjl2qjnfac739k091g` | `main` |
+| Prod | Cron (dispatch) | `crn-d9sjl4tbedkc73dmb010` | `main` |
+| Prod | Redis (rate limit) | `red-d9sjl16gekts738r0u2g` | — |
 
-**Auto-deploy:** Enabled on all services. Pushes to `develop` deploy to dev, pushes to `main` deploy to prod.
+**Auto-deploy:** ON for the dev services (pushes to `develop` deploy directly).
+**OFF for both prod services** — prod deploys are triggered only by the `deploy`
+job in `release.yml` after tests pass. All backends pin `PYTHON_VERSION=3.11.9`
+via env var (new Render services default to Python 3.14, which breaks
+`pydantic_core`; the static sites need the pin too because Render auto-installs
+the root `requirements.txt` even for static builds).
 
 **Manual deploy via API:**
 ```bash

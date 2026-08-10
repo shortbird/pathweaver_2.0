@@ -45,7 +45,7 @@ Complete guide to all configurable environment variables for the Optio Platform 
 - **Description**: Comma-separated list of allowed CORS origins
 - **Default**: Automatically set based on environment
 - **Required**: No
-- **Example**: `ALLOWED_ORIGINS=https://www.optioeducation.com,https://optio-dev-frontend.onrender.com`
+- **Example**: `ALLOWED_ORIGINS=https://www.optioeducation.com,https://optio-dev-frontend-r3v8.onrender.com`
 
 ---
 
@@ -427,7 +427,7 @@ FLASK_ENV=production
 # CRITICAL: Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
 # Must be at least 64 characters with high entropy
 FLASK_SECRET_KEY=your-staging-key-at-least-64-chars-use-proper-random-generation
-FRONTEND_URL=https://optio-dev-frontend.onrender.com
+FRONTEND_URL=https://optio-dev-frontend-r3v8.onrender.com
 LOG_LEVEL=DEBUG
 LOG_FORMAT=json
 

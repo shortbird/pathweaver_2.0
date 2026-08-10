@@ -237,7 +237,7 @@ def test_xp_award_by_pillar():
 ```
 1. Make changes on develop branch
 2. Commit and push to GitHub
-3. Auto-deploy to https://optio-dev-backend.onrender.com
+3. Auto-deploy to https://optio-dev-backend-5flj.onrender.com
 4. Test manually on live dev site
 5. When ready, trigger GitHub Actions tests
 6. Review coverage report

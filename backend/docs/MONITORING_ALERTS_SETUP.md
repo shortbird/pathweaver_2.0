@@ -163,10 +163,10 @@ sentry_sdk.init(
 **Setup:**
 1. Create UptimeRobot account (free)
 2. Add monitors for:
-   - Frontend dev: https://optio-dev-frontend.onrender.com (5-min interval)
-   - Backend dev: https://optio-dev-backend.onrender.com/api/health (5-min interval)
+   - Frontend dev: https://optio-dev-frontend-r3v8.onrender.com (5-min interval)
+   - Backend dev: https://optio-dev-backend-5flj.onrender.com/api/health (5-min interval)
    - Frontend prod: https://www.optioeducation.com (5-min interval)
-   - Backend prod: https://optio-prod-backend.onrender.com/api/health (5-min interval)
+   - Backend prod: https://optio-prod-backend-966k.onrender.com/api/health (5-min interval)
 
 **Alert Channels:**
 - Email notifications to admin@optioeducation.com

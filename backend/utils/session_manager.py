@@ -105,7 +105,7 @@ class SessionManager:
                 parsed = urlparse(frontend_url)
                 hostname = parsed.hostname
                 if hostname and '.' in hostname:
-                    # For onrender.com, use the full subdomain (e.g., optio-dev-frontend.onrender.com)
+                    # For onrender.com, use the full subdomain (e.g., optio-dev-frontend-r3v8.onrender.com)
                     # For custom domains, use the root domain (e.g., .optioeducation.com)
                     if 'onrender.com' in hostname:
                         self.cookie_domain = hostname

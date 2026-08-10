@@ -218,16 +218,16 @@ These should be migrated when touched:
 
 ```bash
 # Test first page
-curl "https://optio-dev-backend.onrender.com/api/quests?page=1&per_page=5"
+curl "https://optio-dev-backend-5flj.onrender.com/api/quests?page=1&per_page=5"
 
 # Test second page
-curl "https://optio-dev-backend.onrender.com/api/quests?page=2&per_page=5"
+curl "https://optio-dev-backend-5flj.onrender.com/api/quests?page=2&per_page=5"
 
 # Test last page
-curl "https://optio-dev-backend.onrender.com/api/quests?page=10&per_page=5"
+curl "https://optio-dev-backend-5flj.onrender.com/api/quests?page=10&per_page=5"
 
 # Test invalid parameters
-curl "https://optio-dev-backend.onrender.com/api/quests?page=0&per_page=1000"
+curl "https://optio-dev-backend-5flj.onrender.com/api/quests?page=0&per_page=1000"
 # Should default to page=1 and cap per_page at 100
 ```
 

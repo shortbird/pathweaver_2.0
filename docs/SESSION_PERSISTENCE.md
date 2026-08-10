@@ -25,9 +25,9 @@ Two secure 64-character keys have been generated for dev and prod environments:
 - **Prod Backend**: `46e9163dbe647c89fa4b3bb172fba947f2650c7701ce75ec3c6584a6dc173e9b`
 
 **Action Required:**
-1. Go to Render dashboard for dev backend: https://dashboard.render.com/web/srv-d2tnvlvfte5s73ae8npg
+1. Go to Render dashboard for dev backend: https://dashboard.render.com/web/srv-d9sjl22fngtc73ffenl0
 2. Add environment variable: `FLASK_SECRET_KEY` = `3609553095e956d826a876f4b1d9b50915113cd604edcf71deada07573f7e36d`
-3. Go to Render dashboard for prod backend: https://dashboard.render.com/web/srv-d2to00vfte5s73ae9310
+3. Go to Render dashboard for prod backend: https://dashboard.render.com/web/srv-d9sjl1f10e5c73a14610
 4. Add environment variable: `FLASK_SECRET_KEY` = `46e9163dbe647c89fa4b3bb172fba947f2650c7701ce75ec3c6584a6dc173e9b`
 
 **Important:** Once these are set, they will persist across ALL future deployments. Users will need to log in ONE TIME after this change, then sessions will persist forever.
@@ -123,7 +123,7 @@ If you ever need to change the secret key:
    git push origin develop
    ```
 
-2. **Login to dev environment:** https://optio-dev-frontend.onrender.com
+2. **Login to dev environment:** https://optio-dev-frontend-r3v8.onrender.com
 
 3. **Wait for next deployment:**
    - Make any small code change

@@ -383,8 +383,8 @@ is the main novelty risk.
   expects HS parents to do transfer-credit / grade-period work on mobile, that's added scope.
 - **Diploma application workflow** (PRD §4.8) is still unbuilt; this phase surfaces eligibility
   but does not add the apply→review→issue flow.
-- **Apex web host:** confirm prod web is served from Render (not residual Vercel) before relying
-  on a deploy for what parents see.
+- **Apex web host:** prod web (apex + `www`) is served entirely by Render — confirmed
+  2026-08-09, no residual Vercel. A Render deploy is what parents see.
 
 ---
 

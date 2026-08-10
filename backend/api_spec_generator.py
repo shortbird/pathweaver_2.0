@@ -438,7 +438,7 @@ def generate_openapi_spec(app):
 
     # Get environment
     env = os.getenv('FLASK_ENV', 'development')
-    host = 'optio-prod-backend.onrender.com' if env == 'production' else 'optio-dev-backend.onrender.com'
+    host = 'optio-prod-backend-966k.onrender.com' if env == 'production' else 'optio-dev-backend-5flj.onrender.com'
 
     # Build OpenAPI 3.0 spec
     spec = {

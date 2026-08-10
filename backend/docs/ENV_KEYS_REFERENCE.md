@@ -82,7 +82,7 @@ When rotating keys, update these Render services:
 
 | Service | ID | Keys |
 |---------|-----|------|
-| Dev Backend | `srv-d2tnvlvfte5s73ae8npg` | All backend keys |
-| Dev Frontend | `srv-d2tnvrffte5s73ae8s4g` | SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY |
-| Prod Backend | `srv-d2to00vfte5s73ae9310` | All backend keys |
-| Prod Frontend | `srv-d2to04vfte5s73ae97ag` | SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY |
+| Dev Backend | `srv-d9sjl22fngtc73ffenl0` | All backend keys |
+| Dev Frontend | `srv-d9sjl3n10e5c73a14b2g` | SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY |
+| Prod Backend | `srv-d9sjl1f10e5c73a14610` | All backend keys |
+| Prod Frontend | `srv-d9sjl2qjnfac739k091g` | SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY |

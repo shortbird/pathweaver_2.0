@@ -223,7 +223,7 @@ jobs:
             exit 1
           fi
           # backend, then web
-          for svc in srv-d2to00vfte5s73ae9310 srv-d2to04vfte5s73ae97ag; do
+          for svc in srv-d9sjl1f10e5c73a14610 srv-d9sjl2qjnfac739k091g; do
             resp=$(curl -sS -X POST "https://api.render.com/v1/services/$svc/deploys" \
               -H "Authorization: Bearer $RENDER_API_KEY" \
               -H "Content-Type: application/json" \

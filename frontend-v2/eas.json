@@ -19,7 +19,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://optio-dev-backend.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://optio-dev-backend-5flj.onrender.com",
         "EXPO_PUBLIC_SENTRY_DSN": "https://93a6f5323a2291f9b52198ed838830c7@o4511728872456192.ingest.us.sentry.io/4511770696482816"
       }
     },

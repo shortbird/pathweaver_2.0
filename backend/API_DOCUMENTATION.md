@@ -3,8 +3,8 @@
 **Complete**: P2-DOC-2 (API Documentation)
 **Date Completed**: December 19, 2025
 **Coverage**: 100% of 200+ endpoints across 74 route files
-**Interactive Docs**: [https://optio-dev-backend.onrender.com/api/docs](https://optio-dev-backend.onrender.com/api/docs) (dev)
-**Production Docs**: [https://optio-prod-backend.onrender.com/api/docs](https://optio-prod-backend.onrender.com/api/docs) (prod)
+**Interactive Docs**: [https://optio-dev-backend-5flj.onrender.com/api/docs](https://optio-dev-backend-5flj.onrender.com/api/docs) (dev)
+**Production Docs**: [https://optio-prod-backend-966k.onrender.com/api/docs](https://optio-prod-backend-966k.onrender.com/api/docs) (prod)
 
 ---
 
@@ -27,8 +27,8 @@ The Optio Platform API provides comprehensive access to all platform features vi
 
 ### View Documentation
 
-**Development**: [https://optio-dev-backend.onrender.com/api/docs](https://optio-dev-backend.onrender.com/api/docs)
-**Production**: [https://optio-prod-backend.onrender.com/api/docs](https://optio-prod-backend.onrender.com/api/docs)
+**Development**: [https://optio-dev-backend-5flj.onrender.com/api/docs](https://optio-dev-backend-5flj.onrender.com/api/docs)
+**Production**: [https://optio-prod-backend-966k.onrender.com/api/docs](https://optio-prod-backend-966k.onrender.com/api/docs)
 
 ### Test Endpoints
 
@@ -510,7 +510,7 @@ All errors return consistent JSON format:
 
 ```javascript
 // 1. Login
-const loginResponse = await fetch('https://optio-dev-backend.onrender.com/api/auth/login', {
+const loginResponse = await fetch('https://optio-dev-backend-5flj.onrender.com/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   credentials: 'include', // Important: include cookies
@@ -521,13 +521,13 @@ const loginResponse = await fetch('https://optio-dev-backend.onrender.com/api/au
 });
 
 // 2. Get CSRF token
-const csrfResponse = await fetch('https://optio-dev-backend.onrender.com/csrf-token', {
+const csrfResponse = await fetch('https://optio-dev-backend-5flj.onrender.com/csrf-token', {
   credentials: 'include'
 });
 const { csrf_token } = await csrfResponse.json();
 
 // 3. Make authenticated POST request
-const questResponse = await fetch('https://optio-dev-backend.onrender.com/api/quests/abc-123/start', {
+const questResponse = await fetch('https://optio-dev-backend-5flj.onrender.com/api/quests/abc-123/start', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -545,7 +545,7 @@ const formData = new FormData();
 formData.append('evidence_text', 'I completed this task by...');
 formData.append('evidence_file', fileInput.files[0]);
 
-const response = await fetch('https://optio-dev-backend.onrender.com/api/tasks/task-123/complete', {
+const response = await fetch('https://optio-dev-backend-5flj.onrender.com/api/tasks/task-123/complete', {
   method: 'POST',
   headers: {
     'X-CSRF-Token': csrf_token
@@ -615,7 +615,7 @@ To enhance documentation for specific endpoints:
 
 ## Support
 
-- **Interactive Docs**: [/api/docs](https://optio-dev-backend.onrender.com/api/docs)
+- **Interactive Docs**: [/api/docs](https://optio-dev-backend-5flj.onrender.com/api/docs)
 - **GitHub Issues**: https://github.com/anthropics/claude-code/issues
 - **Email**: support@optioeducation.com
 - **Codebase Guide**: [CLAUDE.md](../CLAUDE.md)

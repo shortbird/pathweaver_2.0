@@ -104,7 +104,7 @@ is unreachable by real users.
 ### 1. Render — add `sis.` as a second custom domain on the existing frontend service
 No new service. The same static build already serves it; the SPA branches on host.
 
-- **Prod:** Render dashboard → `optio-prod-frontend` (srv-d2to04vfte5s73ae97ag) →
+- **Prod:** Render dashboard → `optio-prod-frontend` (srv-d9sjl2qjnfac739k091g) →
   Settings → Custom Domains → **Add** `sis.optioeducation.com`. Render shows the DNS
   target (a CNAME, e.g. `<something>.onrender.com`).
 - **(Optional) Dev:** same on `optio-dev-frontend` with `sis-dev.optioeducation.com` if
@@ -118,9 +118,9 @@ CNAME   sis   ->   <the target Render shows>   (proxy/CDN off if applicable)
 Wait for Render to verify + issue the TLS cert. Then `https://sis.optioeducation.com`
 serves the console; `getAppSurface()` returns `'sis'` automatically on that host.
 
-> ⚠️ Verify where `www`/apex actually resolve first. The apex may still be on Vercel
-> (see CLAUDE.md / prod-web-hosting). Add `sis` alongside whatever serves the real prod
-> web app today.
+> Prod web (both apex and `www`) is served entirely by Render — verified
+> 2026-08-09, no Vercel. Add the `sis` CNAME on the same Render frontend service
+> that serves the prod web app (`optio-prod-frontend`, Shortbird workspace).
 
 ### 3. Backend CORS (only if `ALLOWED_ORIGINS` env is set)
 The code default already includes `https://sis.optioeducation.com`. If prod sets the

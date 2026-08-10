@@ -73,7 +73,7 @@ jobs:
           # Also check backend
           for i in $(seq 1 30); do
             BACKEND_STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-              "https://api.render.com/v1/services/srv-d2tnvlvfte5s73ae8npg/deploys?limit=1" \
+              "https://api.render.com/v1/services/srv-d9sjl22fngtc73ffenl0/deploys?limit=1" \
               2>/dev/null | jq -r '.[0].deploy.status // "unknown"')
             echo "  Backend deploy status=$BACKEND_STATUS"
             if [ "$BACKEND_STATUS" = "live" ]; then
@@ -83,8 +83,8 @@ jobs:
             sleep 10
           done
           # Final health check
-          echo "Frontend: $(curl -s -o /dev/null -w '%{http_code}' https://optio-dev-v2-frontend.onrender.com/)"
-          echo "Backend: $(curl -s https://optio-dev-backend.onrender.com/api/health | head -1)"
+          echo "Frontend: $(curl -s -o /dev/null -w '%{http_code}' https://optio-dev-v2-frontend-x1dk.onrender.com/)"
+          echo "Backend: $(curl -s https://optio-dev-backend-5flj.onrender.com/api/health | head -1)"
 
       - name: Determine test files
         id: tests

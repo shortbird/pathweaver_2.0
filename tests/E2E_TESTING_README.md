@@ -2,7 +2,7 @@
 
 **Created**: December 19, 2025
 **Status**: Active
-**Test Environment**: https://optio-dev-frontend.onrender.com
+**Test Environment**: https://optio-dev-frontend-r3v8.onrender.com
 
 ## Overview
 
@@ -126,7 +126,7 @@ Tests run automatically on every push to `develop` or `main` branches.
 **What happens:**
 1. Push code to GitHub
 2. GitHub Actions triggers workflow
-3. Tests run against https://optio-dev-frontend.onrender.com
+3. Tests run against https://optio-dev-frontend-r3v8.onrender.com
 4. Results posted in PR (if applicable)
 5. Test reports and videos saved as artifacts
 

@@ -45,12 +45,12 @@ This document provides a complete reference for all environment variables used i
 ### CORS Configuration
 
 - **`FRONTEND_URL`** - Primary frontend URL for CORS
-  - Development: `https://optio-dev-frontend.onrender.com`
+  - Development: `https://optio-dev-frontend-r3v8.onrender.com`
   - Production: `https://www.optioeducation.com`
   - Required for: CORS configuration, legacy support
 
 - **`ALLOWED_ORIGINS`** - Comma-separated list of allowed CORS origins
-  - Development: `https://optio-dev-frontend.onrender.com,http://localhost:5173`
+  - Development: `https://optio-dev-frontend-r3v8.onrender.com,http://localhost:5173`
   - Production: `https://www.optioeducation.com,https://optioeducation.com`
   - Required for: CORS policy enforcement
   - Note: localhost origins automatically added in development mode
@@ -58,8 +58,8 @@ This document provides a complete reference for all environment variables used i
 ### Frontend Configuration
 
 - **`VITE_API_URL`** - Backend API endpoint (without /api suffix)
-  - Development: `https://optio-dev-backend.onrender.com`
-  - Production: `https://optio-prod-backend.onrender.com`
+  - Development: `https://optio-dev-backend-5flj.onrender.com`
+  - Production: `https://optio-prod-backend-966k.onrender.com`
   - **⚠️ Important**: Do NOT include `/api` suffix (added automatically by frontend)
   - Required for: All API requests from frontend
 
@@ -162,11 +162,11 @@ FLASK_SECRET_KEY=dev-secret-key-64-characters-long-xxxxxxxxxxxxxxxxxxxxxxxxx
 FLASK_ENV=development
 
 # CORS
-FRONTEND_URL=https://optio-dev-frontend.onrender.com
-ALLOWED_ORIGINS=https://optio-dev-frontend.onrender.com,http://localhost:5173
+FRONTEND_URL=https://optio-dev-frontend-r3v8.onrender.com
+ALLOWED_ORIGINS=https://optio-dev-frontend-r3v8.onrender.com,http://localhost:5173
 
 # Frontend (Vite)
-VITE_API_URL=https://optio-dev-backend.onrender.com
+VITE_API_URL=https://optio-dev-backend-5flj.onrender.com
 
 # Optional - AI Features
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -196,7 +196,7 @@ FRONTEND_URL=https://www.optioeducation.com
 ALLOWED_ORIGINS=https://www.optioeducation.com,https://optioeducation.com
 
 # Frontend (Vite)
-VITE_API_URL=https://optio-prod-backend.onrender.com
+VITE_API_URL=https://optio-prod-backend-966k.onrender.com
 
 # Optional - AI Features
 GEMINI_API_KEY=your_production_gemini_api_key

@@ -30,10 +30,10 @@ load_dotenv(os.path.join(backend_dir, '.env'))
 # =============================================================================
 
 RENDER_SERVICES = {
-    'dev_backend': 'srv-d2tnvlvfte5s73ae8npg',
-    'dev_frontend': 'srv-d2tnvrffte5s73ae8s4g',
-    'prod_backend': 'srv-d2to00vfte5s73ae9310',
-    'prod_frontend': 'srv-d2to04vfte5s73ae97ag',
+    'dev_backend': 'srv-d9sjl22fngtc73ffenl0',
+    'dev_frontend': 'srv-d9sjl3n10e5c73a14b2g',
+    'prod_backend': 'srv-d9sjl1f10e5c73a14610',
+    'prod_frontend': 'srv-d9sjl2qjnfac739k091g',
 }
 
 KEY_REGISTRY = {

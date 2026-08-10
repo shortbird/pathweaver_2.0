@@ -88,9 +88,9 @@ class Config:
             for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
             if origin.strip()
         ] or [
-            'https://optio-dev-frontend.onrender.com',
-            'https://optio-dev-v2-frontend.onrender.com',
-            'https://optio-prod-frontend.onrender.com',
+            'https://optio-dev-frontend-r3v8.onrender.com',
+            'https://optio-dev-v2-frontend-x1dk.onrender.com',
+            'https://optio-prod-frontend-ch7c.onrender.com',
             'https://www.optioeducation.com',
             'https://optioeducation.com',
             'https://sis.optioeducation.com',  # SIS console (shares api.optioeducation.com)

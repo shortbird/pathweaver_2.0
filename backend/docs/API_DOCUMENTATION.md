@@ -22,12 +22,12 @@ The platform includes built-in Swagger UI for interactive API exploration:
 
 **Development Environment:**
 ```
-https://optio-dev-backend.onrender.com/api/docs
+https://optio-dev-backend-5flj.onrender.com/api/docs
 ```
 
 **Production Environment:**
 ```
-https://optio-prod-backend.onrender.com/api/docs
+https://optio-prod-backend-966k.onrender.com/api/docs
 ```
 
 ### Features
@@ -114,8 +114,8 @@ The OpenAPI spec includes:
 - License details
 
 **Servers:**
-- Development: `https://optio-dev-backend.onrender.com`
-- Production: `https://optio-prod-backend.onrender.com`
+- Development: `https://optio-dev-backend-5flj.onrender.com`
+- Production: `https://optio-prod-backend-966k.onrender.com`
 
 **Security Schemes:**
 - `cookieAuth`: httpOnly cookies (access_token, refresh_token)

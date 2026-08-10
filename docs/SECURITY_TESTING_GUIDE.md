@@ -1,7 +1,7 @@
 # Security Testing Guide - Week 1 Verification
 
-**Environment**: https://optio-dev-frontend.onrender.com (Frontend)
-**API**: https://optio-dev-backend.onrender.com (Backend)
+**Environment**: https://optio-dev-frontend-r3v8.onrender.com (Frontend)
+**API**: https://optio-dev-backend-5flj.onrender.com (Backend)
 **Date**: January 2025
 
 ## Overview
@@ -16,7 +16,7 @@ This guide provides manual security testing procedures to verify Week 1 security
 
 **Method**: Browser DevTools Network Tab
 
-1. Open https://optio-dev-frontend.onrender.com
+1. Open https://optio-dev-frontend-r3v8.onrender.com
 2. Open DevTools (F12) → Network tab
 3. Refresh the page
 4. Click on the main document request
@@ -45,7 +45,7 @@ This guide provides manual security testing procedures to verify Week 1 security
 2. Open DevTools Console
 3. Run:
    ```javascript
-   fetch('https://optio-dev-backend.onrender.com/api/health', {
+   fetch('https://optio-dev-backend-5flj.onrender.com/api/health', {
      credentials: 'include'
    })
    .then(r => r.json())
@@ -60,11 +60,11 @@ This guide provides manual security testing procedures to verify Week 1 security
 
 **Method**: From Optio Frontend
 
-1. Open https://optio-dev-frontend.onrender.com
+1. Open https://optio-dev-frontend-r3v8.onrender.com
 2. Open DevTools Console
 3. Run:
    ```javascript
-   fetch('https://optio-dev-backend.onrender.com/api/health', {
+   fetch('https://optio-dev-backend-5flj.onrender.com/api/health', {
      credentials: 'include'
    })
    .then(r => r.json())
@@ -82,7 +82,7 @@ This guide provides manual security testing procedures to verify Week 1 security
 
 **Method**: Registration Form
 
-1. Go to https://optio-dev-frontend.onrender.com/register
+1. Go to https://optio-dev-frontend-r3v8.onrender.com/register
 2. Try registering with weak passwords:
    - `password123` (too simple)
    - `short1!` (too short, <12 chars)
@@ -117,7 +117,7 @@ This guide provides manual security testing procedures to verify Week 1 security
 
 **Method**: Manual Login Attempts
 
-1. Go to https://optio-dev-frontend.onrender.com/login
+1. Go to https://optio-dev-frontend-r3v8.onrender.com/login
 2. Attempt login with wrong password 5 times rapidly
 3. Wait 1 minute
 4. Attempt 6th login
@@ -140,8 +140,8 @@ This guide provides manual security testing procedures to verify Week 1 security
 1. Log in to get authenticated
 2. Try malicious UUID in URL:
    ```
-   https://optio-dev-frontend.onrender.com/users/'; DROP TABLE users; --
-   https://optio-dev-frontend.onrender.com/users/1' OR '1'='1
+   https://optio-dev-frontend-r3v8.onrender.com/users/'; DROP TABLE users; --
+   https://optio-dev-frontend-r3v8.onrender.com/users/1' OR '1'='1
    ```
 
 **Expected Result**: 400 Bad Request or 404 Not Found (not executed)
@@ -265,7 +265,7 @@ This guide provides manual security testing procedures to verify Week 1 security
 2. Get your session cookie from DevTools
 3. Try making a POST request from external site or curl without CSRF token:
    ```bash
-   curl -X POST https://optio-dev-backend.onrender.com/api/quests/12345/start \
+   curl -X POST https://optio-dev-backend-5flj.onrender.com/api/quests/12345/start \
      -H "Cookie: your-session-cookie" \
      -H "Content-Type: application/json" \
      -d '{}'

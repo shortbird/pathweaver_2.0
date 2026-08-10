@@ -15,8 +15,8 @@ After implementing httpOnly cookie authentication (ADR-003), we discovered that 
 
 **Safari ITP blocks cookies in cross-origin contexts**:
 
-1. **Frontend domain**: `optio-dev-frontend.onrender.com`
-2. **Backend domain**: `optio-dev-backend.onrender.com`
+1. **Frontend domain**: `optio-dev-frontend-r3v8.onrender.com`
+2. **Backend domain**: `optio-dev-backend-5flj.onrender.com`
 3. **Cross-origin**: Different subdomains = third-party cookies
 4. **Safari ITP**: Blocks third-party cookies automatically
 
@@ -477,7 +477,7 @@ response.set_cookie('access_token', token, partitioned=True, ...)
 1. **Safari Desktop**:
    - Open Safari
    - Clear cookies (Safari → Preferences → Privacy → Manage Website Data)
-   - Visit `https://optio-dev-frontend.onrender.com`
+   - Visit `https://optio-dev-frontend-r3v8.onrender.com`
    - Login
    - Check: localStorage has tokens
    - Check: Authenticated requests work

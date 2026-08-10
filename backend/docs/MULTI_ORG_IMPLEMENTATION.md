@@ -204,7 +204,7 @@ lms_integrations (MODIFIED)
 **Status:** 🔴 Not Started
 **Estimated Time:** 2-3 hours
 
-**Testing Environment:** https://optio-dev-frontend.onrender.com (or production after deployment)
+**Testing Environment:** https://optio-dev-frontend-r3v8.onrender.com (or production after deployment)
 
 **Prerequisites:**
 - Superadmin account credentials (your account)
@@ -215,7 +215,7 @@ lms_integrations (MODIFIED)
 #### Test 1: Organization Creation & Management (Superadmin)
 
 **Steps:**
-1. Login as superadmin at https://optio-dev-frontend.onrender.com/login
+1. Login as superadmin at https://optio-dev-frontend-r3v8.onrender.com/login
 2. Navigate to `/admin/organizations`
 3. Click "Create Organization"
 4. Fill in form:
@@ -381,7 +381,7 @@ lms_integrations (MODIFIED)
 
 **Steps:**
 1. Open browser in incognito/private mode
-2. Navigate to https://optio-dev-frontend.onrender.com/quests (without logging in)
+2. Navigate to https://optio-dev-frontend-r3v8.onrender.com/quests (without logging in)
 3. Observe visible quests
 
 **Expected Results:**
@@ -551,11 +551,11 @@ SELECT policyname FROM pg_policies WHERE tablename = 'quests';
 **Verification:**
 ```bash
 # Test organizations endpoint
-curl https://optio-dev-backend.onrender.com/api/admin/organizations/organizations \
+curl https://optio-dev-backend-5flj.onrender.com/api/admin/organizations/organizations \
   -b cookies.txt
 
 # Test quest listing
-curl https://optio-dev-backend.onrender.com/api/quests \
+curl https://optio-dev-backend-5flj.onrender.com/api/quests \
   -b cookies.txt
 ```
 
@@ -568,7 +568,7 @@ curl https://optio-dev-backend.onrender.com/api/quests \
 2. [ ] Frontend auto-deploys when backend is done (same commit)
 3. [ ] Monitor Render deployment logs for frontend
 4. [ ] Verify frontend build succeeded
-5. [ ] Visit https://optio-dev-frontend.onrender.com
+5. [ ] Visit https://optio-dev-frontend-r3v8.onrender.com
 6. [ ] Test organization management UI
 
 **Verification:**

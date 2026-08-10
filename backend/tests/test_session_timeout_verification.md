@@ -107,7 +107,7 @@ This ensures that even if a token's JWT `exp` claim hasn't expired, the session 
 
 ## Testing on Deployed Environment
 
-Once deployed to https://optio-dev-frontend.onrender.com:
+Once deployed to https://optio-dev-frontend-r3v8.onrender.com:
 
 1. Set `SESSION_TIMEOUT_HOURS=0.01` in Render environment variables
 2. Login to create a session

@@ -181,10 +181,10 @@ def init_swagger(app):
     import os
     env = os.getenv('FLASK_ENV', 'development')
     if env == 'production':
-        SWAGGER_TEMPLATE['host'] = 'optio-prod-backend.onrender.com'
+        SWAGGER_TEMPLATE['host'] = 'optio-prod-backend-966k.onrender.com'
         SWAGGER_TEMPLATE['schemes'] = ['https']
     else:
-        SWAGGER_TEMPLATE['host'] = 'optio-dev-backend.onrender.com'
+        SWAGGER_TEMPLATE['host'] = 'optio-dev-backend-5flj.onrender.com'
         SWAGGER_TEMPLATE['schemes'] = ['https', 'http']
 
     swagger = Swagger(app, config=SWAGGER_CONFIG, template=SWAGGER_TEMPLATE)

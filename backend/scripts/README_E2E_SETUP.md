@@ -132,7 +132,7 @@ When developing or debugging E2E tests locally:
 
 3. **Run tests** (on deployed environment):
    ```bash
-   # Note: Tests run against https://optio-dev-frontend.onrender.com
+   # Note: Tests run against https://optio-dev-frontend-r3v8.onrender.com
    # NOT localhost (per CLAUDE.md)
    npx playwright test --project=chromium
    ```

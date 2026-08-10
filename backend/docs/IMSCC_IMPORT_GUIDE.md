@@ -122,7 +122,7 @@ Tasks are linked to the quest via `user_quest_tasks` table (created per-student 
    - Select "Export" and download the .imscc file
 
 2. **Test Upload**
-   - Navigate to https://optio-dev-frontend.onrender.com/admin/course-import
+   - Navigate to https://optio-dev-frontend-r3v8.onrender.com/admin/course-import
    - Upload the .imscc file
    - Click "Parse & Preview"
 
@@ -135,12 +135,12 @@ Tasks are linked to the quest via `user_quest_tasks` table (created per-student 
 
 ```bash
 # Preview endpoint
-curl -X POST https://optio-dev-backend.onrender.com/api/admin/courses/import/preview \
+curl -X POST https://optio-dev-backend-5flj.onrender.com/api/admin/courses/import/preview \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "imscc_file=@/path/to/course.imscc"
 
 # Validation endpoint
-curl -X POST https://optio-dev-backend.onrender.com/api/admin/courses/import/validate \
+curl -X POST https://optio-dev-backend-5flj.onrender.com/api/admin/courses/import/validate \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "imscc_file=@/path/to/course.imscc"
 ```

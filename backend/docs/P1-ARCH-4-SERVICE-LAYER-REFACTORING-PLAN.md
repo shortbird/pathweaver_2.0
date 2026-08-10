@@ -311,7 +311,7 @@ def get_badges():
 
 **Test Approach**:
 1. Run existing backend tests
-2. Manual testing on https://optio-dev-frontend.onrender.com
+2. Manual testing on https://optio-dev-frontend-r3v8.onrender.com
 3. Monitor Supabase logs for RLS errors
 4. Check all route handlers work correctly
 
