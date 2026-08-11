@@ -13,6 +13,7 @@ from repositories.user_repository import UserRepository
 from repositories.quest_repository import QuestRepository
 from database import get_supabase_admin_client, get_user_client
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
+from utils.roles import has_any_role
 
 from utils.logger import get_logger
 
@@ -62,7 +63,7 @@ class QuestInvitationService(BaseService):
             if not advisor:
                 raise NotFoundError("Advisor not found")
 
-            if advisor['role'] not in ['advisor', 'org_admin', 'superadmin']:
+            if not has_any_role(advisor, ['advisor', 'org_admin', 'superadmin']):
                 raise AuthorizationError("Only advisors and admins can invite students to quests")
 
             organization_id = advisor.get('organization_id')
@@ -269,12 +270,13 @@ class QuestInvitationService(BaseService):
             if not advisor:
                 raise NotFoundError("Advisor not found")
 
-            if advisor['role'] not in ['advisor', 'org_admin', 'superadmin']:
+            if not has_any_role(advisor, ['advisor', 'org_admin', 'superadmin']):
                 raise AuthorizationError("Only advisors and admins can view invitations")
 
+            # Platform advisors (no organization) have no org invitations to list.
             organization_id = advisor.get('organization_id')
             if not organization_id:
-                raise ValidationError("Advisor must belong to an organization")
+                return []
 
             return self.invitation_repo.get_invitations_by_organization(
                 organization_id=organization_id,

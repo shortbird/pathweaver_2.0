@@ -9,7 +9,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 """
 
 from flask import Blueprint, jsonify, request
-from utils.auth.decorators import require_auth, require_role
+from utils.auth.decorators import require_role
 from services.task_library_service import TaskLibraryService
 import logging
 
@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 @bp.route('/flagged-tasks', methods=['GET'])
-@require_auth
 @require_role('admin')
-def get_flagged_tasks():
+def get_flagged_tasks(user_id: str):
     """
     Get all tasks flagged for admin review.
     Admin only endpoint.
@@ -49,9 +48,8 @@ def get_flagged_tasks():
 
 
 @bp.route('/flagged-tasks/<task_id>/flags', methods=['GET'])
-@require_auth
 @require_role('admin')
-def get_task_flags(task_id):
+def get_task_flags(user_id: str, task_id):
     """
     Get all flag reports for a specific task.
     Shows who flagged it and why.
@@ -78,9 +76,8 @@ def get_task_flags(task_id):
 
 
 @bp.route('/flagged-tasks/<task_id>/approve', methods=['POST'])
-@require_auth
 @require_role('admin')
-def approve_flagged_task(task_id):
+def approve_flagged_task(user_id: str, task_id):
     """
     Admin approval: Clear flags and make task visible again.
     Resets flag_count and is_flagged.
@@ -112,9 +109,8 @@ def approve_flagged_task(task_id):
 
 
 @bp.route('/flagged-tasks/<task_id>', methods=['DELETE'])
-@require_auth
 @require_role('admin')
-def delete_flagged_task(task_id):
+def delete_flagged_task(user_id: str, task_id):
     """
     Admin deletion: Permanently remove task from library.
     Use for truly inappropriate content.
