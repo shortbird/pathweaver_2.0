@@ -103,6 +103,37 @@ class TestFiring:
 
         assert len(canary._reported) <= canary._MAX_REPORTED
 
+    def test_silent_on_a_full_page_of_an_explicitly_paged_read(self):
+        """fetch_all_rows pages at exactly the cap, so every full page holds
+        cap rows — that is paging working, not truncation. Warning on it buried
+        the real hits under noise (OPTIO-BACKEND-39: 180 events from the one
+        read pattern that cannot silently truncate)."""
+        url = ('https://x/rest/v1/class_enrollments?class_id=in.%28a%2Cb%29'
+               '&status=eq.active&order=id&limit=1000&offset=0')
+        with patch.object(canary.Config, 'POSTGREST_MAX_ROWS', 1000), \
+             patch.object(canary.logger, 'warning') as warn:
+            canary._on_response(_response('0-999/*', url))
+
+        warn.assert_not_called()
+
+    def test_warns_when_the_requested_limit_exceeds_the_cap(self):
+        """`.limit(5000)` capped to 1000 rows IS silent truncation — PostgREST
+        overrode the caller's bound, which is exactly the trap being watched."""
+        url = 'https://x/rest/v1/class_enrollments?status=eq.active&limit=5000'
+        with patch.object(canary.Config, 'POSTGREST_MAX_ROWS', 1000), \
+             patch.object(canary.logger, 'warning') as warn:
+            canary._on_response(_response('0-999/*', url))
+
+        warn.assert_called_once()
+
+    def test_an_unparseable_limit_still_warns(self):
+        url = 'https://x/rest/v1/class_enrollments?status=eq.active&limit=abc'
+        with patch.object(canary.Config, 'POSTGREST_MAX_ROWS', 1000), \
+             patch.object(canary.logger, 'warning') as warn:
+            canary._on_response(_response('0-999/*', url))
+
+        warn.assert_called_once()
+
     def test_filter_values_are_not_logged(self):
         """Query shapes go to logs and Sentry, so they must carry filter KEYS
         only — never the ids or emails being filtered on."""

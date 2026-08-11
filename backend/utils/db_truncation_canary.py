@@ -24,6 +24,15 @@ read-only: it inspects headers, never the body (reading the body inside a
 response hook would interfere with the caller), and swallows everything. It
 cannot change a query's result.
 
+Reads that bound themselves are skipped. A request carrying an explicit `limit`
+query param within the cap (`.limit(n)` / `.range(a, b)` both send one) asked
+for at most that many rows and got them — the cap cut nothing. Without this,
+`fetch_all_rows` itself trips the canary on every full page, because it pages
+at exactly the cap: the one read pattern that is definitionally safe produced
+most of the alarms (OPTIO-BACKEND-39, 180 events), burying the real ones. A
+request whose `limit` EXCEEDS the cap still warns — PostgREST silently
+overrides it, which is exactly the trap this canary exists to catch.
+
 ## Acting on a warning
 
 A hit means some read is returning a truncated row set and whatever is computed
@@ -66,6 +75,18 @@ def _rows_in(content_range: str) -> Optional[int]:
         return None
 
 
+def _caller_bounded(url: Any, cap: int) -> bool:
+    """True when the request's own `limit` param is within the cap, meaning the
+    caller asked for at most this many rows and PostgREST honored it — nothing
+    was silently cut. `.limit(n)` and `.range(a, b)` both send the param; a
+    limit above the cap is NOT honored, so it does not count as bounded."""
+    try:
+        limit = url.params.get('limit')
+        return limit is not None and int(limit) <= cap
+    except Exception:  # noqa: BLE001 — an unparseable limit falls back to warning
+        return False
+
+
 def _shape(url: Any) -> str:
     """A stable label for the query — its path plus the filter keys, without the
     filter VALUES, so ids and emails stay out of the logs."""
@@ -86,6 +107,8 @@ def _on_response(response: Any) -> None:
             return
         rows = _rows_in(content_range)
         if rows is None or rows < cap:
+            return
+        if _caller_bounded(response.request.url, cap):
             return
 
         shape = _shape(response.request.url)
