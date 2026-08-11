@@ -70,13 +70,15 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
             >
               <Cog6ToothIcon className="w-5 h-5" />
             </button>
-            {/* Desktop: full button at bottom right */}
+            {/* Desktop: full button at bottom right. Named for what it opens
+                (this child's settings) so it doesn't read as a sibling of the
+                page-level "Family Settings" button. */}
             <button
               onClick={onEditClick}
               className="hidden md:flex absolute bottom-4 right-4 items-center gap-2 px-3 py-2 border border-white/50 text-white rounded-lg text-sm font-medium bg-transparent hover:bg-white/20 hover:border-white transition-all"
             >
               <Cog6ToothIcon className="w-4 h-4" />
-              Actions
+              {data.user?.first_name ? `Manage ${data.user.first_name}` : 'Manage student'}
             </button>
           </>
         )}
@@ -84,23 +86,6 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
 
       {/* Class schedule (SIS families only; renders nothing otherwise) */}
       {!isObserver && <StudentSchedulePreview studentId={studentId} />}
-
-      {/* Brand-new student: with hideEmptySections active, every section below
-          would vanish and the page reads as broken. Explain what will appear
-          here and what to do if a class was expected but isn't showing. */}
-      {data.enrolledCourses?.length === 0 && data.activeQuests?.length === 0 && !data.totalXp && (
-        <div className="bg-optio-purple/5 border border-optio-purple/10 rounded-xl p-5">
-          <h3 className="font-semibold text-gray-900 mb-2">
-            {data.user?.first_name || 'Your student'} is just getting started
-          </h3>
-          <p className="text-sm text-gray-600">
-            Classes, projects, and completed work will appear on this page as{' '}
-            {data.user?.first_name || 'your student'} gets going. If you expected to see a class
-            here already, their school or program still needs to enroll them — once that happens,
-            the class and its projects show up automatically.
-          </p>
-        </div>
-      )}
 
       <StudentOverviewSections
         data={data}

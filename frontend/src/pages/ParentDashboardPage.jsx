@@ -18,7 +18,6 @@ import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSe
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
-import ChildPrivacyCard from '../components/parent/ChildPrivacyCard';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import { GlassTabBar, PageLoader } from '../components/ui';
 
@@ -140,17 +139,42 @@ const ParentDashboardPage = () => {
     }
   };
 
-  // Handle dependent creation success
+  // Reload both lists in place (no full page reload).
+  const reloadFamily = async () => {
+    const [childrenResponse, dependentsResponse] = await Promise.all([
+      parentAPI.getMyChildren(),
+      getMyDependents()
+    ]);
+    const childrenData = childrenResponse.data.children || [];
+    const childIds = new Set(childrenData.map((c) => c.student_id));
+    const dependentsData = (dependentsResponse.dependents || []).filter((d) => !childIds.has(d.id));
+    setChildren(childrenData);
+    setDependents(dependentsData);
+    setOverviewRefreshKey(prev => prev + 1);
+    return { childrenData, dependentsData };
+  };
+
+  // Handle child creation success (dependent or linked teen account)
   const handleChildAdded = async (result) => {
-    toast.success(result.message || 'Dependent profile created');
+    toast.success(result.message || 'Child added');
 
     // Refresh user data to update has_dependents flag in AuthContext
     // This ensures the sidebar shows the parent dashboard link immediately
     await refreshUser();
 
-    // Reload the page to refresh the children/dependents list
-    // This ensures the ProfileSwitcher shows the new dependent
-    window.location.reload();
+    try {
+      const { childrenData, dependentsData } = await reloadFamily();
+      // Select the newly added child so the parent lands on them
+      const newId = result.student?.id || result.dependent?.id;
+      if (newId) {
+        setSelectedStudentId(newId);
+      } else if (!selectedStudentId) {
+        setSelectedStudentId(childrenData[0]?.student_id || dependentsData[0]?.id || null);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error reloading children:', error);
+    }
   };
 
   // === CONDITIONAL RETURNS (must come AFTER all hooks) ===
@@ -286,14 +310,6 @@ const ParentDashboardPage = () => {
 
         {/* Header Action Buttons */}
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {selectedStudentId && Boolean(user?.organization_id) && (
-            <button
-              onClick={() => navigate(`/family/students/${selectedStudentId}`)}
-              className="btn-secondary"
-            >
-              View record
-            </button>
-          )}
           <button
             onClick={() => setShowFamilySettingsModal(true)}
             className="btn-primary"
@@ -384,24 +400,6 @@ const ParentDashboardPage = () => {
           {/* FERPA Compliance: Portfolio Visibility Approval Requests */}
           <VisibilityApprovalSection />
 
-          {/* Who can see this child's work, and the links that grant access.
-              Sits above the overview because it is the setting a parent is
-              most likely to have come here to check. */}
-          {selectedStudentId && (
-            <div className="mb-6">
-              <ChildPrivacyCard
-                key={`privacy-${selectedStudentId}-${overviewRefreshKey}`}
-                studentId={selectedStudentId}
-                studentName={(() => {
-                  const d = dependents.find((x) => x.id === selectedStudentId);
-                  if (d) return (`${d.first_name || ''}`.trim() || d.display_name || 'your child');
-                  const c = children.find((x) => x.student_id === selectedStudentId);
-                  return (c && (`${c.first_name || ''}`.trim() || c.display_name)) || 'your child';
-                })()}
-              />
-            </div>
-          )}
-
           {/* Child Overview Content - uses StudentOverviewPage components */}
           {selectedStudentId && (
             <ChildOverviewContent
@@ -445,16 +443,8 @@ const ParentDashboardPage = () => {
         child={selectedDependentForSettings}
         isDependent={selectedChildIsDependent}
         onUpdate={async () => {
-          // Reload dependents and children list to get updated data
           try {
-            const [childrenResponse, dependentsResponse] = await Promise.all([
-              parentAPI.getMyChildren(),
-              getMyDependents()
-            ]);
-            setChildren(childrenResponse.data.children || []);
-            setDependents(dependentsResponse.dependents || []);
-            // Trigger ChildOverviewContent refresh by changing its key
-            setOverviewRefreshKey(prev => prev + 1);
+            await reloadFamily();
           } catch (error) {
             console.error('Error reloading children:', error);
           }
@@ -467,18 +457,11 @@ const ParentDashboardPage = () => {
         onClose={() => setShowFamilySettingsModal(false)}
         children={children}
         dependents={dependents}
-        onChildAdded={async () => {
-          // Reload dependents list
-          try {
-            const response = await getMyDependents();
-            setDependents(response.dependents || []);
-            // Select the new dependent if none selected
-            if (!selectedStudentId && response.dependents?.length > 0) {
-              setSelectedStudentId(response.dependents[response.dependents.length - 1].id);
-            }
-          } catch (error) {
-            console.error('Error reloading dependents:', error);
-          }
+        onAddChild={() => {
+          // One add-child door for both ages: close family settings and open
+          // the shared AddChildModal instead of an inline under-13-only form.
+          setShowFamilySettingsModal(false);
+          setShowAddChildModal(true);
         }}
         onChildSettingsClick={(child) => {
           // Close family settings and open child settings
@@ -497,13 +480,7 @@ const ParentDashboardPage = () => {
         }}
         onRefresh={async () => {
           try {
-            const [childrenResponse, dependentsResponse] = await Promise.all([
-              parentAPI.getMyChildren(),
-              getMyDependents()
-            ]);
-            setChildren(childrenResponse.data.children || []);
-            setDependents(dependentsResponse.dependents || []);
-            setOverviewRefreshKey(prev => prev + 1);
+            await reloadFamily();
           } catch (error) {
             console.error('Error refreshing:', error);
           }

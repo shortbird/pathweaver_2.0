@@ -15,12 +15,19 @@ import { GlobeAltIcon, LockClosedIcon, LinkIcon } from '@heroicons/react/24/outl
  * Both directions are offered here, and making work private is deliberately
  * the low-friction one -- it takes a single click, with no confirmation step
  * standing between a parent and their child's privacy.
+ *
+ * Rendering is state-proportional: when the portfolio is private and nothing
+ * needs a decision, this collapses to a one-line status strip so it doesn't
+ * dominate the dashboard. The full card appears only when something is
+ * actionable -- the portfolio is public, the state couldn't be read, the
+ * child is waiting on approval -- or when the parent expands it.
  */
 const ChildPrivacyCard = ({ studentId, studentName }) => {
   const [status, setStatus] = useState(null);
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!studentId) return;
@@ -85,6 +92,36 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
   // "private" in that case is what misled parents before.
   const unknown = !!status.unknown;
 
+  const activeShares = shares.filter((s) => s.is_active).length;
+  // Private, readable, no pending request: nothing needs the parent's
+  // attention, so stay out of the way unless they ask.
+  const quiet = !isPublic && !unknown && !status.pending_parent_approval;
+
+  if (quiet && !expanded) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0 text-sm">
+          <LockClosedIcon className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+          <span className="text-gray-600 truncate">
+            <span className="font-medium text-gray-900">{studentName}&rsquo;s portfolio: Private</span>
+            {activeShares > 0 && (
+              <span>
+                {' '}&middot; {activeShares} transcript link{activeShares === 1 ? '' : 's'} shared
+              </span>
+            )}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-sm font-medium text-optio-purple hover:underline flex-shrink-0"
+        >
+          Manage
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-start justify-between gap-4">
@@ -113,18 +150,58 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
                 Made public on {new Date(status.consent_given_at).toLocaleDateString()}
               </p>
             )}
+            {isPublic && status.portfolio_slug && (
+              <div className="flex items-center gap-2 mt-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/portfolio/${status.portfolio_slug}`}
+                  onFocus={(e) => e.target.select()}
+                  aria-label="Public portfolio link"
+                  className="flex-1 min-w-0 px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600 truncate"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(`${window.location.origin}/portfolio/${status.portfolio_slug}`);
+                    toast.success('Link copied');
+                  }}
+                  className="flex-shrink-0 text-sm font-medium text-optio-purple hover:underline"
+                >
+                  Copy
+                </button>
+                <a
+                  href={`/portfolio/${status.portfolio_slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 text-sm font-medium text-optio-purple hover:underline"
+                >
+                  View
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
-        <Button
-          variant={isPublic ? 'secondary' : 'primary'}
-          onClick={() => setVisibility(!isPublic)}
-          disabled={saving}
-          loading={saving}
-          className="flex-shrink-0"
-        >
-          {isPublic ? 'Make private' : 'Make public'}
-        </Button>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <Button
+            variant={isPublic ? 'secondary' : 'primary'}
+            onClick={() => setVisibility(!isPublic)}
+            disabled={saving}
+            loading={saving}
+          >
+            {isPublic ? 'Make private' : 'Make public'}
+          </Button>
+          {quiet && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-sm text-gray-500 hover:text-gray-700 hover:underline"
+            >
+              Hide
+            </button>
+          )}
+        </div>
       </div>
 
       {status.pending_parent_approval && (

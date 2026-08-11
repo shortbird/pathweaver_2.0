@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Modal, Alert, Spinner } from '../ui';
 import { observerAPI, parentAPI } from '../../services/api';
-import { createDependent, updateDependentAIFeatures } from '../../services/dependentAPI';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardDocumentIcon,
@@ -14,36 +13,29 @@ import {
   UserIcon,
   Cog6ToothIcon,
   PlusIcon,
-  XMarkIcon,
-  SparklesIcon,
-  ChatBubbleLeftRightIcon,
-  LightBulbIcon,
-  ClipboardDocumentListIcon,
+  LockClosedIcon,
   ArrowUpCircleIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import ChildPrivacyCard from './ChildPrivacyCard';
 
 /**
  * FamilySettingsModal - Unified family management modal.
  * Combines: Children, Family Observers, and Parents/Guardians management.
+ * Per-child settings (profile, login, AI features) live in the child's own
+ * settings modal, reached from the Children tab -- not duplicated here.
  */
 const FamilySettingsModal = ({
   isOpen,
   onClose,
   children = [],
   dependents = [],
-  onChildAdded,
+  onAddChild,
   onChildSettingsClick,
   onRefresh
 }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('children');
-
-  // Children state
-  const [showAddChildForm, setShowAddChildForm] = useState(false);
-  const [childForm, setChildForm] = useState({ first_name: '', last_name: '', date_of_birth: '' });
-  const [childFormError, setChildFormError] = useState('');
-  const [isAddingChild, setIsAddingChild] = useState(false);
 
   // Observers state
   const [observers, setObservers] = useState([]);
@@ -59,30 +51,19 @@ const FamilySettingsModal = ({
   const [loadingParents, setLoadingParents] = useState(false);
   const [promotingObserver, setPromotingObserver] = useState(null);
 
-  // AI Settings state - only track loading states (settings come from props)
-  const [aiSettingsLoading, setAiSettingsLoading] = useState({});
-
-  // All children combined with AI settings
+  // All children combined
   const allChildren = [
     ...dependents.map(d => ({
       id: d.id,
       name: d.display_name,
       avatar_url: d.avatar_url,
-      type: 'dependent',
-      ai_features_enabled: d.ai_features_enabled,
-      ai_chatbot_enabled: d.ai_chatbot_enabled ?? true,
-      ai_lesson_helper_enabled: d.ai_lesson_helper_enabled ?? true,
-      ai_task_generation_enabled: d.ai_task_generation_enabled ?? true
+      type: 'dependent'
     })),
     ...children.map(c => ({
       id: c.student_id,
       name: `${c.student_first_name} ${c.student_last_name || ''}`.trim(),
       avatar_url: c.student_avatar_url,
-      type: 'linked',
-      ai_features_enabled: c.ai_features_enabled,
-      ai_chatbot_enabled: c.ai_chatbot_enabled ?? true,
-      ai_lesson_helper_enabled: c.ai_lesson_helper_enabled ?? true,
-      ai_task_generation_enabled: c.ai_task_generation_enabled ?? true
+      type: 'linked'
     }))
   ];
 
@@ -130,58 +111,6 @@ const FamilySettingsModal = ({
       console.error('Failed to load parents:', err);
     } finally {
       setLoadingParents(false);
-    }
-  };
-
-  const calculateAge = (birthDate) => {
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
-  // Children handlers
-  const handleAddChild = async (e) => {
-    e.preventDefault();
-    setChildFormError('');
-
-    if (!childForm.first_name.trim() || !childForm.last_name.trim()) {
-      setChildFormError('First and last name are required');
-      return;
-    }
-
-    if (!childForm.date_of_birth) {
-      setChildFormError('Date of birth is required');
-      return;
-    }
-
-    const age = calculateAge(childForm.date_of_birth);
-    if (age >= 13) {
-      setChildFormError('Child must be under 13. For teens 13+, email support@optioeducation.com to link their existing account.');
-      return;
-    }
-
-    setIsAddingChild(true);
-    try {
-      const displayName = `${childForm.first_name.trim()} ${childForm.last_name.trim()}`;
-      await createDependent({
-        display_name: displayName,
-        date_of_birth: childForm.date_of_birth,
-        avatar_url: null
-      });
-      toast.success(`Profile created for ${displayName}`);
-      setChildForm({ first_name: '', last_name: '', date_of_birth: '' });
-      setShowAddChildForm(false);
-      onChildAdded?.();
-      onRefresh?.();
-    } catch (err) {
-      setChildFormError(err.response?.data?.error || 'Failed to create profile');
-    } finally {
-      setIsAddingChild(false);
     }
   };
 
@@ -253,30 +182,6 @@ const FamilySettingsModal = ({
     }
   };
 
-  // AI Settings handlers
-  const handleToggleAIFeature = async (childId, feature, currentValue) => {
-    const loadingKey = `${childId}-${feature}`;
-    setAiSettingsLoading(prev => ({ ...prev, [loadingKey]: true }));
-
-    try {
-      const newValue = !currentValue;
-      await updateDependentAIFeatures(childId, { [feature]: newValue });
-
-      const featureNames = {
-        chatbot: 'AI Tutor',
-        lesson_helper: 'Lesson Helper',
-        task_generation: 'Task Suggestions'
-      };
-      toast.success(`${featureNames[feature]} ${newValue ? 'enabled' : 'disabled'}`);
-      // Refresh to get updated data from server
-      onRefresh?.();
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to update setting');
-    } finally {
-      setAiSettingsLoading(prev => ({ ...prev, [loadingKey]: false }));
-    }
-  };
-
   // Parent handlers
   const handlePromoteObserver = async (observerId, observerName) => {
     if (!window.confirm(`Make ${observerName} a parent? They will have full access to manage your children's accounts.`)) {
@@ -297,9 +202,6 @@ const FamilySettingsModal = ({
   };
 
   const handleClose = () => {
-    setShowAddChildForm(false);
-    setChildForm({ first_name: '', last_name: '', date_of_birth: '' });
-    setChildFormError('');
     setGeneratedLink(null);
     onClose();
   };
@@ -312,7 +214,7 @@ const FamilySettingsModal = ({
 
   const tabs = [
     { id: 'children', label: 'Children', icon: UserIcon, count: allChildren.length },
-    { id: 'ai', label: 'AI Settings', icon: SparklesIcon },
+    { id: 'privacy', label: 'Privacy', icon: LockClosedIcon },
     { id: 'observers', label: 'Observers', icon: UserGroupIcon, count: observers.length },
     { id: 'parents', label: 'Parents', icon: UserPlusIcon, count: parents.length }
   ];
@@ -394,202 +296,38 @@ const FamilySettingsModal = ({
               </div>
             )}
 
-            {/* Add Child Form */}
-            {showAddChildForm ? (
-              <form onSubmit={handleAddChild} className="p-4 border border-gray-200 rounded-lg space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Add Child (Under 13)</h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddChildForm(false);
-                      setChildFormError('');
-                    }}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <XMarkIcon className="w-5 h-5 text-gray-400" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="First name"
-                    value={childForm.first_name}
-                    onChange={(e) => setChildForm({ ...childForm, first_name: e.target.value })}
-                    className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Last name"
-                    value={childForm.last_name}
-                    onChange={(e) => setChildForm({ ...childForm, last_name: e.target.value })}
-                    className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={childForm.date_of_birth}
-                    onChange={(e) => setChildForm({ ...childForm, date_of_birth: e.target.value })}
-                    max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                  />
-                </div>
-
-                {childFormError && (
-                  <p className="text-sm text-red-600">{childFormError}</p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isAddingChild}
-                  className="btn-primary w-full min-h-[44px]"
-                >
-                  {isAddingChild ? 'Creating...' : 'Create Profile'}
-                </button>
-              </form>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowAddChildForm(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                  Add Child (Under 13)
-                </button>
-
-                <div className="text-center text-sm text-gray-500 py-2">
-                  For teens 13+ with their own account, email{' '}
-                  <a href="mailto:support@optioeducation.com" className="text-optio-purple hover:underline">
-                    support@optioeducation.com
-                  </a>
-                </div>
-              </div>
-            )}
+            {/* One add-child door for both ages: the shared AddChildModal asks
+                the birth date and decides dependent vs. own account, so no
+                under-13-only form (or "email support" detour) lives here. */}
+            <button
+              onClick={onAddChild}
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Add Child
+            </button>
           </div>
         )}
 
-        {/* AI Settings Tab */}
-        {activeTab === 'ai' && (
-          <div className="space-y-4">
-            <Alert variant="info">
-              Control which AI features are available to each child. These settings can also be managed from each child's individual settings.
-            </Alert>
-
+        {/* Privacy Tab: who can see each child's work, and the links that
+            grant access. Lived on the dashboard itself until it proved too
+            prominent for a setting most parents only need to check. */}
+        {activeTab === 'privacy' && (
+          <div className="space-y-3">
             {allChildren.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <SparklesIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Add children first to manage their AI settings</p>
+                <LockClosedIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Add children first to manage portfolio privacy</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {allChildren.map(child => {
-                  // Always read from props - they're refreshed after each toggle
-                  const settings = {
-                    chatbot: child.ai_chatbot_enabled ?? true,
-                    lesson_helper: child.ai_lesson_helper_enabled ?? true,
-                    task_generation: child.ai_task_generation_enabled ?? true
-                  };
-
-                  return (
-                    <div key={child.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
-                      {/* Child Header */}
-                      <div className="flex items-center gap-3">
-                        {child.avatar_url ? (
-                          <img src={child.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
-                            {(child.name || 'C').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-gray-900">{child.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {child.type === 'dependent' ? 'Under 13 (managed)' : 'Linked student'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* AI Feature Toggles */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {/* AI Tutor */}
-                        <button
-                          onClick={() => handleToggleAIFeature(child.id, 'chatbot', settings.chatbot)}
-                          disabled={aiSettingsLoading[`${child.id}-chatbot`]}
-                          className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
-                            settings.chatbot
-                              ? 'border-green-300 bg-green-50'
-                              : 'border-gray-200 bg-white'
-                          } ${aiSettingsLoading[`${child.id}-chatbot`] ? 'opacity-50' : 'hover:border-optio-purple'}`}
-                        >
-                          <ChatBubbleLeftRightIcon className={`w-5 h-5 ${settings.chatbot ? 'text-green-600' : 'text-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium ${settings.chatbot ? 'text-green-700' : 'text-gray-600'}`}>
-                              AI Tutor
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {settings.chatbot ? 'Enabled' : 'Disabled'}
-                            </p>
-                          </div>
-                        </button>
-
-                        {/* Lesson Helper */}
-                        <button
-                          onClick={() => handleToggleAIFeature(child.id, 'lesson_helper', settings.lesson_helper)}
-                          disabled={aiSettingsLoading[`${child.id}-lesson_helper`]}
-                          className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
-                            settings.lesson_helper
-                              ? 'border-green-300 bg-green-50'
-                              : 'border-gray-200 bg-white'
-                          } ${aiSettingsLoading[`${child.id}-lesson_helper`] ? 'opacity-50' : 'hover:border-optio-purple'}`}
-                        >
-                          <LightBulbIcon className={`w-5 h-5 ${settings.lesson_helper ? 'text-green-600' : 'text-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium ${settings.lesson_helper ? 'text-green-700' : 'text-gray-600'}`}>
-                              Lesson Helper
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {settings.lesson_helper ? 'Enabled' : 'Disabled'}
-                            </p>
-                          </div>
-                        </button>
-
-                        {/* Task Suggestions */}
-                        <button
-                          onClick={() => handleToggleAIFeature(child.id, 'task_generation', settings.task_generation)}
-                          disabled={aiSettingsLoading[`${child.id}-task_generation`]}
-                          className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
-                            settings.task_generation
-                              ? 'border-green-300 bg-green-50'
-                              : 'border-gray-200 bg-white'
-                          } ${aiSettingsLoading[`${child.id}-task_generation`] ? 'opacity-50' : 'hover:border-optio-purple'}`}
-                        >
-                          <ClipboardDocumentListIcon className={`w-5 h-5 ${settings.task_generation ? 'text-green-600' : 'text-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium ${settings.task_generation ? 'text-green-700' : 'text-gray-600'}`}>
-                              Task Suggestions
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {settings.task_generation ? 'Enabled' : 'Disabled'}
-                            </p>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              allChildren.map(child => (
+                <ChildPrivacyCard
+                  key={child.id}
+                  studentId={child.id}
+                  studentName={(child.name || '').split(' ')[0] || 'your child'}
+                />
+              ))
             )}
-
-            {/* Feature descriptions */}
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-600 space-y-2">
-              <p><strong>AI Tutor:</strong> Educational conversations with an AI that adapts to their learning style.</p>
-              <p><strong>Lesson Helper:</strong> AI assistance within lessons to explain concepts.</p>
-              <p><strong>Task Suggestions:</strong> AI recommends tasks and provides feedback on ideas.</p>
-            </div>
           </div>
         )}
 
@@ -870,7 +608,7 @@ FamilySettingsModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   children: PropTypes.array,
   dependents: PropTypes.array,
-  onChildAdded: PropTypes.func,
+  onAddChild: PropTypes.func,
   onChildSettingsClick: PropTypes.func,
   onRefresh: PropTypes.func
 };

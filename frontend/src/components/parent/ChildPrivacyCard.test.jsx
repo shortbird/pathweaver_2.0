@@ -38,9 +38,33 @@ describe('ChildPrivacyCard', () => {
     expect(await screen.findByText(/Anyone with the link/i)).toBeInTheDocument()
   })
 
-  it('tells a parent when the work is private', async () => {
+  it('shows a compact private strip when nothing needs attention', async () => {
+    // Private + readable + no pending request: the card must not dominate the
+    // dashboard, so it collapses to a one-line status strip.
     mountWith({ is_public: false })
+    expect(await screen.findByText(/Robin.s portfolio: Private/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Only you and the people/i)).not.toBeInTheDocument()
+  })
+
+  it('expands the strip to the full controls on Manage', async () => {
+    mountWith({ is_public: false })
+    await userEvent.click(await screen.findByRole('button', { name: /manage/i }))
     expect(await screen.findByText(/Only you and the people/i)).toBeInTheDocument()
+  })
+
+  it('counts active transcript links on the compact strip', async () => {
+    mountWith({ is_public: false }, [
+      { id: 'g1', label: 'State University', is_active: true, view_count: 3 },
+      { id: 'g2', label: 'Old link', is_active: false, view_count: 0 }
+    ])
+    expect(await screen.findByText(/1 transcript link shared/i)).toBeInTheDocument()
+  })
+
+  it('shows the public link when the portfolio is public', async () => {
+    mountWith({ is_public: true, portfolio_slug: 'robin-r' })
+    const input = await screen.findByLabelText(/public portfolio link/i)
+    expect(input.value).toMatch(/\/portfolio\/robin-r$/)
+    expect(screen.getByRole('link', { name: /view/i })).toHaveAttribute('href', '/portfolio/robin-r')
   })
 
   it('lets a parent make a public portfolio private in one click', async () => {
@@ -60,6 +84,7 @@ describe('ChildPrivacyCard', () => {
 
   it('lets a parent publish on their child\'s behalf', async () => {
     mountWith({ is_public: false })
+    await userEvent.click(await screen.findByRole('button', { name: /manage/i }))
     await userEvent.click(await screen.findByRole('button', { name: /make public/i }))
 
     await waitFor(() => {
@@ -86,6 +111,7 @@ describe('ChildPrivacyCard', () => {
       { id: 'g1', label: 'State University', is_active: true, view_count: 3 }
     ])
 
+    await userEvent.click(await screen.findByRole('button', { name: /manage/i }))
     expect(await screen.findByText('State University')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /revoke/i }))
 
@@ -101,6 +127,7 @@ describe('ChildPrivacyCard', () => {
       { id: 'g1', label: 'Old link', is_active: false, view_count: 0 }
     ])
 
+    await userEvent.click(await screen.findByRole('button', { name: /manage/i }))
     expect(await screen.findByText('Old link')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /revoke/i })).not.toBeInTheDocument()
   })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { XMarkIcon, KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { Modal } from '../ui'
 import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateDependent } from '../../services/dependentAPI'
 import { observerAPI } from '../../services/api'
 import api from '../../services/api'
@@ -113,7 +114,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
     }
   }
 
-  if (!isOpen || !childData) return null
+  if (!childData) return null
 
   // Get child ID - could be 'id' (dependent) or 'student_id' (linked student)
   const childId = childData.id || childData.student_id
@@ -368,26 +369,13 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   tabs.push({ id: 'observers', label: 'Observers', icon: UserGroupIcon })
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-center justify-center p-4">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-
-        {/* Modal */}
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
-              Settings for {childName}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Settings for ${childName}`}
+      size="lg"
+    >
+      <div>
           {/* Tabs */}
           <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
             {tabs.map(tab => (
@@ -780,9 +768,8 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
               )}
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
