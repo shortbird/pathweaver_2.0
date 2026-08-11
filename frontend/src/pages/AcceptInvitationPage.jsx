@@ -36,20 +36,6 @@ export default function AcceptInvitationPage() {
   const [formErrors, setFormErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [resendStatus, setResendStatus] = useState('idle'); // idle | sending | sent | error
-
-  // A missing verification email is otherwise a dead end: login for an
-  // unverified account just says "Incorrect email or password".
-  const handleResendVerification = async () => {
-    setResendStatus('sending');
-    try {
-      await api.post('/api/auth/resend-verification', { email: formData.email });
-      setResendStatus('sent');
-    } catch (err) {
-      console.error('Failed to resend verification email:', err);
-      setResendStatus('error');
-    }
-  };
 
   // Initialize page - check auth, validate invitation, fetch settings
   useEffect(() => {
@@ -245,7 +231,13 @@ export default function AcceptInvitationPage() {
       });
 
       if (response.data.success) {
-        setSuccess(true);
+        if (response.data.new_user) {
+          // Verification is a 6-digit emailed code, not a link — send them to
+          // the code-entry page, which verifies and logs them straight in.
+          navigate('/email-verification', { state: { email: formData.email } });
+        } else {
+          setSuccess(true);
+        }
       } else {
         setError(response.data.error || 'Failed to accept invitation');
       }
@@ -378,56 +370,22 @@ export default function AcceptInvitationPage() {
       );
     }
 
-    // New user success - needs email verification
+    // New users never reach this render: handleSubmit routes them straight to
+    // /email-verification for the 6-digit code. Fallback for any stray state:
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h1>
-          <p className="text-gray-600 mb-2">
-            Your account has been created for <strong>{invitation?.organization?.name}</strong>.
-          </p>
-          {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
-            <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg text-sm text-optio-purple-dark mb-4">
-              <p>
-                You've been connected to:{' '}
-                <strong>
-                  {invitation.students.map((s, i) => (
-                    <span key={s.id}>
-                      {s.first_name} {s.last_name}
-                      {i < invitation.students.length - 1 ? (i === invitation.students.length - 2 ? ' and ' : ', ') : ''}
-                    </span>
-                  ))}
-                </strong>
-              </p>
-            </div>
-          )}
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Account Created</h1>
           <p className="text-gray-600 mb-6">
-            We've sent a verification link to <strong>{formData.email}</strong>. Please click the link to verify your email before logging in.
+            Your account has been created for <strong>{invitation?.organization?.name}</strong>.
+            Check your email for a 6-digit code, then verify it to log in.
           </p>
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 mb-4">
-            <p>Don't see the email? Check your spam folder or wait a few minutes.</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleResendVerification}
-            disabled={resendStatus === 'sending' || resendStatus === 'sent'}
-            className="w-full mb-6 px-4 py-2 rounded-lg border border-optio-purple text-optio-purple font-medium hover:bg-optio-purple/5 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {resendStatus === 'sent' ? 'Verification email sent'
-              : resendStatus === 'sending' ? 'Sending…'
-              : resendStatus === 'error' ? 'Could not resend — try again'
-              : 'Resend verification email'}
-          </button>
           <Link
-            to="/login"
+            to="/email-verification"
+            state={{ email: formData.email }}
             className="btn-primary"
           >
-            Go to Login
+            Enter Verification Code
           </Link>
         </div>
       </div>

@@ -22,8 +22,8 @@ Two standing links, shared by the school however they like. Each is multi-use
 (never consumed) and creates accounts directly inside the org:
 
 ```
-open /invitation/<code> -> email + name + password -> verification email
-  -> click verify, log in -> in the org
+open /invitation/<code> -> email + name + password -> 6-digit code emailed
+  -> enter code on /email-verification -> logged straight in, in the org
 ```
 
 - **Parent link** → org role `parent`; lands on the Parent Dashboard.
@@ -60,13 +60,13 @@ page says "Family registration is not set up", which is correct. Leave it.
 Use Gmail plus-aliases (`you+hwp1@gmail.com`) so every account has a real
 inbox. Fresh private window per run.
 
-- **Run A — new parent:** parent link → new email, name, password. Success
-  screen says check your email and offers **Resend verification email**.
-  Verify, log in → Parent Dashboard (family empty state). The verification
-  email arriving is the single most important check: an unverified login just
-  says "Incorrect email or password".
-- **Run B — new 13+ student:** student link → own email + DOB. Verify, log
-  in → student dashboard.
+- **Run A — new parent:** parent link → new email, name, password. You land
+  on the code-entry page; enter the 6-digit code from the email (resend link
+  is on that page) and you're logged straight in → Parent Dashboard (family
+  empty state). The code email arriving is the single most important check:
+  an unverified login just says "Incorrect email or password".
+- **Run B — new 13+ student:** student link → own email + DOB. Enter the
+  code → student dashboard.
 - **Run C — under-13 child:** as the Run-A parent, "Create Child Profile
   (Under 13)". Child appears immediately, no email involved.
 - **Run D — existing account:** parent link with an email that already has an

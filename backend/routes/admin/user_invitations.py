@@ -1297,7 +1297,7 @@ def accept_invitation(invitation_code):
 
             return jsonify({
                 'success': True,
-                'message': 'Account created! Please check your email to verify your account before logging in.',
+                'message': 'Account created! Check your email for a 6-digit verification code.',
                 'new_user': True,
                 'requires_verification': True,
                 'linked_students': linked_students
