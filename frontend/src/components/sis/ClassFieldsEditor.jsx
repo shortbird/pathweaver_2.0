@@ -349,6 +349,15 @@ export default function ClassFieldsEditor({
         </Field>
 
       </Band>
+
+      <Band title="Internal notes">
+        <Field label="Staff only — families never see these" className="sm:col-span-2 lg:col-span-4">
+          <textarea className={`${cell} resize-y min-h-[56px]`} value={d.internal_notes}
+            aria-label="Internal notes"
+            placeholder="Room setup, supplies, reminders for the office…"
+            onChange={(e) => set({ internal_notes: e.target.value })} />
+        </Field>
+      </Band>
     </div>
   )
 }

@@ -188,6 +188,7 @@ const ClassesPage = () => {
     ...(payload.assistant_instructor_ids !== undefined
       ? { assistant_instructor_ids: payload.assistant_instructor_ids } : {}),
     ...(payload.show_assistants !== undefined ? { show_assistants: payload.show_assistants } : {}),
+    ...(payload.internal_notes !== undefined ? { internal_notes: payload.internal_notes } : {}),
     ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
     ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
     organization_id: orgId,
@@ -256,6 +257,7 @@ const ClassesPage = () => {
         min_age: c.min_age ?? null,
         max_age: c.max_age ?? null,
         requires_full_day: c.requires_full_day ?? false,
+        internal_notes: c.internal_notes ?? null,
         registration_status: 'closed',
         organization_id: orgId,
       }
