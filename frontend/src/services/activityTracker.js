@@ -6,12 +6,12 @@
  *
  * Features:
  * - Event batching (flush every 30s or when 10 events queued)
- * - Uses navigator.sendBeacon for reliable delivery on page unload
+ * - Uses fetch keepalive for reliable delivery on page unload
  * - Debounces rapid events (scroll, resize)
  * - Respects existing session_id cookie from backend
  */
 
-import api from './api'
+import api, { csrfTokenStore, tokenStore } from './api'
 import logger from '../utils/logger'
 
 // Event type constants
@@ -100,7 +100,7 @@ class ActivityTracker {
       this.flush()
     }, this.config.flushIntervalMs)
 
-    // Flush on page unload (use sendBeacon for reliability)
+    // Flush on page unload (keepalive fetch survives unload)
     window.addEventListener('beforeunload', () => {
       this.flushSync()
     })
@@ -206,7 +206,13 @@ class ActivityTracker {
   }
 
   /**
-   * Flush events synchronously using sendBeacon (for page unload)
+   * Flush events on page unload / backgrounding.
+   *
+   * Not sendBeacon: a beacon cannot carry headers, so a cookie-authenticated
+   * beacon always failed the backend's CSRF check and the batch was silently
+   * dropped (OPTIO-BACKEND-3). fetch with keepalive survives unload the same
+   * way a beacon does, but sends the same X-CSRF-Token / Authorization headers
+   * as the axios client.
    */
   flushSync() {
     if (this.eventQueue.length === 0) {
@@ -219,18 +225,37 @@ class ActivityTracker {
     try {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
       const url = `${baseUrl}/api/activity/track`
-      const data = JSON.stringify({ events })
 
-      // sendBeacon is more reliable than fetch on page unload
-      const success = navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }))
-
-      if (success) {
-        console.debug(`[ActivityTracker] Beacon sent ${events.length} events`)
-      } else {
-        console.warn('[ActivityTracker] Beacon failed, events lost')
+      const headers = { 'Content-Type': 'application/json' }
+      const bearer = tokenStore.getAccessToken()
+      if (bearer) {
+        headers['Authorization'] = `Bearer ${bearer}`
       }
+      const csrfToken = csrfTokenStore.get()
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
+
+      if (!bearer && !csrfToken) {
+        // Cookie session with no CSRF token in memory: the backend is
+        // guaranteed to reject the request, so keep the events for the next
+        // regular flush instead of burning them on a known-bad send.
+        this.eventQueue = [...events, ...this.eventQueue].slice(0, this.config.maxQueueSize)
+        return
+      }
+
+      fetch(url, {
+        method: 'POST',
+        keepalive: true,
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ events })
+      }).catch(() => {
+        // Page is likely unloading; nothing useful to do with a failure.
+      })
+      console.debug(`[ActivityTracker] Keepalive flush of ${events.length} events`)
     } catch (error) {
-      console.warn('[ActivityTracker] Beacon error', error)
+      console.warn('[ActivityTracker] Keepalive flush error', error)
     }
   }
 
