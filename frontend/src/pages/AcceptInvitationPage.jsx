@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import authService from '../services/authService';
 import GoogleButton from '../components/auth/GoogleButton';
+import { getPostLoginPath } from '../utils/postLoginPath';
 
 export default function AcceptInvitationPage() {
   const { code } = useParams();
@@ -35,6 +36,20 @@ export default function AcceptInvitationPage() {
   const [formErrors, setFormErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resendStatus, setResendStatus] = useState('idle'); // idle | sending | sent | error
+
+  // A missing verification email is otherwise a dead end: login for an
+  // unverified account just says "Incorrect email or password".
+  const handleResendVerification = async () => {
+    setResendStatus('sending');
+    try {
+      await api.post('/api/auth/resend-verification', { email: formData.email });
+      setResendStatus('sent');
+    } catch (err) {
+      console.error('Failed to resend verification email:', err);
+      setResendStatus('error');
+    }
+  };
 
   // Initialize page - check auth, validate invitation, fetch settings
   useEffect(() => {
@@ -187,6 +202,27 @@ export default function AcceptInvitationPage() {
       errors.confirmPassword = 'Passwords do not match';
     }
 
+    // Student links are shared broadly, so they must not become an under-13
+    // signup path: those accounts are parent-created (COPPA dependent flow).
+    // The backend enforces the same rule.
+    if (!existingAccount && invitation?.is_link_based && invitation?.role === 'student') {
+      if (!formData.date_of_birth) {
+        errors.date_of_birth = 'Date of birth is required';
+      } else {
+        const dob = new Date(formData.date_of_birth);
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        if (today.getMonth() < dob.getMonth() ||
+            (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) {
+          age -= 1;
+        }
+        if (age < 13) {
+          errors.date_of_birth = 'Students under 13 need an account created by a parent. '
+            + 'Ask your parent to join with the parent link, then add you from their family dashboard.';
+        }
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -235,11 +271,17 @@ export default function AcceptInvitationPage() {
       });
 
       if (response.data.success) {
-        // For existing users, redirect to dashboard after joining
+        // For existing users, land on the right home for their new org role
+        // (a parent joining lands on /parent/dashboard, not the student surface)
         if (response.data.existing_user) {
           // Refresh user data to get new org info
           await authService.checkAuthStatus();
-          navigate('/dashboard');
+          try {
+            const me = await api.get('/api/auth/me');
+            navigate(getPostLoginPath(me.data));
+          } catch {
+            navigate('/dashboard');
+          }
         } else {
           setSuccess(true);
         }
@@ -257,7 +299,7 @@ export default function AcceptInvitationPage() {
   // Loading state
   if (loading || checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4"></div>
           <p className="text-gray-600">Verifying invitation...</p>
@@ -269,7 +311,7 @@ export default function AcceptInvitationPage() {
   // Error state (invalid/expired invitation)
   if (error && !invitation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -280,7 +322,7 @@ export default function AcceptInvitationPage() {
           <p className="text-gray-600 mb-6">{error}</p>
           <Link
             to="/login"
-            className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+            className="btn-primary"
           >
             Go to Login
           </Link>
@@ -296,7 +338,7 @@ export default function AcceptInvitationPage() {
 
     if (isExistingUserJoin) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
           <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,7 +350,7 @@ export default function AcceptInvitationPage() {
               You've been added to <strong>{invitation?.organization?.name}</strong>.
             </p>
             {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-4">
+              <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg text-sm text-optio-purple-dark mb-4">
                 <p>
                   You've been connected to:{' '}
                   <strong>
@@ -327,7 +369,7 @@ export default function AcceptInvitationPage() {
             </p>
             <Link
               to="/login"
-              className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+              className="btn-primary"
             >
               Go to Login
             </Link>
@@ -338,7 +380,7 @@ export default function AcceptInvitationPage() {
 
     // New user success - needs email verification
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -350,7 +392,7 @@ export default function AcceptInvitationPage() {
             Your account has been created for <strong>{invitation?.organization?.name}</strong>.
           </p>
           {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
-            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-4">
+            <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg text-sm text-optio-purple-dark mb-4">
               <p>
                 You've been connected to:{' '}
                 <strong>
@@ -367,12 +409,23 @@ export default function AcceptInvitationPage() {
           <p className="text-gray-600 mb-6">
             We've sent a verification link to <strong>{formData.email}</strong>. Please click the link to verify your email before logging in.
           </p>
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 mb-6">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 mb-4">
             <p>Don't see the email? Check your spam folder or wait a few minutes.</p>
           </div>
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+            className="w-full mb-6 px-4 py-2 rounded-lg border border-optio-purple text-optio-purple font-medium hover:bg-optio-purple/5 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {resendStatus === 'sent' ? 'Verification email sent'
+              : resendStatus === 'sending' ? 'Sending…'
+              : resendStatus === 'error' ? 'Could not resend — try again'
+              : 'Resend verification email'}
+          </button>
           <Link
             to="/login"
-            className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+            className="btn-primary"
           >
             Go to Login
           </Link>
@@ -384,7 +437,7 @@ export default function AcceptInvitationPage() {
   // Logged-in user flow - simplified join interface
   if (currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
         <div className="max-w-md w-full">
           {/* Header */}
           <div className="text-center mb-8">
@@ -433,7 +486,7 @@ export default function AcceptInvitationPage() {
 
             {/* Parent invitation info */}
             {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-6">
+              <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg text-sm text-optio-purple-dark mb-6">
                 <p>
                   You'll be connected to:{' '}
                   <strong>
@@ -458,7 +511,7 @@ export default function AcceptInvitationPage() {
             <button
               onClick={handleLoggedInJoin}
               disabled={submitting}
-              className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="w-full btn-primary"
             >
               {submitting ? 'Joining...' : `Join ${invitation?.organization?.name}`}
             </button>
@@ -483,7 +536,7 @@ export default function AcceptInvitationPage() {
 
   // Registration form (for users not logged in)
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
@@ -516,8 +569,8 @@ export default function AcceptInvitationPage() {
           </p>
           {/* Show students for parent invitations */}
           {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
-            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-sm text-purple-800">
+            <div className="mt-4 p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
+              <p className="text-sm text-optio-purple-dark">
                 You'll be connected to:{' '}
                 <strong>
                   {invitation.students.map((s, i) => (
@@ -551,8 +604,8 @@ export default function AcceptInvitationPage() {
                         setEmailChecked(false);
                         setExistingAccount(false);
                       }}
-                      className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                        formErrors.email ? 'border-red-300' : 'border-gray-200'
+                      className={`input-field px-3 py-2 ${
+                        formErrors.email ? 'border-red-300' : ''
                       }`}
                       placeholder="your@email.com"
                     />
@@ -578,7 +631,7 @@ export default function AcceptInvitationPage() {
                     type="email"
                     value={formData.email}
                     disabled
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
+                    className="input-field px-3 py-2 bg-gray-50 text-gray-600"
                   />
                   <p className="text-xs text-gray-500 mt-1">This email is linked to your invitation</p>
                 </>
@@ -596,8 +649,8 @@ export default function AcceptInvitationPage() {
                     type="text"
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                      formErrors.first_name ? 'border-red-300' : 'border-gray-200'
+                    className={`input-field px-3 py-2 ${
+                      formErrors.first_name ? 'border-red-300' : ''
                     }`}
                     placeholder="John"
                   />
@@ -613,8 +666,8 @@ export default function AcceptInvitationPage() {
                     type="text"
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                      formErrors.last_name ? 'border-red-300' : 'border-gray-200'
+                    className={`input-field px-3 py-2 ${
+                      formErrors.last_name ? 'border-red-300' : ''
                     }`}
                     placeholder="Doe"
                   />
@@ -635,8 +688,8 @@ export default function AcceptInvitationPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                    formErrors.password ? 'border-red-300' : 'border-gray-200'
+                  className={`input-field px-3 py-2 pr-10 ${
+                    formErrors.password ? 'border-red-300' : ''
                   }`}
                   placeholder={existingAccount ? 'Enter your password' : 'At least 8 characters'}
                 />
@@ -673,8 +726,8 @@ export default function AcceptInvitationPage() {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                      formErrors.confirmPassword ? 'border-red-300' : 'border-gray-200'
+                    className={`input-field px-3 py-2 pr-10 ${
+                      formErrors.confirmPassword ? 'border-red-300' : ''
                     }`}
                     placeholder="Confirm your password"
                   />
@@ -701,18 +754,25 @@ export default function AcceptInvitationPage() {
               </div>
             )}
 
-            {/* Date of Birth (optional) - only for new accounts */}
+            {/* Date of Birth - only for new accounts; required on shared student
+                links so under-13s are routed to the parent-created path */}
             {!existingAccount && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date of Birth <span className="text-gray-400">(optional)</span>
+                  Date of Birth{' '}
+                  {invitation?.is_link_based && invitation?.role === 'student'
+                    ? <span className="text-red-500">*</span>
+                    : <span className="text-gray-400">(optional)</span>}
                 </label>
                 <input
                   type="date"
                   value={formData.date_of_birth}
                   onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+                  className={`input-field px-3 py-2 ${formErrors.date_of_birth ? 'border-red-300' : ''}`}
                 />
+                {formErrors.date_of_birth && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.date_of_birth}</p>
+                )}
               </div>
             )}
 
@@ -727,7 +787,7 @@ export default function AcceptInvitationPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="w-full btn-primary"
             >
               {submitting
                 ? (existingAccount ? 'Joining...' : 'Creating Account...')

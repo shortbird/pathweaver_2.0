@@ -132,3 +132,27 @@ class TestAddHouseholdMemberAttach:
             duplicates=[{'user_id': 'k2', 'name': 'Should Not Matter', 'email': None}])
         assert resp.status_code == 201
         repo.add_member.assert_called_once()
+
+    def test_guardian_added_after_students_backfills_links(self, client, auth_headers, mock_verify_token):
+        # Order must not matter: adding the guardian second has to create the
+        # same parent links the student-add path creates when guardians already
+        # exist. Before the backfill, student-then-guardian left no links and
+        # the parent's dashboard stayed empty while the SIS looked correct.
+        repo = _repo()
+        repo.members_for_households.return_value = [
+            {'user_id': 'k1', 'relationship': 'student'},
+            {'user_id': 'k2', 'relationship': 'student'},
+        ]
+        admin = _admin_for()
+        with patch('database.get_supabase_admin_client', return_value=admin), \
+             patch('routes.sis.get_supabase_admin_client', return_value=admin), \
+             patch('routes.sis.HouseholdRepository', return_value=repo), \
+             patch('services.sis_service.resolve_org_id', return_value='org-1'), \
+             patch('services.sis_service.link_guardian_to_students') as link:
+            resp = client.post('/api/sis/households/h1/members',
+                               json={'organization_id': 'org-1', 'user_id': 'g2',
+                                     'relationship': 'guardian'},
+                               headers=auth_headers)
+        assert resp.status_code == 201
+        link.assert_called_once_with('g2', ['k1', 'k2'])
+        repo.add_member.assert_called_once()

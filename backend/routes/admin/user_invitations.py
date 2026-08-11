@@ -872,14 +872,15 @@ def validate_invitation_code(invitation_code):
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
-        # Find the invitation
+        # Find the invitation. maybe_single: .single() raises on zero rows, which
+        # turned every mistyped code into a 500 instead of this 404.
         result = supabase.table('org_invitations') \
             .select('id, organization_id, email, invited_name, role, status, expires_at, metadata, organizations(name, slug, branding_config, feature_flags)') \
             .eq('invitation_code', invitation_code) \
-            .single() \
+            .maybe_single() \
             .execute()
 
-        if not result.data:
+        if not result or not result.data:
             return jsonify({'valid': False, 'error': 'Invalid invitation code'}), 404
 
         inv = result.data
@@ -947,7 +948,9 @@ def validate_invitation_code(invitation_code):
 
 
 @bp.route('/invitations/check-email', methods=['POST'])
-@rate_limit(max_requests=10, window_seconds=60)  # 10 checks per minute
+# Keyed per IP: a family on shared school/carrier wifi shares one bucket, and the
+# debounced email field fires a check per pause — 10/min starved real signups.
+@rate_limit(max_requests=30, window_seconds=60)
 def check_email_exists():
     """
     Check if an email already has an Optio account.
@@ -996,7 +999,10 @@ def check_email_exists():
 
 
 @bp.route('/invitations/accept/<invitation_code>', methods=['POST'])
-@rate_limit(max_requests=5, window_seconds=300)  # 5 attempts per 5 minutes
+# Keyed per IP, so a school onboarding families in one building shares a single
+# bucket — at 5/5min the sixth family was blocked. 30 still throttles scripted
+# abuse without starving a signup event.
+@rate_limit(max_requests=30, window_seconds=300)
 def accept_invitation(invitation_code):
     """
     Accept an invitation and create user account or add to organization
@@ -1020,14 +1026,15 @@ def accept_invitation(invitation_code):
         authenticated_user_id = session_manager.get_effective_user_id()
         skip_password_check = data.get('skip_password_check', False) and authenticated_user_id is not None
 
-        # Find the invitation
+        # Find the invitation. maybe_single: .single() raises on zero rows, which
+        # turned every mistyped code into a 500 instead of this 404.
         result = supabase.table('org_invitations') \
             .select('*, organizations(name, slug)') \
             .eq('invitation_code', invitation_code) \
-            .single() \
+            .maybe_single() \
             .execute()
 
-        if not result.data:
+        if not result or not result.data:
             return jsonify({'error': 'Invalid invitation code'}), 404
 
         inv = result.data
@@ -1091,6 +1098,26 @@ def accept_invitation(invitation_code):
         if not is_existing_user and (not first_name or not last_name):
             return jsonify({'error': 'First name and last name are required'}), 400
 
+        # A shared student link must not become a COPPA bypass: under-13s go
+        # through the parent-created dependent path (routes/dependents.py),
+        # which inherits the parent's org. So link-based student signups
+        # require a DOB and refuse under-13s.
+        if not is_existing_user and is_link_based and inv['role'] == 'student':
+            if not date_of_birth:
+                return jsonify({'error': 'Date of birth is required for student accounts'}), 400
+            try:
+                dob = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Date of birth must be a valid date'}), 400
+            today = datetime.utcnow().date()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            if age < 13:
+                return jsonify({
+                    'error': 'Students under 13 need an account created by a parent. '
+                             'Have your parent join with the parent link, then use '
+                             '"Create Child Profile" on their family dashboard.'
+                }), 400
+
         # Handle existing user
         if is_existing_user:
             user = existing_user.data[0]
@@ -1121,13 +1148,26 @@ def accept_invitation(invitation_code):
                     logger.warning(f"Password verification failed for {email}: {auth_error}")
                     return jsonify({'error': 'Invalid password. Please try again.'}), 401
 
+            # A standing link is shared widely — a stray click from a member of a
+            # different school must not silently move their account (and strand
+            # their dependents, whose organization_id would not follow). Deliberate
+            # email invitations still move accounts; drive-by link accepts don't.
+            if is_link_based and user.get('organization_id') \
+                    and user['organization_id'] != inv['organization_id']:
+                return jsonify({
+                    'error': 'This account already belongs to another school or organization. '
+                             'Ask your current organization to release it, or join with a '
+                             'different email address.'
+                }), 409
+
             # Identity verified - update user's organization and role
             # Organization users have role='org_managed' with actual role in org_role
             supabase.table('users') \
                 .update({
                     'organization_id': inv['organization_id'],
                     'role': 'org_managed',
-                    'org_role': inv['role']
+                    'org_role': inv['role'],
+                    'org_roles': [inv['role']]
                 }) \
                 .eq('id', user['id']) \
                 .execute()
@@ -1196,6 +1236,7 @@ def accept_invitation(invitation_code):
                 'display_name': f"{first_name} {last_name}",
                 'role': 'org_managed',
                 'org_role': inv['role'],
+                'org_roles': [inv['role']],
                 'organization_id': inv['organization_id']
             }
 

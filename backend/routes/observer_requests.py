@@ -118,6 +118,8 @@ def get_observer_requests(user_id):
         supabase = get_authenticated_supabase_client()
 
         # @require_auth supplies only user_id; look up the role to decide scope.
+        # admin client justified: single-column role read keyed by the caller's own
+        # authenticated id, only to pick own-rows vs all-rows scope for the query below.
         admin = get_supabase_admin_client()
         role_row = admin.table('users').select('role').eq('id', user_id).single().execute()
         is_superadmin = bool(role_row.data) and role_row.data.get('role') == 'superadmin'

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { tokenStore, observerAPI } from '../services/api'
+import api, { tokenStore, observerAPI } from '../services/api'
 import authService from '../services/authService'
+import { getPostLoginPath } from '../utils/postLoginPath'
 import { supabase } from '../services/supabaseClient'
 import { useQueryClient } from '@tanstack/react-query'
 import TosConsentModal from '../components/auth/TosConsentModal'
@@ -117,37 +118,46 @@ export default function AuthCallback() {
    */
   const handlePendingOrgInvitation = async (userEmail) => {
     const pendingInvitation = localStorage.getItem('pendingOrgInvitation')
-    if (pendingInvitation && userEmail) {
+    if (!pendingInvitation || !userEmail) return { accepted: false }
+    // Must go through the api client: by now the OAuth exchange has set auth
+    // cookies, so the backend enforces CSRF — a raw fetch without the
+    // X-CSRF-Token header gets a 400 and the join silently fails.
+    localStorage.removeItem('pendingOrgInvitation')
+    try {
+      console.log('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
+      const response = await api.post(
+        `/api/admin/organizations/invitations/accept/${pendingInvitation}`,
+        { email: userEmail, skip_password_check: true }
+      )
+      if (response.data.success) {
+        console.log('[AuthCallback] Org invitation accepted successfully')
+        return { accepted: true, orgName: response.data.organization_name }
+      }
+      console.error('[AuthCallback] Failed to accept org invitation:', response.data.error)
+      return { accepted: false, code: pendingInvitation, error: response.data.error }
+    } catch (err) {
+      console.error('[AuthCallback] Error accepting org invitation:', err)
+      // Hand the code back so the caller can return the user to the invitation
+      // page (which offers a logged-in Join button) instead of losing the invite.
+      return { accepted: false, code: pendingInvitation, error: err.response?.data?.error || err.message }
+    }
+  }
+
+  /**
+   * Where to land after OAuth. When an org invitation was just accepted the
+   * role/org on the OAuth response is stale, so re-fetch /me and use the
+   * canonical post-login map (org parent -> /parent/dashboard, etc.).
+   */
+  const resolveRedirectPath = async (user, orgInvitationAccepted) => {
+    if (orgInvitationAccepted) {
       try {
-        console.log('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
-        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/organizations/invitations/accept/${pendingInvitation}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            email: userEmail,
-            skip_password_check: true
-          })
-        })
-        const data = await response.json()
-        if (response.ok && data.success) {
-          console.log('[AuthCallback] Org invitation accepted successfully')
-          localStorage.removeItem('pendingOrgInvitation')
-          return { accepted: true, orgName: data.organization_name }
-        } else {
-          console.error('[AuthCallback] Failed to accept org invitation:', data.error)
-          localStorage.removeItem('pendingOrgInvitation')
-          return { accepted: false, error: data.error }
-        }
+        const me = await api.get('/api/auth/me')
+        return getPostLoginPath(me.data)
       } catch (err) {
-        console.error('[AuthCallback] Error accepting org invitation:', err)
-        localStorage.removeItem('pendingOrgInvitation')
-        return { accepted: false, error: err.message }
+        console.error('[AuthCallback] Failed to refresh user after org join:', err)
       }
     }
-    return { accepted: false }
+    return getPostLoginPath(user)
   }
 
   /**
@@ -182,17 +192,12 @@ export default function AuthCallback() {
         if (invitationAccepted) {
           const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
+        } else if (orgInvitationResult.code) {
+          // The org join failed — return to the invitation page, which shows a
+          // logged-in Join button, rather than stranding the account outside the org.
+          redirectPath = `/invitation/${orgInvitationResult.code}`
         } else {
-          const user = result.user
-          // Check if observer has seen welcome page
-          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-          if (user?.role === 'observer' && !hasSeenWelcome) {
-            redirectPath = '/observer/welcome'
-          } else {
-            redirectPath = user?.role === 'parent' ? '/parent/dashboard'
-              : user?.role === 'observer' ? '/observer/feed'
-              : '/dashboard'
-          }
+          redirectPath = await resolveRedirectPath(result.user, orgInvitationResult.accepted)
         }
 
         // Signal to PrivateRoute that auth just completed (prevents flash to login)
@@ -253,17 +258,12 @@ export default function AuthCallback() {
         if (invitationAccepted) {
           const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
+        } else if (orgInvitationResult.code) {
+          // The org join failed — return to the invitation page, which shows a
+          // logged-in Join button, rather than stranding the account outside the org.
+          redirectPath = `/invitation/${orgInvitationResult.code}`
         } else {
-          const user = result.user
-          // Check if observer has seen welcome page
-          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-          if (user?.role === 'observer' && !hasSeenWelcome) {
-            redirectPath = '/observer/welcome'
-          } else {
-            redirectPath = user?.role === 'parent' ? '/parent/dashboard'
-              : user?.role === 'observer' ? '/observer/feed'
-              : '/dashboard'
-          }
+          redirectPath = await resolveRedirectPath(result.user, orgInvitationResult.accepted)
         }
 
         // Signal to PrivateRoute that auth just completed (prevents flash to login)
@@ -361,15 +361,15 @@ export default function AuthCallback() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
           {status === 'processing' && (
             <>
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-optio-purple mx-auto mb-4"></div>
-              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold text-gray-800">
                 Completing Sign In...
               </h2>
-              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-600 mt-2">
                 Please wait while we log you in
               </p>
             </>
@@ -378,10 +378,10 @@ export default function AuthCallback() {
           {status === 'tos_required' && (
             <>
               <div className="text-optio-purple text-5xl mb-4">📋</div>
-              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold text-gray-800">
                 Almost There!
               </h2>
-              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-600 mt-2">
                 Please accept our Terms of Service to continue
               </p>
             </>
@@ -390,10 +390,10 @@ export default function AuthCallback() {
           {status === 'success' && (
             <>
               <div className="text-green-500 text-5xl mb-4">✓</div>
-              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold text-gray-800">
                 Success!
               </h2>
-              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-600 mt-2">
                 Redirecting to dashboard...
               </p>
             </>
@@ -402,16 +402,15 @@ export default function AuthCallback() {
           {status === 'error' && (
             <>
               <div className="text-red-500 text-5xl mb-4">✕</div>
-              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold text-gray-800">
                 Authentication Failed
               </h2>
-              <p className="text-red-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-red-600 mt-2">
                 {error}
               </p>
               <a
                 href="/login"
-                className="inline-block mt-4 px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:opacity-90 transition-opacity text-sm"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary mt-4"
               >
                 Go to Login
               </a>

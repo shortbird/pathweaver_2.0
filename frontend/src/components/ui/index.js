@@ -23,3 +23,10 @@ export { Input, Textarea, Select } from './Input';
 // Form components
 export { FormField, FormLabel } from './FormField';
 export { FormFooter } from './FormFooter';
+
+// State components (docs/design/DESIGN_SYSTEM.md §8)
+export { Spinner, PageLoader, ButtonSpinner } from './Spinner';
+export { default as EmptyState } from './EmptyState';
+
+// Selection (docs/design/DESIGN_SYSTEM.md §7)
+export { default as GlassTabBar } from './GlassTabBar';
