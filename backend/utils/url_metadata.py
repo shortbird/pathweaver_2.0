@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import re
 from utils.logger import get_logger
+from utils.ssrf import safe_get, SSRFError
 
 logger = get_logger(__name__)
 
@@ -90,11 +91,15 @@ def fetch_url_metadata(url: str) -> dict:
             'Accept-Language': 'en-US,en;q=0.9',
         }
 
-        response = requests.get(
+        # SSRF protection: validate the URL (and every redirect hop) resolves to
+        # a public address before fetching. The URL originates from user-supplied
+        # evidence "link" blocks, so without this a student could point it at
+        # cloud metadata or an internal service and exfiltrate the response via
+        # the parsed <title>/og:* stored back on the block.
+        response = safe_get(
             url,
             headers=headers,
             timeout=FETCH_TIMEOUT,
-            allow_redirects=True
         )
         response.raise_for_status()
 
@@ -131,6 +136,8 @@ def fetch_url_metadata(url: str) -> dict:
 
         result['success'] = True
 
+    except SSRFError as e:
+        logger.warning(f"Blocked SSRF-unsafe metadata fetch for {url}: {str(e)}")
     except requests.Timeout:
         logger.warning(f"Timeout fetching metadata for URL: {url}")
     except requests.RequestException as e:

@@ -151,6 +151,19 @@ def register_routes(bp):
             # admin client justified: cross-user viewer-list read joining users table; needed to display "viewed by" avatars to feed-item author
             supabase = get_supabase_admin_client()
 
+            # Ownership gate: the "viewed by" list is for the evidence's AUTHOR
+            # (and superadmin). Without this, any authenticated user who harvests
+            # a completion/learning-event UUID could enumerate who viewed another
+            # student's evidence (viewer names + avatars).
+            owner_table = 'quest_task_completions' if target_type == 'completion' else 'learning_events'
+            owner = supabase.table(owner_table).select('user_id').eq('id', target_id).single().execute()
+            if not owner.data:
+                return jsonify({'error': 'Not found'}), 404
+            if user_id != owner.data['user_id']:
+                from utils.auth.decorators import caller_is_superadmin
+                if not caller_is_superadmin(supabase, user_id):
+                    return jsonify({'error': 'Access denied'}), 403
+
             col = 'completion_id' if target_type == 'completion' else 'learning_event_id'
 
             views = supabase.table('feed_item_views') \

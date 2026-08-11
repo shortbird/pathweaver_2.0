@@ -20,31 +20,47 @@ export const ActingAsProvider = ({ children }) => {
   const [parentName, setParentName] = useState(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Load acting-as state from sessionStorage on mount
-  // sessionStorage persists acting-as state across page reloads
+  // Restore acting-as state on mount.
+  // FE-M12 fix: the dependent (child) acting-as bearer token is NO LONGER
+  // persisted in sessionStorage. A JWT sitting in web storage is stealable by
+  // any XSS, which in this COPPA-sensitive flow meant child-account
+  // impersonation for the token's lifetime. Instead we persist only the
+  // non-sensitive dependent info and RE-MINT a fresh token from the backend on
+  // reload (the backend re-verifies the parent owns this dependent), mirroring
+  // the parent/masquerade pattern already used below and in masqueradeService.
   useEffect(() => {
     const restoreActingAsState = async () => {
       const stored = sessionStorage.getItem('acting_as_dependent');
-      const storedToken = sessionStorage.getItem('acting_as_token');
       const storedParentName = sessionStorage.getItem('acting_as_parent_name');
-      if (stored && storedToken) {
+      // Purge any token persisted by an older build.
+      sessionStorage.removeItem('acting_as_token');
+      if (stored) {
         try {
           const parsed = JSON.parse(stored);
 
-          // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
-          await tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
+          // Re-mint the acting-as token via the parent's restored session
+          // instead of reading a persisted one. Backend re-authorizes ownership.
+          const response = await api.post(`/api/dependents/${parsed.id}/act-as`, {});
+          const freshToken = response.data?.acting_as_token;
+          if (!freshToken) {
+            throw new Error('No acting_as_token returned on restore');
+          }
+
+          await tokenStore.setTokens(freshToken, tokenStore.getRefreshToken() || '');
 
           // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
           startTransition(() => {
             setActingAsDependent(parsed);
-            setActingAsToken(storedToken);
+            setActingAsToken(freshToken);
             if (storedParentName) {
               setParentName(storedParentName);
             }
-            logger.debug('[ActingAsContext] Restored acting-as token from sessionStorage');
+            logger.debug('[ActingAsContext] Re-minted acting-as token on reload');
           });
         } catch (error) {
-          console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
+          // Parent session unavailable or no longer authorized: drop acting-as
+          // state and fall back to the parent's own session / re-auth.
+          console.warn('[ActingAsContext] Could not restore acting-as on reload:', error.message);
           sessionStorage.removeItem('acting_as_dependent');
           sessionStorage.removeItem('acting_as_token');
           sessionStorage.removeItem('acting_as_parent_name');
@@ -144,9 +160,10 @@ export const ActingAsProvider = ({ children }) => {
         const response = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
         const { acting_as_token } = response.data;
 
-        // Store dependent info and token in sessionStorage (clears on page refresh)
+        // Persist ONLY the non-sensitive dependent info (FE-M12): the token is
+        // held in memory and re-minted from the backend on reload, never written
+        // to sessionStorage where XSS could steal it.
         sessionStorage.setItem('acting_as_dependent', JSON.stringify(dependent));
-        sessionStorage.setItem('acting_as_token', acting_as_token);
 
         // Store token in tokenStore so it gets included in Authorization header
         await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);

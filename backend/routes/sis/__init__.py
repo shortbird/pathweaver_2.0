@@ -564,6 +564,12 @@ def add_household_member(user_id, household_id):
             return jsonify({'success': False,
                             'error': "This account can't be connected — it may belong to "
                                      'another school or not be a student account.'}), 409
+    else:
+        # Guardian added after students: backfill the parent links the
+        # student-add path would have created had the guardian been there first.
+        students = [m['user_id'] for m in repo.members_for_households([household_id])
+                    if m.get('relationship') == 'student']
+        sis_service.link_guardian_to_students(member_user_id, students)
 
     member = repo.add_member(
         household_id, member_user_id,
@@ -636,7 +642,8 @@ def update_user_role(user_id, target_id):
         return err
     body = request.get_json() or {}
     result = sis_service.update_user_role(org_id, target_id,
-                                          role=body.get('role'), roles=body.get('roles'))
+                                          role=body.get('role'), roles=body.get('roles'),
+                                          actor_id=user_id)
     if result.get('error'):
         code = 404 if result['error'] == 'User not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code

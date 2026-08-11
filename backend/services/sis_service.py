@@ -475,21 +475,46 @@ def attach_student_to_org(org_id: str, student_id: str,
     for gid in (guardian_ids or []):
         if u.get('is_dependent'):
             continue  # dependents are linked via managed_by_parent_id, not links
-        try:
-            existing = (
-                _admin().table('parent_student_links').select('id')
-                .eq('parent_user_id', gid).eq('student_user_id', student_id)
-                .execute()
-            ).data
-            if not existing:
-                _admin().table('parent_student_links').insert({
-                    'parent_user_id': gid, 'student_user_id': student_id,
-                    'status': 'approved', 'admin_verified': True,
-                    'admin_notes': 'Auto-linked when added to SIS household',
-                }).execute()
-        except Exception as e:  # noqa: BLE001 — linking is best-effort
-            logger.warning(f'attach_student_to_org: link {gid[:8]}->{student_id[:8]} failed: {e}')
+        _ensure_parent_link(gid, student_id)
     return True
+
+
+def _ensure_parent_link(guardian_id: str, student_id: str) -> None:
+    """Insert an approved, admin-verified parent_student_links row if one
+    doesn't exist. Best-effort: a failed link must not fail the caller."""
+    try:
+        existing = (
+            _admin().table('parent_student_links').select('id')
+            .eq('parent_user_id', guardian_id).eq('student_user_id', student_id)
+            .execute()
+        ).data
+        if not existing:
+            _admin().table('parent_student_links').insert({
+                'parent_user_id': guardian_id, 'student_user_id': student_id,
+                'status': 'approved', 'admin_verified': True,
+                'admin_notes': 'Auto-linked when added to SIS household',
+            }).execute()
+    except Exception as e:  # noqa: BLE001 — linking is best-effort
+        logger.warning(f'_ensure_parent_link: {guardian_id[:8]}->{student_id[:8]} failed: {e}')
+
+
+def link_guardian_to_students(guardian_id: str, student_ids: List[str]) -> None:
+    """Backfill parent_student_links from a newly added guardian to a
+    household's existing student members. Mirrors what the student-add path
+    does when guardians are already present — without this, adding members in
+    the order student-then-guardian silently created no links, so the family
+    looked right in the SIS while the parent's dashboard stayed empty.
+    Dependents are skipped: they're linked via managed_by_parent_id."""
+    if not student_ids:
+        return
+    rows = (
+        _admin().table('users').select('id, is_dependent')
+        .in_('id', student_ids).execute()
+    ).data or []
+    for row in rows:
+        if row.get('is_dependent'):
+            continue
+        _ensure_parent_link(guardian_id, row['id'])
 
 
 def _contact_key(c: Dict[str, Any]):
@@ -632,6 +657,21 @@ def caller_sees_pay(user_id: str) -> bool:
     if ctx.get('role') == 'superadmin':
         return True
     return not is_campus_coordinator(_user_org_roles(ctx))
+
+
+def caller_can_grant_privileged_role(user_id: str) -> bool:
+    """True only for ROLE_GRANT_ROLES (org_admin / superadmin).
+
+    A campus coordinator sits in ADMIN_ROLES but deliberately NOT in
+    ROLE_GRANT_ROLES: if they could assign the org_admin role they could hand
+    themselves (or an ally) the FINANCE_ROLES access the coordinator tier exists
+    to withhold. Mirrors the @require_role(*ROLE_GRANT_ROLES) gate on
+    set_staff_roles. See utils/sis_roles.py.
+    """
+    ctx = get_user_org_context(user_id)
+    if ctx.get('role') == 'superadmin':
+        return True
+    return 'org_admin' in set(_user_org_roles(ctx))
 
 
 def caller_org_roles(user_id: str) -> List[str]:
@@ -1573,15 +1613,26 @@ def get_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
 ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'campus_coordinator',
                     'org_admin', 'observer')
 
+# Roles whose assignment (or removal) crosses the finance boundary and therefore
+# requires ROLE_GRANT_ROLES authority — a campus coordinator must not touch them.
+PRIVILEGED_ASSIGNABLE_ROLES = frozenset({'org_admin', 'superadmin'})
+
 
 def update_user_role(org_id: str, user_id: str, role: str = None,
-                     roles: List[str] = None) -> Dict[str, Any]:
+                     roles: List[str] = None,
+                     actor_id: str = None) -> Dict[str, Any]:
     """Change a user's org role(s) (org_managed users). Sets org_role + org_roles.
 
     Accepts a single `role` (legacy) or a `roles` list — a person can be several
     things at once (e.g. a teacher who is also a parent). The first role in the
     list is primary (drives org_role / get_effective_role).
     Returns {'error': ...} on a bad role / cross-org user.
+
+    `actor_id` (the caller) gates the org_admin role: this endpoint is reachable
+    by ADMIN_ROLES (which includes campus_coordinator), but only a ROLE_GRANT_ROLES
+    caller may grant org_admin OR modify a user who currently holds a privileged
+    role. Without this a coordinator could PATCH their own id to org_admin and
+    take the finance access the coordinator tier exists to withhold.
     """
     role_list = [r for r in (roles if roles is not None else [role]) if r]
     if not role_list:
@@ -1592,11 +1643,22 @@ def update_user_role(org_id: str, user_id: str, role: str = None,
         if r not in ASSIGNABLE_ROLES:
             return {'error': f'Invalid role: {r}'}
     row = (
-        _admin().table('users').select('id, role, organization_id')
+        _admin().table('users').select('id, role, org_role, org_roles, organization_id')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
         return {'error': 'User not found'}
+
+    # Grant-authority gate. Assigning a privileged role, or altering a user who
+    # already holds one, both require ROLE_GRANT_ROLES.
+    target_current = {row[0].get('role'), row[0].get('org_role')} | set(row[0].get('org_roles') or [])
+    touches_privileged = (
+        any(r in PRIVILEGED_ASSIGNABLE_ROLES for r in role_list)
+        or bool(target_current & PRIVILEGED_ASSIGNABLE_ROLES)
+    )
+    if touches_privileged and not (actor_id and caller_can_grant_privileged_role(actor_id)):
+        return {'error': 'You are not authorized to assign or change the org_admin role'}
+
     payload = {'org_role': role_list[0], 'org_roles': role_list}
     # Org users are 'org_managed' at the platform level; keep that invariant.
     if row[0].get('role') != 'superadmin':

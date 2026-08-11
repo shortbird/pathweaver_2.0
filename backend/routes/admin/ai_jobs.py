@@ -274,8 +274,8 @@ def trigger_advisor_summary_job():
     """
     # Check for cron secret OR superadmin auth
     cron_secret = request.headers.get('X-Cron-Secret')
-    expected_secret = Config.CRON_SECRET
-    is_cron = bool(cron_secret and expected_secret and cron_secret == expected_secret)
+    from utils.cron_auth import is_valid_cron_secret
+    is_cron = is_valid_cron_secret(cron_secret)
 
     if is_cron:
         # Valid cron request

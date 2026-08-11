@@ -189,7 +189,8 @@ def get_my_transfer_credits(user_id):
 
 
 @bp.route('/requirements', methods=['GET'])
-def get_requirements():
+@require_auth
+def get_requirements(user_id):
     """
     Get diploma credit requirements.
 
@@ -233,8 +234,9 @@ def get_credit_ledger(user_id):
 
 
 @bp.route('/quest/<quest_id>/calculate', methods=['GET'])
+@require_auth
 @validate_uuid_param('quest_id')
-def calculate_quest_credits(quest_id):
+def calculate_quest_credits(user_id, quest_id):
     """
     Calculate total credits available from a quest.
 
@@ -254,7 +256,8 @@ def calculate_quest_credits(quest_id):
 
 
 @bp.route('/calculator', methods=['POST'])
-def calculate_credits():
+@require_auth
+def calculate_credits(user_id):
     """
     Calculate credits for given XP amounts.
 

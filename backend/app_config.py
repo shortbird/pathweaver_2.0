@@ -263,6 +263,15 @@ class Config:
     RATE_LIMIT_LOGIN_ATTEMPTS = int(os.getenv('RATE_LIMIT_LOGIN_ATTEMPTS', '5'))
     RATE_LIMIT_LOGIN_WINDOW = int(os.getenv('RATE_LIMIT_LOGIN_WINDOW', '900'))  # 15 minutes
     RATE_LIMIT_LOCKOUT_DURATION = int(os.getenv('RATE_LIMIT_LOCKOUT_DURATION', '3600'))  # 1 hour
+    # Number of TRUSTED reverse proxies that append to X-Forwarded-For between
+    # the app and the public internet. The real client IP is read this many hops
+    # from the RIGHT of XFF — values our own infrastructure appended, which a
+    # client cannot spoof (the leftmost entries ARE client-controlled). Default 1
+    # = the rightmost entry (never spoofable; if the true hop count is higher this
+    # over-aggregates onto a proxy IP, which throttles too broadly but is never a
+    # bypass). Set to match the deployment (e.g. 2 behind a CDN + platform LB) to
+    # key limits on the true client IP. See middleware/rate_limiter.get_real_ip.
+    TRUSTED_PROXY_HOPS = int(os.getenv('TRUSTED_PROXY_HOPS', '1'))
     
     # Caching
     CACHE_TYPE = os.getenv('CACHE_TYPE', 'simple')

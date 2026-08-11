@@ -285,7 +285,7 @@ def get_student_communications(user_id, student_id):
     try:
         # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
+        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private tutor messages + safety-report text, guardians only
 
         # Get tutor conversations
         conversations_response = supabase.table('tutor_conversations').select('''

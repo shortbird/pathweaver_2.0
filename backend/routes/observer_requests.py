@@ -23,7 +23,7 @@ observer_requests_bp = Blueprint('observer_requests', __name__)
 
 @observer_requests_bp.route('/api/observer-requests', methods=['POST'])
 @require_auth
-def create_observer_request(user_id, user_role):
+def create_observer_request(user_id):
     """
     Create a new observer request
     Student submits request for admin review
@@ -109,7 +109,7 @@ def create_observer_request(user_id, user_role):
 
 @observer_requests_bp.route('/api/observer-requests', methods=['GET'])
 @require_auth
-def get_observer_requests(user_id, user_role):
+def get_observer_requests(user_id):
     """
     Get observer requests for the authenticated user
     Students see their own requests, admins see all
@@ -117,11 +117,16 @@ def get_observer_requests(user_id, user_role):
     try:
         supabase = get_authenticated_supabase_client()
 
+        # @require_auth supplies only user_id; look up the role to decide scope.
+        admin = get_supabase_admin_client()
+        role_row = admin.table('users').select('role').eq('id', user_id).single().execute()
+        is_superadmin = bool(role_row.data) and role_row.data.get('role') == 'superadmin'
+
         # Build query based on role
         query = supabase.table('observer_requests').select('*')
 
         # Students only see their own requests
-        if user_role != 'superadmin':
+        if not is_superadmin:
             query = query.eq('user_id', user_id)
 
         # Order by most recent first
@@ -144,7 +149,7 @@ def get_observer_requests(user_id, user_role):
 
 @observer_requests_bp.route('/api/admin/observer-requests/<request_id>', methods=['PUT'])
 @require_admin
-def update_observer_request(user_id, user_role, request_id):
+def update_observer_request(user_id, request_id):
     """
     Update observer request status (admin only)
     Used to approve or reject requests
@@ -202,7 +207,7 @@ def update_observer_request(user_id, user_role, request_id):
 
 @observer_requests_bp.route('/api/admin/observer-requests', methods=['GET'])
 @require_admin
-def get_all_observer_requests(user_id, user_role):
+def get_all_observer_requests(user_id):
     """
     Get all observer requests (admin only)
     Includes user information for display

@@ -34,32 +34,31 @@ def get_real_ip() -> str:
 
     CVE-OPTIO-2025-012 FIX: Securely extracts client IP from proxy headers.
 
-    Security considerations:
-    - Only trusts X-Forwarded-For when behind known proxy (production)
-    - Uses rightmost IP in X-Forwarded-For chain (client's last hop)
-    - Falls back to remote_addr if no proxy headers or in development
-    - Prevents rate limit bypass via header spoofing
+    X-Forwarded-For is built left-to-right as "client, proxy1, proxy2, ..." where
+    each proxy APPENDS the address that connected to it. The LEFTMOST entry is
+    therefore attacker-controlled: a client can send its own
+    `X-Forwarded-For: 1.2.3.4` and our infrastructure appends after it. Reading
+    the leftmost value (the previous bug) let anyone rotate the header per request
+    for a fresh rate-limit bucket, defeating every IP-keyed limit (login, OTP,
+    password reset, etc.).
+
+    The values our OWN trusted proxies append are on the RIGHT and cannot be
+    spoofed by the client. We therefore read the client IP `TRUSTED_PROXY_HOPS`
+    entries from the right (ProxyFix semantics). Default 1 = the rightmost entry.
 
     Returns:
         str: Client IP address
     """
-    # In production (Render), we're behind their load balancer
-    # X-Forwarded-For format: "client, proxy1, proxy2"
-    # We want the leftmost IP (original client), but must validate it
-
-    # Check if we're behind a trusted proxy (production environment)
     is_production = Config.FLASK_ENV == 'production'
 
     if is_production and 'X-Forwarded-For' in request.headers:
-        # Get the full chain
         forwarded_for = request.headers.get('X-Forwarded-For', '')
-
-        # Split and get the leftmost (client) IP
-        ips = [ip.strip() for ip in forwarded_for.split(',')]
+        ips = [ip.strip() for ip in forwarded_for.split(',') if ip.strip()]
 
         if ips:
-            # Return the first IP (original client)
-            client_ip = ips[0]
+            hops = max(1, min(Config.TRUSTED_PROXY_HOPS, len(ips)))
+            # Count from the right: the address our own proxy appended.
+            client_ip = ips[-hops]
 
             # Basic validation: ensure it looks like an IP
             if '.' in client_ip or ':' in client_ip:

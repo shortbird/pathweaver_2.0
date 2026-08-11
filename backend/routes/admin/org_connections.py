@@ -17,10 +17,35 @@ logger = get_logger(__name__)
 bp = Blueprint('org_connections', __name__, url_prefix='/api/admin/organizations')
 
 
+def _guard_org(current_org_id, is_superadmin, org_id):
+    """Reject cross-tenant access. A non-superadmin org_admin may only operate on
+    their OWN organization, but every handler here scopes its queries on the
+    URL's `org_id` — which is attacker-supplied. Without this check an org_admin
+    could read or mutate any other tenant simply by putting the victim org's UUID
+    in the path (roster/PII disclosure, cross-org advisor/parent-link writes,
+    even binding themselves as guardian of another org's minor).
+
+    @require_org_admin injects `current_org_id` (the caller's real org) and
+    `is_superadmin`; compare them here. Returns an error response tuple on
+    violation, else None. Uses 404 (not 403) so the response does not confirm
+    whether the target org exists.
+    """
+    if not is_superadmin and str(current_org_id) != str(org_id):
+        logger.warning(
+            f"Cross-org access blocked: caller org={current_org_id} "
+            f"attempted org={org_id}"
+        )
+        return jsonify({'success': False, 'error': 'Organization not found'}), 404
+    return None
+
+
 @bp.route('/<org_id>/advisors', methods=['GET'])
 @require_org_admin
 def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
     """Get list of advisors and org_admins in the organization with their assigned student counts"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -83,6 +108,9 @@ def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
 @require_org_admin
 def get_org_advisor_students(current_user_id, current_org_id, is_superadmin, org_id, advisor_id):
     """Get list of students assigned to a specific advisor (scoped to org)"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -169,6 +197,9 @@ def get_org_advisor_students(current_user_id, current_org_id, is_superadmin, org
 @require_org_admin
 def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin, org_id, advisor_id):
     """Assign a student to an advisor (both must be in the org)"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -269,6 +300,9 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
 @require_org_admin
 def unassign_org_student_from_advisor(current_user_id, current_org_id, is_superadmin, org_id, advisor_id, student_id):
     """Remove a student assignment from an advisor"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -318,6 +352,9 @@ def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmi
     Supports multiple advisors per student. Returns each student with an 'advisors' array
     containing all their assigned advisors.
     """
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -400,6 +437,9 @@ def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmi
 @require_org_admin
 def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id, student_id):
     """Get all advisors assigned to a specific student"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -471,6 +511,9 @@ def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id,
 @require_org_admin
 def unassign_advisor_from_student(current_user_id, current_org_id, is_superadmin, org_id, student_id, advisor_id):
     """Remove a specific advisor assignment from a student"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -516,6 +559,9 @@ def unassign_advisor_from_student(current_user_id, current_org_id, is_superadmin
 @require_org_admin
 def get_org_unassigned_students(current_user_id, current_org_id, is_superadmin, org_id):
     """Get list of students in the org who are not assigned to any advisor"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -567,6 +613,9 @@ def get_org_unassigned_students(current_user_id, current_org_id, is_superadmin, 
 @require_org_admin
 def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id):
     """Get all parent-student connections for students in this organization"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -628,6 +677,9 @@ def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id)
 @require_org_admin
 def disconnect_org_parent_link(current_user_id, current_org_id, is_superadmin, org_id, link_id):
     """Disconnect a parent-student link"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
@@ -671,6 +723,9 @@ def disconnect_org_parent_link(current_user_id, current_org_id, is_superadmin, o
 @require_org_admin
 def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin, org_id):
     """Create a manual parent-student connection"""
+    guard = _guard_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 

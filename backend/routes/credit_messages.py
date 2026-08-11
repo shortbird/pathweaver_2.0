@@ -50,11 +50,27 @@ def _can_access(completion, user, role, admin):
         return True  # the student who owns the work
     if role == 'superadmin':
         return True
+    # A reviewer specifically designated on THIS completion always has access,
+    # even if not otherwise assigned to the student.
+    if user['id'] in (completion.get('credit_reviewer_id'), completion.get('org_reviewer_id')):
+        return True
     if role in ('org_admin', 'advisor'):
         student = admin.table('users').select('organization_id')\
             .eq('id', completion['user_id']).single().execute()
         student_org = student.data.get('organization_id') if student.data else None
-        return bool(student_org) and student_org == user.get('organization_id')
+        if not (student_org and student_org == user.get('organization_id')):
+            return False
+        if role == 'org_admin':
+            return True  # org admins manage the whole organization
+        # Advisors (teachers) may only reach students they are actively assigned
+        # to — mirrors the credit dashboard (credit_dashboard/items.py). Same-org
+        # alone let an unassigned advisor read AND post in any student's private
+        # credit-review thread (delivered to the student as reviewer feedback).
+        assignment = admin.table('advisor_student_assignments').select('id')\
+            .eq('advisor_id', user['id'])\
+            .eq('student_id', completion['user_id'])\
+            .eq('is_active', True).limit(1).execute()
+        return bool(assignment.data)
     return False
 
 

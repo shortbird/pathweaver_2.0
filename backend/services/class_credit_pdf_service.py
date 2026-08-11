@@ -258,7 +258,10 @@ class _Budget:
 
 def _fetch_bytes(url: str) -> Optional[bytes]:
     try:
-        resp = requests.get(url, timeout=FETCH_TIMEOUT, stream=True)
+        # SSRF protection: portfolio asset URLs derive from user evidence content,
+        # so validate the URL (and any redirect) resolves to a public address.
+        from utils.ssrf import safe_get
+        resp = safe_get(url, timeout=FETCH_TIMEOUT, stream=True)
         if resp.status_code != 200:
             logger.warning(f"Portfolio asset fetch {resp.status_code}: {url[:120]}")
             return None

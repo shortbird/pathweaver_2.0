@@ -25,6 +25,7 @@ from repositories.class_repository import ClassRepository
 from services.notification_service import NotificationService
 from utils.treehouse import facilitators_for_student
 from utils.auth.decorators import require_auth, validate_uuid_param
+from middleware.rate_limiter import rate_limit
 from utils.db_fetch import fetch_all_rows
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
@@ -1034,6 +1035,7 @@ def create_kiosk_device(user_id):
 
 
 @bp.route('/kiosk/roster', methods=['POST'])
+@rate_limit(limit=30, per=60)  # throttle a leaked/shared device token (mirrors routes/kiosk.py)
 def kiosk_roster():
     """Token-gated: return the org's student roster (photo + first name) for the picker. No auth cookie required."""
     data = request.get_json() or {}
@@ -1103,6 +1105,7 @@ def kiosk_roster():
 
 
 @bp.route('/kiosk/login', methods=['POST'])
+@rate_limit(limit=20, per=60)  # throttle passwordless-login attempts (mirrors routes/kiosk.py)
 def kiosk_login():
     """
     Passwordless student login on a provisioned shared device. Verifies the device

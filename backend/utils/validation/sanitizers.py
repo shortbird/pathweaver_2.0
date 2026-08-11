@@ -32,8 +32,15 @@ def sanitize_search_input(search_term: Optional[str], max_length: int = 100) -> 
         search_term = search_term[:max_length]
     
     # Remove SQL special characters and potential injection patterns
-    # Allow only alphanumeric, spaces, and basic punctuation
-    search_term = re.sub(r'[^\w\s\-.,!?@#]', '', search_term)
+    # Allow only alphanumeric, spaces, and basic punctuation.
+    # NOTE: the comma is deliberately NOT allowed. This value is interpolated
+    # into PostgREST `.or_()` filter strings like
+    # "title.ilike.%{search}%,big_idea.ilike.%{search}%", where a comma starts a
+    # NEW top-level condition — so a search of "foo,is_public.eq.true" would
+    # inject an extra OR clause. Parens (used for and()/or() grouping) are also
+    # excluded by this whitelist. Without a comma, dots inside the value stay
+    # inside the ilike pattern and cannot escape it.
+    search_term = re.sub(r'[^\w\s\-.!?@#]', '', search_term)
     
     # Remove multiple spaces
     search_term = re.sub(r'\s+', ' ', search_term)

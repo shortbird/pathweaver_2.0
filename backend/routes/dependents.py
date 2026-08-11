@@ -771,8 +771,8 @@ def update_child_ai_features(user_id: str, child_id: str):
         except NotFoundError:
             # Try linked students
             link_result = supabase.table('parent_student_links').select('*').eq(
-                'parent_id', user_id
-            ).eq('student_id', child_id).eq('status', 'active').execute()
+                'parent_user_id', user_id
+            ).eq('student_user_id', child_id).eq('status', 'active').execute()
 
             if not link_result.data:
                 raise NotFoundError(f"Child {child_id} not found or not associated with parent")

@@ -10,6 +10,7 @@ from repositories.base_repository import BaseRepository, DatabaseError, NotFound
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
+from utils.validation.sanitizers import sanitize_search_input
 
 logger = get_logger(__name__)
 
@@ -229,6 +230,10 @@ class QuestRepository(BaseRepository):
             DatabaseError: If query fails
         """
         try:
+            # Defense in depth: strip PostgREST filter metacharacters (commas,
+            # etc.) so the interpolated value can't inject an extra .or_() clause,
+            # regardless of whether the caller sanitized.
+            search_term = sanitize_search_input(search_term)
             query = (
                 self.client.table(self.table_name)
                 .select('*')
@@ -480,6 +485,9 @@ class QuestRepository(BaseRepository):
             # Apply search FIRST (before org filtering) to reduce result set
             # Search in title and big_idea
             if search_term:
+                # Defense in depth: strip PostgREST filter metacharacters so the
+                # value can't inject an extra .or_() condition.
+                search_term = sanitize_search_input(search_term)
                 query = query.or_(f"title.ilike.%{search_term}%,big_idea.ilike.%{search_term}%")
 
             # Apply organization visibility policy

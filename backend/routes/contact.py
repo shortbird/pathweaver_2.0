@@ -8,6 +8,7 @@ from database import get_supabase_admin_client
 from datetime import datetime
 
 from services.email_service import email_service
+from middleware.rate_limiter import rate_limit
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,6 +17,7 @@ bp = Blueprint('contact', __name__)
 
 
 @bp.route('/contact', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=3600)  # 5/hour per IP: public + sends confirmation email, so throttle to prevent email-bomb/lead spam
 def submit_contact():
     """
     Handle contact form submissions (demo requests, sales inquiries, general contact).

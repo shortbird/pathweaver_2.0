@@ -54,8 +54,10 @@ def _fetch_logo(url: Optional[str]) -> Optional[BytesIO]:
     if not url.startswith(('http://', 'https://')):
         return None
     try:
-        import requests
-        r = requests.get(url, timeout=_LOGO_TIMEOUT_SECONDS, stream=True)
+        # SSRF protection: the logo URL is org-admin-settable, so validate it
+        # (and any redirect) resolves to a public address before fetching.
+        from utils.ssrf import safe_get
+        r = safe_get(url, timeout=_LOGO_TIMEOUT_SECONDS, stream=True)
         r.raise_for_status()
         content = r.raw.read(_LOGO_MAX_BYTES + 1, decode_content=True)
         if not content or len(content) > _LOGO_MAX_BYTES:

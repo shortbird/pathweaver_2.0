@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from utils.auth.decorators import require_auth
 from middleware.rate_limiter import rate_limit
+from utils.ssrf import safe_get, SSRFError
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,11 @@ def get_link_preview(user_id):
         return jsonify(_cache[url]['data']), 200
 
     try:
-        resp = http_requests.get(
+        # SSRF protection: safe_get validates the URL and every redirect hop
+        # resolves to a public address. _is_safe_url above is a cheap early
+        # reject; this is the authoritative check (it defeats the redirect-,
+        # DNS-name-, IPv6- and encoded-IP bypasses the string check misses).
+        resp = safe_get(
             url,
             timeout=8,
             headers={
@@ -184,7 +189,6 @@ def get_link_preview(user_id):
                 'Accept': 'text/html,application/xhtml+xml,*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             },
-            allow_redirects=True,
         )
 
         # Only read the first 100KB of decoded body -- we only need the <head>.
@@ -201,6 +205,9 @@ def get_link_preview(user_id):
 
         return jsonify(data), 200
 
+    except SSRFError as e:
+        logger.warning(f"Blocked SSRF-unsafe link preview for URL {url}: {e}")
+        return jsonify({'error': 'Invalid URL'}), 400
     except http_requests.Timeout:
         logger.warning(f"Link preview timeout for URL: {url}")
         return jsonify({'error': 'Request timed out', 'title': None, 'description': None, 'image': None, 'site_name': None, 'video_url': None, 'og_type': None}), 200

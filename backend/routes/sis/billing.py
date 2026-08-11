@@ -309,7 +309,8 @@ def billing_reminders_cron():
     from app_config import Config
     from database import get_supabase_admin_client
     secret = request.headers.get('X-Cron-Secret')
-    is_cron = bool(secret and Config.CRON_SECRET and secret == Config.CRON_SECRET)
+    from utils.cron_auth import is_valid_cron_secret
+    is_cron = is_valid_cron_secret(secret)
     if not is_cron:
         from utils.session_manager import session_manager
         uid = session_manager.get_effective_user_id()
@@ -340,7 +341,8 @@ def tuition_autopay_cron():
     from app_config import Config
     from database import get_supabase_admin_client
     secret = request.headers.get('X-Cron-Secret')
-    is_cron = bool(secret and Config.CRON_SECRET and secret == Config.CRON_SECRET)
+    from utils.cron_auth import is_valid_cron_secret
+    is_cron = is_valid_cron_secret(secret)
     if not is_cron:
         from utils.session_manager import session_manager
         uid = session_manager.get_effective_user_id()

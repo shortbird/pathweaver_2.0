@@ -75,6 +75,10 @@ EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 LINK_PLACEHOLDER_SUFFIX = '@pending.optio.local'
 OTP_TTL_MINUTES = 10
+# Max wrong OTP guesses per registration before the code is invalidated and a
+# resend is required. Independent of the IP rate limit (which is spoofable), this
+# caps the 6-digit guessing space to a few tries per issued code.
+MAX_OTP_ATTEMPTS = 5
 
 
 def _admin():
@@ -512,6 +516,7 @@ def _issue_otp(admin, reg_id: str) -> str:
     admin.table('icreate_registrations').update({
         'otp_hash': _hash_otp(code),
         'otp_expires_at': (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat(),
+        'otp_attempts': 0,  # fresh code resets the failed-attempt counter
         'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
     return code
@@ -886,10 +891,28 @@ def verify_code():
     expires = datetime.fromisoformat(str(reg['otp_expires_at']).replace('Z', '+00:00'))
     if datetime.utcnow().replace(tzinfo=expires.tzinfo) > expires:
         return jsonify({'error': 'That code has expired — request a new one'}), 400
-    if not secrets.compare_digest(_hash_otp(code), str(reg['otp_hash'])):
-        return jsonify({'error': 'Incorrect code'}), 400
 
     admin = _admin()
+
+    # Per-registration brute-force cap (independent of the spoofable IP limit).
+    attempts = reg.get('otp_attempts') or 0
+    if attempts >= MAX_OTP_ATTEMPTS:
+        # Invalidate the code so further guesses are useless until a resend.
+        admin.table('icreate_registrations').update({
+            'otp_hash': None, 'otp_expires_at': None,
+            'updated_at': datetime.utcnow().isoformat(),
+        }).eq('id', reg['id']).execute()
+        return jsonify({'error': 'Too many incorrect attempts — request a new code'}), 429
+
+    if not secrets.compare_digest(_hash_otp(code), str(reg['otp_hash'])):
+        # Count the failed guess; invalidate the code once the cap is reached.
+        new_attempts = attempts + 1
+        updates = {'otp_attempts': new_attempts, 'updated_at': datetime.utcnow().isoformat()}
+        if new_attempts >= MAX_OTP_ATTEMPTS:
+            updates.update({'otp_hash': None, 'otp_expires_at': None})
+        admin.table('icreate_registrations').update(updates).eq('id', reg['id']).execute()
+        return jsonify({'error': 'Incorrect code'}), 400
+
     now = datetime.utcnow().isoformat()
     try:
         admin.auth.admin.update_user_by_id(reg['parent_user_id'], {'email_confirm': True})
