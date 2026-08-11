@@ -282,3 +282,84 @@ Follow-up:
   the Customers list starts driving sends.
 
 Tests: `backend/tests/test_oauth_brevo_signup_sync.py`.
+
+---
+
+## 13. Diploma email + booking link (built 2026-08-10)
+
+Adds the Optio Academy diploma pitch to the free-class funnel and Tanner's
+booking link (https://calendar.app.google/rqSPUvuUdbti18ZQ8) to the emails where
+a live conversation is the natural next step. Pathway naming and pricing must
+stay consistent with `/academy` (AcademyPage.jsx): **Full-Time Academy**
+(dedicated Optio teacher, customized tuition) and **Parent-Supported Diploma**
+($100 per credit, $2,400 for the 24-credit diploma). Deliberately NOT claimed in
+copy (unconfirmed): that a finished à-la-carte class counts toward the diploma.
+
+**Done via MCP (source templates updated; HTML mirrored in `brevo_email_html/`):**
+- [x] New template **49** "Free Class Nurture 3b — Diploma pathways" (subject
+  "This can go all the way to a diploma", UTM `utm_content=e3b`, booking link).
+  Intended slot: day 5, right after Email 3 (accreditation) — it builds on it.
+- [x] Template 1 (Free Class 1): P.S. pointing to `/academy` ("full diploma
+  programs... more on that in a few days").
+- [x] Template 5 (Free Class 5): booking link on the parent reply invite.
+- [x] Template 24 (General Interest 1): booking link on the reply invite.
+- [x] Template 8 (Families 1): booking link on the reply invite.
+
+**Dashboard-only (the live automations send their own `_step_#` template copies,
+which the API rejects updates to — 404 on PUT, readable via GET):**
+- [ ] Free Class Nurture: insert a new email step after "Will your school
+  actually accept it?" using template 49, delay ~day 5 (existing later steps
+  shift or keep their own delays — confirm actual cadence while in there).
+  Leads already past that point in the sequence won't receive it.
+- [ ] Edit automation copy **10** (step "Getting your free class set up") — add
+  the same P.S. as template 1.
+- [ ] Edit automation copy **15** ("The details parents ask about") — add the
+  booking-link sentence from template 5.
+- [ ] Edit automation copy **30** (General Interest step "The info you asked
+  for") — add the booking-link sentence from template 24.
+- [ ] Edit automation copy **38** (Families step, subject "Common questions
+  about Optio") — add the booking-link sentence from template 8. Note this
+  copy's subject has diverged from source template 8; leave its subject as-is.
+- [ ] While in the builder: templates **11 and 12** are both "You're probably
+  already doing the work" steps of Free Class Nurture — check whether the
+  automation has a duplicate/orphaned step.
+
+---
+
+## 13. Course Student Onboarding (built 2026-08-10, awaiting automation activation)
+
+Onboarding funnel for **brand-new students an org admin registers for purchased
+courses** (e.g. OnFire) via the admin "register student for courses" flow. They
+receive "Welcome to Optio - your account is ready" (transactional, credentials)
+but previously never reached Brevo, so they got no introduction to how Optio
+works. These students never chose Optio; the sequence teaches the philosophy
+(low instruction, get into the real world and do things) and how courses run
+(projects → lessons → tasks → XP → evidence).
+
+**Permission note:** no age or role gate. Taking a purchased course from us is
+the email permission, under-13 included (Tanner's call, 2026-08-10) — unlike
+self-serve registration, which excludes under-13.
+
+- [x] List **Course Student Onboarding (#14)**, folder "Optio Marketing" (3) —
+  the automation trigger list. Only `sync_course_student` adds here.
+- [x] Backend `sync_course_student(email, first, last)` in `brevo_service.py`,
+  hooked in `routes/admin/organization_management.py` (new-account branch only —
+  `send_org_courses_added_email` for existing students does NOT re-trigger).
+  Adds to Customers #8 + #14, sets `CONVERTED`, `ROLE='student'`, `SIGNUP_DATE`.
+  Returns the automation name for the welcome email's `brevo_funnel=` flag.
+- [x] Templates (inactive drafts, sender 1, reply-to tanner@): **45** "Welcome
+  to Optio. It works a little differently." (day 1), **46** "How your course
+  works" (day 3), **47** "Why the lessons are so short" (day 6), **48** "What
+  all your tasks add up to" (day 10). HTML in `brevo_email_html/45-48`. Written
+  for a student audience that may include under-13s: short sentences, second
+  person, no transcript/pricing talk, web login links only (courses are a
+  web surface; no app-store badges).
+- [ ] Automation "Course Student Onboarding" (dashboard-only): trigger =
+  contact added to list #14, exclude existing list members; send 45 (day 1) /
+  46 (day 3) / 47 (day 6) / 48 (day 10); no exit rule (onboarding, not
+  conversion). E1 is delayed a day on purpose so it doesn't stack on the
+  credentials email.
+- [ ] After activation: uncomment `LIST_COURSE_STUDENTS` in
+  `brevo_service.LIST_AUTOMATIONS` so the [COPY] banner reports the funnel.
+
+**UTMs**: `utm_campaign=course_student_onboarding&utm_content=e1…e4`.

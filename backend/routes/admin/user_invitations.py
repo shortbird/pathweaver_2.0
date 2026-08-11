@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
 from utils.validation import sanitize_input
+from utils.registration_config import get_registration_config
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
 import secrets
@@ -911,7 +912,7 @@ def validate_invitation_code(invitation_code):
         # only needs to know whether parent link-invites route into the branded
         # registration funnel (/enroll/<code>).
         feature_flags = org.pop('feature_flags', None) or {}
-        uses_registration_funnel = bool((feature_flags.get('icreate_registration') or {}).get('enabled'))
+        uses_registration_funnel = bool(get_registration_config(feature_flags).get('enabled'))
 
         response_data = {
             'valid': True,

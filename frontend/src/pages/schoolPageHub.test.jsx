@@ -171,6 +171,26 @@ describe('the school logo', () => {
     await screen.findByText('Picture day is Thursday')
     expect(container.querySelector('header img')).toBeNull()
   })
+
+  it('shows the configured word under the logo (Optio Academy lockup)', async () => {
+    schoolContext = {
+      success: true, is_guardian: true,
+      orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo', logo_subtitle: 'academy' }],
+    }
+    renderPage()
+    await screen.findByText('Picture day is Thursday')
+    expect(screen.getByText('academy')).toBeInTheDocument()
+  })
+
+  it('shows no subtitle when none is configured', async () => {
+    schoolContext = {
+      success: true, is_guardian: true,
+      orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo' }],
+    }
+    renderPage()
+    await screen.findByText('Picture day is Thursday')
+    expect(screen.queryByText('academy')).not.toBeInTheDocument()
+  })
 })
 
 describe('the announcements archive', () => {

@@ -72,17 +72,13 @@ def register_all(app):
     from routes.public import bp as public_bp
     app.register_blueprint(public_bp)
 
-    from routes.platform_settings import bp as platform_settings_bp
-    app.register_blueprint(platform_settings_bp)
-
     # ── Docs / philosophy (public + admin pairs) ──────────────────────────────
     from routes.docs import public_docs_bp, admin_docs_bp
     app.register_blueprint(public_docs_bp)
     app.register_blueprint(admin_docs_bp)
 
-    from routes.philosophy import public_philosophy_bp, admin_philosophy_bp
+    from routes.philosophy import public_philosophy_bp
     app.register_blueprint(public_philosophy_bp)
-    app.register_blueprint(admin_philosophy_bp)
 
     from routes.homepage_images import bp as homepage_images_bp
     app.register_blueprint(homepage_images_bp)
@@ -324,13 +320,6 @@ def register_all(app):
     # ── Evidence reports (shareable PDFs) ─────────────────────────────────────
     from routes.evidence_reports import bp as evidence_reports_bp
     app.register_blueprint(evidence_reports_bp)
-
-    # ── Marketing showcase ────────────────────────────────────────────────────
-    from routes import showcase as showcase_routes
-    app.register_blueprint(showcase_routes.bp)
-
-    from routes.admin import showcase_consent as admin_showcase_consent
-    app.register_blueprint(admin_showcase_consent.bp)
 
     # ── Beta bug reports (in-app shake-to-report) ─────────────────────────────
     from routes import bug_reports

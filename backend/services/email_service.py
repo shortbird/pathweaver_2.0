@@ -1376,7 +1376,8 @@ class EmailService(BaseService):
         org_name: str,
         courses_sentence: str,
         course_count: int,
-        login_url: str
+        login_url: str,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send a welcome email when a partner org_admin registers a NEW student for
@@ -1397,7 +1398,8 @@ class EmailService(BaseService):
                 'course_count': course_count,
                 'course_word': course_word,
                 'login_url': login_url
-            }
+            },
+            brevo_funnel=brevo_funnel
         )
 
     def send_org_courses_added_email(

@@ -203,6 +203,108 @@
   }
 }
 
+/* ── Optio Liquid Glass ──────────────────────────────────────────────────────
+   The platform-standard glass treatment: a translucent Optio-gradient tint
+   under a frosted blur, hairline light border, top sheen, soft brand shadow.
+   Used for selection indicators and floating chrome. Full design philosophy,
+   usage rules and motion spec: docs/design/LIQUID_GLASS.md
+
+   Tokens are CSS custom properties so a surface can inherit the effect and
+   tune intensity locally without redefining the recipe. */
+:root {
+  --og-tint-a: 109, 70, 155;          /* optio-purple */
+  --og-tint-b: 239, 89, 123;          /* optio-pink */
+  --og-tint-alpha: 0.15;              /* wash strength */
+  --og-blur: 10px;
+  --og-saturate: 140%;
+  --og-edge: rgba(255, 255, 255, 0.65);
+  --og-sheen: rgba(255, 255, 255, 0.45);
+}
+
+.optio-glass {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--og-tint-a), var(--og-tint-alpha)) 0%,
+    rgba(var(--og-tint-b), calc(var(--og-tint-alpha) - 0.03)) 100%
+  );
+  backdrop-filter: blur(var(--og-blur)) saturate(var(--og-saturate));
+  -webkit-backdrop-filter: blur(var(--og-blur)) saturate(var(--og-saturate));
+  border: 1px solid var(--og-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -6px 12px -8px rgba(var(--og-tint-a), 0.35),
+    0 4px 12px -4px rgba(var(--og-tint-a), 0.25);
+}
+
+/* Specular sheen across the top half of the glass */
+.optio-glass::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--og-sheen), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+/* Intensity modifiers */
+.optio-glass--subtle {
+  --og-tint-alpha: 0.10;
+  --og-blur: 6px;
+}
+.optio-glass--strong {
+  --og-tint-alpha: 0.22;
+}
+
+/* Backdrop wash: the full brand gradient painted down the rail at a whisper.
+   The lens reveals the saturated slice of this same gradient wherever it sits
+   — that's what makes it read as a magnifying lens, not a highlight. */
+.optio-glass-backdrop {
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--og-tint-a), 0.05) 0%,
+    rgba(var(--og-tint-b), 0.05) 100%
+  );
+}
+
+/* Lens variant: one glass pill that slides between selection targets.
+   Springy translateY with a touch of overshoot so it glides and settles.
+   Geometry (left inset, width, height, and the reveal vars below) is set from
+   measurement by the owning component; width has no transition so it tracks
+   container resizes frame-by-frame.
+
+   The background is the SAME vertical gradient as .optio-glass-backdrop at
+   full lens strength, sized to the whole rail (--og-reveal-h) and counter-
+   scrolled against the lens position (--og-reveal-y). transform and
+   background-position share one timing function, so the revealed color stays
+   registered with the rail as the lens travels. */
+.optio-glass-lens {
+  --og-reveal-h: 100%;
+  --og-reveal-y: 0px;
+  pointer-events: none;
+  will-change: transform;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--og-tint-a), 0.28) 0%,
+    rgba(var(--og-tint-b), 0.26) 100%
+  );
+  background-size: 100% var(--og-reveal-h);
+  background-position: 0 var(--og-reveal-y);
+  background-repeat: no-repeat;
+  transform-origin: center;
+  transition:
+    transform 400ms cubic-bezier(0.3, 1.25, 0.5, 1),
+    background-position 400ms cubic-bezier(0.3, 1.25, 0.5, 1),
+    height 250ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .optio-glass-lens {
+    transition: none;
+  }
+}
+
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }

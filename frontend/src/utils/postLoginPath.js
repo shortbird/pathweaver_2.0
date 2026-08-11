@@ -19,7 +19,6 @@ function effectiveRole(user) {
 
 /**
  * Where a user lands after logging in, by role:
- * - showcase-only marketing accounts -> the showcase
  * - org_admin -> their organization console (or partner-simplified dashboard)
  * - advisor (teacher) in a SIS org -> the SIS console (via /sis-launch)
  * - advisor (teacher) otherwise -> the advisor dashboard
@@ -30,13 +29,6 @@ function effectiveRole(user) {
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
-
-  // Marketing accounts (can_view_showcase and not actively a student/parent/
-  // etc.) land on the showcase, not an empty student dashboard. This lived only
-  // on LoginPage's interstitial before, so a fresh login missed it.
-  if (user.can_view_showcase === true && role === 'student' && !user.has_dependents && !user.has_linked_students) {
-    return '/showcase'
-  }
 
   if (role === 'org_admin') {
     return isSimplifiedPartnerOrg(user.organization_id) ? '/onfire' : '/organization'

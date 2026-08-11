@@ -1,12 +1,11 @@
 import React, { memo, lazy, Suspense } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 // Lazy load all admin components to reduce initial bundle size
 const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
 const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
 const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPanel'))
-const AutomatedEmailsList = lazy(() => import('../components/admin/AutomatedEmailsList'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
@@ -16,11 +15,7 @@ const TranscriptGeneratorPage = lazy(() => import('./admin/TranscriptGeneratorPa
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
-const PhilosophyEditor = lazy(() => import('./admin/PhilosophyEditor'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
-const AdminClassesHub = lazy(() => import('./classes/AdminClassesHub'))
-const ShowcaseConsentPanel = lazy(() => import('./admin/ShowcaseConsentPanel'))
-const ClassReviewsPage = lazy(() => import('./admin/ClassReviewsPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -52,20 +47,15 @@ const AdminPage = () => {
 
   // Define admin tabs for both mobile dropdown and desktop tabs
   const adminTabs = [
-    { path: '', label: 'Quests', pathMatch: ['admin', 'quests', ''] },
-    { path: 'users', label: 'Users' },
-{ path: 'emails', label: 'Emails' },
+    { path: 'users', label: 'Users', pathMatch: ['admin', 'users', ''] },
+    { path: 'quests', label: 'Quests' },
     { path: 'organizations', label: 'Organizations' }
   ]
 
   const superadminTabs = [
-    { path: 'classes', label: 'Classes' },
-    { path: 'class-reviews', label: 'Class Reviews' },
     { path: 'moderation', label: 'Moderation' },
-    { path: 'showcase-consent', label: 'Showcase Consent' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
-    { path: 'docs', label: 'Docs' },
-    { path: 'philosophy', label: 'Philosophy' }
+    { path: 'docs', label: 'Docs' }
   ]
 
   const getTabIsActive = (tab) => {
@@ -101,7 +91,7 @@ const AdminPage = () => {
             <option key={tab.path} value={tab.path}>{tab.label}</option>
           ))}
           {isAdvisor && !isAdmin && (
-            <option value="">Quests</option>
+            <option value="quests">Quests</option>
           )}
         </select>
       </div>
@@ -154,13 +144,12 @@ const AdminPage = () => {
 
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          <Route index element={<AdminQuests />} />
+          <Route index element={<Navigate to="users" replace />} />
           <Route path="quests" element={<AdminQuests />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
           <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
           <Route path="user/:userId/transcript" element={<TranscriptGeneratorPage />} />
-          <Route path="emails" element={<AutomatedEmailsList />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
@@ -170,11 +159,7 @@ const AdminPage = () => {
           <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
           <Route path="bulk-generate" element={<BulkCourseGeneration />} />
           <Route path="docs" element={<DocsManager />} />
-          <Route path="philosophy" element={<PhilosophyEditor />} />
           <Route path="moderation" element={<ModerationQueue />} />
-          <Route path="showcase-consent" element={<ShowcaseConsentPanel />} />
-          <Route path="classes/*" element={<AdminClassesHub />} />
-          <Route path="class-reviews" element={<ClassReviewsPage />} />
         </Routes>
       </Suspense>
     </div>

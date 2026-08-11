@@ -1,28 +1,40 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
+import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 
 /**
- * SIS Registration page — the enrollment operations queue: the day-to-day work
- * of processing families as they register. Age-exception requests, the
- * enrollment waitlist (release/decline students), and the prepaid/hold family
- * list (who's prepaid / on hold, and who has registered).
+ * SIS Registration page — everything about how families register, in two tabs:
  *
- * The registration CONFIG (the parent funnel — link, fees, paperwork, questions —
- * plus the first day of school and the waitlisted age groups) lives on the SIS
- * Settings page under "Registration & enrollment". This page is only the queues.
+ *   Setup  — the registration process itself, rendered exactly as families see
+ *            it (the shared funnel components) with the configurable parts
+ *            editable in place, plus the standing registration link.
+ *   Queues — the day-to-day enrollment operations: age-exception requests, the
+ *            enrollment waitlist, and the prepaid/hold family list.
+ *
+ * Setup is the default tab: clicking "Registration" should show the full
+ * registration process (iCreate filed the old config-lives-in-Settings split
+ * as a bug, and it kept confusing everyone since).
  */
+const TABS = [
+  { key: 'setup', label: 'Registration form' },
+  { key: 'queues', label: 'Enrollment queues' },
+]
+
 const RegistrationPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
   const [orgData, setOrgData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') === 'queues' ? 'queues' : 'setup'
+  const setTab = (t) => setSearchParams(t === 'setup' ? {} : { tab: t }, { replace: true })
 
   const fetchOrg = useCallback(() => {
     if (!orgId) { setOrgData(null); setLoading(false); return }
@@ -42,6 +54,19 @@ const RegistrationPage = () => {
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
+      <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === t.key
+                ? 'border-optio-purple text-optio-purple'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {(loading || orgLoading) ? (
         <div className="flex items-center justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
@@ -50,23 +75,10 @@ const RegistrationPage = () => {
         <p className="text-neutral-500">Select an organization to manage its registration.</p>
       ) : !orgData?.organization ? (
         <p className="text-neutral-500">Organization not found.</p>
+      ) : tab === 'setup' ? (
+        <RegistrationSetupTab key={`setup-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
       ) : (
         <div className="grid gap-6">
-          {/* Where the funnel config went. iCreate came back here looking for
-              "the page where we entered in our links for people to go through
-              the registration process (like the tuition agreement)" and filed it
-              as a bug — the config moved to Settings and nothing said so. */}
-          <div className="rounded-xl border border-gray-200 bg-neutral-50 px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm text-neutral-600">
-              Setting up the registration link, fees, or the paperwork families sign
-              (tuition agreement and friends)?
-            </span>
-            <Link to="/settings#registration" className="text-sm font-medium text-optio-purple hover:underline">
-              Settings → Registration &amp; enrollment
-            </Link>
-            <span className="text-sm text-neutral-500">— this page is the day-to-day queues.</span>
-          </div>
-
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
           <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />
           <EnrollmentWaitlistCard key={`ewl-${orgId}`} orgId={orgId} org={orgData.organization} />

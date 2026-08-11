@@ -6,7 +6,7 @@ Course creation, retrieval, update, delete, and image uploads.
 
 from datetime import datetime
 from flask import request, jsonify
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_auth
 from database import get_user_client, get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError
@@ -17,7 +17,7 @@ from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.roles import get_effective_role
 from utils.slug_utils import generate_slug, ensure_unique_slug
-from routes.courses import can_manage_course, can_create_course, is_admin_course_creator
+from routes.courses import can_manage_course, can_create_course
 
 logger = get_logger(__name__)
 
@@ -195,8 +195,9 @@ def register_routes(bp):
             user_data = {**user_result.data[0], 'id': user_id}
             effective_role = get_effective_role(user_data)
             logger.info(f"[CREATE_COURSE] User {user_id}: role={user_data.get('role')}, org_role={user_data.get('org_role')}, effective_role={effective_role}")
-            # Any authenticated user can create a class here; non-admin callers land in the
-            # student-curated path (status=draft, course_source=student_curated, org_id=NULL).
+
+            if not can_create_course(user_data):
+                return jsonify({'error': 'Not authorized to create courses'}), 403
 
             data = request.json
             if not data or not data.get('title'):
@@ -206,54 +207,18 @@ def register_routes(bp):
             base_slug = generate_slug(data['title'])
             slug = ensure_unique_slug(client, base_slug) if base_slug else None
 
-            # Routing:
-            # - If the request explicitly asks for course_source='student_curated' (i.e. it
-            #   came from the student class form), treat it as a student-curated class
-            #   regardless of the caller's role. This lets superadmins author test classes
-            #   through the same flow without the server reclassifying them as admin courses.
-            # - If the caller is an admin creator and didn't ask for student_curated, default
-            #   to an admin-authored course.
-            # - Otherwise (non-admin caller, no explicit source) land in the student-curated
-            #   path too.
-            is_admin_creator = is_admin_course_creator(user_data)
-            requested_source = data.get('course_source')
-            if requested_source == 'student_curated' or not is_admin_creator:
-                course_source = 'student_curated'
-                course_organization_id = None
-                course_visibility = 'public'
-            else:
-                course_source = requested_source or 'admin'
-                course_organization_id = user_data.get('organization_id')
-                course_visibility = data.get('visibility', 'organization')
-
             course_data = {
                 'title': data['title'],
                 'slug': slug,
-                'organization_id': course_organization_id,
+                'organization_id': user_data.get('organization_id'),
                 'created_by': user_id,
                 'description': data.get('description'),
                 'intro_content': data.get('intro_content', {}),
                 'cover_image_url': data.get('cover_image_url'),
-                'visibility': course_visibility,
+                'visibility': data.get('visibility', 'organization'),
                 'navigation_mode': data.get('navigation_mode', 'sequential'),
                 'status': 'draft',
-                'course_source': course_source,
             }
-
-            # Student-curated class fields (only meaningful when course_source='student_curated',
-            # but harmless to set on admin courses that choose to use them).
-            for field in (
-                'teacher_of_record_id',
-                'teacher_bio',
-                'teacher_credentials',
-                'kickoff_at',
-                'kickoff_meeting_url',
-                'credit_subject',
-                'credit_amount',
-                'max_cohort_size',
-            ):
-                if field in data:
-                    course_data[field] = data[field]
 
             result = client.table('courses').insert(course_data).execute()
             if not result.data:
@@ -330,13 +295,12 @@ def register_routes(bp):
 
             # Check permissions (also grab prior status + identity fields needed for review notifications)
             course_result = client.table('courses').select(
-                'created_by, organization_id, status, title, course_source, slug'
+                'created_by, organization_id, status, title, slug'
             ).eq('id', course_id).execute()
             if not course_result.data:
                 return jsonify({'error': 'Course not found'}), 404
 
             course = course_result.data[0]
-            prior_status = course.get('status')
             user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
             if not user_result.data:
                 return jsonify({'error': 'User not found'}), 404
@@ -359,22 +323,18 @@ def register_routes(bp):
                 'slug', 'learning_outcomes', 'final_deliverable',
                 'educational_value', 'parent_guidance',
                 'target_audience', 'progress_model',
-                # Student-curated class fields
-                'teacher_of_record_id', 'teacher_bio', 'teacher_credentials',
-                'kickoff_at', 'kickoff_meeting_url',
-                'credit_subject', 'credit_amount', 'max_cohort_size',
+                # Transcript credit shown by the partner-enrollment flow
+                'credit_subject', 'credit_amount',
             ]
             for field in allowed_fields:
                 if field in data:
                     updates[field] = data[field]
 
             # Status transitions: only superadmin can move to 'published' or 'archived'.
-            # Non-admin creators (students editing their own class) can only flip between
-            # 'draft' and 'pending_review'.
             if 'status' in updates and get_effective_role(user_data) != 'superadmin':
-                if updates['status'] not in ('draft', 'pending_review'):
+                if updates['status'] != 'draft':
                     return jsonify({
-                        'error': 'Only an admin can publish or archive a class'
+                        'error': 'Only an admin can publish or archive a course'
                     }), 403
 
             # If slug is being updated, ensure uniqueness
@@ -400,32 +360,6 @@ def register_routes(bp):
             logger.info(f"Course updated: {course_id} by {user_id}")
 
             # (Badges feature removed 2026-04 — no badge sync needed.)
-
-            # Notify all superadmins when a student-curated class is submitted for review
-            # (status transitions FROM anything other than pending_review INTO pending_review
-            # on a student-curated class). Fire-and-forget; never block the response.
-            if (
-                updated_course.get('course_source') == 'student_curated'
-                and updates.get('status') == 'pending_review'
-                and prior_status != 'pending_review'
-            ):
-                try:
-                    from services.notification_service import NotificationService
-                    svc = NotificationService()
-                    superadmins = client.table('users').select('id').eq('role', 'superadmin').execute()
-                    title = updated_course.get('title') or 'Untitled class'
-                    for admin in (superadmins.data or []):
-                        svc.create_notification(
-                            user_id=admin['id'],
-                            notification_type='class_submitted_for_review',
-                            title='Class submitted for review',
-                            message=f'"{title}" is ready for your review.',
-                            link='/admin/classes/review',
-                            metadata={'course_id': course_id, 'slug': updated_course.get('slug')},
-                        )
-                    logger.info(f"Notified {len(superadmins.data or [])} superadmin(s) for class review: {course_id}")
-                except Exception as notify_err:
-                    logger.warning(f"Failed to notify superadmins of class submission {course_id}: {notify_err}")
 
             return jsonify({
                 'success': True,

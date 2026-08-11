@@ -294,15 +294,6 @@ describe('LoginPage', () => {
       })
     })
 
-    it('forwards showcase-only marketing accounts to the showcase', async () => {
-      authState = { ...authState, user: { id: '1', role: 'student', first_name: 'Mark', can_view_showcase: true } }
-      renderLoginPage()
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/showcase', { replace: true })
-      })
-    })
-
     it('honors a return path from a protected page', async () => {
       renderLoginPage({ pathname: '/login', state: { from: '/quests/42' } })
 

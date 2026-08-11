@@ -24,6 +24,17 @@ export const SIS_MODULE_BY_PATH = {
   '/secure-documents': 'secure_documents',
   '/timesheets': 'timesheets',
   '/time': 'timesheets',
+  // 'classes' also hides the teacher-portal class pages: with no classes
+  // there are no sections to teach or schedule.
+  '/classes': 'classes',
+  '/my-classes': 'classes',
+  '/my-schedule': 'classes',
+  '/calendar': 'calendar',
+  '/attendance': 'attendance',
+  '/reports': 'reports',
+  '/resources': 'resources',
+  '/curriculum': 'curriculum',
+  '/training': 'training',
 }
 
 /** The set of module keys this org has hidden (empty when unset). */

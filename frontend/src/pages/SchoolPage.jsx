@@ -364,6 +364,13 @@ export default function SchoolPage() {
               alt={schoolName || 'School logo'}
               className="h-[120px] max-w-full object-contain"
             />
+            {/* Optional sub-brand word under the mark (branding_config.
+                logo_subtitle) — e.g. the Optio wordmark with "academy" below. */}
+            {schoolOrg.logo_subtitle && (
+              <p aria-hidden="true" className="mt-1 text-lg font-semibold uppercase tracking-[0.45em] text-optio-purple">
+                {schoolOrg.logo_subtitle}
+              </p>
+            )}
             <h1 className="sr-only">{schoolName || 'My school'}</h1>
           </>
         ) : (

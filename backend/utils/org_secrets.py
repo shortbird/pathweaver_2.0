@@ -151,11 +151,14 @@ def strip_secrets_from_feature_flags(feature_flags: Optional[dict]) -> dict:
 
     cleaned = dict(feature_flags)
 
-    icreate = cleaned.get('icreate_registration')
-    if isinstance(icreate, dict) and STRIPE_SECRET_KEY in icreate:
-        icreate = dict(icreate)
-        icreate.pop(STRIPE_SECRET_KEY, None)
-        cleaned['icreate_registration'] = icreate
+    # The registration funnel config lives at 'registration' (org-neutral key)
+    # and, during the rename window, is mirrored at the legacy key too.
+    for reg_key in ('registration', 'icreate_registration'):
+        reg = cleaned.get(reg_key)
+        if isinstance(reg, dict) and STRIPE_SECRET_KEY in reg:
+            reg = dict(reg)
+            reg.pop(STRIPE_SECRET_KEY, None)
+            cleaned[reg_key] = reg
 
     sis = cleaned.get('sis_settings')
     if isinstance(sis, dict) and (CALENDAR_FEED_TOKEN in sis

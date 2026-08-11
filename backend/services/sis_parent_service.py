@@ -14,6 +14,7 @@ authorization is enforced here in code, never by passing through a caller's role
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
+from utils.registration_config import get_registration_config
 from services import sis_registration_service as regs
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
@@ -139,7 +140,7 @@ def context(user_id: str) -> Dict[str, Any]:
                 orgs[r['id']]['organization_name'] = r['name']
                 # Appointment-booking link (e.g. iCreate's Customized Learning Plan
                 # meetings) so the Schedule Builder can offer "Book appointment".
-                icfg = ((r.get('feature_flags') or {}).get('icreate_registration') or {})
+                icfg = get_registration_config(r.get('feature_flags'))
                 sched = (icfg.get('scheduling_url') or '').strip()
                 if sched and not _re.match(r'^https?://', sched, _re.I):
                     sched = f'https://{sched}'
@@ -204,6 +205,9 @@ def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str
         # (that's how SisOrgSettings stores uploads), so it can be large —
         # this endpoint is one page's one call.
         'logo_url': (row.get('branding_config') or {}).get('logo_url'),
+        # Optional word rendered under the logo (e.g. Optio Academy shows the
+        # Optio wordmark with "academy" beneath it).
+        'logo_subtitle': (row.get('branding_config') or {}).get('logo_subtitle'),
     }
 
 

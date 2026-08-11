@@ -33,6 +33,23 @@ describe('sisModules', () => {
     expect(isPathHidden('/forms', gryffin)).toBe(true)
   })
 
+  it('hides the whole class surface (admin + teacher portal) under one key', () => {
+    const org = orgWith(['classes'])
+    expect(isPathHidden('/classes', org)).toBe(true)
+    expect(isPathHidden('/my-classes', org)).toBe(true)
+    expect(isPathHidden('/my-schedule', org)).toBe(true)
+  })
+
+  it('supports the operational modules Optio Academy opts out of', () => {
+    const academy = orgWith(['classes', 'calendar', 'attendance', 'reports', 'resources', 'curriculum', 'training', 'secure_documents'])
+    for (const path of ['/calendar', '/attendance', '/reports', '/resources', '/curriculum', '/training', '/secure-documents']) {
+      expect(isPathHidden(path, academy)).toBe(true)
+    }
+    // Registration and messaging are untouched.
+    expect(isPathHidden('/registration', academy)).toBe(false)
+    expect(isPathHidden('/messaging', academy)).toBe(false)
+  })
+
   it('never hides non-module paths', () => {
     expect(isPathHidden('/goals', orgWith(['clp']))).toBe(false)
     expect(isPathHidden('/submissions', orgWith(['clp']))).toBe(false)

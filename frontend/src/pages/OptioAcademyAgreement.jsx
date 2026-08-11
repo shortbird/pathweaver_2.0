@@ -9,7 +9,7 @@ const OptioAcademyAgreement = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: May 22, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
 
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8">
               <p className="font-semibold text-blue-900">Important Notice</p>
@@ -30,8 +30,6 @@ const OptioAcademyAgreement = () => {
                 <p className="mb-2"><strong>The Academy:</strong></p>
                 <p className="ml-4">
                   Optio, LLC, a Utah limited liability company<br />
-                  1555 Freedom Blvd 200 W<br />
-                  Provo, UT 84604<br />
                   (Hereinafter referred to as "the Academy" or "Optio Academy")
                 </p>
               </div>
@@ -64,8 +62,9 @@ const OptioAcademyAgreement = () => {
               <p className="mb-4">
                 Optio Academy operates on the educational philosophy that "The Process Is The Goal."
                 Learning is valued for its intrinsic worth and for the growth it creates in the present
-                moment. The Academy combines daily 1-on-1 contact with a dedicated teacher and project-based
-                learning across five skill pillars (STEM, Communication, Civics, Wellness, and Art).
+                moment. The Academy combines mentorship and project-based learning across five skill
+                pillars (STEM, Communication, Civics, Wellness, and Art), through the two enrollment
+                programs described in Section 2.
               </p>
               <p className="mb-4">
                 This Agreement incorporates the{' '}
@@ -82,10 +81,30 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Mode of Instruction</h3>
               <p className="mb-4">
-                Optio Academy is delivered fully online. Instruction occurs through the Optio digital
-                platform combined with daily 1-on-1 video sessions between the Participant and a dedicated
-                teacher. There is no physical campus and no in-person instructional component.
+                Optio Academy is delivered fully online through the Optio digital platform. There is no
+                physical campus and no in-person instructional component.
               </p>
+
+              <h3 className="text-xl font-semibold mb-3">Enrollment Programs</h3>
+              <p className="mb-4">
+                The Academy offers two enrollment programs. The platform, the accreditation, and the
+                diploma are the same in both; the programs differ in who guides the Participant's
+                learning day to day. The Participant's program is selected at enrollment:
+              </p>
+              <ul className="list-disc ml-6 mb-4">
+                <li>
+                  <strong>Full-Time Academy:</strong> The Participant works with a dedicated Optio
+                  teacher through 1-on-1 video sessions. The frequency and level of teacher support
+                  — from daily working sessions to weekly check-ins — is agreed with the Parent at
+                  enrollment and reflected in the tuition described in Section 4.
+                </li>
+                <li>
+                  <strong>Parent-Supported Diploma:</strong> The Parent guides the Participant's
+                  learning day to day. The Academy provides the platform, curriculum structure, credit
+                  review, and the accredited transcript and diploma. Credit is awarded by the Academy
+                  upon review of submitted work.
+                </li>
+              </ul>
 
               <h3 className="text-xl font-semibold mb-3">Academic Calendar</h3>
               <p className="mb-4">
@@ -96,23 +115,22 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Curriculum</h3>
               <p className="mb-4">
-                The Participant's curriculum is personalized in collaboration with the Participant's
-                dedicated teacher, mapped to the five skill pillars, and aligned with Utah core standards
-                for high school. The Participant earns credit toward an Optio Academy diploma by
-                completing quests, documenting evidence of learning, and demonstrating mastery to the
-                teacher.
+                The Participant's curriculum is personalized — in collaboration with the Participant's
+                dedicated teacher (Full-Time Academy) or the Parent (Parent-Supported Diploma) — mapped
+                to the five skill pillars, and aligned with Utah core standards for high school. The
+                Participant earns credit toward an Optio Academy diploma by completing quests,
+                documenting evidence of learning, and demonstrating mastery to the Academy.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Accreditation Status</h3>
+              <h3 className="text-xl font-semibold mb-3">Accreditation</h3>
               <p className="mb-4">
-                Optio Academy is actively pursuing institutional accreditation for the 2026 – 2027 school
-                year. The Academy will publish its accrediting body and effective accreditation date on
-                the{' '}
+                Optio Academy is accredited by the Accrediting Commission for Schools, Western
+                Association of Schools and Colleges (ACS WASC). Current accreditation details are
+                published on the{' '}
                 <Link to="/academy" className="text-primary hover:text-optio-purple underline">
                   Optio Academy
                 </Link>{' '}
-                website page once accreditation is final. Until accreditation is finalized, the Academy
-                makes no representation that it is currently accredited.
+                website page.
               </p>
             </section>
 
@@ -134,12 +152,26 @@ const OptioAcademyAgreement = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">4. Tuition, Fees, and Refund Policy</h2>
 
-              <h3 className="text-xl font-semibold mb-3">Annual Tuition</h3>
+              <h3 className="text-xl font-semibold mb-3">Tuition</h3>
               <p className="mb-4">
-                Annual tuition for Optio Academy is $8,000 per Participant per school year. Tuition
-                includes daily 1-on-1 mentor sessions, all curriculum materials, access to the Optio
-                digital platform, the Participant's transcript, and the diploma pathway.
+                Tuition depends on the Participant's enrollment program (Section 2):
               </p>
+              <ul className="list-disc ml-6 mb-4">
+                <li>
+                  <strong>Full-Time Academy:</strong> Tuition is customized to the level of teacher
+                  support agreed with the Parent and is stated in writing at enrollment, before this
+                  Agreement is signed. Tuition includes the agreed 1-on-1 teacher sessions, all
+                  curriculum materials, access to the Optio digital platform, the Participant's
+                  transcript, and the diploma pathway.
+                </li>
+                <li>
+                  <strong>Parent-Supported Diploma:</strong> Tuition is $100 per credit ($2,400 for
+                  the full 24-credit diploma), billed as credits are undertaken or on the schedule
+                  agreed at enrollment. Tuition includes access to the Optio digital platform,
+                  curriculum structure, Academy credit review, the Participant's transcript, and the
+                  diploma pathway.
+                </li>
+              </ul>
 
               <h3 className="text-xl font-semibold mb-3">No Additional Required Fees</h3>
               <p className="mb-4">
@@ -157,10 +189,12 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Refund Policy</h3>
               <p className="mb-4">
-                If the Participant withdraws from Optio Academy before the end of the school year, tuition
-                is refunded prorated by the number of months the Participant attended. Months in which the
-                Participant was enrolled for any part of the month count as a full attended month for
-                purposes of this calculation.
+                If the Participant withdraws from Optio Academy before the end of the school year:
+                Full-Time Academy tuition is refunded prorated by the number of months the Participant
+                attended, where months in which the Participant was enrolled for any part of the month
+                count as a full attended month; Parent-Supported Diploma credit fees are refunded in
+                full for credits the Participant has not yet begun, and are not refunded for credits
+                already begun or completed.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Refunds for Scholarship-Funded Tuition</h3>
@@ -196,7 +230,7 @@ const OptioAcademyAgreement = () => {
                 written pre-enrollment disclosure that includes:
               </p>
               <ul className="list-disc ml-6 mb-4">
-                <li>The educational services offered and their cost (the annual tuition described in Section 4)</li>
+                <li>The educational services offered and their cost (the tuition described in Section 4)</li>
                 <li>All additional fees, if any, required during the school year (none, as of the Effective Date)</li>
                 <li>The skill or grade level of the curriculum offered to the Participant</li>
                 <li>The refund and reimbursement policy described in Section 4</li>
@@ -224,10 +258,6 @@ const OptioAcademyAgreement = () => {
                 The Parent may withdraw the Participant at any time by providing written notice to{' '}
                 <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
                   tanner@optioeducation.com
-                </a>{' '}
-                or{' '}
-                <a href="mailto:support@optioeducation.com" className="text-primary hover:text-optio-purple underline">
-                  support@optioeducation.com
                 </a>. The withdrawal takes effect on the date stated in the notice or, if no date is
                 stated, on the date the notice is received.
               </p>
@@ -294,9 +324,10 @@ const OptioAcademyAgreement = () => {
                 Mandatory reporting is conducted in accordance with Utah Code §62A-4a-403 and §80-2-602.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Emergency Contact Information</h3>
+              <h3 className="text-xl font-semibold mb-3">Contact Information</h3>
               <p className="mb-4">
-                The Parent agrees to provide complete and accurate emergency contact information at
+                As a fully online school, the Academy's point of contact for the Participant is the
+                Parent. The Parent agrees to provide complete and accurate contact information at
                 enrollment and to update the Academy immediately of any changes.
               </p>
 
@@ -509,8 +540,6 @@ const OptioAcademyAgreement = () => {
                 <strong>Optio Academy</strong><br />
                 Dr. Tanner Bowman, Head of School<br />
                 Optio, LLC<br />
-                1555 Freedom Blvd 200 W<br />
-                Provo, UT 84604<br />
                 <br />
                 <strong>Email:</strong> tanner@optioeducation.com<br />
                 <strong>General support:</strong> support@optioeducation.com<br />

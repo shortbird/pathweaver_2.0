@@ -21,6 +21,8 @@ CTA URLs:
 - iOS: https://apps.apple.com/us/app/optio-education/id6773061928
 - Android: https://play.google.com/store/apps/details?id=com.optioeducation.optio
 - Web (secondary): https://www.optioeducation.com/register (UTMs per plan doc)
+- Booking link (Dr. Bowman's calendar): https://calendar.app.google/rqSPUvuUdbti18ZQ8 — used where a live conversation is the natural next step (diploma email 3b, Free Class 5, General Interest 1, Families 1). Link text: "grab a time on my calendar". No UTMs (external Google link).
+- Academy page (diploma pathways): https://www.optioeducation.com/academy (UTMs per plan doc). Pathway names must match the page: **Full-Time Academy** (dedicated Optio teacher, customized tuition) and **Parent-Supported Diploma** ($100 per credit, $2,400 for the 24-credit diploma).
 - Help Center articles: https://www.optioeducation.com/docs/high-school-classes/<slug> (each email links the article matching its topic; UTMs per plan doc §8)
 
 Badge images (Brevo-hosted):
@@ -58,6 +60,8 @@ And if you're curious how the whole thing fits together, [How classes work](/doc
 
 Dr. Bowman
 
+P.S. If you're looking for more than a single class, Optio Academy also offers full diploma programs. More on that in a few days, or you can see the details at [optioeducation.com/academy](/academy).
+
 ---
 
 ### Email 2 — day 2
@@ -91,6 +95,27 @@ Your free class is still open whenever you're ready to create it:
 [App Store badge] [Google Play badge]
 
 If you have questions about your specific school, just reply. I've walked a lot of families through this.
+
+Dr. Bowman
+
+---
+
+### Email 3b — day 5 (template 49, added 2026-08-10)
+**Subject:** This can go all the way to a diploma
+
+Hey, it's Dr. Bowman again.
+
+Last time I mentioned that Optio classes go on an official transcript through Optio Academy, our WASC-accredited online school. Here's the part most families don't realize: you don't have to stop at one class. You can earn your entire high school diploma with us.
+
+There are two ways to do it. In the Full-Time Academy, a dedicated Optio teacher guides you the whole way, setting goals, checking in, and reviewing every piece of work, with tuition tailored to the level of support you need. In the Parent-Supported Diploma, your parent leads the learning day to day while Optio provides the structure, the platform, and the accredited transcript, at $100 per credit.
+
+You don't have to decide any of this now. Your free class works the same either way, and it's the best way to find out whether Optio fits you.
+
+The full comparison is at [optioeducation.com/academy](/academy). And if you or your parents want to talk it through, just reply, or [grab a time on my calendar](https://calendar.app.google/rqSPUvuUdbti18ZQ8) and we'll walk through it together.
+
+Your free class is ready whenever you are:
+
+[App Store badge] [Google Play badge]
 
 Dr. Bowman
 
@@ -131,7 +156,7 @@ There are more details in our Help Center, including [pricing](/docs/high-school
 
 And one parent recently told me: 'I really hope this is how he wants to do his economics class next summer, because I'm having a great time, and I know he's learning a lot more than he would be just clicking through an online course.'
 
-And parents, if you have questions, I'm happy to answer them directly. Just reply to this email and it comes straight to me.
+And parents, if you have questions, I'm happy to answer them directly. Just reply to this email and it comes straight to me, or [grab a time on my calendar](https://calendar.app.google/rqSPUvuUdbti18ZQ8) if you'd rather talk it through.
 
 Dr. Bowman
 
@@ -197,7 +222,7 @@ The best way to see if it fits is to have your student try it. The first class i
 
 [App Store badge] [Google Play badge]
 
-And if you asked a specific question when you reached out, just reply to this email. It comes straight to me, and I answer everything myself.
+And if you asked a specific question when you reached out, just reply to this email. It comes straight to me, and I answer everything myself. If it's easier to talk it through, you can [grab a time on my calendar](https://calendar.app.google/rqSPUvuUdbti18ZQ8).
 
 Dr. Bowman
 
@@ -269,7 +294,7 @@ Optio is built for the whole K-12 range. Your student creates classes around wha
 
 Everything runs in the Optio mobile app (iOS and Android, with a web version too). For older students, classes are teacher-reviewed and can go on an official transcript, and the first class is free.
 
-The easiest way to see if Optio fits your family is to download the app and have your student start something. And if you have questions, just reply to this email; it comes straight to me, and I answer everything myself.
+The easiest way to see if Optio fits your family is to download the app and have your student start something. And if you have questions, just reply to this email; it comes straight to me, and I answer everything myself. If it's easier to talk it through, you can [grab a time on my calendar](https://calendar.app.google/rqSPUvuUdbti18ZQ8).
 
 [App Store badge] [Google Play badge]
 
@@ -415,3 +440,59 @@ Dr. Bowman
 
 ## Monthly keep-warm newsletter (all non-converted lists)
 Format: 3 short items, plain. (1) One real student project from that month (anonymized, with permission), (2) one new or seasonal class or quest idea, (3) one practical answer to a common family question. Always ends with: "Your first class is still free." Signed Dr. Bowman.
+
+---
+
+## Segment: Course Student Onboarding (list #14, templates 45-48; org-registered course students, student-voiced, may include under-13)
+
+**Email 1 (day 1) — Subject: Welcome to Optio. It works a little differently.**
+
+Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Your school set up your account and enrolled you in a course with us, so I wanted to introduce myself and tell you what to expect.
+
+Most online classes ask you to sit and watch, then answer questions about what you watched. Optio is built the other way around. We believe you learn best by doing real things, so your course will keep sending you away from the screen to make, practice, and explore, and then come back to show what you did.
+
+When you're ready, [log in] and open your course. Read the first lesson. It's short on purpose, and I'll explain why in my next note.
+
+If you get stuck or have a question at any point, reply to this email. It comes straight to me and I answer every message myself.
+
+Dr. Bowman
+
+**Email 2 (day 3) — Subject: How your course works**
+
+Hi {FIRSTNAME}, Dr. Bowman again. Here's the map of your course, because it probably looks different from school.
+
+Your course is a set of projects. Each project has short lessons, and each lesson gives you tasks: real things to go do, like building, writing, practicing, interviewing, or making something. You finish a task by capturing evidence, which is a photo, a video, or a few sentences about what you did.
+
+Every task you finish earns XP. Earn enough XP and the project is complete, and completing the projects is how you finish the course. There are no quizzes and no grades along the way. The work is the whole thing.
+
+Today, [open your course], pick the task in your first lesson that looks most fun, and do it. One task is all it takes to see how this works.
+
+Questions, just reply. This address comes straight to me.
+
+Dr. Bowman
+
+**Email 3 (day 6) — Subject: Why the lessons are so short**
+
+Hi {FIRSTNAME}, Dr. Bowman here. If you've read a lesson by now, you may have noticed it doesn't explain everything. That's on purpose, and it's the heart of how Optio works.
+
+A lesson gives you just enough to make your first real attempt. Then you go try, and somewhere in the middle of doing, you'll hit a question the lesson didn't answer. That moment is the whole point. Now you actually want to know, and whatever you learn next will stick because you needed it.
+
+So when you feel a little unsure at the start of a task, that's not a problem, that's the design. Look things up, ask someone, experiment. Figuring it out is the learning.
+
+One more thing: the tasks in each lesson are suggestions. If you have a better idea for something real to do, you can create your own task and earn XP for it. Your ideas count just as much as ours.
+
+Questions, just reply. I read every message myself.
+
+Dr. Bowman
+
+**Email 4 (day 10) — Subject: What all your tasks add up to**
+
+Hi {FIRSTNAME}, Dr. Bowman here with the last of these getting-started notes.
+
+Every task you finish is saved with its evidence, and together they build a portfolio: a real record of what you can do, in your own words, photos, and videos. A grade says you passed. A portfolio shows the bread you baked, the code you wrote, the interview you ran.
+
+At Optio we say the process is the goal. We care more about what you did today than what it might be worth someday, and the record builds itself while you work.
+
+From here it's one task at a time. If anything gets in the way, reply to this email and I'll help you sort it out.
+
+Dr. Bowman

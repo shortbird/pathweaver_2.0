@@ -25,7 +25,6 @@ function renderAt(path) {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/dashboard" element={<div data-testid="student-dashboard" />} />
         <Route path="/parent/dashboard" element={<div data-testid="parent-dashboard" />} />
-        <Route path="/showcase" element={<div data-testid="showcase" />} />
         <Route path="/school" element={<div data-testid="school-home" />} />
         <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
@@ -69,12 +68,6 @@ describe('HomeRoute (the / route)', () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent' } }
     renderAt('/')
     expect(screen.getByTestId('parent-dashboard')).toBeInTheDocument()
-  })
-
-  it('forwards showcase-only marketing accounts to the showcase', () => {
-    authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'student', can_view_showcase: true } }
-    renderAt('/')
-    expect(screen.getByTestId('showcase')).toBeInTheDocument()
   })
 
   it('forwards families of a homepage school to the school page', () => {

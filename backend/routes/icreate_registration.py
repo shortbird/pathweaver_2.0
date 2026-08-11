@@ -63,6 +63,7 @@ from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input, validate_uuid
+from utils.registration_config import get_registration_config
 from utils.logger import get_logger
 from services.email_service import email_service
 
@@ -125,9 +126,9 @@ def _load_icreate_invite(code):
         return None, (jsonify({'error': 'This is not a parent registration link'}), 400)
 
     org = inv.get('organizations') or {}
-    cfg = (org.get('feature_flags') or {}).get('icreate_registration') or {}
+    cfg = get_registration_config(org.get('feature_flags'))
     if not cfg.get('enabled'):
-        return None, (jsonify({'error': 'This organization does not use the iCreate registration flow'}), 400)
+        return None, (jsonify({'error': 'This organization does not use the registration funnel'}), 400)
 
     is_link_based = str(inv.get('email', '')).endswith(LINK_PLACEHOLDER_SUFFIX)
     if not is_link_based:
@@ -198,6 +199,12 @@ def _public_config(org, cfg, paperwork_urls=None):
             'slug': org.get('slug'),
             'branding_config': org.get('branding_config') or {},
         },
+        # Whether the details step collects emergency contacts (default yes;
+        # an org with no physical campus can turn it off).
+        'emergency_contacts': cfg.get('emergency_contacts') is not False,
+        # Whether the family step asks for each child's allergies/medications
+        # (default yes; irrelevant for a fully online org).
+        'health_fields': cfg.get('health_fields') is not False,
         'fee_mode': cfg.get('fee_mode') or 'flat',
         'registration_fee_cents': int(cfg.get('registration_fee_cents') or 0),
         'per_student_fee_cents': int(cfg.get('per_student_fee_cents') or 0),
@@ -577,11 +584,11 @@ def _org_config(admin, org_id):
     # (which surfaced as a confirm_payment error in Sentry).
     #
     # This returns PUBLIC funnel config only. The Stripe secret key used to live
-    # in here (feature_flags.icreate_registration.stripe_secret_key) and was
-    # readable over the public anon key -- see AUDIT.md C1. It now lives in
+    # in here (the registration flag's stripe_secret_key) and was readable over
+    # the public anon key -- see AUDIT.md C1. It now lives in
     # organization_secrets; fetch it explicitly with _org_stripe_key().
     r = admin.table('organizations').select('feature_flags').eq('id', org_id).maybe_single().execute()
-    return (((r.data if r else None) or {}).get('feature_flags') or {}).get('icreate_registration') or {}
+    return get_registration_config(((r.data if r else None) or {}).get('feature_flags'))
 
 
 def _org_stripe_key(org_id):
@@ -753,7 +760,7 @@ def my_registration(user_id):
         .select('id, name, slug, branding_config, feature_flags')
         .eq('id', reg['organization_id']).single().execute()
     ).data or {}
-    cfg = (org.get('feature_flags') or {}).get('icreate_registration') or {}
+    cfg = get_registration_config(org.get('feature_flags'))
 
     # Household address/phone (for prefilling the family step on back-edit).
     hh_rows = (admin.table('households')
@@ -1490,7 +1497,10 @@ def submit_details(reg_id):
             'name': name, 'relationship': rel or None, 'phone': cphone,
             'email': sanitize_input(c.get('email', '')) or None,
         })
-    if not contacts:
+    # An org can opt out of collecting emergency contacts entirely
+    # (registration config `emergency_contacts: false`, e.g. Optio Academy —
+    # a virtual program with no campus to contact anyone from).
+    if not contacts and cfg.get('emergency_contacts') is not False:
         return jsonify({'error': 'Please add at least one emergency contact'}), 400
 
     kid_ids = [k.get('user_id') for k in (reg.get('kids') or []) if k.get('user_id')]

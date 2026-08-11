@@ -25,7 +25,7 @@ import { captureException, captureMessage } from './sentry';
 // If the env var is missing in a native production build we fall back to prod rather
 // than a dev URL, so a bad build can't accidentally target a developer's laptop.
 const isDev = (typeof __DEV__ !== 'undefined' && __DEV__);
-const DEV_LAN_IP = 'http://192.168.86.10:5001';
+const DEV_LAN_IP = 'http://10.0.0.5:5001';
 const ANDROID_EMULATOR_HOST = 'http://10.0.2.2:5001';
 const PROD_API = 'https://api.optioeducation.com';
 const NATIVE_FALLBACK = isDev

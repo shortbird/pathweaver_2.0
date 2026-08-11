@@ -19,9 +19,6 @@ vi.mock('../components/admin/AdminUsers', () => ({
 vi.mock('../components/admin/FlaggedTasksPanel', () => ({
   default: () => <div data-testid="flagged-tasks">Flagged Tasks</div>
 }))
-vi.mock('../components/admin/AutomatedEmailsList', () => ({
-  default: () => <div>Emails</div>
-}))
 vi.mock('./admin/OrganizationDashboard', () => ({
   default: () => <div data-testid="org-dashboard">Org Dashboard</div>
 }))
@@ -77,7 +74,7 @@ describe('AdminPage', () => {
       await waitFor(() => {
         // Tabs appear in both mobile select and desktop links
         expect(screen.getAllByText('Users').length).toBeGreaterThanOrEqual(1)
-        expect(screen.getAllByText('Emails').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('Quests').length).toBeGreaterThanOrEqual(1)
       })
     })
 
@@ -89,10 +86,10 @@ expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
       })
     })
 
-    it('renders AdminQuests by default', async () => {
+    it('renders AdminUsers by default', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.getByTestId('admin-quests')).toBeInTheDocument()
+        expect(screen.getByTestId('admin-users')).toBeInTheDocument()
       })
     })
 

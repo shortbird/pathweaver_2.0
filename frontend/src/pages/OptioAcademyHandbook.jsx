@@ -9,7 +9,7 @@ const OptioAcademyHandbook = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant Handbook</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: May 22, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
 
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-optio-purple p-6 mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Optio Academy!</h3>
@@ -28,7 +28,7 @@ const OptioAcademyHandbook = () => {
               <h2 className="text-2xl font-semibold mb-4">Our Philosophy</h2>
               <p className="mb-4">
                 Optio Academy is built around one idea: you do your best work when you're in control. We
-                provide the curriculum, the daily mentorship, and the platform. The drive and the
+                provide the curriculum, the mentorship, and the platform. The drive and the
                 ownership come from you. This program is for self-directed students who are ready to be
                 responsible for their own learning.
               </p>
@@ -49,18 +49,37 @@ const OptioAcademyHandbook = () => {
               <h3 className="text-xl font-semibold mb-3">Fully Online</h3>
               <p className="mb-4">
                 Optio Academy is a fully online private school. There is no campus and no in-person
-                requirement. Everything happens through the Optio platform and a daily video session with
-                your dedicated teacher.
+                requirement. Everything happens through the Optio platform, with video sessions
+                depending on your program.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Your Daily Mentor Session</h3>
+              <h3 className="text-xl font-semibold mb-3">Two Ways to Enroll</h3>
               <p className="mb-4">
-                Every weekday, you meet with the same dedicated teacher one-on-one over video. Together,
-                you'll:
+                Optio Academy offers two programs. The platform, the accreditation, and the diploma are
+                the same in both — what changes is who guides the learning day to day:
+              </p>
+              <ul className="list-disc ml-6 mb-4">
+                <li>
+                  <strong>Full-Time Academy:</strong> A dedicated Optio teacher carries the
+                  accountability — goals, check-ins, follow-through, and review of your work. The level
+                  of support is tailored to you, from daily working sessions to a quick weekly
+                  check-in, and is agreed with your family at enrollment.
+                </li>
+                <li>
+                  <strong>Parent-Supported Diploma:</strong> Your parent guides the learning day to
+                  day, while Optio provides the platform, the structure, and the accredited transcript
+                  and diploma. The Academy reviews your work when you submit credits.
+                </li>
+              </ul>
+
+              <h3 className="text-xl font-semibold mb-3">Your Mentor Sessions (Full-Time Academy)</h3>
+              <p className="mb-4">
+                In the Full-Time Academy, you meet with the same dedicated teacher one-on-one over
+                video, on the schedule your family agreed at enrollment. Together, you'll:
               </p>
               <ul className="list-disc ml-6 mb-4">
                 <li>Set goals for the day or week</li>
-                <li>Review yesterday's work</li>
+                <li>Review your recent work</li>
                 <li>Learn new concepts and work through challenges</li>
                 <li>Plan your next quest or project</li>
                 <li>Assess progress against the five skill pillars</li>
@@ -68,7 +87,7 @@ const OptioAcademyHandbook = () => {
 
               <h3 className="text-xl font-semibold mb-3">Quest-Based Learning</h3>
               <p className="mb-4">
-                Between mentor sessions, you work on personalized "quests" — projects that turn your
+                Day to day, you work on personalized "quests" — projects that turn your
                 interests into real coursework. The Optio platform tracks everything:
               </p>
               <ul className="list-disc ml-6 mb-4">
@@ -106,8 +125,8 @@ const OptioAcademyHandbook = () => {
 
               <h3 className="text-xl font-semibold mb-3">Own Your Learning</h3>
               <p className="mb-4">
-                Your progress is up to you. We expect you to show up to your mentor sessions, do the work
-                between sessions, and ask for help when you're stuck. If you stop engaging, your teacher
+                Your progress is up to you. We expect you to show up to your sessions, do the work,
+                and ask for help when you're stuck. If you stop engaging, your teacher or the Academy
                 will reach out — and so will your parents.
               </p>
 
@@ -245,15 +264,19 @@ const OptioAcademyHandbook = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">Tuition &amp; Refunds</h2>
               <p className="mb-4">
-                Optio Academy charges a single annual tuition of $8,000 per student, billed on the
-                schedule agreed at enrollment. Tuition includes daily mentor sessions, curriculum
-                materials, the Optio platform, and the diploma pathway. There are no required additional
-                fees during the school year.
+                Tuition depends on your program. Full-Time Academy tuition is customized to the level
+                of teacher support your student needs — from daily working sessions to a weekly
+                check-in — and is agreed in writing at enrollment. The Parent-Supported Diploma is
+                $100 per credit, which comes to $2,400 for the full 24-credit diploma. Both include
+                curriculum materials, the Optio platform, the transcript, and the diploma pathway.
+                There are no required additional fees during the school year.
               </p>
               <p className="mb-4">
-                If a student leaves before the end of the school year, tuition is refunded prorated by
-                the number of months attended. The full refund policy — including how refunds work for
-                students whose tuition is funded by a scholarship — is in Section 4 of the{' '}
+                If a student leaves before the end of the school year, Full-Time Academy tuition is
+                refunded prorated by the number of months attended, and Parent-Supported Diploma
+                credit fees are refunded for credits not yet begun. The full refund policy — including
+                how refunds work for students whose tuition is funded by a scholarship — is in Section
+                4 of the{' '}
                 <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
                   Academy Agreement
                 </Link>
@@ -279,18 +302,18 @@ const OptioAcademyHandbook = () => {
 
               <h3 className="text-xl font-semibold mb-3">What We Provide</h3>
               <ul className="list-disc ml-6 mb-4">
-                <li>A dedicated teacher who meets with you every weekday</li>
+                <li>A dedicated teacher (Full-Time Academy) or Academy credit review (Parent-Supported Diploma)</li>
                 <li>The Optio digital learning platform</li>
                 <li>Personalized curriculum across the five skill pillars</li>
-                <li>An AI study buddy for between-session help</li>
+                <li>An AI study buddy for help whenever you need it</li>
                 <li>Online showcases and a community of fellow students</li>
-                <li>An accredited diploma pathway (accreditation in progress for 2026 – 2027)</li>
+                <li>A WASC-accredited transcript and diploma pathway</li>
               </ul>
 
               <h3 className="text-xl font-semibold mb-3">What We Expect From You</h3>
               <ul className="list-disc ml-6 mb-4">
-                <li>Show up to your daily mentor sessions</li>
-                <li>Do the work between sessions, honestly</li>
+                <li>Show up to your scheduled sessions</li>
+                <li>Do the work, honestly</li>
                 <li>Ask for help when you're stuck — that's what mentors are for</li>
                 <li>Treat everyone in the Optio community with respect</li>
                 <li>Take responsibility for your own learning</li>
@@ -315,9 +338,11 @@ const OptioAcademyHandbook = () => {
 
               <h3 className="text-xl font-semibold mb-3">Your Teacher</h3>
               <p className="mb-4">
-                Your teacher is your first stop for almost anything: academic questions, planning your
-                next quest, getting feedback, navigating the platform. Bring it to your daily session, or
-                message them between sessions.
+                In the Full-Time Academy, your teacher is your first stop for almost anything: academic
+                questions, planning your next quest, getting feedback, navigating the platform. Bring
+                it to your sessions, or message them in between. In the Parent-Supported Diploma, your
+                parent is your day-to-day guide, and the Academy is your contact for credit reviews and
+                anything platform-related.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Head of School</h3>

@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The queues live on the Registration page's second tab (the default tab is
+// the editable registration form), so mount the page with ?tab=queues.
+const render = (ui) => rtlRender(<MemoryRouter initialEntries={['/registration?tab=queues']}>{ui}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -15,9 +17,8 @@ vi.mock('./useSisOrg', () => ({
 // Adding to / reordering the waitlist is admin-only, so the card needs a user.
 let authState = { user: { id: 'admin-1', role: 'org_admin' } }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
-// The registration CONFIG cards (funnel settings, first day of school, and the
-// waitlisted-age-group editor) moved to the Settings page — the Registration
-// page is now just the enrollment operations queues, including the waitlist.
+// The registration CONFIG lives on the page's Setup tab (the editable funnel);
+// the Queues tab holds the enrollment operations, including the waitlist.
 
 const { api, state } = vi.hoisted(() => {
   const state = { entries: [], gates: [] }

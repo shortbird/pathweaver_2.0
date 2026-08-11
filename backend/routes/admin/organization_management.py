@@ -246,9 +246,13 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         incoming_flags = update_data.get('feature_flags')
         submitted_key = None
         if isinstance(incoming_flags, dict):
-            icreate = incoming_flags.get('icreate_registration')
-            if isinstance(icreate, dict) and STRIPE_SECRET_KEY in icreate:
-                submitted_key = (icreate.get(STRIPE_SECRET_KEY) or '').strip()
+            # The funnel config lives at 'registration' (org-neutral key); the
+            # legacy 'icreate_registration' mirror is checked for stale tabs.
+            for reg_key in ('registration', 'icreate_registration'):
+                reg = incoming_flags.get(reg_key)
+                if isinstance(reg, dict) and STRIPE_SECRET_KEY in reg:
+                    submitted_key = (reg.get(STRIPE_SECRET_KEY) or '').strip()
+                    break
 
         # A malformed Stripe key breaks the iCreate registration funnel at the
         # "Pay securely" step, so reject it at save time. Secret keys are sk_…
@@ -1507,6 +1511,18 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
             frontend_url = (Config.FRONTEND_URL or '').rstrip('/')
             login_url = f"{frontend_url}/login"
             if is_new_account:
+                # Marketing: brand-new course students join the Course Student
+                # Onboarding funnel, which teaches how Optio and courses work.
+                # Taking a purchased course from us is the email permission, so
+                # there is no age gate here (unlike self-serve registration).
+                # Fire-and-forget; the returned automation name rides along so
+                # the [COPY] to Tanner says whether a sequence follows.
+                brevo_funnel = None
+                try:
+                    from services.brevo_service import sync_course_student
+                    brevo_funnel = sync_course_student(student_email, first_name, last_name)
+                except Exception as brevo_err:
+                    logger.warning(f"Brevo course-student sync failed for {student_email}: {brevo_err}")
                 email_sent = email_service.send_org_course_welcome_email(
                     to_email=student_email,
                     student_name=first_name,
@@ -1515,7 +1531,8 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                     org_name=org_name,
                     courses_sentence=courses_sentence,
                     course_count=len(email_titles),
-                    login_url=login_url
+                    login_url=login_url,
+                    brevo_funnel=brevo_funnel
                 )
             elif newly_enrolled_titles:
                 email_sent = email_service.send_org_courses_added_email(

@@ -49,20 +49,6 @@ describe('school-homepage opt-in', () => {
   })
 })
 
-describe('showcase-only marketing accounts', () => {
-  it('lands a showcase-flagged student account on the showcase', () => {
-    expect(getPostLoginPath({ role: 'student', can_view_showcase: true })).toBe('/showcase')
-  })
-
-  it('does not divert anyone actively using the platform', () => {
-    expect(getPostLoginPath({ role: 'student' })).toBe('/dashboard')
-    expect(getPostLoginPath({ role: 'student', can_view_showcase: false })).toBe('/dashboard')
-    expect(getPostLoginPath({ role: 'parent', can_view_showcase: true })).toBe('/parent/dashboard')
-    expect(getPostLoginPath({ role: 'student', can_view_showcase: true, has_dependents: true })).toBe('/dashboard')
-    expect(getPostLoginPath({ role: 'student', can_view_showcase: true, has_linked_students: true })).toBe('/dashboard')
-  })
-})
-
 /**
  * roleHomePath is the fallback home for someone who can't stay where they are
  * (missing school context, back-button dead end, blocked route). Deliberately

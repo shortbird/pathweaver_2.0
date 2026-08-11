@@ -145,12 +145,14 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
-  it('keeps the Organization item and shows no launcher for an unflagged org_admin', () => {
+  it('keeps the organization console reachable (as Home) and shows no launcher for an unflagged org_admin', () => {
     authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
     orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: {} } }
     renderSidebar()
     expect(screen.queryByText('School Admin')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^organization$/i })).toBeInTheDocument()
+    // The org console is the org admin's home, so it appears once, as "Home"
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/organization')
+    expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
   it('always shows the School Admin launcher for superadmin (no org flag needed)', () => {
@@ -249,10 +251,11 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
   })
 
   it('keeps the things that are not the school', () => {
-    // Family is the guardian's own children, which is a different question from
-    // what the school is doing, so it stays put.
+    // The family dashboard is the guardian's own home ("Home" absorbs the old
+    // Family item), which is a different question from what the school is
+    // doing, so it stays put.
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute(
       'href', '/parent/dashboard')
     expect(screen.getByRole('link', { name: /^messages$/i })).toBeInTheDocument()
   })
@@ -261,5 +264,58 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
     authState.user = { id: 'a1', role: 'superadmin', email: 'a@example.com' }
     renderSidebar()
     expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
+  })
+})
+
+describe('Sidebar — Home and Quests (the retired top-navbar toggle)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  it('gives a student Home -> /dashboard and a Quests item', () => {
+    authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^quests$/i })).toHaveAttribute('href', '/quests')
+  })
+
+  it('points a parent Home at the family dashboard and hides Quests', () => {
+    authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/parent/dashboard')
+    expect(screen.queryByRole('link', { name: /^quests$/i })).not.toBeInTheDocument()
+  })
+
+  it('lists each destination once — Home absorbs the role-home item', () => {
+    authState.user = { id: 'p1', role: 'parent', has_dependents: true, email: 'p@example.com' }
+    renderSidebar()
+    const familyLinks = screen.getAllByRole('link').filter(
+      (l) => l.getAttribute('href') === '/parent/dashboard'
+    )
+    expect(familyLinks).toHaveLength(1)
+  })
+})
+
+describe('Sidebar — the two feeds have distinct names', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  it("names the student's own evidence feed My Feed", () => {
+    authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^my feed$/i })).toHaveAttribute('href', '/feedback')
+    expect(screen.queryByRole('link', { name: /^feed$/i })).not.toBeInTheDocument()
+  })
+
+  it('names the observer-side feed Student Feed (superadmin sees both, unambiguously)', () => {
+    authState.user = { id: 'u1', role: 'superadmin', email: 't@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^student feed$/i })).toHaveAttribute('href', '/observer/feed')
+    expect(screen.queryByRole('link', { name: /^feed$/i })).not.toBeInTheDocument()
   })
 })

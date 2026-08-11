@@ -5,8 +5,8 @@ import EvidenceDisplay from '../evidence/EvidenceDisplay'
 
 // Holistic review of student class submissions — a class shows as one unit
 // (its title, subject, approved XP, and the tasks that built it), not as
-// individual task credit requests. Used both on the standalone /admin/class-reviews
-// page and as a tab inside the Credit Review Dashboard.
+// individual task credit requests. Rendered as a tab inside the Credit
+// Review Dashboard.
 
 const STATUS_OPTIONS = [
   { value: 'submitted_for_review', label: 'Awaiting Review' },

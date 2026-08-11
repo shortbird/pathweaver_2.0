@@ -39,7 +39,6 @@ import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
 import RequireParentRegistration from './components/RequireParentRegistration'
-import ShowcaseRoute from './components/ShowcaseRoute'
 import { getAppSurface, subscribeSurface } from './utils/appSurface'
 import SisRoutes from './sis/SisRoutes'
 import UpdateAvailableBanner from './components/UpdateAvailableBanner'
@@ -77,7 +76,6 @@ const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
-const ShowcasePage = lazy(() => import('./pages/ShowcasePage'))
 const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const PartnerEnrollStudentPage = lazy(() => import('./pages/PartnerEnrollStudentPage'))
@@ -106,8 +104,6 @@ const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
 const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
-// Student-curated classes (April 2026)
-const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
@@ -121,7 +117,6 @@ const FamilyGoalsPage = lazy(() => import('./pages/FamilyGoalsPage'))
 const FamilyStudentPage = lazy(() => import('./pages/FamilyStudentPage'))
 const FamilyBillingPage = lazy(() => import('./pages/FamilyBillingPage'))
 const KioskPage = lazy(() => import('./pages/KioskPage'))
-const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
@@ -510,7 +505,6 @@ function App() {
                 {/* Public course pages (no auth required) */}
                 <Route path="catalog" element={<PublicCatalogPage />} />
                 <Route path="course/:slug" element={<PublicCoursePage />} />
-                <Route path="class/:slug" element={<PublicClassPage />} />
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
@@ -530,7 +524,7 @@ function App() {
                 {/* Course Builder - backend enforces creator/superadmin permissions */}
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 <Route path="courses/new" element={<CourseBuilder />} />
-                {/* Student-curated classes (admin surfaces live under /admin/classes/* inside AdminPage) */}
+                {/* Credit classes (quest_type='class') progress page */}
                 <Route path="my-classes" element={<MyClasses />} />
                 {/* Parent/guardian self-service: register your own children for SIS
                     classes. Gated behind completing the iCreate registration + fee —
@@ -555,8 +549,6 @@ function App() {
                 <Route path="family/goals" element={<FamilyGoalsPage />} />
                 <Route path="family/students/:studentId" element={<FamilyStudentPage />} />
                 <Route path="family/billing" element={<FamilyBillingPage />} />
-                <Route path="classes/new" element={<StudentClassForm />} />
-                <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
@@ -612,11 +604,6 @@ function App() {
                 <Route path="admin/*" element={<AdminPage />} />
                 <Route path="course-plan" element={<CoursePlanMode />} />
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
-              </Route>
-
-              {/* Marketing showcase: superadmin or users.can_view_showcase=true */}
-              <Route element={<ShowcaseRoute />}>
-                <Route path="showcase" element={<ShowcasePage />} />
               </Route>
 
               {/* Organization Management - accessible to org admins and platform admins */}

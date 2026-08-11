@@ -321,8 +321,13 @@ api.interceptors.response.use(
         // from the background session check must not bounce a school's
         // students off their branded login onto the main /login.
         const isOrgLoginPage = currentPath.startsWith('/login/')
+        // Family registration funnel (/enroll/<code>, legacy
+        // /register/icreate/<code>) — public entry links shared with
+        // anonymous families; the app-load session check 401s for them by
+        // design and must not eat the link with a bounce to /login.
+        const isRegistrationFunnel = currentPath.startsWith('/enroll/') || currentPath.startsWith('/register/icreate/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel) {
           window.location.href = '/login'
         }
 

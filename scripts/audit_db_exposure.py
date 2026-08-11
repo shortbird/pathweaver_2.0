@@ -81,7 +81,6 @@ ANON_READABLE_BY_DESIGN = {
     'philosophy_nodes',   # public marketing content (/philosophy map)
     'philosophy_edges',   # ditto
     'site_settings',      # site name, logo, colours -- rendered for logged-out visitors
-    'platform_settings',  # teacher-of-record name/bio shown on public transcripts
     'tutor_tier_limits',  # static plan limits, no user data
     'security_warnings_documentation',  # static help text
 }

@@ -21,7 +21,6 @@ import FamilySettingsModal from '../components/parent/FamilySettingsModal';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 import ChildPrivacyCard from '../components/parent/ChildPrivacyCard';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
-import ShowcaseFamilySection from '../components/parent/ShowcaseFamilySection';
 
 const ParentDashboardPage = () => {
   const { user, refreshUser } = useAuth();
@@ -597,13 +596,6 @@ const ParentDashboardPage = () => {
           setOverviewRefreshKey(prev => prev + 1);
         }}
       />
-
-      {/* Optio Showcase — full-width section at the bottom (May 2026) */}
-      {(children.length > 0 || dependents.length > 0) && (
-        <div className="mt-8">
-          <ShowcaseFamilySection students={[...children, ...dependents]} />
-        </div>
-      )}
 
     </div>
   );

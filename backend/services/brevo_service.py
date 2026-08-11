@@ -43,6 +43,13 @@ LIST_GENERAL_INTEREST = 12
 # (org users, under-13) to Customers so their nurture sequences exit, and
 # those must NOT receive the welcome emails. Only sync_new_account adds here.
 LIST_NEW_ACCOUNTS = 13
+# Trigger list for the Course Student Onboarding automation (templates 45-48):
+# brand-new students an org admin registers for purchased courses. They never
+# chose Optio and have no idea how it works, so the sequence teaches the
+# philosophy (low instruction, do real things) and how courses run. The org
+# enrollment is the email permission, so under-13 students are deliberately
+# included (Tanner, 2026-08-10). Only sync_course_student adds here.
+LIST_COURSE_STUDENTS = 14
 
 # Which list a contact_submissions.contact_type lands in. Adding a contact to
 # Free Class Leads or General Interest Leads triggers a nurture automation, so
@@ -71,6 +78,8 @@ LIST_AUTOMATIONS = {
     LIST_FAMILIES: 'Families Nurture',
     LIST_GENERAL_INTEREST: 'General Interest Nurture',
     LIST_NEW_ACCOUNTS: 'New Account Welcome',
+    # LIST_COURSE_STUDENTS: 'Course Student Onboarding' — uncomment when the
+    # automation is activated in the Brevo dashboard (see funnel plan §12).
 }
 
 # A lead belongs to exactly one of these at a time. Someone who submits two
@@ -267,6 +276,38 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
         return automation_for_list(LIST_NEW_ACCOUNTS)
     except Exception as e:
         logger.warning(f'Brevo new-account sync error: {e}')
+    return None
+
+
+def sync_course_student(email, first_name=None, last_name=None):
+    """Sync a brand-new org-registered course student into Brevo: Customers
+    (#8, exits/suppresses any lead nurture) plus Course Student Onboarding
+    (#14), which starts the onboarding automation once it's live in the
+    dashboard.
+
+    No age or role gate on purpose: these students are taking a purchased
+    course from us, which is the email permission, and the sequence is
+    onboarding for that course rather than marketing outreach.
+
+    Returns the automation this starts, or None (automation not live yet,
+    Brevo disabled, or the call failed)."""
+    if not _enabled():
+        return None
+    attributes = {
+        'CONVERTED': True,
+        'SIGNUP_DATE': date.today().isoformat(),
+        'ROLE': 'student',
+    }
+    if first_name:
+        attributes['FIRSTNAME'] = first_name
+    if last_name:
+        attributes['LASTNAME'] = last_name
+    try:
+        if _upsert_contact(email, [LIST_CUSTOMERS, LIST_COURSE_STUDENTS], attributes):
+            logger.info('Brevo course student synced')
+            return automation_for_list(LIST_COURSE_STUDENTS)
+    except Exception as e:
+        logger.warning(f'Brevo course-student sync error: {e}')
     return None
 
 

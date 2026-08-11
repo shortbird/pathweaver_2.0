@@ -1,10 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { compressImage } from '../utils/compressImage'
 import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+// Presentational funnel pieces are shared with the SIS Registration setup
+// editor, which renders these exact components with the config editable.
+import {
+  STEPS, STEP_LABELS, POST_FEE_STEPS, field, money, absUrl,
+  ageFromDob, enrollmentGateFor, gateBandText,
+  QuestionField, PhotoPicker, VerticalStepper, MobileStepper,
+  Section, PasswordInput, PrimaryButton,
+} from '../components/registration/funnelUi'
 
 // Branded multi-step parent registration for the iCreate microschool.
 // Reached only for iCreate parent registration links (AcceptInvitationPage
@@ -24,53 +31,8 @@ import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGat
 //               booking link is emailed; the Schedule Builder has a
 //               "Book appointment" button), so this page never has to be found again.
 
-const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'done']
-const STEP_LABELS = {
-  account: 'Account', family: 'Your family', details: 'Contacts & questions',
-  paperwork: 'Paperwork', fee: 'Registration fee', done: 'Next steps',
-}
-
-// Steps after the fee is settled: the family data is final, so completed steps
-// are no longer back-editable from here.
-const POST_FEE_STEPS = new Set(['done'])
-
 const CONTACT_RELATIONSHIPS = ['Grandparent', 'Guardian', 'Parent', 'Family friend', 'Neighbor', 'Other']
 
-const ageFromDob = (dob, onDate = null) => {
-  if (!dob) return null
-  const d = new Date(dob)
-  if (Number.isNaN(d.getTime())) return null
-  const t = onDate ? new Date(`${String(onDate).slice(0, 10)}T00:00:00`) : new Date()
-  if (Number.isNaN(t.getTime())) return null
-  let a = t.getFullYear() - d.getFullYear()
-  if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a -= 1
-  return a
-}
-
-// The enrollment-waitlist band this child falls in, or null. Ages are judged as
-// of the first day of school (matching the backend gate), so the notice a
-// parent sees is exactly what will happen when they submit.
-const enrollmentGateFor = (config, dobIso) => {
-  const gates = config?.enrollment_age_gates || []
-  if (!gates.length || !dobIso) return null
-  const age = ageFromDob(dobIso, config?.first_day_of_school)
-  if (age == null) return null
-  return gates.find((g) =>
-    (g.min_age == null || age >= g.min_age) && (g.max_age == null || age <= g.max_age)) || null
-}
-
-const gateBandText = (g) => (g.min_age != null && g.max_age != null
-  ? `ages ${g.min_age}–${g.max_age}`
-  : g.min_age != null ? `ages ${g.min_age} and up` : `ages ${g.max_age} and under`)
-
-const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
-// Config URLs saved without a scheme would resolve relative to the Optio origin.
-const absUrl = (v) => {
-  const s = (v || '').trim()
-  if (!s) return ''
-  return /^https?:\/\//i.test(s) ? s : `https://${s}`
-}
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 // ── Date of birth as validated text (MM/DD/YYYY) ─────────────────────────────
@@ -161,38 +123,6 @@ export const firstQuestionError = (questions, answers, kidsList) => {
   return null
 }
 
-// One org-question input (select / free text / multi checkboxes). Shared by
-// the family-level questions and the per-student groups on the details step.
-const QuestionField = ({ q, value, onChange }) => (
-  <div>
-    <label className="block text-sm font-medium text-neutral-800 mb-1">{q.label}{q.required && <span className="text-red-400"> *</span>}</label>
-    {q.help && <p className="text-xs text-neutral-500 mb-2 whitespace-pre-wrap">{q.help}</p>}
-    {q.type === 'multi' ? (
-      <div className="space-y-1.5">
-        {(q.options || []).map((opt) => {
-          const cur = value || []
-          return (
-            <label key={opt} className="flex items-center gap-2 text-sm text-neutral-700">
-              <input type="checkbox" checked={cur.includes(opt)}
-                onChange={(e) => onChange(e.target.checked ? [...cur, opt] : cur.filter((x) => x !== opt))}
-                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-              {opt}
-            </label>
-          )
-        })}
-      </div>
-    ) : q.type === 'text' ? (
-      <textarea rows={3} className={field} value={value || ''}
-        onChange={(e) => onChange(e.target.value)} />
-    ) : (
-      <select className={field} value={value || ''} onChange={(e) => onChange(e.target.value)}>
-        <option value="">-- Please select --</option>
-        {(q.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-    )}
-  </div>
-)
-
 // What to try when a photo won't attach — written for the common iPhone case
 // (the original lives in iCloud and Safari silently fails to fetch it).
 const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually means the "
@@ -200,165 +130,9 @@ const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually mean
   + 'instead of choosing from your library, connect to Wi-Fi and try again, or finish '
   + 'this form on a computer — your progress is saved.'
 
-// Circular photo preview + picker. Photos are required for every family member.
-// Uploads happen the moment a photo is picked (see pickParentPhoto/pickKidPhoto),
-// so `busy` shows upload progress and `error` surfaces failures right here.
-const PhotoPicker = ({ label, url, busy, error, onSelect }) => (
-  <div>
-    <div className="flex items-center gap-3">
-      <div className="relative w-14 h-14 shrink-0">
-        {url ? (
-          <img src={url} alt="" className="w-14 h-14 rounded-full object-cover border border-gray-200" />
-        ) : (
-          <div className="w-14 h-14 rounded-full bg-neutral-100 border border-dashed border-gray-300 flex items-center justify-center">
-            <PhotoIcon className="w-6 h-6 text-neutral-300" />
-          </div>
-        )}
-        {busy && (
-          <div className="absolute inset-0 rounded-full bg-white/60 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-      </div>
-      <label className="text-sm font-medium text-optio-purple hover:underline cursor-pointer">
-        {busy ? 'Uploading…' : url ? 'Change photo' : label}
-        <input
-          type="file" accept="image/*" className="hidden" disabled={busy}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) onSelect(f)
-            e.target.value = ''
-          }}
-        />
-      </label>
-    </div>
-    {error && (
-      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2" role="alert">
-        {error}
-      </p>
-    )}
-  </div>
-)
-
-// Vertical stepper (desktop, left rail). Steps are sequential and all required:
-// completed steps get a check and can be clicked to go back and edit, the
-// current step is highlighted, and future steps are greyed out with a lock —
-// they unlock only by finishing the one before them.
-const BACK_EDITABLE = new Set(['family', 'details', 'paperwork'])
-
-const VerticalStepper = ({ step, steps = STEPS, onNavigate, freeNav = false }) => {
-  const idx = steps.indexOf(step)
-  return (
-    <aside className="hidden md:block w-56 shrink-0">
-      <nav className="sticky top-8">
-        <ol>
-          {steps.map((s, i) => {
-            const done = i < idx
-            const current = i === idx
-            // freeNav (preview mode): every step is one click away.
-            const clickable = freeNav ? !current : (done && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
-            return (
-              <li key={s} className="relative pb-7 last:pb-0">
-                {i < steps.length - 1 && (
-                  <span className={`absolute left-[15px] top-10 bottom-1 w-px ${done ? 'bg-optio-purple' : 'bg-neutral-200'}`} />
-                )}
-                <button
-                  type="button"
-                  onClick={() => clickable && onNavigate(s)}
-                  disabled={!clickable}
-                  className={`flex items-center gap-3 text-left w-full rounded-lg -m-1 p-1 ${clickable ? 'hover:bg-optio-purple/5 cursor-pointer' : 'cursor-default'}`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-                    done ? 'bg-optio-purple text-white'
-                      : current ? 'bg-white text-optio-purple ring-2 ring-optio-purple'
-                        : 'bg-neutral-100 text-neutral-400'
-                  }`}>
-                    {done ? <CheckIcon className="w-4 h-4" />
-                      : current ? i + 1
-                        : <LockClosedIcon className="w-3.5 h-3.5" />}
-                  </div>
-                  <div>
-                    <div className={`text-sm font-medium ${current ? 'text-optio-purple' : done ? 'text-neutral-700' : 'text-neutral-400'}`}>
-                      {STEP_LABELS[s]}
-                    </div>
-                    <div className="text-[11px] text-neutral-400">
-                      {done ? (clickable ? 'Completed — click to edit' : 'Completed') : current ? 'In progress' : 'Locked'}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-        <p className="mt-6 text-xs text-neutral-400 leading-relaxed">
-          Steps must be completed in order. All steps are required to finish registration.
-        </p>
-      </nav>
-    </aside>
-  )
-}
-
-// Compact horizontal stepper for small screens. Completed steps are tappable
-// to go back and edit.
-const MobileStepper = ({ step, steps = STEPS, onNavigate, freeNav = false }) => {
-  const idx = steps.indexOf(step)
-  return (
-    <div className="md:hidden mb-6">
-      <div className="flex items-center gap-1.5 justify-center">
-        {steps.map((s, i) => {
-          const clickable = freeNav ? i !== idx : (i < idx && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
-          return (
-            <React.Fragment key={s}>
-              <button type="button" disabled={!clickable} onClick={() => clickable && onNavigate(s)}
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
-                  i < idx ? 'bg-optio-purple text-white'
-                    : i === idx ? 'bg-white text-optio-purple ring-2 ring-optio-purple'
-                      : 'bg-neutral-100 text-neutral-400'
-                } ${clickable ? '' : 'cursor-default'}`}>
-                {i < idx ? <CheckIcon className="w-3.5 h-3.5" /> : i + 1}
-              </button>
-              {i < steps.length - 1 && <div className={`h-px w-3 ${i < idx ? 'bg-optio-purple' : 'bg-neutral-200'}`} />}
-            </React.Fragment>
-          )
-        })}
-      </div>
-      <p className="text-center text-xs text-neutral-400 mt-2">
-        Step {idx + 1} of {steps.length}: {STEP_LABELS[step]} — all steps are required, in order. Tap a completed step to edit it.
-      </p>
-    </div>
-  )
-}
-
-const Section = ({ title, subtitle, children }) => (
-  <section className="bg-white rounded-xl border border-gray-200 p-6">
-    <h2 className="text-lg font-semibold text-neutral-900 mb-1">{title}</h2>
-    {subtitle && <p className="text-sm text-neutral-500 mb-4">{subtitle}</p>}
-    {!subtitle && <div className="mb-3" />}
-    {children}
-  </section>
-)
-
-const PasswordInput = ({ value, onChange, onKeyDown }) => {
-  const [show, setShow] = useState(false)
-  return (
-    <div className="relative">
-      <input type={show ? 'text' : 'password'} className={`${field} pr-10`}
-        value={value} onChange={onChange} onKeyDown={onKeyDown} />
-      <button type="button" onClick={() => setShow(!show)} tabIndex={-1}
-        aria-label={show ? 'Hide password' : 'Show password'}
-        className="absolute inset-y-0 right-0 px-3 flex items-center text-neutral-400 hover:text-neutral-600">
-        {show ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-      </button>
-    </div>
-  )
-}
-
-const PrimaryButton = ({ onClick, disabled, children }) => (
-  <button onClick={onClick} disabled={disabled}
-    className="w-full py-3 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90 disabled:opacity-50">
-    {children}
-  </button>
-)
+// (PhotoPicker, steppers, Section, PasswordInput, PrimaryButton, QuestionField
+// all live in components/registration/funnelUi.jsx, shared with the SIS setup
+// editor.)
 
 const ICreateRegisterPage = () => {
   const { code } = useParams()
@@ -379,6 +153,11 @@ const ICreateRegisterPage = () => {
     || config?.stripe_enabled,
   )
   const steps = feeApplies ? STEPS : STEPS.filter((s) => s !== 'fee')
+  // When the org doesn't collect emergency contacts, the details step is only
+  // the questions — label it that way in the steppers.
+  const stepLabels = config?.emergency_contacts === false
+    ? { ...STEP_LABELS, details: 'A few questions' }
+    : STEP_LABELS
   const [step, setStep] = useState('account')
   const [submitting, setSubmitting] = useState(false)
 
@@ -834,8 +613,10 @@ const ICreateRegisterPage = () => {
 
   const submitDetails = async () => {
     if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
-    const validContacts = contacts.filter((c) => c.name.trim() || c.phone.trim())
-    if (!validContacts.length) return toast.error('Add at least one emergency contact')
+    // Orgs can opt out of emergency contacts (config.emergency_contacts === false).
+    const asksContacts = config.emergency_contacts !== false
+    const validContacts = asksContacts ? contacts.filter((c) => c.name.trim() || c.phone.trim()) : []
+    if (asksContacts && !validContacts.length) return toast.error('Add at least one emergency contact')
     for (const [i, c] of validContacts.entries()) {
       if (!c.name.trim() || !c.phone.trim()) return toast.error(`Emergency contact #${i + 1} needs a name and phone`)
     }
@@ -1037,13 +818,27 @@ const ICreateRegisterPage = () => {
 
   const org = config.organization || {}
   const logo = org.branding_config?.logo_url
+  // Optional word under the mark (e.g. the Optio wordmark with "academy").
+  // Wordmark lockups are wide, so they render at a moderate height; orgs
+  // without a subtitle keep the original large square-logo treatment.
+  const logoSubtitle = org.branding_config?.logo_subtitle
   const paymentUrl = absUrl(config.payment_url)
 
   return (
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-6 py-6 flex items-center gap-6">
-          {logo ? <img src={logo} alt={org.name} className="h-48 sm:h-56 w-auto" /> : (
+          {logo ? (
+            <div className="flex flex-col items-center shrink-0">
+              <img src={logo} alt={org.name}
+                className={logoSubtitle ? 'h-24 sm:h-28 w-auto max-w-full object-contain' : 'h-48 sm:h-56 w-auto'} />
+              {logoSubtitle && (
+                <p className="mt-1 text-base font-semibold uppercase tracking-[0.45em] text-optio-purple">
+                  {logoSubtitle}
+                </p>
+              )}
+            </div>
+          ) : (
             <span className="text-3xl font-bold text-optio-purple">{org.name}</span>
           )}
           <h1 className="text-lg font-semibold text-neutral-500 tracking-wide">Family Registration</h1>
@@ -1051,9 +846,9 @@ const ICreateRegisterPage = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 flex gap-10">
-        <VerticalStepper step={step} steps={steps} onNavigate={setStep} freeNav={previewMode} />
+        <VerticalStepper step={step} steps={steps} labels={stepLabels} onNavigate={setStep} freeNav={previewMode} />
         <div className="flex-1 min-w-0 max-w-2xl">
-        <MobileStepper step={step} steps={steps} onNavigate={setStep} freeNav={previewMode} />
+        <MobileStepper step={step} steps={steps} labels={stepLabels} onNavigate={setStep} freeNav={previewMode} />
 
         {previewMode && (
           <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
@@ -1227,14 +1022,18 @@ const ICreateRegisterPage = () => {
                             onSelect={(f) => pickKidPhoto(k, f)}
                           />
                         </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-neutral-500 mb-1">Allergies <span className="text-neutral-400"></span></label>
-                          <textarea rows={2} className={field} value={k.allergies} onChange={(e) => setKid(i, { allergies: e.target.value })} />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-neutral-500 mb-1">Required medications <span className="text-neutral-400"></span></label>
-                          <textarea rows={2} className={field} value={k.medications} onChange={(e) => setKid(i, { medications: e.target.value })} />
-                        </div>
+                        {config.health_fields !== false && (
+                          <>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Allergies <span className="text-neutral-400"></span></label>
+                              <textarea rows={2} className={field} value={k.allergies} onChange={(e) => setKid(i, { allergies: e.target.value })} />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Required medications <span className="text-neutral-400"></span></label>
+                              <textarea rows={2} className={field} value={k.medications} onChange={(e) => setKid(i, { medications: e.target.value })} />
+                            </div>
+                          </>
+                        )}
                       </div>
                       {teen && (
                         <div className="mt-3">
@@ -1274,6 +1073,7 @@ const ICreateRegisterPage = () => {
 
         {step === 'details' && (
           <div className="space-y-6">
+            {config.emergency_contacts !== false && (
             <Section title="Emergency contacts"
               subtitle="Add at least one emergency contact for your family.">
               <div className="space-y-4">
@@ -1297,6 +1097,7 @@ const ICreateRegisterPage = () => {
               </div>
               <button onClick={() => setContacts((cs) => [...cs, emptyContact()])} className="mt-3 text-sm font-medium text-optio-purple hover:underline">+ Add another contact</button>
             </Section>
+            )}
 
             {(config.questions || []).length > 0 && (() => {
               const familyQs = (config.questions || []).filter((q) => !q.per_student)

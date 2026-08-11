@@ -16,6 +16,7 @@ from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
+from utils.registration_config import get_registration_config, with_registration_config
 from utils.storage_url import fix_storage_url
 
 logger = get_logger(__name__)
@@ -53,7 +54,7 @@ def _org_paperwork(supabase, org_id):
     Resources UI can offer linking. Empty for orgs without the funnel."""
     row = (supabase.table('organizations').select('feature_flags')
            .eq('id', org_id).limit(1).execute()).data or []
-    cfg = ((row[0].get('feature_flags') or {}) if row else {}).get('icreate_registration') or {}
+    cfg = get_registration_config(row[0].get('feature_flags') if row else None)
     return [{'key': p.get('key'), 'label': p.get('label'), 'doc_url': p.get('doc_url') or ''}
             for p in (cfg.get('paperwork') or []) if p.get('key') and p.get('label')]
 
@@ -70,7 +71,7 @@ def _claim_paperwork_key(supabase, org_id, paperwork_key, resource_id=None):
 
 def _clear_inline_paperwork_doc(supabase, org_id, paperwork_key):
     """When the resource backing a paperwork item is deleted or unlinked, drop the
-    inline doc_url snapshot in feature_flags.icreate_registration.paperwork so the
+    inline doc_url snapshot in the registration flag's paperwork so the
     funnel doesn't silently fall back to a stale file. The paperwork item itself
     (key/label/body) is preserved — the form just shows no document until a new
     resource is linked. No-op when nothing is linked or nothing changes."""
@@ -81,7 +82,7 @@ def _clear_inline_paperwork_doc(supabase, org_id, paperwork_key):
     if not row:
         return
     flags = row[0].get('feature_flags') or {}
-    cfg = flags.get('icreate_registration')
+    cfg = get_registration_config(flags)
     if not cfg:
         return
     items = cfg.get('paperwork') or []
@@ -93,7 +94,7 @@ def _clear_inline_paperwork_doc(supabase, org_id, paperwork_key):
     if not changed:
         return
     cfg['paperwork'] = items
-    flags['icreate_registration'] = cfg
+    flags = with_registration_config(flags, cfg)
     supabase.table('organizations').update({'feature_flags': flags}).eq('id', org_id).execute()
 
 

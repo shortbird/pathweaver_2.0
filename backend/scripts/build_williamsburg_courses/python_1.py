@@ -144,7 +144,6 @@ COURSE = {
     "visibility": "public",
     "navigation_mode": "sequential",
     "guidance_level": "moderate",
-    "course_source": "admin",
     "estimated_hours": 60,
     "target_audience": "High school students taking Williamsburg Python 1.",
     "age_range": "13-18",

@@ -18,6 +18,7 @@ import io
 from flask import Blueprint, request, jsonify, Response
 
 from database import get_supabase_admin_client
+from utils.registration_config import get_registration_config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
@@ -95,8 +96,8 @@ def _org_flags(org_id):
 
 
 def _configured_questions(flags):
-    """The org's registration questions from feature_flags.icreate_registration."""
-    cfg = flags.get('icreate_registration') or {}
+    """The org's registration questions from the registration funnel config."""
+    cfg = get_registration_config(flags)
     out = []
     for q in (cfg.get('questions') or []):
         if q.get('key') and q.get('label'):

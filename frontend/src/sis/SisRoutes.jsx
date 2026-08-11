@@ -122,28 +122,28 @@ const SisRoutes = () => (
       <Route path="roster" element={<Navigate to="/people" replace />} />
       <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
-      <Route path="classes" element={<ClassesPage />} />
+      <Route path="classes" element={<ModuleRoute path="/classes"><ClassesPage /></ModuleRoute>} />
       <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleRoute path="/billing"><BillingPage /></ModuleRoute></FinanceRoute>} />
       <Route path="tuition" element={<FinanceRoute><ModuleRoute path="/tuition"><TuitionApprovalPage /></ModuleRoute></FinanceRoute>} />
-      <Route path="attendance" element={<AttendancePage />} />
+      <Route path="attendance" element={<ModuleRoute path="/attendance"><AttendancePage /></ModuleRoute>} />
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
-      <Route path="reports" element={<ReportsPage />} />
+      <Route path="reports" element={<ModuleRoute path="/reports"><ReportsPage /></ModuleRoute>} />
       <Route path="secure-documents" element={<HrRoute><ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute></HrRoute>} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
       <Route path="registration" element={<RegistrationPage />} />
-      <Route path="calendar" element={<CalendarPage />} />
-      <Route path="resources" element={<ResourcesPage />} />
-      <Route path="curriculum" element={<CurriculumPage />} />
-      <Route path="training" element={<StaffTrainingPage />} />
+      <Route path="calendar" element={<ModuleRoute path="/calendar"><CalendarPage /></ModuleRoute>} />
+      <Route path="resources" element={<ModuleRoute path="/resources"><ResourcesPage /></ModuleRoute>} />
+      <Route path="curriculum" element={<ModuleRoute path="/curriculum"><CurriculumPage /></ModuleRoute>} />
+      <Route path="training" element={<ModuleRoute path="/training"><StaffTrainingPage /></ModuleRoute>} />
       <Route path="community" element={<CommunityRoute><CommunityPage /></CommunityRoute>} />
       <Route path="settings" element={<SettingsPage />} />
 
       {/* Teacher portal */}
-      <Route path="my-classes" element={<MyClassesPage />} />
-      <Route path="my-classes/:classId" element={<TeacherClassPage />} />
-      <Route path="my-schedule" element={<MySchedulePage />} />
+      <Route path="my-classes" element={<ModuleRoute path="/my-classes"><MyClassesPage /></ModuleRoute>} />
+      <Route path="my-classes/:classId" element={<ModuleRoute path="/my-classes"><TeacherClassPage /></ModuleRoute>} />
+      <Route path="my-schedule" element={<ModuleRoute path="/my-schedule"><MySchedulePage /></ModuleRoute>} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
       <Route path="forms" element={<ModuleRoute path="/forms"><StaffFormsPage /></ModuleRoute>} />

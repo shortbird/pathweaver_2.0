@@ -1,20 +1,20 @@
-import React, { useRef, useEffect } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import React, { useRef, useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
 import { getPostLoginPath } from '../../utils/postLoginPath'
-// import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navRef = useRef(null)
+  const menuRef = useRef(null)
   const location = useLocation()
-  const navigate = useNavigate()
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
   const { organization } = useOrganization()
   const { actingAsDependent, parentName } = useActingAs()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // Set CSS variable for navbar height so Layout can use dynamic padding
   useEffect(() => {
@@ -31,38 +31,51 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }, [isAuthenticated]) // Re-measure when auth state changes
 
   const handleLogout = async () => {
+    setMenuOpen(false)
     await logout()
   }
 
-  // Hide Dashboard/Quests toggle on observer feed pages, and for parents and
-  // org admins -- both destinations (student dashboard + quests) are student
-  // surfaces these roles don't work in, so the toggle has nowhere valid to go.
-  const hideToggle = location.pathname.startsWith('/observer/')
-    || effectiveRole === 'parent'
-    || effectiveRole === 'org_admin'
-
-  const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /connections, /profile, /overview, /admin, /messages, /calendar, /organization
-    if (path === '/dashboard') {
-      return ['/dashboard', '/connections', '/profile', '/overview', '/admin', '/messages', '/calendar', '/organization'].some(route =>
-        location.pathname === route || location.pathname.startsWith(route + '/')
-      )
+  // Close the account menu on outside click, Escape, or navigation
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
     }
-    // Explore toggle should be active only for /quests
-    return location.pathname === path || location.pathname.startsWith(path + '/')
-  }
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
 
-  const getToggleButtonClasses = (path) => {
-    const isActive = isActiveToggle(path)
-    return `
-      px-6 py-2 rounded-lg font-poppins font-semibold text-sm
-      transition-all duration-200
-      ${isActive
-        ? 'bg-gradient-primary text-white shadow-md'
-        : 'text-neutral-700 hover:bg-neutral-100'
-      }
-    `
-  }
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
+
+  // Display name, avatar and initials; when a parent acts as a child, show the child.
+  const displayName = actingAsDependent
+    ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name)
+    : `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
+  const avatarUrl = actingAsDependent ? actingAsDependent.avatar_url : user?.avatar_url
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('') || '?'
+
+  // The "who am I" menu destination per role. /overview is the student
+  // portfolio; parents go to their family dashboard instead (acting-as sessions
+  // carry the child's role, so they still resolve to /overview).
+  const profileItem = effectiveRole === 'observer'
+    ? { label: 'My Feed', path: '/observer/feed' }
+    : effectiveRole === 'parent'
+      ? { label: 'Family Dashboard', path: '/parent/dashboard' }
+      : { label: 'Profile', path: '/overview' }
 
   return (
     <nav ref={navRef} className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
@@ -91,8 +104,12 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
             {/* Logo - Shows both Organization and Optio. Logged-in users go to
                 their role's dashboard, not the marketing homepage. */}
             <Link to={isAuthenticated ? getPostLoginPath(user) : '/'} className="flex items-center gap-3">
-              {/* Organization Logo (if authenticated and org has custom branding) - LEFT of Optio */}
-              {isAuthenticated && organization && organization.branding_config?.logo_url && (
+              {/* Organization Logo (if authenticated and org has custom branding) - LEFT of Optio.
+                  An org whose brand IS the Optio mark (Optio Academy) sets
+                  branding_config.hide_nav_logo so the navbar doesn't show the
+                  same logo twice. */}
+              {isAuthenticated && organization && organization.branding_config?.logo_url
+                && !organization.branding_config?.hide_nav_logo && (
                 <>
                   <img
                     src={organization.branding_config.logo_url}
@@ -104,7 +121,8 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
               )}
 
               {/* Optio Logo - Use favicon when org logo is present, full logo otherwise */}
-              {isAuthenticated && organization && organization.branding_config?.logo_url ? (
+              {isAuthenticated && organization && organization.branding_config?.logo_url
+                && !organization.branding_config?.hide_nav_logo ? (
                 <img
                   src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
                   alt="Optio"
@@ -123,23 +141,6 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
               )}
             </Link>
 
-            {/* Dashboard/Explore Toggle (authenticated only, hidden on observer pages) */}
-            {isAuthenticated && !hideToggle && (
-              <div className="hidden sm:flex items-center space-x-2 bg-neutral-50 rounded-lg p-1">
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className={getToggleButtonClasses('/dashboard')}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => navigate('/quests')}
-                  className={getToggleButtonClasses('/quests')}
-                >
-                  Quests
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Right Section: User Info */}
@@ -155,31 +156,60 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   </div>
                 )}
 
-                {/* User Name - Show dependent's name when acting as them */}
-                {/* /overview is the student portfolio; parents go to their family
-                    dashboard instead (acting-as sessions carry the child's role,
-                    so they still resolve to /overview). */}
-                <Link
-                  to={effectiveRole === 'observer' ? '/observer/feed'
-                    : effectiveRole === 'parent' ? '/parent/dashboard'
-                    : '/overview'}
-                  className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
-                >
-                  {actingAsDependent ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name) : `${user?.first_name} ${user?.last_name}`}
-                </Link>
-
                 {/* Notification Bell */}
                 <NotificationBell />
 
-                {/* Subscription Tier Badge - REMOVED Phase 3 refactoring (January 2025) */}
+                {/* Account menu: avatar + name opening Profile / Logout */}
+                <div className="relative hidden sm:block" ref={menuRef}>
+                  <button
+                    onClick={() => setMenuOpen((open) => !open)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    aria-label="Account menu"
+                    className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 hover:bg-neutral-100 transition-colors"
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="w-8 h-8 rounded-full bg-gradient-primary text-white text-xs font-poppins font-semibold flex items-center justify-center">
+                        {initials}
+                      </span>
+                    )}
+                    <span className="text-sm font-poppins font-medium text-neutral-700 max-w-[160px] truncate">
+                      {displayName}
+                    </span>
+                    <svg className={`w-4 h-4 text-neutral-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
 
-                {/* Logout */}
-                <button
-                  onClick={handleLogout}
-                  className="hidden sm:block text-sm font-poppins font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
-                >
-                  Logout
-                </button>
+                  {menuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                    >
+                      <Link
+                        role="menuitem"
+                        to={profileItem.path}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-2 text-sm font-poppins text-neutral-700 hover:bg-neutral-50 hover:text-optio-purple transition-colors"
+                      >
+                        {profileItem.label}
+                      </Link>
+                      <button
+                        role="menuitem"
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2 text-sm font-poppins text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
@@ -202,23 +232,6 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
         </div>
       </div>
 
-      {/* Mobile Toggle Buttons (below logo on mobile, hidden on observer pages) */}
-      {isAuthenticated && !hideToggle && (
-        <div className="sm:hidden border-t border-gray-200 px-4 py-2 flex space-x-2 bg-neutral-50">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className={getToggleButtonClasses('/dashboard')}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => navigate('/quests')}
-            className={getToggleButtonClasses('/quests')}
-          >
-            Quests
-          </button>
-        </div>
-      )}
     </nav>
   )
 }
