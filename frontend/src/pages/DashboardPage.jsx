@@ -1,11 +1,7 @@
 import React, { useEffect, memo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
-import { useOrganization } from '../contexts/OrganizationContext'
-import api from '../services/api'
-import { htmlToText } from '../utils/richText'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
@@ -251,78 +247,6 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 })
 
 
-// School strip — students in a school used to LAND on /school; now they land
-// here, so the dashboard carries the school's presence: the school's name (a
-// link to /school) plus its latest messages. Renders nothing for students with
-// no school, and degrades silently when the announcements read fails — the
-// header link still works, which is the part that matters.
-const SchoolStrip = () => {
-  const { school } = useOrganization()
-
-  const { data: announcements } = useQuery({
-    queryKey: ['dashboard-school-announcements', school?.id],
-    queryFn: async () => {
-      const { data } = await api.get('/api/announcements/archive', { params: { limit: 3 } })
-      return data?.success ? (data.announcements || []) : []
-    },
-    enabled: !!school,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  })
-
-  if (!school) return null
-
-  const latest = (announcements || []).slice(0, 3)
-
-  const formatDate = (iso) => {
-    if (!iso) return ''
-    const d = new Date(iso)
-    return isNaN(d.getTime())
-      ? ''
-      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-
-  return (
-    <div className="mb-8 bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        {/* Explicit size — a bare h2 inherits from the base styles. */}
-        <h2 className="text-sm font-semibold text-gray-900">
-          <Link to="/school" className="hover:text-optio-purple transition-colors">
-            {school.name}
-          </Link>
-        </h2>
-        <Link to="/school" className="text-sm font-medium text-optio-purple hover:underline">
-          See all
-        </Link>
-      </div>
-      {latest.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {latest.map((a) => (
-            <Link
-              key={a.id}
-              to="/school"
-              className="block border border-gray-100 bg-gray-50/60 rounded-lg p-3 hover:border-optio-purple/30 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
-                <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">
-                  {formatDate(a.created_at)}
-                </time>
-              </div>
-              {/* Preview is the words, not the markup — see utils/richText. */}
-              {htmlToText(a.content || a.message || '') && (
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                  {htmlToText(a.content || a.message || '')}
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const DashboardPage = () => {
   const { user } = useAuth()
   const { actingAsDependent } = useActingAs()
@@ -463,7 +387,6 @@ const DashboardPage = () => {
       </div>
 
       {/* School strip — only for students who belong to a school */}
-      <SchoolStrip />
 
       {/* Dashboard Overview - Two Column Layout */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">

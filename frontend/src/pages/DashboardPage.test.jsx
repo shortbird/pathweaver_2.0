@@ -312,59 +312,23 @@ describe('DashboardPage', () => {
     })
   })
 
-  // --- School strip ---
-  describe('school strip', () => {
-    const emptyDashboard = () => ({
-      data: { active_quests: [], enrolled_courses: [], stats: {} },
-      isLoading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    it('renders nothing for students with no school', () => {
-      dashboardHookData = emptyDashboard()
+  // --- School strip (removed) ---
+  // The dashboard used to carry a school strip linking to /school. It's gone:
+  // the school lives in the sidebar, and the home page stays about the student's
+  // own work. Regression guard so it doesn't creep back in.
+  describe('no school strip', () => {
+    it('renders no school link or announcements read for a student in a school', async () => {
+      dashboardHookData = {
+        data: { active_quests: [], enrolled_courses: [], stats: {} },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      orgState = { school: { id: 'org-1', name: 'iCreate Academy' }, loading: false }
       renderDashboard()
+      expect(screen.queryByText('iCreate Academy')).not.toBeInTheDocument()
       expect(screen.queryByText('See all')).not.toBeInTheDocument()
       expect(api.get).not.toHaveBeenCalledWith('/api/announcements/archive', expect.anything())
-    })
-
-    it('renders school name linking to /school with latest announcements', async () => {
-      dashboardHookData = emptyDashboard()
-      orgState = { school: { id: 'org-1', name: 'iCreate Academy' }, loading: false }
-      api.get.mockResolvedValue({
-        data: {
-          success: true,
-          announcements: [
-            { id: 'a-1', title: 'Picture Day', content: '<p>Bring your <strong>smile</strong></p>', created_at: '2026-08-01T00:00:00Z' },
-            { id: 'a-2', title: 'Fall Registration', message: 'Opens Monday', created_at: '2026-07-28T00:00:00Z' }
-          ]
-        }
-      })
-      renderDashboard()
-      const schoolLink = screen.getByText('iCreate Academy')
-      expect(schoolLink.closest('a')).toHaveAttribute('href', '/school')
-      expect(screen.getByText('See all').closest('a')).toHaveAttribute('href', '/school')
-      await waitFor(() => {
-        expect(screen.getByText('Picture Day')).toBeInTheDocument()
-        expect(screen.getByText('Fall Registration')).toBeInTheDocument()
-      })
-      // HTML bodies are stripped to text for the preview
-      expect(screen.getByText('Bring your smile')).toBeInTheDocument()
-      expect(api.get).toHaveBeenCalledWith('/api/announcements/archive', { params: { limit: 3 } })
-    })
-
-    it('degrades silently when the announcements read fails', async () => {
-      dashboardHookData = emptyDashboard()
-      orgState = { school: { id: 'org-1', name: 'iCreate Academy' }, loading: false }
-      api.get.mockRejectedValue(new Error('down'))
-      renderDashboard()
-      // The strip still shows the school name and link, with no error UI
-      expect(screen.getByText('iCreate Academy')).toBeInTheDocument()
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalled()
-      })
-      expect(screen.getByText('See all')).toBeInTheDocument()
-      expect(screen.queryByText(/failed to load announcements/i)).not.toBeInTheDocument()
     })
   })
 
