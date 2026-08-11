@@ -256,14 +256,17 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   ]
 
   // The school's own page — announcements and the community board — named after
-  // the school itself. Only for people who are in one: `school` is resolved
-  // through membership, so a parent with no organization_id of their own still
-  // gets it through their child. Superadmins are in no school but get the same
-  // door as "School Pages" — /school shows them an org and role picker to
-  // preview each school's page. Everyone else never sees the item.
+  // the school itself. Gated on `school.homepage`, the per-org opt-in
+  // (feature_flags.sis_settings.school_homepage) that makes /school a school's
+  // front door: belonging to an org is not the same as that org running its
+  // families through this page. Schools that front-door families elsewhere
+  // (Hearthwood sends them to its own program page) would otherwise get a
+  // second, near-empty school item they never asked for. Superadmins are in no
+  // school but get the same door as "School Pages" — /school shows them an org
+  // and role picker to preview each school's page.
   // (The school's sub-surfaces — schedule, billing, absences, etc. — are cards
   // on the school page itself since 2026-08-06, not sidebar items.)
-  if (school?.name || school?.id || user?.role === 'superadmin') {
+  if (school?.homepage || user?.role === 'superadmin') {
     communityItems.push({
       name: school?.name || (user?.role === 'superadmin' ? 'School Pages' : 'My school'),
       path: '/school',

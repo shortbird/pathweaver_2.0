@@ -389,6 +389,23 @@ emails:
     closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, ask {{ org_name }} to send a new invite, or use \"Forgot password\" on the login page with this email address."
     signature: "support"
 
+  student_account_invite:
+    subject: "{{ parent_name }} set up your Optio account"
+    title: "Your Optio account is ready"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "{{ parent_name }} created an Optio account for you{% if org_name %} at {{ org_name }}{% endif %}. Optio is where you track what you're learning and build a portfolio of your work."
+      - "To get started, click the button below and choose a password. You'll sign in with this email address."
+    cta:
+      text: "Set My Password"
+      url: "{{ invite_link }}"
+    highlight_box:
+      title: "What's inside"
+      content: "Quests to work on, a place to show what you made, and credit for the learning you're already doing."
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
+    signature: "support"
+
   staff_access_added:
     subject: "Your Optio account now has teacher access at {{ org_name }}"
     title: "Teacher Access Added"

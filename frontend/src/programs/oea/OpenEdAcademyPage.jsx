@@ -11,17 +11,35 @@
  * parent come from the dependents relationship (managed_by_parent_id), which is
  * the same ownership the OEA backend authorizes.
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
+import { OrganizationContext } from '../../contexts/OrganizationContext'
 import { getMyDependents } from '../../services/dependentAPI'
 import { oeaAPI, parentAPI } from '../../services/api'
 import OEACreditsView from './OEACreditsView'
 
 function PageShell({ title, subtitle, children }) {
+  // The school's own logo tops its program page — this is the front door for
+  // Hearthwood families, so it should look like their school, not a generic
+  // Optio page. Comes from the viewer's own org (branding_config.logo_url,
+  // set in Organization -> Settings), so each org on this page shows its own;
+  // an org that hasn't uploaded one simply gets the heading, as before.
+  // useContext, not useOrganization(): the branding is decoration, so a missing
+  // provider must degrade to no logo rather than throw.
+  const organization = useContext(OrganizationContext)?.organization
+  const logoUrl = organization?.branding_config?.logo_url
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 font-poppins">
+      {logoUrl && (
+        <img
+          src={logoUrl}
+          alt={organization?.name || 'School logo'}
+          className="h-32 sm:h-40 w-auto max-w-full object-contain mx-auto mb-6"
+        />
+      )}
       <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
       {subtitle && <p className="text-neutral-500 mt-1">{subtitle}</p>}
       <div className="mt-6">{children}</div>

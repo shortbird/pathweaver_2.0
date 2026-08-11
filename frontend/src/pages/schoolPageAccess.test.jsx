@@ -16,7 +16,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
  * `organization`.
  */
 
-let orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+let orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organization: null, loading: false }
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
@@ -42,7 +42,7 @@ const renderAt = (path = '/school') => render(
 
 beforeEach(() => {
   vi.clearAllMocks()
-  orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+  orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organization: null, loading: false }
 })
 
 describe('who the school page is for', () => {
@@ -53,6 +53,16 @@ describe('who the school page is for', () => {
 
   it('sends someone with no school home', () => {
     orgState = { school: null, organization: null, loading: false }
+    renderAt()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+  })
+
+  it('sends a member home when their school did not opt into this page', () => {
+    // Belonging to a school is not the same as that school running its
+    // families through /school — Hearthwood front-doors them on its own
+    // program page. The sidebar hides the item on the same flag; this covers
+    // a typed URL or a stale bookmark.
+    orgState = { school: { id: 'org-1', name: 'Hearthwood Academy' }, organization: null, loading: false }
     renderAt()
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
   })

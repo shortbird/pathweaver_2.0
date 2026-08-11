@@ -14,6 +14,7 @@ Endpoints:
 import base64
 import re
 from datetime import datetime
+from urllib.parse import quote
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
@@ -30,6 +31,32 @@ logger = get_logger(__name__)
 bp = Blueprint('admin_transcript_generator', __name__, url_prefix='/api/admin/transcript')
 
 XP_PER_CREDIT = 2000
+
+
+def build_verification_url(user_id: str, school_name: str, issued_by: str) -> str:
+    """The 'verify this transcript online' link that goes to a registrar.
+
+    The verification page has required a share token since 2026-08 (see
+    routes/public.py:get_public_transcript) -- a bare /public/transcript/<id>
+    link 404s for a registrar, who by definition has no Optio session. Mint a
+    grant per send, labeled with the receiving school so a parent can see and
+    revoke exactly this link in their share list.
+    """
+    from services.transcript_sharing_service import issue_transcript_token
+
+    share_token = issue_transcript_token(
+        student_id=user_id,
+        issued_by=issued_by,
+        label=f"Transcript sent to {school_name}"[:120],
+    )['token']
+
+    # FRONTEND_URL defaults to localhost when unset; never put that in a
+    # letter to a registrar.
+    base = (Config.FRONTEND_URL or '').rstrip('/')
+    if not base or 'localhost' in base or '127.0.0.1' in base:
+        base = 'https://www.optioeducation.com'
+    return f"{base}/public/transcript/{user_id}?token={quote(share_token, safe='')}"
+
 
 # Each approved class (quest_type='class', 1000 subject XP target) is worth a
 # fixed half credit on the transcript, with an A grade.
@@ -652,7 +679,7 @@ def send_transcript_to_school(admin_user_id, user_id):
             except ValueError:
                 date_of_birth = raw_dob
 
-        verification_url = f"https://www.optioeducation.com/public/transcript/{user_id}"
+        verification_url = build_verification_url(user_id, school_name, admin_user_id)
         safe_name = re.sub(r'[^A-Za-z0-9]+', '_', student_name).strip('_') or 'Student'
         filename = f"Transcript_{safe_name}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
 

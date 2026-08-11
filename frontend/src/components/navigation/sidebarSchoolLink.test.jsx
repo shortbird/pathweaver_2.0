@@ -69,7 +69,7 @@ describe('Sidebar — school page link', () => {
 
   it('still names the item after the school for a member', () => {
     authState.user = { id: 'u1', role: 'parent', email: 'p@example.com' }
-    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate' } }
+    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate', homepage: true } }
     renderSidebar()
     expect(screen.getByRole('link', { name: 'iCreate' })).toHaveAttribute('href', '/school')
   })

@@ -990,6 +990,32 @@ class EmailService(BaseService):
             }
         )
 
+    def send_student_account_invite_email(
+        self,
+        user_email: str,
+        user_name: str,
+        parent_name: str,
+        invite_link: str,
+        org_name: str = '',
+        expiry_days: int = 14
+    ) -> bool:
+        """Account-setup invite for a teen whose parent created their account.
+        The link sets the password and confirms the email in one step, so the
+        teen never faces a code with nowhere to enter it."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"{parent_name} set up your Optio account",
+            template_name='student_account_invite',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'parent_name': parent_name,
+                'org_name': org_name,
+                'invite_link': invite_link,
+                'expiry_days': expiry_days,
+            }
+        )
+
     def send_staff_access_added_email(
         self,
         user_email: str,

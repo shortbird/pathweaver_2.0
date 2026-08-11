@@ -13,8 +13,7 @@ import {
   UserGroupIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
-import AddDependentModal from '../components/parent/AddDependentModal';
-import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
+import AddChildModal from '../components/parent/AddChildModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
@@ -33,8 +32,7 @@ const ParentDashboardPage = () => {
   const [dependents, setDependents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showAddDependentModal, setShowAddDependentModal] = useState(false);
-  const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
+  const [showAddChildModal, setShowAddChildModal] = useState(false);
   const [showDependentSettingsModal, setShowDependentSettingsModal] = useState(false);
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
@@ -143,7 +141,7 @@ const ParentDashboardPage = () => {
   };
 
   // Handle dependent creation success
-  const handleDependentAdded = async (result) => {
+  const handleChildAdded = async (result) => {
     toast.success(result.message || 'Dependent profile created');
 
     // Refresh user data to update has_dependents flag in AuthContext
@@ -221,11 +219,13 @@ const ParentDashboardPage = () => {
             </p>
           </div>
 
-          {/* Action Buttons */}
+          {/* One door for both ages. The old pair of cards made the parent
+              classify their own child before they could add them — and left
+              13+ waiting on the teen to self-register. Date of birth in the
+              form decides what gets created. */}
           <div className="space-y-4">
-            {/* Create Dependent Profile (Under 13) */}
             <button
-              onClick={() => setShowAddDependentModal(true)}
+              onClick={() => setShowAddChildModal(true)}
               className="w-full bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow text-left group min-h-[44px]"
             >
               <div className="flex items-start gap-4">
@@ -234,92 +234,30 @@ const ParentDashboardPage = () => {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors">
-                    Create Child Profile (Under 13)
+                    Add Your Child
                   </h2>
                   <p className="text-gray-600 font-medium mb-3">
-                    For children under 13, you can create and fully manage their learning profile. Perfect for younger learners who need parental guidance.
+                    Set up any of your children — we'll ask their birth date and take it from there.
                   </p>
                   <ul className="space-y-1 text-sm text-gray-600 font-medium">
-                    <li>• Full access to manage their quests and tasks</li>
-                    <li>• Upload evidence and track progress</li>
-                    <li>• Mark tasks as complete on their behalf</li>
-                    <li>• COPPA-compliant (no email required, optional at age 13)</li>
+                    <li>• Under 13: you manage their profile, no email needed</li>
+                    <li>• 13 and older: they get their own login, you stay connected</li>
+                    <li>• Track progress and help with evidence either way</li>
                   </ul>
                 </div>
               </div>
             </button>
-
-            {/* Connect to Existing Student (13+). Org families can't self-serve
-                this — the request flow rejects org accounts — so their school's
-                staff makes the connection instead. */}
-            {user?.organization_id ? (
-              <div className="w-full bg-white border border-gray-200 rounded-xl p-6 text-left">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                    <UserGroupIcon className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900 mb-2">
-                      Connect to Your Student (13+)
-                    </h2>
-                    <p className="text-gray-600 font-medium">
-                      Your school links parents and students. If your student has an
-                      account but isn't shown here, contact your school's front office
-                      and they'll connect you.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowRequestConnectionModal(true)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow text-left group min-h-[44px]"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                    <UserGroupIcon className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-pink transition-colors">
-                      Connect to Existing Student (13+)
-                    </h2>
-                    <p className="text-gray-600 font-medium mb-3">
-                      For teens with their own Optio account, email support@optioeducation.com to request a connection.
-                    </p>
-                    <ul className="space-y-1 text-sm text-gray-600 font-medium">
-                      <li>• View their learning progress and achievements</li>
-                      <li>• Upload evidence to help with quest tasks</li>
-                      <li>• Student maintains control (marks tasks complete)</li>
-                      <li>• Requires manual verification by Optio Support</li>
-                    </ul>
-                  </div>
-                </div>
-              </button>
-            )}
           </div>
 
-          {/* Info Notice */}
-          <div className="mt-6 bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-4">
-            <p className="text-sm text-optio-purple-dark font-medium">
-              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile."
-              {user?.organization_id
-                ? ' For teens 13+, have them create their own account with your school\'s student link — then your school connects you.'
-                : ' For teens 13+, we recommend having them create their own account first, then use the "Connect to Existing Student" option.'}
-            </p>
-          </div>
         </div>
 
         {/* Modals for Empty State */}
-        <AddDependentModal
-          isOpen={showAddDependentModal}
-          onClose={() => setShowAddDependentModal(false)}
-          onSuccess={handleDependentAdded}
+        <AddChildModal
+          isOpen={showAddChildModal}
+          onClose={() => setShowAddChildModal(false)}
+          onSuccess={handleChildAdded}
         />
 
-        <RequestStudentConnectionModal
-          isOpen={showRequestConnectionModal}
-          onClose={() => setShowRequestConnectionModal(false)}
-        />
       </div>
     );
   }
@@ -490,17 +428,11 @@ const ParentDashboardPage = () => {
         </>
       )}
 
-      {/* Add Dependent Modal */}
-      <AddDependentModal
-        isOpen={showAddDependentModal}
-        onClose={() => setShowAddDependentModal(false)}
-        onSuccess={handleDependentAdded}
-      />
-
-      {/* Request Student Connection Modal */}
-      <RequestStudentConnectionModal
-        isOpen={showRequestConnectionModal}
-        onClose={() => setShowRequestConnectionModal(false)}
+      {/* Add Child Modal — one door for both ages */}
+      <AddChildModal
+        isOpen={showAddChildModal}
+        onClose={() => setShowAddChildModal(false)}
+        onSuccess={handleChildAdded}
       />
 
       {/* Child Settings Modal (for both dependents and linked students) */}

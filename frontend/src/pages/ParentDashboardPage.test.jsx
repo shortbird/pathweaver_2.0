@@ -44,12 +44,8 @@ vi.mock('../services/dependentAPI', () => ({
 }))
 
 // Mock child components
-vi.mock('../components/parent/AddDependentModal', () => ({
-  default: ({ isOpen }) => isOpen ? <div data-testid="add-dependent-modal">Add Dependent</div> : null
-}))
-
-vi.mock('../components/parent/RequestStudentConnectionModal', () => ({
-  default: ({ isOpen }) => isOpen ? <div data-testid="request-connection-modal">Request Connection</div> : null
+vi.mock('../components/parent/AddChildModal', () => ({
+  default: ({ isOpen }) => isOpen ? <div data-testid="add-child-modal">Add Child</div> : null
 }))
 
 vi.mock('../components/parent/VisibilityApprovalSection', () => ({
@@ -159,20 +155,23 @@ describe('ParentDashboardPage', () => {
       })
     })
 
-    it('shows Create Child Profile option', async () => {
+    // One "Add Your Child" door replaced the old under-13 / 13+ pair: a parent
+    // shouldn't have to classify their own child before adding them, and the
+    // 13+ half used to depend on the teen registering themselves.
+    it('shows a single Add Your Child option', async () => {
       renderParentDashboard()
       await waitFor(() => {
-        const matches = screen.getAllByText(/Create Child Profile/)
-        expect(matches.length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText(/Add Your Child/)).toBeInTheDocument()
       })
     })
 
-    it('shows Connect to Existing Student option', async () => {
+    it('no longer splits the choice by age up front', async () => {
       renderParentDashboard()
       await waitFor(() => {
-        const matches = screen.getAllByText(/Connect to Existing Student/)
-        expect(matches.length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText(/Add Your Child/)).toBeInTheDocument()
       })
+      expect(screen.queryByText(/Create Child Profile \(Under 13\)/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Connect to Existing Student/)).not.toBeInTheDocument()
     })
   })
 

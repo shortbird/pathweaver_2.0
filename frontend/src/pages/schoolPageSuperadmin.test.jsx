@@ -120,7 +120,7 @@ describe('the superadmin school-page preview', () => {
 
   it('does not offer the dropdown to a school member', async () => {
     authState = { user: { id: 'u1' }, effectiveRole: 'parent' }
-    orgState = { school: { id: 'org-1', name: 'iCreate' }, loading: false }
+    orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
     sisOrg = { orgId: null, setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false }
     renderPage()
     await screen.findByRole('heading', { name: 'iCreate' })

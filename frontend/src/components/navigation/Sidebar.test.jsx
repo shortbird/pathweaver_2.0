@@ -190,7 +190,7 @@ describe('Sidebar — the school item', () => {
   })
 
   it('names the item after the school and links to its page', () => {
-    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate' } }
+    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate', homepage: true } }
     renderSidebar()
     const link = screen.getByRole('link', { name: /icreate/i })
     expect(link).toHaveAttribute('href', '/school')
@@ -202,17 +202,27 @@ describe('Sidebar — the school item', () => {
     expect(screen.queryByRole('link', { name: /my school/i })).not.toBeInTheDocument()
   })
 
+  it('shows nothing for a school that did not opt into the page', () => {
+    // Belonging to an org is not the same as that org running its families
+    // through /school. Hearthwood front-doors families on its own program
+    // page, so its members must not get a second, near-empty school item.
+    orgState = { organization: null, school: { id: 'org-1', name: 'Hearthwood Academy' } }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /hearthwood/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /my school/i })).not.toBeInTheDocument()
+  })
+
   it('shows it to a parent who belongs through their child', () => {
     // A platform parent has no organization_id, so `organization` is null and
     // only `school` (resolved by /me through membership) says they belong.
     authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
-    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate' } }
+    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate', homepage: true } }
     renderSidebar()
     expect(screen.getByRole('link', { name: /icreate/i })).toBeInTheDocument()
   })
 
   it('falls back to a plain label when the school has no name yet', () => {
-    orgState = { organization: null, school: { id: 'org-1' } }
+    orgState = { organization: null, school: { id: 'org-1', homepage: true } }
     renderSidebar()
     expect(screen.getByRole('link', { name: /my school/i })).toBeInTheDocument()
   })
@@ -238,7 +248,7 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
     }
     orgState = {
       organization: { id: 'org-1', feature_flags: { sis_enabled: true } },
-      school: { id: 'org-1', name: 'iCreate' },
+      school: { id: 'org-1', name: 'iCreate', homepage: true },
     }
   })
 

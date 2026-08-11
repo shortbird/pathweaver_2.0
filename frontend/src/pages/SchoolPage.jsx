@@ -296,11 +296,14 @@ export default function SchoolPage() {
 
   // Wait for /me before deciding — redirecting on a not-yet-loaded context
   // would bounce every member of a school on a hard refresh. When the school
-  // context is genuinely missing (fetch failed, or the homepage was turned
-  // off), send the signed-in member to their own home: bouncing to "/" put
-  // them on the marketing homepage seconds after logging in. Superadmins have
-  // no school and stay: they preview one via the org sidebar below.
-  if (!isSuperadmin && !orgLoading && !school) {
+  // context is missing (fetch failed) or this school hasn't opted into the
+  // page (feature_flags.sis_settings.school_homepage — a school that front-
+  // doors its families elsewhere), send the signed-in member to their own
+  // home: bouncing to "/" put them on the marketing homepage seconds after
+  // logging in. The sidebar hides the item on the same flag; this covers a
+  // typed URL or stale bookmark. Superadmins have no school and stay: they
+  // preview one via the org sidebar below.
+  if (!isSuperadmin && !orgLoading && !school?.homepage) {
     return <Navigate to={roleHomePath(effectiveRole)} replace />
   }
 

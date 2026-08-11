@@ -21,7 +21,7 @@ import { MemoryRouter } from 'react-router-dom'
  *    most-read thing on the page; the cards go above it, not in front of it.
  */
 
-let orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+let orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organization: null, loading: false }
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
@@ -70,7 +70,7 @@ const cardNames = async () => {
 beforeEach(() => {
   vi.clearAllMocks()
   get.mockImplementation(defaultGet)  // one test swaps it out for a failing call
-  orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+  orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organization: null, loading: false }
   schoolContext = { success: true, orgs: [], is_guardian: false }
   archive = { success: true, announcements: [ANNOUNCEMENT], total: 1 }
   communityFeed = { success: true, feed: null }

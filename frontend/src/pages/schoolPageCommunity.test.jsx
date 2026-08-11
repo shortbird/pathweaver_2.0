@@ -20,7 +20,7 @@ import { MemoryRouter } from 'react-router-dom'
  */
 
 vi.mock('../contexts/OrganizationContext', () => ({
-  useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate' }, loading: false }),
+  useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }),
 }))
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),

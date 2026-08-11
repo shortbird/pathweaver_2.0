@@ -191,6 +191,164 @@ def create_dependent(user_id):
         return jsonify({'success': False, 'error': 'Failed to create dependent profile'}), 500
 
 
+@bp.route('/add-child', methods=['POST'])
+@require_auth
+def add_child(user_id):
+    """Add a child to the family — one door for both ages.
+
+    Parents shouldn't have to know Optio's account model to add their own kid,
+    and a school's parents in particular want to set their teens up rather than
+    wait for the teen to self-register from a link. Age decides the shape:
+
+      under 13 -> managed child profile (COPPA: no email, no login)
+      13+      -> the teen's own account, created here and linked to the parent;
+                  the teen gets a verification/set-password email
+
+    Body: first_name, last_name, date_of_birth (YYYY-MM-DD), email (13+ only).
+    Returns 201 with {kind: 'dependent'|'student'} so the UI can say what
+    happened next ("you manage this profile" vs "we emailed them").
+    """
+    try:
+        verify_parent_role(user_id)
+
+        data = request.get_json() or {}
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        dob_str = (data.get('date_of_birth') or '').strip()
+
+        if not first_name or not last_name:
+            raise ValidationError('First and last name are required')
+        if not dob_str:
+            raise ValidationError('Date of birth is required')
+        try:
+            date_of_birth = datetime.strptime(dob_str, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValidationError('date_of_birth must be in YYYY-MM-DD format')
+
+        from services import family_student_service
+        age = family_student_service.calculate_age(date_of_birth)
+
+        if age >= 13:
+            # admin client justified: reads the caller's own org to decide whether
+            # the teen becomes an org student; verify_parent_role gated entry.
+            supabase = get_supabase_admin_client()
+            parent_row = (supabase.table('users')
+                          .select('id, organization_id, first_name, display_name')
+                          .eq('id', user_id).single().execute()).data
+            result = family_student_service.create_teen_student(
+                parent_row, first_name, last_name, email, date_of_birth
+            )
+            if result.get('error'):
+                return jsonify({'success': False, 'error': result['error'],
+                                'code': result.get('code')}), 400
+            logger.info(f"Parent {user_id} created teen student {result['student']['id']}")
+            invite_sent = bool(result['student'].get('invite_sent'))
+            # Report the send honestly: the account exists either way, but a
+            # parent told "we emailed them" when nothing was sent has no way to
+            # know their teen is waiting on an email that will never arrive.
+            message = (
+                f"Account created for {first_name}. "
+                f"We emailed {email} a link to choose a password and sign in."
+                if invite_sent else
+                f"Account created for {first_name}, but we couldn't send the email "
+                f"to {email} just now. Try sending it again."
+            )
+            return jsonify({
+                'success': True,
+                'kind': 'student',
+                'student': result['student'],
+                'invite_sent': invite_sent,
+                'message': message
+            }), 201
+
+        # Under 13: the existing COPPA-shaped dependent profile.
+        # admin client justified: see file docstring; verify_parent_role gates access
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+        dependent = dependent_repo.create_dependent(
+            parent_id=user_id,
+            display_name=f'{first_name} {last_name}',
+            date_of_birth=date_of_birth,
+            avatar_url=data.get('avatar_url')
+        )
+        logger.info(f"Parent {user_id} created dependent {dependent['id']}")
+        return jsonify({
+            'success': True,
+            'kind': 'dependent',
+            'dependent': dependent,
+            'message': f'Child profile created for {first_name}. You manage this profile.'
+        }), 201
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except (ValidationError, RepoValidationError) as e:
+        logger.warning(f"Validation error adding child for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error adding child for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to add child'}), 500
+
+
+@bp.route('/<student_id>/resend-invite', methods=['POST'])
+@validate_uuid_param('student_id')
+@require_auth
+def resend_student_invite(user_id, student_id):
+    """Send the set-password email again for a teen the caller created.
+
+    Email delivery is best-effort, so a create can succeed with the invite
+    unsent (bad address, provider hiccup, misconfigured key). Without this the
+    only recovery is "Forgot password" on an account the teen can't name yet.
+    Mints a fresh token — the old one keeps working until it expires, which is
+    harmless and avoids breaking a link that may still be in flight.
+    """
+    try:
+        verify_parent_role(user_id)
+
+        # admin client justified: verifies the caller is this student's parent
+        # before re-sending; the link lookup IS the authorization check.
+        supabase = get_supabase_admin_client()
+        link = (supabase.table('parent_student_links').select('id')
+                .eq('parent_user_id', user_id).eq('student_user_id', student_id)
+                .eq('status', 'approved').limit(1).execute()).data
+        if not link:
+            return jsonify({'success': False,
+                            'error': 'That student is not connected to your family'}), 403
+
+        student = (supabase.table('users')
+                   .select('id, email, first_name, organization_id')
+                   .eq('id', student_id).maybe_single().execute()).data
+        if not student or not student.get('email'):
+            return jsonify({'success': False,
+                            'error': 'That account has no email address'}), 400
+
+        parent = (supabase.table('users')
+                  .select('id, first_name, display_name')
+                  .eq('id', user_id).maybe_single().execute()).data or {'id': user_id}
+
+        from services import family_student_service
+        sent = family_student_service.send_account_invite(
+            student_id=student['id'],
+            email=student['email'],
+            first_name=student.get('first_name') or '',
+            parent=parent,
+            org_id=student.get('organization_id'),
+        )
+        if not sent:
+            return jsonify({'success': False,
+                            'error': "We still couldn't send that email. "
+                                     'Check the address and try again shortly.'}), 502
+        return jsonify({'success': True,
+                        'message': f"Sent — {student['email']} has a link to set a password."}), 200
+
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error resending student invite for {student_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to resend the invite'}), 500
+
+
 @bp.route('/<dependent_id>', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
