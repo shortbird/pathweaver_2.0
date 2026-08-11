@@ -104,7 +104,7 @@ const LessonContentRenderer = ({ content, className = '' }) => {
             <div key={step.id || index} className="relative">
               {/* Step Header */}
               <div className="flex items-center gap-3 mb-4">
-                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-sm font-bold">
+                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-primary text-white rounded-full text-sm font-bold">
                   {index + 1}
                 </span>
                 <h3 className="text-xl font-semibold text-gray-900">
@@ -277,7 +277,7 @@ const LessonContentRenderer = ({ content, className = '' }) => {
                 </h4>
               )}
               <div className="relative w-full aspect-video bg-gray-100 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow group">
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-optio-purple to-optio-pink opacity-0 group-hover:opacity-100 transition-opacity" style={{ padding: '2px' }}>
+                <div className="absolute inset-0 rounded-xl bg-gradient-primary opacity-0 group-hover:opacity-100 transition-opacity" style={{ padding: '2px' }}>
                   <div className="w-full h-full bg-white rounded-xl overflow-hidden">
                     <iframe
                       src={block.content}

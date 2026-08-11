@@ -15,7 +15,6 @@ const AUDIENCES = [
     description: 'Turn your interests into real high school credit. A dedicated teacher helps you every step of the way. Ages 13+.',
     path: '/for-students',
     image: 'https://images.pexels.com/photos/8033875/pexels-photo-8033875.jpeg?auto=compress&cs=tinysrgb&w=600',
-    color: 'from-blue-500 to-indigo-600',
   },
   {
     title: 'For Families',
@@ -23,7 +22,6 @@ const AUDIENCES = [
     description: 'Whether you homeschool or your kids are in public school, Optio tracks their learning, builds portfolios, and can turn it into official credit.',
     path: '/for-families',
     image: 'https://images.pexels.com/photos/4260325/pexels-photo-4260325.jpeg?auto=compress&cs=tinysrgb&w=600',
-    color: 'from-emerald-500 to-teal-600',
   },
   {
     title: 'For Schools',
@@ -31,7 +29,6 @@ const AUDIENCES = [
     description: 'When students pursue their own interests, they show up differently. Stronger academics, better mental health, and skills that transfer to real life.',
     path: '/for-schools',
     image: 'https://images.pexels.com/photos/8613089/pexels-photo-8613089.jpeg?auto=compress&cs=tinysrgb&w=600',
-    color: 'from-optio-purple to-optio-pink',
   },
 ]
 
@@ -102,39 +99,27 @@ const HomePage = () => {
         </div>
 
         <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 leading-tight drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
             Personalized Learning.
           </h1>
-          <h2
-            className="text-3xl sm:text-4xl md:text-5xl mb-6 leading-tight"
-            style={{
-              fontFamily: 'Poppins',
-              fontWeight: 700,
-              background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 leading-tight bg-gradient-hero-accent bg-clip-text text-transparent">
             Official Credentials.
           </h2>
-          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+          <p className="text-lg sm:text-xl text-white/90 font-medium max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
             Where passion projects meet accredited diplomas. For students, families, and schools.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/how-it-works"
               onClick={() => trackCta('hero_how_it_works')}
-              className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="btn-inverse btn-lg"
             >
               See How It Works
             </Link>
             <Link
               to="/register"
               onClick={() => trackCta('hero_get_started')}
-              className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="btn-ghost-inverse btn-lg"
             >
               Create Free Account
             </Link>
@@ -143,20 +128,14 @@ const HomePage = () => {
       </section>
 
       {/* ========== WHO IS OPTIO FOR? (Audience Cards) ========== */}
-      <section ref={audienceRef} className="py-16 sm:py-24 bg-white">
+      <section ref={audienceRef} className="py-16 sm:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12 sm:mb-16">
-              <h2
-                className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-              >
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Who Is Optio For?
               </h2>
-              <p
-                className="text-lg text-gray-600 max-w-2xl mx-auto"
-                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-              >
+              <p className="text-lg text-gray-600 font-medium max-w-2xl mx-auto">
                 One platform, built for every kind of learner and learning community.
               </p>
             </div>
@@ -179,31 +158,19 @@ const HomePage = () => {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-6">
-                      <h3
-                        className="text-2xl font-bold text-white mb-1 drop-shadow-md"
-                        style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                      >
+                      <h3 className="text-2xl font-bold text-white mb-1 drop-shadow-md">
                         {audience.title}
                       </h3>
-                      <p
-                        className="text-white/90 text-sm font-medium drop-shadow-sm"
-                        style={{ fontFamily: 'Poppins' }}
-                      >
+                      <p className="text-white/90 text-sm font-medium drop-shadow-sm">
                         {audience.subtitle}
                       </p>
                     </div>
                   </div>
                   <div className="p-6">
-                    <p
-                      className="text-gray-600 mb-4"
-                      style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                    >
+                    <p className="text-gray-600 font-medium mb-4">
                       {audience.description}
                     </p>
-                    <span
-                      className="inline-flex items-center text-optio-purple font-semibold text-sm group-hover:gap-2 transition-all"
-                      style={{ fontFamily: 'Poppins' }}
-                    >
+                    <span className="inline-flex items-center text-optio-purple font-semibold text-sm group-hover:gap-2 transition-all">
                       Learn more
                       <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -218,7 +185,7 @@ const HomePage = () => {
       </section>
 
       {/* ========== HIGHLIGHTS BAR ========== */}
-      <section ref={highlightsRef} className="py-12 sm:py-16 bg-gray-50">
+      <section ref={highlightsRef} className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {HIGHLIGHTS.map((item, i) => (
@@ -227,16 +194,10 @@ const HomePage = () => {
                   <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 text-optio-purple mb-3">
                     {item.icon}
                   </div>
-                  <h3
-                    className="text-base sm:text-lg font-bold text-gray-900 mb-1"
-                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                  >
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
                     {item.title}
                   </h3>
-                  <p
-                    className="text-sm text-gray-600"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
+                  <p className="text-sm text-gray-600 font-medium">
                     {item.text}
                   </p>
                 </div>
@@ -247,19 +208,13 @@ const HomePage = () => {
       </section>
 
       {/* ========== ACCREDITATION ========== */}
-      <section className="py-14 sm:py-20 bg-white">
+      <section className="py-16 sm:py-20 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
-            <h2
-              className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-            >
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
               A WASC-Accredited Diploma
             </h2>
-            <p
-              className="text-lg text-gray-600 max-w-2xl mx-auto mb-8"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-            >
+            <p className="text-lg text-gray-600 font-medium max-w-2xl mx-auto mb-8">
               Optio Academy is accredited by the Western
               Association of Schools and Colleges, so the diploma and transcript you earn are
               official and recognized nationwide.
@@ -272,42 +227,31 @@ const HomePage = () => {
       </section>
 
       {/* ========== FINAL CTA ========== */}
-      <section ref={ctaRef} className="py-16 sm:py-20 bg-gradient-to-r from-optio-purple to-optio-pink">
+      <section ref={ctaRef} className="py-16 sm:py-20 bg-gradient-primary">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2
-            className="text-3xl sm:text-4xl font-bold text-white mb-4"
-            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-          >
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Ready to Transform Learning?
           </h2>
-          <p
-            className="text-xl text-white/90 mb-8 max-w-2xl mx-auto"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-          >
+          <p className="text-xl text-white/90 font-medium mb-8 max-w-2xl mx-auto">
             Join families and schools proving that personalized education can be official.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/how-it-works"
               onClick={() => trackCta('final_how_it_works')}
-              className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="btn-inverse btn-lg"
             >
               See How It Works
             </Link>
             <Link
               to="/register"
               onClick={() => trackCta('final_get_started')}
-              className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="btn-ghost-inverse btn-lg"
             >
               Create Free Account
             </Link>
           </div>
-          <p
-            className="text-white/70 text-sm mt-8"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-          >
+          <p className="text-white/70 text-sm font-medium mt-8">
             Questions? Email{' '}
             <a href="mailto:support@optioeducation.com" className="underline hover:no-underline text-white/90">
               support@optioeducation.com

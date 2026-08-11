@@ -231,7 +231,7 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
     >
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 rounded-t-xl">
+        <div className="bg-gradient-primary text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-1">Bulk Import Photos</h2>
@@ -295,7 +295,7 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
                 if (isSubmitting) return;
                 addFiles(e.dataTransfer.files);
               }}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
+              className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
             >
               <PhotoIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-base font-medium text-gray-700 mb-1">
@@ -416,7 +416,7 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || items.length === 0}
-            className="min-h-[44px] px-6 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
+            className="min-h-[44px] px-6 py-2.5 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
           >
             {isSubmitting && (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

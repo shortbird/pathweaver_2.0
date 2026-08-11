@@ -285,12 +285,12 @@ describe('LoginPage', () => {
       })
     })
 
-    it('forwards a parent to the parent dashboard', async () => {
+    it('forwards a parent to the role home (/dashboard)', async () => {
       authState = { ...authState, user: { id: '1', role: 'parent', first_name: 'Bob' }, effectiveRole: 'parent' }
       renderLoginPage()
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard', { replace: true })
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
       })
     })
 
@@ -343,10 +343,10 @@ describe('LoginPage', () => {
       renderLoginPage()
 
       fireEvent.click(await screen.findByText('Continue as Bob'))
-      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates new observer to welcome when Continue is clicked', async () => {
+    it('navigates observer straight to the feed when Continue is clicked', async () => {
       localStorage.removeItem('observerWelcomeSeen')
       authState = {
         ...authState,
@@ -356,7 +356,7 @@ describe('LoginPage', () => {
       renderLoginPage()
 
       fireEvent.click(await screen.findByText('Continue as Carol'))
-      expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome')
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/feed')
     })
 
     it('navigates returning observer to feed when Continue is clicked', async () => {

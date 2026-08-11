@@ -332,7 +332,7 @@ const UserConnectionsTab = ({ user }) => {
     if (conn.direction === 'advisor') return 'bg-yellow-100 text-yellow-800'
     if (conn.direction === 'parent') return 'bg-green-100 text-green-800'
     if (conn.direction === 'student' || conn.direction === 'child') return 'bg-blue-100 text-blue-800'
-    if (conn.direction === 'observing' || conn.direction === 'observed_by') return 'bg-purple-100 text-purple-800'
+    if (conn.direction === 'observing' || conn.direction === 'observed_by') return 'bg-optio-purple/10 text-optio-purple-dark'
     return 'bg-gray-100 text-gray-800'
   }
 
@@ -379,7 +379,7 @@ const UserConnectionsTab = ({ user }) => {
         </button>
         <button
           onClick={() => openAddForm('observer')}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple-dark bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors"
         >
           <UserPlusIcon className="w-4 h-4" />
           Add Observer
@@ -467,7 +467,7 @@ const UserConnectionsTab = ({ user }) => {
                     key={c.id}
                     onClick={() => toggleSelection(c.id)}
                     className={`w-full text-left p-2.5 transition-colors flex items-center gap-2.5 ${
-                      selectedIds.includes(c.id) ? 'bg-purple-50' : 'hover:bg-gray-50'
+                      selectedIds.includes(c.id) ? 'bg-optio-purple/5' : 'hover:bg-gray-50'
                     }`}
                   >
                     <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
@@ -502,7 +502,7 @@ const UserConnectionsTab = ({ user }) => {
             <button
               onClick={handleAdd}
               disabled={selectedIds.length === 0 || addLoading}
-              className="px-3 py-1.5 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm bg-gradient-primary text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {addLoading ? 'Adding...' : `Add (${selectedIds.length})`}
             </button>

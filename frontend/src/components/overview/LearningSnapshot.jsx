@@ -9,10 +9,10 @@ import { useAuth } from '../../contexts/AuthContext';
 const HeatmapCell = ({ intensity, date, activities, size = 'normal' }) => {
   const intensityClasses = {
     0: 'bg-gray-100',
-    1: 'bg-purple-100',
-    2: 'bg-purple-200',
-    3: 'bg-purple-300',
-    4: 'bg-purple-400'
+    1: 'bg-optio-purple/10',
+    2: 'bg-optio-purple/20',
+    3: 'bg-optio-purple/30',
+    4: 'bg-optio-purple/40'
   };
 
   const sizeClasses = {
@@ -68,10 +68,10 @@ const MiniHeatMap = ({ days }) => {
   const getIntensityClass = (intensity) => {
     switch (intensity) {
       case 0: return 'bg-gray-200';
-      case 1: return 'bg-purple-200';
-      case 2: return 'bg-purple-400';
-      case 3: return 'bg-purple-600';
-      case 4: return 'bg-gradient-to-r from-optio-purple to-optio-pink';
+      case 1: return 'bg-optio-purple/20';
+      case 2: return 'bg-optio-purple/40';
+      case 3: return 'bg-optio-purple';
+      case 4: return 'bg-gradient-primary';
       default: return 'bg-gray-200';
     }
   };
@@ -151,7 +151,7 @@ const ActiveQuestCard = ({ quest, studentId, isDependent = false, dependentName 
       <button
         onClick={handleDependentQuestClick}
         disabled={switching}
-        className="block w-full text-left p-4 bg-white border border-gray-200 hover:border-purple-300 hover:shadow-md rounded-xl transition-all disabled:opacity-70"
+        className="block w-full text-left p-4 bg-white border border-gray-200 hover:border-optio-purple/30 hover:shadow-md rounded-xl transition-all disabled:opacity-70"
       >
         {cardContent}
       </button>
@@ -162,7 +162,7 @@ const ActiveQuestCard = ({ quest, studentId, isDependent = false, dependentName 
   return (
     <Link
       to={questLink}
-      className="block p-4 bg-white border border-gray-200 hover:border-purple-300 hover:shadow-md rounded-xl transition-all"
+      className="block p-4 bg-white border border-gray-200 hover:border-optio-purple/30 hover:shadow-md rounded-xl transition-all"
     >
       {cardContent}
     </Link>
@@ -351,7 +351,7 @@ const LearningSnapshot = ({
               {viewingOwnData ? (
                 <Link
                   to="/quests"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium text-sm hover:shadow-md transition-shadow"
+                  className="btn-primary"
                 >
                   Discover Quests
                 </Link>
@@ -419,11 +419,11 @@ const LearningSnapshot = ({
         <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h2 className="text-xl font-bold text-gray-900">
           Learning Snapshot
         </h2>
         {rhythm && (
-          <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+          <span className="ml-2 px-2 py-0.5 bg-optio-purple/10 text-optio-purple-dark rounded-full text-xs font-medium">
             {rhythm.state_display}
           </span>
         )}

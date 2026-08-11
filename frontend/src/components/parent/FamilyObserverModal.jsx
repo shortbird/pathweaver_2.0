@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Modal, Alert, FormFooter } from '../ui';
+import { Modal, Alert, FormFooter, Spinner } from '../ui';
 import { observerAPI } from '../../services/api';
 import {
   ClipboardDocumentIcon,
@@ -237,7 +237,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
               type="button"
               onClick={handleGenerateLink}
               disabled={isSubmitting || selectedChildren.length === 0}
-              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full"
             >
               <LinkIcon className="w-5 h-5 mr-2" />
               {isSubmitting ? 'Generating...' : `Generate Invitation Link${selectedChildren.length > 0 ? ` for ${selectedChildren.length} child${selectedChildren.length > 1 ? 'ren' : ''}` : ''}`}
@@ -264,7 +264,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="shrink-0 flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+                className="btn-quiet shrink-0"
               >
                 {copied ? (
                   <>
@@ -329,7 +329,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
                       title="Remove observer"
                     >
                       {deletingObserver === obs.observer_id ? (
-                        <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        <Spinner size="sm" />
                       ) : (
                         <TrashIcon className="w-5 h-5" />
                       )}
@@ -383,7 +383,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
         {/* Loading State */}
         {loading && (
           <div className="text-center py-4 text-gray-500">
-            <div className="w-8 h-8 border-4 border-gray-200 border-t-optio-purple rounded-full animate-spin mx-auto mb-2" />
+            <Spinner className="mx-auto mb-2" />
             Loading...
           </div>
         )}

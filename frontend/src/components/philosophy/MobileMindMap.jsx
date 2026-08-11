@@ -55,13 +55,11 @@ const MobileMindMap = ({ nodes, edges }) => {
               <div className="flex-1 min-w-0">
                 <h3
                   className="text-base font-bold text-gray-900 leading-tight"
-                  style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700 }}
                 >
                   {node.data.label}
                 </h3>
                 <p
-                  className="text-sm text-gray-500 mt-1 leading-snug"
-                  style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}
+                  className="text-sm text-gray-500 mt-1 leading-snug font-medium"
                 >
                   {node.data.summary}
                 </p>
@@ -91,7 +89,6 @@ const MobileMindMap = ({ nodes, edges }) => {
                     <button
                       onClick={() => setDetailNode(node.data)}
                       className="w-full text-left text-xs font-medium text-optio-purple hover:underline mb-2"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
                     >
                       Read more about {node.data.label}
                     </button>
@@ -109,15 +106,13 @@ const MobileMindMap = ({ nodes, edges }) => {
                             style={{ backgroundColor: child.data.color }}
                           />
                           <h4
-                            className="text-sm font-bold text-gray-800"
-                            style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}
+                            className="text-sm font-semibold text-gray-800"
                           >
                             {child.data.label}
                           </h4>
                         </div>
                         <p
-                          className="text-xs text-gray-500 leading-snug ml-4"
-                          style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}
+                          className="text-xs text-gray-500 leading-snug ml-4 font-medium"
                         >
                           {child.data.summary}
                         </p>
@@ -128,7 +123,6 @@ const MobileMindMap = ({ nodes, edges }) => {
                     {related.length > 0 && (
                       <div className="pt-2 border-t border-gray-100">
                         <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1"
-                          style={{ fontFamily: 'Poppins, sans-serif' }}
                         >
                           Connected to
                         </p>
@@ -137,7 +131,6 @@ const MobileMindMap = ({ nodes, edges }) => {
                             <span
                               key={i}
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-500"
-                              style={{ fontFamily: 'Poppins, sans-serif' }}
                             >
                               {r.label}
                               {r.edgeLabel && (
@@ -190,7 +183,6 @@ const MobileMindMap = ({ nodes, edges }) => {
                   />
                   <h3
                     className="text-lg font-bold text-gray-900"
-                    style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700 }}
                   >
                     {detailNode.label}
                   </h3>
@@ -217,8 +209,7 @@ const MobileMindMap = ({ nodes, edges }) => {
                 )}
                 {detailNode.summary && (
                   <p
-                    className="text-sm text-gray-600 leading-relaxed mb-4 pb-4 border-b border-gray-100"
-                    style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}
+                    className="text-sm text-gray-600 leading-relaxed mb-4 pb-4 border-b border-gray-100 font-medium"
                   >
                     {detailNode.summary}
                   </p>
@@ -226,7 +217,6 @@ const MobileMindMap = ({ nodes, edges }) => {
                 {detailNode.detailContent && (
                   <div
                     className="prose prose-sm max-w-none text-gray-700"
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(detailNode.detailContent),
                     }}

@@ -89,7 +89,7 @@ const TeacherVerificationPage = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <button
-          onClick={() => navigate('/advisor/dashboard')}
+          onClick={() => navigate('/dashboard')}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <ArrowLeftIcon className="w-4 h-4" />
@@ -108,7 +108,7 @@ const TeacherVerificationPage = () => {
       )}
 
       {pendingTasks.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
           <p className="text-gray-500 text-lg">No pending verifications</p>
           <p className="text-gray-400 mt-2">All student work has been reviewed!</p>
         </div>
@@ -117,7 +117,7 @@ const TeacherVerificationPage = () => {
           {pendingTasks.map((task) => (
             <div
               key={task.task_id}
-              className="bg-white rounded-lg shadow hover:shadow-md transition-shadow p-6"
+              className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-optio-purple/60 transition-all p-6"
             >
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div className="flex-1">
@@ -166,14 +166,14 @@ const TeacherVerificationPage = () => {
                   <button
                     onClick={() => handleQuickApprove(task)}
                     disabled={processingTaskId === task.task_id}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
                   >
                     {processingTaskId === task.task_id ? 'Processing...' : 'Quick Approve'}
                   </button>
                   <button
                     onClick={() => handleOpenModal(task)}
                     disabled={processingTaskId === task.task_id}
-                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    className="btn-primary"
                   >
                     Review & Verify
                   </button>

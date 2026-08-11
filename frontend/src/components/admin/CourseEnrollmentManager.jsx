@@ -288,7 +288,7 @@ export default function CourseEnrollmentManager({
       <div className="flex items-center gap-2">
         <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-optio-purple to-optio-pink transition-all duration-300"
+            className="h-full bg-gradient-primary transition-all duration-300"
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -350,7 +350,7 @@ export default function CourseEnrollmentManager({
                   <button
                     onClick={handleBulkEnroll}
                     disabled={enrolling}
-                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50"
+                    className="px-4 py-2 bg-gradient-primary text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50"
                   >
                     {enrolling ? 'Enrolling...' : `Enroll ${selectedUsers.size} Selected`}
                   </button>

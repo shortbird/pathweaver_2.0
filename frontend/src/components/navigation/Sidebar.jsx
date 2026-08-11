@@ -137,13 +137,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // the end, so the menu never reshuffles. Section titles render only when the
   // sidebar is expanded; collapsed mode shows a divider between sections.
 
-  // "Home" is the role's own home surface. It absorbs the item that used to
-  // point there (Family for parents, Organization for org admins) via the
-  // path dedupe below — one home, one label. Advisors share the student
-  // dashboard (/advisor/dashboard was removed 2026-08-10).
-  const homePath = role === 'parent' ? '/parent/dashboard'
-    : role === 'org_admin' ? '/organization'
-    : '/dashboard'
+  // "Home" is /dashboard for every role — RoleHome renders each role's own
+  // home there (role-homes rewrite, 2026-08-10). Family and Organization are
+  // separate management surfaces with their own nav items below; the path
+  // dedupe no longer needs to absorb them into Home.
+  const homePath = '/dashboard'
 
   const primaryItems = [
     {

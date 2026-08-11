@@ -120,7 +120,7 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
           </button>
 
           {/* Header */}
-          <h2 className="text-xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+          <h2 className="text-xl font-bold text-gray-900 mb-6">
             Edit Profile
           </h2>
 
@@ -132,7 +132,7 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
               disabled={uploading}
               className="relative group"
             >
-              <div className="w-24 h-24 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-bold text-2xl overflow-hidden">
+              <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center text-white font-bold text-2xl overflow-hidden">
                 {previewUrl ? (
                   <img src={previewUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
@@ -224,14 +224,14 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                className="btn-quiet flex-1"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-md transition-shadow disabled:opacity-50"
+                className="btn-primary flex-1"
               >
                 {isSubmitting ? 'Saving...' : 'Save Changes'}
               </button>

@@ -18,44 +18,37 @@ function effectiveRole(user) {
 }
 
 /**
- * Where a user lands after logging in, by role:
- * - org_admin -> their organization console (or partner-simplified dashboard)
- * - advisor (teacher) in a SIS org -> the SIS console (via /sis-launch)
- * - advisor (teacher) otherwise -> the advisor dashboard
- * - parent / student in a school that opted in -> the school's page (/school)
- * - parent / superadmin -> parent dashboard
- * - observer -> feed (or welcome on first visit)
- * - student and everything else -> student dashboard
+ * Where a user lands after logging in (rewritten 2026-08-10 for role homes):
+ *
+ * Every in-app role now lands on /dashboard, which renders that role's own
+ * Home (pages/home/RoleHome.jsx). The old forks are gone:
+ * - the school-homepage opt-in no longer swaps the landing page — the school
+ *   section renders INSIDE the family/student homes instead (/school remains
+ *   a linkable page);
+ * - superadmin no longer lands on the parent dashboard by accident;
+ * - observers land straight on their feed (the welcome content is the feed's
+ *   first-visit state).
+ *
+ * The only remaining forks hop SURFACES, not pages:
+ * - staff of SIS-enabled orgs (org_admin, advisor, campus_coordinator) work
+ *   in the SIS console, so they front-door through /sis-launch;
+ * - simplified partner orgs keep their dedicated /onfire dashboard.
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
+  const sisEnabled = Boolean(user?.organization?.feature_flags?.sis_enabled)
 
   if (role === 'org_admin') {
-    return isSimplifiedPartnerOrg(user.organization_id) ? '/onfire' : '/organization'
+    if (isSimplifiedPartnerOrg(user.organization_id)) return '/onfire'
+    if (sisEnabled) return '/sis-launch'
+    return '/dashboard'
   }
-  if (role === 'advisor') {
-    // Teachers in a SIS-enabled org work in the SIS console, not the learning
-    // app. /sis-launch hops surfaces (cross-host in prod); on the SIS surface
-    // itself the route falls through to the dashboard.
-    if (user.organization?.feature_flags?.sis_enabled) {
-      return '/sis-launch'
-    }
-    return '/advisor/dashboard'
-  }
-  // Schools that opted in (feature_flags.sis_settings.school_homepage — iCreate,
-  // 2026-08-06) front-door their families through the school's own page. Only
-  // families: staff run the school from the SIS console, and an observer's
-  // whole account is about one student, not one school. `school` rides on the
-  // login payload and on /me (routes/auth/login/core.py).
-  if ((role === 'parent' || role === 'student') && user.school?.homepage) {
-    return '/school'
-  }
-  if (role === 'superadmin' || role === 'parent') {
-    return '/parent/dashboard'
+  if (role === 'advisor' || role === 'campus_coordinator') {
+    if (sisEnabled) return '/sis-launch'
+    return '/dashboard'
   }
   if (role === 'observer') {
-    const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-    return hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
+    return '/observer/feed'
   }
   return '/dashboard'
 }
@@ -63,13 +56,11 @@ export function getPostLoginPath(user) {
 /**
  * The fallback in-app home for someone who can't stay where they are (missing
  * school context, back-button dead end, blocked route). Deliberately NOT
- * getPostLoginPath: this must never point at an optional surface like /school
- * — SchoolPage bounces here exactly when school context is missing, so pointing
- * back at /school would loop — and never hop surfaces to the SIS console.
- * Matches the redirect map PrivateRoute has always used.
+ * getPostLoginPath: this must never hop surfaces to the SIS console. Matches
+ * the redirect map PrivateRoute has always used. Since role homes landed,
+ * /dashboard is every role's home except observers (whose home is the feed).
  */
 export function roleHomePath(role) {
-  if (role === 'parent') return '/parent/dashboard'
   if (role === 'observer') return '/observer/feed'
   return '/dashboard'
 }

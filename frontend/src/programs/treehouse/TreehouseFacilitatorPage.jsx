@@ -103,7 +103,7 @@ function PinsTab({ cohortId }) {
             const key = `${r.student_id}:${r.quest_id}`
             return (
               <li key={key} className="flex items-center gap-3 rounded-lg bg-white border border-neutral-100 p-3">
-                <input type="checkbox" checked={!!selected[key]} onChange={() => toggle(key)} className="w-5 h-5 accent-purple-600" />
+                <input type="checkbox" checked={!!selected[key]} onChange={() => toggle(key)} className="w-5 h-5 accent-optio-purple" />
                 <span className="font-medium text-neutral-900">{r.student_name}</span>
                 <span className="text-neutral-500">— {r.quest_title}</span>
               </li>
@@ -252,7 +252,7 @@ function ShowcaseTab() {
         <textarea value={form.ideas} onChange={e => setForm({ ...form, ideas: e.target.value })}
           placeholder="Suggested project ideas (one per line) — students see these for inspiration"
           rows={3} className="w-full rounded-lg border border-neutral-200 px-3 py-2" />
-        <button className="text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 rounded-lg">
+        <button className="text-sm font-semibold text-white bg-gradient-primary px-4 py-2 rounded-lg">
           {editingId ? 'Save changes' : 'Create showcase'}
         </button>
       </form>
@@ -442,7 +442,7 @@ function CaptureTab({ cohortId }) {
         <div className="max-h-56 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
           {students.map(s => (
             <label key={s.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
-              <input type="checkbox" checked={!!tagged[s.id]} onChange={() => toggle(s.id)} className="w-5 h-5 accent-purple-600" />
+              <input type="checkbox" checked={!!tagged[s.id]} onChange={() => toggle(s.id)} className="w-5 h-5 accent-optio-purple" />
               <span className="text-neutral-900">{studentLabel(s)}</span>
             </label>
           ))}
@@ -451,7 +451,7 @@ function CaptureTab({ cohortId }) {
       </div>
 
       <button onClick={submit} disabled={busy}
-        className="w-full text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2.5 rounded-lg disabled:opacity-50">
+        className="w-full text-sm font-semibold text-white bg-gradient-primary px-4 py-2.5 rounded-lg disabled:opacity-50">
         {busy ? 'Saving…' : 'Save to journals'}
       </button>
     </div>
@@ -548,7 +548,7 @@ function AssignTab({ cohortId }) {
         <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
           {quests.map(q => (
             <label key={q.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
-              <input type="checkbox" checked={!!pickedQuests[q.id]} onChange={() => toggle(setPickedQuests)(q.id)} className="w-5 h-5 accent-purple-600" />
+              <input type="checkbox" checked={!!pickedQuests[q.id]} onChange={() => toggle(setPickedQuests)(q.id)} className="w-5 h-5 accent-optio-purple" />
               <span className="text-neutral-900 text-sm">{q.title}</span>
             </label>
           ))}
@@ -575,7 +575,7 @@ function AssignTab({ cohortId }) {
         <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
           {students.map(s => (
             <label key={s.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
-              <input type="checkbox" checked={!!pickedStudents[s.id]} onChange={() => toggle(setPickedStudents)(s.id)} className="w-5 h-5 accent-purple-600" />
+              <input type="checkbox" checked={!!pickedStudents[s.id]} onChange={() => toggle(setPickedStudents)(s.id)} className="w-5 h-5 accent-optio-purple" />
               <span className="text-neutral-900 text-sm">{studentLabel(s)}</span>
             </label>
           ))}
@@ -584,7 +584,7 @@ function AssignTab({ cohortId }) {
       </div>
       <div className="sm:col-span-2">
         <button onClick={assign} disabled={busy}
-          className="w-full text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2.5 rounded-lg disabled:opacity-50">
+          className="w-full text-sm font-semibold text-white bg-gradient-primary px-4 py-2.5 rounded-lg disabled:opacity-50">
           {busy ? 'Assigning…' : `Assign ${questIds.length || ''} quest(s) to ${studentIds.length || ''} student(s)`}
         </button>
       </div>
@@ -691,7 +691,7 @@ function CohortsTab() {
               )}
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 text-sm text-neutral-600">
-                  <input type="checkbox" checked={c.ui_mode === 'simple'} onChange={() => toggleSimple(c)} className="w-4 h-4 accent-purple-600" />
+                  <input type="checkbox" checked={c.ui_mode === 'simple'} onChange={() => toggleSimple(c)} className="w-4 h-4 accent-optio-purple" />
                   Simple (young-learner) UI
                 </label>
                 {editingId !== c.id && (
@@ -806,7 +806,7 @@ export default function TreehouseFacilitatorPage() {
         <h1 className="text-3xl font-bold text-neutral-900">Facilitator Dashboard</h1>
         {admin && (
           <button onClick={() => setShowAddStudent(true)}
-            className="text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 rounded-lg">
+            className="text-sm font-semibold text-white bg-gradient-primary px-4 py-2 rounded-lg">
             + Add student
           </button>
         )}

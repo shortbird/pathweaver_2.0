@@ -81,7 +81,7 @@ const TaskPreviewCard = ({ task, onAccept, onReject, onEdit, isAccepted }) => {
           </button>
           <button
             onClick={handleSaveEdit}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90"
           >
             Save
           </button>
@@ -500,7 +500,7 @@ const BulkTaskGenerationModal = ({
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 max-w-xs mx-auto">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${((currentIndex + 1) / allLessonsData.length) * 100}%` }}
                 />
               </div>
@@ -622,7 +622,7 @@ const BulkTaskGenerationModal = ({
               </h3>
               <div className="w-full bg-gray-200 rounded-full h-2 max-w-xs mx-auto">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${creatingProgress}%` }}
                 />
               </div>
@@ -653,7 +653,7 @@ const BulkTaskGenerationModal = ({
               {allLessonsData.length > 0 && (
                 <button
                   onClick={handleStartGeneration}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
                 >
                   <SparklesIcon className="w-4 h-4" />
                   Generate {allLessonsData.length * 3} Tasks
@@ -682,7 +682,7 @@ const BulkTaskGenerationModal = ({
               <button
                 onClick={handleCreateTasks}
                 disabled={totalAcceptedTasks === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CheckIcon className="w-4 h-4" />
                 Create {totalAcceptedTasks} Task{totalAcceptedTasks !== 1 ? 's' : ''}

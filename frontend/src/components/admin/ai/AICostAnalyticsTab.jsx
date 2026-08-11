@@ -87,10 +87,10 @@ const AICostAnalyticsTab = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h2 className="text-2xl font-bold text-gray-900">
             AI Cost Analytics
           </h2>
-          <p className="text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-600 mt-1">
             Track token usage and API costs across all AI services
           </p>
         </div>
@@ -127,8 +127,8 @@ const AICostAnalyticsTab = () => {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <BoltIcon className="h-6 w-6 text-purple-600" />
+            <div className="p-3 bg-optio-purple/10 rounded-lg">
+              <BoltIcon className="h-6 w-6 text-optio-purple" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Tokens</p>
@@ -155,8 +155,8 @@ const AICostAnalyticsTab = () => {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-pink-100 rounded-lg">
-              <ClockIcon className="h-6 w-6 text-pink-600" />
+            <div className="p-3 bg-optio-pink/10 rounded-lg">
+              <ClockIcon className="h-6 w-6 text-optio-pink" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Avg Cost/Request</p>

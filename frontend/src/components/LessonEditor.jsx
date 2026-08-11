@@ -35,7 +35,7 @@ import LessonPreviewModal from './curriculum/LessonPreviewModal'
 // Step types
 const STEP_TYPES = {
   text: { label: 'Text', icon: DocumentTextIcon, color: 'text-blue-600 bg-blue-100' },
-  video: { label: 'Video', icon: VideoCameraIcon, color: 'text-purple-600 bg-purple-100' },
+  video: { label: 'Video', icon: VideoCameraIcon, color: 'text-optio-purple bg-optio-purple/10' },
   file: { label: 'File', icon: PaperClipIcon, color: 'text-green-600 bg-green-100' },
 }
 
@@ -597,7 +597,7 @@ const LessonEditor = forwardRef(({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
                     >
                       <ArrowUpTrayIcon className="w-4 h-4" />
                       {isUploading ? 'Uploading...' : 'Upload File'}
@@ -676,7 +676,7 @@ const LessonEditor = forwardRef(({
           type="button"
           onClick={handleSave}
           disabled={isSaving}
-          className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {isSaving ? 'Saving...' : 'Save Lesson'}
         </button>

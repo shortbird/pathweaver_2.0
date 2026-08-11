@@ -121,16 +121,16 @@ const AdvisorCheckinPage = () => {
   }
 
   const handleDone = () => {
-    navigate('/advisor/dashboard')
+    navigate('/dashboard')
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-2xl p-6 text-white">
+        <div className="bg-gradient-primary rounded-t-2xl p-6 text-white">
           <h1 className="text-3xl font-bold mb-1">Check-in Recap</h1>
-          <p className="text-purple-100 font-medium">
+          <p className="text-white/80 font-medium">
             Upload your meeting notes and send a recap email to the parent
           </p>
         </div>
@@ -157,7 +157,7 @@ const AdvisorCheckinPage = () => {
                   value={meetingNotes}
                   onChange={(e) => setMeetingNotes(e.target.value)}
                   rows={14}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-y font-mono text-sm leading-relaxed"
+                  className="input-field resize-y font-mono text-sm leading-relaxed"
                   placeholder="Paste your meeting notes here..."
                   autoFocus
                 />
@@ -166,8 +166,8 @@ const AdvisorCheckinPage = () => {
               <div className="flex gap-4">
                 <button
                   type="button"
-                  onClick={() => navigate('/advisor/dashboard')}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  onClick={() => navigate('/dashboard')}
+                  className="btn-quiet flex-1 py-3"
                 >
                   Cancel
                 </button>
@@ -175,7 +175,7 @@ const AdvisorCheckinPage = () => {
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating || !meetingNotes.trim()}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary flex-1 py-3"
                 >
                   {generating ? (
                     <span className="flex items-center justify-center gap-2">
@@ -197,7 +197,7 @@ const AdvisorCheckinPage = () => {
           {step === 'review' && (
             <div className="space-y-6">
               {/* Recipient info */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500 font-medium">To:</span>{' '}
@@ -221,7 +221,7 @@ const AdvisorCheckinPage = () => {
                   type="text"
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors font-medium"
+                  className="input-field font-medium"
                 />
               </div>
 
@@ -238,7 +238,7 @@ const AdvisorCheckinPage = () => {
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
                   rows={16}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-y text-sm leading-relaxed"
+                  className="input-field resize-y text-sm leading-relaxed"
                 />
               </div>
 
@@ -254,7 +254,7 @@ const AdvisorCheckinPage = () => {
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="px-5 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  className="btn-quiet px-5 py-3"
                 >
                   Back
                 </button>
@@ -262,7 +262,7 @@ const AdvisorCheckinPage = () => {
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="px-5 py-3 border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-colors disabled:opacity-50"
+                  className="btn-quiet px-5 py-3"
                 >
                   {generating ? 'Regenerating...' : 'Regenerate'}
                 </button>
@@ -270,7 +270,7 @@ const AdvisorCheckinPage = () => {
                   type="button"
                   onClick={handleSendTest}
                   disabled={sendingTest || !emailBody.trim()}
-                  className="px-5 py-3 border-2 border-blue-300 text-blue-700 rounded-lg font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  className="btn-quiet px-5 py-3"
                 >
                   {sendingTest ? 'Sending Test...' : 'Send Test to Myself'}
                 </button>
@@ -278,7 +278,7 @@ const AdvisorCheckinPage = () => {
                   type="button"
                   onClick={handleSendEmail}
                   disabled={sending || !emailBody.trim()}
-                  className="flex-1 px-5 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary flex-1 py-3"
                 >
                   {sending ? (
                     <span className="flex items-center justify-center gap-2">
@@ -317,7 +317,7 @@ const AdvisorCheckinPage = () => {
               <button
                 type="button"
                 onClick={handleDone}
-                className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
+                className="btn-primary btn-lg"
               >
                 Back to Dashboard
               </button>

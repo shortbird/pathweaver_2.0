@@ -103,7 +103,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white text-sm font-bold">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-white text-sm font-bold">
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -216,7 +216,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
           >
             Close Preview
           </button>

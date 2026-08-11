@@ -5,7 +5,7 @@ const PhilosophyCard = ({
   icon: Icon,
   title, 
   description, 
-  gradientClasses = "from-purple-50 to-blue-50"
+  gradientClasses = "from-optio-purple/5 to-blue-50"
 }) => {
   return (
     <div className={`p-6 rounded-xl bg-gradient-to-br ${gradientClasses} border border-gray-100`}>
@@ -51,7 +51,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
               icon={Clock}
               title="Learn Today"
               description="Each skill you build has immediate value. Your growth matters now."
-              gradientClasses="from-purple-50 to-blue-50"
+              gradientClasses="from-optio-purple/5 to-blue-50"
             />
             
             <PhilosophyCard
@@ -65,7 +65,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
               icon={Heart}
               title="Joy of Discovery"
               description="Follow curiosity, not credentials. Create because you want to."
-              gradientClasses="from-pink-50 to-purple-50"
+              gradientClasses="from-optio-pink/5 to-optio-purple/5"
             />
           </div>
           

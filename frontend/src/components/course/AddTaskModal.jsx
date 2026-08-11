@@ -169,7 +169,7 @@ const AddTaskModal = ({ isOpen, onClose, lessonTitle, onSave }) => {
           <button
             onClick={handleSave}
             disabled={saving || !task.title?.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {saving ? 'Creating...' : 'Create Task'}
           </button>

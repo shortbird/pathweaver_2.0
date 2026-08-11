@@ -446,7 +446,7 @@ export default function OrgCurriculumUpload({ orgId }) {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
-                    className="bg-gradient-to-r from-optio-purple to-optio-pink h-2.5 rounded-full transition-all duration-500"
+                    className="bg-gradient-primary h-2.5 rounded-full transition-all duration-500"
                     style={{ width: `${progress.progress || 0}%` }}
                   />
                 </div>
@@ -503,7 +503,7 @@ export default function OrgCurriculumUpload({ orgId }) {
             {isComplete && progress?.course_id && (
               <a
                 href={`/courses/${progress.course_id}/edit`}
-                className="px-5 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium"
+                className="px-5 py-2 bg-gradient-primary text-white rounded-lg font-medium"
               >
                 Edit Course
               </a>
@@ -555,7 +555,7 @@ export default function OrgCurriculumUpload({ orgId }) {
         <div
           className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
             dragActive
-              ? 'border-optio-purple bg-purple-50'
+              ? 'border-optio-purple bg-optio-purple/5'
               : file
               ? 'border-green-400 bg-green-50'
               : 'border-gray-300 hover:border-gray-400'
@@ -830,7 +830,7 @@ export default function OrgCurriculumUpload({ orgId }) {
         <button
           onClick={handleUpload}
           disabled={uploading || (activeTab === 'file' && !file) || (activeTab === 'text' && !textContent.trim())}
-          className="px-5 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-5 py-2 bg-gradient-primary text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {uploading ? (
             <>
@@ -885,7 +885,7 @@ export default function OrgCurriculumUpload({ orgId }) {
               <tbody className="bg-white divide-y divide-gray-200">
                 {uploadHistory.map((upload) => (
                   <React.Fragment key={upload.id}>
-                    <tr className={upload.id === uploadId ? 'bg-purple-50' : ''}>
+                    <tr className={upload.id === uploadId ? 'bg-optio-purple/5' : ''}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -904,7 +904,7 @@ export default function OrgCurriculumUpload({ orgId }) {
                           <div className="flex items-center gap-2">
                             <div className="w-20 bg-gray-200 rounded-full h-1.5">
                               <div
-                                className="bg-gradient-to-r from-optio-purple to-optio-pink h-1.5 rounded-full transition-all duration-300"
+                                className="bg-gradient-primary h-1.5 rounded-full transition-all duration-300"
                                 style={{ width: `${upload.progress_percent || 0}%` }}
                               />
                             </div>

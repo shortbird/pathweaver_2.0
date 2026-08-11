@@ -72,7 +72,7 @@ const AISettingsPanel = ({ className = '' }) => {
       {/* Header */}
       <div className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <SparklesIcon className="w-5 h-5 text-purple-600" />
+          <SparklesIcon className="w-5 h-5 text-optio-purple" />
           AI Assistance
         </h3>
         <p className="text-sm text-gray-500 mt-1">
@@ -93,24 +93,24 @@ const AISettingsPanel = ({ className = '' }) => {
               className={`
                 w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all
                 ${isSelected
-                  ? 'border-purple-400 bg-purple-50'
+                  ? 'border-optio-purple/40 bg-optio-purple/5'
                   : 'border-gray-200 hover:border-gray-300 bg-white'}
               `}
             >
               <div className={`
                 w-10 h-10 rounded-lg flex items-center justify-center
-                ${isSelected ? 'bg-purple-100' : 'bg-gray-100'}
+                ${isSelected ? 'bg-optio-purple/10' : 'bg-gray-100'}
               `}>
-                <Icon className={`w-5 h-5 ${isSelected ? 'text-purple-600' : 'text-gray-500'}`} />
+                <Icon className={`w-5 h-5 ${isSelected ? 'text-optio-purple' : 'text-gray-500'}`} />
               </div>
               <div className="flex-1">
-                <p className={`font-medium ${isSelected ? 'text-purple-900' : 'text-gray-900'}`}>
+                <p className={`font-medium ${isSelected ? 'text-optio-purple-dark' : 'text-gray-900'}`}>
                   {option.label}
                 </p>
                 <p className="text-sm text-gray-500">{option.description}</p>
               </div>
               {isSelected && (
-                <CheckCircleIcon className="w-6 h-6 text-purple-600" />
+                <CheckCircleIcon className="w-6 h-6 text-optio-purple" />
               )}
             </button>
           );
@@ -140,7 +140,7 @@ const AISettingsPanel = ({ className = '' }) => {
                     onChange={() => toggleFeature(feature.key)}
                     className="sr-only peer"
                   />
-                  <div className="w-10 h-6 bg-gray-300 peer-checked:bg-purple-600 rounded-full transition-colors" />
+                  <div className="w-10 h-6 bg-gray-300 peer-checked:bg-optio-purple rounded-full transition-colors" />
                   <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
                 </div>
               </label>

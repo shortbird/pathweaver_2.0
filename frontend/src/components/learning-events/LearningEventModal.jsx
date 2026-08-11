@@ -12,8 +12,8 @@ import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEP
 const PILLAR_CONFIG = {
   art: {
     label: 'Art',
-    light: 'bg-purple-50 border-purple-200 text-purple-700 hover:border-purple-300',
-    selected: 'bg-purple-600 border-purple-600 text-white'
+    light: 'bg-optio-purple/5 border-optio-purple/20 text-optio-purple-dark hover:border-optio-purple/30',
+    selected: 'bg-optio-purple border-optio-purple text-white'
   },
   stem: {
     label: 'STEM',
@@ -490,7 +490,7 @@ const LearningEventModal = ({
           </div>
         ) : (
           <div
-            className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
+            className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
             onClick={() => {
               fileInputRef.current.accept = CAMERA_ACCEPT_STRING;
               fileInputRef.current.onchange = (e) => {
@@ -551,7 +551,7 @@ const LearningEventModal = ({
         </div>
       ) : (
         <div
-          className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
+          className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
           onClick={() => {
             fileInputRef.current.accept = DOCUMENT_ACCEPT_STRING;
             fileInputRef.current.onchange = (e) => {
@@ -577,7 +577,7 @@ const LearningEventModal = ({
     >
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 rounded-t-xl sticky top-0 z-10">
+        <div className="bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">
@@ -693,7 +693,7 @@ const LearningEventModal = ({
                 {aiSuggestions.title && aiSuggestions.pillars?.length > 0 && (
                   <button
                     onClick={() => acceptAISuggestion('all')}
-                    className="w-full py-2 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90"
+                    className="w-full py-2 text-sm bg-gradient-primary text-white rounded-lg hover:opacity-90"
                   >
                     Apply All
                   </button>
@@ -823,7 +823,7 @@ const LearningEventModal = ({
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !description.trim()}
-              className="min-h-[44px] w-full sm:w-auto flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
+              className="min-h-[44px] w-full sm:w-auto flex-1 px-6 py-3 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>

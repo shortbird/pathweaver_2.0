@@ -55,7 +55,6 @@ const ConnectsToEdge = ({
           >
             <span
               className="px-2 py-0.5 rounded-full bg-white/90 text-[10px] text-gray-500 font-medium whitespace-nowrap border border-gray-200 shadow-sm"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
             >
               {labelText}
             </span>

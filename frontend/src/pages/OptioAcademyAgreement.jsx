@@ -3,17 +3,17 @@ import { Link } from 'react-router-dom'
 
 const OptioAcademyAgreement = () => {
   return (
-    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
             <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
 
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8">
-              <p className="font-semibold text-blue-900">Important Notice</p>
-              <p className="text-sm text-blue-800 mt-2">
+            <div className="bg-optio-purple/5 border-l-4 border-optio-purple p-4 mb-8">
+              <p className="font-semibold text-gray-900">Important Notice</p>
+              <p className="text-sm text-gray-700 mt-2">
                 This Agreement is required for every student enrolling in Optio Academy, our fully online
                 private school. Digital-only users of the Optio platform who are not enrolled in Optio
                 Academy do not need to sign this Agreement.
@@ -68,7 +68,7 @@ const OptioAcademyAgreement = () => {
               </p>
               <p className="mb-4">
                 This Agreement incorporates the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-handbook" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Optio Academy Participant Handbook
                 </Link>{' '}
                 ("Handbook") by reference. The Parent and Participant agree they have received, read, and
@@ -127,7 +127,7 @@ const OptioAcademyAgreement = () => {
                 Optio Academy is accredited by the Accrediting Commission for Schools, Western
                 Association of Schools and Colleges (ACS WASC). Current accreditation details are
                 published on the{' '}
-                <Link to="/academy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Optio Academy
                 </Link>{' '}
                 website page.
@@ -256,7 +256,7 @@ const OptioAcademyAgreement = () => {
               <h3 className="text-xl font-semibold mb-3">How to Withdraw</h3>
               <p className="mb-4">
                 The Parent may withdraw the Participant at any time by providing written notice to{' '}
-                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:tanner@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   tanner@optioeducation.com
                 </a>. The withdrawal takes effect on the date stated in the notice or, if no date is
                 stated, on the date the notice is received.
@@ -292,7 +292,7 @@ const OptioAcademyAgreement = () => {
               <p className="mb-4">
                 Further details about how the Academy handles educational records and student data are
                 set forth in the{' '}
-                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/privacy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Privacy Policy
                 </Link>.
               </p>
@@ -337,7 +337,7 @@ const OptioAcademyAgreement = () => {
                 filtering for student-facing AI features. The Parent has full visibility into the
                 Participant's account, including AI tutor conversations, through the Parent Dashboard.
                 Additional safeguards are described in the{' '}
-                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/privacy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Privacy Policy
                 </Link>.
               </p>
@@ -353,7 +353,7 @@ const OptioAcademyAgreement = () => {
                 and social media content, marketing materials, online showcases (which may be recorded),
                 and educational case studies. All such use will be for non-commercial educational and
                 promotional purposes. The Parent may opt out at any time by contacting{' '}
-                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:tanner@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   tanner@optioeducation.com
                 </a>.
               </p>
@@ -389,7 +389,7 @@ const OptioAcademyAgreement = () => {
               </p>
               <p className="mb-4">
                 Detailed behavioral expectations are set forth in the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-handbook" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Academy Handbook
                 </Link>.
               </p>
@@ -492,13 +492,13 @@ const OptioAcademyAgreement = () => {
               <h2 className="text-2xl font-semibold mb-4">17. Entire Agreement and Severability</h2>
               <p className="mb-4">
                 This written Agreement, together with the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-handbook" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Academy Handbook
                 </Link>,{' '}
-                <Link to="/terms" className="text-primary hover:text-optio-purple underline">
+                <Link to="/terms" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Terms of Service
                 </Link>, and{' '}
-                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/privacy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Privacy Policy
                 </Link>, constitutes the entire agreement between the parties on the subject matter
                 hereof. All prior verbal promises of whatever kind are merged herein.
@@ -553,11 +553,11 @@ const OptioAcademyAgreement = () => {
                 Participant begins enrollment in Optio Academy. Users of the Optio digital platform who
                 are not enrolled in Optio Academy are not required to sign this Agreement but must agree
                 to the{' '}
-                <Link to="/terms" className="text-primary hover:text-optio-purple underline">
+                <Link to="/terms" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/privacy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Privacy Policy
                 </Link>.
               </p>
@@ -565,7 +565,7 @@ const OptioAcademyAgreement = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
+            <Link to="/register" className="text-optio-purple hover:text-optio-purple-dark font-medium">
               ← Back to Registration
             </Link>
           </div>

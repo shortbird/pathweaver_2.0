@@ -128,10 +128,10 @@ const FamilyCalendarPage = () => {
   const openDayEvents = openDay ? (byDate[openDay] || []) : []
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Calendar</h1>
-      <p className="text-sm text-neutral-500 mb-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Calendar</h1>
+      <p className="text-sm text-gray-500 mb-6">
         Events at {org?.organization_name || 'your school'} — field trips, showcases, closures, and more.
       </p>
 
@@ -144,22 +144,22 @@ const FamilyCalendarPage = () => {
         </select>
       )}
 
-      {orgs === null && <p className="text-neutral-500">Loading…</p>}
-      {orgs?.length === 0 && <p className="text-neutral-500">Your account isn&apos;t linked to a school yet.</p>}
+      {orgs === null && <p className="text-gray-500">Loading…</p>}
+      {orgs?.length === 0 && <p className="text-gray-500">Your account isn&apos;t linked to a school yet.</p>}
 
       {orgId && (
         <>
           <div className="flex items-center gap-3 mb-4">
             <button onClick={() => shift(-1)} aria-label="Previous month"
-              className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple text-sm">←</button>
-            <span className="text-lg font-semibold text-neutral-900 min-w-[170px] text-center">{MONTHS[month]} {year}</span>
+              className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:border-optio-purple hover:text-optio-purple text-sm">←</button>
+            <span className="text-lg font-semibold text-gray-900 min-w-[170px] text-center">{MONTHS[month]} {year}</span>
             <button onClick={() => shift(1)} aria-label="Next month"
-              className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple text-sm">→</button>
+              className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:border-optio-purple hover:text-optio-purple text-sm">→</button>
             <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); setOpenDay(null) }}
               className="text-sm text-optio-purple hover:underline">Today</button>
-            {events === null && <span className="text-sm text-neutral-400">Loading…</span>}
+            {events === null && <span className="text-sm text-gray-400">Loading…</span>}
             <button onClick={openSubscribe}
-              className="ml-auto px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors">
+              className="ml-auto px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-colors">
               Add to my calendar
             </button>
           </div>
@@ -167,7 +167,7 @@ const FamilyCalendarPage = () => {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="grid grid-cols-7 border-b border-gray-100">
               {DOW.map((d) => (
-                <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
                   <span className="hidden sm:inline">{d}</span><span className="sm:hidden">{d[0]}</span>
                 </div>
               ))}
@@ -184,7 +184,7 @@ const FamilyCalendarPage = () => {
                       onClick={() => dayEvents.length && setOpenDay(key)}>
                       <div className={`text-xs font-medium mb-1 ${key === today
                         ? 'inline-flex w-5 h-5 items-center justify-center rounded-full bg-optio-purple text-white'
-                        : 'text-neutral-400'}`}>
+                        : 'text-gray-400'}`}>
                         {day.getDate()}
                       </div>
                       <div className="space-y-1">
@@ -199,7 +199,7 @@ const FamilyCalendarPage = () => {
                           )
                         })}
                         {dayEvents.length > 3 && (
-                          <span className="text-[10px] text-neutral-400">+{dayEvents.length - 3} more</span>
+                          <span className="text-[10px] text-gray-400">+{dayEvents.length - 3} more</span>
                         )}
                       </div>
                     </div>
@@ -210,7 +210,7 @@ const FamilyCalendarPage = () => {
           </div>
 
           {events?.length === 0 && (
-            <p className="mt-3 text-sm text-neutral-400">No events on the calendar this month.</p>
+            <p className="mt-3 text-sm text-gray-400">No events on the calendar this month.</p>
           )}
         </>
       )}
@@ -219,29 +219,29 @@ const FamilyCalendarPage = () => {
         <ModalOverlay onClose={() => setSubscribeUrl(null)} className="items-end sm:items-center">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 pt-4">
-              <h2 className="text-base font-semibold text-neutral-900">Add to my calendar</h2>
+              <h2 className="text-base font-semibold text-gray-900">Add to my calendar</h2>
               <button onClick={() => setSubscribeUrl(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
             <div className="p-4 space-y-2">
-              <p className="text-sm text-neutral-500 mb-3">
+              <p className="text-sm text-gray-500 mb-3">
                 Subscribe once and new school events show up in your own calendar automatically.
               </p>
               <a
                 href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`}
                 target="_blank" rel="noopener noreferrer"
-                className="block w-full text-center px-4 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                className="btn-primary w-full"
               >
                 Google Calendar
               </a>
               <a
                 href={webcalUrl}
-                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
               >
                 Apple Calendar (iPhone, iPad, Mac)
               </a>
               <button
                 onClick={copyFeedUrl}
-                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+                className="block w-full text-center px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
               >
                 Copy link for another calendar app
               </button>
@@ -254,7 +254,7 @@ const FamilyCalendarPage = () => {
         <ModalOverlay onClose={() => setOpenDay(null)} className="items-end sm:items-center">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 pt-4">
-              <h2 className="text-base font-semibold text-neutral-900">{fmtDayLong(openDay)}</h2>
+              <h2 className="text-base font-semibold text-gray-900">{fmtDayLong(openDay)}</h2>
               <button onClick={() => setOpenDay(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
             <div className="p-4 space-y-3">
@@ -264,14 +264,14 @@ const FamilyCalendarPage = () => {
                 return (
                   <div key={e.id} className="rounded-lg border border-gray-200 p-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-neutral-900">{e.title}</span>
+                      <span className="text-sm font-semibold text-gray-900">{e.title}</span>
                       {/* An event can carry several categories — show them all. */}
                       {((e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)).map((c) => (
                         <span key={c} className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{c}</span>
                       ))}
                     </div>
-                    <p className="text-sm text-neutral-500 mt-0.5">{when}{e.location ? ` · ${e.location}` : ''}</p>
-                    {e.description && <p className="text-sm text-neutral-600 mt-1">{e.description}</p>}
+                    <p className="text-sm text-gray-500 mt-0.5">{when}{e.location ? ` · ${e.location}` : ''}</p>
+                    {e.description && <p className="text-sm text-gray-600 mt-1">{e.description}</p>}
                   </div>
                 )
               })}

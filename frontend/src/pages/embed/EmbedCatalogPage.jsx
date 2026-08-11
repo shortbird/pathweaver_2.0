@@ -119,7 +119,7 @@ const EmbedCatalogPage = () => {
     <div className="min-h-screen w-full bg-gray-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-6">
-          <h1 className="bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-2xl font-extrabold text-transparent sm:text-3xl">
+          <h1 className="bg-gradient-primary bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
             Class Catalog
           </h1>
           <p className="mt-1 text-sm text-gray-500">Current classes and live availability.</p>

@@ -11,7 +11,7 @@ import { goToSisSurface } from '../utils/appSurface'
 const SisLaunchPage = () => {
   useEffect(() => { goToSisSurface('/') }, [])
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50">
       <p className="text-neutral-500">Opening your school console…</p>
     </div>
   )

@@ -5,9 +5,9 @@ const SUPPORT_EMAIL = 'support@optioeducation.com'
 
 const SupportPage = () => {
   return (
-    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Support</h1>
           <p className="text-sm text-gray-600 mb-8">
             We&apos;re a small team and we read every message.
@@ -21,7 +21,7 @@ const SupportPage = () => {
             </p>
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="inline-block bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold px-6 py-3 rounded-lg"
+              className="btn-primary"
             >
               Email {SUPPORT_EMAIL}
             </a>

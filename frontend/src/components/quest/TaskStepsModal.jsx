@@ -16,6 +16,7 @@ import { useOrganization, useOrgFeature } from '../../contexts/OrganizationConte
 import { printStepsReceipt } from '../../utils/stepsReceiptPrinter'
 import StepItem from './StepItem'
 import logger from '../../utils/logger'
+import { Spinner, ButtonSpinner } from '../ui';
 
 /**
  * TaskStepsModal - Modal for AI-powered step breakdown
@@ -217,7 +218,6 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                     <Dialog.Title
                       as="h3"
                       className="text-lg font-semibold text-gray-900"
-                      style={{ fontFamily: 'Poppins' }}
                     >
                       Break into Steps
                     </Dialog.Title>
@@ -232,7 +232,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
 
                 {/* Task title */}
                 <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-                  <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                  <p className="text-sm font-medium text-gray-700">
                     {taskTitle}
                   </p>
                 </div>
@@ -244,11 +244,11 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                     <div className="mb-4">
                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-optio-purple to-optio-pink transition-all duration-300"
+                          className="h-full bg-gradient-primary transition-all duration-300"
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 text-right" style={{ fontFamily: 'Poppins' }}>
+                      <p className="mt-1 text-xs text-gray-500 text-right">
                         {completed}/{total} steps complete ({progressPercent}%)
                       </p>
                     </div>
@@ -260,7 +260,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                       {/* Evidence reminder */}
                       <div className="flex items-start gap-3 p-3 bg-optio-purple/5 rounded-lg">
                         <CameraIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
-                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                        <p className="text-xs text-gray-600">
                           Each step will include what to capture for evidence. Upload photos, notes, or screenshots as you work - we want to see your process, not just the final result.
                         </p>
                       </div>
@@ -276,7 +276,6 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }
                           `}
-                          style={{ fontFamily: 'Poppins' }}
                         >
                           Quick Overview
                           <span className="block text-xs opacity-75 mt-0.5">3-5 steps</span>
@@ -290,7 +289,6 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }
                           `}
-                          style={{ fontFamily: 'Poppins' }}
                         >
                           Detailed Guide
                           <span className="block text-xs opacity-75 mt-0.5">10-15 steps</span>
@@ -304,16 +302,15 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                         className={`
                           w-full py-3 px-4 rounded-lg font-medium text-sm
                           flex items-center justify-center gap-2
-                          bg-gradient-to-r from-optio-purple to-optio-pink text-white
+                          bg-gradient-primary text-white
                           hover:shadow-md transition-all
                           disabled:opacity-50 disabled:cursor-not-allowed
                           touch-manipulation
                         `}
-                        style={{ fontFamily: 'Poppins' }}
                       >
                         {isGenerating ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <ButtonSpinner />
                             Generating steps...
                           </>
                         ) : (
@@ -329,7 +326,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                   {/* Loading state */}
                   {isLoading && (
                     <div className="flex items-center justify-center py-8">
-                      <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                      <Spinner size="md" />
                     </div>
                   )}
 
@@ -339,7 +336,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                       {/* Evidence reminder at top of steps */}
                       <div className="flex items-start gap-2 p-2 mb-3 bg-blue-50 rounded-lg text-xs text-blue-700">
                         <CameraIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span style={{ fontFamily: 'Poppins' }}>
+                        <span>
                           Upload evidence as you complete each step - photos, screenshots, or notes showing your work in progress.
                         </span>
                       </div>
@@ -364,7 +361,6 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                     <button
                       onClick={handleDeleteSteps}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      style={{ fontFamily: 'Poppins' }}
                     >
                       <TrashIcon className="w-4 h-4" />
                       Clear all
@@ -374,8 +370,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                       {canPrintSteps && (
                         <button
                           onClick={handlePrintSteps}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:shadow-md transition-all"
-                          style={{ fontFamily: 'Poppins' }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-primary rounded-lg hover:shadow-md transition-all"
                         >
                           <PrinterIcon className="w-4 h-4" />
                           Print my steps
@@ -385,7 +380,6 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
                         onClick={handleGenerate}
                         disabled={isGenerating}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                        style={{ fontFamily: 'Poppins' }}
                       >
                         <ArrowPathIcon className="w-4 h-4" />
                         Regenerate

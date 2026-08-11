@@ -1,7 +1,11 @@
 import React, { useEffect, memo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
+import { useOrganization } from '../contexts/OrganizationContext'
+import api from '../services/api'
+import { htmlToText } from '../utils/richText'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
@@ -11,6 +15,7 @@ import EngagementCalendar from '../components/quest/EngagementCalendar'
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton'
 import DiplomaCreditTracker from '../components/diploma/DiplomaCreditTracker'
+import { PageLoader } from '../components/ui/Spinner'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -29,16 +34,16 @@ const pillarStyles = {
     accent: 'bg-blue-400'
   },
   civics: {
-    bg: 'bg-purple-50/60',
-    border: 'border-purple-100',
-    hoverBorder: 'hover:border-purple-300',
-    accent: 'bg-purple-400'
+    bg: 'bg-optio-purple/5',
+    border: 'border-optio-purple/10',
+    hoverBorder: 'hover:border-optio-purple/30',
+    accent: 'bg-optio-purple-light'
   },
   art: {
-    bg: 'bg-pink-50/60',
-    border: 'border-pink-100',
-    hoverBorder: 'hover:border-pink-300',
-    accent: 'bg-pink-400'
+    bg: 'bg-optio-pink/5',
+    border: 'border-optio-pink/10',
+    hoverBorder: 'hover:border-optio-pink/30',
+    accent: 'bg-optio-pink'
   },
   communication: {
     bg: 'bg-orange-50/60',
@@ -111,15 +116,15 @@ const UpcomingTasks = memo(({ activeQuests }) => {
       return (
         <div className="text-center py-6">
           <ClipboardDocumentListIcon className="w-12 h-12 text-optio-purple/40 mx-auto mb-3" />
-          <p className="text-gray-700 text-sm font-medium mb-1" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-gray-700 text-sm font-medium mb-1">
             Your tasks will appear here
           </p>
-          <p className="text-gray-500 text-xs mb-3" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-gray-500 text-xs mb-3">
             Start a quest to see your next steps and track your progress.
           </p>
           <Link
             to="/quests"
-            className="inline-block text-sm text-optio-purple hover:text-purple-800 font-medium"
+            className="inline-block text-sm text-optio-purple hover:text-optio-purple-dark font-medium"
           >
             Browse quests to get started
           </Link>
@@ -131,12 +136,12 @@ const UpcomingTasks = memo(({ activeQuests }) => {
     return (
       <div className="text-center py-6">
         <CheckCircleIcon className="w-12 h-12 text-green-300 mx-auto mb-3" />
-        <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
+        <p className="text-gray-600 text-sm">
           All caught up! No pending tasks.
         </p>
         <Link
           to="/quests"
-          className="inline-block mt-3 text-sm text-optio-purple hover:text-purple-800 font-medium"
+          className="inline-block mt-3 text-sm text-optio-purple hover:text-optio-purple-dark font-medium"
         >
           Browse quests for more
         </Link>
@@ -160,7 +165,7 @@ const UpcomingTasks = memo(({ activeQuests }) => {
               <div className="flex items-start gap-2.5 flex-1 min-w-0">
                 <div className={`w-1.5 h-1.5 rounded-full ${styles.accent} mt-1.5 flex-shrink-0`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700 transition-colors">
                     {task.title}
                   </p>
                   <p className="text-xs text-gray-500 truncate mt-0.5">
@@ -199,8 +204,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
         <p className="text-gray-600 mb-4">{emptyMessage}</p>
         <Link
           to="/quests"
-          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 min-h-[44px]"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
+          className="btn-primary min-h-[44px]"
         >
           <RocketLaunchIcon className="w-5 h-5 mr-2" />
           {buttonText}
@@ -210,7 +214,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
       {/* Render enrolled courses first */}
       {allCourses.map(course => (
         <CourseCardWithQuests key={`course-${course.id}`} course={course} />
@@ -246,6 +250,78 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
   )
 })
 
+
+// School strip — students in a school used to LAND on /school; now they land
+// here, so the dashboard carries the school's presence: the school's name (a
+// link to /school) plus its latest messages. Renders nothing for students with
+// no school, and degrades silently when the announcements read fails — the
+// header link still works, which is the part that matters.
+const SchoolStrip = () => {
+  const { school } = useOrganization()
+
+  const { data: announcements } = useQuery({
+    queryKey: ['dashboard-school-announcements', school?.id],
+    queryFn: async () => {
+      const { data } = await api.get('/api/announcements/archive', { params: { limit: 3 } })
+      return data?.success ? (data.announcements || []) : []
+    },
+    enabled: !!school,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  if (!school) return null
+
+  const latest = (announcements || []).slice(0, 3)
+
+  const formatDate = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  return (
+    <div className="mb-8 bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        {/* Explicit size — a bare h2 inherits from the base styles. */}
+        <h2 className="text-sm font-semibold text-gray-900">
+          <Link to="/school" className="hover:text-optio-purple transition-colors">
+            {school.name}
+          </Link>
+        </h2>
+        <Link to="/school" className="text-sm font-medium text-optio-purple hover:underline">
+          See all
+        </Link>
+      </div>
+      {latest.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {latest.map((a) => (
+            <Link
+              key={a.id}
+              to="/school"
+              className="block border border-gray-100 bg-gray-50/60 rounded-lg p-3 hover:border-optio-purple/30 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
+                <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">
+                  {formatDate(a.created_at)}
+                </time>
+              </div>
+              {/* Preview is the words, not the markup — see utils/richText. */}
+              {htmlToText(a.content || a.message || '') && (
+                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                  {htmlToText(a.content || a.message || '')}
+                </p>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const DashboardPage = () => {
   const { user } = useAuth()
@@ -297,7 +373,7 @@ const DashboardPage = () => {
           <p className="text-gray-600 mb-4">Please try refreshing the page</p>
           <button
             onClick={() => refetchDashboard()}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all min-h-[44px]"
+            className="btn-primary min-h-[44px]"
           >
             Retry
           </button>
@@ -309,9 +385,7 @@ const DashboardPage = () => {
   // Early return for loading state
   if (dashboardLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
+      <PageLoader className="h-64" />
     )
   }
 
@@ -373,10 +447,10 @@ const DashboardPage = () => {
       {/* Active Quests Panel */}
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
+          <h2 className="text-xl font-bold text-gray-900">Current Quests</h2>
           <Link
             to="/quests"
-            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
+            className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium transition-colors"
           >
             Browse All Quests →
           </Link>
@@ -388,12 +462,15 @@ const DashboardPage = () => {
         />
       </div>
 
+      {/* School strip — only for students who belong to a school */}
+      <SchoolStrip />
+
       {/* Dashboard Overview - Two Column Layout */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Learning Rhythm */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 overflow-visible">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+            <h2 className="text-lg font-bold text-gray-900">
               Your Learning Rhythm
             </h2>
             {engagement?.rhythm && (
@@ -408,7 +485,7 @@ const DashboardPage = () => {
             )}
           </div>
           {engagement?.rhythm && (
-            <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-500 mb-4">
               {engagement.rhythm.message}
             </p>
           )}
@@ -423,7 +500,7 @@ const DashboardPage = () => {
 
         {/* Right: Upcoming Tasks */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">
             Next Up
           </h2>
           <UpcomingTasks activeQuests={inProgressQuests} />
@@ -438,11 +515,11 @@ const DashboardPage = () => {
       {/* Completed Quests Section */}
       {(completedActiveQuests.length > 0 || (dashboardData?.recent_completed_quests && dashboardData.recent_completed_quests.length > 0)) && (
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 font-['Poppins'] mb-6">Completed Quests</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Completed Quests</h2>
 
           {/* Quest cards for quests with 100% progress (still technically active in DB) */}
           {completedActiveQuests.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
               {completedActiveQuests.map(quest => {
                 const questData = quest.quests || quest;
                 const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
@@ -508,7 +585,7 @@ const DashboardPage = () => {
 
                       {/* Quest Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
+                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate">
                           {quest.title}
                         </h3>
                         <p className="text-sm text-gray-600">
@@ -535,7 +612,7 @@ const DashboardPage = () => {
           quests don't read as finished */}
       {dashboardData?.archived_quests && dashboardData.archived_quests.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 font-['Poppins'] mb-2">Saved for Later</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Saved for Later</h2>
           <p className="text-sm text-gray-500 mb-6">
             Quests you set aside. Your progress is safe — pick them back up any time.
           </p>
@@ -566,7 +643,7 @@ const DashboardPage = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
+                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate">
                           {quest.title}
                         </h3>
                         <p className="text-sm text-gray-600">
@@ -577,7 +654,7 @@ const DashboardPage = () => {
                     <button
                       onClick={() => unarchiveMutation.mutate({ questId: archived.quest_id })}
                       disabled={unarchiveMutation.isPending}
-                      className="flex-shrink-0 px-4 py-2 text-sm font-semibold text-optio-purple border border-optio-purple/40 rounded-full hover:bg-optio-purple/5 transition-colors disabled:opacity-50 min-h-[44px] touch-manipulation"
+                      className="btn-secondary flex-shrink-0 min-h-[44px] touch-manipulation"
                     >
                       Resume
                     </button>

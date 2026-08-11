@@ -341,7 +341,7 @@ export default function CourseVisibilityManager({ orgId, orgData, onUpdate, site
                               className="h-5 w-auto max-w-[60px] object-contain"
                             />
                           ) : (
-                            <span className="text-xs font-semibold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+                            <span className="text-xs font-semibold bg-gradient-primary bg-clip-text text-transparent">
                               Optio
                             </span>
                           )

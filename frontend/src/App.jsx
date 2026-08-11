@@ -9,6 +9,7 @@ import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import { PageLoader as SharedPageLoader } from './components/ui/Spinner'
 import { warmupBackend } from './utils/retryHelper'
 import { getProgramRoutes } from './programs/registry'
 import { tokenStore } from './services/api'
@@ -54,7 +55,9 @@ const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
-const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+// RoleHome renders each role's own home at /dashboard (it bundles the student
+// DashboardPage internally) — see pages/home/RoleHome.jsx.
+const RoleHome = lazy(() => import('./pages/home/RoleHome'))
 const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
@@ -81,7 +84,6 @@ const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationMana
 const PartnerEnrollStudentPage = lazy(() => import('./pages/PartnerEnrollStudentPage'))
 const OnFireDashboard = lazy(() => import('./pages/OnFireDashboard'))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
-const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
@@ -157,11 +159,7 @@ const EmbedCatalogPage = lazy(() => import('./pages/embed/EmbedCatalogPage'))
 const EmbedSchedulePage = lazy(() => import('./pages/embed/EmbedSchedulePage'))
 
 // Loading fallback component
-const PageLoader = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-  </div>
-)
+const PageLoader = () => <SharedPageLoader className="min-h-screen" />
 
 // Configure React Query with proper defaults for data freshness
 const queryClient = new QueryClient({
@@ -429,16 +427,28 @@ function App() {
             <AppContent />
             <InstallPrompt />
             <PerchReporter />
+            {/* The one toast style for all 1,400+ call sites — a white card on
+                brand tokens (docs/design/DESIGN_SYSTEM.md §8). Never restyle
+                per call site. */}
             <Toaster
             position="top-right"
             toastOptions={{
               duration: 4000,
               style: {
-                background: '#363636',
-                color: '#fff',
+                background: '#FFFFFF',
+                color: '#111827',
+                border: '1px solid #E5E7EB',
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px -4px rgba(109,70,155,0.25)',
                 marginTop: '70px',
                 marginRight: '20px',
                 zIndex: 9999,
+              },
+              success: {
+                iconTheme: { primary: '#6D469B', secondary: '#FFFFFF' },
+              },
+              error: {
+                iconTheme: { primary: '#DC2626', secondary: '#FFFFFF' },
               },
             }}
           />
@@ -508,10 +518,12 @@ function App() {
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
+                {/* Every role's home. RoleHome switches on effective role
+                    (student dashboard, family home, teacher home, ...). */}
+                <Route path="dashboard" element={<RoleHome />} />
                 {/* Student-only surfaces: parents/observers are bounced to their
                     own home. Students, advisors, org_admins, superadmin unaffected. */}
                 <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
-                  <Route path="dashboard" element={<DashboardPage />} />
                   {/* Quest Routes */}
                   <Route path="quests" element={<QuestDiscovery />} />
                   <Route path="quests/:id" element={<QuestDetail />} />
@@ -631,8 +643,10 @@ function App() {
               </Route>
 
               <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
-                <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
-                <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
+                {/* /advisor/dashboard removed 2026-08-10; old links land on the
+                    student dashboard, which is now the advisor home too. */}
+                <Route path="advisor" element={<Navigate to="/dashboard" replace />} />
+                <Route path="advisor/dashboard" element={<Navigate to="/dashboard" replace />} />
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
                 <Route path="advisor/verification" element={<TeacherVerificationPage />} />
                 {/* LMS Features - Advisor */}

@@ -58,7 +58,7 @@ export default function SchoolLoginLinkCard({ slug }) {
             </div>
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
             >
               {copied ? <CheckIcon className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
               {copied ? 'Copied' : 'Copy'}

@@ -8,7 +8,6 @@ import { getPoeCohorts, enrollInPoe } from './poeService'
 // list, not a sign-up: participants pick their POE location and add their info;
 // they get a confirmation email and Optio follows up to onboard them before camp.
 
-const POPPINS = { fontFamily: 'Poppins' }
 
 const BENEFITS = [
   { d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', title: '0.5 fine arts credit', text: 'Graded A, on your transcript' },
@@ -147,13 +146,13 @@ const PoePage = () => {
               className="h-32 sm:h-44 w-auto rounded-lg bg-white px-8 py-5 shadow-md"
             />
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold mb-5 leading-tight" style={{ ...POPPINS, fontWeight: 700 }}>
+          <h1 className="text-4xl sm:text-5xl font-bold mb-5 leading-tight">
             Turn your POE into a high school Fine Arts class
           </h1>
-          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto mb-8" style={{ ...POPPINS, fontWeight: 500 }}>
+          <p className="text-lg sm:text-xl font-medium text-white/90 max-w-2xl mx-auto mb-8">
             Document your experience in the Optio app and transfer class credit back to your high school. Free for 2026.
           </p>
-          <a href="#enroll" className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200" style={{ ...POPPINS, fontWeight: 600 }}>
+          <a href="#enroll" className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200">
             Get on the list
           </a>
         </div>
@@ -162,19 +161,19 @@ const PoePage = () => {
       {/* ===== WHAT YOU GET ===== */}
       <section className="py-16 sm:py-20 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12" style={{ ...POPPINS, fontWeight: 700 }}>What you get</h2>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">What you get</h2>
           <div className="grid sm:grid-cols-3 gap-6 sm:gap-8">
             {BENEFITS.map((b) => (
               <div key={b.title} className="text-center">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 text-optio-purple mb-4">
                   <Icon d={b.d} />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1" style={{ ...POPPINS, fontWeight: 700 }}>{b.title}</h3>
-                <p className="text-sm text-gray-600" style={POPPINS}>{b.text}</p>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">{b.title}</h3>
+                <p className="text-sm text-gray-600">{b.text}</p>
               </div>
             ))}
           </div>
-          <p className="text-center text-sm text-gray-500 mt-10" style={POPPINS}>
+          <p className="text-center text-sm text-gray-500 mt-10">
             Homeschool or not enrolled? You’ll get an official accredited transcript record instead.
           </p>
         </div>
@@ -183,13 +182,13 @@ const PoePage = () => {
       {/* ===== HOW IT WORKS ===== */}
       <section className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12" style={{ ...POPPINS, fontWeight: 700 }}>How it works</h2>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">How it works</h2>
           <div className="grid sm:grid-cols-3 gap-6 sm:gap-8">
             {STEPS.map((s, i) => (
               <div key={s.title} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 text-center">
-                <span className="inline-flex w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white text-lg font-bold items-center justify-center mb-4" style={POPPINS}>{i + 1}</span>
-                <h3 className="text-lg font-bold text-gray-900 mb-1" style={{ ...POPPINS, fontWeight: 700 }}>{s.title}</h3>
-                <p className="text-sm text-gray-600" style={POPPINS}>{s.text}</p>
+                <span className="inline-flex w-10 h-10 rounded-full bg-gradient-primary text-white text-lg font-bold items-center justify-center mb-4">{i + 1}</span>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">{s.title}</h3>
+                <p className="text-sm text-gray-600">{s.text}</p>
               </div>
             ))}
           </div>
@@ -199,8 +198,8 @@ const PoePage = () => {
       {/* ===== ENROLL ===== */}
       <section id="enroll" className="py-16 sm:py-20 bg-white">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-3" style={{ ...POPPINS, fontWeight: 700 }}>Get on the list</h2>
-          <p className="text-center text-gray-600 mb-10" style={POPPINS}>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-3">Get on the list</h2>
+          <p className="text-center text-gray-600 mb-10">
             Tell us about yourself and which POE you’re attending. We’ll send a confirmation and follow up to get you set up.
           </p>
 
@@ -208,8 +207,8 @@ const PoePage = () => {
           {loadError && <p className="text-center text-red-600">{loadError}</p>}
 
           {success ? (
-            <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center" style={POPPINS}>
-              <h3 className="text-xl font-bold text-green-800 mb-2" style={{ ...POPPINS, fontWeight: 700 }}>
+            <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center">
+              <h3 className="text-xl font-bold text-green-800 mb-2">
                 You’re on the list for {selectedCohort?.display_name || 'your POE'}
               </h3>
               <p className="text-green-800">
@@ -222,7 +221,7 @@ const PoePage = () => {
             </div>
           ) : (
             !loading && !loadError && cohorts.length > 0 && (
-              <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 space-y-6" style={POPPINS}>
+              <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 space-y-6">
                 {/* Location picker */}
                 <div>
                   <span className={label}>Which POE are you attending?</span>
@@ -316,8 +315,7 @@ const PoePage = () => {
                 {submitError && <p className="text-red-600 text-sm">{submitError}</p>}
 
                 <button type="submit" disabled={submitting}
-                  className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100"
-                  style={{ ...POPPINS, fontWeight: 600 }}>
+                  className="w-full bg-gradient-primary text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100">
                   {submitting ? 'Submitting…' : 'Add me to the list'}
                 </button>
                 <p className="text-xs text-gray-500 text-center">

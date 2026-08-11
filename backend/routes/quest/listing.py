@@ -14,6 +14,7 @@ from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 from utils.logger import get_logger
 from utils.api_response_v1 import paginated_response, error_response, success_response
 from utils.pagination import get_cursor_params, paginate_cursor, build_cursor_meta
+from utils.student_created import annotate_student_created
 
 logger = get_logger(__name__)
 
@@ -73,6 +74,10 @@ def list_quests():
         subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
         topic_filter = sanitize_search_input(request.args.get('topic', ''), max_length=50)
         subtopic_filter = sanitize_search_input(request.args.get('subtopic', ''), max_length=50)
+        # Optional ordering: 'popular' = curated featured quests first, then newest.
+        # Default (absent) keeps the existing created_at desc ordering so other
+        # consumers of this endpoint are unaffected.
+        sort = sanitize_search_input(request.args.get('sort', ''), max_length=20)
         admin_view = request.args.get('admin_view', '').lower() == 'true'
 
         # Log search parameter for debugging
@@ -136,7 +141,8 @@ def list_quests():
                 user_id=user_id,
                 filters=filters,
                 page=page,
-                limit=per_page
+                limit=per_page,
+                sort=sort or None
             )
             logger.warning(f"[DEBUG] get_quests_for_user returned {len(org_result.get('quests', []))} quests, total={org_result.get('total', 0)}")
 
@@ -160,6 +166,8 @@ def list_quests():
                 logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests")
                 quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
 
+            quests = annotate_student_created(quests)
+
             # Return paginated response based on mode
             if use_cursor_pagination:
                 # Note: Repository method doesn't support cursor pagination yet
@@ -182,71 +190,56 @@ def list_quests():
                     base_url='/api/quests'
                 )
 
-        # Anonymous user: only show global public quests
-        query = supabase.table('quests')\
-            .select('*', count='exact')\
-            .eq('is_active', True)\
-            .eq('is_public', True)\
-            .is_('organization_id', 'null')
+        # Anonymous user: only show global public quests.
+        # (The empty-filtered_quest_ids case already returned above, so here
+        # the id filter is either absent or non-empty.)
+        quest_ids_list = list(filtered_quest_ids) if filtered_quest_ids is not None else None
 
-        # Apply quest ID filter if we have filters applied
-        if filtered_quest_ids is not None:
-            quest_ids_list = list(filtered_quest_ids)
+        def build_public_query(select_cols='*'):
+            """Fresh filtered query for global public quests (no order/range)."""
+            q = supabase.table('quests')\
+                .select(select_cols, count='exact')\
+                .eq('is_active', True)\
+                .eq('is_public', True)\
+                .is_('organization_id', 'null')
             if quest_ids_list:
-                query = query.in_('id', quest_ids_list)
-            else:
-                # No matching quests - return empty
-                if use_cursor_pagination:
-                    return success_response(
-                        data=[],
-                        meta={'has_more': False},
-                        links={'self': '/api/quests', 'next': None}
-                    )
-                else:
-                    return paginated_response(
-                        data=[],
-                        page=page,
-                        per_page=per_page,
-                        total=0,
-                        base_url='/api/quests'
-                    )
-
-        # Apply search filter if provided (search in title and big_idea)
-        if search:
-            logger.info(f"[SEARCH DEBUG] Applying search filter: '{search}'")
-            # Search title and big_idea using OR filter
-            query = query.or_(f"title.ilike.%{search}%,big_idea.ilike.%{search}%")
-            logger.info(f"[SEARCH DEBUG] Query after filter applied")
-
-        # Apply topic filter if provided
-        if topic_filter:
-            logger.info(f"[TOPIC DEBUG] Applying topic filter: '{topic_filter}'")
-            # Filter by topic_primary (main category)
-            query = query.eq('topic_primary', topic_filter)
-
-        # Apply subtopic filter if provided
-        if subtopic_filter:
-            logger.info(f"[SUBTOPIC DEBUG] Applying subtopic filter: '{subtopic_filter}'")
-            # Filter by topics array (contains subtopic)
-            query = query.contains('topics', [subtopic_filter])
+                q = q.in_('id', quest_ids_list)
+            if search:
+                # Search title and big_idea using OR filter
+                q = q.or_(f"title.ilike.%{search}%,big_idea.ilike.%{search}%")
+            if topic_filter:
+                q = q.eq('topic_primary', topic_filter)
+            if subtopic_filter:
+                q = q.contains('topics', [subtopic_filter])
+            return q
 
         # Apply ordering and pagination based on mode
         if use_cursor_pagination:
-            # Cursor-based pagination
+            # Cursor-based pagination (cursor is keyed on created_at, so the
+            # 'popular' sort does not apply in this mode)
             query, cursor_meta = paginate_cursor(
-                query,
+                build_public_query(),
                 cursor=cursor,
                 limit=limit,
                 order_column='created_at',
                 id_column='id'
             )
             result = query.execute()
+            result_rows, result_count = result.data or [], None
+        elif sort == 'popular':
+            # "Exciting first": curated featured quests first, then newest
+            from utils.quest_popularity import paginate_quests_by_popularity
+            result_rows, result_count = paginate_quests_by_popularity(
+                build_public_query, page, per_page
+            )
         else:
-            # Legacy page/per_page pagination
-            query = query.order('created_at', desc=True)
+            # Legacy page/per_page pagination, newest first
             try:
-                query = query.range(offset, offset + per_page - 1)
-                result = query.execute()
+                result = build_public_query()\
+                    .order('created_at', desc=True)\
+                    .range(offset, offset + per_page - 1)\
+                    .execute()
+                result_rows, result_count = result.data or [], result.count
             except Exception as e:
                 # Handle 416 "Requested Range Not Satisfiable" errors
                 if "416" in str(e) or "Requested Range Not Satisfiable" in str(e):
@@ -264,7 +257,7 @@ def list_quests():
 
         # Process quest data
         quests = []
-        for quest in result.data:
+        for quest in result_rows:
             # In V3 personalized system, XP/tasks are user-specific
             # We'll show placeholders here and populate with actual data
             # when user enrolls
@@ -287,6 +280,8 @@ def list_quests():
         if user_id and quests:
             logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
             quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
+
+        quests = annotate_student_created(quests)
 
         # DEBUG: Log all quests to verify pillar_breakdown is in response
         if quests:
@@ -312,7 +307,7 @@ def list_quests():
                 data=quests,
                 page=page,
                 per_page=per_page,
-                total=result.count,
+                total=result_count,
                 base_url='/api/quests'
             )
 

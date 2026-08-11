@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import {
   BuildingLibraryIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
   BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
@@ -14,6 +13,7 @@ import { useSisOrg } from './sis/useSisOrg'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
+import { GlassTabBar } from '../components/ui'
 import { htmlToText } from '../utils/richText'
 
 const PAGE_SIZE = 20
@@ -417,43 +417,18 @@ export default function SchoolPage() {
         </nav>
       )}
 
-      {/* The section tab bar — a glass pill that sticks just below the fixed
-          navbar (top-0 slid it underneath, out of sight). Tapping a tab swaps
-          the panel below to that section; the first section is the default.
-          The active tab's highlight slides between tabs (framer-motion
-          layoutId). Sized to its tabs and centered; on a screen too narrow to
-          fit them it scrolls sideways. Hidden when there's only one section
-          to choose from. */}
-      {tabs.length > 0 && (
-        <div
-          role="tablist"
-          aria-label="Sections on this page"
-          className="sticky z-10 mx-auto mt-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full border border-white/60 bg-white/65 p-1.5 shadow-lg shadow-gray-900/10 backdrop-blur-xl"
-          style={{ top: 'calc(var(--navbar-height, 64px) + 8px)' }}
-        >
-          {tabs.map(({ id, label }) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={showing === id}
-              onClick={() => selectTab(id)}
-              className={`relative whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                showing === id ? 'text-optio-purple' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {showing === id && (
-                <motion.span
-                  layoutId="school-section-glass"
-                  transition={{ type: 'spring', bounce: 0.25, duration: 0.55 }}
-                  className="absolute inset-0 rounded-full border border-white/80 bg-gradient-to-b from-white to-white/70 shadow-md shadow-optio-purple/20"
-                  aria-hidden="true"
-                />
-              )}
-              <span className="relative">{label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* The section tab bar — the shared glass pill rail (GlassTabBar was
+          extracted from this page's inline version, 2026-08-10). Sticks just
+          below the fixed navbar; tapping a tab swaps the panel below to that
+          section; hidden when there's only one section to choose from. */}
+      <GlassTabBar
+        tabs={tabs}
+        active={showing}
+        onSelect={selectTab}
+        sticky
+        className="mt-6"
+        aria-label="Sections on this page"
+      />
 
       {/* One feed, no tabs (2026-08-06). The community sections lead — they
           are short and timely — and each renders only when the school has used

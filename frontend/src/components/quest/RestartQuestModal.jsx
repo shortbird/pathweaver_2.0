@@ -8,7 +8,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-lg mx-2 sm:mx-0 w-full overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white relative">
+        <div className="bg-gradient-primary p-6 text-white relative">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-full p-1 transition-colors"
@@ -17,11 +17,11 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
           </button>
           <div className="flex items-center gap-3 mb-2">
             <ArrowPathIcon className="w-8 h-8" />
-            <h2 className="text-2xl font-bold" style={{ fontFamily: 'Poppins' }}>
+            <h2 className="text-2xl font-bold">
               Restart Quest
             </h2>
           </div>
-          <p className="text-white/90" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-white/90">
             {questTitle}
           </p>
         </div>
@@ -35,17 +35,17 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
                   {previousTaskCount}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins' }}>
+                  <p className="font-semibold text-gray-900 mb-1">
                     You have completed this quest before
                   </p>
-                  <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                  <p className="text-sm text-gray-700">
                     You had {previousTaskCount} task{previousTaskCount !== 1 ? 's' : ''} in your previous attempt.
                   </p>
                 </div>
               </div>
             </div>
 
-            <p className="text-gray-700 mb-4" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-gray-700 mb-4">
               How would you like to restart this quest?
             </p>
           </div>
@@ -55,15 +55,15 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             {/* Load Previous Tasks Option */}
             <button
               onClick={onLoadPreviousTasks}
-              className="min-h-[44px] w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white p-4 rounded-lg hover:shadow-lg transition-all duration-300 text-left group"
+              className="min-h-[44px] w-full bg-gradient-primary text-white p-4 rounded-lg hover:shadow-lg transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
                 <ArrowPathIcon className="w-6 h-6 flex-shrink-0 group-hover:rotate-180 transition-transform duration-500" />
                 <div>
-                  <div className="font-bold mb-1" style={{ fontFamily: 'Poppins' }}>
+                  <div className="font-bold mb-1">
                     Load Previous Tasks
                   </div>
-                  <div className="text-sm text-white/90" style={{ fontFamily: 'Poppins' }}>
+                  <div className="text-sm text-white/90">
                     Continue with the same {previousTaskCount} task{previousTaskCount !== 1 ? 's' : ''} you had before. You will start fresh on all tasks.
                   </div>
                 </div>
@@ -73,15 +73,15 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             {/* Start Fresh Option */}
             <button
               onClick={onStartFresh}
-              className="min-h-[44px] w-full bg-white border-2 border-gray-300 text-gray-900 p-4 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all duration-300 text-left group"
+              className="min-h-[44px] w-full bg-white border-2 border-gray-300 text-gray-900 p-4 rounded-lg hover:border-optio-purple hover:bg-optio-purple/5 transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
                 <SparklesIcon className="w-6 h-6 flex-shrink-0 text-optio-purple group-hover:scale-110 transition-transform" />
                 <div>
-                  <div className="font-bold mb-1" style={{ fontFamily: 'Poppins' }}>
+                  <div className="font-bold mb-1">
                     Start Fresh
                   </div>
-                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                  <div className="text-sm text-gray-600">
                     Begin with a clean slate. You will choose new tasks during personalization.
                   </div>
                 </div>
@@ -93,7 +93,6 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
           <button
             onClick={onClose}
             className="w-full mt-4 text-gray-600 hover:text-gray-900 py-2 text-center font-medium transition-colors"
-            style={{ fontFamily: 'Poppins' }}
           >
             Cancel
           </button>

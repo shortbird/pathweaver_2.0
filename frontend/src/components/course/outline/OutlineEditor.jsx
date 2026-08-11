@@ -159,7 +159,7 @@ const OutlineEditor = ({
           disabled={saving || !hasChanges}
           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
             hasChanges
-              ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+              ? 'bg-gradient-primary text-white hover:opacity-90'
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
           }`}
         >

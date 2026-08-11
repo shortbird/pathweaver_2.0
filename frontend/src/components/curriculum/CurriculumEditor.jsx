@@ -45,7 +45,7 @@ const SortableLessonItem = ({ lesson, onSelect, onDelete, isSelected }) => {
       case 'text':
         return 'bg-blue-100 text-blue-700'
       case 'video':
-        return 'bg-purple-100 text-purple-700'
+        return 'bg-optio-purple/10 text-optio-purple-dark'
       case 'interactive':
         return 'bg-green-100 text-green-700'
       case 'quiz':
@@ -60,7 +60,7 @@ const SortableLessonItem = ({ lesson, onSelect, onDelete, isSelected }) => {
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-3 p-4 bg-white border rounded-lg cursor-pointer transition-colors ${
-        isSelected ? 'border-optio-purple bg-purple-50' : 'border-gray-300 hover:border-optio-purple'
+        isSelected ? 'border-optio-purple bg-optio-purple/5' : 'border-gray-300 hover:border-optio-purple'
       }`}
       onClick={() => onSelect(lesson)}
     >
@@ -302,7 +302,7 @@ const CurriculumEditor = ({ questId, initialLessons = [], onSave }) => {
           <button
             type="button"
             onClick={handleAddLesson}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
           >
             <PlusIcon className="w-4 h-4" />
             Add Lesson

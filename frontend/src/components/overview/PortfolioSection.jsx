@@ -189,7 +189,7 @@ const PortfolioSection = ({
                 <div className="relative">
                   <button
                     onClick={() => setShowShareOptions(!showShareOptions)}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white flex items-center gap-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[36px]"
+                    className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white flex items-center gap-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[36px]"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z"/>
@@ -201,7 +201,7 @@ const PortfolioSection = ({
                   {showShareOptions && (
                     <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-50">
                       <div className="flex justify-center mb-4" ref={qrCodeRef}>
-                        <div className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+                        <div className="p-3 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 rounded-lg border border-optio-purple/10">
                           <QRCodeSVG
                             value={getPortfolioUrl()}
                             size={120}
@@ -225,7 +225,7 @@ const PortfolioSection = ({
                         </button>
                         <button
                           onClick={downloadQRCode}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-medium hover:shadow-md transition-shadow"
+                          className="btn-primary w-full"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -250,7 +250,7 @@ const PortfolioSection = ({
       {/* View Full Portfolio Link */}
       <Link
         to="/overview"
-        className="text-sm text-optio-purple hover:text-purple-700 font-medium flex items-center gap-1"
+        className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium flex items-center gap-1"
       >
         View Full
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,7 +261,7 @@ const PortfolioSection = ({
       {/* Create Evidence Report Link */}
       <Link
         to="/evidence-reports"
-        className="text-sm text-optio-purple hover:text-purple-700 font-medium flex items-center gap-1"
+        className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium flex items-center gap-1"
         title="Create shareable evidence reports"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,7 +362,7 @@ const PortfolioSection = ({
           </p>
           <Link
             to="/quests"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium text-sm hover:shadow-md transition-shadow"
+            className="btn-primary"
           >
             Explore Quests
           </Link>
@@ -414,7 +414,7 @@ const PortfolioSection = ({
               <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-xl font-bold text-gray-900">
                 Portfolio Evidence
               </h2>
             </div>

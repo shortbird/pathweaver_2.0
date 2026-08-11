@@ -6,6 +6,7 @@ import {
   ChevronRightIcon
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid'
+import { Spinner } from '../ui';
 
 /**
  * StepItem - Individual step with checkbox, drill-down support, and sub-steps
@@ -77,7 +78,7 @@ const StepItem = ({
           aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
         >
           {isToggling ? (
-            <div className="w-5 h-5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+            <Spinner size="sm" />
           ) : isCompleted ? (
             <CheckCircleSolidIcon className="w-6 h-6" />
           ) : (
@@ -92,12 +93,11 @@ const StepItem = ({
               text-sm leading-relaxed
               ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-800'}
             `}
-            style={{ fontFamily: 'Poppins' }}
           >
             {step.title}
           </p>
           {step.description && (
-            <p className="mt-1 text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+            <p className="mt-1 text-xs text-gray-500">
               {step.description}
             </p>
           )}
@@ -138,7 +138,7 @@ const StepItem = ({
             aria-label="I'm stuck on this step"
           >
             {isDrillingDown ? (
-              <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+              <Spinner size="sm" />
             ) : (
               <>
                 <QuestionMarkCircleIcon className="w-4 h-4" />

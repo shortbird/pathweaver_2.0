@@ -33,7 +33,7 @@ export default function ConnectionsTab({ orgId }) {
     <div className="space-y-8">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-lg text-white shadow-md">
+        <div className="bg-gradient-primary p-6 rounded-lg text-white shadow-md">
           <div className="flex items-center gap-3">
             <UsersIcon className="w-10 h-10" />
             <div>

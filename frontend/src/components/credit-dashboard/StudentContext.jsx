@@ -73,7 +73,7 @@ const StudentContext = ({ context, loading }) => {
         {student.avatar_url ? (
           <img src={student.avatar_url} alt="" className="w-10 h-10 rounded-full" />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-medium text-sm">
+          <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-medium text-sm">
             {(`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || '?')[0].toUpperCase()}
           </div>
         )}
@@ -86,7 +86,7 @@ const StudentContext = ({ context, loading }) => {
       {/* Diploma Progress Bar */}
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div
-          className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all"
+          className="bg-gradient-primary h-2 rounded-full transition-all"
           style={{ width: `${progressPercent}%` }}
         />
       </div>

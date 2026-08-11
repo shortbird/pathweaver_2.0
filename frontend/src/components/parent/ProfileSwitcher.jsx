@@ -143,7 +143,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                   key={profile.id}
                   onClick={() => handleProfileSelect(profile)}
                   className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 ${
-                    currentProfile?.id === profile.id ? 'bg-purple-50' : ''
+                    currentProfile?.id === profile.id ? 'bg-optio-purple/5' : ''
                   }`}
                 >
                   {/* Avatar */}

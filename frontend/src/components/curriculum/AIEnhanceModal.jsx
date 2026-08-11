@@ -90,7 +90,7 @@ const AIEnhanceModal = ({
     <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-full sm:max-w-3xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+        <div className="relative bg-gradient-primary p-6 text-white">
           <button
             onClick={onClose}
             disabled={isLoading}
@@ -218,7 +218,7 @@ const AIEnhanceModal = ({
             <button
               type="submit"
               disabled={isLoading || !content.trim()}
-              className="min-h-[44px] w-full sm:w-auto px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

@@ -180,7 +180,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
             className={`h-2.5 rounded-full transition-all ${
               progress.percentage >= 100
                 ? 'bg-green-500'
-                : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                : 'bg-gradient-primary'
             }`}
             style={{ width: `${Math.min(100, progress.percentage)}%` }}
           />
@@ -228,7 +228,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
                         <>
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
+                              className="bg-gradient-primary h-2 rounded-full"
                               style={{ width: `${quest.progress.percentage}%` }}
                             />
                           </div>
@@ -617,7 +617,7 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
               className={`h-2 rounded-full transition-all ${
                 isCompleted || quest.progress?.can_complete
                   ? 'bg-green-500'
-                  : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                  : 'bg-gradient-primary'
               }`}
               style={{ width: `${Math.min(100, pct)}%` }}
             />
@@ -786,7 +786,7 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
         <Suspense fallback={
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent" />
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
               <p className="text-lg font-semibold text-gray-700">Loading task creator...</p>
             </div>
           </div>
@@ -1263,7 +1263,7 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
                     </span>
                     <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
+                        className="bg-gradient-primary h-2 rounded-full"
                         style={{ width: `${progress.percentage}%` }}
                       />
                     </div>
@@ -1306,7 +1306,7 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
                 <button
                   onClick={handleEnroll}
                   disabled={isEnrolling}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                  className="btn-primary"
                   title="Enroll in this course"
                 >
                   <PlayCircleIcon className="w-4 h-4" />
@@ -1373,7 +1373,7 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
                     className={`h-2 rounded-full ${
                       progress.percentage >= 100
                         ? 'bg-green-500'
-                        : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                        : 'bg-gradient-primary'
                     }`}
                     style={{ width: `${Math.min(100, progress.percentage)}%` }}
                   />

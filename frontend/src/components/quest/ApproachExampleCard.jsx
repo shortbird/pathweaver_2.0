@@ -1,14 +1,6 @@
 import React from 'react';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
-
-// Pillar colors for task badges
-const pillarColors = {
-  stem: 'bg-blue-100 text-blue-700',
-  wellness: 'bg-green-100 text-green-700',
-  communication: 'bg-amber-100 text-amber-700',
-  civics: 'bg-indigo-100 text-indigo-700',
-  art: 'bg-pink-100 text-pink-700'
-};
+import { getPillarColor } from '../../utils/pillarMappings';
 
 /**
  * ApproachExampleCard - Displays a starter path with task previews
@@ -29,13 +21,13 @@ const ApproachExampleCard = ({
   xpThreshold = null
 }) => {
   const colorClasses = {
-    'purple-50': 'border-purple-200 hover:border-optio-purple',
-    'pink-50': 'border-pink-200 hover:border-pink-400',
+    'purple-50': 'border-optio-purple/20 hover:border-optio-purple',
+    'pink-50': 'border-optio-pink/20 hover:border-optio-pink',
     'blue-50': 'border-blue-200 hover:border-blue-400',
     'teal-50': 'border-teal-200 hover:border-teal-400'
   };
 
-  const borderClass = colorClasses[accentColor] || 'border-purple-200 hover:border-optio-purple';
+  const borderClass = colorClasses[accentColor] || 'border-optio-purple/20 hover:border-optio-purple';
 
   // Calculate total XP for this path
   const totalXP = tasks.reduce((sum, task) => sum + (task.xp_value || 0), 0);
@@ -48,7 +40,6 @@ const ApproachExampleCard = ({
       <div className="flex items-start justify-between mb-2">
         <h3
           className="text-lg font-bold text-gray-900"
-          style={{ fontFamily: 'Poppins' }}
         >
           {label}
         </h3>
@@ -63,7 +54,6 @@ const ApproachExampleCard = ({
       {description && (
         <p
           className="text-sm text-gray-600 mb-3"
-          style={{ fontFamily: 'Poppins' }}
         >
           {description}
         </p>
@@ -82,7 +72,7 @@ const ApproachExampleCard = ({
                 <div className="flex-1 min-w-0">
                   <span className="text-sm text-gray-700 block">{task.title}</span>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${pillarColors[task.pillar] || 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${task.pillar ? getPillarColor(task.pillar) : 'bg-gray-100 text-gray-600'}`}>
                       {task.pillar}
                     </span>
                     <span className="text-xs text-gray-400">{task.xp_value} XP</span>
@@ -99,8 +89,7 @@ const ApproachExampleCard = ({
         <button
           onClick={onSelect}
           disabled={isSelecting}
-          className="w-full mt-auto px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ fontFamily: 'Poppins' }}
+          className="btn-primary w-full mt-auto"
         >
           {isSelecting ? 'Starting...' : 'Choose This Path'}
         </button>

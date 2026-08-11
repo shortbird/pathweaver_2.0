@@ -34,7 +34,6 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
         {/* Task Title */}
         <h3
           className="text-lg font-bold text-gray-900 mb-2 leading-tight"
-          style={{ fontFamily: 'Poppins' }}
         >
           {task.title}
         </h3>
@@ -43,7 +42,6 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
         {task.description && (
           <p
             className="text-sm text-gray-700 mb-3 line-clamp-3"
-            style={{ fontFamily: 'Poppins' }}
           >
             {task.description}
           </p>
@@ -53,7 +51,7 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
         <div className="flex items-center gap-2 mb-3">
           <div
             className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+            style={{ backgroundColor: pillarData.color }}
           >
             {pillarData.name}
           </div>
@@ -75,8 +73,7 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
           className="w-full py-2.5 rounded-full font-bold text-sm uppercase tracking-wide transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           style={{
             backgroundColor: pillarData.color,
-            color: 'white',
-            fontFamily: 'Poppins'
+            color: 'white'
           }}
         >
           {isAdding ? (
@@ -90,7 +87,7 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
         </button>
 
         {/* Tooltip Text */}
-        <p className="text-xs text-gray-500 text-center mt-2" style={{ fontFamily: 'Poppins' }}>
+        <p className="text-xs text-gray-500 text-center mt-2">
           This is a suggested approach. Customize it to make it yours!
         </p>
       </div>

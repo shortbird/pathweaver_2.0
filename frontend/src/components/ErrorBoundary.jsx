@@ -63,8 +63,8 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       // You can render any custom fallback UI
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+          <div className="max-w-md w-full bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full">
               <svg
                 className="w-6 h-6 text-red-600"
@@ -105,14 +105,14 @@ class ErrorBoundary extends React.Component {
             <div className="mt-6 flex flex-col gap-3">
               <button
                 onClick={this.handleReset}
-                className="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
+                className="btn-primary w-full"
               >
                 Try Again
               </button>
-              
+
               <button
                 onClick={this.handleGoHome}
-                className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+                className="btn-quiet w-full"
               >
                 Go to Home
               </button>

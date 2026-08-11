@@ -41,7 +41,7 @@ function FacilitatorWelcome() {
       <p className="text-neutral-500 mt-2">Your facilitator space — see who needs help, who's proud, prepare pins, and plan showcases.</p>
       <Link
         to="/treehouse/facilitator"
-        className="inline-block mt-6 rounded-xl px-6 py-3 text-white font-semibold bg-gradient-to-r from-optio-purple to-optio-pink shadow-md"
+        className="inline-block mt-6 rounded-xl px-6 py-3 text-white font-semibold bg-gradient-primary shadow-md"
       >
         Open Facilitator Dashboard
       </Link>

@@ -94,7 +94,7 @@ const CourseCard = ({ course }) => {
           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
         />
       ) : (
-        <div className="w-full h-48 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
+        <div className="w-full h-48 bg-gradient-primary flex items-center justify-center">
           <AcademicCapIcon className="w-16 h-16 text-white opacity-50" />
         </div>
       )}
@@ -290,7 +290,7 @@ const PublicCatalogPage = () => {
             <div className="flex flex-col gap-2">
               <Link
                 to="/register"
-                className="w-full px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-center"
+                className="btn-primary w-full"
               >
                 Create Account
               </Link>

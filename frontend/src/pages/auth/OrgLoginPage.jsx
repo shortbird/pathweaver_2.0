@@ -6,6 +6,7 @@ import api from '../../services/api'
 import logger from '../../utils/logger'
 import { getPostLoginPath } from '../../utils/postLoginPath'
 import { isDifferentAccountActiveElsewhere } from '../../utils/sessionHint'
+import { ButtonSpinner } from '../../components/ui'
 
 /**
  * Organization-specific login page for username-based authentication.
@@ -77,7 +78,7 @@ const OrgLoginPage = () => {
   // Show loading state while fetching org
   if (orgLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
       </div>
     )
@@ -86,7 +87,7 @@ const OrgLoginPage = () => {
   // Show error if org not found
   if (orgError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8 text-center">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <svg className="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,7 +113,7 @@ const OrgLoginPage = () => {
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     if (!isDifferentAccountActiveElsewhere(user)) {
       return (
-        <div role="status" aria-label="Loading" className="min-h-screen flex items-center justify-center bg-background">
+        <div role="status" aria-label="Loading" className="min-h-screen flex items-center justify-center bg-neutral-50">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
         </div>
       )
@@ -124,7 +125,7 @@ const OrgLoginPage = () => {
     const redirectPath = getPostLoginPath(user)
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-6">
           <div className="text-center">
             <div className="mx-auto h-16 w-16 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center mb-4">
@@ -140,13 +141,13 @@ const OrgLoginPage = () => {
           <div className="space-y-3">
             <button
               onClick={() => navigate(redirectPath)}
-              className="w-full py-3 px-4 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
+              className="w-full btn-primary"
             >
               Continue as {displayName}
             </button>
             <button
               onClick={() => setWantsToSwitch(true)}
-              className="w-full py-3 px-4 text-sm font-medium rounded-lg text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
+              className="w-full btn-quiet"
             >
               Sign in with a different account
             </button>
@@ -163,7 +164,7 @@ const OrgLoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Organization branding */}
         <div className="text-center">
@@ -283,14 +284,11 @@ const OrgLoginPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="w-full btn-primary"
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <ButtonSpinner />
                   Signing in...
                 </>
               ) : (

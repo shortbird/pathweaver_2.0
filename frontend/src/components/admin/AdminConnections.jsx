@@ -282,7 +282,7 @@ const AdminConnections = () => {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium"
         >
           <UserPlusIcon className="w-5 h-5" />
           Add Connection
@@ -386,7 +386,7 @@ const AdminConnections = () => {
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         conn.type === 'advisor'
-                          ? 'bg-purple-100 text-purple-800'
+                          ? 'bg-optio-purple/10 text-optio-purple-dark'
                           : 'bg-green-100 text-green-800'
                       }`}>
                         {conn.type === 'advisor' ? 'Teacher' : 'Parent'}
@@ -426,7 +426,7 @@ const AdminConnections = () => {
                 <div className="flex justify-between items-start mb-3">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     conn.type === 'advisor'
-                      ? 'bg-purple-100 text-purple-800'
+                      ? 'bg-optio-purple/10 text-optio-purple-dark'
                       : 'bg-green-100 text-green-800'
                   }`}>
                     {conn.type === 'advisor' ? 'Teacher' : 'Parent'}
@@ -551,7 +551,7 @@ const AdminConnections = () => {
                           <button
                             key={person.id}
                             onClick={() => setSelectedPerson(person)}
-                            className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
+                            className="w-full text-left p-3 hover:bg-optio-purple/5 transition-colors"
                           >
                             <p className="font-medium text-gray-900">
                               {`${person.first_name || ''} ${person.last_name || ''}`.trim() || person.display_name || 'Unknown'}
@@ -601,7 +601,7 @@ const AdminConnections = () => {
                             onClick={() => toggleStudentSelection(student.id)}
                             className={`w-full text-left p-3 transition-colors flex items-center gap-3 ${
                               selectedStudentIds.includes(student.id)
-                                ? 'bg-purple-50'
+                                ? 'bg-optio-purple/5'
                                 : 'hover:bg-gray-50'
                             }`}
                           >
@@ -642,7 +642,7 @@ const AdminConnections = () => {
               <button
                 onClick={handleAddConnection}
                 disabled={!selectedPerson || selectedStudentIds.length === 0 || addLoading}
-                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {addLoading ? 'Adding...' : `Add Connection${selectedStudentIds.length > 1 ? 's' : ''}`}
               </button>

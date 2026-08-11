@@ -213,7 +213,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               value={currentTask.title}
               onChange={(e) => handleInputChange('title', e.target.value)}
               placeholder="e.g., Interview my grandparent about their childhood"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
             />
           </div>
 
@@ -228,7 +228,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Describe what you'll do, how you'll explore, and what you hope to discover..."
               rows={5}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none"
             />
             <p className="text-xs text-gray-500 mt-1">
               {currentTask.description.length} characters
@@ -244,7 +244,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               id="task-pillar"
               value={currentTask.pillar}
               onChange={(e) => handleInputChange('pillar', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
             >
               <option value="">Select a pillar...</option>
               {pillars.map(p => (
@@ -262,7 +262,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               id="task-subject"
               value={currentTask.diploma_subject}
               onChange={(e) => handleInputChange('diploma_subject', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
             >
               <option value="">
                 {currentTask.pillar
@@ -289,7 +289,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
                 id="task-xp"
                 value={currentTask.xp_value}
                 onChange={(e) => handleInputChange('xp_value', parseInt(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
               >
                 {xpOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -302,7 +302,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
           <button
             onClick={handleAddTask}
             disabled={!currentTask.title || !currentTask.description || !currentTask.pillar}
-            className="w-full px-6 py-3 bg-optio-purple hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            className="w-full px-6 py-3 bg-optio-purple hover:bg-optio-purple-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
             Add This Task
           </button>
@@ -323,7 +323,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
         <button
           onClick={handleFinish}
           disabled={addedTasks.length === 0 || isSubmitting}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink hover:from-purple-700 hover:to-pink-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+          className="flex-1 px-6 py-3 bg-gradient-primary disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
         >
           {isSubmitting ? 'Finishing...' : `Finish (${addedTasks.length} task${addedTasks.length !== 1 ? 's' : ''})`}
         </button>

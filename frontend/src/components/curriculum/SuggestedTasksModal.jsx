@@ -144,7 +144,7 @@ export const SuggestedTasksModal = ({
               <button
                 onClick={handleActivateSelected}
                 disabled={selectedTaskIds.size === 0 || isActivating}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isActivating ? 'Adding...' : `Add ${selectedTaskIds.size > 0 ? selectedTaskIds.size : ''} Task${selectedTaskIds.size !== 1 ? 's' : ''}`}
               </button>

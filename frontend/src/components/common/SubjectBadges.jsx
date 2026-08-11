@@ -88,8 +88,7 @@ export default function SubjectBadges({
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
             style={{
               backgroundColor: `${config.color}15`,
-              color: config.color,
-              fontFamily: 'Poppins'
+              color: config.color
             }}
           >
             {showIcon && <span className="text-xs">{config.icon}</span>}
@@ -101,7 +100,7 @@ export default function SubjectBadges({
         );
       })}
       {remainingCount > 0 && (
-        <span className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins' }}>
+        <span className="text-xs text-gray-500 font-medium">
           +{remainingCount} more
         </span>
       )}

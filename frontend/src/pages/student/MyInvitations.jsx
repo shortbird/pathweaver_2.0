@@ -106,7 +106,7 @@ const MyInvitations = () => {
             </p>
             <button
               onClick={() => navigate('/quests')}
-              className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+              className="btn-primary"
             >
               Browse Quest Library
             </button>

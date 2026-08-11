@@ -35,29 +35,29 @@ const LinkBlock = ({ block, displayMode }) => {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all min-h-[56px]"
+        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-optio-purple/30 transition-all min-h-[56px]"
       >
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-            <svg className="h-6 w-6 text-purple-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex-shrink-0 w-10 h-10 bg-optio-purple/10 rounded-lg flex items-center justify-center">
+            <svg className="h-6 w-6 text-optio-purple-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </div>
 
           <div className="flex-1 min-w-0">
             {title && (
-              <h4 className="font-bold text-gray-900 mb-1 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <h4 className="font-bold text-gray-900 mb-1 truncate">
                 {title}
               </h4>
             )}
 
             {description && (
-              <p className="text-sm text-gray-600 font-medium mb-2 line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-sm text-gray-600 font-medium mb-2 line-clamp-2">
                 {description}
               </p>
             )}
 
-            <p className="text-xs text-optio-purple font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-xs text-optio-purple font-semibold truncate">
               {url}
             </p>
           </div>

@@ -99,7 +99,7 @@ const MessageThread = ({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-3 w-full">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 p-4 space-y-3 w-full">
       {messages.map((message) => {
         const isSender = message.sender_id === user?.id
         const isDeleted = !!message.is_deleted

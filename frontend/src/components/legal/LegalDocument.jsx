@@ -15,7 +15,7 @@ function renderInline(node, key) {
     const isInternal = node.href.startsWith('/')
     if (isInternal) {
       return (
-        <Link key={key} to={node.href} className="text-primary hover:text-optio-purple underline">
+        <Link key={key} to={node.href} className="text-optio-purple hover:text-optio-purple-dark underline">
           {node.link}
         </Link>
       )
@@ -26,7 +26,7 @@ function renderInline(node, key) {
         href={node.href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-primary hover:text-optio-purple underline"
+        className="text-optio-purple hover:text-optio-purple-dark underline"
       >
         {node.link}
       </a>
@@ -94,9 +94,9 @@ function Block({ block }) {
 
 export default function LegalDocument({ document }) {
   return (
-    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">{document.title}</h1>
 
           <div className="prose prose-gray max-w-none">
@@ -117,7 +117,7 @@ export default function LegalDocument({ document }) {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
+            <Link to="/register" className="text-optio-purple hover:text-optio-purple-dark font-medium">
               ← Back to Registration
             </Link>
           </div>

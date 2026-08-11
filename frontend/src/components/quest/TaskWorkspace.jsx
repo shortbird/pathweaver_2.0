@@ -28,6 +28,7 @@ import { SparklesIcon, AcademicCapIcon, PencilSquareIcon, BookmarkIcon } from '@
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import api from '../../services/api';
+import { Spinner, ButtonSpinner } from '../ui';
 
 // Sortable Task Item for the collapsible list
 const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) => {
@@ -113,7 +114,7 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMov
       {/* Task content - title and metadata */}
       <div className="flex-1 min-w-0">
         {/* Task title - full width */}
-        <span className={`block text-sm leading-snug line-clamp-2 ${isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Poppins' }}>
+        <span className={`block text-sm leading-snug line-clamp-2 ${isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
           {task.title}
         </span>
         {/* XP pill + status row */}
@@ -741,7 +742,6 @@ const TaskWorkspace = ({
               if (selected) onTaskSelect?.(selected);
             }}
             className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
-            style={{ fontFamily: 'Poppins' }}
           >
             {activeTasks.length > 0 && (
               <optgroup label={`Active (${activeTasks.length})`}>
@@ -796,7 +796,7 @@ const TaskWorkspace = ({
           <div className="h-full flex flex-col w-64">
             {/* Task List Header */}
             <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Tasks ({tasks.length})
               </span>
               <button
@@ -834,7 +834,7 @@ const TaskWorkspace = ({
               {completedTasks.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-gray-200">
                   <div className="px-1 mb-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                       Completed ({completedTasks.length})
                     </span>
                   </div>
@@ -858,7 +858,6 @@ const TaskWorkspace = ({
                 <button
                   onClick={onAddTask}
                   className="w-full py-2 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   <PlusIcon className="w-4 h-4" />
                   Add Task
@@ -878,11 +877,11 @@ const TaskWorkspace = ({
                 {/* Title row with Steps button */}
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex items-start gap-3 min-w-0">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight" style={{ fontFamily: 'Poppins' }}>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                       {task.title}
                     </h2>
                     {task.is_required && (
-                      <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md border border-amber-200 mt-1" style={{ fontFamily: 'Poppins' }}>
+                      <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md border border-amber-200 mt-1">
                         <ExclamationCircleIcon className="w-4 h-4" />
                         Required
                       </span>
@@ -893,7 +892,6 @@ const TaskWorkspace = ({
                     <button
                       onClick={() => setIsEditModalOpen(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                      style={{ fontFamily: 'Poppins' }}
                       title="Edit pillar, XP, and diploma credit"
                     >
                       <PencilSquareIcon className="w-4 h-4" />
@@ -903,7 +901,6 @@ const TaskWorkspace = ({
                       <button
                         onClick={() => setIsStepsModalOpen(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
-                        style={{ fontFamily: 'Poppins' }}
                       >
                         <SparklesIcon className="w-4 h-4" />
                         Steps
@@ -917,7 +914,6 @@ const TaskWorkspace = ({
                   <div className="mb-5">
                     <p
                       className={`text-sm text-gray-600 leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
-                      style={{ fontFamily: 'Poppins' }}
                     >
                       {task.description}
                     </p>
@@ -925,7 +921,6 @@ const TaskWorkspace = ({
                       <button
                         onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
                         className="text-xs text-optio-purple font-medium mt-2 touch-manipulation min-h-[32px] flex items-center"
-                        style={{ fontFamily: 'Poppins' }}
                       >
                         {isDescriptionExpanded ? 'Show less' : 'Show more'}
                       </button>
@@ -936,12 +931,12 @@ const TaskWorkspace = ({
                 {/* Success criteria - the checkable "done" bar for this task */}
                 {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
                   <div className="mb-5 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                       Definition of Done
                     </p>
                     <ul className="space-y-1.5">
                       {task.success_criteria.map((criterion, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                           <CheckCircleIcon className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
                           <span>{criterion}</span>
                         </li>
@@ -955,7 +950,7 @@ const TaskWorkspace = ({
                   {/* Pillar badge */}
                   <div
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
-                    style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
+                    style={{ backgroundColor: pillarData?.color }}
                   >
                     <div className="w-2 h-2 rounded-full bg-white/40" />
                     {pillarData?.name}
@@ -966,8 +961,7 @@ const TaskWorkspace = ({
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
                     style={{
                       backgroundColor: `${pillarData?.color}15`,
-                      color: pillarData?.color,
-                      fontFamily: 'Poppins'
+                      color: pillarData?.color
                     }}
                   >
                     <TrophyIcon className="w-4 h-4" />
@@ -979,7 +973,7 @@ const TaskWorkspace = ({
                 {(task.subject_xp_distribution || task.school_subjects) && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Credits</span>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Credits</span>
                       <SubjectBadges
                         subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
                         compact={false}
@@ -993,7 +987,7 @@ const TaskWorkspace = ({
               {/* My Evidence Header + Action Buttons */}
               <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">
                     My Evidence
                   </h3>
                   <div className="flex items-center gap-1 sm:gap-2">
@@ -1002,11 +996,10 @@ const TaskWorkspace = ({
                       onClick={() => saveEvidence(evidenceBlocks)}
                       disabled={isSaving || evidenceBlocks.length === 0}
                       className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
-                      style={{ fontFamily: 'Poppins' }}
                       title="Save"
                     >
                       {isSaving ? (
-                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        <Spinner size="sm" />
                       ) : (
                         <>
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 sm:hidden">
@@ -1021,7 +1014,6 @@ const TaskWorkspace = ({
                     <button
                       onClick={() => setIsModalOpen(true)}
                       className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 border border-optio-purple/30 rounded-lg transition-colors min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
-                      style={{ fontFamily: 'Poppins' }}
                       title="Add Evidence"
                     >
                       <PlusIcon className="w-4 h-4" />
@@ -1033,11 +1025,10 @@ const TaskWorkspace = ({
                       <button
                         onClick={handleMarkComplete}
                         disabled={isCompleting || isSaving}
-                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] touch-manipulation"
-                        style={{ fontFamily: 'Poppins' }}
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-semibold bg-gradient-primary text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] touch-manipulation"
                       >
                         {isCompleting ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <ButtonSpinner />
                         ) : (
                           <>
                             <CheckCircleIcon className="w-4 h-4" />
@@ -1049,7 +1040,7 @@ const TaskWorkspace = ({
                       <div className="flex items-center gap-1.5">
                         <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-1.5 bg-green-50 border border-green-200 rounded-lg">
                           <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                          <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
+                          <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap">
                             <span className="sm:hidden">+{task.xp_amount} XP</span>
                             <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
                           </span>
@@ -1062,11 +1053,10 @@ const TaskWorkspace = ({
                             onClick={handleRequestCredit}
                             disabled={isRequestingCredit}
                             className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 border border-optio-purple/30 rounded-lg transition-colors disabled:opacity-50 min-h-[32px] touch-manipulation"
-                            style={{ fontFamily: 'Poppins' }}
                             title={creditStatus === 'grow_this' ? 'Resubmit for diploma credit' : 'Request diploma credit for this task'}
                           >
                             {isRequestingCredit ? (
-                              <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                              <Spinner size="sm" />
                             ) : (
                               <>
                                 <AcademicCapIcon className="w-4 h-4" />
@@ -1084,7 +1074,7 @@ const TaskWorkspace = ({
                           </span>
                         )}
                         {!isClassQuest && creditStatus === 'pending_org_approval' && (
-                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg">
+                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Awaiting Org Review</span>
                           </span>
@@ -1106,7 +1096,6 @@ const TaskWorkspace = ({
                                 ? 'text-optio-purple bg-optio-purple/10 border-optio-purple/40'
                                 : 'text-gray-600 bg-white border-gray-300 hover:border-optio-purple/40 hover:text-optio-purple'
                             }`}
-                            style={{ fontFamily: 'Poppins' }}
                             title={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
                           >
                             {portfolioPick.inPortfolio ? (
@@ -1130,7 +1119,7 @@ const TaskWorkspace = ({
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-start gap-2">
                       <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
-                      <span className="text-red-700 text-sm" style={{ fontFamily: 'Poppins' }}>{error}</span>
+                      <span className="text-red-700 text-sm">{error}</span>
                     </div>
                   </div>
                 )}
@@ -1138,7 +1127,7 @@ const TaskWorkspace = ({
                 {isLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="flex items-center gap-3">
-                      <div className="w-5 h-5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                      <Spinner size="sm" />
                       <span className="text-gray-500 text-sm">Loading evidence...</span>
                     </div>
                   </div>
@@ -1158,7 +1147,7 @@ const TaskWorkspace = ({
             <div className="flex-1 flex items-center justify-center text-gray-400">
               <div className="text-center">
                 <TrophyIcon className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg" style={{ fontFamily: 'Poppins' }}>Select a task from the list</p>
+                <p className="text-lg">Select a task from the list</p>
               </div>
             </div>
           )}

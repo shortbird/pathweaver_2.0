@@ -45,7 +45,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
                       </span>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple-dark">
                           {student.advisor_count} advisor{student.advisor_count > 1 ? 's' : ''}
                         </span>
                         {student.advisors?.slice(0, 2).map((advisor, idx) => (
@@ -63,7 +63,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
                   <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => handleViewStudentAdvisors(student)}
-                      className="inline-flex items-center px-3 py-1 text-sm text-optio-purple hover:bg-purple-50 rounded-lg transition-colors font-medium gap-1"
+                      className="inline-flex items-center px-3 py-1 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors font-medium gap-1"
                     >
                       <EyeIcon className="w-4 h-4" />
                       View Teachers

@@ -104,11 +104,11 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       <ModalErrorBoundary onClose={onClose}>
         <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+          <div className="bg-gradient-primary text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Submit Draft</h2>
-              <p className="text-blue-100">{task.title}</p>
+              <p className="text-white/90">{task.title}</p>
             </div>
             <button
               onClick={onClose}
@@ -130,11 +130,11 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                 <div className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow-sm border border-gray-200 w-full sm:w-auto`}>
                   <div className={`w-2 h-2 rounded-full bg-gradient-to-r
-                    ${task.pillar === 'creativity' ? 'from-purple-500 to-pink-500' : ''}
-                    ${task.pillar === 'critical_thinking' ? 'from-blue-500 to-cyan-500' : ''}
-                    ${task.pillar === 'practical_skills' ? 'from-green-500 to-emerald-500' : ''}
-                    ${task.pillar === 'communication' ? 'from-orange-500 to-yellow-500' : ''}
-                    ${task.pillar === 'cultural_literacy' ? 'from-red-500 to-rose-500' : ''}
+                    ${task.pillar === 'creativity' ? 'from-pillar-art to-pillar-art-dark' : ''}
+                    ${task.pillar === 'critical_thinking' ? 'from-pillar-stem to-pillar-stem-dark' : ''}
+                    ${task.pillar === 'practical_skills' ? 'from-pillar-wellness to-pillar-wellness-dark' : ''}
+                    ${task.pillar === 'communication' ? 'from-pillar-communication to-pillar-communication-dark' : ''}
+                    ${task.pillar === 'cultural_literacy' ? 'from-pillar-civics to-pillar-civics-dark' : ''}
                   `}></div>
                   <span className="text-sm font-medium text-gray-700 capitalize">
                     {task.pillar.replace('_', ' ')}
@@ -142,8 +142,8 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
                   <span className="text-lg font-bold text-green-600">+{task.xp_amount} XP</span>
                 </div>
                 {task.is_collaboration_eligible && (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 border border-purple-200 w-full sm:w-auto">
-                    <span className="text-sm font-medium text-purple-700">🤝 Double XP Available</span>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-optio-purple/5 border border-optio-purple/20 w-full sm:w-auto">
+                    <span className="text-sm font-medium text-optio-purple">🤝 Double XP Available</span>
                   </div>
                 )}
               </div>
@@ -172,24 +172,24 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           )}
 
           {/* Confidential Checkbox */}
-          <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+          <div className="mb-6 p-4 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 border border-optio-purple/20 rounded-lg">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isConfidential}
                 onChange={(e) => setIsConfidential(e.target.checked)}
-                className="mt-1 h-5 w-5 text-optio-purple focus:ring-purple-500 border-gray-300 rounded cursor-pointer"
+                className="mt-1 h-5 w-5 text-optio-purple focus:ring-optio-purple border-gray-300 rounded cursor-pointer"
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <svg className="h-4 w-4 text-optio-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  <span className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <span className="text-sm font-bold text-gray-900">
                     Mark as Confidential
                   </span>
                 </div>
-                <p className="text-xs text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <p className="text-xs text-gray-700 leading-relaxed">
                   Only you will be able to see this evidence. Others will see a message that this evidence is confidential.
                 </p>
               </div>
@@ -200,7 +200,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           <div className="flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
-              className="min-h-[44px] w-full sm:w-auto px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="btn-quiet min-h-[44px] w-full sm:w-auto"
               disabled={isSubmitting}
             >
               Cancel
@@ -208,7 +208,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !evidenceData || Object.keys(evidenceData).length === 0}
-              className="min-h-[44px] w-full sm:w-auto px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary min-h-[44px] w-full sm:w-auto"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Draft'}
             </button>

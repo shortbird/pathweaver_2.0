@@ -56,7 +56,6 @@ const NodeDetailPanel = ({ node, onClose }) => {
               />
               <h2
                 className="text-lg font-bold text-gray-900"
-                style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700 }}
               >
                 {node.label}
               </h2>
@@ -88,8 +87,7 @@ const NodeDetailPanel = ({ node, onClose }) => {
             {/* Summary */}
             {node.summary && (
               <p
-                className="text-sm text-gray-600 leading-relaxed mb-6 pb-6 border-b border-gray-100"
-                style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}
+                className="text-sm text-gray-600 leading-relaxed mb-6 pb-6 border-b border-gray-100 font-medium"
               >
                 {node.summary}
               </p>
@@ -99,7 +97,6 @@ const NodeDetailPanel = ({ node, onClose }) => {
             {node.detailContent && (
               <div
                 className="prose prose-sm max-w-none text-gray-700 philosophy-detail-content"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
                 dangerouslySetInnerHTML={{
                   __html: DOMPurify.sanitize(node.detailContent),
                 }}

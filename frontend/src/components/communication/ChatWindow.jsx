@@ -112,10 +112,10 @@ const ChatWindow = ({ conversation, onBack }) => {
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center mb-4">
           <ChatBubbleLeftRightIcon className="w-9 h-9 text-white" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-1" style={{ fontFamily: 'Poppins' }}>Your messages</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-1">Your messages</h2>
         <p className="text-gray-500 max-w-xs">
           Pick a conversation from the list, or choose a contact to start a new one.
         </p>
@@ -131,7 +131,7 @@ const ChatWindow = ({ conversation, onBack }) => {
   const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-4 py-2.5">
         <div className="flex items-center space-x-3">
@@ -157,7 +157,7 @@ const ChatWindow = ({ conversation, onBack }) => {
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
-            <div className={`w-10 h-10 ${isAdvisor ? 'bg-gradient-to-br from-blue-400 to-purple-500' : 'bg-gradient-to-br from-green-400 to-emerald-500'} rounded-full flex items-center justify-center text-white font-bold text-lg`}>
+            <div className={`w-10 h-10 ${isAdvisor ? 'bg-gradient-to-br from-blue-400 to-optio-purple' : 'bg-gradient-to-br from-green-400 to-emerald-500'} rounded-full flex items-center justify-center text-white font-bold text-lg`}>
               {initial}
             </div>
           )}

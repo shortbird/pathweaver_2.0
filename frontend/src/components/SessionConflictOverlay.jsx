@@ -51,7 +51,7 @@ export default function SessionConflictOverlay() {
         {/* Action */}
         <button
           onClick={() => { window.location.href = '/login' }}
-          className="w-full py-3 px-4 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
+          className="w-full py-3 px-4 text-sm font-medium rounded-lg text-white bg-gradient-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
         >
           Go to Login
         </button>

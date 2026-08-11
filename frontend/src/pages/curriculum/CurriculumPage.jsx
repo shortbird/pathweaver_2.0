@@ -31,7 +31,7 @@ const PhilosophyGuide = ({ onDismiss }) => {
         <div className="mt-6 flex justify-end">
           <button
             onClick={onDismiss}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
+            className="btn-primary"
           >
             Got it
           </button>

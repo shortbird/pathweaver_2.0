@@ -58,18 +58,16 @@ const PhilosophyPage = () => {
       </Helmet>
 
       {/* ========== HERO ========== */}
-      <section className="min-h-[60vh] flex items-center justify-center bg-gradient-to-br from-optio-purple via-optio-purple-dark to-optio-pink text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-16 sm:py-24">
+      <section className="min-h-[60vh] flex items-center justify-center bg-gradient-primary text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-16 sm:py-20">
           <RevealSection>
             <h1
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold mb-8 leading-none tracking-tight"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-8 leading-none tracking-tight"
             >
               The Process<br />Is The Goal
             </h1>
             <p
-              className="text-xl sm:text-2xl text-white/80 max-w-2xl mx-auto leading-relaxed mb-8"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="text-xl sm:text-2xl text-white/80 max-w-2xl mx-auto leading-relaxed mb-8 font-medium"
             >
               Centuries of research have taught us what motivates humans to learn. Explore our philosophy below.
             </p>
@@ -77,7 +75,7 @@ const PhilosophyPage = () => {
               <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
-              <span className="text-sm" style={{ fontFamily: 'Poppins' }}>
+              <span className="text-sm">
                 {isMobile ? 'Tap to explore' : 'Click nodes to explore'}
               </span>
             </div>
@@ -95,7 +93,7 @@ const PhilosophyPage = () => {
 
         {error && (
           <div className="flex items-center justify-center py-32">
-            <p className="text-gray-500" style={{ fontFamily: 'Poppins' }}>{error}</p>
+            <p className="text-gray-500">{error}</p>
           </div>
         )}
 

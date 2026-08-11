@@ -214,7 +214,7 @@ export default function AdvisorsTab({ orgId }) {
                 className="w-full p-5 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold text-sm">
+                  <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold text-sm">
                     {(advisor.first_name || advisor.display_name || '?')[0].toUpperCase()}
                   </div>
                   <div>
@@ -223,7 +223,7 @@ export default function AdvisorsTab({ orgId }) {
                         {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                       </p>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                        advisor.role === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple-dark' : 'bg-blue-100 text-blue-800'
                       }`}>
                         {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                       </span>
@@ -258,7 +258,7 @@ export default function AdvisorsTab({ orgId }) {
                         setSelectedStudents([])
                         setShowUnassignedOnly(false)
                       }}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium text-sm"
                     >
                       <UserPlusIcon className="w-4 h-4" />
                       Assign Students
@@ -271,7 +271,7 @@ export default function AdvisorsTab({ orgId }) {
                       <p className="text-sm mt-1">Click "Assign Students" to get started</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                       {assignedStudents.map(student => (
                         <div key={student.id} className="p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
                           <div className="flex justify-between items-start">
@@ -337,7 +337,7 @@ export default function AdvisorsTab({ orgId }) {
                     onChange={(e) => setShowUnassignedOnly(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-optio-purple"></div>
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-optio-purple/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-optio-purple"></div>
                 </label>
                 <span className="text-sm text-gray-600">Show unassigned only</span>
               </div>
@@ -364,8 +364,8 @@ export default function AdvisorsTab({ orgId }) {
                       disabled={assignLoading}
                       className={`w-full text-left p-3 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-3 ${
                         selectedStudents.includes(student.id)
-                          ? 'border-optio-purple bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                          ? 'border-optio-purple bg-optio-purple/5'
+                          : 'border-gray-200 hover:border-optio-purple/30 hover:bg-optio-purple/5'
                       }`}
                     >
                       <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
@@ -383,7 +383,7 @@ export default function AdvisorsTab({ orgId }) {
                         </p>
                         <p className="text-xs text-gray-500 truncate">{student.email}</p>
                         {!showUnassignedOnly && student.advisor_count > 0 && (
-                          <p className="text-xs text-purple-600 mt-0.5">
+                          <p className="text-xs text-optio-purple mt-0.5">
                             {student.advisor_count} advisor{student.advisor_count > 1 ? 's' : ''}
                           </p>
                         )}
@@ -407,7 +407,7 @@ export default function AdvisorsTab({ orgId }) {
               <button
                 onClick={handleAssignStudents}
                 disabled={selectedStudents.length === 0 || assignLoading}
-                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {assignLoading ? 'Assigning...' : `Assign ${selectedStudents.length || ''} Student${selectedStudents.length !== 1 ? 's' : ''}`}
               </button>

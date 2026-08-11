@@ -97,7 +97,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
               placeholder="Search quests..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple min-h-[44px]"
             />
           </div>
         </div>
@@ -121,15 +121,15 @@ const QuestSelectionModal = ({ student, onClose }) => {
                       <div
                         key={quest.quest_id}
                         onClick={() => handleQuestSelect(quest)}
-                        className="border border-purple-200 bg-purple-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
+                        className="border border-optio-purple/20 bg-optio-purple/5 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold text-gray-900 group-hover:text-purple-700">
+                              <h4 className="font-semibold text-gray-900 group-hover:text-optio-purple-dark">
                                 {quest.title}
                               </h4>
-                              <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full">
+                              <span className="bg-optio-purple/10 text-optio-purple-dark text-xs px-2 py-1 rounded-full">
                                 Enrolled
                               </span>
                             </div>
@@ -165,11 +165,11 @@ const QuestSelectionModal = ({ student, onClose }) => {
                       <div
                         key={quest.quest_id}
                         onClick={() => handleQuestSelect(quest)}
-                        className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
+                        className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-optio-purple/30 hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 group-hover:text-purple-700">
+                            <h4 className="font-semibold text-gray-900 group-hover:text-optio-purple-dark">
                               {quest.title}
                             </h4>
                             {quest.big_idea && (

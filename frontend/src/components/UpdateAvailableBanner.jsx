@@ -23,7 +23,7 @@ const UpdateAvailableBanner = () => {
       <span className="text-sm">A new version of Optio is available.</span>
       <button
         onClick={reload}
-        className="text-sm font-semibold rounded-full bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1"
+        className="text-sm font-semibold rounded-full bg-gradient-primary px-3 py-1"
       >
         Reload
       </button>

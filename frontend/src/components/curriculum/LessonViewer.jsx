@@ -20,11 +20,11 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+        <div className="bg-gradient-primary p-6 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AcademicCapIcon className="w-8 h-8" />
-              <h2 className="text-xl font-bold" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold">
                 Age Adaptations
               </h2>
             </div>
@@ -46,7 +46,7 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
           <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-2xl">🧒</span>
-              <h3 className="font-semibold text-blue-900" style={{ fontFamily: 'Poppins' }}>
+              <h3 className="font-semibold text-blue-900">
                 Younger Learners (Ages 8-10)
               </h3>
             </div>
@@ -56,14 +56,14 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
           </div>
 
           {/* Older learners */}
-          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
+          <div className="bg-optio-purple/5 rounded-xl p-5 border border-optio-purple/10">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-2xl">🧑‍🎓</span>
-              <h3 className="font-semibold text-purple-900" style={{ fontFamily: 'Poppins' }}>
+              <h3 className="font-semibold text-optio-purple-dark">
                 Older Learners (Ages 14-18)
               </h3>
             </div>
-            <p className="text-purple-800 leading-relaxed">
+            <p className="text-optio-purple-dark leading-relaxed">
               {scaffolding?.older || 'No specific adaptations provided for older learners.'}
             </p>
           </div>
@@ -73,7 +73,7 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           <button
             onClick={onClose}
-            className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
+            className="w-full py-3 bg-gradient-primary text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
           >
             Got it
           </button>
@@ -126,10 +126,10 @@ const StepRenderer = ({ step, stepNumber }) => {
     <div className="mb-8 last:mb-0">
       {/* Step Header */}
       <div className="flex items-center gap-3 mb-4">
-        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-sm font-bold">
+        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-primary text-white rounded-full text-sm font-bold">
           {stepNumber}
         </span>
-        <h3 className="text-xl font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+        <h3 className="text-xl font-semibold text-gray-900">
           {step.title || `Step ${stepNumber}`}
         </h3>
       </div>
@@ -406,7 +406,7 @@ const LessonViewer = ({
       <div className="mb-8">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {lesson?.title}
             </h1>
             {lesson?.description && (
@@ -476,7 +476,7 @@ const LessonViewer = ({
       {/* Linked Tasks */}
       {linkedTasks.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">
             Related Tasks
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -521,8 +521,7 @@ const LessonViewer = ({
           <button
             onClick={handleComplete}
             disabled={isCompleting}
-            className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-lg font-semibold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            style={{ fontFamily: 'Poppins' }}
+            className="flex items-center gap-2 px-8 py-4 bg-gradient-primary text-white rounded-full text-lg font-semibold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isCompleting ? (
               <>

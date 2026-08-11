@@ -219,7 +219,7 @@ const TrackSelector = ({
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 max-w-[180px]"
                 >
                   {info.isQuest ? (
-                    <span className="w-2 h-2 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-gradient-primary flex-shrink-0" />
                   ) : (
                     <span
                       className="w-2 h-2 rounded-full flex-shrink-0"
@@ -312,8 +312,8 @@ const TrackSelector = ({
               {/* Courses Section */}
               {courseTopics.length > 0 && (
                 <>
-                  <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-100">
-                    <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Courses</span>
+                  <div className="px-3 py-2 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-y border-optio-purple/10">
+                    <span className="text-xs font-semibold text-optio-purple-dark uppercase tracking-wide">Courses</span>
                   </div>
                   {courseTopics.map(course => {
                     const isExpanded = expandedCourses[course.id];
@@ -324,14 +324,14 @@ const TrackSelector = ({
                         <button
                           type="button"
                           onClick={(e) => toggleCourseExpanded(e, course.id)}
-                          className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors ${hasSelectedProject ? 'bg-purple-50' : ''}`}
+                          className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-optio-purple/5 transition-colors ${hasSelectedProject ? 'bg-optio-purple/5' : ''}`}
                         >
                           {isExpanded ? (
                             <ChevronDownIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                           ) : (
                             <ChevronRightIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                           )}
-                          <AcademicCapIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                          <AcademicCapIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{course.name}</p>
                           </div>
@@ -344,9 +344,9 @@ const TrackSelector = ({
                               key={project.id}
                               type="button"
                               onClick={() => handleToggle('project', project.id)}
-                              className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors ${selected ? 'bg-purple-100' : ''}`}
+                              className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-optio-purple/5 transition-colors ${selected ? 'bg-optio-purple/10' : ''}`}
                             >
-                              <FlagIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                              <FlagIcon className="w-3.5 h-3.5 text-optio-purple-light flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm text-gray-700 truncate">{project.name}</p>
                               </div>
@@ -364,8 +364,8 @@ const TrackSelector = ({
               {/* Standalone Quests Section */}
               {questTopics.length > 0 && (
                 <>
-                  <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-100">
-                    <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Standalone Quests</span>
+                  <div className="px-3 py-2 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-y border-optio-purple/10">
+                    <span className="text-xs font-semibold text-optio-purple-dark uppercase tracking-wide">Standalone Quests</span>
                   </div>
                   {questTopics.map(quest => {
                     const selected = isSelected('quest', quest.id);
@@ -374,14 +374,14 @@ const TrackSelector = ({
                         key={quest.id}
                         type="button"
                         onClick={() => handleToggle('quest', quest.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors ${selected ? 'bg-purple-50' : ''}`}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-optio-purple/5 transition-colors ${selected ? 'bg-optio-purple/5' : ''}`}
                       >
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                        <div className="w-3 h-3 rounded-full bg-gradient-primary flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{quest.name}</p>
                         </div>
                         {selected && <CheckIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />}
-                        <FlagIcon className="w-3.5 h-3.5 text-purple-500" />
+                        <FlagIcon className="w-3.5 h-3.5 text-optio-purple" />
                         <span className="text-xs text-gray-400">{quest.moment_count || 0}</span>
                       </button>
                     );

@@ -10,6 +10,8 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import LearningEventCard from '../learning-events/LearningEventCard';
 import CreateTrackModal from './CreateTrackModal';
+import EmptyState from '../ui/EmptyState';
+import { FolderOpenIcon } from '@heroicons/react/24/outline';
 
 const InterestTrackDetail = ({
   trackId,
@@ -96,11 +98,8 @@ const InterestTrackDetail = ({
   if (loadError) {
     return (
       <div className="p-6 text-center">
-        <p className="text-red-600 mb-2">{loadError}</p>
-        <button
-          onClick={fetchTrack}
-          className="px-4 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg"
-        >
+        <p className="text-sm text-red-600 mb-3">{loadError}</p>
+        <button onClick={fetchTrack} className="btn-quiet">
           Retry
         </button>
       </div>
@@ -126,12 +125,12 @@ const InterestTrackDetail = ({
       >
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{track.name}</h1>
+            <h2 className="text-lg font-semibold text-gray-900">{track.name}</h2>
             {track.description && (
               <p className="text-sm text-gray-600 mt-1">{track.description}</p>
             )}
-            <p className="text-sm text-gray-500 mt-1">
-              {track.moment_count || track.moments?.length || 0} learning moments
+            <p className="text-xs text-gray-500 mt-1">
+              {track.moment_count || track.moments?.length || 0} learning moment{(track.moment_count || track.moments?.length) !== 1 ? 's' : ''}
             </p>
           </div>
 
@@ -182,19 +181,19 @@ const InterestTrackDetail = ({
             </div>
           </div>
         ) : canGraduate && (
-          <div className="mt-4 p-3 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg border border-purple-200">
+          <div className="mt-4 p-3 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-lg border border-optio-purple/20">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-medium text-purple-900">
+                <span className="text-sm font-medium text-optio-purple-dark">
                   Ready to evolve this topic into a quest?
                 </span>
-                <p className="text-xs text-purple-600 mt-0.5">
+                <p className="text-xs text-optio-purple mt-0.5">
                   Turn your learning into a quest and earn XP
                 </p>
               </div>
               <button
                 onClick={() => onGraduate?.(track)}
-                className="px-3 py-1.5 text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all"
+                className="btn-primary"
               >
                 Evolve
               </button>
@@ -216,19 +215,12 @@ const InterestTrackDetail = ({
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">
-                {track.icon === 'folder' ? '📁' :
-                 track.icon === 'star' ? '⭐' :
-                 track.icon === 'book' ? '📚' : '📁'}
-              </span>
-            </div>
-            <p className="text-gray-500 mb-2">No moments in this topic yet</p>
-            <p className="text-sm text-gray-400">
-              Capture a learning moment and assign it to this topic
-            </p>
-          </div>
+          <EmptyState
+            plain
+            icon={FolderOpenIcon}
+            title="No moments in this topic yet"
+            hint="Capture a learning moment and assign it to this topic"
+          />
         )}
       </div>
 
@@ -251,13 +243,13 @@ const InterestTrackDetail = ({
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="btn-quiet flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="btn-danger flex-1"
               >
                 Delete
               </button>

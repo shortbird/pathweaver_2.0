@@ -21,8 +21,8 @@ function MembersTable({
 }) {
   const navigate = useNavigate()
   const roleColors = {
-    superadmin: 'bg-purple-100 text-purple-700',
-    org_admin: 'bg-purple-100 text-purple-700',
+    superadmin: 'bg-optio-purple/10 text-optio-purple-dark',
+    org_admin: 'bg-optio-purple/10 text-optio-purple-dark',
     advisor: 'bg-blue-100 text-blue-700',
     parent: 'bg-green-100 text-green-700',
     observer: 'bg-yellow-100 text-yellow-700',

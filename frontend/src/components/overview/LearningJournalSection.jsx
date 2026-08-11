@@ -210,11 +210,11 @@ const LearningJournalSection = ({
       switch (type) {
         case 'video':
           Icon = VideoCameraIcon;
-          bgColor = "bg-purple-50";
+          bgColor = "bg-optio-purple/5";
           break;
         case 'audio':
           Icon = MusicalNoteIcon;
-          bgColor = "bg-pink-50";
+          bgColor = "bg-optio-pink/5";
           break;
         case 'pdf':
           Icon = DocumentIcon;
@@ -322,7 +322,7 @@ const LearningJournalSection = ({
         }
         // For other embeddable videos (Vimeo, Loom, Google Drive), show play icon
         return (
-          <div className="w-full h-full relative bg-purple-50 flex items-center justify-center">
+          <div className="w-full h-full relative bg-optio-purple/5 flex items-center justify-center">
             <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
               <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
@@ -335,7 +335,7 @@ const LearningJournalSection = ({
       // Direct video file - use video tag for poster frame
       if (fileType === 'video') {
         return (
-          <div className="w-full h-full relative bg-purple-50">
+          <div className="w-full h-full relative bg-optio-purple/5">
             <video
               src={fileUrl}
               className="w-full h-full object-cover"
@@ -399,7 +399,7 @@ const LearningJournalSection = ({
       {/* Header - shown inline when hideHeader is true */}
       {!hideHeader && (
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-semibold text-gray-900">
             Recent Learning Moments
           </h3>
           <Link
@@ -415,7 +415,7 @@ const LearningJournalSection = ({
       {moments.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-xl">
           <SparklesIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-600 font-medium mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-600 font-medium mb-2">
             No learning moments yet
           </p>
           <p className="text-sm text-gray-500">
@@ -452,7 +452,7 @@ const LearningJournalSection = ({
                   <div className="p-3">
                     {/* Caption */}
                     {moment.description && (
-                      <p className="text-sm text-gray-800 leading-snug mb-2 line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      <p className="text-sm text-gray-800 leading-snug mb-2 line-clamp-2">
                         {truncateText(moment.description)}
                       </p>
                     )}
@@ -476,7 +476,7 @@ const LearningJournalSection = ({
               to={journalLink}
               className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 hover:from-optio-purple/10 hover:to-optio-pink/10 rounded-lg transition-colors group"
             >
-              <span className="text-sm font-medium text-optio-purple group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className="text-sm font-medium text-optio-purple group-hover:text-optio-pink transition-colors">
                 {journalLinkText}
               </span>
               <ArrowRightIcon className="w-4 h-4 text-optio-purple group-hover:text-optio-pink group-hover:translate-x-1 transition-all" />

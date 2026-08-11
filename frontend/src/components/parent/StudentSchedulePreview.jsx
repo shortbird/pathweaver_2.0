@@ -52,7 +52,7 @@ const StudentSchedulePreview = ({ studentId }) => {
           <span className="text-sm text-neutral-400">Schedule changes are handled by {orgName || 'the school'}.</span>
         ) : (
           <Link to="/schedule-builder"
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90">
+            className="btn-primary">
             {classes.length ? 'Make changes' : 'Build the schedule'}
           </Link>
         )}

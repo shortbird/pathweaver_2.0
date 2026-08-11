@@ -33,7 +33,7 @@ function AssignStudentsModal({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search students by name or email..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ function AssignStudentsModal({
               onChange={(e) => setShowUnassignedOnly(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-optio-purple"></div>
+            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-optio-purple/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-optio-purple"></div>
           </label>
           <span className="text-sm text-gray-600">
             {showUnassignedOnly ? 'Show unassigned only' : 'Show all students'}
@@ -73,13 +73,13 @@ function AssignStudentsModal({
                 disabled={assignLoading}
                 className={`w-full text-left p-4 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 ${
                   selectedStudentsForAdvisor.includes(student.id)
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                    ? 'border-optio-purple bg-optio-purple/5'
+                    : 'border-gray-200 hover:border-optio-purple/30 hover:bg-optio-purple/5'
                 }`}
               >
                 <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                   selectedStudentsForAdvisor.includes(student.id)
-                    ? 'bg-purple-600 border-purple-600'
+                    ? 'bg-optio-purple border-optio-purple'
                     : 'border-gray-300'
                 }`}>
                   {selectedStudentsForAdvisor.includes(student.id) && (
@@ -92,7 +92,7 @@ function AssignStudentsModal({
                   </p>
                   <p className="text-sm text-gray-500">{student.email}</p>
                   {!showUnassignedOnly && student.advisor_count > 0 && (
-                    <p className="text-xs text-purple-600 mt-1">
+                    <p className="text-xs text-optio-purple mt-1">
                       Currently has {student.advisor_count} advisor{student.advisor_count > 1 ? 's' : ''}
                     </p>
                   )}
@@ -113,7 +113,7 @@ function AssignStudentsModal({
         <button
           onClick={handleAssignStudents}
           disabled={selectedStudentsForAdvisor.length === 0 || assignLoading}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-gradient-primary text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {assignLoading ? 'Assigning...' : `Assign ${selectedStudentsForAdvisor.length > 0 ? selectedStudentsForAdvisor.length : ''} Student${selectedStudentsForAdvisor.length !== 1 ? 's' : ''}`}
         </button>

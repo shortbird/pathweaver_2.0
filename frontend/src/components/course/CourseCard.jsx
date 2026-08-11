@@ -44,7 +44,7 @@ const CourseCard = ({ course }) => {
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-optio-purple to-optio-pink" />
+          <div className="w-full h-full bg-gradient-primary" />
         )}
 
         {/* Gradient Overlay for Text Readability */}
@@ -97,14 +97,14 @@ const CourseCard = ({ course }) => {
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>
             </div>
 
             {/* Continue Button */}
-            <div className="px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity flex items-center justify-center cursor-pointer gap-2">
+            <div className="px-6 py-4 bg-gradient-primary hover:opacity-90 transition-opacity flex items-center justify-center cursor-pointer gap-2">
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
               </svg>

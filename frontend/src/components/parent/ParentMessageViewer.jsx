@@ -211,7 +211,7 @@ const ParentMessageViewer = ({ studentId, conversation, onBack }) => {
                 <div
                   className={`max-w-[75%] rounded-2xl px-4 py-2 ${
                     isStudentMessage(message)
-                      ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-br-sm'
+                      ? 'bg-gradient-primary text-white rounded-br-sm'
                       : conversation.type === 'tutor' && message.role === 'assistant'
                         ? 'bg-gray-200 text-gray-800 rounded-bl-sm'
                         : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'

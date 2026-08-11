@@ -11,15 +11,16 @@ const Button = ({
   type = 'button',
   ...props 
 }) => {
-  const baseClasses = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
-  
+  // Variants mirror the .btn-* classes in index.css (docs/design/DESIGN_SYSTEM.md §4).
+  const baseClasses = 'inline-flex items-center justify-center font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
+
   const variants = {
-    primary: 'bg-gradient-primary text-white hover:opacity-90 focus:ring-[#ef597b] shadow-md hover:shadow-lg',
-    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 focus:ring-gray-400',
-    danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-md hover:shadow-lg',
-    success: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 shadow-md hover:shadow-lg',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700 focus:ring-gray-400',
-    outline: 'border-2 border-optio-pink text-optio-pink hover:bg-gradient-to-r hover:from-[#ef597b] hover:to-[#6d469b] hover:text-white focus:ring-[#ef597b]'
+    primary: 'rounded-full bg-gradient-primary text-white shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 focus:ring-optio-pink',
+    secondary: 'rounded-lg border border-gray-300 bg-white text-gray-700 hover:border-optio-purple hover:text-optio-purple focus:ring-optio-purple',
+    danger: 'rounded-lg bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
+    success: 'rounded-lg bg-green-600 hover:bg-green-700 text-white focus:ring-green-500',
+    ghost: 'rounded-full bg-transparent hover:bg-optio-purple/5 text-optio-purple focus:ring-optio-purple',
+    outline: 'rounded-full border-2 border-optio-purple bg-white text-optio-purple hover:bg-optio-purple/5 focus:ring-optio-purple'
   };
 
   const sizes = {

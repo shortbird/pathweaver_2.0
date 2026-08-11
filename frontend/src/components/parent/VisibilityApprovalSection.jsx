@@ -91,7 +91,7 @@ const VisibilityApprovalSection = () => {
         {/* Header */}
         <div className="bg-amber-100 px-4 py-3 flex items-center gap-2">
           <ShieldCheckIcon className="w-5 h-5 text-amber-700" />
-          <h3 className="font-semibold text-amber-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="font-semibold text-amber-800">
             Portfolio Visibility Requests ({pendingRequests.length})
           </h3>
         </div>
@@ -104,13 +104,13 @@ const VisibilityApprovalSection = () => {
                 <div className="flex items-start gap-3">
                   <GlobeAltIcon className="w-6 h-6 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="font-medium text-gray-900">
                       {request.student_name} wants to make their portfolio public
                     </p>
-                    <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm text-gray-600 mt-1">
                       Requested on {formatDate(request.requested_at)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-xs text-gray-500 mt-1">
                       This will allow anyone with the link to view their achievements and learning evidence.
                     </p>
                   </div>
@@ -151,7 +151,7 @@ const VisibilityApprovalSection = () => {
                     <button
                       onClick={() => setShowDenyReason(request.id)}
                       disabled={respondingTo === request.id}
-                      className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors min-h-[44px]"
+                      className="btn-quiet min-h-[44px]"
                     >
                       <XMarkIcon className="w-4 h-4" />
                       Deny

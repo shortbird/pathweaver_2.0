@@ -29,7 +29,7 @@ export const FormFooter = ({
   children
 }) => {
   const submitVariants = {
-    primary: 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:shadow-lg',
+    primary: 'bg-gradient-primary text-white hover:shadow-lg',
     danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-lg',
     success: 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:shadow-lg'
   };

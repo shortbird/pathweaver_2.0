@@ -126,7 +126,7 @@ export default function ImageCropModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -187,7 +187,7 @@ export default function ImageCropModal({
             <button
               onClick={handleSave}
               disabled={isProcessing}
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+              className="btn-primary"
             >
               {isProcessing ? 'Processing...' : 'Apply Crop'}
             </button>

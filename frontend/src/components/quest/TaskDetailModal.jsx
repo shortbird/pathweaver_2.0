@@ -28,12 +28,12 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90 mb-2">
                   {pillarData.name}
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
+                <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4">{task.title}</h3>
                 <div className="flex items-center gap-3">
-                  <div className="px-4 sm:px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-base sm:text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Poppins' }}>
+                  <div className="px-4 sm:px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-base sm:text-lg font-bold flex items-center gap-2">
                     <TrophyIcon className="w-4 sm:w-5 h-4 sm:h-5" />
                     {task.xp_amount || task.xp_value} XP
                   </div>
@@ -60,11 +60,11 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: `${pillarData.color}50`
                 }}
               >
-                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
+                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color }}>
                   <BookOpenIcon className="w-5 h-5" />
                   Description
                 </h4>
-                <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>{task.description}</p>
+                <p className="text-gray-700 text-base leading-relaxed">{task.description}</p>
               </div>
             )}
 
@@ -77,12 +77,12 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: pillarData.color
                 }}
               >
-                <h4 className="font-bold text-lg mb-4" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>What You'll Do</h4>
+                <h4 className="font-bold text-lg mb-4" style={{ color: pillarData.color }}>What You'll Do</h4>
                 <ul className="space-y-3">
                   {task.bullet_points.map((point, idx) => (
                     <li key={idx} className="flex items-start">
                       <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                      <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>{point}</span>
+                      <span className="text-gray-700 text-base leading-relaxed">{point}</span>
                     </li>
                   ))}
                 </ul>
@@ -98,7 +98,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: `${pillarData.color}50`
                 }}
               >
-                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>Diploma Credits</h4>
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color }}>Diploma Credits</h4>
                 <div className="flex flex-wrap gap-2">
                   {(typeof task.school_subjects === 'object' && !Array.isArray(task.school_subjects)
                     ? Object.entries(task.school_subjects)
@@ -125,8 +125,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                         style={{
                           backgroundColor: `${pillarData.color}20`,
                           color: pillarData.color,
-                          borderColor: pillarData.color,
-                          fontFamily: 'Poppins'
+                          borderColor: pillarData.color
                         }}
                       >
                         {subjectNames[subject] || subject}{xp ? ` (${xp} XP)` : ''}
@@ -146,10 +145,10 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: pillarData.color
                 }}
               >
-                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>Definition of Done</h4>
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color }}>Definition of Done</h4>
                 <ul className="space-y-2">
                   {task.success_criteria.map((criterion, idx) => (
-                    <li key={idx} className="flex items-start text-base text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                    <li key={idx} className="flex items-start text-base text-gray-700">
                       <span className="mr-3 font-bold" style={{ color: pillarData.color }}>✓</span>
                       {criterion}
                     </li>
@@ -167,8 +166,8 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: pillarData.color
                 }}
               >
-                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>Evidence Ideas</h4>
-                <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>{task.evidence_prompt}</p>
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color }}>Evidence Ideas</h4>
+                <p className="text-gray-700 text-base leading-relaxed">{task.evidence_prompt}</p>
               </div>
             )}
 
@@ -181,10 +180,10 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: `${pillarData.color}50`
                 }}
               >
-                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>Materials Needed</h4>
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color }}>Materials Needed</h4>
                 <ul className="space-y-2">
                   {task.materials_needed.map((material, idx) => (
-                    <li key={idx} className="flex items-center text-base text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                    <li key={idx} className="flex items-center text-base text-gray-700">
                       <div className="w-2.5 h-2.5 rounded-full mr-3" style={{ backgroundColor: pillarData.color }}></div>
                       {material}
                     </li>
@@ -199,7 +198,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
             <button
               onClick={onClose}
               className="min-h-[44px] w-full px-6 py-3 text-white rounded-lg hover:shadow-xl transition-all font-bold text-base sm:text-lg"
-              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+              style={{ backgroundColor: pillarData.color }}
             >
               Close
             </button>

@@ -83,7 +83,7 @@ const MergeModal = ({ completionIds, items, onClose, onMerged }) => {
                   onClick={() => setSurvivorId(item.completion_id)}
                   className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
                     isSurvivor
-                      ? 'border-optio-purple bg-purple-50'
+                      ? 'border-optio-purple bg-optio-purple/5'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >

@@ -6,6 +6,9 @@ import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
 import SubmissionReviewCard from '../components/bounty/SubmissionReviewCard'
 import api from '../services/api'
+import GlassTabBar from '../components/ui/GlassTabBar'
+import EmptyState from '../components/ui/EmptyState'
+import { PageLoader } from '../components/ui/Spinner'
 
 const PILLARS = [
   { key: null, label: 'All' },
@@ -201,7 +204,7 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
           <button
             onClick={() => onTurnIn(bounty.id, claim.id)}
             disabled={turnInPending}
-            className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-50"
+            className="btn-primary min-h-[44px]"
           >
             {turnInPending ? 'Turning in...' : 'Turn in Bounty'}
           </button>
@@ -474,13 +477,13 @@ const BountyBoardPage = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
           Bounty Board
         </h1>
         {canPost && (
           <button
             onClick={() => navigate('/bounties/create', { state: { from } })}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px]"
+            className="btn-primary min-h-[44px]"
           >
             Post Bounty
           </button>
@@ -488,51 +491,21 @@ const BountyBoardPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
-        <button
-          onClick={() => setTab('browse')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all min-h-[44px] ${
-            tab === 'browse' ? 'bg-white shadow-sm text-optio-purple' : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Browse
-        </button>
-        {(isStudent || user?.role === 'superadmin') && (
-          <button
-            onClick={() => setTab('active')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all min-h-[44px] ${
-              tab === 'active' ? 'bg-white shadow-sm text-optio-purple' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Active
-          </button>
-        )}
-        {canPost && (
-          <button
-            onClick={() => setTab('my-bounties')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all min-h-[44px] ${
-              tab === 'my-bounties' ? 'bg-white shadow-sm text-optio-purple' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            My Bounties
-          </button>
-        )}
-        {canPost && (
-          <button
-            onClick={() => setTab('review')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all min-h-[44px] flex items-center justify-center gap-1.5 ${
-              tab === 'review' ? 'bg-white shadow-sm text-optio-purple' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Review
-            {pendingSubmissions.length > 0 && (
-              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
-                {pendingSubmissions.length}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
+      <GlassTabBar
+        size="md"
+        className="mb-6"
+        aria-label="Bounty board sections"
+        tabs={[
+          { id: 'browse', label: 'Browse' },
+          ...((isStudent || user?.role === 'superadmin') ? [{ id: 'active', label: 'Active' }] : []),
+          ...(canPost ? [
+            { id: 'my-bounties', label: 'My Bounties' },
+            { id: 'review', label: 'Review', badge: pendingSubmissions.length },
+          ] : []),
+        ]}
+        active={tab}
+        onSelect={setTab}
+      />
 
       {/* Browse Tab */}
       {tab === 'browse' && (
@@ -554,16 +527,11 @@ const BountyBoardPage = () => {
           </div>
 
           {loadingBounties ? (
-            <div className="flex justify-center py-16">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-            </div>
+            <PageLoader className="py-16" />
           ) : bounties.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-gray-500 text-lg">No bounties available</p>
-              <p className="text-gray-400 text-sm mt-1">Check back later for new challenges!</p>
-            </div>
+            <EmptyState plain className="py-16" title="No bounties available" hint="Check back later for new challenges!" />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {bounties.map(b => (
                 <BountyCard key={b.id} bounty={b} onClick={(id) => navigate(`/bounties/${id}`, { state: { from } })} claimStatus={claimStatusMap[b.id]} />
               ))}
@@ -575,14 +543,9 @@ const BountyBoardPage = () => {
       {/* Active Claims Tab */}
       {tab === 'active' && (
         loadingClaims ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-          </div>
+          <PageLoader className="py-16" />
         ) : myClaims.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">No active bounties</p>
-            <p className="text-gray-400 text-sm mt-1">Browse the board and claim a bounty to get started!</p>
-          </div>
+          <EmptyState plain className="py-16" title="No active bounties" hint="Browse the board and claim a bounty to get started!" />
         ) : (
           <div className="space-y-4 max-w-2xl">
             {myClaims.map(claim => (
@@ -602,21 +565,23 @@ const BountyBoardPage = () => {
       {/* My Bounties Tab */}
       {tab === 'my-bounties' && (
         loadingPosted ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-          </div>
+          <PageLoader className="py-16" />
         ) : myPosted.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">No bounties posted yet</p>
-            <button
-              onClick={() => navigate('/bounties/create', { state: { from } })}
-              className="mt-4 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px]"
-            >
-              Post Your First Bounty
-            </button>
-          </div>
+          <EmptyState
+            plain
+            className="py-16"
+            title="No bounties posted yet"
+            action={(
+              <button
+                onClick={() => navigate('/bounties/create', { state: { from } })}
+                className="btn-primary min-h-[44px]"
+              >
+                Post Your First Bounty
+              </button>
+            )}
+          />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {myPosted.map(b => (
               <PostedBountyCard
                 key={b.id}
@@ -634,14 +599,9 @@ const BountyBoardPage = () => {
       {/* Review Queue Tab - all submitted claims across posted bounties */}
       {tab === 'review' && (
         loadingPosted ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-          </div>
+          <PageLoader className="py-16" />
         ) : pendingSubmissions.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">No submissions to review</p>
-            <p className="text-gray-400 text-sm mt-1">When students turn in your bounties, they will show up here.</p>
-          </div>
+          <EmptyState plain className="py-16" title="No submissions to review" hint="When students turn in your bounties, they will show up here." />
         ) : (
           <div className="space-y-4 max-w-3xl">
             {pendingSubmissions.map(({ bounty, claim }) => (

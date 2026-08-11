@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../utils/queryKeys'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { PageLoader } from '../components/ui/Spinner'
 
 const PILLARS = [
   { key: 'stem', label: 'STEM' },
@@ -265,9 +266,7 @@ const BountyCreatePage = () => {
 
   if (isEdit && loadingBounty) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-      </div>
+      <PageLoader className="min-h-[60vh]" />
     )
   }
 
@@ -283,7 +282,7 @@ const BountyCreatePage = () => {
         Back to Bounty Board
       </button>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
         {isEdit ? 'Edit Bounty' : 'Post a Bounty'}
       </h1>
       <p className="text-gray-500 text-sm mb-6">
@@ -580,7 +579,7 @@ const BountyCreatePage = () => {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-50"
+          className="btn-primary w-full min-h-[44px]"
         >
           {isPending ? 'Saving...' : isEdit ? 'Save Changes' : 'Post Bounty'}
         </button>

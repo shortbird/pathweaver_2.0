@@ -88,7 +88,7 @@ const CourseCatalog = () => {
             {canCreateCourse && (
               <button
                 onClick={() => navigate('/courses/new')}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"
+                className="btn-primary min-h-[44px]"
               >
                 <PlusIcon className="w-5 h-5" />
                 <span className="hidden sm:inline">Create Course</span>
@@ -138,7 +138,7 @@ const CourseCatalog = () => {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
               <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
                 <div className="h-48 bg-gray-200" />
@@ -164,7 +164,7 @@ const CourseCatalog = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredCourses.map(course => {
               const isDraft = course.status === 'draft'
               const isArchived = course.status === 'archived'
@@ -189,7 +189,7 @@ const CourseCatalog = () => {
                         className="w-full h-48 object-cover"
                       />
                     ) : (
-                      <div className="w-full h-48 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
+                      <div className="w-full h-48 bg-gradient-primary flex items-center justify-center">
                         <AcademicCapIcon className="w-16 h-16 text-white opacity-50" />
                       </div>
                     )}

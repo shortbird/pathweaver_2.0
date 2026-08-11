@@ -31,7 +31,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
       {!isExpanded && (
         <button
           onClick={() => handleToggleExpand()}
-          className="flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          className="flex items-center gap-2 bg-gradient-primary text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
           <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
           <span className="font-semibold text-xs sm:text-sm">
@@ -43,7 +43,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
 
       {/* Expanded Badge - Shows full details */}
       {isExpanded && (
-        <div className={`bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg shadow-lg p-3 sm:p-4 ${inline ? 'w-full' : 'min-w-[260px] sm:min-w-[300px] max-w-[90vw]'}`}>
+        <div className={`bg-gradient-primary text-white rounded-lg shadow-lg p-3 sm:p-4 ${inline ? 'w-full' : 'min-w-[260px] sm:min-w-[300px] max-w-[90vw]'}`}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
               <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
@@ -89,7 +89,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
           {onSwitchBack && (
             <button
               onClick={onSwitchBack}
-              className="w-full flex items-center justify-center gap-2 bg-white text-optio-purple hover:bg-purple-50 px-3 py-2 rounded-lg font-semibold transition-colors shadow-md text-sm"
+              className="w-full flex items-center justify-center gap-2 bg-white text-optio-purple hover:bg-optio-purple/5 px-3 py-2 rounded-lg font-semibold transition-colors shadow-md text-sm"
             >
               <XMarkIcon className="w-4 h-4" />
               <span>Back to Parent View</span>

@@ -51,11 +51,11 @@ export const Alert = ({
       titleColor: 'text-red-900'
     },
     purple: {
-      bg: 'bg-purple-50',
-      border: 'border-purple-200',
-      text: 'text-purple-800',
-      icon: <ExclamationCircleIcon className="w-5 h-5 text-purple-600 flex-shrink-0" />,
-      titleColor: 'text-purple-900'
+      bg: 'bg-optio-purple/5',
+      border: 'border-optio-purple/20',
+      text: 'text-optio-purple-dark',
+      icon: <ExclamationCircleIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />,
+      titleColor: 'text-optio-purple-dark'
     }
   };
 

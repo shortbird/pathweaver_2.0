@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import DashboardPage from './DashboardPage'
+import api from '../services/api'
 
 let authState = {}
 let actingAsState = {}
 let dashboardHookData = {}
 let engagementData = {}
+let orgState = {}
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
@@ -15,6 +17,14 @@ vi.mock('../contexts/AuthContext', () => ({
 
 vi.mock('../contexts/ActingAsContext', () => ({
   useActingAs: () => actingAsState
+}))
+
+vi.mock('../contexts/OrganizationContext', () => ({
+  useOrganization: () => orgState
+}))
+
+vi.mock('../services/api', () => ({
+  default: { get: vi.fn() }
 }))
 
 vi.mock('../hooks/api/useUserData', () => ({
@@ -93,6 +103,8 @@ describe('DashboardPage', () => {
       user: { id: 'user-1', first_name: 'Alex', role: 'student', created_at: '2025-01-01T00:00:00Z' }
     }
     actingAsState = { actingAsDependent: null }
+    orgState = { school: null, organization: null, loading: false }
+    api.get.mockResolvedValue({ data: { success: true, announcements: [] } })
     engagementData = {
       rhythm: { state: 'building', state_display: 'Building Momentum', message: 'Keep going!' },
       calendar: { days: [], weeks_active: 2, first_activity_date: '2025-01-01' }
@@ -297,6 +309,62 @@ describe('DashboardPage', () => {
       }
       renderDashboard()
       expect(screen.getByText('Intro to CS')).toBeInTheDocument()
+    })
+  })
+
+  // --- School strip ---
+  describe('school strip', () => {
+    const emptyDashboard = () => ({
+      data: { active_quests: [], enrolled_courses: [], stats: {} },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+
+    it('renders nothing for students with no school', () => {
+      dashboardHookData = emptyDashboard()
+      renderDashboard()
+      expect(screen.queryByText('See all')).not.toBeInTheDocument()
+      expect(api.get).not.toHaveBeenCalledWith('/api/announcements/archive', expect.anything())
+    })
+
+    it('renders school name linking to /school with latest announcements', async () => {
+      dashboardHookData = emptyDashboard()
+      orgState = { school: { id: 'org-1', name: 'iCreate Academy' }, loading: false }
+      api.get.mockResolvedValue({
+        data: {
+          success: true,
+          announcements: [
+            { id: 'a-1', title: 'Picture Day', content: '<p>Bring your <strong>smile</strong></p>', created_at: '2026-08-01T00:00:00Z' },
+            { id: 'a-2', title: 'Fall Registration', message: 'Opens Monday', created_at: '2026-07-28T00:00:00Z' }
+          ]
+        }
+      })
+      renderDashboard()
+      const schoolLink = screen.getByText('iCreate Academy')
+      expect(schoolLink.closest('a')).toHaveAttribute('href', '/school')
+      expect(screen.getByText('See all').closest('a')).toHaveAttribute('href', '/school')
+      await waitFor(() => {
+        expect(screen.getByText('Picture Day')).toBeInTheDocument()
+        expect(screen.getByText('Fall Registration')).toBeInTheDocument()
+      })
+      // HTML bodies are stripped to text for the preview
+      expect(screen.getByText('Bring your smile')).toBeInTheDocument()
+      expect(api.get).toHaveBeenCalledWith('/api/announcements/archive', { params: { limit: 3 } })
+    })
+
+    it('degrades silently when the announcements read fails', async () => {
+      dashboardHookData = emptyDashboard()
+      orgState = { school: { id: 'org-1', name: 'iCreate Academy' }, loading: false }
+      api.get.mockRejectedValue(new Error('down'))
+      renderDashboard()
+      // The strip still shows the school name and link, with no error UI
+      expect(screen.getByText('iCreate Academy')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(api.get).toHaveBeenCalled()
+      })
+      expect(screen.getByText('See all')).toBeInTheDocument()
+      expect(screen.queryByText(/failed to load announcements/i)).not.toBeInTheDocument()
     })
   })
 

@@ -10,14 +10,8 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import LearningEventCard from '../learning-events/LearningEventCard';
 import AddToQuestModal from '../learning-events/PromoteToTaskModal';
-
-const PILLAR_CONFIG = {
-  art: { label: 'Art', color: 'bg-purple-600', light: 'bg-purple-50 text-purple-700 border-purple-200' },
-  stem: { label: 'STEM', color: 'bg-blue-600', light: 'bg-blue-50 text-blue-700 border-blue-200' },
-  wellness: { label: 'Wellness', color: 'bg-orange-600', light: 'bg-orange-50 text-orange-700 border-orange-200' },
-  communication: { label: 'Communication', color: 'bg-green-600', light: 'bg-green-50 text-green-700 border-green-200' },
-  civics: { label: 'Civics', color: 'bg-red-600', light: 'bg-red-50 text-red-700 border-red-200' }
-};
+import EmptyState from '../ui/EmptyState';
+import { getPillarData } from '../../utils/pillarMappings';
 
 const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studentId = null }) => {
   const [quest, setQuest] = useState(null);
@@ -68,7 +62,7 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
   if (isLoading) {
     return (
       <div className="h-full flex flex-col">
-        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5">
           <div className="animate-pulse">
             <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
             <div className="h-4 w-32 bg-gray-200 rounded" />
@@ -90,11 +84,8 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
       <div className="h-full flex items-center justify-center p-6">
         <div className="text-center">
           <FlagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-red-600 mb-3">{loadError}</p>
-          <button
-            onClick={fetchQuestMoments}
-            className="px-4 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg"
-          >
+          <p className="text-sm text-red-600 mb-3">{loadError}</p>
+          <button onClick={fetchQuestMoments} className="btn-quiet">
             Retry
           </button>
         </div>
@@ -105,10 +96,7 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
   if (!quest) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <div className="text-center">
-          <FlagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Quest not found</p>
-        </div>
+        <EmptyState plain icon={FlagIcon} title="Quest not found" />
       </div>
     );
   }
@@ -116,26 +104,26 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
   return (
     <div className="h-full flex flex-col">
       {/* Quest Header */}
-      <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
+      <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-gray-900">{quest.title}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{quest.title}</h2>
               <Link
                 to={`/quests/${questId}`}
-                className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded transition-colors"
+                className="p-1 text-optio-purple hover:text-optio-purple-dark hover:bg-optio-purple/10 rounded transition-colors"
                 title="Go to quest"
               >
                 <ArrowTopRightOnSquareIcon className="w-4 h-4" />
               </Link>
             </div>
-            <p className="text-sm text-purple-700">
+            <p className="text-sm text-optio-purple-dark">
               {moments.length} learning moment{moments.length !== 1 ? 's' : ''} captured
             </p>
           </div>
           <button
             onClick={fetchQuestMoments}
-            className="p-2 text-purple-600 hover:text-purple-800 hover:bg-white/50 rounded-lg transition-colors"
+            className="p-2 text-optio-purple hover:text-optio-purple-dark hover:bg-white/50 rounded-lg transition-colors"
             title="Refresh"
           >
             <ArrowPathIcon className="w-5 h-5" />
@@ -146,8 +134,8 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
           <p className="mt-3 text-sm text-gray-600 line-clamp-2">{quest.description}</p>
         )}
 
-        <div className="mt-4 p-3 bg-white/70 rounded-lg border border-purple-200">
-          <p className="text-xs text-purple-700">
+        <div className="mt-4 p-3 bg-white/70 rounded-lg border border-optio-purple/20">
+          <p className="text-xs text-optio-purple-dark">
             <span className="font-medium">Tip:</span> Promote a moment into a task to earn XP. Default 50 XP — adjust on the quest page after.
           </p>
         </div>
@@ -172,9 +160,9 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
                               +{item.xp_value} XP
                             </span>
                           )}
-                          {item.pillar && PILLAR_CONFIG[item.pillar] && (
-                            <span className={`px-2 py-0.5 text-xs font-medium rounded border ${PILLAR_CONFIG[item.pillar].light}`}>
-                              {PILLAR_CONFIG[item.pillar].label}
+                          {item.pillar && getPillarData(item.pillar) && (
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getPillarData(item.pillar).bg} ${getPillarData(item.pillar).text} ${getPillarData(item.pillar).border}`}>
+                              {getPillarData(item.pillar).name}
                             </span>
                           )}
                         </div>
@@ -271,7 +259,7 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
                       return (
                         <button
                           onClick={() => handlePromote(item)}
-                          className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
+                          className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-primary text-white text-xs font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
                         >
                           <SparklesIcon className="w-3.5 h-3.5" />
                           Make it a task
@@ -284,13 +272,12 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <FlagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-2">No moments or completed tasks yet</p>
-            <p className="text-sm text-gray-400">
-              Capture learning moments or complete tasks to track your progress
-            </p>
-          </div>
+          <EmptyState
+            plain
+            icon={FlagIcon}
+            title="No moments or completed tasks yet"
+            hint="Capture learning moments or complete tasks to track your progress"
+          />
         )}
       </div>
 

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { FeedCard } from '../components/observer';
+import { Spinner } from '../components/ui/Spinner';
 import { LockClosedIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 export default function SharedFeedPostPage() {
@@ -37,24 +38,24 @@ export default function SharedFeedPostPage() {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600" />
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-neutral-50">
         <Header />
         <div className="max-w-md mx-auto px-4 pt-20 text-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <LockClosedIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Link Unavailable</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               to="/"
-              className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+              className="text-optio-purple hover:text-optio-purple-dark font-medium text-sm"
             >
               Learn about Optio
             </Link>
@@ -67,17 +68,17 @@ export default function SharedFeedPostPage() {
   // Access denied -- not logged in
   if (data?.access === 'denied' && !data?.logged_in) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-neutral-50">
         <Header />
         <div className="max-w-md mx-auto px-4 pt-20 text-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <LockClosedIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Log In to View</h2>
             <p className="text-gray-600 mb-6">You need to be logged in as an approved observer to view this post.</p>
             <Link
               to="/login"
               state={{ from: `/shared/feed/${token}` }}
-              className="inline-block px-6 py-2 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-all"
+              className="btn-primary"
             >
               Log in
             </Link>
@@ -90,16 +91,16 @@ export default function SharedFeedPostPage() {
   // Access denied -- logged in but not an approved observer
   if (data?.access === 'denied' && data?.logged_in) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-neutral-50">
         <Header />
         <div className="max-w-md mx-auto px-4 pt-20 text-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <LockClosedIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Observer Access Required</h2>
             <p className="text-gray-600 mb-6">You need to be an approved observer for this student to view their posts. Contact their parent about getting observer access.</p>
             <Link
               to="/"
-              className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+              className="text-optio-purple hover:text-optio-purple-dark font-medium text-sm"
             >
               Learn about Optio
             </Link>
@@ -116,7 +117,7 @@ export default function SharedFeedPostPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50">
       <Header />
       <div className="max-w-2xl mx-auto px-4 py-8">
         <FeedCard
@@ -125,7 +126,7 @@ export default function SharedFeedPostPage() {
           isStudentView={true}
         />
         <p className="text-center text-gray-400 text-xs mt-6">
-          Shared from <Link to="/" className="text-purple-500 hover:text-purple-600">Optio</Link>
+          Shared from <Link to="/" className="text-optio-purple hover:text-optio-purple-dark">Optio</Link>
         </p>
       </div>
     </div>

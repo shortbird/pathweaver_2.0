@@ -125,9 +125,9 @@ export default function ObserverAcceptInvitationPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-optio-purple mx-auto mb-4" />
+      <div className="min-h-screen bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4" />
           <p className="text-gray-600">Loading invitation...</p>
         </div>
       </div>
@@ -137,8 +137,8 @@ export default function ObserverAcceptInvitationPage() {
   // Invalid invitation state
   if (invitationValid === false) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="min-h-screen bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
           <img
             src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
             alt="Optio"
@@ -164,9 +164,9 @@ export default function ObserverAcceptInvitationPage() {
   // Accepting state (logged in user)
   if (currentUser && accepting) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-optio-purple mx-auto mb-4" />
+      <div className="min-h-screen bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-optio-purple mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Accepting Invitation...</h2>
           <p className="text-gray-600">Linking your account to {studentName || 'the student'}</p>
         </div>
@@ -175,7 +175,7 @@ export default function ObserverAcceptInvitationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 flex items-center justify-center p-4 sm:p-6">
       <div
         className={`max-w-2xl w-full transition-all duration-500 ease-out ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
@@ -191,7 +191,7 @@ export default function ObserverAcceptInvitationPage() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 sm:p-8 text-white text-center">
             {studentAvatar && (
@@ -241,14 +241,14 @@ export default function ObserverAcceptInvitationPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <ChatBubbleLeftIcon className="w-6 h-6 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <ChatBubbleLeftIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">Leave encouraging comments</p>
                     <p className="text-gray-600 text-sm">Support their learning with positive feedback</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <HeartIcon className="w-6 h-6 text-pink-500 flex-shrink-0 mt-0.5" />
+                  <HeartIcon className="w-6 h-6 text-optio-pink flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">Celebrate milestones and achievements</p>
                     <p className="text-gray-600 text-sm">Be part of their learning journey</p>
@@ -265,7 +265,7 @@ export default function ObserverAcceptInvitationPage() {
                   <button
                     onClick={handleAutoAccept}
                     disabled={accepting}
-                    className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-4 px-6 rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50"
+                    className="w-full btn-primary"
                   >
                     {accepting ? 'Accepting...' : 'Accept Invitation'}
                   </button>
@@ -278,13 +278,13 @@ export default function ObserverAcceptInvitationPage() {
                   <div className="space-y-3">
                     <Link
                       to={`/register?invitation=${invitationCode}`}
-                      className="block w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-4 px-6 rounded-xl hover:shadow-lg transition-all duration-200 text-center"
+                      className="w-full btn-primary"
                     >
                       Create observer account
                     </Link>
                     <Link
                       to={`/login?invitation=${invitationCode}`}
-                      className="block w-full bg-white border-2 border-optio-purple text-optio-purple font-semibold py-4 px-6 rounded-xl hover:bg-purple-50 transition-all duration-200 text-center"
+                      className="block w-full bg-white border-2 border-optio-purple text-optio-purple font-semibold py-4 px-6 rounded-xl hover:bg-optio-purple/5 transition-all duration-200 text-center"
                     >
                       I Already Have an Account
                     </Link>

@@ -104,10 +104,10 @@ describe('PrivateRoute', () => {
       expect(screen.getByText('Student Dashboard')).toBeInTheDocument()
     })
 
-    it('redirects parent to /parent/dashboard on role mismatch', () => {
+    it('redirects parent to /dashboard (their role home) on role mismatch', () => {
       authState = { isAuthenticated: true, user: { id: '1', role: 'parent' }, effectiveRole: 'parent', loading: false }
       renderWithRoute('advisor')
-      expect(screen.getByText('Parent Dashboard')).toBeInTheDocument()
+      expect(screen.getByText('Student Dashboard')).toBeInTheDocument()
     })
 
     it('redirects observer to /observer/feed on role mismatch', () => {

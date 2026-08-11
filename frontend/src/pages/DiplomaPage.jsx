@@ -1024,7 +1024,7 @@ const DiplomaPage = () => {
               {visibilityStatus?.is_public && (
                 <button
                   onClick={copyShareLink}
-                  className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center justify-center gap-2 text-sm min-h-[44px]"
+                  className="btn-primary min-h-[44px]"
                 >
                   {linkCopied ? (
                     <>
@@ -1110,7 +1110,7 @@ const DiplomaPage = () => {
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <h4 className="font-semibold text-gray-900 leading-snug">{pick.task_title}</h4>
                         {typeof pick.xp_value === 'number' && (
-                          <span className="flex-shrink-0 px-2.5 py-1 text-xs font-bold rounded-full bg-gradient-to-r from-optio-purple to-optio-pink text-white">
+                          <span className="flex-shrink-0 px-2.5 py-1 text-xs font-bold rounded-full bg-gradient-primary text-white">
                             {pick.xp_value} XP
                           </span>
                         )}

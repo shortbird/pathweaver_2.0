@@ -92,7 +92,7 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
       {canPost && !showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="mb-4 px-3.5 py-2 rounded-lg border border-gray-300 text-sm font-medium text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+          className="mb-4 px-3.5 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
         >
           Post a ride offer or need
         </button>
@@ -133,11 +133,11 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-40">
+              className="btn-primary">
               {saving ? 'Posting…' : 'Post'}
             </button>
             <button type="button" onClick={() => setShowForm(false)}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-neutral-500 hover:text-neutral-700">
+              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700">
               Cancel
             </button>
           </div>
@@ -205,13 +205,13 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
                     <div className="flex gap-2">
                       <button
                         onClick={() => sendMessage(p.id)} disabled={sending}
-                        className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-40"
+                        className="btn-primary"
                       >
                         {sending ? 'Sending…' : 'Send'}
                       </button>
                       <button
                         onClick={() => setComposerFor(null)}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium text-neutral-500 hover:text-neutral-700"
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700"
                       >
                         Cancel
                       </button>

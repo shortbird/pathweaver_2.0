@@ -15,8 +15,12 @@ import {
   FolderOpenIcon,
   SparklesIcon,
   ArrowPathIcon,
-  PhotoIcon
+  PhotoIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
+import GlassTabBar from '../components/ui/GlassTabBar';
+import EmptyState from '../components/ui/EmptyState';
+import { PageLoader } from '../components/ui/Spinner';
 
 const LearningJournalPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -42,6 +46,10 @@ const LearningJournalPage = () => {
 
   // Bulk import modal (self-view only)
   const [showBulkImport, setShowBulkImport] = useState(false);
+
+  // Capture modal (self-view only) - shared between the header CTA, the
+  // floating button, and the Ctrl+Shift+L shortcut via QuickCaptureButton.
+  const [showCapture, setShowCapture] = useState(false);
 
   // Fetch child info when in parent mode
   useEffect(() => {
@@ -173,74 +181,71 @@ const LearningJournalPage = () => {
   // Auth loading
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-optio-purple border-t-transparent rounded-full animate-spin" />
-      </div>
+      <PageLoader className="h-64" />
     );
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-gray-50">
+    <div className="h-[calc(100vh-4rem)] flex flex-col bg-neutral-50">
       {/* Page Header with Mobile Tabs */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-start justify-between gap-3">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900">
               {isParentView && childInfo
                 ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
                 : 'Learning Journal'}
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
+            <p className="mt-1 text-sm text-gray-500">
               {isParentView
                 ? 'View and organize learning moments'
                 : 'Track your spontaneous learning and organize it by topics of interest'}
             </p>
           </div>
           {!isParentView && (
-            <button
-              onClick={() => setShowBulkImport(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple border border-optio-purple/40 rounded-lg hover:bg-purple-50 transition-colors"
-              title="Import many photos at once"
-            >
-              <PhotoIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Bulk import</span>
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => setShowBulkImport(true)}
+                className="btn-quiet"
+                title="Import many photos at once"
+              >
+                <PhotoIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Bulk import</span>
+              </button>
+              <button
+                onClick={() => setShowCapture(true)}
+                className="btn-primary"
+                title="Capture a learning moment (Ctrl+Shift+L)"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Capture moment</span>
+                <span className="sm:hidden">Capture</span>
+              </button>
+            </div>
           )}
         </div>
 
         {/* Mobile Tab Navigation */}
-        <div className="lg:hidden mt-3 flex bg-gray-100 rounded-lg p-1 max-w-7xl mx-auto">
-          <button
-            onClick={() => setMobileView('list')}
-            className={`
-              flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all
-              ${mobileView === 'list'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'}
-            `}
-          >
-            Topics
-          </button>
-          <button
-            onClick={() => setMobileView('detail')}
-            className={`
-              flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all
-              ${mobileView === 'detail'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'}
-            `}
-          >
-            {getDetailViewLabel()}
-          </button>
-        </div>
+        <GlassTabBar
+          size="md"
+          className="lg:hidden mt-4"
+          aria-label="Journal views"
+          tabs={[
+            { id: 'list', label: 'Topics' },
+            { id: 'detail', label: getDetailViewLabel() },
+          ]}
+          active={mobileView}
+          onSelect={setMobileView}
+        />
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full">
+      {/* Main Content - split pane inside a canonical card */}
+      <div className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-6">
+        <div className="h-full flex overflow-hidden bg-white rounded-xl border border-gray-200 shadow-sm">
         {/* Sidebar - Tracks List */}
         <aside
           className={`
-            w-full lg:w-80 xl:w-96 bg-white border-r border-gray-200
+            w-full lg:w-80 xl:w-96 lg:border-r lg:border-gray-200
             ${mobileView === 'list' ? 'block' : 'hidden lg:block'}
           `}
         >
@@ -261,7 +266,7 @@ const LearningJournalPage = () => {
         {/* Main Content Area */}
         <main
           className={`
-            flex-1 bg-white overflow-hidden
+            flex-1 overflow-hidden
             ${mobileView === 'detail' ? 'block' : 'hidden lg:block'}
           `}
         >
@@ -275,9 +280,9 @@ const LearningJournalPage = () => {
                       <FolderOpenIcon className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">Unassigned Moments</h2>
+                      <h2 className="text-lg font-semibold text-gray-900">Unassigned Moments</h2>
                       <p className="text-sm text-gray-500">
-                        {unassignedMoments.length} moment{unassignedMoments.length !== 1 ? 's' : ''} without a track
+                        {unassignedMoments.length} moment{unassignedMoments.length !== 1 ? 's' : ''} without a topic
                       </p>
                     </div>
                   </div>
@@ -291,8 +296,8 @@ const LearningJournalPage = () => {
                 </div>
 
                 {unassignedMoments.length > 0 && (
-                  <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-                    <div className="flex items-start gap-2 text-sm text-purple-700">
+                  <div className="mt-4 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg border border-optio-purple/20">
+                    <div className="flex items-start gap-2 text-sm text-optio-purple-dark">
                       <SparklesIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <span>
                         Moments here aren't earning XP yet. Add each one to a topic
@@ -323,13 +328,12 @@ const LearningJournalPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <FolderOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-2">All caught up</p>
-                    <p className="text-sm text-gray-400">
-                      Capture more moments and assign them to a topic or quest to earn XP.
-                    </p>
-                  </div>
+                  <EmptyState
+                    plain
+                    icon={FolderOpenIcon}
+                    title="All caught up"
+                    hint="Capture more moments and assign them to a topic or quest to earn XP."
+                  />
                 )}
               </div>
             </div>
@@ -357,25 +361,33 @@ const LearningJournalPage = () => {
                 <img
                   src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
                   alt="Optio"
-                  className="w-24 h-24 mx-auto mb-6"
+                  className="w-20 h-20 mx-auto mb-6"
                 />
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">
                   Welcome to Your Learning Journal
                 </h2>
-                <p className="text-gray-600 mb-6">
-                  Capture spontaneous learning moments, organize them into interest tracks,
+                <p className="text-sm text-gray-600 mb-6">
+                  Capture spontaneous learning moments, organize them into topics of interest,
                   and eventually evolve them into quests.
                 </p>
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-500">
-                    Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl+Shift+L</kbd> to
-                    quickly capture a moment
-                  </p>
-                </div>
+                {!isParentView && (
+                  <button
+                    onClick={() => setShowCapture(true)}
+                    className="btn-primary"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    Capture a moment
+                  </button>
+                )}
+                <p className="mt-4 text-sm text-gray-500">
+                  Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl+Shift+L</kbd> to
+                  quickly capture a moment
+                </p>
               </div>
             </div>
           )}
         </main>
+        </div>
       </div>
 
       {/* Quick Capture FAB */}
@@ -387,7 +399,11 @@ const LearningJournalPage = () => {
           onSuccess={handleCaptureSuccess}
         />
       ) : (
-        <QuickCaptureButton onSuccess={handleCaptureSuccess} />
+        <QuickCaptureButton
+          onSuccess={handleCaptureSuccess}
+          open={showCapture}
+          onOpenChange={setShowCapture}
+        />
       )}
 
       {/* Evolve Topic Modal */}

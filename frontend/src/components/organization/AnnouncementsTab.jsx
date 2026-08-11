@@ -128,7 +128,7 @@ export default function AnnouncementsTab({ orgId }) {
           <button
             onClick={send}
             disabled={sending || !title.trim() || isBlank(content) || audiences.length === 0}
-            className="ml-auto px-5 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity disabled:opacity-40"
+            className="ml-auto px-5 py-2 text-sm font-medium text-white rounded-lg bg-gradient-primary hover:opacity-90 transition-opacity disabled:opacity-40"
           >
             {sending ? 'Sending…' : 'Send announcement'}
           </button>

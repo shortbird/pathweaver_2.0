@@ -279,7 +279,6 @@ const MindMapInner = ({
         <button
           onClick={handlePaneClick}
           className="absolute top-4 left-4 z-20 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -327,7 +326,7 @@ const MindMap = (props) => {
           <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
-          <span className="text-xs font-medium text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <span className="text-xs font-medium text-gray-500">
             Esc to exit
           </span>
         </>

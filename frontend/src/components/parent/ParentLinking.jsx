@@ -88,14 +88,14 @@ const ParentLinking = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-optio-purple to-pink-500 rounded-lg p-6 text-white">
+      <div className="bg-gradient-primary rounded-lg p-6 text-white">
         <div className="flex items-center gap-3 mb-2">
           <UserGroupIcon className="w-8 h-8" />
-          <h2 className="text-2xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h2 className="text-2xl font-bold">
             Parent Access
           </h2>
         </div>
-        <p className="font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="font-medium">
           Invite a parent or guardian to support your learning journey. They'll have read-only access to view your progress and help you stay on track.
         </p>
       </div>
@@ -105,10 +105,10 @@ const ParentLinking = () => {
         <div className="flex items-start gap-3">
           <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 flex-shrink-0" />
           <div>
-            <h3 className="font-semibold text-yellow-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h3 className="font-semibold text-yellow-900 mb-1">
               Important to know
             </h3>
-            <ul className="text-sm text-yellow-800 space-y-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <ul className="text-sm text-yellow-800 space-y-1 font-medium">
               <li>• Once approved, parent access is permanent and cannot be revoked</li>
               <li>• Parents can view your progress, quests, and AI tutor conversations</li>
               <li>• Parents can upload evidence on your behalf (requires your approval)</li>
@@ -120,7 +120,7 @@ const ParentLinking = () => {
 
       {/* Send Invitation Form */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">
           Invite a Parent
         </h3>
         <form onSubmit={sendInvitation} className="flex gap-3">
@@ -130,14 +130,12 @@ const ParentLinking = () => {
             onChange={(e) => setParentEmail(e.target.value)}
             placeholder="parent@example.com"
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-medium"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
             disabled={sending}
           />
           <button
             type="submit"
             disabled={sending}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
+            className="btn-primary"
           >
             {sending ? (
               <>
@@ -157,7 +155,7 @@ const ParentLinking = () => {
       {/* Pending Invitations */}
       {invitations.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-xl font-bold text-gray-900 mb-4">
             Pending Invitations
           </h3>
           <div className="space-y-3">
@@ -166,10 +164,10 @@ const ParentLinking = () => {
                 <div className="flex items-center gap-3">
                   <ClockIcon className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="font-semibold text-gray-900">
                       {invitation.parent_email}
                     </p>
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       Sent {new Date(invitation.created_at).toLocaleDateString()} • {formatTimeRemaining(invitation.expires_at)}
                     </p>
                   </div>
@@ -190,7 +188,7 @@ const ParentLinking = () => {
       {/* Linked Parents */}
       {linkedParents.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-xl font-bold text-gray-900 mb-4">
             Connected Parents
           </h3>
           <div className="space-y-3">
@@ -199,15 +197,15 @@ const ParentLinking = () => {
                 <div className="flex items-center gap-3">
                   <CheckCircleIcon className="w-5 h-5 text-green-600" />
                   <div>
-                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="font-semibold text-gray-900">
                       {parent.parent_name || parent.parent_email}
                     </p>
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       Connected since {new Date(parent.approved_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
                   Active
                 </div>
               </div>
@@ -220,7 +218,7 @@ const ParentLinking = () => {
       {linkedParents.length === 0 && invitations.length === 0 && (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <UserGroupIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-600 font-medium">
             No parents connected yet. Send an invitation to get started!
           </p>
         </div>

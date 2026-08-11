@@ -64,16 +64,16 @@ describe('HomeRoute (the / route)', () => {
     expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
   })
 
-  it('forwards a signed-in parent to the parent dashboard', () => {
+  it('forwards a signed-in parent to the role home (/dashboard)', () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent' } }
     renderAt('/')
-    expect(screen.getByTestId('parent-dashboard')).toBeInTheDocument()
+    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
   })
 
-  it('forwards families of a homepage school to the school page', () => {
+  it('sends homepage-school families to the role home too (school section lives inside Home)', () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent', school: { id: 'o', homepage: true } } }
     renderAt('/')
-    expect(screen.getByTestId('school-home')).toBeInTheDocument()
+    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
   })
 })
 

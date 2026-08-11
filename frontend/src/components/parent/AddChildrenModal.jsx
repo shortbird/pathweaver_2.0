@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ButtonSpinner } from '../ui';
 import api from '../../services/api';
 
 const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
@@ -91,8 +92,8 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-optio-purple to-pink-500">
-          <h2 className="text-xl font-semibold text-white font-['Poppins']">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-primary">
+          <h2 className="text-xl font-semibold text-white">
             Add Your Children
           </h2>
           <button
@@ -107,13 +108,13 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
 
         {/* Body */}
         <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-200px)]">
-          <p className="text-gray-600 mb-4 font-['Poppins']">
+          <p className="text-gray-600 mb-4">
             Enter the details of your children below. If they already have an Optio account, we'll
             automatically match them by email. Otherwise, we'll hold your request until they create an account.
           </p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-['Poppins']">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>
           )}
@@ -135,14 +136,14 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 font-['Poppins']">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       First Name *
                     </label>
                     <input
                       type="text"
                       value={child.first_name}
                       onChange={(e) => updateChild(index, 'first_name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-['Poppins'] min-h-[44px] text-base"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px] text-base"
                       placeholder="John"
                       required
                       disabled={isSubmitting}
@@ -150,14 +151,14 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 font-['Poppins']">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Last Name *
                     </label>
                     <input
                       type="text"
                       value={child.last_name}
                       onChange={(e) => updateChild(index, 'last_name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-['Poppins'] min-h-[44px] text-base"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px] text-base"
                       placeholder="Doe"
                       required
                       disabled={isSubmitting}
@@ -165,14 +166,14 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 font-['Poppins']">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Email *
                     </label>
                     <input
                       type="email"
                       value={child.email}
                       onChange={(e) => updateChild(index, 'email', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-['Poppins'] min-h-[44px] text-base"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px] text-base"
                       placeholder="john.doe@student.edu"
                       required
                       disabled={isSubmitting}
@@ -187,7 +188,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
               type="button"
               onClick={addChildRow}
               disabled={isSubmitting}
-              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-optio-purple transition-colors flex items-center justify-center gap-2 font-['Poppins'] font-medium disabled:opacity-50 min-h-[56px]"
+              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2 font-medium disabled:opacity-50 min-h-[56px]"
             >
               <PlusIcon className="w-5 h-5" />
               Add Another Child
@@ -201,18 +202,18 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
             type="button"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-['Poppins'] font-medium disabled:opacity-50 min-h-[44px]"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50 min-h-[44px]"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-pink-500 text-white rounded-lg hover:from-purple-700 hover:to-optio-pink transition-all font-['Poppins'] font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[44px]"
+            className="btn-primary min-h-[44px]"
           >
             {isSubmitting ? (
               <>
-                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <ButtonSpinner />
                 Submitting...
               </>
             ) : (

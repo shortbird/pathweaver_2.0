@@ -56,10 +56,10 @@ const AIOverviewTab = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-gray-900">
           AI System Overview
         </h2>
-        <p className="text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-gray-600 mt-1">
           Monitor AI performance, quality, and system health
         </p>
       </div>
@@ -79,7 +79,7 @@ const AIOverviewTab = () => {
           value={metrics?.quality_score || 0}
           unit="%"
           icon={<ChartBarIcon className="w-8 h-8" />}
-          gradient="from-optio-purple to-purple-600"
+          gradient="from-optio-purple to-optio-purple"
           status={getQualityStatus(metrics?.quality_score || 0)}
         />
         <KPICard
@@ -102,7 +102,7 @@ const AIOverviewTab = () => {
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h3 className="text-xl font-bold mb-4">
           Quick Actions
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -132,11 +132,11 @@ const AIOverviewTab = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-xl font-bold mb-4">
             Recent Activity
           </h3>
           {!metrics?.recent_activity || metrics.recent_activity.length === 0 ? (
-            <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-gray-500 text-center py-8">
               No recent activity
             </p>
           ) : (
@@ -150,7 +150,7 @@ const AIOverviewTab = () => {
 
         {/* System Status */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-xl font-bold mb-4">
             System Status
           </h3>
           <div className="space-y-4">
@@ -234,8 +234,8 @@ const KPICard = ({ title, value, unit, icon, gradient, status }) => {
           {icon}
         </div>
       </div>
-      <p className="text-sm opacity-90 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{title}</p>
-      <p className="text-4xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <p className="text-sm opacity-90 mb-1">{title}</p>
+      <p className="text-4xl font-bold mb-2">
         {value}{unit}
       </p>
       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColors[status]}`}>
@@ -251,11 +251,11 @@ const QuickActionCard = ({ icon, title, description, count, onClick }) => (
     onClick={onClick}
     className="flex items-start gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-optio-purple hover:shadow-md transition-all text-left"
   >
-    <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg flex items-center justify-center text-white">
+    <div className="flex-shrink-0 w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center text-white">
       {icon}
     </div>
     <div className="flex-1 min-w-0">
-      <h4 className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <h4 className="font-semibold text-gray-900 mb-1">
         {title}
         {count !== undefined && count > 0 && (
           <span className="ml-2 inline-block px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded-full">
@@ -263,7 +263,7 @@ const QuickActionCard = ({ icon, title, description, count, onClick }) => (
           </span>
         )}
       </h4>
-      <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <p className="text-sm text-gray-600">
         {description}
       </p>
     </div>
@@ -285,14 +285,14 @@ const ActivityItem = ({ activity }) => {
 
   return (
     <div className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-      <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-xs font-bold">
+      <div className="flex-shrink-0 w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center text-white text-xs font-bold">
         AI
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-sm text-gray-900 font-medium">
           {activity.description}
         </p>
-        <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-xs text-gray-500 mt-0.5">
           {getTimeAgo(activity.timestamp)}
         </p>
       </div>
@@ -327,13 +327,13 @@ const StatusRow = ({ label, status, detail }) => {
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {statusIcons[status]}
-        <span className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <span className="text-sm font-medium text-gray-900">
           {label}
         </span>
       </div>
       <div className="flex items-center gap-2">
         {detail && (
-          <span className="text-xs text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <span className="text-xs text-gray-500">
             {detail}
           </span>
         )}

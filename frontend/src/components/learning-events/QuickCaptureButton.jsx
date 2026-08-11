@@ -4,8 +4,19 @@ import LearningEventModal from './LearningEventModal';
 
 const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
 
-const QuickCaptureButton = ({ onSuccess }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const QuickCaptureButton = ({ onSuccess, open, onOpenChange }) => {
+  // Uncontrolled by default; a parent may control the modal (open/onOpenChange)
+  // so page-level CTAs (e.g. the journal header button) share the same modal.
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const isModalOpen = isControlled ? open : internalOpen;
+  const setIsModalOpen = useCallback((value) => {
+    if (isControlled) {
+      onOpenChange && onOpenChange(value);
+    } else {
+      setInternalOpen(value);
+    }
+  }, [isControlled, onOpenChange]);
   const [isHovered, setIsHovered] = useState(false);
   const [isWiggling, setIsWiggling] = useState(false);
 
@@ -15,7 +26,7 @@ const QuickCaptureButton = ({ onSuccess }) => {
       e.preventDefault();
       setIsModalOpen(true);
     }
-  }, []);
+  }, [setIsModalOpen]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);

@@ -45,6 +45,144 @@ const exampleSkillsXP = {
   civics: 480
 }
 
+/**
+ * The welcome's teaching content — how Optio works and what an observer will
+ * see — without the page shell, hero, or CTA. Exported so ObserverFeedPage can
+ * render it as the feed's first-visit / no-students state now that routing
+ * sends every observer straight to /observer/feed (2026-08-10). The full-page
+ * version below stays for bookmarks to /observer/welcome.
+ */
+export function ObserverWelcomeContent() {
+  return (
+    <>
+      {/* Philosophy Section */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">The Process Is The Goal</h2>
+        <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3 sm:mb-4">
+          At Optio, we believe learning is about the journey, not the destination. Instead of focusing on grades,
+          test scores, or college admissions, we celebrate curiosity, effort, exploration, and growth.
+        </p>
+        <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
+          Students learn by doing - completing self-directed quests that align with their interests, building real-world
+          skills, and creating a portfolio that showcases their unique learning path.
+        </p>
+      </div>
+
+      {/* Engagement Tracking Section */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">How We Track Engagement</h2>
+        <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
+          We track engagement through daily activity and learning rhythm. Students earn XP (experience points) by
+          completing tasks, and we track their learning rhythm over time. This helps identify when they're in
+          a flow state and when they might need encouragement.
+        </p>
+
+        <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-3">Activity Calendar (Example)</h3>
+          <EngagementCalendar days={generateExampleEngagementDays()} />
+        </div>
+      </div>
+
+      {/* Pillar Tracking Section */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">How We Track Learning</h2>
+        <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
+          Learning is organized into five pillars that represent a well-rounded education. As students complete
+          tasks, they earn XP in each pillar, building a unique profile that reflects their strengths and
+          interests while encouraging exploration of all areas.
+        </p>
+
+        <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-3">Growth Dimensions (Example)</h3>
+
+          {/* Desktop: side-by-side layout, Mobile: stacked */}
+          <div className="grid md:grid-cols-2 items-center gap-6">
+            {/* Radar chart - clip to hide the stats grid below it */}
+            <div className="overflow-hidden" style={{ maxHeight: '290px' }}>
+              <SkillsRadarChart skillsXP={exampleSkillsXP} compact={true} />
+            </div>
+
+            {/* Pillar information */}
+            <div className="text-xs sm:text-sm text-gray-600 space-y-3">
+              <p className="font-medium text-gray-700">The five pillars of growth:</p>
+              <ul className="space-y-2">
+                <li><strong>Art</strong> - Creative expression, music, visual arts</li>
+                <li><strong>STEM</strong> - Science, technology, engineering, math</li>
+                <li><strong>Wellness</strong> - Physical and mental health</li>
+                <li><strong>Communication</strong> - Writing, speaking, language</li>
+                <li><strong>Civics</strong> - History, social studies, community</li>
+              </ul>
+              <p className="text-gray-500 pt-1">
+                The radar chart shows at a glance how a student is developing across all areas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Your Role Section */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">Your Important Role</h2>
+        <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
+          As an observer, you play a vital role in encouraging the student's learning. Your support and celebration
+          of their efforts - not just outcomes - helps reinforce the process-focused mindset.
+        </p>
+
+        <div className="space-y-3 sm:space-y-4">
+          <div className="border-l-4 border-optio-purple pl-3 sm:pl-4 py-1.5 sm:py-2">
+            <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Celebrate Effort, Not Just Results</h3>
+            <p className="text-gray-600 text-xs sm:text-sm">
+              "I love how you tried a new approach!" instead of "You're so smart!"
+            </p>
+          </div>
+
+          <div className="border-l-4 border-optio-pink pl-3 sm:pl-4 py-1.5 sm:py-2">
+            <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Ask Process-Focused Questions</h3>
+            <p className="text-gray-600 text-xs sm:text-sm">
+              "What was the most challenging part?" or "What would you do differently next time?"
+            </p>
+          </div>
+
+          <div className="border-l-4 border-blue-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
+            <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Show Genuine Interest</h3>
+            <p className="text-gray-600 text-xs sm:text-sm">
+              "Tell me more about this project!" or "What made you choose this quest?"
+            </p>
+          </div>
+
+          <div className="border-l-4 border-green-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
+            <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Acknowledge Growth</h3>
+            <p className="text-gray-600 text-xs sm:text-sm">
+              "I can see how much you've learned!" or "Look how far you've come!"
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* What You Can Do */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">What You Can Do</h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+          <div className="bg-optio-purple/10 rounded-lg p-3 sm:p-4">
+            <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">View Feed</h3>
+            <p className="text-gray-700 text-xs sm:text-sm">
+              See their recent completions and learning moments
+            </p>
+          </div>
+
+          <div className="bg-optio-pink/10 rounded-lg p-3 sm:p-4">
+            <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Leave Comments</h3>
+            <p className="text-gray-700 text-xs sm:text-sm">
+              Share encouraging words and celebrate their work
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function ObserverWelcomePage() {
   // Mark welcome as seen when leaving this page
   const markWelcomeSeen = () => {
@@ -52,7 +190,7 @@ export default function ObserverWelcomePage() {
   };
 
   return (
-    <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 min-h-0">
+    <div className="bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 min-h-0">
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-12">
         {/* Hero Section */}
         <div className="text-center mb-6 sm:mb-12">
@@ -71,137 +209,14 @@ export default function ObserverWelcomePage() {
           </p>
         </div>
 
-        {/* Philosophy Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">The Process Is The Goal</h2>
-          <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3 sm:mb-4">
-            At Optio, we believe learning is about the journey, not the destination. Instead of focusing on grades,
-            test scores, or college admissions, we celebrate curiosity, effort, exploration, and growth.
-          </p>
-          <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
-            Students learn by doing - completing self-directed quests that align with their interests, building real-world
-            skills, and creating a portfolio that showcases their unique learning path.
-          </p>
-        </div>
-
-        {/* Engagement Tracking Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">How We Track Engagement</h2>
-          <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
-            We track engagement through daily activity and learning rhythm. Students earn XP (experience points) by
-            completing tasks, and we track their learning rhythm over time. This helps identify when they're in
-            a flow state and when they might need encouragement.
-          </p>
-
-          <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
-            <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-3">Activity Calendar (Example)</h3>
-            <EngagementCalendar days={generateExampleEngagementDays()} />
-          </div>
-        </div>
-
-        {/* Pillar Tracking Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">How We Track Learning</h2>
-          <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
-            Learning is organized into five pillars that represent a well-rounded education. As students complete
-            tasks, they earn XP in each pillar, building a unique profile that reflects their strengths and
-            interests while encouraging exploration of all areas.
-          </p>
-
-          <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
-            <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-3">Growth Dimensions (Example)</h3>
-
-            {/* Desktop: side-by-side layout, Mobile: stacked */}
-            <div className="grid md:grid-cols-2 items-center gap-6">
-              {/* Radar chart - clip to hide the stats grid below it */}
-              <div className="overflow-hidden" style={{ maxHeight: '290px' }}>
-                <SkillsRadarChart skillsXP={exampleSkillsXP} compact={true} />
-              </div>
-
-              {/* Pillar information */}
-              <div className="text-xs sm:text-sm text-gray-600 space-y-3">
-                <p className="font-medium text-gray-700">The five pillars of growth:</p>
-                <ul className="space-y-2">
-                  <li><strong>Art</strong> - Creative expression, music, visual arts</li>
-                  <li><strong>STEM</strong> - Science, technology, engineering, math</li>
-                  <li><strong>Wellness</strong> - Physical and mental health</li>
-                  <li><strong>Communication</strong> - Writing, speaking, language</li>
-                  <li><strong>Civics</strong> - History, social studies, community</li>
-                </ul>
-                <p className="text-gray-500 pt-1">
-                  The radar chart shows at a glance how a student is developing across all areas.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Your Role Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">Your Important Role</h2>
-          <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
-            As an observer, you play a vital role in encouraging the student's learning. Your support and celebration
-            of their efforts - not just outcomes - helps reinforce the process-focused mindset.
-          </p>
-
-          <div className="space-y-3 sm:space-y-4">
-            <div className="border-l-4 border-purple-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Celebrate Effort, Not Just Results</h3>
-              <p className="text-gray-600 text-xs sm:text-sm">
-                "I love how you tried a new approach!" instead of "You're so smart!"
-              </p>
-            </div>
-
-            <div className="border-l-4 border-pink-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Ask Process-Focused Questions</h3>
-              <p className="text-gray-600 text-xs sm:text-sm">
-                "What was the most challenging part?" or "What would you do differently next time?"
-              </p>
-            </div>
-
-            <div className="border-l-4 border-blue-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Show Genuine Interest</h3>
-              <p className="text-gray-600 text-xs sm:text-sm">
-                "Tell me more about this project!" or "What made you choose this quest?"
-              </p>
-            </div>
-
-            <div className="border-l-4 border-green-500 pl-3 sm:pl-4 py-1.5 sm:py-2">
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-0.5 sm:mb-1">Acknowledge Growth</h3>
-              <p className="text-gray-600 text-xs sm:text-sm">
-                "I can see how much you've learned!" or "Look how far you've come!"
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* What You Can Do */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">What You Can Do</h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-            <div className="bg-purple-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">View Feed</h3>
-              <p className="text-gray-700 text-xs sm:text-sm">
-                See their recent completions and learning moments
-              </p>
-            </div>
-
-            <div className="bg-pink-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Leave Comments</h3>
-              <p className="text-gray-700 text-xs sm:text-sm">
-                Share encouraging words and celebrate their work
-              </p>
-            </div>
-          </div>
-        </div>
+        <ObserverWelcomeContent />
 
         {/* CTA */}
         <div className="text-center">
           <Link
             to="/observer/feed"
             onClick={markWelcomeSeen}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-xl hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
+            className="btn-primary"
           >
             View Student Feed
             <ArrowRightIcon className="w-4 h-4 sm:w-5 sm:h-5" />

@@ -99,7 +99,7 @@ export default function GettingStartedChecklist({ orgId, onNavigate }) {
 
       <div className="h-1.5 bg-gray-100 rounded-full mb-4 overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-optio-purple to-optio-pink rounded-full transition-all"
+          className="h-full bg-gradient-primary rounded-full transition-all"
           style={{ width: `${(doneCount / STEPS.length) * 100}%` }}
         />
       </div>

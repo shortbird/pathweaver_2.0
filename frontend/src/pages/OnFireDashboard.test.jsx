@@ -71,7 +71,7 @@ describe('OnFireDashboard', () => {
   it('switches to the register tab and shows the form', async () => {
     renderDash()
     await screen.findByText('Jordan Rivera')
-    fireEvent.click(screen.getByRole('button', { name: /register a student/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /register a student/i }))
     expect(await screen.findByPlaceholderText('Jordan')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /register & enroll/i })).toBeInTheDocument()
   })

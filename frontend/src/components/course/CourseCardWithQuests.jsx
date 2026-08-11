@@ -68,10 +68,10 @@ const MiniHeatMap = ({ days }) => {
   const getIntensityClass = (intensity) => {
     switch (intensity) {
       case 0: return 'bg-gray-200';
-      case 1: return 'bg-purple-200';
-      case 2: return 'bg-purple-400';
-      case 3: return 'bg-purple-600';
-      case 4: return 'bg-gradient-to-r from-optio-purple to-optio-pink';
+      case 1: return 'bg-optio-purple/20';
+      case 2: return 'bg-optio-purple-light';
+      case 3: return 'bg-optio-purple';
+      case 4: return 'bg-gradient-primary';
       default: return 'bg-gray-200';
     }
   };
@@ -145,7 +145,7 @@ const CourseCardWithQuests = ({ course }) => {
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-optio-purple to-optio-pink" />
+          <div className="w-full h-full bg-gradient-primary" />
         )}
 
         {/* Gradient Overlay for Text Readability */}
@@ -204,7 +204,7 @@ const CourseCardWithQuests = ({ course }) => {
           </div>
 
           {/* Continue Button - Optio gradient, anchored to bottom */}
-          <div className="mt-auto px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+          <div className="mt-auto px-4 py-3 bg-gradient-primary hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
             </svg>
@@ -220,7 +220,7 @@ const CourseCardWithQuests = ({ course }) => {
             </p>
           </div>
           {/* Start Button - Optio gradient, anchored to bottom */}
-          <div className="mt-auto px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+          <div className="mt-auto px-4 py-3 bg-gradient-primary hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
             </svg>

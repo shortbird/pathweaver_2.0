@@ -21,7 +21,7 @@ const getActivityColor = (activityType) => {
     case 'task_completed':
       return 'border-green-200 bg-green-50';
     case 'badge_earned':
-      return 'border-purple-200 bg-purple-50';
+      return 'border-optio-purple/20 bg-optio-purple/5';
     default:
       return 'border-gray-200 bg-gray-50';
   }
@@ -62,7 +62,7 @@ export default function ActivityTimeline({ activities = [] }) {
                   {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
                 </p>
                 {activity.xp_earned && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-optio-purple to-optio-pink text-white">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-primary text-white">
                     +{activity.xp_earned} XP
                   </span>
                 )}
@@ -76,7 +76,7 @@ export default function ActivityTimeline({ activities = [] }) {
                   {activity.collaborators.slice(0, 3).map((collab, idx) => (
                     <div
                       key={idx}
-                      className="w-8 h-8 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink text-white flex items-center justify-center text-xs font-bold border-2 border-white"
+                      className="w-8 h-8 rounded-full bg-gradient-primary text-white flex items-center justify-center text-xs font-bold border-2 border-white"
                       title={collab.name}
                     >
                       {collab.name

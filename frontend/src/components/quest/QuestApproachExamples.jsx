@@ -4,6 +4,7 @@ import api from '../../services/api';
 import ApproachExampleCard from './ApproachExampleCard';
 import toast from 'react-hot-toast';
 import { SparklesIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { Spinner } from '../ui';
 
 /**
  * QuestApproachExamples - Display starter paths for a quest
@@ -209,13 +210,12 @@ const QuestApproachExamples = ({
           <SparklesIcon className="w-5 h-5 text-optio-purple animate-pulse" />
           <h2
             className="text-lg sm:text-xl font-bold text-gray-900"
-            style={{ fontFamily: 'Poppins' }}
           >
             Choose Your Path
           </h2>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
-          <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
+          <Spinner size="sm" />
           <span>Creating starter paths...</span>
         </div>
       </div>
@@ -234,14 +234,12 @@ const QuestApproachExamples = ({
         <SparklesIcon className="w-5 h-5 text-optio-purple" />
         <h2
           className="text-lg sm:text-xl font-bold text-gray-900"
-          style={{ fontFamily: 'Poppins' }}
         >
           Choose Your Path
         </h2>
       </div>
       <p
         className="text-sm text-gray-600 mb-4"
-        style={{ fontFamily: 'Poppins' }}
       >
         Pick a starter path that matches your interests, or start from scratch.
       </p>
@@ -271,7 +269,6 @@ const QuestApproachExamples = ({
           onClick={handleStartFromScratch}
           disabled={selectingIndex === 'scratch'}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 text-gray-600 rounded-lg font-medium text-sm hover:border-optio-purple hover:text-optio-purple transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ fontFamily: 'Poppins' }}
         >
           <PlusIcon className="w-4 h-4" />
           {selectingIndex === 'scratch' ? 'Starting...' : 'Start from Scratch'}

@@ -49,7 +49,7 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
         <h2 className="text-lg font-semibold text-gray-900">Quest Management</h2>
         <button
           onClick={() => setShowQuestForm(true)}
-          className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+          className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
         >
           Create Quest
         </button>

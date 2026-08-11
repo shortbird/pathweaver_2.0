@@ -463,7 +463,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     setErrors({ ...errors, title: '' })
                   }
                 }}
-                className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                 placeholder="e.g., Build a Community Garden"
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -524,7 +524,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     <button
                       type="button"
                       onClick={() => setShowNewSourceForm(true)}
-                      className="px-3 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-purple-700"
+                      className="px-3 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-optio-purple-dark"
                       aria-label="Add new source"
                     >
                       <PlusIcon size={20} />
@@ -557,7 +557,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             
           <div className="space-y-6">
             {formData.tasks.map((task, index) => (
-              <div key={index} className="border-2 border-gray-100 rounded-xl p-6 hover:border-purple-200 transition-colors">
+              <div key={index} className="border-2 border-gray-100 rounded-xl p-6 hover:border-optio-purple/20 transition-colors">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h4 className="text-lg font-semibold text-gray-800">Task {index + 1}</h4>
@@ -585,7 +585,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       id={`task-${index}-title`}
                       value={task.title}
                       onChange={(e) => updateTask(index, 'title', e.target.value)}
-                      className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="e.g., Research local plant species"
                     />
                     {errors[`task_${index}_title`] && (
@@ -605,7 +605,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         id={`task-${index}-pillar`}
                         value={task.pillar}
                         onChange={(e) => updateTask(index, 'pillar', e.target.value)}
-                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
+                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
                       >
                         <option value="">Choose a learning pillar...</option>
                         {pillarOptions.map(pillar => (
@@ -645,7 +645,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                                 }
                                 updateTask(index, 'school_subjects', newSubjects)
                               }}
-                              className="mt-0.5 h-4 w-4 text-optio-purple focus:ring-purple-500 border-gray-300 rounded"
+                              className="mt-0.5 h-4 w-4 text-optio-purple focus:ring-optio-purple border-gray-300 rounded"
                             />
                             <div className="flex-1">
                               <div className="font-medium text-gray-900">{subject.name}</div>
@@ -659,7 +659,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                           {task.school_subjects.map(subjectKey => {
                             const subject = availableSubjects.find(s => s.key === subjectKey)
                             return subject ? (
-                              <span key={subjectKey} className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                              <span key={subjectKey} className="inline-flex items-center px-2 py-1 bg-optio-purple/10 text-optio-purple-dark text-xs font-medium rounded-full">
                                 {subject.name}
                               </span>
                             ) : null
@@ -730,7 +730,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         id={`task-${index}-xp`}
                         value={task.xp_value}
                         onChange={(e) => updateTask(index, 'xp_value', parseInt(e.target.value) || 0)}
-                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
+                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
                         min="0"
                         step="50"
                         placeholder="100"
@@ -802,13 +802,13 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                           {(task.materials_needed || []).map((material, mIndex) => (
                             <span 
                               key={mIndex} 
-                              className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+                              className="inline-flex items-center px-3 py-1 bg-optio-purple/10 text-optio-purple-dark rounded-full text-sm"
                             >
                               {material}
                               <button
                                 type="button"
                                 onClick={() => removeMaterial(index, mIndex)}
-                                className="ml-2 text-optio-purple hover:text-purple-800 transition-colors"
+                                className="ml-2 text-optio-purple hover:text-optio-purple-dark transition-colors"
                                 aria-label="Remove material"
                               >
                                 <XMarkIcon size={14} />
@@ -821,7 +821,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         <button
                           type="button"
                           onClick={() => addMaterial(index)}
-                          className="px-4 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
+                          className="px-4 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-optio-purple-dark transition-all text-sm"
                         >
                           <PlusIcon size={16} className="inline mr-1" /> Add Material
                         </button>

@@ -180,7 +180,7 @@ describe('AuthContext', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates parent to /parent/dashboard', async () => {
+    it('navigates parent to /dashboard (role home)', async () => {
       api.post.mockResolvedValue({
         data: {
           user: { id: '1', role: 'parent', first_name: 'P', created_at: new Date(Date.now() - 86400000).toISOString() },
@@ -198,10 +198,10 @@ describe('AuthContext', () => {
         await result.current.login('p@test.com', 'pass')
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates org-managed parent to /parent/dashboard', async () => {
+    it('navigates org-managed parent to /dashboard (role home)', async () => {
       api.post.mockResolvedValue({
         data: {
           // Org parents have role 'org_managed'; effective role comes from org_role
@@ -220,10 +220,10 @@ describe('AuthContext', () => {
         await result.current.login('p@test.com', 'pass')
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates new observer to /observer/welcome', async () => {
+    it('navigates new observer straight to /observer/feed', async () => {
       localStorage.removeItem('observerWelcomeSeen')
       api.post.mockResolvedValue({
         data: {
@@ -242,7 +242,7 @@ describe('AuthContext', () => {
         await result.current.login('o@test.com', 'pass')
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome')
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/feed')
     })
 
     it('navigates returning observer to /observer/feed', async () => {

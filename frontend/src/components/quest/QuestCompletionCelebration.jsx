@@ -99,11 +99,11 @@ const QuestCompletionCelebration = ({
           {/* Icon */}
           <div className="flex justify-center mb-6">
             {isEmptyQuest ? (
-              <div className="w-24 h-24 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center shadow-lg">
+              <div className="w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
                 <BookOpenIcon className="w-14 h-14 text-white" />
               </div>
             ) : isClassReady ? (
-              <div className="w-24 h-24 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center shadow-lg">
+              <div className="w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
                 <AcademicCapIcon className="w-14 h-14 text-white" />
               </div>
             ) : (
@@ -117,37 +117,37 @@ const QuestCompletionCelebration = ({
           <div className="text-center mb-8">
             {isEmptyQuest ? (
               <>
-                <h2 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+                <h2 className="text-3xl font-bold text-gray-900 mb-3">
                   No Tasks in Quest
                 </h2>
-                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-2xl font-semibold text-gray-800 mb-2">
                   {quest?.title || 'Your Quest'}
                 </p>
-                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-600 text-lg">
                   This quest doesn't have any tasks yet. Add some tasks to get started, or finish the quest.
                 </p>
               </>
             ) : isClassReady ? (
               <>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent mb-3" style={{ fontFamily: 'Poppins' }}>
+                <h2 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-3">
                   All tasks complete!
                 </h2>
-                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-2xl font-semibold text-gray-800 mb-2">
                   {quest?.title || 'Your Class'}
                 </p>
-                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-600 text-lg">
                   Great work! You've finished every task in this class.
                 </p>
               </>
             ) : (
               <>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent mb-3" style={{ fontFamily: 'Poppins' }}>
+                <h2 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-3">
                   Quest Complete!
                 </h2>
-                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-2xl font-semibold text-gray-800 mb-2">
                   {quest?.title || 'Your Quest'}
                 </p>
-                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-600 text-lg">
                   Amazing work! You've completed all tasks in this quest.
                 </p>
               </>
@@ -158,18 +158,18 @@ const QuestCompletionCelebration = ({
           {!isEmptyQuest && (
             <div className="grid grid-cols-2 gap-4 mb-8">
               <div className="bg-gradient-to-br from-optio-purple/10 to-optio-purple/5 rounded-2xl p-6 text-center">
-                <div className="text-3xl font-bold text-optio-purple mb-1" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-3xl font-bold text-optio-purple mb-1">
                   {completedTasksCount}
                 </div>
-                <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-sm text-gray-600 font-medium">
                   Tasks Completed
                 </div>
               </div>
               <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-400/5 rounded-2xl p-6 text-center">
-                <div className="text-3xl font-bold text-yellow-600 mb-1" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-3xl font-bold text-yellow-600 mb-1">
                   {totalXP}
                 </div>
-                <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-sm text-gray-600 font-medium">
                   XP Earned
                 </div>
               </div>
@@ -178,10 +178,10 @@ const QuestCompletionCelebration = ({
 
           {/* Question prompt */}
           <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 mb-6 border-2 border-optio-purple/20">
-            <p className="text-center text-lg font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-center text-lg font-semibold text-gray-800 mb-2">
               {isClassReady ? 'Ready to submit for credit?' : 'What would you like to do next?'}
             </p>
-            <p className="text-center text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-center text-gray-600 text-sm">
               {isClassReady
                 ? `An Optio teacher will review your work. If a task needs more evidence, they'll send it back with notes. Once it's approved, your ${subjectName} credit is added to your transcript.`
                 : isEmptyQuest
@@ -196,8 +196,7 @@ const QuestCompletionCelebration = ({
               <button
                 onClick={onSubmitForReview}
                 disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-60 disabled:hover:scale-100"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary btn-lg flex-1"
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
                 {submitting ? 'Submitting…' : 'Submit to Optio'}
@@ -205,8 +204,7 @@ const QuestCompletionCelebration = ({
               <button
                 onClick={onClose}
                 disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-60"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-quiet btn-lg flex-1"
               >
                 <PlusIcon className="w-5 h-5" />
                 Continue working
@@ -216,16 +214,14 @@ const QuestCompletionCelebration = ({
             <div className="flex gap-4">
               <button
                 onClick={handleAddMore}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary btn-lg flex-1"
               >
                 <PlusIcon className="w-5 h-5" />
                 {isEmptyQuest ? 'Add Tasks' : 'Add More Tasks'}
               </button>
               <button
                 onClick={handleFinishClick}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-quiet btn-lg flex-1"
               >
                 <CheckCircleIcon className="w-5 h-5" />
                 Finish Quest
@@ -239,7 +235,6 @@ const QuestCompletionCelebration = ({
               <button
                 onClick={() => navigate('/overview')}
                 className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
-                style={{ fontFamily: 'Poppins' }}
               >
                 <BookOpenIcon className="w-4 h-4" />
                 View on Diploma
@@ -257,10 +252,10 @@ const QuestCompletionCelebration = ({
               <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <img src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg" alt="Optio" className="w-16 h-16" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">
                 Finish This Quest?
               </h3>
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-600">
                 This will save your progress and return you to your dashboard. You can always view your completed work on your diploma page.
               </p>
             </div>
@@ -268,15 +263,13 @@ const QuestCompletionCelebration = ({
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDialog(false)}
-                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-quiet flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmFinish}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary flex-1"
               >
                 Finish Quest
               </button>

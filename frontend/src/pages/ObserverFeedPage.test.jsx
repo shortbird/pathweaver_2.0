@@ -30,6 +30,12 @@ vi.mock('../services/api', () => ({
   }
 }))
 
+// Welcome content is folded into the feed as its first-visit / no-students
+// state; mock it so its charts (radar, engagement calendar) stay out of here.
+vi.mock('./ObserverWelcomePage', () => ({
+  ObserverWelcomeContent: () => <div data-testid="observer-welcome-content" />
+}))
+
 // Mock FeedCard + ObserverTipsModal
 vi.mock('../components/observer', () => ({
   FeedCard: ({ item }) => (
@@ -72,6 +78,9 @@ const mockFeedItems = [
 describe('ObserverFeedPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: a returning visitor who has already dismissed the welcome.
+    // First-visit tests remove the key themselves.
+    localStorage.setItem('observerWelcomeSeen', 'true')
     authState = {
       user: { id: 'observer-1', role: 'observer' },
       logout: vi.fn()
@@ -169,6 +178,47 @@ describe('ObserverFeedPage', () => {
       await waitFor(() => {
         expect(screen.getByText('No Activity Yet')).toBeInTheDocument()
       })
+    })
+  })
+
+  // --- Welcome fold (routing sends all observers straight here now) ---
+  describe('welcome fold', () => {
+    it('shows the welcome content on first visit, above the feed', async () => {
+      localStorage.removeItem('observerWelcomeSeen')
+      renderObserverFeed()
+      await waitFor(() => {
+        expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('observer-welcome-content')).toBeInTheDocument()
+      expect(screen.getByText('Got it')).toBeInTheDocument()
+    })
+
+    it('does not show the welcome once dismissed (returning visitor)', async () => {
+      renderObserverFeed()
+      await waitFor(() => {
+        expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('observer-welcome-content')).not.toBeInTheDocument()
+    })
+
+    it('dismiss hides the welcome and sets observerWelcomeSeen', async () => {
+      localStorage.removeItem('observerWelcomeSeen')
+      renderObserverFeed()
+      await waitFor(() => {
+        expect(screen.getByTestId('observer-welcome-content')).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByText('Got it'))
+      expect(screen.queryByTestId('observer-welcome-content')).not.toBeInTheDocument()
+      expect(localStorage.getItem('observerWelcomeSeen')).toBe('true')
+    })
+
+    it('shows the welcome as the empty state when no students are linked, even if seen', async () => {
+      observerAPI.getMyStudents.mockResolvedValue({ data: { students: [] } })
+      renderObserverFeed()
+      await waitFor(() => {
+        expect(screen.getByText('No Students Linked Yet')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('observer-welcome-content')).toBeInTheDocument()
     })
   })
 

@@ -97,7 +97,7 @@ const RequestXpModal = ({
   if (!isOpen || !moment) return null;
 
   const renderHeader = (title, subtitle) => (
-    <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-5 rounded-t-xl">
+    <div className="bg-gradient-primary text-white p-5 rounded-t-xl">
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-xl font-bold mb-1">{title}</h2>
@@ -124,7 +124,7 @@ const RequestXpModal = ({
               <button
                 type="button"
                 onClick={handleChooseAttach}
-                className="w-full flex items-start gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-purple-50 text-left transition-all"
+                className="w-full flex items-start gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 text-left transition-all"
               >
                 <FlagIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                 <div>
@@ -141,7 +141,7 @@ const RequestXpModal = ({
                 type="button"
                 onClick={handleChooseEvolve}
                 disabled={topicAssignments.length === 0}
-                className="w-full flex items-start gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-purple-50 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-start gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <SparklesIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                 <div>
@@ -210,7 +210,7 @@ const RequestXpModal = ({
                       type="button"
                       onClick={() => handleAttachToQuest(quest)}
                       disabled={isAttaching}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-purple-50 text-left transition-all disabled:opacity-50"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 text-left transition-all disabled:opacity-50"
                     >
                       {quest.type === 'project' ? (
                         <AcademicCapIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
@@ -258,7 +258,7 @@ const RequestXpModal = ({
                       onEvolveTopic?.({ id: topic.id, name: topic.name });
                       onClose();
                     }}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-purple-50 text-left transition-all"
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 text-left transition-all"
                   >
                     <span
                       className="w-3 h-3 rounded-full flex-shrink-0"

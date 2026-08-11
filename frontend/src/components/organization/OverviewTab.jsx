@@ -80,7 +80,7 @@ function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
@@ -172,7 +172,7 @@ export default function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) 
 
   const getRoleBadgeClass = (role) => {
     switch (role) {
-      case 'org_admin': return 'bg-purple-100 text-purple-700'
+      case 'org_admin': return 'bg-optio-purple/10 text-optio-purple-dark'
       case 'advisor': return 'bg-blue-100 text-blue-700'
       case 'parent': return 'bg-green-100 text-green-700'
       case 'observer': return 'bg-yellow-100 text-yellow-700'

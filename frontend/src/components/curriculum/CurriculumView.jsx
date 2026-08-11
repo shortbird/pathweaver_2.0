@@ -38,11 +38,11 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+        <div className="bg-gradient-primary p-6 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AcademicCapIcon className="w-8 h-8" />
-              <h2 className="text-xl font-bold" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-xl font-bold">
                 Age Adaptations
               </h2>
             </div>
@@ -62,7 +62,7 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
         <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh]">
           {/* Younger learners */}
           <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-            <h3 className="font-semibold text-blue-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+            <h3 className="font-semibold text-blue-900 mb-3">
               Younger Learners
             </h3>
             <p className="text-blue-800 leading-relaxed">
@@ -71,11 +71,11 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
           </div>
 
           {/* Older learners */}
-          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
-            <h3 className="font-semibold text-purple-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+          <div className="bg-optio-purple/5 rounded-xl p-5 border border-optio-purple/10">
+            <h3 className="font-semibold text-optio-purple-dark mb-3">
               Older Learners
             </h3>
-            <p className="text-purple-800 leading-relaxed">
+            <p className="text-optio-purple-dark leading-relaxed">
               {scaffolding?.older || 'No specific adaptations provided for older learners.'}
             </p>
           </div>
@@ -85,7 +85,7 @@ const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           <button
             onClick={onClose}
-            className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
+            className="w-full py-3 bg-gradient-primary text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
           >
             Got it
           </button>
@@ -512,7 +512,7 @@ const CurriculumView = ({
                 <span>{completedCount} / {lessons.length}</span>
               </div>
               <div className="relative w-full h-4 bg-gray-200 rounded-full">
-                <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-optio-purple to-optio-pink transition-all duration-500 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
+                <div className="absolute inset-y-0 left-0 bg-gradient-primary transition-all duration-500 ease-out rounded-full" style={{ width: `${progressPercent}%` }} />
                 <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 bg-white border-optio-purple z-10" style={{ left: '0%', transform: 'translate(-50%, -50%)' }} />
                 {lessons.map((lesson, index) => {
                   const position = ((index + 1) / lessons.length) * 100
@@ -611,7 +611,7 @@ const CurriculumView = ({
               <div className="text-center text-gray-500 px-4">
                 <ClockIcon className="w-10 sm:w-12 h-10 sm:h-12 mx-auto mb-3 text-gray-400" />
                 <p className="text-base sm:text-lg font-medium">Select a lesson to view</p>
-                <button onClick={() => setIsSidebarOpen(true)} className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90">
+                <button onClick={() => setIsSidebarOpen(true)} className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90">
                   <Bars3Icon className="w-4 h-4" /> View Lessons
                 </button>
               </div>

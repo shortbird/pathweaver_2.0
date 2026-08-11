@@ -4,23 +4,23 @@ import { CheckCircleIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/out
 const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
   return (
     <div className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 p-6 flex flex-col h-full ${
-      isFeatured ? 'border-4 border-gradient-to-r from-[#6D469B] to-[#EF597B] bg-gradient-to-br from-purple-50 to-pink-50' : 'border border-gray-100'
+      isFeatured ? 'border-4 border-gradient-to-r from-optio-purple to-optio-pink bg-gradient-to-br from-optio-purple/5 to-optio-pink/5' : 'border border-gray-100'
     }`}>
 
       {/* Header */}
       <div className="mb-4">
-        <h3 className={`${isFeatured ? 'text-2xl' : 'text-xl'} font-bold text-gray-900 mb-2`} style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h3 className={`${isFeatured ? 'text-2xl' : 'text-xl'} font-bold text-gray-900 mb-2`}>
           {service.name}
         </h3>
         <div className="mb-3">
-          <span className={`${isFeatured ? 'text-4xl' : 'text-3xl'} font-bold bg-gradient-to-r from-[#6D469B] to-[#EF597B] bg-clip-text text-transparent`} style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+          <span className={`${isFeatured ? 'text-4xl' : 'text-3xl'} font-bold bg-gradient-primary bg-clip-text text-transparent`}>
             {service.price_display || service.price}
           </span>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-gray-600 mb-4 flex-grow" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+      <p className="font-medium text-gray-600 mb-4 flex-grow">
         {service.description}
       </p>
 
@@ -35,13 +35,12 @@ const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
               return (
                 <li key={index} className="flex items-start gap-2">
                   {isProBenefit ? (
-                    <StarIcon className="w-5 h-5 text-[#EF597B] flex-shrink-0 mt-0.5 fill-current" />
+                    <StarIcon className="w-5 h-5 text-optio-pink flex-shrink-0 mt-0.5 fill-current" />
                   ) : (
-                    <CheckCircleIcon className="w-5 h-5 text-[#6D469B] flex-shrink-0 mt-0.5" />
+                    <CheckCircleIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                   )}
                   <span
-                    className={`text-sm ${isProBenefit ? 'text-[#EF597B] font-semibold' : 'text-gray-700'}`}
-                    style={{ fontFamily: 'Poppins', fontWeight: isProBenefit ? 600 : 500 }}
+                    className={`text-sm ${isProBenefit ? 'text-optio-pink font-semibold' : 'text-gray-700 font-medium'}`}
                   >
                     {feature}
                   </span>
@@ -55,8 +54,7 @@ const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
       {/* CTA Button */}
       <button
         onClick={() => onInquire(service)}
-        className="w-full bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity duration-200 font-semibold"
-        style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+        className="w-full bg-gradient-primary text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity duration-200 font-semibold"
       >
         Learn More
       </button>

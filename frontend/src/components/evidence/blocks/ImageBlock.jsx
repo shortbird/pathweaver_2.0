@@ -99,10 +99,10 @@ const ImageBlock = ({ block, displayMode }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div>
-              <p className="font-semibold text-yellow-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="font-semibold text-yellow-900">
                 Image unavailable
               </p>
-              <p className="text-sm text-yellow-800 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-sm text-yellow-800 font-medium">
                 {filename || 'Unknown file'}
               </p>
             </div>
@@ -128,7 +128,7 @@ const ImageBlock = ({ block, displayMode }) => {
 
         {caption && (
           <div className="p-4 bg-gray-50 border-t border-gray-200">
-            <p className="text-sm text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm text-gray-700 font-medium">
               {caption}
             </p>
           </div>
@@ -233,17 +233,17 @@ const ImageBlock = ({ block, displayMode }) => {
             {(currentItem.caption || items.length > 1) && (
               <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center">
                 {currentItem.caption && (
-                  <p className="text-white font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <p className="text-white font-medium">
                     {currentItem.caption}
                   </p>
                 )}
                 {items.length > 1 && (
-                  <p className="text-white/70 text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <p className="text-white/70 text-sm mt-1">
                     {lightboxIndex + 1} / {items.length}
                   </p>
                 )}
                 {scale > 1 && (
-                  <p className="text-white/50 text-xs mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <p className="text-white/50 text-xs mt-1">
                     Double-tap to zoom out
                   </p>
                 )}

@@ -112,7 +112,7 @@ function AddParentConnectionModal({
                           <button
                             key={parent.id}
                             onClick={() => setSelectedParent(parent)}
-                            className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
+                            className="w-full text-left p-3 hover:bg-optio-purple/5 transition-colors"
                           >
                             <p className="font-medium text-gray-900">
                               {parent.first_name} {parent.last_name}
@@ -158,7 +158,7 @@ function AddParentConnectionModal({
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="parent@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
 
@@ -171,7 +171,7 @@ function AddParentConnectionModal({
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
                   placeholder="Jane Smith"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
 
@@ -201,7 +201,7 @@ function AddParentConnectionModal({
           <button
             onClick={handleAddConnection}
             disabled={!selectedParent || selectedStudentIds.length === 0 || addConnectionLoading}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addConnectionLoading ? 'Adding...' : `Add Connection${selectedStudentIds.length > 1 ? 's' : ''}`}
           </button>
@@ -209,7 +209,7 @@ function AddParentConnectionModal({
           <button
             onClick={handleInviteParent}
             disabled={!inviteEmail || selectedStudentIds.length === 0 || inviteLoading}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <EnvelopeIcon className="w-4 h-4" />
             {inviteLoading ? 'Sending...' : 'Send Invitation'}
@@ -238,13 +238,13 @@ function StudentSelectionList({ students, selectedStudentIds, toggleStudentSelec
               onClick={() => toggleStudentSelection(student.id)}
               className={`w-full text-left p-3 transition-colors flex items-center gap-3 ${
                 selectedStudentIds.includes(student.id)
-                  ? 'bg-purple-50 border-l-4 border-purple-500'
+                  ? 'bg-optio-purple/5 border-l-4 border-optio-purple'
                   : 'hover:bg-gray-50'
               }`}
             >
               <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                 selectedStudentIds.includes(student.id)
-                  ? 'bg-purple-600 border-purple-600'
+                  ? 'bg-optio-purple border-optio-purple'
                   : 'border-gray-300'
               }`}>
                 {selectedStudentIds.includes(student.id) && (

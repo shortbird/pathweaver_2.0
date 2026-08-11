@@ -328,7 +328,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto sm:flex-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+              className="w-full sm:w-auto sm:flex-1 bg-gradient-primary text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
             >
               {isSubmitting ? 'Saving...' : (isCreating ? 'Create Service' : 'Save Changes')}
             </button>

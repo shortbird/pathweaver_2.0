@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 const STATUS_STYLES = {
   not_started: { label: 'Not started', className: 'bg-gray-100 text-gray-600' },
-  in_progress: { label: 'In progress', className: 'bg-purple-100 text-optio-purple' },
+  in_progress: { label: 'In progress', className: 'bg-optio-purple/10 text-optio-purple' },
   completed: { label: 'Complete', className: 'bg-green-100 text-green-700' }
 };
 
@@ -42,7 +42,7 @@ const QuestRow = ({ quest, index, studentId, isDependent }) => {
     return (
       <Link
         to={`/parent/quest/${studentId}/${quest.quest_id}`}
-        className="block rounded-lg hover:bg-purple-50 transition-colors"
+        className="block rounded-lg hover:bg-optio-purple/5 transition-colors"
       >
         {row}
       </Link>

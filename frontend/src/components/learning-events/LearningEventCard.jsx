@@ -315,10 +315,10 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
             {links.slice(0, 2).map((block, idx) => (
               <div
                 key={`link-${idx}`}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-100 max-w-[200px]"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-optio-purple/5 rounded-lg border border-optio-purple/10 max-w-[200px]"
               >
-                <LinkIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                <span className="text-xs text-blue-700 truncate">
+                <LinkIcon className="w-3.5 h-3.5 text-optio-purple flex-shrink-0" />
+                <span className="text-xs text-optio-purple-dark truncate">
                   {block.content.title || new URL(block.content.url).hostname}
                 </span>
               </div>
@@ -371,7 +371,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-optio-purple/60 transition-all duration-200">
         {/* Clickable content area */}
         <div onClick={() => setShowDetailModal(true)} className="cursor-pointer">
           {hasEvidence && (
@@ -415,7 +415,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600"
                   >
                     {t.type === 'quest' ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gradient-primary flex-shrink-0" />
                     ) : (
                       <span
                         className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -461,7 +461,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                 className={`
                   inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50
                   ${xpState === 'unassigned'
-                    ? 'flex-1 text-optio-purple bg-purple-50 hover:bg-purple-100'
+                    ? 'flex-1 text-optio-purple bg-optio-purple/5 hover:bg-optio-purple/10'
                     : 'text-gray-600 bg-gray-50 hover:bg-gray-100'}
                 `}
                 title={xpState === 'unassigned' ? 'Add to a quest or topic' : 'Add to another quest or topic'}
@@ -537,8 +537,8 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
 
                     {topics.courses.length > 0 && (
                       <>
-                        <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
-                          <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Courses</span>
+                        <div className="px-3 py-2 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-b border-optio-purple/10">
+                          <span className="text-xs font-semibold text-optio-purple-dark uppercase tracking-wide">Courses</span>
                         </div>
                         {topics.courses.map((course) => {
                           const isExpanded = expandedCourses[course.id];
@@ -547,14 +547,14 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                               <button
                                 type="button"
                                 onClick={(e) => toggleCourseExpanded(e, course.id)}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors"
+                                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-optio-purple/5 transition-colors"
                               >
                                 {isExpanded ? (
                                   <ChevronDownIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                                 ) : (
                                   <ChevronRightIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                                 )}
-                                <AcademicCapIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                                <AcademicCapIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
                                 <span className="text-sm font-medium text-gray-900 truncate flex-1">{course.name}</span>
                                 <span className="text-xs text-gray-400">{course.projects?.length || 0}</span>
                               </button>
@@ -567,9 +567,9 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                                     openAddToQuest({ id: project.id, name: project.name });
                                   }}
                                   disabled={isAssigning}
-                                  className="w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
+                                  className="w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
                                 >
-                                  <FlagIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                                  <FlagIcon className="w-3.5 h-3.5 text-optio-purple-light flex-shrink-0" />
                                   <span className="text-sm text-gray-700 truncate flex-1">{project.name}</span>
                                 </button>
                               ))}
@@ -581,8 +581,8 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
 
                     {topics.quests.length > 0 && (
                       <>
-                        <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-100">
-                          <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Standalone Quests</span>
+                        <div className="px-3 py-2 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-y border-optio-purple/10">
+                          <span className="text-xs font-semibold text-optio-purple-dark uppercase tracking-wide">Standalone Quests</span>
                         </div>
                         {topics.quests.map((quest) => (
                           <button
@@ -598,11 +598,11 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                               });
                             }}
                             disabled={isAssigning}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
                           >
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                            <div className="w-3 h-3 rounded-full bg-gradient-primary flex-shrink-0" />
                             <span className="text-sm font-medium text-gray-900 truncate flex-1">{quest.name}</span>
-                            <FlagIcon className="w-3.5 h-3.5 text-purple-500" />
+                            <FlagIcon className="w-3.5 h-3.5 text-optio-purple" />
                           </button>
                         ))}
                       </>

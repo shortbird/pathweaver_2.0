@@ -14,8 +14,8 @@ const StatsCard = ({ stats }) => {
       icon: ChartBarIcon,
       label: 'Total XP',
       value: stats?.total_xp || 0,
-      color: 'bg-purple-50 text-optio-purple',
-      bgColor: 'bg-purple-100'
+      color: 'bg-optio-purple/5 text-optio-purple',
+      bgColor: 'bg-optio-purple/10'
     },
     {
       icon: TrophyIcon,
@@ -43,8 +43,8 @@ const StatsCard = ({ stats }) => {
       icon: CalendarDaysIcon,
       label: 'Best Task Streak',
       value: stats?.task_streak_best || 0,
-      color: 'bg-pink-50 text-optio-pink',
-      bgColor: 'bg-pink-100',
+      color: 'bg-optio-pink/5 text-optio-pink',
+      bgColor: 'bg-optio-pink/10',
       suffix: stats?.task_streak_best === 1 ? ' day' : ' days'
     },
     {

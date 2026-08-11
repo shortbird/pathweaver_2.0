@@ -392,9 +392,10 @@ class TestQuestRepository:
 
             # Chain the implementation actually builds for a user with no org:
             #   table('quests').select('*', count='exact').eq('is_active', True)
-            #     .or_(<global public OR own quests>).range(...).execute()
+            #     .or_(<global public OR own quests>)
+            #     .order('created_at', desc=True).range(...).execute()
             mock_admin.table.return_value.select.return_value.eq.return_value \
-                .or_.return_value.range.return_value.execute.return_value = mock_quests
+                .or_.return_value.order.return_value.range.return_value.execute.return_value = mock_quests
 
             mock_get_admin.return_value = mock_admin
 
@@ -428,7 +429,7 @@ class TestQuestRepository:
             # applied after the visibility .or_().
             mock_admin.table.return_value.select.return_value.eq.return_value \
                 .or_.return_value.eq.return_value.eq.return_value \
-                .range.return_value.execute.return_value = mock_quests
+                .order.return_value.range.return_value.execute.return_value = mock_quests
 
             mock_get_admin.return_value = mock_admin
 
@@ -440,6 +441,36 @@ class TestQuestRepository:
             assert result is not None
             assert len(result['quests']) == 1
             assert result['quests'][0]['pillar_primary'] == 'stem'
+
+    def test_get_quests_for_user_popular_sort(self):
+        """sort='popular' delegates ranking to the popularity paginator"""
+        repo = QuestRepository()
+        user_id = str(uuid.uuid4())
+        ranked = [
+            {'id': 'q-popular', 'title': 'Most Enrolled'},
+            {'id': 'q-newer', 'title': 'Newer Quest'},
+        ]
+
+        with patch('database.get_supabase_admin_client') as mock_get_admin, \
+             patch('utils.quest_popularity.paginate_quests_by_popularity') as mock_paginate:
+            mock_admin = Mock()
+            mock_user_rpc = Mock()
+            mock_user_rpc.data = [{'organization_id': None}]
+            mock_admin.rpc.return_value.execute.return_value = mock_user_rpc
+            mock_get_admin.return_value = mock_admin
+
+            mock_paginate.return_value = (ranked, 42)
+
+            result = repo.get_quests_for_user(user_id, page=2, limit=12, sort='popular')
+
+            assert result['quests'] == ranked
+            assert result['total'] == 42
+            assert result['page'] == 2
+            # The paginator receives (build_query, page, limit)
+            args = mock_paginate.call_args[0]
+            assert callable(args[0])
+            assert args[1] == 2
+            assert args[2] == 12
 
 
 @pytest.mark.unit

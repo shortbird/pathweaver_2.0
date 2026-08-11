@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { PageLoader } from '../../components/ui/Spinner';
 
 export default function OrganizationDashboard() {
   const [organizations, setOrganizations] = useState([]);
@@ -22,7 +23,7 @@ export default function OrganizationDashboard() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading organizations...</div>;
+    return <PageLoader label="Loading organizations" />;
   }
 
   return (
@@ -31,7 +32,7 @@ export default function OrganizationDashboard() {
         <h1 className="text-3xl font-bold">Organizations</h1>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg"
+          className="btn-primary"
         >
           Create Organization
         </button>
@@ -81,7 +82,7 @@ function OrganizationCard({ organization, onUpdate }) {
   };
 
   return (
-    <div className="border rounded-lg p-6 bg-white shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-xl font-bold">{organization.name}</h3>
@@ -112,7 +113,7 @@ function OrganizationCard({ organization, onUpdate }) {
         <div className="flex gap-2">
           <a
             href={`/admin/organizations/${organization.id}`}
-            className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
+            className="btn-quiet px-3 py-1.5"
           >
             Manage
           </a>
@@ -158,7 +159,7 @@ function CreateOrganizationModal({ onClose, onSuccess }) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full border rounded px-3 py-2"
+              className="input-field px-3 py-2"
               required
             />
           </div>
@@ -169,7 +170,7 @@ function CreateOrganizationModal({ onClose, onSuccess }) {
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
-              className="w-full border rounded px-3 py-2"
+              className="input-field px-3 py-2"
               pattern="[a-z0-9-]+"
               required
             />
@@ -181,7 +182,7 @@ function CreateOrganizationModal({ onClose, onSuccess }) {
             <select
               value={formData.quest_visibility_policy}
               onChange={(e) => setFormData({ ...formData, quest_visibility_policy: e.target.value })}
-              className="w-full border rounded px-3 py-2"
+              className="input-field px-3 py-2"
             >
               <option value="all_optio">All Optio Quests + Org Quests</option>
               <option value="curated">Curated Quests + Org Quests</option>
@@ -199,14 +200,14 @@ function CreateOrganizationModal({ onClose, onSuccess }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="btn-quiet"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded"
+              className="btn-primary"
             >
               {loading ? 'Creating...' : 'Create'}
             </button>

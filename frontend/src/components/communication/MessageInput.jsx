@@ -97,7 +97,7 @@ const MessageInput = ({
     <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white p-4">
       {/* Reply banner */}
       {replyTo && (
-        <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-purple-50 border-l-2 border-optio-purple rounded-lg">
+        <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-optio-purple/5 border-l-2 border-optio-purple rounded-lg">
           <p className="text-xs text-gray-600 truncate">
             Replying to{' '}
             <span className="font-semibold text-optio-purple">{replyTo.sender_name || 'Unknown'}</span>

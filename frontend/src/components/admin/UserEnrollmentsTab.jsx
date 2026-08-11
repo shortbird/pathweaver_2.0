@@ -135,7 +135,7 @@ const UserEnrollmentsTab = ({ user }) => {
         </p>
         <button
           onClick={() => { setShowAddForm(true); setSearchTerm(''); setSelectedCourseIds([]) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors"
         >
           <PlusIcon className="w-4 h-4" />
           Enroll in Course
@@ -250,7 +250,7 @@ const UserEnrollmentsTab = ({ user }) => {
                     key={course.id}
                     onClick={() => toggleCourseSelection(course.id)}
                     className={`w-full text-left p-2.5 transition-colors flex items-center gap-2.5 ${
-                      selectedCourseIds.includes(course.id) ? 'bg-purple-50' : 'hover:bg-gray-50'
+                      selectedCourseIds.includes(course.id) ? 'bg-optio-purple/5' : 'hover:bg-gray-50'
                     }`}
                   >
                     <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
@@ -284,7 +284,7 @@ const UserEnrollmentsTab = ({ user }) => {
             <button
               onClick={handleEnroll}
               disabled={selectedCourseIds.length === 0 || enrollLoading}
-              className="px-3 py-1.5 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm bg-gradient-primary text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {enrollLoading ? 'Enrolling...' : `Enroll (${selectedCourseIds.length})`}
             </button>

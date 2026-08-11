@@ -14,7 +14,7 @@ import {
 const PILLAR_COLORS = {
   knowledge: 'bg-blue-100 text-blue-700',
   skill: 'bg-green-100 text-green-700',
-  character: 'bg-purple-100 text-purple-700',
+  character: 'bg-optio-purple/10 text-optio-purple-dark',
   mindset: 'bg-orange-100 text-orange-700',
 }
 
@@ -100,7 +100,7 @@ const AllTasksModal = ({
     <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center">
       <div className="bg-white w-full h-full md:rounded-2xl md:max-w-[95vw] md:max-h-[95vh] md:w-[95vw] md:h-[95vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-optio-purple to-optio-pink p-4 text-white">
+        <div className="flex-shrink-0 bg-gradient-primary p-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <ClipboardDocumentListIcon className="w-6 h-6" />
@@ -237,7 +237,7 @@ const AllTasksModal = ({
           </p>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
           >
             Done
           </button>

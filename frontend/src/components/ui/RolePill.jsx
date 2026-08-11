@@ -29,7 +29,7 @@ export const RolePill = ({ role, label }) => {
 }
 
 export const PrimaryTag = () => (
-  <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white">
+  <span className="inline-flex items-center text-[11px] font-semibold rounded-full px-2 py-0.5 bg-gradient-primary text-white">
     Primary
   </span>
 )

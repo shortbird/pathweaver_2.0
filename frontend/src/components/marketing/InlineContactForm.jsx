@@ -41,10 +41,10 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
   return (
     <section id="get-info" className="py-16 sm:py-20 px-4 bg-gradient-to-br from-gray-900 to-gray-800 text-white scroll-mt-16">
       <div className="max-w-lg mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h2 className="text-3xl sm:text-4xl font-bold mb-3">
           {heading}
         </h2>
-        <p className="text-gray-300 mb-8 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+        <p className="text-gray-300 mb-8 text-lg font-medium">
           {subheading}
         </p>
 
@@ -55,13 +55,13 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>You're in!</h3>
-            <p className="text-gray-300" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>We'll be in touch soon with next steps.</p>
+            <h3 className="text-2xl font-bold mb-2">You're in!</h3>
+            <p className="text-gray-300 font-medium">We'll be in touch soon with next steps.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
             <div>
-              <label htmlFor={`${source}-name`} className="block text-sm font-medium text-gray-300 mb-1" style={{ fontFamily: 'Poppins' }}>
+              <label htmlFor={`${source}-name`} className="block text-sm font-medium text-gray-300 mb-1">
                 Your Name
               </label>
               <input
@@ -71,12 +71,11 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent"
-                style={{ fontFamily: 'Poppins' }}
                 placeholder="First and last name"
               />
             </div>
             <div>
-              <label htmlFor={`${source}-email`} className="block text-sm font-medium text-gray-300 mb-1" style={{ fontFamily: 'Poppins' }}>
+              <label htmlFor={`${source}-email`} className="block text-sm font-medium text-gray-300 mb-1">
                 Email
               </label>
               <input
@@ -86,13 +85,12 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent"
-                style={{ fontFamily: 'Poppins' }}
                 placeholder="you@email.com"
               />
             </div>
             {choices?.length > 0 && (
               <fieldset>
-                <legend className="block text-sm font-medium text-gray-300 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <legend className="block text-sm font-medium text-gray-300 mb-2">
                   {choicesLabel}
                 </legend>
                 <div className="space-y-2">
@@ -104,7 +102,6 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                           ? 'bg-white/20 border-optio-pink'
                           : 'bg-white/10 border-white/20 hover:bg-white/15'
                       }`}
-                      style={{ fontFamily: 'Poppins' }}
                     >
                       <input
                         type="radio"
@@ -113,7 +110,7 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                         value={choice}
                         checked={form.choice === choice}
                         onChange={() => setForm({ ...form, choice })}
-                        className="w-4 h-4 accent-[#ef597b] flex-shrink-0"
+                        className="w-4 h-4 accent-optio-pink flex-shrink-0"
                       />
                       <span className="text-white text-sm sm:text-base">{choice}</span>
                     </label>
@@ -122,7 +119,7 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
               </fieldset>
             )}
             <div>
-              <label htmlFor={`${source}-message`} className="block text-sm font-medium text-gray-300 mb-1" style={{ fontFamily: 'Poppins' }}>
+              <label htmlFor={`${source}-message`} className="block text-sm font-medium text-gray-300 mb-1">
                 Message <span className="text-gray-500">(optional)</span>
               </label>
               <textarea
@@ -131,24 +128,22 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
                 rows={3}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent resize-none"
-                style={{ fontFamily: 'Poppins' }}
                 placeholder={placeholder}
               />
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm" style={{ fontFamily: 'Poppins' }}>{error}</p>
+              <p className="text-red-400 text-sm">{error}</p>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-3 rounded-lg text-lg hover:opacity-90 transition-opacity disabled:opacity-50"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="btn-inverse btn-lg w-full"
             >
               {loading ? 'Sending...' : 'Get Started'}
             </button>
-            <p className="text-center text-gray-500 text-xs mt-2" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-center text-gray-500 text-xs mt-2">
               We'll email you back personally. No automated spam.
             </p>
           </form>

@@ -4,6 +4,7 @@ import { observerAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { FeedCard, ObserverTipsModal } from '../components/observer';
+import { ObserverWelcomeContent } from './ObserverWelcomePage';
 import {
   UsersIcon,
   SparklesIcon,
@@ -27,6 +28,17 @@ export default function ObserverFeedPage() {
   const [nextCursor, setNextCursor] = useState(null);
   const [tipsOpen, setTipsOpen] = useState(false);
   const isObserverRole = user?.role === 'observer';
+  // Routing now sends every observer straight here — there is no first-visit
+  // /observer/welcome fork anymore (2026-08-10). The welcome lives in this page
+  // instead: it renders until dismissed, and always while no students are
+  // linked, because an empty feed explains nothing on its own.
+  const [welcomeSeen, setWelcomeSeen] = useState(
+    () => Boolean(localStorage.getItem('observerWelcomeSeen'))
+  );
+  const dismissWelcome = () => {
+    localStorage.setItem('observerWelcomeSeen', 'true');
+    setWelcomeSeen(true);
+  };
 
   const observerRef = useRef(null);
   const loadMoreRef = useRef(null);
@@ -246,6 +258,14 @@ export default function ObserverFeedPage() {
             )}
           </div>
         </div>
+        {/* No linked students means an empty feed with nothing to explain
+            itself — so the welcome (how Optio works, what observers will see)
+            IS the empty state here, dismissed or not. */}
+        {isObserverRole && (
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            <ObserverWelcomeContent />
+          </div>
+        )}
         <ObserverTipsModal isOpen={tipsOpen} onClose={() => setTipsOpen(false)} />
       </>
     );
@@ -258,6 +278,30 @@ export default function ObserverFeedPage() {
   return (
     <div className="bg-gray-50 min-h-0">
       <div className="max-w-3xl mx-auto px-0 sm:px-6 py-4 sm:py-6">
+        {/* First-visit welcome, folded in from /observer/welcome. Shown above
+            the feed until dismissed; the route itself still exists for
+            bookmarks. */}
+        {isObserverRole && !welcomeSeen && (
+          <div className="mb-6 px-4 sm:px-0">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Welcome to Optio</h2>
+                <p className="text-sm text-gray-500">
+                  Here's how you can support and celebrate your student's learning journey.
+                </p>
+              </div>
+              <button
+                onClick={dismissWelcome}
+                className="btn-quiet flex-shrink-0"
+                aria-label="Dismiss welcome"
+              >
+                Got it
+              </button>
+            </div>
+            <ObserverWelcomeContent />
+          </div>
+        )}
+
         {/* Header with Student Filter Dropdown */}
         <div className="flex flex-col gap-3 mb-4 sm:mb-6 px-4 sm:px-0">
           {/* Student Filter Dropdown - Full width on mobile, first on mobile for quick access */}

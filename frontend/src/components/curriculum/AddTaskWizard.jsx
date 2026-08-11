@@ -314,7 +314,7 @@ export const AddTaskWizard = ({
               <button
                 onClick={handleCreateManualTask}
                 disabled={isSubmitting || !manualTask.title.trim()}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -385,7 +385,7 @@ export const AddTaskWizard = ({
               </button>
               <button
                 onClick={handleGenerate}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
               >
                 <SparklesIcon className="w-4 h-4" />
                 Generate Ideas

@@ -15,7 +15,7 @@ const CollapsibleSection = ({ title, icon, children, defaultOpen = true, id }) =
       >
         <div className="flex items-center gap-2">
           {icon}
-          <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+          <h2 className="text-xl font-bold text-gray-900">
             {title}
           </h2>
         </div>

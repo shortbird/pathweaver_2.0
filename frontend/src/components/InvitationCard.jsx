@@ -71,7 +71,7 @@ const InvitationCard = ({ invitation, onAccept, onDecline, isLoading }) => {
           <button
             onClick={() => onAccept(invitation.id)}
             disabled={isLoading}
-            className="flex-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-gradient-primary text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Processing...' : 'Accept Quest'}
           </button>

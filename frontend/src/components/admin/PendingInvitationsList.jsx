@@ -121,7 +121,7 @@ export default function PendingInvitationsList({ organizationId, onUpdate }) {
           </select>
           <button
             onClick={() => setShowInviteModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -174,7 +174,7 @@ export default function PendingInvitationsList({ organizationId, onUpdate }) {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                      invitation.role === 'org_admin' ? 'bg-purple-100 text-purple-700' :
+                      invitation.role === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple-dark' :
                       invitation.role === 'advisor' ? 'bg-blue-100 text-blue-700' :
                       invitation.role === 'parent' ? 'bg-green-100 text-green-700' :
                       'bg-gray-100 text-gray-700'

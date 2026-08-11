@@ -86,7 +86,7 @@ export default function OrgCoursesTab({ orgId, orgData }) {
           </div>
           <Link
             to="/enroll-students"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm whitespace-nowrap"
           >
             <UserPlusIcon className="w-4 h-4" />
             Register a Student
@@ -164,7 +164,7 @@ function CourseCard({ course, onEnroll }) {
         {/* Enroll Button */}
         <button
           onClick={onEnroll}
-          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
+          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
         >
           <UsersIcon className="w-4 h-4" />
           Manage Enrollments

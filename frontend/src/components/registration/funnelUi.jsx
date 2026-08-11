@@ -249,7 +249,7 @@ export const PasswordInput = ({ value, onChange, onKeyDown }) => {
 
 export const PrimaryButton = ({ onClick, disabled, children }) => (
   <button onClick={onClick} disabled={disabled}
-    className="w-full py-3 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90 disabled:opacity-50">
+    className="w-full py-3 rounded-full bg-gradient-primary text-white font-semibold hover:opacity-90 disabled:opacity-50">
     {children}
   </button>
 )

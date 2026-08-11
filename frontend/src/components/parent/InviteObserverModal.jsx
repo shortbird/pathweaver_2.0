@@ -137,7 +137,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
               type="button"
               onClick={handleGenerateLink}
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full"
             >
               <LinkIcon className="w-5 h-5 mr-2" />
               {isSubmitting ? 'Generating...' : 'Generate Invitation Link'}
@@ -159,7 +159,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="shrink-0 flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+                className="btn-quiet shrink-0"
               >
                 {copied ? (
                   <>

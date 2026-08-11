@@ -44,10 +44,10 @@ const AttachmentPreviewList = ({
 
           {/* File info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm font-medium text-gray-900 truncate">
               {att.filename}
             </p>
-            <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-xs text-gray-500">
               {formatFileSize(att.size)}
               {att.uploading && ' - Uploading...'}
               {att.uploaded && ' - Uploaded'}
@@ -82,10 +82,10 @@ const AttachmentPreviewList = ({
           </div>
 
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm font-medium text-gray-900 truncate">
               {link.url}
             </p>
-            <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-xs text-gray-500">
               Link
             </p>
           </div>

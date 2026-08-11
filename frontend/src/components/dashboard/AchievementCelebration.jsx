@@ -46,7 +46,7 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
         {confetti.map(particle => (
           <div
             key={particle.id}
-            className="absolute w-2 h-2 bg-gradient-to-br from-purple-500 to-pink-500"
+            className="absolute w-2 h-2 bg-gradient-primary"
             style={{
               left: `${particle.x}%`,
               animation: `fall ${particle.duration}s linear ${particle.delay}s infinite`,
@@ -58,7 +58,7 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
 
       {/* Celebration Card */}
       <div className="bg-white rounded-2xl shadow-2xl max-w-full sm:max-w-md mx-2 sm:mx-0 w-full overflow-hidden animate-scale">
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 sm:p-6 text-white text-center">
+        <div className="bg-gradient-primary p-4 sm:p-6 text-white text-center">
           <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">🎉</div>
           <h2 className="text-2xl sm:text-3xl font-bold mb-2">Congratulations!</h2>
           <p className="text-white/90 text-sm sm:text-base">You've achieved something amazing!</p>
@@ -76,13 +76,13 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
 
           {/* Achievement Stats */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <div className="bg-purple-50 rounded-lg p-3 text-center">
+            <div className="bg-optio-purple/5 rounded-lg p-3 text-center">
               <div className="text-xl sm:text-2xl font-bold text-optio-purple">
                 +{latestAchievement.xpEarned || 0}
               </div>
               <div className="text-xs text-gray-600">XP Earned</div>
             </div>
-            <div className="bg-pink-50 rounded-lg p-3 text-center">
+            <div className="bg-optio-pink/5 rounded-lg p-3 text-center">
               <div className="text-xl sm:text-2xl font-bold text-optio-pink">
                 {latestAchievement.tasksCompleted || 0}
               </div>

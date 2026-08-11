@@ -25,7 +25,7 @@ const StudentButton = ({ student, busy, onPick }) => (
   >
     {student.avatar_url
       ? <img src={student.avatar_url} alt="" className="w-24 h-24 rounded-full object-cover" />
-      : <div className="w-24 h-24 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white text-3xl font-bold">
+      : <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center text-white text-3xl font-bold">
           {(student.name || '?').charAt(0).toUpperCase()}
         </div>}
     <span className="text-lg font-bold text-neutral-900">{student.name}</span>
@@ -90,7 +90,7 @@ export default function TreehouseKioskPage() {
           {error && <p className="text-rose-600 text-sm mt-2">{error}</p>}
           <button
             onClick={() => loadRoster(entered)}
-            className="w-full mt-4 rounded-xl py-3 text-white font-semibold bg-gradient-to-r from-optio-purple to-optio-pink"
+            className="w-full mt-4 rounded-xl py-3 text-white font-semibold bg-gradient-primary"
           >
             Set up device
           </button>

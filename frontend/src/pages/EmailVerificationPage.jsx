@@ -56,10 +56,10 @@ const EmailVerificationPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-purple-100 mb-4">
+          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-optio-purple/10 mb-4">
             <svg className="h-12 w-12 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -103,14 +103,14 @@ const EmailVerificationPage = () => {
             <button
               onClick={handleResend}
               disabled={resending || resent}
-              className="font-medium text-optio-purple hover:text-purple-500 disabled:opacity-50"
+              className="font-medium text-optio-purple hover:text-optio-purple disabled:opacity-50"
             >
               {resending ? 'sending…' : resent ? 'code sent' : 'resend the code'}
             </button>
           </p>
           <div className="pt-4 border-t border-gray-200">
             <p className="text-sm text-gray-600">
-              <Link to="/login" className="font-medium text-optio-purple hover:text-purple-500">Back to Login</Link>
+              <Link to="/login" className="font-medium text-optio-purple hover:text-optio-purple">Back to Login</Link>
             </p>
           </div>
         </div>

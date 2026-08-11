@@ -16,7 +16,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
       name: 'In Flow',
       description: 'You have a consistent learning rhythm, engaging regularly.',
       color: 'text-optio-purple',
-      bgColor: 'bg-purple-50'
+      bgColor: 'bg-optio-purple/5'
     },
     {
       state: 'building',
@@ -65,17 +65,17 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
 
           {/* Header */}
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+            <h2 className="text-xl font-bold text-gray-900">
               Your Learning Rhythm
             </h2>
-            <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-600 mt-1">
               We track your engagement patterns, not completion percentages
             </p>
           </div>
 
           {/* Philosophy */}
           <div className="bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-700">
               <strong>The Process Is The Goal.</strong> Learning isn't about racing to finish.
               It's about finding a sustainable rhythm that works for you. Breaks are healthy
               and part of the journey.
@@ -84,7 +84,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
 
           {/* Rhythm states */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
               Rhythm States
             </h3>
             {rhythmStates.map((item) => {
@@ -102,7 +102,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`font-medium ${item.color}`} style={{ fontFamily: 'Poppins' }}>
+                      <span className={`font-medium ${item.color}`}>
                         {item.name}
                       </span>
                       {isCurrentState && (
@@ -111,7 +111,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins' }}>
+                    <p className="text-sm text-gray-600 mt-0.5">
                       {item.description}
                     </p>
                   </div>
@@ -122,7 +122,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
 
           {/* Footer */}
           <div className="mt-6 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-500 text-center" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-xs text-gray-500 text-center">
               Your journey calendar shows your activity pattern over time
             </p>
           </div>

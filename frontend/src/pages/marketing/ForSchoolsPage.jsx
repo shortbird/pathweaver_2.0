@@ -47,18 +47,17 @@ const ForSchoolsPage = () => {
           <img src={IMAGES.hero} alt="" className="w-full h-full object-cover" style={{ objectPosition: 'center 40%' }} />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/60 via-50% to-transparent" />
         </div>
-        <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
             Better Outcomes Through Student-Directed Learning
           </h1>
-          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md font-medium" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
             When students pursue their own interests, they show up differently. Stronger academics, better mental health, and skills that transfer to real life.
           </p>
           <a
             href="#get-info"
             onClick={() => trackCta('hero_get_info')}
-            className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-            style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+            className="btn-inverse btn-lg"
           >
             Get More Info
           </a>
@@ -70,10 +69,10 @@ const ForSchoolsPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Built For Every Kind of School
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Whether you run a 5-student microschool or a 500-student district program, Optio adapts to your model.
               </p>
             </div>
@@ -87,9 +86,9 @@ const ForSchoolsPage = () => {
             ].map((item, i) => (
               <RevealItem key={item.type} index={i}>
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 h-full">
-                  <p className="text-xs font-semibold text-optio-purple uppercase tracking-wider mb-2" style={{ fontFamily: 'Poppins' }}>{item.icon}</p>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.type}</h3>
-                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                  <p className="text-xs font-semibold text-optio-purple uppercase tracking-wider mb-2">{item.icon}</p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">{item.type}</h3>
+                  <p className="text-sm text-gray-500 font-medium">{item.desc}</p>
                 </div>
               </RevealItem>
             ))}
@@ -102,10 +101,10 @@ const ForSchoolsPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-14">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Why Student-Directed Learning Works
               </h2>
-              <p className="text-lg text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto font-medium">
                 When students have agency over what and how they learn, the results speak for themselves.
               </p>
             </div>
@@ -135,8 +134,8 @@ const ForSchoolsPage = () => {
                     <img src={item.img} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                   </div>
                   <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed font-medium">{item.desc}</p>
                   </div>
                 </div>
               </RevealItem>
@@ -146,15 +145,15 @@ const ForSchoolsPage = () => {
       </section>
 
       {/* ========== THE OPTIO PHILOSOPHY ========== */}
-      <section className="py-16 sm:py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+      <section className="py-16 sm:py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-14">
-              <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-3" style={{ fontFamily: 'Poppins' }}>The Optio Philosophy</p>
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-3">The Optio Philosophy</p>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
                 The Process Is The Goal
               </h2>
-              <p className="text-xl text-white/70 max-w-3xl mx-auto leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-xl text-white/70 max-w-3xl mx-auto leading-relaxed font-medium">
                 Learning is not about reaching a destination or impressing others. It's about who students become through the journey of discovery, creation, and growth.
               </p>
             </div>
@@ -180,9 +179,9 @@ const ForSchoolsPage = () => {
             ].map((item, i) => (
               <RevealItem key={item.title} index={i}>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10 h-full">
-                  <p className="text-xs font-semibold text-optio-pink uppercase tracking-wider mb-1" style={{ fontFamily: 'Poppins' }}>{item.subtitle}</p>
-                  <h3 className="text-xl font-bold text-white mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                  <p className="text-sm text-white/70 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                  <p className="text-xs font-semibold text-optio-pink uppercase tracking-wider mb-1">{item.subtitle}</p>
+                  <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
+                  <p className="text-sm text-white/70 leading-relaxed font-medium">{item.desc}</p>
                 </div>
               </RevealItem>
             ))}
@@ -190,17 +189,17 @@ const ForSchoolsPage = () => {
 
           <RevealSection>
             <div className="max-w-3xl mx-auto text-center">
-              <p className="text-white/60 text-sm leading-relaxed mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-white/60 text-sm leading-relaxed mb-6 font-medium">
                 These three pillars come from Self-Determination Theory, decades of research showing that intrinsic motivation flourishes when students have autonomy, feel competent, and connect personally with their learning. When all three align, motivation becomes self-sustaining.
               </p>
               <div className="grid sm:grid-cols-2 gap-4 text-left max-w-lg mx-auto">
                 <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <p className="text-xs text-white/40 mb-1" style={{ fontFamily: 'Poppins' }}>Traditional approach</p>
-                  <p className="text-sm text-white/50 line-through" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>"This will help you in the future"</p>
+                  <p className="text-xs text-white/40 mb-1">Traditional approach</p>
+                  <p className="text-sm text-white/50 line-through font-medium">"This will help you in the future"</p>
                 </div>
                 <div className="bg-white/5 rounded-lg p-4 border border-optio-pink/30">
-                  <p className="text-xs text-optio-pink mb-1" style={{ fontFamily: 'Poppins' }}>Optio approach</p>
-                  <p className="text-sm text-white" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>"This is helping you grow right now"</p>
+                  <p className="text-xs text-optio-pink mb-1">Optio approach</p>
+                  <p className="text-sm text-white font-medium">"This is helping you grow right now"</p>
                 </div>
               </div>
             </div>
@@ -213,7 +212,7 @@ const ForSchoolsPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-14">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 How Optio Works in Your School
               </h2>
             </div>
@@ -225,10 +224,10 @@ const ForSchoolsPage = () => {
               <img src={IMAGES.engagement} alt="Student showing creative work" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Interest-Driven Quests
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Students learn through personalized Quests built around their real interests. A music lover studies theory through their piano practice. A gamer learns programming by building a game. Learning becomes something they want to do.
               </p>
               <div className="space-y-3">
@@ -240,7 +239,7 @@ const ForSchoolsPage = () => {
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <CheckIcon />
-                    <p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p>
+                    <p className="text-gray-700 font-medium">{item}</p>
                   </div>
                 ))}
               </div>
@@ -250,10 +249,10 @@ const ForSchoolsPage = () => {
           {/* Feature 2: Student Management */}
           <div className="grid lg:grid-cols-2 gap-12 items-center mb-16 sm:mb-20">
             <RevealSection delay={200} className="order-2 lg:order-1">
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Program Management Made Simple
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Run your entire program from a single dashboard. Enroll students, assign advisors, track progress, and see engagement across your whole organization.
               </p>
               <div className="space-y-3">
@@ -266,7 +265,7 @@ const ForSchoolsPage = () => {
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <CheckIcon />
-                    <p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p>
+                    <p className="text-gray-700 font-medium">{item}</p>
                   </div>
                 ))}
               </div>
@@ -282,10 +281,10 @@ const ForSchoolsPage = () => {
               <img src={IMAGES.parent} alt="Family learning together" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Built-in Family Engagement
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Every family automatically gets a parent dashboard with a social media-style activity feed of their student's learning. Extended family can follow along as Observers and even post Bounties to encourage real-world learning.
               </p>
               <div className="space-y-3">
@@ -297,7 +296,7 @@ const ForSchoolsPage = () => {
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <CheckIcon />
-                    <p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p>
+                    <p className="text-gray-700 font-medium">{item}</p>
                   </div>
                 ))}
               </div>
@@ -310,10 +309,10 @@ const ForSchoolsPage = () => {
       <section ref={howRef} className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Getting Started Is Simple
             </h2>
-            <p className="text-lg text-gray-600 mb-12" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <p className="text-lg text-gray-600 mb-12 font-medium">
               You can be up and running in a day.
             </p>
           </RevealSection>
@@ -329,8 +328,8 @@ const ForSchoolsPage = () => {
                   <div className="aspect-square overflow-hidden rounded-xl mb-3 bg-gray-100">
                     <img src={item.img} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                  <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                  <h3 className="text-base font-bold text-gray-900 mb-1">{item.title}</h3>
+                  <p className="text-sm text-gray-600 font-medium">{item.desc}</p>
                 </div>
               </RevealItem>
             ))}
@@ -342,21 +341,20 @@ const ForSchoolsPage = () => {
       <section ref={pricingRef} className="py-16 sm:py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
-            <div className="bg-white rounded-2xl p-8 sm:p-10 border border-gray-200 shadow-lg text-center">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <div className="bg-white rounded-2xl p-8 sm:p-10 border border-gray-200 shadow-sm text-center">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Pricing That Scales With You
               </h2>
-              <p className="text-gray-600 mb-6 max-w-xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 max-w-xl mx-auto font-medium">
                 The platform is free to use for tracking and portfolios. Credential services are priced per student based on your program size. Contact us for a custom quote.
               </p>
               <a
                 href="#get-info"
                 onClick={() => trackCta('pricing_get_info')}
-                className="inline-flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-8 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary btn-lg"
               >
                 Get a Custom Quote
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </a>

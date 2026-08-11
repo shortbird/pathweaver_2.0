@@ -17,7 +17,7 @@ import ChecklistSignature from '../components/sis/ChecklistSignature'
  */
 
 const ITEM_BADGE = {
-  pending: 'bg-gray-100 text-neutral-600',
+  pending: 'bg-gray-100 text-gray-600',
   complete: 'bg-blue-100 text-blue-700',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
@@ -33,7 +33,7 @@ const questProgressLabel = (p) => {
 }
 
 const questProgressStyle = (p) => {
-  if (!p?.started) return 'bg-gray-100 text-neutral-500'
+  if (!p?.started) return 'bg-gray-100 text-gray-500'
   if (p.completed) return 'bg-green-100 text-green-700'
   return 'bg-amber-100 text-amber-800'
 }
@@ -108,13 +108,13 @@ const FamilyPortalPage = () => {
     }
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-8"><p className="text-neutral-500">Loading…</p></div>
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-8"><p className="text-gray-500">Loading…</p></div>
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
       <div className="flex items-center justify-between mb-1 gap-3">
-        <h1 className="text-2xl font-bold text-neutral-900">Your portal</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Your portal</h1>
         {orgs.length > 1 && (
           <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -122,14 +122,14 @@ const FamilyPortalPage = () => {
           </select>
         )}
       </div>
-      <p className="text-neutral-500 mb-6">Checklists shared with your family. Mark each step done as you finish it.</p>
+      <p className="text-gray-500 mb-6">Checklists shared with your family. Mark each step done as you finish it.</p>
 
       {/* Quests the school set for families — back to school night and the like.
           Yours, on your own account: this is not your child's work. */}
       {quests.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-1">Quests from your school</h2>
-          <p className="text-sm text-neutral-500 mb-3">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Quests from your school</h2>
+          <p className="text-sm text-gray-500 mb-3">
             These are yours to do. Open one to start it, and your progress shows up here.
           </p>
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
@@ -140,7 +140,7 @@ const FamilyPortalPage = () => {
                   : <AcademicCapIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-neutral-900">{q.title}</span>
+                    <span className="font-semibold text-gray-900">{q.title}</span>
                     {q.is_required && (
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
                         Required
@@ -150,7 +150,7 @@ const FamilyPortalPage = () => {
                       {questProgressLabel(q.progress)}
                     </span>
                   </div>
-                  {q.description && <p className="text-sm text-neutral-500 mt-0.5 line-clamp-2">{q.description}</p>}
+                  {q.description && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{q.description}</p>}
                   <Link to={`/quests/${q.quest_id}`}
                     className="inline-block text-sm text-optio-purple hover:underline mt-1">
                     {q.progress?.started ? 'Continue' : 'Start this quest'}
@@ -163,14 +163,14 @@ const FamilyPortalPage = () => {
       )}
 
       {!assignments.length ? (
-        !quests.length && <p className="text-neutral-400">Nothing to complete right now.</p>
+        !quests.length && <p className="text-gray-400">Nothing to complete right now.</p>
       ) : (
         <div className="space-y-4">
           {assignments.map((a) => (
             <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-neutral-900">{a.template_name || 'Checklist'}</h2>
-                <span className="text-sm text-neutral-500">{a.done_count}/{a.total_count} complete</span>
+                <h2 className="font-semibold text-gray-900">{a.template_name || 'Checklist'}</h2>
+                <span className="text-sm text-gray-500">{a.done_count}/{a.total_count} complete</span>
               </div>
               <ul className="divide-y divide-gray-100">
                 {(a.items || []).map((item) => {
@@ -182,19 +182,19 @@ const FamilyPortalPage = () => {
                       <input type="checkbox" checked={done}
                         disabled={busy || item.status === 'approved' || item.needs_signature}
                         onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
-                        className="mt-1 h-4 w-4 accent-purple-700" />
+                        className="mt-1 h-4 w-4 accent-optio-purple" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-sm font-medium ${done ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
+                          <span className={`text-sm font-medium ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                             {item.title}
                           </span>
-                          {!item.required && <span className="text-xs text-neutral-400">optional</span>}
-                          {item.due_date && <span className="text-xs text-neutral-400">due {item.due_date}</span>}
+                          {!item.required && <span className="text-xs text-gray-400">optional</span>}
+                          {item.due_date && <span className="text-xs text-gray-400">due {item.due_date}</span>}
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${ITEM_BADGE[item.status] || ITEM_BADGE.pending}`}>
                             {item.status || 'pending'}
                           </span>
                         </div>
-                        {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
+                        {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
                         {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
                         {item.needs_signature && (
                           <ChecklistSignature

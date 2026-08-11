@@ -29,7 +29,7 @@ const EVIDENCE_COLORS = {
   text: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
   image: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
   video: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
-  link: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+  link: { bg: 'bg-optio-purple/5', border: 'border-optio-purple/20', text: 'text-optio-purple-dark' },
   document: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' }
 };
 
@@ -173,7 +173,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
   // Render text evidence
   const renderText = () => (
     <div className="prose prose-sm max-w-none">
-      <p className="text-gray-700 whitespace-pre-wrap" style={{ fontFamily: 'Poppins' }}>
+      <p className="text-gray-700 whitespace-pre-wrap">
         {block.content?.text || 'No text content'}
       </p>
     </div>
@@ -246,7 +246,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               className="flex-1 flex items-center gap-3 p-3 bg-orange-50/50 rounded-lg border border-orange-100 hover:border-orange-300 transition-colors"
             >
               <VideoCameraIcon className="w-5 h-5 text-orange-500 flex-shrink-0" />
-              <span className="flex-1 text-sm text-gray-700 truncate" style={{ fontFamily: 'Poppins' }}>
+              <span className="flex-1 text-sm text-gray-700 truncate">
                 {item.title || item.url}
               </span>
               <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400" />
@@ -278,11 +278,11 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               href={item.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 block p-3 bg-purple-50/50 rounded-lg border border-purple-100 hover:border-purple-300 transition-colors"
+              className="flex-1 block p-3 bg-optio-purple/5 rounded-lg border border-optio-purple/10 hover:border-optio-purple/30 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <LinkIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                <span className="font-medium text-sm text-gray-800" style={{ fontFamily: 'Poppins' }}>
+                <LinkIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
+                <span className="font-medium text-sm text-gray-800">
                   {item.title || 'Untitled link'}
                 </span>
                 <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400 ml-auto" />
@@ -290,7 +290,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               {item.description && (
                 <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>
               )}
-              <p className="text-xs text-purple-500 mt-1 truncate">{item.url}</p>
+              <p className="text-xs text-optio-purple mt-1 truncate">{item.url}</p>
             </a>
             {onDeleteItem && (
               <button
@@ -324,7 +324,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               >
                 <DocumentIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-gray-700 truncate" style={{ fontFamily: 'Poppins' }}>
+                  <span className="block text-sm font-medium text-gray-700 truncate">
                     {item.title || item.filename || 'Document'}
                   </span>
                   {item.filename && item.title !== item.filename && (
@@ -344,7 +344,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               )}
             </div>
             {item.description && (
-              <p className="mt-2 ml-8 text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              <p className="mt-2 ml-8 text-sm text-gray-600">
                 {item.description}
               </p>
             )}
@@ -370,7 +370,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
             </button>
           )}
           <Icon className={`w-5 h-5 ${colors.text}`} />
-          <span className={`text-sm font-medium ${colors.text}`} style={{ fontFamily: 'Poppins' }}>
+          <span className={`text-sm font-medium ${colors.text}`}>
             {blockType.charAt(0).toUpperCase() + blockType.slice(1)}
             {blockType !== 'text' && items.length > 0 && ` (${items.length})`}
           </span>
@@ -475,7 +475,7 @@ const EvidenceDisplay = ({
     return (
       <div className="text-center py-8 text-gray-400">
         <DocumentTextIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p className="text-sm" style={{ fontFamily: 'Poppins' }}>{emptyMessage}</p>
+        <p className="text-sm">{emptyMessage}</p>
       </div>
     );
   }

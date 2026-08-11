@@ -240,7 +240,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
   // Render type selection
   const renderTypeSelection = () => (
     <div className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">
         What type of evidence?
       </h3>
       <div className="grid grid-cols-2 gap-3">
@@ -251,7 +251,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
             className="flex flex-col items-center p-4 border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:bg-optio-purple/5 transition-all group min-h-[44px]"
           >
             <type.Icon className="w-8 h-8 text-gray-400 group-hover:text-optio-purple mb-2" />
-            <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple" style={{ fontFamily: 'Poppins' }}>
+            <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple">
               {type.label}
             </span>
             <span className="text-xs text-gray-500 mt-1 text-center">
@@ -274,7 +274,6 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         })}
         className="w-full h-48 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none min-h-[120px]"
         placeholder="Share your thoughts, process, or reflections..."
-        style={{ fontFamily: 'Poppins' }}
       />
       <div className="text-xs text-gray-500 text-right">
         {(currentItem?.content.text || '').length} characters
@@ -322,7 +321,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
         <PhotoIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
-        <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
+        <p className="font-medium text-gray-700">
           Click to upload images
         </p>
         <p className="text-sm text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
@@ -427,7 +426,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
         <PhotoIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
-        <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
+        <p className="font-medium text-gray-700">
           Click to upload photos or videos
         </p>
         <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
@@ -479,7 +478,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
       >
         <PlusIcon className="w-5 h-5" />
-        <span className="font-medium" style={{ fontFamily: 'Poppins' }}>Add link</span>
+        <span className="font-medium">Add link</span>
       </button>
     </div>
   );
@@ -525,7 +524,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
         <DocumentIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
-        <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
+        <p className="font-medium text-gray-700">
           Click to upload documents
         </p>
         <p className="text-sm text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
@@ -536,7 +535,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
       >
         <CameraIcon className="w-5 h-5" />
-        <span className="font-medium" style={{ fontFamily: 'Poppins' }}>Scan with camera</span>
+        <span className="font-medium">Scan with camera</span>
       </button>
 
       {showScanner && (
@@ -579,7 +578,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+          <h3 className="text-lg font-semibold text-gray-900">
             Add {EVIDENCE_TYPES.find(t => t.id === selectedType)?.label}
           </h3>
         </div>
@@ -594,7 +593,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         {/* Added items preview */}
         {evidenceItems.length > 0 && (
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <h4 className="text-sm font-medium text-gray-700 mb-3" style={{ fontFamily: 'Poppins' }}>
+            <h4 className="text-sm font-medium text-gray-700 mb-3">
               Added evidence ({evidenceItems.length})
             </h4>
             <div className="flex flex-wrap gap-2">
@@ -634,7 +633,6 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
             onClick={handleAddAnother}
             disabled={!isCurrentItemValid()}
             className="px-4 py-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] w-full sm:w-auto"
-            style={{ fontFamily: 'Poppins' }}
           >
             <PlusIcon className="w-4 h-4" />
             Add Another
@@ -649,15 +647,13 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
               onCancel();
             }}
             className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors min-h-[44px] w-full sm:w-auto"
-            style={{ fontFamily: 'Poppins' }}
           >
             Cancel
           </button>
           <button
             onClick={handleSaveAll}
             disabled={isEditMode ? !isCurrentItemValid() : (evidenceItems.length === 0 && !isCurrentItemValid())}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] w-full sm:w-auto"
-            style={{ fontFamily: 'Poppins' }}
+            className="btn-primary min-h-[44px] w-full sm:w-auto"
           >
             <CheckIcon className="w-4 h-4" />
             {isEditMode ? 'Update Evidence' : 'Save Evidence'}

@@ -132,7 +132,7 @@ const CourseImport = ({ organizationId = null }) => {
           <div
             className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
               dragActive
-                ? 'border-optio-purple bg-purple-50'
+                ? 'border-optio-purple bg-optio-purple/5'
                 : 'border-gray-300 hover:border-gray-400'
             }`}
             onDragEnter={handleDrag}
@@ -172,7 +172,7 @@ const CourseImport = ({ organizationId = null }) => {
 
               <label
                 htmlFor="file-upload"
-                className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
+                className="px-6 py-3 bg-gradient-primary text-white rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
               >
                 Select File
               </label>
@@ -203,7 +203,7 @@ const CourseImport = ({ organizationId = null }) => {
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-8 py-3 bg-gradient-primary text-white rounded-lg font-medium hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploading ? 'Parsing...' : 'Parse & Preview'}
               </button>
@@ -236,9 +236,9 @@ const CourseImport = ({ organizationId = null }) => {
                   {previewData.stats.total_modules}
                 </p>
               </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <p className="text-sm text-purple-600 font-medium">File Size</p>
-                <p className="text-3xl font-bold text-purple-900">
+              <div className="bg-optio-purple/5 p-4 rounded-lg">
+                <p className="text-sm text-optio-purple font-medium">File Size</p>
+                <p className="text-3xl font-bold text-optio-purple-dark">
                   {previewData.upload_info.file_size_mb} MB
                 </p>
               </div>

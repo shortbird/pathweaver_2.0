@@ -141,8 +141,8 @@ const ObserverAuditLog = () => {
       'view_portfolio': 'bg-blue-100 text-blue-800',
       'view_quest': 'bg-green-100 text-green-800',
       'view_task': 'bg-yellow-100 text-yellow-800',
-      'view_comments': 'bg-purple-100 text-purple-800',
-      'post_comment': 'bg-pink-100 text-pink-800'
+      'view_comments': 'bg-optio-purple/10 text-optio-purple',
+      'post_comment': 'bg-optio-pink/10 text-optio-pink-dark'
     }
     return types[actionType] || 'bg-gray-100 text-gray-800'
   }
@@ -150,7 +150,7 @@ const ObserverAuditLog = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h2 className="text-2xl font-bold text-gray-900">Observer Access Audit Log</h2>
           <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ const ObserverAuditLog = () => {
             {/* Filter Toggle */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="min-h-[44px] px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              className="min-h-[44px] px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-optio-purple-dark transition-colors flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -209,13 +209,13 @@ const ObserverAuditLog = () => {
               <div className="text-sm text-green-600 font-medium">Unique Observers</div>
               <div className="text-2xl font-bold text-green-900">{statistics.unique_observers}</div>
             </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="text-sm text-purple-600 font-medium">Unique Students</div>
-              <div className="text-2xl font-bold text-purple-900">{statistics.unique_students}</div>
+            <div className="bg-optio-purple/5 rounded-lg p-4">
+              <div className="text-sm text-optio-purple font-medium">Unique Students</div>
+              <div className="text-2xl font-bold text-optio-purple-dark">{statistics.unique_students}</div>
             </div>
-            <div className="bg-pink-50 rounded-lg p-4">
-              <div className="text-sm text-pink-600 font-medium">Most Common Action</div>
-              <div className="text-lg font-bold text-pink-900">
+            <div className="bg-optio-pink/5 rounded-lg p-4">
+              <div className="text-sm text-optio-pink-dark font-medium">Most Common Action</div>
+              <div className="text-lg font-bold text-optio-pink-dark">
                 {statistics.action_breakdown && Object.keys(statistics.action_breakdown).length > 0
                   ? Object.entries(statistics.action_breakdown).reduce((a, b) => a[1] > b[1] ? a : b)[0].replace(/_/g, ' ')
                   : 'N/A'}
@@ -285,13 +285,13 @@ const ObserverAuditLog = () => {
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 onClick={applyFilters}
-                className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="btn-primary w-full sm:w-auto min-h-[44px]"
               >
                 Apply Filters
               </button>
               <button
                 onClick={clearFilters}
-                className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                className="btn-quiet w-full sm:w-auto min-h-[44px]"
               >
                 Clear Filters
               </button>
@@ -301,7 +301,7 @@ const ObserverAuditLog = () => {
       </div>
 
       {/* Audit Logs */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Mobile Card View */}
         {viewMode === 'cards' && (
           <div className="divide-y divide-gray-100">

@@ -3,12 +3,12 @@ import { CheckCircleIcon, PlayIcon } from '@heroicons/react/24/solid';
 
 // Topic color mapping
 const TOPIC_COLORS = {
-  Creative: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
+  Creative: { bg: 'bg-optio-purple/10', text: 'text-optio-purple', border: 'border-optio-purple/20' },
   Science: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
   Building: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
   Nature: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
   Business: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' },
-  Personal: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' },
+  Personal: { bg: 'bg-optio-pink/10', text: 'text-optio-pink', border: 'border-optio-pink/20' },
   Academic: { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200' },
   Food: { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
   Games: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200' }
@@ -34,7 +34,8 @@ const QuestCard = ({ quest, onClick }) => {
     topics = [],
     user_enrollment,
     completed_enrollment,
-    quest_type
+    quest_type,
+    student_created
   } = quest;
 
   // Determine quest status
@@ -74,6 +75,13 @@ const QuestCard = ({ quest, onClick }) => {
 
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+        {/* Student-created badge (creator is a student, or manually flagged) */}
+        {student_created && (
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-optio-purple text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">
+            Student-created
+          </div>
+        )}
 
         {/* Status badge */}
         {isStarted && (
@@ -136,7 +144,7 @@ const QuestCard = ({ quest, onClick }) => {
               ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               : isInProgress
               ? 'bg-optio-purple/10 text-optio-purple hover:bg-optio-purple/20'
-              : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+              : 'bg-gradient-primary text-white hover:opacity-90'
           }`}
         >
           {isCompleted ? 'View Quest' : isInProgress ? 'Continue Quest' : 'Explore Quest'}

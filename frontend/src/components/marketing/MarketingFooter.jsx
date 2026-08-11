@@ -10,7 +10,6 @@ const FooterLink = ({ to, children, section }) => (
     to={to}
     onClick={() => captureEvent('marketing_footer_link_click', { link: children, section, path: to })}
     className="text-gray-400 hover:text-white transition-colors text-sm"
-    style={{ fontFamily: 'Poppins' }}
   >
     {children}
   </Link>
@@ -30,7 +29,6 @@ const MarketingFooter = () => {
             />
             <p
               className="text-gray-400 text-sm leading-relaxed"
-              style={{ fontFamily: 'Poppins' }}
             >
               Where self-directed learning meets official credentials.
             </p>
@@ -40,7 +38,6 @@ const MarketingFooter = () => {
           <div>
             <h4
               className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4"
-              style={{ fontFamily: 'Poppins' }}
             >
               For Learners
             </h4>
@@ -55,7 +52,6 @@ const MarketingFooter = () => {
           <div>
             <h4
               className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4"
-              style={{ fontFamily: 'Poppins' }}
             >
               Platform
             </h4>
@@ -71,7 +67,6 @@ const MarketingFooter = () => {
           <div>
             <h4
               className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4"
-              style={{ fontFamily: 'Poppins' }}
             >
               Company
             </h4>
@@ -91,13 +86,11 @@ const MarketingFooter = () => {
         <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p
             className="text-gray-500 text-sm"
-            style={{ fontFamily: 'Poppins' }}
           >
             &copy; {new Date().getFullYear()} Optio. All rights reserved.
           </p>
           <p
             className="text-gray-500 text-sm"
-            style={{ fontFamily: 'Poppins' }}
           >
             Optio Academy is accredited by ACS WASC
           </p>

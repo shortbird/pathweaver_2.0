@@ -40,7 +40,7 @@ const LearningRecommendations = ({ userSkills, recentActivity }) => {
       icon: '🎯',
       action: 'Find Quests',
       link: `/quests?pillar=${weakestSkill || 'all'}`,
-      color: 'from-purple-500 to-pink-500'
+      color: 'from-optio-purple to-optio-pink'
     },
     {
       type: 'collaboration',
@@ -66,7 +66,7 @@ const LearningRecommendations = ({ userSkills, recentActivity }) => {
     <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4 sm:mb-6">
         <h2 className="text-lg sm:text-xl font-bold text-gray-900">Recommended for You</h2>
-        <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold">
+        <span className="text-xs bg-optio-purple/10 text-optio-purple px-3 py-1 rounded-full font-semibold">
           PERSONALIZED
         </span>
       </div>
@@ -96,9 +96,9 @@ const LearningRecommendations = ({ userSkills, recentActivity }) => {
       </div>
       
       {/* AI Insights (Future Feature Placeholder) */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+      <div className="mt-6 p-4 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg border border-optio-purple/20">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm">
+          <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-white text-sm">
             AI
           </div>
           <div className="flex-1">

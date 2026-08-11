@@ -70,10 +70,10 @@ const AIMetricsTab = () => {
       {/* Header with Date Range Filter */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h2 className="text-2xl font-bold text-gray-900">
             AI Metrics & Analytics
           </h2>
-          <p className="text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-600 mt-1">
             Track performance trends and insights over time
           </p>
         </div>
@@ -83,7 +83,6 @@ const AIMetricsTab = () => {
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
             className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
@@ -97,7 +96,7 @@ const AIMetricsTab = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Quality Trends Line Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
             Quality Score Trends
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -105,21 +104,20 @@ const AIMetricsTab = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
               />
               <YAxis
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
                 domain={[0, 100]}
               />
               <Tooltip
                 contentStyle={{
-                  fontFamily: 'Poppins, sans-serif',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb'
                 }}
               />
               <Legend
-                wrapperStyle={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                wrapperStyle={{ fontSize: '12px' }}
               />
               <Line
                 type="monotone"
@@ -136,7 +134,7 @@ const AIMetricsTab = () => {
 
         {/* Approval Rate Line Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
             Approval Rate Trends
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -144,21 +142,20 @@ const AIMetricsTab = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
               />
               <YAxis
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
                 domain={[0, 100]}
               />
               <Tooltip
                 contentStyle={{
-                  fontFamily: 'Poppins, sans-serif',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb'
                 }}
               />
               <Legend
-                wrapperStyle={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                wrapperStyle={{ fontSize: '12px' }}
               />
               <Line
                 type="monotone"
@@ -175,7 +172,7 @@ const AIMetricsTab = () => {
 
         {/* Generation Volume Bar Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
             Generation Volume
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -183,20 +180,19 @@ const AIMetricsTab = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
               />
               <YAxis
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
               />
               <Tooltip
                 contentStyle={{
-                  fontFamily: 'Poppins, sans-serif',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb'
                 }}
               />
               <Legend
-                wrapperStyle={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                wrapperStyle={{ fontSize: '12px' }}
               />
               <Bar
                 dataKey="count"
@@ -216,7 +212,7 @@ const AIMetricsTab = () => {
 
         {/* Performance Radar Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
             Performance Overview
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -224,12 +220,12 @@ const AIMetricsTab = () => {
               <PolarGrid stroke="#e5e7eb" />
               <PolarAngleAxis
                 dataKey="category"
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '12px' }}
+                style={{ fontSize: '12px' }}
               />
               <PolarRadiusAxis
                 angle={90}
                 domain={[0, 100]}
-                style={{ fontFamily: 'Poppins, sans-serif', fontSize: '10px' }}
+                style={{ fontSize: '10px' }}
               />
               <Radar
                 name="Performance"
@@ -240,7 +236,6 @@ const AIMetricsTab = () => {
               />
               <Tooltip
                 contentStyle={{
-                  fontFamily: 'Poppins, sans-serif',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb'
                 }}
@@ -253,7 +248,7 @@ const AIMetricsTab = () => {
       {/* Metrics Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h3 className="text-lg font-bold text-gray-900">
             Detailed Metrics
           </h3>
         </div>
@@ -261,19 +256,19 @@ const AIMetricsTab = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Metric
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Current Value
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Previous Period
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Change
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trend
                 </th>
               </tr>
@@ -289,7 +284,7 @@ const AIMetricsTab = () => {
 
       {/* Insights Panel */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h3 className="text-lg font-bold text-gray-900 mb-4">
           Key Insights
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -310,22 +305,22 @@ const MetricRow = ({ metric }) => {
 
   return (
     <tr>
-      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
         {metric.name}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
         {metric.current}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {metric.previous}
       </td>
-      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${changeColor}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${changeColor}`}>
         {isPositive ? '+' : ''}{metric.change}%
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center gap-1">
           <TrendIcon className={`w-4 h-4 ${changeColor}`} />
-          <span className={`text-xs font-medium ${changeColor}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <span className={`text-xs font-medium ${changeColor}`}>
             {metric.trend}
           </span>
         </div>
@@ -360,10 +355,10 @@ const InsightCard = ({ insight }) => {
           {insight.type === 'danger' && <ArrowTrendingDownIcon className="w-5 h-5" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-sm font-medium">
             {insight.title}
           </p>
-          <p className="text-xs mt-1 opacity-80" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-xs mt-1 opacity-80">
             {insight.description}
           </p>
         </div>

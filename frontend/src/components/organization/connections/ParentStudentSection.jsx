@@ -25,7 +25,7 @@ function ParentStudentSection({
         </div>
         <button
           onClick={() => setShowAddConnectionModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium"
         >
           <UserPlusIcon className="w-5 h-5" />
           Add Connection

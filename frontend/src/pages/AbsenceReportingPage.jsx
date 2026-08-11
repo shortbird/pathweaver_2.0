@@ -102,14 +102,14 @@ const AbsenceReportingPage = () => {
   )
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-neutral-500">Loading…</div>
+    return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-500">Loading…</div>
   }
 
   if (!orgs.length) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-neutral-900 mb-2">Report an absence</h1>
-        <p className="text-neutral-500">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Report an absence</h1>
+        <p className="text-gray-500">
           Absence reporting isn’t available for your family yet. If your school uses Optio to
           manage attendance, ask them to add your family.
         </p>
@@ -120,14 +120,14 @@ const AbsenceReportingPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Report an absence</h1>
-      <p className="text-neutral-500 mb-6">Let {org?.organization_name || 'your school'} know ahead of time when your child will be out.</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Report an absence</h1>
+      <p className="text-gray-500 mb-6">Let {org?.organization_name || 'your school'} know ahead of time when your child will be out.</p>
 
       {/* Child / org pickers */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-end gap-3">
         {orgs.length > 1 && (
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">School</span>
+            <span className="block text-gray-500 mb-1">School</span>
             <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple">
               {orgs.map((o) => <option key={o.organization_id} value={o.organization_id}>{o.organization_name || 'School'}</option>)}
@@ -135,7 +135,7 @@ const AbsenceReportingPage = () => {
           </label>
         )}
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Child</span>
+          <span className="block text-gray-500 mb-1">Child</span>
           <select value={studentId} onChange={(e) => setStudentId(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple">
             {students.map((s) => <option key={s.student_id} value={s.student_id}>{s.name}</option>)}
@@ -145,16 +145,16 @@ const AbsenceReportingPage = () => {
 
       {/* New absence */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-        <h2 className="font-semibold text-neutral-900 mb-3">New absence</h2>
+        <h2 className="font-semibold text-gray-900 mb-3">New absence</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">Date</span>
+            <span className="block text-gray-500 mb-1">Date</span>
             <input type="date" min={today()} value={form.absence_date}
               onChange={(e) => setForm({ ...form, absence_date: e.target.value })}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
           </label>
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">What are they missing?</span>
+            <span className="block text-gray-500 mb-1">What are they missing?</span>
             <select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple">
               <option value="">The whole day</option>
@@ -162,29 +162,29 @@ const AbsenceReportingPage = () => {
             </select>
           </label>
           <label className="text-sm flex-1 min-w-[180px]">
-            <span className="block text-neutral-500 mb-1">Reason (optional)</span>
+            <span className="block text-gray-500 mb-1">Reason (optional)</span>
             <input type="text" value={form.reason} maxLength={200}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
               placeholder="e.g. doctor appointment"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
           </label>
           <button onClick={report} disabled={busy || !studentId}
-            className="rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            className="btn-primary">
             Report absence
           </button>
         </div>
       </div>
 
       {/* Upcoming */}
-      <h2 className="font-semibold text-neutral-900 mb-3">Upcoming reported absences</h2>
-      {!absences.length && <p className="text-sm text-neutral-400">None reported.</p>}
+      <h2 className="font-semibold text-gray-900 mb-3">Upcoming reported absences</h2>
+      {!absences.length && <p className="text-sm text-gray-400">None reported.</p>}
       <div className="space-y-2">
         {absences.map((a) => (
           <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between text-sm">
             <div>
-              <span className="font-medium text-neutral-900">{a.absence_date}</span>
-              <span className="text-neutral-500"> · {a.class_id ? (a.class_name || classNameById[a.class_id] || 'A class') : 'Whole day'}</span>
-              {a.reason && <span className="text-neutral-400"> — {a.reason}</span>}
+              <span className="font-medium text-gray-900">{a.absence_date}</span>
+              <span className="text-gray-500"> · {a.class_id ? (a.class_name || classNameById[a.class_id] || 'A class') : 'Whole day'}</span>
+              {a.reason && <span className="text-gray-400"> — {a.reason}</span>}
             </div>
             <button onClick={() => cancel(a.id)} className="text-red-500 hover:underline">Cancel</button>
           </div>

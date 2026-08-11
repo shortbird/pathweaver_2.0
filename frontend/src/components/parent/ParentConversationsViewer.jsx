@@ -218,7 +218,7 @@ const ParentConversationsViewer = ({ studentId }) => {
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     conversation.type === 'dm' ? 'bg-blue-100 text-blue-700' :
                     conversation.type === 'group' ? 'bg-green-100 text-green-700' :
-                    'bg-purple-100 text-purple-700'
+                    'bg-optio-purple/10 text-optio-purple-dark'
                   }`}>
                     {getTypeLabel(conversation.type)}
                   </span>

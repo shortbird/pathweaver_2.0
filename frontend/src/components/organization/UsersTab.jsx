@@ -258,7 +258,7 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>
@@ -422,7 +422,7 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
             <div className="flex gap-3 items-center flex-wrap">
               <button
                 onClick={() => setShowCreateUsernameModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg hover:opacity-90 inline-flex items-center gap-2"
+                className="px-4 py-2 bg-gradient-primary text-white text-sm font-medium rounded-lg hover:opacity-90 inline-flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -522,8 +522,8 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                           // In org context, show all org_roles (or fallback to org_role)
                           // Support multiple roles via org_roles array
                           const roleColors = {
-                            superadmin: 'bg-purple-100 text-purple-700',
-                            org_admin: 'bg-purple-100 text-purple-700',
+                            superadmin: 'bg-optio-purple/10 text-optio-purple-dark',
+                            org_admin: 'bg-optio-purple/10 text-optio-purple-dark',
                             advisor: 'bg-blue-100 text-blue-700',
                             parent: 'bg-green-100 text-green-700',
                             observer: 'bg-yellow-100 text-yellow-700',

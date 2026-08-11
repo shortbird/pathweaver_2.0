@@ -45,15 +45,13 @@ const MindMapChildNode = memo(({ data, selected }) => {
               />
               <h4
                 className="text-xs font-bold text-gray-800 leading-tight"
-                style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700 }}
               >
                 {label}
               </h4>
             </div>
             {summary && (
               <p
-                className="text-[10px] text-gray-500 leading-snug line-clamp-2 ml-[18px]"
-                style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}
+                className="text-[10px] text-gray-500 leading-snug line-clamp-2 ml-[18px] font-medium"
               >
                 {summary}
               </p>

@@ -377,7 +377,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h2 className="text-xl font-bold text-gray-900">
               Settings for {childName}
             </h2>
             <button
@@ -417,7 +417,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                   disabled={uploading}
                   className="relative group"
                 >
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-bold text-2xl overflow-hidden">
+                  <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center text-white font-bold text-2xl overflow-hidden">
                     {previewUrl ? (
                       <img src={previewUrl} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
@@ -464,7 +464,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                   <button
                     onClick={handleSaveProfile}
                     disabled={loading || !displayName.trim()}
-                    className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-primary w-full"
                   >
                     {loading ? 'Saving...' : 'Save Profile'}
                   </button>
@@ -487,7 +487,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                       onActAs(childData)
                       onClose()
                     }}
-                    className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 flex items-center justify-center gap-2"
+                    className="btn-primary w-full"
                   >
                     <UserIcon className="w-5 h-5" />
                     Act As {firstName}
@@ -582,7 +582,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                   <button
                     type="submit"
                     disabled={loading || !isPasswordValid || password !== confirmPassword}
-                    className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-primary w-full"
                   >
                     {loading ? 'Creating Login...' : 'Create Login'}
                   </button>
@@ -712,7 +712,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                         />
                         <button
                           onClick={handleCopyInviteLink}
-                          className="flex-shrink-0 px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-medium hover:opacity-90"
+                          className="flex-shrink-0 px-3 py-2 bg-gradient-primary text-white rounded-lg text-sm font-medium hover:opacity-90"
                         >
                           Copy
                         </button>
@@ -721,7 +721,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                       <button
                         onClick={handleCreateOrRefreshInvite}
                         disabled={creatingInvite}
-                        className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="btn-primary w-full"
                       >
                         {creatingInvite ? (
                           <>

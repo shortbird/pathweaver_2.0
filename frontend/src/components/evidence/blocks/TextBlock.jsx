@@ -25,14 +25,14 @@ const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
           </svg>
         </div>
         <div className="flex-1">
-          <h4 className="text-sm font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h4 className="text-sm font-bold text-gray-900 mb-1">
             Student Notes
           </h4>
         </div>
       </div>
 
       <div className="prose max-w-none">
-        <p className="text-gray-900 whitespace-pre-wrap font-medium leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-gray-900 whitespace-pre-wrap font-medium leading-relaxed">
           {displayText}
         </p>
       </div>
@@ -40,8 +40,7 @@ const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
       {shouldTruncate && (
         <button
           onClick={onToggle}
-          className="mt-3 text-sm font-semibold text-optio-purple hover:text-purple-800 transition-colors min-h-[44px]"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
+          className="mt-3 text-sm font-semibold text-optio-purple hover:text-optio-purple-dark transition-colors min-h-[44px]"
         >
           {isExpanded ? 'Show less' : 'Show more'}
         </button>

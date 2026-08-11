@@ -38,8 +38,8 @@ const FamilyResourcesPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Resources</h1>
-      <p className="text-sm text-neutral-500 mb-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Resources</h1>
+      <p className="text-sm text-gray-500 mb-6">
         Documents and links from {org?.organization_name || 'your school'} — guidebooks, contracts, and forms you can refer back to any time.
       </p>
 
@@ -52,13 +52,13 @@ const FamilyResourcesPage = () => {
         </select>
       )}
 
-      {(orgs === null || (orgId && resources === null)) && <p className="text-neutral-500">Loading…</p>}
-      {orgs?.length === 0 && <p className="text-neutral-500">Your account isn't linked to a school yet.</p>}
-      {resources?.length === 0 && <p className="text-neutral-500">{org?.organization_name || 'Your school'} hasn't published any resources yet.</p>}
+      {(orgs === null || (orgId && resources === null)) && <p className="text-gray-500">Loading…</p>}
+      {orgs?.length === 0 && <p className="text-gray-500">Your account isn't linked to a school yet.</p>}
+      {resources?.length === 0 && <p className="text-gray-500">{org?.organization_name || 'Your school'} hasn't published any resources yet.</p>}
 
       {Object.entries(grouped).map(([category, items]) => (
         <div key={category} className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{category}</h2>
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
             {items.map((r) => (
               <a
@@ -66,10 +66,10 @@ const FamilyResourcesPage = () => {
                 className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-neutral-50 group"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-neutral-900 group-hover:text-optio-purple">{r.title}</span>
-                  {r.description && <span className="block text-xs text-neutral-500">{r.description}</span>}
+                  <span className="block text-sm font-medium text-gray-900 group-hover:text-optio-purple">{r.title}</span>
+                  {r.description && <span className="block text-xs text-gray-500">{r.description}</span>}
                 </span>
-                <svg className="w-4 h-4 text-neutral-300 group-hover:text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-300 group-hover:text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>

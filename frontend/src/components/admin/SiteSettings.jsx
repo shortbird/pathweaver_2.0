@@ -93,7 +93,7 @@ const SiteSettings = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>Settings</h2>
+      <h2 className="text-2xl font-bold mb-6">Settings</h2>
 
       {/* Tab Navigation */}
       <div className="flex gap-2 mb-6 border-b">
@@ -104,7 +104,6 @@ const SiteSettings = () => {
               ? 'border-b-2 border-optio-purple text-optio-purple'
               : 'text-gray-600 hover:text-gray-900'
           }`}
-          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           Site Settings
         </button>
@@ -115,7 +114,6 @@ const SiteSettings = () => {
               ? 'border-b-2 border-optio-purple text-optio-purple'
               : 'text-gray-600 hover:text-gray-900'
           }`}
-          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           Services
         </button>

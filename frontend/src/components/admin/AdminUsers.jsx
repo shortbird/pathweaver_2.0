@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import logger from '../../utils/logger'
+import { PageLoader } from '../ui/Spinner'
 
 // Lazy load large modals to reduce initial bundle size
 const UserDetailsModal = lazy(() => import('./UserDetailsModal'))
@@ -167,8 +168,8 @@ const AdminUsers = () => {
     const badges = {
       superadmin: 'bg-red-700 text-white',
       org_admin: 'bg-orange-100 text-orange-700',
-      org_managed: 'bg-indigo-100 text-indigo-700',
-      advisor: 'bg-purple-100 text-purple-700',
+      org_managed: 'bg-optio-purple/10 text-optio-purple',
+      advisor: 'bg-optio-purple/10 text-optio-purple',
       parent: 'bg-green-100 text-green-700',
       student: 'bg-blue-100 text-blue-700',
       observer: 'bg-gray-100 text-gray-700'
@@ -199,7 +200,7 @@ const AdminUsers = () => {
   }
 
   if (loading) {
-    return <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+    return <PageLoader label="Loading users" />
   }
 
   return (
@@ -241,22 +242,14 @@ const AdminUsers = () => {
           <button
             onClick={() => setShowBulkEmailModal(true)}
             disabled={selectedUsers.size === 0}
-            className={`px-4 py-2 rounded-lg ${
-              selectedUsers.size > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            className="btn-primary"
           >
             Email Selected ({selectedUsers.size})
           </button>
           <button
             onClick={handleBulkDelete}
             disabled={selectedUsers.size === 0}
-            className={`px-4 py-2 rounded-lg ${
-              selectedUsers.size > 0
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            className="btn-danger px-4 py-2"
           >
             Delete Selected ({selectedUsers.size})
           </button>
@@ -264,7 +257,7 @@ const AdminUsers = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
         {/* Search bar + filter toggle - always visible */}
         <div className="flex items-center gap-2 p-3 sm:p-4">
           <form onSubmit={handleSearch} className="flex-1">
@@ -273,7 +266,7 @@ const AdminUsers = () => {
               placeholder="Search by name or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+              className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-base"
               aria-label="Search users by name or email"
             />
           </form>
@@ -304,7 +297,7 @@ const AdminUsers = () => {
               <select
                 value={filters.organization}
                 onChange={(e) => handleFilterChange('organization', e.target.value)}
-                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-sm"
                 aria-label="Filter by organization"
               >
                 <option value="all">All Orgs</option>
@@ -316,7 +309,7 @@ const AdminUsers = () => {
               <select
                 value={filters.role}
                 onChange={(e) => handleFilterChange('role', e.target.value)}
-                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-sm"
                 aria-label="Filter by role"
               >
                 <option value="all">All Roles</option>
@@ -330,7 +323,7 @@ const AdminUsers = () => {
               <select
                 value={filters.activity}
                 onChange={(e) => handleFilterChange('activity', e.target.value)}
-                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-sm"
                 aria-label="Filter by activity status"
               >
                 <option value="all">All Activity</option>
@@ -341,7 +334,7 @@ const AdminUsers = () => {
               <select
                 value={filters.sortBy}
                 onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-sm"
                 aria-label="Sort users by"
               >
                 <option value="created_at">Join Date</option>
@@ -356,11 +349,12 @@ const AdminUsers = () => {
 
       {/* Users Table - List View */}
       {viewMode === 'list' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+          <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left">
+                <th className="w-px pl-4 pr-2 py-3 text-left">
                   <input
                     type="checkbox"
                     checked={selectedUsers.size === users.length && users.length > 0}
@@ -368,36 +362,47 @@ const AdminUsers = () => {
                     className="rounded"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Org
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 pr-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Last Active
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
+                <tr
+                  key={user.id}
+                  onClick={() => handleEditUser(user)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleEditUser(user)
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View user ${user.first_name || ''} ${user.last_name || ''}`.trim() || `View user ${user.email}`}
+                  className="cursor-pointer hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-optio-purple"
+                >
+                  <td className="w-px pl-4 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedUsers.has(user.id)}
                       onChange={() => toggleUserSelection(user.id)}
+                      aria-label={`Select ${user.email}`}
                       className="rounded"
                     />
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
+                  <td className="px-3 py-3 w-full max-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="flex-shrink-0 h-10 w-10">
                         {user.avatar_url ? (
                           <img
@@ -413,39 +418,35 @@ const AdminUsers = () => {
                           </div>
                         )}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate" title={`${user.first_name || ''} ${user.last_name || ''}`.trim()}>
                           {user.first_name} {user.last_name}
                         </div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-sm text-gray-500 truncate" title={user.email}>{user.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-600">
+                  <td className="px-3 py-3">
+                    <span
+                      className="block max-w-[10rem] truncate text-sm text-gray-600"
+                      title={user.organization_name || undefined}
+                    >
                       {user.organization_name || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${getRoleBadge(user.role || 'student')}`}>
                       {getRoleDisplayName(user.role || 'student')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-3 pr-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                     {formatDate(user.last_active)}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleEditUser(user)}
-                      className="px-4 py-2 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium touch-manipulation"
-                    >
-                      View User
-                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
 
         {/* Pagination - Desktop */}
         {totalPages > 1 && (
@@ -521,7 +522,7 @@ const AdminUsers = () => {
                   className="h-10 w-10 rounded-full object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-sm font-bold">
                     {(user.first_name?.[0] || user.email[0]).toUpperCase()}
                   </span>
@@ -545,7 +546,7 @@ const AdminUsers = () => {
               {/* View Button */}
               <button
                 onClick={() => handleEditUser(user)}
-                className="px-3 py-1.5 text-xs font-medium text-optio-purple bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex-shrink-0 min-h-[36px] touch-manipulation"
+                className="px-3 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors flex-shrink-0 min-h-[36px] touch-manipulation"
               >
                 View
               </button>

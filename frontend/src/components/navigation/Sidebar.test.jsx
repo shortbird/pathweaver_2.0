@@ -145,14 +145,14 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
-  it('keeps the organization console reachable (as Home) and shows no launcher for an unflagged org_admin', () => {
+  it('keeps the organization console reachable and shows no launcher for an unflagged org_admin', () => {
     authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
     orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: {} } }
     renderSidebar()
     expect(screen.queryByText('School Admin')).not.toBeInTheDocument()
-    // The org console is the org admin's home, so it appears once, as "Home"
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/organization')
-    expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
+    // Home is the role home (/dashboard); the console is its own item.
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^organization$/i })).toHaveAttribute('href', '/organization')
   })
 
   it('always shows the School Admin launcher for superadmin (no org flag needed)', () => {
@@ -251,12 +251,11 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
   })
 
   it('keeps the things that are not the school', () => {
-    // The family dashboard is the guardian's own home ("Home" absorbs the old
-    // Family item), which is a different question from what the school is
-    // doing, so it stays put.
+    // Home is the role home (/dashboard, the Family Home for parents); the
+    // family management dashboard stays reachable as its own Family item.
     renderSidebar()
     expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute(
-      'href', '/parent/dashboard')
+      'href', '/dashboard')
     expect(screen.getByRole('link', { name: /^messages$/i })).toBeInTheDocument()
   })
 
@@ -281,10 +280,10 @@ describe('Sidebar — Home and Quests (the retired top-navbar toggle)', () => {
     expect(screen.getByRole('link', { name: /^quests$/i })).toHaveAttribute('href', '/quests')
   })
 
-  it('points a parent Home at the family dashboard and hides Quests', () => {
+  it('points a parent Home at the role home and hides Quests', () => {
     authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/parent/dashboard')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
     expect(screen.queryByRole('link', { name: /^quests$/i })).not.toBeInTheDocument()
   })
 

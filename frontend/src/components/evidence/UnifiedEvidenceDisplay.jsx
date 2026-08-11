@@ -78,18 +78,18 @@ const UnifiedEvidenceDisplay = ({
   // Show confidential message if needed
   if (isConfidentialToViewer) {
     return (
-      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-8">
+      <div className="bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 border-2 border-optio-purple/20 rounded-lg p-8">
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-optio-purple to-pink-500 rounded-lg flex items-center justify-center">
+          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-optio-purple to-optio-pink rounded-lg flex items-center justify-center">
             <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
           <div className="flex-1">
-            <h4 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h4 className="text-lg font-bold text-gray-900 mb-2">
               Confidential Evidence
             </h4>
-            <p className="text-gray-700 font-medium leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-gray-700 font-medium leading-relaxed">
               {studentName} has marked this evidence as confidential. Please contact them directly for more information.
             </p>
           </div>
@@ -147,7 +147,7 @@ const UnifiedEvidenceDisplay = ({
             const uploaderBadge = (showUploader || showDelete) && (
               <div className="mb-2 flex items-center gap-2 flex-wrap">
                 {showUploader && (
-                  <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple-dark">
                     <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
@@ -231,7 +231,7 @@ const UnifiedEvidenceDisplay = ({
               default:
                 return (
                   <div key={key} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       Unknown block type: {block.block_type}
                     </p>
                   </div>
@@ -253,7 +253,7 @@ const UnifiedEvidenceDisplay = ({
           <EvidenceHeader context={context} blockCount={1} />
         )}
         <div className="prose max-w-none">
-          <p className="text-gray-900 whitespace-pre-wrap font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-900 whitespace-pre-wrap font-medium">
             {evidence_text}
           </p>
         </div>
@@ -274,8 +274,7 @@ const UnifiedEvidenceDisplay = ({
           href={evidence_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 text-optio-purple hover:text-purple-800 font-semibold transition-colors"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
+          className="flex items-center gap-3 text-optio-purple hover:text-optio-purple-dark font-semibold transition-colors"
         >
           <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

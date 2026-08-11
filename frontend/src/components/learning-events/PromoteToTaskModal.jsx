@@ -9,7 +9,7 @@ import useCanEditXp from '../../hooks/useCanEditXp';
 export const DEFAULT_PROMOTED_TASK_XP = 50;
 
 const PILLAR_CONFIG = {
-  art: { label: 'Art', color: 'bg-purple-600', light: 'bg-purple-50 text-purple-700 border-purple-200' },
+  art: { label: 'Art', color: 'bg-optio-purple', light: 'bg-optio-purple/5 text-optio-purple-dark border-optio-purple/20' },
   stem: { label: 'STEM', color: 'bg-blue-600', light: 'bg-blue-50 text-blue-700 border-blue-200' },
   wellness: { label: 'Wellness', color: 'bg-orange-600', light: 'bg-orange-50 text-orange-700 border-orange-200' },
   communication: { label: 'Communication', color: 'bg-green-600', light: 'bg-green-50 text-green-700 border-green-200' },
@@ -77,7 +77,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-5 rounded-t-xl">
+        <div className="bg-gradient-primary text-white p-5 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl font-bold mb-1 truncate">Add to {quest.name || 'quest'}</h2>
@@ -141,7 +141,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
               Diploma Credit {!isClass && <span className="normal-case text-gray-400">(optional)</span>}
             </span>
             {isClass ? (
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200">
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-optio-purple/5 border border-optio-purple/20">
                 <span
                   className="w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: getSubject(classSubject)?.accent || '#6D469B' }}
@@ -149,7 +149,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
                 <span className="text-sm font-medium text-gray-900">
                   {getSubject(classSubject)?.name || classSubject}
                 </span>
-                <span className="ml-auto text-xs text-purple-700">Class credit</span>
+                <span className="ml-auto text-xs text-optio-purple-dark">Class credit</span>
               </div>
             ) : (
               <select
@@ -205,7 +205,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 transition-all font-medium text-sm flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2.5 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 transition-all font-medium text-sm flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>

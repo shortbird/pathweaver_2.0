@@ -6,9 +6,9 @@ import toast from 'react-hot-toast';
 const PILLAR_COLORS = {
   stem: 'bg-blue-100 text-blue-700',
   wellness: 'bg-green-100 text-green-700',
-  communication: 'bg-purple-100 text-purple-700',
+  communication: 'bg-optio-purple/10 text-optio-purple-dark',
   civics: 'bg-orange-100 text-orange-700',
-  art: 'bg-pink-100 text-pink-700'
+  art: 'bg-optio-pink/10 text-optio-pink-dark'
 };
 
 const PILLAR_LABELS = {
@@ -117,7 +117,7 @@ const EvolveTopicModal = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-xl">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-t-xl">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Evolve into Quest</h2>
             <p className="text-sm text-gray-600">
@@ -138,7 +138,7 @@ const EvolveTopicModal = ({
             // Loading state
             <div className="py-12 text-center">
               <div className="w-12 h-12 mx-auto mb-4 relative">
-                <div className="absolute inset-0 border-4 border-purple-200 rounded-full" />
+                <div className="absolute inset-0 border-4 border-optio-purple/20 rounded-full" />
                 <div className="absolute inset-0 border-4 border-transparent border-t-optio-purple rounded-full animate-spin" />
               </div>
               <p className="text-gray-600 font-medium">Generating quest structure...</p>
@@ -156,7 +156,7 @@ const EvolveTopicModal = ({
               <p className="text-sm text-gray-500 mb-4">{error}</p>
               <button
                 onClick={fetchPreview}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple hover:bg-purple-50 rounded-lg"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 rounded-lg"
               >
                 <ArrowPathIcon className="w-4 h-4" />
                 Try Again
@@ -166,15 +166,15 @@ const EvolveTopicModal = ({
             // Preview loaded - show editable form
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* AI Notice */}
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+              <div className="p-3 bg-optio-purple/5 rounded-lg border border-optio-purple/10">
                 <div className="flex items-start gap-2">
-                  <SparklesIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                  <SparklesIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm text-purple-900">
+                    <p className="text-sm text-optio-purple-dark">
                       AI has analyzed your moments and suggested a quest structure.
                       Review and edit as needed.
                     </p>
-                    <p className="text-xs text-purple-600 mt-1">
+                    <p className="text-xs text-optio-purple mt-1">
                       This quest will be private and only visible to you.
                     </p>
                   </div>
@@ -285,7 +285,7 @@ const EvolveTopicModal = ({
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !title.trim()}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-lg disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg disabled:opacity-50 font-medium flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>

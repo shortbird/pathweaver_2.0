@@ -10,11 +10,10 @@ const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
           className={`
             flex-1 py-2 px-3 rounded-md font-semibold text-sm transition-all flex items-center justify-center gap-2
             ${mode === 'timeline'
-              ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white shadow-sm'
+              ? 'bg-gradient-primary text-white shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
             }
           `}
-          style={{ fontFamily: 'Poppins' }}
         >
           <ArrowsUpDownIcon className="w-4 h-4" />
           <span>Timeline</span>
@@ -24,11 +23,10 @@ const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
           className={`
             flex-1 py-2 px-3 rounded-md font-semibold text-sm transition-all flex items-center justify-center gap-2
             ${mode === 'flexible'
-              ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white shadow-sm'
+              ? 'bg-gradient-primary text-white shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
             }
           `}
-          style={{ fontFamily: 'Poppins' }}
         >
           <Squares2X2Icon className="w-4 h-4" />
           <span>Flexible</span>
@@ -36,7 +34,7 @@ const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
       </div>
 
       {/* Mode Description */}
-      <p className="text-xs text-gray-500 mt-2 text-center" style={{ fontFamily: 'Poppins' }}>
+      <p className="text-xs text-gray-500 mt-2 text-center">
         {mode === 'timeline'
           ? 'Tasks in sequential order'
           : 'Pick any task you want'

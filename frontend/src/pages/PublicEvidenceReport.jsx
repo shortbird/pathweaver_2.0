@@ -11,6 +11,7 @@ import { Helmet } from 'react-helmet-async';
 import html2pdf from 'html2pdf.js';
 import api from '../services/api';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
+import { Spinner } from '../components/ui/Spinner';
 import { getPillarDisplayName } from '../config/pillars';
 import logger from '../utils/logger';
 
@@ -267,7 +268,7 @@ const PublicEvidenceReport = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-neutral-50">
         <div className="max-w-5xl mx-auto px-4 py-12">
           <div className="animate-pulse space-y-8">
             {/* Header skeleton */}
@@ -294,7 +295,7 @@ const PublicEvidenceReport = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <div className="max-w-md mx-auto text-center px-4">
           <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 ${
             error.type === 'pending' ? 'bg-yellow-100' : 'bg-red-100'
@@ -315,7 +316,7 @@ const PublicEvidenceReport = () => {
           <p className="text-gray-600 mb-6">{error.message}</p>
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="btn-quiet"
           >
             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -341,7 +342,7 @@ const PublicEvidenceReport = () => {
         <meta name="description" content={`Evidence report by ${studentName}`} />
       </Helmet>
 
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-neutral-50">
         {/* Main Content Area */}
         <div className="bg-white">
           {/* Report Header with Logo and Download Button */}
@@ -370,14 +371,11 @@ const PublicEvidenceReport = () => {
                 <button
                   onClick={handleDownloadPDF}
                   disabled={isDownloading}
-                  className="inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="btn-quiet"
                 >
                   {isDownloading ? (
                     <>
-                      <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
+                      <Spinner size="sm" className="mr-2" />
                       Generating...
                     </>
                   ) : (
@@ -400,7 +398,7 @@ const PublicEvidenceReport = () => {
                 {achievements.map((achievement, idx) => (
                   <div
                     key={idx}
-                    className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden pdf-page-break"
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden pdf-page-break"
                     style={{ pageBreakInside: 'avoid' }}
                   >
                     {/* Quest Header - More Prominent */}
@@ -485,17 +483,17 @@ const PublicEvidenceReport = () => {
 
             {/* Skills Breakdown */}
             {skills_breakdown && skills_breakdown.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Skills Practiced</h2>
                 <div className="flex flex-wrap gap-2">
                   {skills_breakdown.map((skill, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
+                      className="inline-flex items-center px-3 py-1 bg-optio-purple/10 text-optio-purple-dark rounded-full text-sm font-medium"
                     >
                       {skill.skill_name}
                       {skill.times_practiced > 1 && (
-                        <span className="ml-1 text-purple-600">({skill.times_practiced}x)</span>
+                        <span className="ml-1 text-optio-purple">({skill.times_practiced}x)</span>
                       )}
                     </span>
                   ))}
@@ -505,7 +503,7 @@ const PublicEvidenceReport = () => {
 
             {/* Learning Events */}
             {learning_events && learning_events.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Learning Events</h2>
                 <div className="grid md:grid-cols-2 gap-4">
                   {learning_events.map((event, idx) => (
@@ -521,7 +519,7 @@ const PublicEvidenceReport = () => {
                       )}
                       <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                         {event.category && (
-                          <span className="px-2 py-0.5 bg-pink-100 text-pink-700 rounded">
+                          <span className="px-2 py-0.5 bg-optio-pink/10 text-optio-pink-dark rounded">
                             {event.category}
                           </span>
                         )}
@@ -544,7 +542,7 @@ const PublicEvidenceReport = () => {
             {/* Empty state */}
             {(!achievements || achievements.length === 0) &&
               (!learning_events || learning_events.length === 0) && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
                   <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>

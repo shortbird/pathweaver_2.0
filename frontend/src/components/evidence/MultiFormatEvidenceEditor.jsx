@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import logger from '../../utils/logger';
 import toast from 'react-hot-toast';
 
+import { Spinner } from '../ui';
 import { EvidenceEditorProvider, useEvidenceEditor } from './EvidenceEditorContext';
 import { EvidenceBlockRenderer } from './EvidenceBlockRenderer';
 import { EvidenceToolbar, ConnectedSaveStatus } from './EvidenceToolbar';
@@ -344,7 +345,7 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     return (
       <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
+          <Spinner size="sm" />
           <span className="text-gray-600">Loading evidence document...</span>
         </div>
       </div>
@@ -419,7 +420,7 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowCompleteConfirm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="btn-quiet flex-1"
               >
                 Cancel
               </button>

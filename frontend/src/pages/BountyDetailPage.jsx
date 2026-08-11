@@ -13,6 +13,7 @@ import {
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
 import api from '../services/api'
+import { PageLoader } from '../components/ui/Spinner'
 
 const PILLAR_LABELS = {
   stem: 'STEM', art: 'Art', communication: 'Communication', civics: 'Civics', wellness: 'Wellness',
@@ -120,9 +121,7 @@ const BountyDetailPage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-      </div>
+      <PageLoader className="min-h-[60vh]" />
     )
   }
 
@@ -151,7 +150,7 @@ const BountyDetailPage = () => {
 
       {/* Bounty Info */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-gray-900 mb-3">
           {bounty.title}
         </h1>
         <p className="text-gray-700 whitespace-pre-line mb-4">{bounty.description}</p>
@@ -262,7 +261,7 @@ const BountyDetailPage = () => {
           <button
             onClick={handleClaim}
             disabled={claimMutation.isPending}
-            className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-50"
+            className="btn-primary min-h-[44px]"
           >
             {claimMutation.isPending ? 'Claiming...' : 'Claim Bounty'}
           </button>
@@ -277,7 +276,7 @@ const BountyDetailPage = () => {
           <button
             onClick={() => turnInMutation.mutate({ bountyId, claimId: myClaim.id })}
             disabled={turnInMutation.isPending}
-            className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-50"
+            className="btn-primary min-h-[44px]"
           >
             {turnInMutation.isPending ? 'Turning in...' : 'Turn in Bounty'}
           </button>

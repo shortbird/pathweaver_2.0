@@ -187,7 +187,7 @@ const FileUploader = ({ questId, attachments, onChange }) => {
         onDragLeave={handleDragLeave}
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragging
-            ? 'border-optio-purple bg-purple-50'
+            ? 'border-optio-purple bg-optio-purple/5'
             : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
         }`}
       >
@@ -202,7 +202,7 @@ const FileUploader = ({ questId, attachments, onChange }) => {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="mt-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="mt-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Browse Files
         </button>
@@ -230,7 +230,7 @@ const FileUploader = ({ questId, attachments, onChange }) => {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all"
+                  className="bg-gradient-primary h-2 rounded-full transition-all"
                   style={{ width: `${progress}%` }}
                 />
               </div>

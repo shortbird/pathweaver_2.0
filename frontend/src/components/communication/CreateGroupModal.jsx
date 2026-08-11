@@ -212,7 +212,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
                             className="w-8 h-8 rounded-full object-cover"
                           />
                         ) : (
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
+                          <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
                             {member.displayName?.charAt(0)?.toUpperCase() || '?'}
                           </div>
                         )}
@@ -250,7 +250,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             <button
               type="submit"
               disabled={createGroupMutation.isPending || !groupName.trim()}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {createGroupMutation.isPending ? (
                 <>

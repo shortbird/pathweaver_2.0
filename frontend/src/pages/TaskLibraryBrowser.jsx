@@ -6,6 +6,8 @@ import { getPillarData } from '../utils/pillarMappings';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import SubjectBadges, { getSubjectConfig } from '../components/common/SubjectBadges';
+import Spinner from '../components/ui/Spinner';
+import EmptyState from '../components/ui/EmptyState';
 
 // Diploma subjects for filtering
 const DIPLOMA_SUBJECTS = [
@@ -176,40 +178,39 @@ export default function TaskLibraryBrowser() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-optio-purple/5 to-optio-pink/5 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4"></div>
-          <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>Loading task library...</p>
+          <Spinner size="lg" className="mx-auto mb-4" />
+          <p className="text-gray-600">Loading task library...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-pink-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-optio-purple/5 to-optio-pink/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate(`/quests/${questId}`)}
             className="flex items-center gap-2 text-gray-600 hover:text-optio-purple mb-4 transition-colors"
-            style={{ fontFamily: 'Poppins' }}
           >
             <ArrowLeftIcon className="w-5 h-5" />
             Back to Quest
           </button>
 
-          <h1 className="text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Task Library
           </h1>
-          <p className="text-lg text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-lg text-gray-600 mb-4">
             Browse and add tasks to your quest: <span className="font-semibold">{quest?.title}</span>
           </p>
 
           {/* Progress Indicator */}
-          <div className="flex items-center gap-3 p-4 bg-white rounded-lg shadow-sm">
+          <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
             <CheckCircleIcon className="w-5 h-5 text-green-500" />
-            <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>
+            <span className="text-gray-700">
               <span className="font-semibold">{addedTasks.size}</span> task{addedTasks.size !== 1 ? 's' : ''} added to quest
             </span>
           </div>
@@ -218,14 +219,14 @@ export default function TaskLibraryBrowser() {
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <FunnelIcon className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              <span className="text-sm font-medium text-gray-600">
                 Filter by Diploma Subject:
               </span>
               {subjectFilter && (
                 <button
                   onClick={() => setSubjectFilter(null)}
                   className="text-sm text-optio-purple hover:underline"
-                  style={{ fontFamily: 'Poppins' }}
+                 
                 >
                   Clear filter
                 </button>
@@ -246,8 +247,7 @@ export default function TaskLibraryBrowser() {
                     }`}
                     style={{
                       backgroundColor: isActive ? `${config.color}30` : `${config.color}15`,
-                      color: config.color,
-                      fontFamily: 'Poppins'
+                      color: config.color
                     }}
                   >
                     {subject.label}
@@ -287,44 +287,32 @@ export default function TaskLibraryBrowser() {
           // Empty library
           if (libraryTasks.length === 0) {
             return (
-              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-                <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-                  No library tasks available yet
-                </h3>
-                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
-                  The library is built from AI-generated tasks. Generate custom tasks to contribute to the library!
-                </p>
-                <button
-                  onClick={handleDone}
-                  className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  Done
-                </button>
-              </div>
+              <EmptyState
+                icon={BookOpenIcon}
+                title="No library tasks available yet"
+                hint="The library is built from AI-generated tasks. Generate custom tasks to contribute to the library!"
+                action={(
+                  <button onClick={handleDone} className="btn-primary">
+                    Done
+                  </button>
+                )}
+              />
             );
           }
 
           // No tasks match filter
           if (filteredTasks.length === 0 && subjectFilter) {
             return (
-              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-                <FunnelIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-                  No tasks match this filter
-                </h3>
-                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
-                  Try selecting a different subject or clear the filter to see all tasks.
-                </p>
-                <button
-                  onClick={() => setSubjectFilter(null)}
-                  className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  Clear Filter
-                </button>
-              </div>
+              <EmptyState
+                icon={FunnelIcon}
+                title="No tasks match this filter"
+                hint="Try selecting a different subject or clear the filter to see all tasks."
+                action={(
+                  <button onClick={() => setSubjectFilter(null)} className="btn-primary">
+                    Clear Filter
+                  </button>
+                )}
+              />
             );
           }
 
@@ -332,11 +320,11 @@ export default function TaskLibraryBrowser() {
           return (
             <>
               {subjectFilter && (
-                <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-sm text-gray-500 mb-4">
                   Showing {filteredTasks.length} of {libraryTasks.length} tasks
                 </p>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                 {filteredTasks.map((task) => {
                 const pillarData = getPillarData(task.pillar);
                 const isAdded = addedTasks.has(task.id);
@@ -347,15 +335,14 @@ export default function TaskLibraryBrowser() {
                     key={task.id}
                     onClick={() => toggleTaskSelection(task.id)}
                     className={`relative rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer border-2 ${
-                      isSelected ? 'ring-2 ring-optio-purple' : ''
+                      isSelected ? 'ring-2 ring-optio-purple border-optio-purple' : isAdded ? 'border-green-500' : 'border-gray-200'
                     }`}
                     style={{
                       background: isAdded
                         ? '#f0fdf4'
                         : isSelected
                           ? `linear-gradient(135deg, ${pillarData.color}20 0%, ${pillarData.color}10 100%)`
-                          : `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`,
-                      borderColor: isSelected ? '#6D469B' : isAdded ? '#10b981' : '#e5e7eb'
+                          : `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
                     }}
                   >
                     {/* Card Content */}
@@ -369,7 +356,7 @@ export default function TaskLibraryBrowser() {
                               toggleTaskSelection(task.id);
                             }}
                             className="flex items-center gap-1 text-green-600 hover:text-red-600 font-semibold text-sm transition-colors"
-                            style={{ fontFamily: 'Poppins' }}
+                           
                             title="Click to remove this task"
                           >
                             <CheckCircleIcon className="w-4 h-4" />
@@ -387,13 +374,13 @@ export default function TaskLibraryBrowser() {
                       </div>
 
                       {/* Task Title */}
-                      <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight" style={{ fontFamily: 'Poppins' }}>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight">
                         {task.title}
                       </h3>
 
                       {/* Task Description */}
                       {task.description && (
-                        <p className="text-sm text-gray-700 mb-3 line-clamp-3" style={{ fontFamily: 'Poppins' }}>
+                        <p className="text-sm text-gray-700 mb-3 line-clamp-3">
                           {task.description}
                         </p>
                       )}
@@ -402,7 +389,7 @@ export default function TaskLibraryBrowser() {
                       <div className="flex items-center gap-2 mb-2">
                         <div
                           className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-                          style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                          style={{ backgroundColor: pillarData.color }}
                         >
                           {pillarData.name}
                         </div>
@@ -431,7 +418,7 @@ export default function TaskLibraryBrowser() {
                       {/* Usage Count and View Details Button */}
                       <div className="flex items-center justify-between mt-3">
                         {task.usage_count > 0 ? (
-                          <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                          <p className="text-xs text-gray-500">
                             {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
                           </p>
                         ) : (
@@ -443,7 +430,7 @@ export default function TaskLibraryBrowser() {
                             setDetailsModalTask(task);
                           }}
                           className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
-                          style={{ fontFamily: 'Poppins' }}
+                         
                         >
                           <EyeIcon className="w-4 h-4" />
                           Details
@@ -459,8 +446,7 @@ export default function TaskLibraryBrowser() {
               <div className="text-center">
                 <button
                   onClick={handleDone}
-                  className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-md"
-                  style={{ fontFamily: 'Poppins' }}
+                  className="btn-primary"
                 >
                   Return to Quest
                 </button>
@@ -476,7 +462,7 @@ export default function TaskLibraryBrowser() {
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+              <h2 className="text-2xl font-bold text-gray-900">
                 Task Details
               </h2>
               <button
@@ -494,7 +480,7 @@ export default function TaskLibraryBrowser() {
                 return (
                   <>
                     {/* Task Title */}
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">
                       {detailsModalTask.title}
                     </h3>
 
@@ -502,7 +488,7 @@ export default function TaskLibraryBrowser() {
                     <div className="flex items-center gap-2 mb-4">
                       <div
                         className="inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-semibold text-white"
-                        style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                        style={{ backgroundColor: pillarData.color }}
                       >
                         {pillarData.name}
                       </div>
@@ -519,8 +505,8 @@ export default function TaskLibraryBrowser() {
 
                     {/* Subject XP Distribution */}
                     {detailsModalTask.diploma_subjects && Object.keys(detailsModalTask.diploma_subjects).length > 0 && (
-                      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins' }}>
+                      <div className="mb-6 p-4 bg-optio-purple/5 rounded-lg">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">
                           Diploma Credits Earned:
                         </h4>
                         <SubjectBadges
@@ -533,10 +519,10 @@ export default function TaskLibraryBrowser() {
 
                     {/* Task Description */}
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">
                         Description
                       </h4>
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap" style={{ fontFamily: 'Poppins' }}>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                         {detailsModalTask.description}
                       </p>
                     </div>
@@ -544,7 +530,7 @@ export default function TaskLibraryBrowser() {
                     {/* Usage Stats */}
                     {detailsModalTask.usage_count > 0 && (
                       <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                        <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                        <p className="text-sm text-gray-600">
                           <span className="font-semibold">{detailsModalTask.usage_count}</span>{' '}
                           {detailsModalTask.usage_count === 1 ? 'student has' : 'students have'} completed this task
                         </p>
@@ -570,8 +556,7 @@ export default function TaskLibraryBrowser() {
                           }}
                           className="flex-1 py-3 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
                           style={{
-                            backgroundColor: pillarData.color,
-                            fontFamily: 'Poppins'
+                            backgroundColor: pillarData.color
                           }}
                         >
                           Add to My Quest
@@ -579,8 +564,8 @@ export default function TaskLibraryBrowser() {
                       )}
                       <button
                         onClick={() => setDetailsModalTask(null)}
-                        className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-                        style={{ fontFamily: 'Poppins' }}
+                        className="btn-quiet flex-1 py-3"
+                       
                       >
                         Close
                       </button>

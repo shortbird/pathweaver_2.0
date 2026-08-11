@@ -55,6 +55,10 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         quest_data = quest.data
 
+        # Badge: creator is a student, or manually flagged in metadata
+        from utils.student_created import annotate_student_created
+        annotate_student_created([quest_data])
+
         # Get all enrollments for this user and quest (select only needed columns)
         all_enrollments = supabase.table('user_quests')\
             .select('id, user_id, quest_id, is_active, completed_at, personalization_completed, created_at')\

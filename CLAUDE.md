@@ -277,36 +277,34 @@ user_quest_tasks     - id, user_id, quest_id, title, pillar, xp_value
 
 ## Local Development
 
-**Check if servers running (from WSL):**
+Development happens on macOS. The repo lives at `~/pathweaver_2.0`, the backend venv at `~/pathweaver_2.0/venv` (Python 3.13 via Homebrew), and Node 22 comes from Homebrew (`node@22`, keg-only — it is already linked into the default PATH).
+
+**Check if servers running:**
 ```bash
-powershell.exe -Command "Invoke-WebRequest -Uri 'http://localhost:5001/api/health' -UseBasicParsing | Select-Object StatusCode"
-powershell.exe -Command "Test-NetConnection -ComputerName localhost -Port 3000 | Select-Object TcpTestSucceeded"
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/api/health   # 200 = backend up
+lsof -nP -iTCP:3000 -sTCP:LISTEN                                          # vite dev server
 ```
 
-**Start servers (from WSL using PowerShell):**
+**Start servers:**
 ```bash
-# Backend
-powershell.exe -Command "Start-Process -FilePath 'C:\Users\tanne\Desktop\pw_v2\venv\Scripts\python.exe' -ArgumentList 'C:\Users\tanne\Desktop\pw_v2\backend\app.py' -WorkingDirectory 'C:\Users\tanne\Desktop\pw_v2' -WindowStyle Hidden"
+# Backend (Flask on :5001)
+cd ~/pathweaver_2.0 && source venv/bin/activate && python backend/app.py
 
-# Frontend
-powershell.exe -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c cd /d C:\Users\tanne\Desktop\pw_v2\frontend && npm run dev' -WindowStyle Hidden"
-
-# Wait for startup
-sleep 10
+# Frontend (Vite on :3000)
+cd ~/pathweaver_2.0/frontend && npm run dev
 ```
+From Claude Code, run each with `run_in_background` instead of backgrounding with `&`.
 
 **Stop servers:**
 ```bash
-# Stop frontend (port 3000) - targets only the Vite dev server, NOT Claude Code's node process
-powershell.exe -Command "Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id \$_ -Force -ErrorAction SilentlyContinue }"
+# Frontend (port 3000) - targets only the Vite dev server, NOT Claude Code's node process
+lsof -tnP -iTCP:3000 -sTCP:LISTEN | xargs kill
 
-# Stop backend (port 5001)
-powershell.exe -Command "Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id \$_ -Force -ErrorAction SilentlyContinue }"
+# Backend (port 5001)
+lsof -tnP -iTCP:5001 -sTCP:LISTEN | xargs kill
 ```
 
-**WARNING:** Never use `Get-Process -Name node | Stop-Process` - this kills Claude Code itself (which runs on Node.js).
-
-**Note:** WSL2 cannot directly access Windows localhost. Use `powershell.exe` commands to interact with local servers.
+**WARNING:** Never use `killall node` / `pkill node` - this kills Claude Code itself (which runs on Node.js).
 
 **Before committing:** Stop the servers using the commands above
 
@@ -755,11 +753,6 @@ Two-step setup -- the MCP server reads its API key from `~/.render-mcp/config.js
 npx -y @niyogi/render-mcp configure --api-key <RENDER_API_KEY>
 
 # 2. Register the server with Claude Code (user scope)
-claude mcp add -s user render -- cmd /c npx -y @niyogi/render-mcp start
-```
-
-On macOS/Linux, drop the `cmd /c` prefix:
-```bash
 claude mcp add -s user render -- npx -y @niyogi/render-mcp start
 ```
 
@@ -841,6 +834,7 @@ claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.c
 - **Local Development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
 - **Testing Guide**: [frontend/TESTING.md](frontend/TESTING.md)
 - **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
+- **Design System (web v1)**: [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) — canonical tokens, buttons, cards, tabs, states; when a page and this doc disagree, the page is wrong
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
 - **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md) — why v1 web, v2 web preview, and v2 native each use a different strategy

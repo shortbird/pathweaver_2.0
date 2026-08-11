@@ -247,7 +247,7 @@ const CurriculumBuilder = () => {
     if (saveStatus === 'saving') {
       return (
         <div className="flex items-center gap-2 text-sm text-gray-600">
-          <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+          <div className="w-4 h-4 animate-spin rounded-full border-b-2 border-optio-purple" />
           <span>Saving...</span>
         </div>
       )
@@ -396,7 +396,7 @@ const CurriculumBuilder = () => {
               setIsMobileSidebarOpen(false)
             }}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity min-h-[44px] touch-manipulation"
+            className="btn-primary w-full min-h-[44px] touch-manipulation"
           >
             <PlusIcon className="w-4 h-4" />
             Add Lesson
@@ -455,7 +455,7 @@ const CurriculumBuilder = () => {
               <button
                 onClick={handleCreateLesson}
                 disabled={saving}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity min-h-[44px] touch-manipulation"
+                className="btn-primary w-full min-h-[44px] touch-manipulation"
               >
                 <PlusIcon className="w-4 h-4" />
                 Add Lesson
@@ -521,7 +521,7 @@ const CurriculumBuilder = () => {
                   </p>
                   <button
                     onClick={() => setIsMobileSidebarOpen(true)}
-                    className="lg:hidden mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 min-h-[44px] touch-manipulation"
+                    className="btn-primary lg:hidden mt-4 min-h-[44px] touch-manipulation"
                   >
                     <Bars3Icon className="w-4 h-4" />
                     View Lessons

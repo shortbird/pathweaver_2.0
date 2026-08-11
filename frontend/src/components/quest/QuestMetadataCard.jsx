@@ -83,7 +83,6 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
         <div className={hasMetadata ? 'mb-6' : ''}>
           <h2
             className="text-lg sm:text-xl font-bold text-gray-900 mb-3 flex items-center gap-2"
-            style={{ fontFamily: 'Poppins' }}
           >
             <LightBulbIcon className="w-5 h-5 text-optio-purple" />
             What You Could Create
@@ -93,7 +92,6 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
               <li
                 key={index}
                 className="flex items-start gap-2 text-sm sm:text-base text-gray-700"
-                style={{ fontFamily: 'Poppins' }}
               >
                 <span className="text-optio-purple mt-1">-</span>
                 <span>{item}</span>
@@ -108,7 +106,6 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
         <div>
           <h2
             className="text-lg sm:text-xl font-bold text-gray-900 mb-3"
-            style={{ fontFamily: 'Poppins' }}
           >
             Quest Details
           </h2>
@@ -117,7 +114,7 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
             {timeEstimate && (
               <div className="flex items-center gap-3 text-sm sm:text-base text-gray-700">
                 <ClockIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins' }}>
+                <span>
                   <span className="font-medium">Time Estimate:</span> {timeEstimate}
                   {typeof timeEstimate === 'number' && ' hours'}
                 </span>
@@ -128,7 +125,7 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
             {intensity && (
               <div className="flex items-center gap-3 text-sm sm:text-base text-gray-700">
                 <FireIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins' }}>
+                <span>
                   <span className="font-medium">Intensity:</span>{' '}
                   {intensityDisplay[intensity] || intensity}
                 </span>
@@ -139,7 +136,7 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
             {locationDisplay && (
               <div className="flex items-center gap-3 text-sm sm:text-base text-gray-700">
                 <MapPinIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins' }}>
+                <span>
                   <span className="font-medium">Location:</span> {locationDisplay}
                 </span>
               </div>
@@ -149,7 +146,7 @@ const QuestMetadataCard = ({ quest, className = '' }) => {
             {seasonalDisplay && (
               <div className="flex items-center gap-3 text-sm sm:text-base text-gray-700">
                 <CalendarIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins' }}>
+                <span>
                   <span className="font-medium">Seasonal:</span> {seasonalDisplay}
                 </span>
               </div>

@@ -70,9 +70,9 @@ const MiniHeatMap = ({ days }) => {
   const getIntensityClass = (intensity) => {
     switch (intensity) {
       case 0: return 'bg-gray-200';
-      case 1: return 'bg-purple-200';
-      case 2: return 'bg-purple-400';
-      case 3: return 'bg-purple-600';
+      case 1: return 'bg-optio-purple/20';
+      case 2: return 'bg-optio-purple-light';
+      case 3: return 'bg-optio-purple';
       case 4: return 'bg-gradient-to-r from-optio-purple to-optio-pink';
       default: return 'bg-gray-200';
     }
@@ -121,7 +121,7 @@ const CompactQuestCard = memo(({ quest }) => {
   return (
     <div
       onClick={handleClick}
-      className="group bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all duration-200 sm:hover:shadow-md sm:hover:border-purple-300 sm:hover:-translate-y-0.5"
+      className="group bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all duration-200 sm:hover:shadow-md sm:hover:border-optio-purple/30 sm:hover:-translate-y-0.5"
     >
       {/* Header with title and status */}
       <div className="flex items-start justify-between mb-3">

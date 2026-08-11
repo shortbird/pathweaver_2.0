@@ -74,7 +74,6 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
             <button
               onClick={onEditClick}
               className="hidden md:flex absolute bottom-4 right-4 items-center gap-2 px-3 py-2 border border-white/50 text-white rounded-lg text-sm font-medium bg-transparent hover:bg-white/20 hover:border-white transition-all"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
             >
               <Cog6ToothIcon className="w-4 h-4" />
               Actions
@@ -90,7 +89,7 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
           would vanish and the page reads as broken. Explain what will appear
           here and what to do if a class was expected but isn't showing. */}
       {data.enrolledCourses?.length === 0 && data.activeQuests?.length === 0 && !data.totalXp && (
-        <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
+        <div className="bg-optio-purple/5 border border-optio-purple/10 rounded-xl p-5">
           <h3 className="font-semibold text-gray-900 mb-2">
             {data.user?.first_name || 'Your student'} is just getting started
           </h3>

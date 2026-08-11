@@ -57,7 +57,7 @@ const MobileBlockAdder = ({ onAddBlock, mode = 'compact' }) => {
   if (mode === 'empty') {
     return (
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
           Add your first evidence
         </h3>
         <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
@@ -73,7 +73,7 @@ const MobileBlockAdder = ({ onAddBlock, mode = 'compact' }) => {
               style={{ minWidth: '44px', minHeight: isPrimary ? '80px' : '72px' }}
             >
               <Icon className={isPrimary ? 'w-8 h-8' : 'w-6 h-6'} />
-              <span className={`text-sm font-medium ${isPrimary ? '' : 'text-gray-700'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className={`text-sm font-medium ${isPrimary ? '' : 'text-gray-700'}`}>
                 {label}
               </span>
             </button>
@@ -100,7 +100,7 @@ const MobileBlockAdder = ({ onAddBlock, mode = 'compact' }) => {
               style={{ minWidth: isPrimary ? '64px' : '56px', minHeight: isPrimary ? '64px' : '56px' }}
             >
               <Icon className={isPrimary ? 'w-7 h-7' : 'w-5 h-5'} />
-              <span className={`text-xs font-medium ${isPrimary ? '' : 'text-gray-600'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className={`text-xs font-medium ${isPrimary ? '' : 'text-gray-600'}`}>
                 {label}
               </span>
             </button>

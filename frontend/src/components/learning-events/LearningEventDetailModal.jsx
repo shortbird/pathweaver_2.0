@@ -190,7 +190,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
       >
         <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 rounded-t-xl sticky top-0 z-10">
+          <div className="bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-bold mb-1">Learning Moment</h2>
@@ -229,7 +229,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
                     >
                       {t.type === 'quest' ? (
-                        <span className="w-2 h-2 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                        <span className="w-2 h-2 rounded-full bg-gradient-primary flex-shrink-0" />
                       ) : (
                         <span
                           className="w-2 h-2 rounded-full flex-shrink-0"
@@ -294,7 +294,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
               {(!isParentView || canParentModify) && (
                 <button
                   onClick={() => setShowEditModal(true)}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-colors font-medium flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-colors font-medium flex items-center justify-center gap-2"
                 >
                   {hasEvidence ? (
                     <>

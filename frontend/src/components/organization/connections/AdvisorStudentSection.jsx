@@ -34,7 +34,7 @@ function AdvisorStudentSection({
       ) : (
         <div className="space-y-3">
           {advisors.map(advisor => (
-            <div key={advisor.id} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 transition-colors">
+            <div key={advisor.id} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-optio-purple/30 transition-colors">
               <button
                 onClick={() => handleSelectAdvisor(advisor)}
                 className="w-full p-4 text-left flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -45,7 +45,7 @@ function AdvisorStudentSection({
                       {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                     </p>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      advisor.role === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple-dark' : 'bg-blue-100 text-blue-800'
                     }`}>
                       {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                     </span>
@@ -72,7 +72,7 @@ function AdvisorStudentSection({
                     </h4>
                     <button
                       onClick={() => setShowAssignModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium text-sm"
                     >
                       <UserPlusIcon className="w-4 h-4" />
                       Assign Student

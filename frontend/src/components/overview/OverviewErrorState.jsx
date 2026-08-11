@@ -10,7 +10,7 @@ const OverviewErrorState = ({ error, onRetry }) => (
     <p className="text-gray-600 mb-4">{error}</p>
     <button
       onClick={onRetry}
-      className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-md transition-shadow"
+      className="btn-primary"
     >
       Try Again
     </button>

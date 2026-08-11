@@ -141,7 +141,7 @@ const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, cat
   // Highlight {variables} in textarea
   const highlightVariables = (text) => {
     return text.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match) => {
-      return `<span class="bg-yellow-100 text-purple-700 font-semibold">${match}</span>`
+      return `<span class="bg-yellow-100 text-optio-purple-dark font-semibold">${match}</span>`
     })
   }
 
@@ -156,7 +156,7 @@ const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, cat
         {/* Category badge */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">Category:</span>
-          <span className="px-3 py-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold">
+          <span className="px-3 py-1 bg-gradient-primary text-white rounded-full text-xs font-semibold">
             {category}
           </span>
         </div>
@@ -265,7 +265,7 @@ const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, cat
         <button
           onClick={handleSave}
           disabled={saving || !hasChanges}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving...' : 'Save Changes'}
         </button>

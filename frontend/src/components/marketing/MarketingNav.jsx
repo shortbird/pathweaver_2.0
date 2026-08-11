@@ -73,7 +73,6 @@ const MarketingNav = () => {
                     ? 'text-optio-purple bg-optio-purple/10'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
-                style={{ fontFamily: 'Poppins' }}
               >
                 {link.label}
               </Link>
@@ -87,7 +86,6 @@ const MarketingNav = () => {
                 to={dashboardPath}
                 onClick={() => captureEvent('marketing_nav_dashboard_click')}
                 className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Go to my dashboard
               </Link>
@@ -97,7 +95,6 @@ const MarketingNav = () => {
                   to="/login"
                   onClick={() => captureEvent('marketing_nav_login_click')}
                   className="text-sm font-semibold text-gray-700 hover:text-optio-purple transition-colors px-4 py-2"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   Login
                 </Link>
@@ -105,7 +102,6 @@ const MarketingNav = () => {
                   to="/register"
                   onClick={() => captureEvent('marketing_nav_signup_click')}
                   className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   Create Free Account
                 </Link>
@@ -149,7 +145,6 @@ const MarketingNav = () => {
                   ? 'text-optio-purple bg-optio-purple/10'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
-              style={{ fontFamily: 'Poppins' }}
             >
               {link.label}
             </Link>
@@ -160,7 +155,6 @@ const MarketingNav = () => {
                 to={dashboardPath}
                 onClick={() => captureEvent('marketing_nav_dashboard_click', { mobile: true })}
                 className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Go to my dashboard
               </Link>
@@ -170,7 +164,6 @@ const MarketingNav = () => {
                   to="/login"
                   onClick={() => captureEvent('marketing_nav_login_click', { mobile: true })}
                   className="block text-center px-4 py-3 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   Login
                 </Link>
@@ -178,7 +171,6 @@ const MarketingNav = () => {
                   to="/register"
                   onClick={() => captureEvent('marketing_nav_signup_click', { mobile: true })}
                   className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   Create Free Account
                 </Link>

@@ -102,18 +102,16 @@ const FreeClassModal = ({ open, onClose, source = 'classes_lp' }) => {
               <h3
                 id="free-class-modal-title"
                 className="text-2xl font-bold text-gray-900 mb-2"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Check your inbox
               </h3>
-              <p className="text-gray-600 text-base" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-600 text-base">
                 Your free class details are on the way. We'll email you back personally — no automated spam.
               </p>
               <button
                 type="button"
                 onClick={onClose}
                 className="mt-6 text-sm font-semibold text-optio-purple hover:text-optio-pink transition-colors"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Close
               </button>
@@ -124,11 +122,10 @@ const FreeClassModal = ({ open, onClose, source = 'classes_lp' }) => {
                 <h3
                   id="free-class-modal-title"
                   className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2"
-                  style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 >
                   Get your first class on us!
                 </h3>
-                <p className="text-gray-600 text-base" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-600 text-base">
                   Drop your email and we'll send you everything you need to get your first class free.
                 </p>
               </div>
@@ -146,24 +143,22 @@ const FreeClassModal = ({ open, onClose, source = 'classes_lp' }) => {
                     placeholder="you@email.com"
                     autoComplete="email"
                     className="w-full px-4 py-3.5 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent text-base"
-                    style={{ fontFamily: 'Poppins' }}
                   />
                 </div>
 
                 {error && (
-                  <p className="text-red-600 text-sm" style={{ fontFamily: 'Poppins' }}>{error}</p>
+                  <p className="text-red-600 text-sm">{error}</p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading || !email.trim()}
-                  className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-3.5 rounded-lg text-lg shadow-md hover:shadow-lg hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  className="btn-primary btn-lg w-full"
                 >
                   {loading ? 'Sending...' : 'Get my free class'}
                 </button>
 
-                <p className="text-center text-gray-500 text-xs" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-center text-gray-500 text-xs">
                   We'll email you personally. No spam, no sharing your address.
                 </p>
               </form>

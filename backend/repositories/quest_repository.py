@@ -406,7 +406,8 @@ class QuestRepository(BaseRepository):
         user_id: str,
         filters: Optional[Dict[str, Any]] = None,
         page: int = 1,
-        limit: int = 20
+        limit: int = 20,
+        sort: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Get quests visible to a user based on their organization's policy.
@@ -417,6 +418,8 @@ class QuestRepository(BaseRepository):
             filters: Optional filters (pillar, quest_type, search)
             page: Page number (1-indexed)
             limit: Items per page
+            sort: Optional ordering. 'popular' = curated featured quests first, then
+                created_at desc. Default (None) = created_at desc.
 
         Returns:
             Dictionary with quests, total count, page, and limit
@@ -475,54 +478,61 @@ class QuestRepository(BaseRepository):
             # This prevents stack depth errors by simplifying the query plan
             filters = filters or {}
             search_term = filters.get('search')
-
-            # Base query: only active quests
-            # Use admin client to bypass RLS and apply our own visibility logic
-            # NOTE: is_public filter is applied per-category below, not globally
-            # Organization quests should be visible to org members even if not "public"
-            query = admin.table('quests').select('*', count='exact').eq('is_active', True)
-
-            # Apply search FIRST (before org filtering) to reduce result set
-            # Search in title and big_idea
             if search_term:
                 # Defense in depth: strip PostgREST filter metacharacters so the
                 # value can't inject an extra .or_() condition.
                 search_term = sanitize_search_input(search_term)
-                query = query.or_(f"title.ilike.%{search_term}%,big_idea.ilike.%{search_term}%")
 
-            # Apply organization visibility policy
-            # Note: Since we applied search first, the org filtering now operates on a smaller set
-            # is_public only applies to global Optio quests (organization_id IS NULL)
-            # Organization quests are visible to org members regardless of is_public
-            # User's own created quests are always visible to them
-            if policy == 'all_optio':
-                if org_id:
-                    # Global PUBLIC quests (NULL org_id + is_public) + organization quests (any is_public) + user's own created quests
-                    query = query.or_(
-                        f'and(organization_id.is.null,is_public.eq.true),'
-                        f'organization_id.eq.{org_id},'
-                        f'created_by.eq.{user_id}'
-                    )
-                else:
-                    # No organization - global PUBLIC quests + user's own created quests
-                    query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
+            # For the 'curated' policy, resolve the curated quest ids once so
+            # the query builder below stays cheap to call repeatedly.
+            curated_quest_ids = None
+            if policy == 'curated' and org_id:
+                curated = admin.table('organization_quest_access')\
+                    .select('quest_id')\
+                    .eq('organization_id', org_id)\
+                    .execute()
+                curated_quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
 
-            elif policy == 'curated':
-                if not org_id:
-                    # No organization - fallback to global PUBLIC quests only
-                    query = query.is_('organization_id', 'null').eq('is_public', True)
-                else:
-                    # Get curated quest IDs
-                    curated = admin.table('organization_quest_access')\
-                        .select('quest_id')\
-                        .eq('organization_id', org_id)\
-                        .execute()
+            def build_query(select_cols: str = '*'):
+                """
+                Build a FRESH filtered quests query (supabase-py builders are
+                single-use once ranged). No ordering/pagination applied here.
+                """
+                # Base query: only active quests
+                # Use admin client to bypass RLS and apply our own visibility logic
+                # NOTE: is_public filter is applied per-category below, not globally
+                # Organization quests should be visible to org members even if not "public"
+                query = admin.table('quests').select(select_cols, count='exact').eq('is_active', True)
 
-                    quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
+                # Apply search FIRST (before org filtering) to reduce result set
+                # Search in title and big_idea
+                if search_term:
+                    query = query.or_(f"title.ilike.%{search_term}%,big_idea.ilike.%{search_term}%")
 
-                    if quest_ids:
+                # Apply organization visibility policy
+                # Note: Since we applied search first, the org filtering now operates on a smaller set
+                # is_public only applies to global Optio quests (organization_id IS NULL)
+                # Organization quests are visible to org members regardless of is_public
+                # User's own created quests are always visible to them
+                if policy == 'all_optio':
+                    if org_id:
+                        # Global PUBLIC quests (NULL org_id + is_public) + organization quests (any is_public) + user's own created quests
+                        query = query.or_(
+                            f'and(organization_id.is.null,is_public.eq.true),'
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
+                    else:
+                        # No organization - global PUBLIC quests + user's own created quests
+                        query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
+
+                elif policy == 'curated':
+                    if not org_id:
+                        # No organization - fallback to global PUBLIC quests only
+                        query = query.is_('organization_id', 'null').eq('is_public', True)
+                    elif curated_quest_ids:
                         # Curated quests + organization quests + user's own created quests
-                        quest_ids_str = ','.join(quest_ids)
+                        quest_ids_str = ','.join(curated_quest_ids)
                         query = query.or_(
                             f'id.in.({quest_ids_str}),'
                             f'organization_id.eq.{org_id},'
@@ -535,35 +545,51 @@ class QuestRepository(BaseRepository):
                             f'created_by.eq.{user_id}'
                         )
 
-            elif policy == 'private_only':
-                if not org_id:
-                    # No organization - only user's own created quests
-                    query = query.eq('created_by', user_id)
-                else:
-                    # Only organization quests + user's own created quests
-                    query = query.or_(
-                        f'organization_id.eq.{org_id},'
-                        f'created_by.eq.{user_id}'
-                    )
+                elif policy == 'private_only':
+                    if not org_id:
+                        # No organization - only user's own created quests
+                        query = query.eq('created_by', user_id)
+                    else:
+                        # Only organization quests + user's own created quests
+                        query = query.or_(
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
 
-            # Apply additional non-search filters
-            if filters.get('pillar'):
-                query = query.eq('pillar_primary', filters['pillar'])
-            if filters.get('quest_type'):
-                query = query.eq('quest_type', filters['quest_type'])
-            if filters.get('topic'):
-                logger.info(f"[TOPIC FILTER] Filtering by topic_primary: {filters['topic']}")
-                query = query.eq('topic_primary', filters['topic'])
-            if filters.get('subtopic'):
-                logger.info(f"[SUBTOPIC FILTER] Filtering by topics containing: {filters['subtopic']}")
-                query = query.contains('topics', [filters['subtopic']])
+                # Apply additional non-search filters
+                if filters.get('pillar'):
+                    query = query.eq('pillar_primary', filters['pillar'])
+                if filters.get('quest_type'):
+                    query = query.eq('quest_type', filters['quest_type'])
+                if filters.get('topic'):
+                    query = query.eq('topic_primary', filters['topic'])
+                if filters.get('subtopic'):
+                    query = query.contains('topics', [filters['subtopic']])
 
-            # Pagination for infinite scroll
+                return query
+
+            if sort == 'popular':
+                # "Exciting first": curated featured quests first, then newest.
+                # Ranks all matching ids truncation-safely, fetches one page.
+                from utils.quest_popularity import paginate_quests_by_popularity
+                quests, total = paginate_quests_by_popularity(
+                    build_query, page, limit
+                )
+                return {
+                    'quests': quests,
+                    'total': total,
+                    'page': page,
+                    'limit': limit
+                }
+
+            # Default ordering: newest first. The explicit order also makes
+            # infinite-scroll pagination deterministic (an unordered .range()
+            # can repeat or skip quests between pages).
             offset = (page - 1) * limit
-            query = query.range(offset, offset + limit - 1)
-
-            # Execute query
-            response = query.execute()
+            response = build_query()\
+                .order('created_at', desc=True)\
+                .range(offset, offset + limit - 1)\
+                .execute()
 
             return {
                 'quests': response.data if response.data else [],

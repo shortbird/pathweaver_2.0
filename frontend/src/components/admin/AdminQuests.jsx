@@ -5,6 +5,7 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import QuestForm from './QuestForm'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
+import Spinner from '../ui/Spinner'
 
 const AdminQuests = () => {
   const { user } = useAuth()
@@ -415,7 +416,7 @@ const AdminQuests = () => {
                 <button
                   onClick={() => handleCloneToOptio(quest.id)}
                   disabled={isProcessing}
-                  className="w-full px-4 py-2 text-left text-sm text-optio-purple hover:bg-purple-50 flex items-center gap-2 disabled:opacity-50"
+                  className="w-full px-4 py-2 text-left text-sm text-optio-purple hover:bg-optio-purple/5 flex items-center gap-2 disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -460,13 +461,13 @@ const AdminQuests = () => {
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
             onClick={() => navigate('/courses/new')}
-            className="bg-optio-purple text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+            className="btn-quiet"
           >
             Create Course
           </button>
           <button
             onClick={() => setShowCreationForm(true)}
-            className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+            className="btn-primary"
           >
             Create Quest
           </button>
@@ -480,42 +481,42 @@ const AdminQuests = () => {
           <button
             onClick={handleBulkActivate}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+            className="btn-quiet px-3 py-1.5"
           >
             Activate
           </button>
           <button
             onClick={handleBulkDeactivate}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 font-medium"
+            className="btn-quiet px-3 py-1.5"
           >
             Deactivate
           </button>
           <button
             onClick={handleBulkPublish}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+            className="btn-quiet px-3 py-1.5"
           >
             Publish
           </button>
           <button
             onClick={handleBulkUnpublish}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 font-medium"
+            className="btn-quiet px-3 py-1.5"
           >
             Unpublish
           </button>
           <button
             onClick={handleBulkGenerateImages}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium"
+            className="btn-quiet px-3 py-1.5"
           >
             Generate Images
           </button>
           <button
             onClick={handleBulkDelete}
             disabled={isProcessing}
-            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+            className="btn-danger px-3 py-1.5"
           >
             Delete
           </button>
@@ -632,7 +633,7 @@ const AdminQuests = () => {
       {/* Quest Grid */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r bg-gradient-primary"></div>
+          <Spinner size="lg" />
         </div>
       ) : (
         <div>
@@ -647,7 +648,7 @@ const AdminQuests = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredQuests.map(quest => (
                 <div
                   key={quest.id}
@@ -665,7 +666,7 @@ const AdminQuests = () => {
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br bg-gradient-primary" />
+                      <div className="w-full h-full bg-gradient-primary" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
 
@@ -720,7 +721,7 @@ const AdminQuests = () => {
                         onClick={() => isAdmin && handleToggleActive(quest.id, quest.is_active)}
                         disabled={isAdvisor}
                         className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          isAdvisor ? 'opacity-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2'
+                          isAdvisor ? 'opacity-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-optio-purple focus:ring-offset-2'
                         } ${quest.is_active ? 'bg-green-500' : 'bg-gray-300'}`}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -730,7 +731,7 @@ const AdminQuests = () => {
                     </div>
 
                     {/* Public Toggle */}
-                    <div className="flex items-center justify-between min-h-[44px] mb-4 p-3 bg-blue-50 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between min-h-[44px] mb-4 p-3 bg-optio-purple/5 rounded-lg" onClick={(e) => e.stopPropagation()}>
                       <span className="text-sm font-medium text-gray-700">
                         Public
                         {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
@@ -739,8 +740,8 @@ const AdminQuests = () => {
                         onClick={() => isAdmin && handleTogglePublic(quest.id, quest.is_public)}
                         disabled={isAdvisor}
                         className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          isAdvisor ? 'opacity-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-                        } ${quest.is_public ? 'bg-blue-500' : 'bg-gray-300'}`}
+                          isAdvisor ? 'opacity-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-optio-purple focus:ring-offset-2'
+                        } ${quest.is_public ? 'bg-optio-purple' : 'bg-gray-300'}`}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           quest.is_public ? 'translate-x-6' : 'translate-x-1'
@@ -751,7 +752,7 @@ const AdminQuests = () => {
                     {/* Creator Info & Dropdown Menu */}
                     <div className="flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                       {quest.creator_name ? (
-                        <div className="flex-1 mr-2 p-2 bg-purple-50 rounded-lg">
+                        <div className="flex-1 mr-2 p-2 bg-optio-purple/5 rounded-lg">
                           <span className="text-xs text-gray-600">Created by</span>
                           <p className="text-sm font-medium text-gray-700 truncate">{quest.creator_name}</p>
                         </div>
@@ -780,7 +781,7 @@ const AdminQuests = () => {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-3 rounded-full transition-all duration-300"
+                  className="bg-gradient-primary h-3 rounded-full transition-all duration-300"
                   style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
                 />
               </div>

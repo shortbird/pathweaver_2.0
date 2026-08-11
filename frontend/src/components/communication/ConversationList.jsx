@@ -193,7 +193,7 @@ const ConversationList = ({
         onClick={() => onSelectConversation(conversation)}
         className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
           isSelected
-            ? 'bg-purple-50 border-optio-purple'
+            ? 'bg-optio-purple/5 border-optio-purple'
             : 'border-transparent hover:bg-gray-50'
         }`}
       >
@@ -212,7 +212,7 @@ const ConversationList = ({
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
-            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-optio-purple font-bold">
+            <div className="w-10 h-10 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-bold">
               {initial}
             </div>
           )}
@@ -258,11 +258,11 @@ const ConversationList = ({
       <button
         onClick={() => onSelectConversation({ ...group, type: 'group' })}
         className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
-          isSelected ? 'bg-purple-50 border-optio-purple' : 'border-transparent hover:bg-gray-50'
+          isSelected ? 'bg-optio-purple/5 border-optio-purple' : 'border-transparent hover:bg-gray-50'
         }`}
       >
         <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
             <UsersIcon className="w-5 h-5 text-white" />
           </div>
           {isUnread && (
@@ -281,7 +281,7 @@ const ConversationList = ({
                 {group.name}
               </h3>
               {group.source_class_id && (
-                <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-optio-purple bg-purple-100 px-1.5 py-0.5 rounded-full">
+                <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded-full">
                   Class
                 </span>
               )}
@@ -313,7 +313,7 @@ const ConversationList = ({
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Page header */}
       <div className="px-4 py-3 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>Messages</h2>
+        <h2 className="text-lg font-bold text-gray-900">Messages</h2>
       </div>
 
       {/* Search */}
@@ -381,7 +381,7 @@ const ConversationList = ({
         <div className="border-t border-gray-200 p-3">
           <button
             onClick={onCreateGroup}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-optio-purple hover:bg-purple-50 hover:border-optio-purple transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 hover:border-optio-purple transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
             New group

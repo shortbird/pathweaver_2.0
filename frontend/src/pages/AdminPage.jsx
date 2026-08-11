@@ -1,6 +1,8 @@
 import React, { memo, lazy, Suspense } from 'react'
-import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import GlassTabBar from '../components/ui/GlassTabBar'
+import { Spinner } from '../components/ui/Spinner'
 
 // Lazy load all admin components to reduce initial bundle size
 const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
@@ -20,7 +22,7 @@ const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue')
 // Loading spinner component
 const LoadingFallback = () => (
   <div className="flex justify-center items-center h-64">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+    <Spinner size="lg" />
   </div>
 )
 
@@ -96,50 +98,23 @@ const AdminPage = () => {
         </select>
       </div>
 
-      {/* Desktop: horizontal tabs */}
-      <div className="hidden md:flex gap-4 mb-8 border-b overflow-x-auto scroll-smooth">
-        {/* Admin-only tabs */}
-        {isAdmin && adminTabs.map(tab => (
-          <Link
-            key={tab.path}
-            to={tab.path ? `/admin/${tab.path}` : '/admin'}
-            className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
-              getTabIsActive(tab)
-                ? 'border-b-2 border-optio-purple font-bold text-gray-900'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-
-        {/* Superadmin-only tabs */}
-        {isSuperadmin && superadminTabs.map(tab => {
-          const isActive = location.pathname.startsWith(`/admin/${tab.path}`)
-          return (
-            <Link
-              key={tab.path}
-              to={`/admin/${tab.path}`}
-              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
-                isActive
-                  ? 'border-b-2 border-optio-purple font-bold text-gray-900'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
-
-        {/* Quests tab - visible to advisors */}
-        {isAdvisor && !isAdmin && (
-          <Link
-            to="/admin/quests"
-            className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            Quests
-          </Link>
-        )}
+      {/* Desktop: glass tab bar (hidden automatically below 2 tabs) */}
+      <div className="hidden md:block mb-8">
+        <GlassTabBar
+          size="md"
+          aria-label="Admin sections"
+          tabs={[
+            ...(isAdmin ? adminTabs : []),
+            ...(isSuperadmin ? superadminTabs : []),
+            ...(isAdvisor && !isAdmin ? [{ path: 'quests', label: 'Quests' }] : []),
+          ].map(tab => ({ id: tab.path, label: tab.label }))}
+          active={
+            (isAdmin && adminTabs.find(getTabIsActive)?.path) ||
+            (isSuperadmin && superadminTabs.find(tab => location.pathname.startsWith(`/admin/${tab.path}`))?.path) ||
+            (isAdvisor && !isAdmin && (currentPath === 'admin' || currentPath === 'quests') ? 'quests' : null)
+          }
+          onSelect={(path) => navigate(`/admin/${path}`)}
+        />
       </div>
 
       <Suspense fallback={<LoadingFallback />}>

@@ -48,10 +48,10 @@ describe('SchoolPage without school context', () => {
     orgState = { school: null, loading: false }
   })
 
-  it('sends a parent to the parent dashboard, not the marketing homepage', () => {
+  it('sends a parent to their role home, not the marketing homepage', () => {
     authState = { user: { id: 'u1' }, effectiveRole: 'parent' }
     renderSchool()
-    expect(screen.getByTestId('parent-dashboard')).toBeInTheDocument()
+    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
     expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
   })
 

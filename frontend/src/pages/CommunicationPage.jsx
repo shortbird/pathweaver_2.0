@@ -91,7 +91,7 @@ const CommunicationPage = () => {
           {/* Right Side - Chat Window
               Mobile: full width, hidden when no conversation selected
               Desktop: flex-1, always visible */}
-          <div className={`flex-1 flex flex-col ${!selectedConversation ? 'hidden md:flex' : ''}`}>
+          <div className={`flex-1 flex flex-col min-h-0 ${!selectedConversation ? 'hidden md:flex' : ''}`}>
             {isGroupChat ? (
               <GroupChatWindow
                 group={selectedConversation}

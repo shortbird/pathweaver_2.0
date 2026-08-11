@@ -233,7 +233,7 @@ const ReviewQueueTab = () => {
                 }}
                 className={`px-3 py-2 rounded-lg font-medium capitalize text-sm transition-colors ${
                   statusFilter === status
-                    ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                    ? 'bg-gradient-primary text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >

@@ -72,21 +72,21 @@ const PickUpSetDownButton = ({
       return {
         text: 'Set Down',
         onClick: handleSetDown,
-        style: 'bg-purple-100 text-purple-700 hover:bg-purple-200 border-2 border-purple-300',
+        style: 'bg-optio-purple/10 text-optio-purple-dark hover:bg-optio-purple/20 border-2 border-optio-purple/30',
         icon: '⤵️'
       };
     } else if (userQuestStatus === 'set_down') {
       return {
         text: timesPickedUp > 1 ? `Pick Up Again (${timesPickedUp}x)` : 'Pick Up Again',
         onClick: handlePickUp,
-        style: 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:from-purple-700 hover:to-pink-700',
+        style: 'bg-gradient-primary text-white',
         icon: '↻'
       };
     } else {
       return {
         text: 'Pick Up',
         onClick: handlePickUp,
-        style: 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:from-purple-700 hover:to-pink-700',
+        style: 'bg-gradient-primary text-white',
         icon: '⤴️'
       };
     }

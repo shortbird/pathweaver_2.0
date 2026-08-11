@@ -19,7 +19,7 @@ const FUNDING_LABELS = {
 const STATUS_STYLES = {
   sent: 'bg-blue-100 text-blue-700', partial: 'bg-amber-100 text-amber-700',
   paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700',
-  void: 'bg-neutral-100 text-neutral-400',
+  void: 'bg-neutral-100 text-gray-400',
 }
 
 const PRINT_STYLES = `
@@ -169,14 +169,14 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
   <div className="bg-white rounded-xl border border-gray-200">
     <button onClick={onToggle} className="w-full text-left p-4">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-neutral-900">
+        <span className="font-medium text-gray-900">
           {money(invoice.total_cents)}{invoice.student_name ? ` · ${invoice.student_name}` : ''}
         </span>
-        <span className={`text-xs rounded-full px-2 py-0.5 ${STATUS_STYLES[invoice.status] || 'bg-neutral-100 text-neutral-500'}`}>
+        <span className={`text-xs rounded-full px-2 py-0.5 ${STATUS_STYLES[invoice.status] || 'bg-neutral-100 text-gray-500'}`}>
           {invoice.status}
         </span>
       </div>
-      <div className="text-sm text-neutral-400 mt-0.5">
+      <div className="text-sm text-gray-400 mt-0.5">
         {invoice.invoice_number ? `${invoice.invoice_number} · ` : ''}Issued {shortDate(invoice.issued_at)}{invoice.due_date ? ` · due ${invoice.due_date}` : ''} · paid {money(invoice.amount_paid_cents)}
       </div>
     </button>
@@ -190,7 +190,7 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
             Set up 10-payment plan
           </Button>
         )}
-        <span className="text-xs text-neutral-400">A card processing fee is added at checkout.</span>
+        <span className="text-xs text-gray-400">A card processing fee is added at checkout.</span>
       </div>
     )}
     {expanded && (
@@ -203,16 +203,16 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
             </div>
           ))}
           {(invoice.discount_cents || 0) > 0 && (
-            <div className="flex justify-between text-neutral-500"><span>Discount</span><span>-{money(invoice.discount_cents)}</span></div>
+            <div className="flex justify-between text-gray-500"><span>Discount</span><span>-{money(invoice.discount_cents)}</span></div>
           )}
           <div className="flex justify-between font-medium border-t border-gray-100 pt-1"><span>Total</span><span>{money(invoice.total_cents)}</span></div>
         </div>
         {!!(invoice.installments || []).length && (
           <div className="border-t border-gray-100 pt-2 mt-2">
-            <div className="text-xs text-neutral-500 mb-1">Payment schedule</div>
+            <div className="text-xs text-gray-500 mb-1">Payment schedule</div>
             {invoice.installments.map((i) => (
               <div key={i.id} className="flex justify-between">
-                <span className="text-neutral-600">{i.due_date}</span>
+                <span className="text-gray-600">{i.due_date}</span>
                 <span>{money(i.amount_cents)} · {i.status}</span>
               </div>
             ))}
@@ -342,39 +342,39 @@ const FamilyBillingPage = () => {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <style>{PRINT_STYLES}</style>
       <BackToSchool className="mb-3 print:hidden" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Billing</h1>
-      <p className="text-sm text-neutral-500 mb-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Billing</h1>
+      <p className="text-sm text-gray-500 mb-6">
         Your family's balance, invoices, and payments. Print any payment as a receipt for scholarship reimbursement.
       </p>
 
-      {households === null && <p className="text-neutral-500">Loading…</p>}
+      {households === null && <p className="text-gray-500">Loading…</p>}
       {households?.length === 0 && (
-        <p className="text-neutral-500">No billing history yet. Invoices from your school will appear here.</p>
+        <p className="text-gray-500">No billing history yet. Invoices from your school will appear here.</p>
       )}
 
       {(households || []).map((hh) => (
         <div key={hh.household_id} className="mb-10">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-neutral-900">
+            <h2 className="font-semibold text-gray-900">
               {hh.organization?.name || 'Your school'}{hh.household_name ? ` · ${hh.household_name}` : ''}
             </h2>
             <Button size="sm" variant="secondary" onClick={() => printStatement(hh)}>Print statement</Button>
           </div>
 
           {/* Balance summary */}
-          <div className="rounded-xl border border-gray-200 bg-gradient-to-r from-optio-purple to-optio-pink p-[1px] mb-2">
+          <div className="rounded-xl border border-gray-200 bg-gradient-primary p-[1px] mb-2">
             <div className="rounded-xl bg-white p-4 grid grid-cols-3 gap-2 text-center">
               <div>
-                <div className="text-xs uppercase tracking-wide text-neutral-400">Invoiced</div>
-                <div className="text-lg font-semibold text-neutral-900">{money(hh.totals?.invoiced_cents)}</div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Invoiced</div>
+                <div className="text-lg font-semibold text-gray-900">{money(hh.totals?.invoiced_cents)}</div>
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wide text-neutral-400">Paid</div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Paid</div>
                 <div className="text-lg font-semibold text-green-700">{money(hh.totals?.paid_cents)}</div>
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wide text-neutral-400">Balance</div>
-                <div className={`text-lg font-semibold ${(hh.totals?.balance_cents || 0) > 0 ? 'text-red-700' : 'text-neutral-900'}`}>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Balance</div>
+                <div className={`text-lg font-semibold ${(hh.totals?.balance_cents || 0) > 0 ? 'text-red-700' : 'text-gray-900'}`}>
                   {money(hh.totals?.balance_cents)}
                 </div>
               </div>
@@ -392,20 +392,20 @@ const FamilyBillingPage = () => {
                   <Button size="sm" onClick={() => payFamily(hh)} loading={payingFamily === hh.household_id}>
                     Pay whole family · {money(hh.totals?.balance_cents)}
                   </Button>
-                  <span className="ml-2 text-xs text-neutral-400">
+                  <span className="ml-2 text-xs text-gray-400">
                     Pays every open invoice at once. A card processing fee is added at checkout.
                   </span>
                 </div>
               )}
-              <p className="text-xs text-neutral-500 mb-5">
+              <p className="text-xs text-gray-500 mb-5">
                 Pay online, by Zelle, or through your scholarship program; the school records each payment here.
               </p>
             </>
           )}
 
           {/* Invoices */}
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Invoices</h3>
-          {!(hh.invoices || []).length && <p className="text-sm text-neutral-500 mb-4">No invoices yet.</p>}
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Invoices</h3>
+          {!(hh.invoices || []).length && <p className="text-sm text-gray-500 mb-4">No invoices yet.</p>}
           <div className="space-y-2 mb-6">
             {(hh.invoices || []).map((inv) => (
               <InvoiceCard
@@ -419,14 +419,14 @@ const FamilyBillingPage = () => {
           </div>
 
           {/* Payments */}
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Payments</h3>
-          {!(hh.payments || []).length && <p className="text-sm text-neutral-500">No payments recorded yet.</p>}
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Payments</h3>
+          {!(hh.payments || []).length && <p className="text-sm text-gray-500">No payments recorded yet.</p>}
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
             {(hh.payments || []).map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 text-sm">
-                  <span className="font-medium text-neutral-900">{money(p.amount_cents)}</span>
-                  <span className="text-neutral-500"> · {shortDate(p.recorded_at)}{p.method ? ` · ${p.method}` : ''}{p.external_ref ? ` · ref ${p.external_ref}` : ''}</span>
+                  <span className="font-medium text-gray-900">{money(p.amount_cents)}</span>
+                  <span className="text-gray-500"> · {shortDate(p.recorded_at)}{p.method ? ` · ${p.method}` : ''}{p.external_ref ? ` · ref ${p.external_ref}` : ''}</span>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => printReceipt(p.id)}>Print receipt</Button>
               </div>

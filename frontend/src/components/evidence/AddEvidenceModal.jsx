@@ -57,7 +57,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
               <Dialog.Panel className="w-full max-w-full sm:max-w-2xl mx-2 sm:mx-0 bg-white rounded-2xl shadow-xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                  <Dialog.Title className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                  <Dialog.Title className="text-xl font-bold text-gray-900">
                     {isEditMode ? 'Edit Evidence' : 'Add Evidence'}
                   </Dialog.Title>
                   <button

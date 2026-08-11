@@ -15,11 +15,11 @@ const TaskPreviewCard = ({ task, onEdit, onAccept, onReject }) => {
 
   const getPillarColor = (pillar) => {
     const colors = {
-      'Growth Mindset': 'bg-purple-100 text-purple-700',
+      'Growth Mindset': 'bg-optio-purple/10 text-optio-purple-dark',
       'Emotional Intelligence': 'bg-blue-100 text-blue-700',
       'Leadership': 'bg-green-100 text-green-700',
       'Community': 'bg-yellow-100 text-yellow-700',
-      'Innovation': 'bg-pink-100 text-pink-700',
+      'Innovation': 'bg-optio-pink/10 text-optio-pink-dark',
       'Well-being': 'bg-indigo-100 text-indigo-700'
     }
     return colors[pillar] || 'bg-gray-100 text-gray-700'
@@ -278,7 +278,7 @@ const AITaskGenerator = ({ lessonId, questId, onTasksAdded }) => {
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGenerating ? (
                 <>

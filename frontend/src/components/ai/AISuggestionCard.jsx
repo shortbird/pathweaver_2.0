@@ -32,14 +32,14 @@ const AISuggestionCard = ({
   className = ''
 }) => {
   return (
-    <div className={`p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 ${className}`}>
+    <div className={`p-4 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl border border-optio-purple/20 ${className}`}>
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <SparklesIcon className="w-5 h-5 text-purple-600" />
-          <span className="font-semibold text-purple-900">{title || 'AI Suggestion'}</span>
+          <SparklesIcon className="w-5 h-5 text-optio-purple" />
+          <span className="font-semibold text-optio-purple-dark">{title || 'AI Suggestion'}</span>
           {typeof confidence === 'number' && (
-            <span className="text-xs px-2 py-0.5 bg-purple-200 text-purple-800 rounded-full">
+            <span className="text-xs px-2 py-0.5 bg-optio-purple/20 text-optio-purple-dark rounded-full">
               {Math.round(confidence * 100)}% confidence
             </span>
           )}
@@ -83,7 +83,7 @@ const AISuggestionCard = ({
         {onAccept && (
           <button
             onClick={onAccept}
-            className="px-4 py-2 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 flex items-center gap-2 font-medium"
+            className="px-4 py-2 text-sm bg-gradient-primary text-white rounded-lg hover:opacity-90 flex items-center gap-2 font-medium"
           >
             <CheckIcon className="w-4 h-4" />
             {acceptLabel}

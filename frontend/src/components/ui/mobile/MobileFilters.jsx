@@ -169,7 +169,7 @@ export const MobileFilters = ({
       {/* Mobile FAB */}
       <button
         onClick={() => setIsDrawerOpen(true)}
-        className={`${bp}:hidden fixed bottom-4 ${fabPosition} z-40 w-14 h-14 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-95`}
+        className={`${bp}:hidden fixed bottom-4 ${fabPosition} z-40 w-14 h-14 bg-gradient-primary text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-95`}
         aria-label="Open filters"
       >
         <svg
@@ -238,7 +238,7 @@ export const MobileFilters = ({
               </button>
               <button
                 onClick={handleApply}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+                className="flex-1 px-4 py-3 bg-gradient-primary text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
               >
                 Apply
               </button>

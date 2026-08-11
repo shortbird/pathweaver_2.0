@@ -29,10 +29,10 @@ const ServiceGrid = ({ categories, onInquire }) => {
       {optioPro && (
         <div className="mb-16">
           <div className="text-center mb-8">
-            <h2 className="text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h2 className="text-4xl font-bold text-gray-900 mb-3">
               Optio Pro Subscription
             </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-[#6D469B] to-[#EF597B] mx-auto rounded-full"></div>
+            <div className="w-24 h-1 bg-gradient-primary mx-auto rounded-full"></div>
           </div>
           <div className="max-w-2xl mx-auto">
             <ServiceCard
@@ -49,10 +49,10 @@ const ServiceGrid = ({ categories, onInquire }) => {
         <div key={name} className="space-y-6">
           {/* Category Header */}
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
               {name}
             </h2>
-            <div className="w-20 h-1 bg-gradient-to-r from-[#6D469B] to-[#EF597B] mx-auto rounded-full"></div>
+            <div className="w-20 h-1 bg-gradient-primary mx-auto rounded-full"></div>
           </div>
 
           {/* Service Cards Grid */}

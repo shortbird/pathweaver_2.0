@@ -114,7 +114,7 @@ export const Modal = ({
         >
           {/* Header */}
           {(header || title) && (
-            <div className={`bg-gradient-to-r from-optio-purple to-optio-pink p-4 sm:p-6 text-white flex items-center justify-between ${headerClassName}`}>
+            <div className={`bg-gradient-primary p-4 sm:p-6 text-white flex items-center justify-between ${headerClassName}`}>
               {header || <h2 className="text-lg sm:text-2xl font-bold">{title}</h2>}
               {showCloseButton && (
                 <button

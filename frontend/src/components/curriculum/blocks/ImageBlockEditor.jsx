@@ -146,7 +146,7 @@ const ImageBlockEditor = ({ block, onChange, questId }) => {
           onDragLeave={handleDragLeave}
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             isDragging
-              ? 'border-optio-purple bg-purple-50'
+              ? 'border-optio-purple bg-optio-purple/5'
               : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
           } ${isUploading ? 'opacity-60 pointer-events-none' : ''}`}
         >
@@ -167,7 +167,7 @@ const ImageBlockEditor = ({ block, onChange, questId }) => {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+                className="mt-2 px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
               >
                 Browse Files
               </button>

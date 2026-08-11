@@ -99,7 +99,7 @@ const AdminServices = () => {
         </div>
         <button
           onClick={handleCreate}
-          className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+          className="bg-gradient-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           Add Service
@@ -243,7 +243,7 @@ const AdminServices = () => {
                         </button>
                         <button
                           onClick={() => handleEdit(service)}
-                          className="min-h-[44px] text-optio-purple hover:text-purple-900"
+                          className="min-h-[44px] text-optio-purple hover:text-optio-purple-dark"
                           title="Edit"
                         >
                           <PencilSquareIcon className="w-4 h-4" />

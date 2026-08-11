@@ -22,7 +22,7 @@ const EvidenceEmptyState = ({ message }) => {
         />
       </svg>
 
-      <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <p className="text-gray-600 font-semibold">
         {message || 'No evidence available'}
       </p>
     </div>

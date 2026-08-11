@@ -196,10 +196,10 @@ const InterestTracksList = ({
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-gray-900">Topics of Interest</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Topics of Interest</h2>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="p-2.5 text-optio-purple hover:bg-purple-50 rounded-xl transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="p-2.5 text-optio-purple hover:bg-optio-purple/5 rounded-xl transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
             title="Create new topic"
           >
             <PlusIcon className="w-6 h-6" />
@@ -290,17 +290,17 @@ const InterestTracksList = ({
                   className={`
                     w-full p-4 rounded-xl text-left mb-2 transition-all min-h-[60px] touch-manipulation border-2
                     ${isSelected
-                      ? 'bg-purple-100 border-purple-300 shadow-sm'
-                      : 'bg-purple-50/50 border-purple-200/50 hover:bg-purple-50 hover:border-purple-200 active:opacity-90'}
+                      ? 'bg-optio-purple/10 border-optio-purple/30 shadow-sm'
+                      : 'bg-optio-purple/5 border-optio-purple/10 hover:bg-optio-purple/5 hover:border-optio-purple/20 active:opacity-90'}
                   `}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-2 h-8 rounded-full flex-shrink-0 bg-purple-400"
+                      className="w-2 h-8 rounded-full flex-shrink-0 bg-optio-purple-light"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{quest.name}</p>
-                      <p className="text-xs text-purple-600">
+                      <p className="text-xs text-optio-purple">
                         {quest.item_count || quest.moment_count || 0} item{(quest.item_count || quest.moment_count) !== 1 ? 's' : ''}
                       </p>
                     </div>
@@ -327,17 +327,17 @@ const InterestTracksList = ({
                     className={`
                       w-full p-4 rounded-xl text-left transition-all min-h-[60px] touch-manipulation border-2
                       ${hasSelectedProject
-                        ? 'bg-purple-100 border-purple-300'
-                        : 'bg-purple-50/50 border-purple-200/50 hover:bg-purple-50 hover:border-purple-200 active:opacity-90'}
+                        ? 'bg-optio-purple/10 border-optio-purple/30'
+                        : 'bg-optio-purple/5 border-optio-purple/10 hover:bg-optio-purple/5 hover:border-optio-purple/20 active:opacity-90'}
                     `}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-2 h-8 rounded-full flex-shrink-0 bg-purple-400"
+                        className="w-2 h-8 rounded-full flex-shrink-0 bg-optio-purple-light"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{course.name}</p>
-                        <p className="text-xs text-purple-600">
+                        <p className="text-xs text-optio-purple">
                           {course.projects?.length || 0} project{course.projects?.length !== 1 ? 's' : ''} &middot; {course.item_count || course.moment_count || 0} item{(course.item_count || course.moment_count) !== 1 ? 's' : ''}
                         </p>
                       </div>
@@ -351,7 +351,7 @@ const InterestTracksList = ({
 
                   {/* Nested Projects */}
                   {isExpanded && course.projects?.length > 0 && (
-                    <div className="ml-6 mt-1 space-y-1 border-l-2 border-purple-200 pl-3">
+                    <div className="ml-6 mt-1 space-y-1 border-l-2 border-optio-purple/20 pl-3">
                       {course.projects.map(project => {
                         const isProjectSelected = selectedQuestId === project.id;
 
@@ -365,12 +365,12 @@ const InterestTracksList = ({
                             className={`
                               w-full p-3 rounded-lg text-left transition-all touch-manipulation border
                               ${isProjectSelected
-                                ? 'bg-purple-100 border-purple-300'
-                                : 'hover:bg-purple-50 border-transparent hover:border-purple-200 active:opacity-90'}
+                                ? 'bg-optio-purple/10 border-optio-purple/30'
+                                : 'hover:bg-optio-purple/5 border-transparent hover:border-optio-purple/20 active:opacity-90'}
                             `}
                           >
                             <div className="flex items-center gap-2">
-                              <FlagIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                              <FlagIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate">{project.name}</p>
                                 <p className="text-xs text-gray-500">
@@ -392,10 +392,11 @@ const InterestTracksList = ({
         {tracks.length === 0 && questTopics.length === 0 && courseTopics.length === 0 && (
           <div className="text-center py-8 px-4">
             <FolderIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 mb-4">No topics yet</p>
+            <p className="text-sm font-medium text-gray-500 mb-1">No topics yet</p>
+            <p className="text-xs text-gray-400 mb-4">Topics group your moments by interest</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="w-full py-3 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-medium text-sm touch-manipulation active:opacity-80"
+              className="btn-primary w-full touch-manipulation"
             >
               Create your first topic
             </button>
@@ -408,7 +409,7 @@ const InterestTracksList = ({
           <button
             onClick={fetchSuggestions}
             disabled={isLoadingSuggestions}
-            className="w-full flex items-center justify-center gap-2 py-3 text-sm text-purple-600 hover:bg-purple-50 rounded-xl transition-colors touch-manipulation min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 py-3 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-xl transition-colors touch-manipulation min-h-[44px]"
           >
             <SparklesIcon className={`w-4 h-4 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
             {isLoadingSuggestions ? 'Analyzing...' : 'Suggest new topics'}
@@ -432,10 +433,10 @@ const InterestTracksList = ({
                     setSelectedSuggestion(suggestionData);
                     setShowCreateModal(true);
                   }}
-                  className="w-full p-3 text-left bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-200 transition-all touch-manipulation active:opacity-80"
+                  className="w-full p-3 text-left bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl border border-optio-purple/10 hover:border-optio-purple/20 transition-all touch-manipulation active:opacity-80"
                 >
-                  <p className="text-sm font-semibold text-purple-900">{suggestion.name}</p>
-                  <p className="text-xs text-purple-600">{suggestion.moment_count} potential moment{suggestion.moment_count !== 1 ? 's' : ''}</p>
+                  <p className="text-sm font-semibold text-optio-purple-dark">{suggestion.name}</p>
+                  <p className="text-xs text-optio-purple">{suggestion.moment_count} potential moment{suggestion.moment_count !== 1 ? 's' : ''}</p>
                 </button>
               ))}
             </div>

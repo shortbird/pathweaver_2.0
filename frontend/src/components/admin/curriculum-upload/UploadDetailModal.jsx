@@ -71,7 +71,7 @@ function UploadDetailModal({ upload, onClose, onRefresh }) {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                     style={{ width: `${upload.progress_percent || 0}%` }}
                   />
                 </div>

@@ -94,7 +94,7 @@ export default function ProgressChart({ xpByPillar }) {
 
         {/* Stats List */}
         <div className="space-y-4">
-          <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg p-4">
+          <div className="bg-gradient-primary text-white rounded-lg p-4">
             <p className="text-sm opacity-90">Total XP Earned</p>
             <p className="text-4xl font-bold">{totalXP}</p>
           </div>

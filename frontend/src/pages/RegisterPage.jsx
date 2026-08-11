@@ -90,7 +90,7 @@ const RegisterPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
@@ -100,7 +100,7 @@ const RegisterPage = () => {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
-            <Link to={invitationCode ? `/login?invitation=${invitationCode}` : '/login'} className="font-medium text-primary hover:text-purple-500">
+            <Link to={invitationCode ? `/login?invitation=${invitationCode}` : '/login'} className="font-medium text-primary hover:text-optio-purple">
               sign in to your existing account
             </Link>
           </p>
@@ -127,7 +127,7 @@ const RegisterPage = () => {
             <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-background text-gray-500">Or register with email</span>
+            <span className="px-2 bg-neutral-50 text-gray-500">Or register with email</span>
           </div>
         </div>
 

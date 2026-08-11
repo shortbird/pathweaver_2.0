@@ -5,7 +5,7 @@ import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
-import { ModalOverlay } from '../components/ui'
+import { ModalOverlay, GlassTabBar, Spinner } from '../components/ui'
 
 // Family Schedule Builder — the weekly calendar IS the interface:
 //   - enrolled classes show as colored blocks; click one for details / drop
@@ -334,8 +334,8 @@ const ScheduleBuilderPage = () => {
     const out = {}
     for (const [d, amt] of Object.entries(byDay)) {
       out[d] = (
-        <div className="text-[11px] text-neutral-500 text-center border-t border-gray-100 pt-1.5">
-          Supplies: <span className="font-semibold text-neutral-700">{money(Math.round(amt * 100))}</span>
+        <div className="text-[11px] text-gray-500 text-center border-t border-gray-100 pt-1.5">
+          Supplies: <span className="font-semibold text-gray-700">{money(Math.round(amt * 100))}</span>
         </div>
       )
     }
@@ -482,13 +482,13 @@ const ScheduleBuilderPage = () => {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" /></div>
+    return <div className="flex justify-center py-20"><Spinner size="lg" /></div>
   }
   if (!ctx?.orgs?.length) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-        <h1 className="text-xl font-bold text-neutral-900 mb-2">Schedule Builder</h1>
-        <p className="text-neutral-500">
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Schedule Builder</h1>
+        <p className="text-gray-500">
           {previewCode
             ? 'Could not load the schedule preview — check that the registration link is still active.'
             : "No school schedules to manage — this page is for families of schools that use Optio's class scheduling."}
@@ -510,11 +510,11 @@ const ScheduleBuilderPage = () => {
           registration funnel, and its viewer has no school page to go back to. */}
       {!previewCode && <BackToSchool className="mb-3" />}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h1 className="text-2xl font-bold text-neutral-900">Schedule Builder</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Schedule Builder</h1>
         <div className="flex items-center gap-2">
           {org?.scheduling_url && (
             <a href={org.scheduling_url} target="_blank" rel="noreferrer"
-              className="text-sm px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90">
+              className="btn-primary">
               Book appointment
             </a>
           )}
@@ -528,35 +528,32 @@ const ScheduleBuilderPage = () => {
             </select>
           )}
           {students.length > 1 ? (
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-              {students.map((s) => (
-                <button key={s.student_id} onClick={() => setStudentId(s.student_id)}
-                  className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    s.student_id === studentId ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'
-                  }`}>
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          ) : student && <span className="text-sm text-neutral-500">{student.name}</span>}
+            <GlassTabBar
+              className="!mx-0"
+              tabs={students.map((s) => ({ id: s.student_id, label: s.name }))}
+              active={studentId}
+              onSelect={setStudentId}
+              aria-label="Students"
+            />
+          ) : student && <span className="text-sm text-gray-500">{student.name}</span>}
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-gray-500">
           Build {student ? `${student.name.split(' ')[0]}'s` : 'your student\'s'} week — click an open
           slot to pick a class, or a scheduled class to see details.
         </p>
         {tuitionCount > 0 && (
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Estimated total</span>
-              <span className="text-lg font-bold text-neutral-900">
-                {money(totalYearCents)}<span className="text-xs font-medium text-neutral-400">/yr</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estimated total</span>
+              <span className="text-lg font-bold text-gray-900">
+                {money(totalYearCents)}<span className="text-xs font-medium text-gray-400">/yr</span>
               </span>
               {perPaymentCents != null && (
-                <span className="text-sm text-neutral-500">or {installments} payments of {money(perPaymentCents)}</span>
+                <span className="text-sm text-gray-500">or {installments} payments of {money(perPaymentCents)}</span>
               )}
-              <span className="text-xs text-neutral-400">
+              <span className="text-xs text-gray-400">
                 {tuitionCount} {tuitionCount === 1 ? 'class' : 'classes'} · {totalBlocks} block{totalBlocks === 1 ? '' : 's'}/wk
                 {tuitionNote ? ` · ${tuitionNote}` : ''}
               </span>
@@ -564,14 +561,14 @@ const ScheduleBuilderPage = () => {
             {/* UFA families see the full picture: flat tuition + itemized supply
                 fees (+ any extra-day classes billed personally). */}
             {ufa ? (
-              <p className="text-xs text-neutral-400 mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 {money(tuitionYearCents)} UFA tuition
                 {supplyCents > 0 ? ` + ${money(supplyCents)} supply fees` : ''}
                 {extraPriceCents > 0 ? ` + ${money(extraPriceCents)} extra-day classes (billed to you)` : ''}
                 {perPaymentCents != null ? ` The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
             ) : (supplyCents > 0 || perPaymentCents != null) && (
-              <p className="text-xs text-neutral-400 mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 {supplyCents > 0 ? `Includes ${money(supplyCents)} in supply fees.` : ''}
                 {perPaymentCents != null ? `${supplyCents > 0 ? ' ' : ''}The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
@@ -619,8 +616,8 @@ const ScheduleBuilderPage = () => {
         </div>
       )}
       {enrollmentWaitlist && (
-        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
-          <span className="font-medium text-neutral-900">
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-gray-700">
+          <span className="font-medium text-gray-900">
             {student?.name?.split(' ')[0] || 'This student'} is
             {enrollmentWaitlist.position ? ` #${enrollmentWaitlist.position}` : ''} on the enrollment
             waitlist{enrollmentWaitlist.band_label ? ` for ${enrollmentWaitlist.band_label}` : ''}.
@@ -647,8 +644,8 @@ const ScheduleBuilderPage = () => {
         if (!missing.length) return null
         return (
           <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3">
-            <p className="text-sm font-medium text-neutral-800">Add a photo for each family member</p>
-            <p className="text-xs text-neutral-500 mt-0.5 mb-2">
+            <p className="text-sm font-medium text-gray-800">Add a photo for each family member</p>
+            <p className="text-xs text-gray-500 mt-0.5 mb-2">
               {org?.organization_name || 'Your school'} asks every family member to have a photo so staff can
               recognize students and parents.
             </p>
@@ -675,8 +672,8 @@ const ScheduleBuilderPage = () => {
           the school. Contact {org?.organization_name || 'your school'} to add or drop classes.
         </div>
       ) : firstDay ? (
-        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-600">
-          You can make schedule changes until the first day of school, <span className="font-medium text-neutral-800">{fmtDate(firstDay)}</span>.
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-gray-600">
+          You can make schedule changes until the first day of school, <span className="font-medium text-gray-800">{fmtDate(firstDay)}</span>.
         </div>
       ) : null}
 
@@ -695,14 +692,14 @@ const ScheduleBuilderPage = () => {
 
         {waitlist.length > 0 && (
           <div className="mt-5 pt-4 border-t border-gray-100">
-            <h3 className="text-sm font-semibold text-neutral-700 mb-2">Waitlisted</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Waitlisted</h3>
             <div className="space-y-2">
               {waitlist.map((w) => {
                 const offered = w.status === 'offered'
                 return (
                 <div key={w.entry_id} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${offered ? 'border-green-300 bg-green-50/60' : 'border-dashed border-amber-300 bg-amber-50/50'}`}>
                   <div className="min-w-0">
-                    <div className="font-medium text-neutral-900 truncate">{w.class_name}</div>
+                    <div className="font-medium text-gray-900 truncate">{w.class_name}</div>
                     <div className={`text-xs ${offered ? 'text-green-700 font-medium' : 'text-amber-700'}`}>
                       {offered ? 'A spot opened — claim it now' : `Waitlist${w.position ? ` #${w.position}` : ''}`}
                       {' · '}{meetingText(w.meetings)}
@@ -791,7 +788,7 @@ const UfaRow = ({ met, children }) => (
     ) : (
       <span className="w-5 h-5 shrink-0 mt-0.5 rounded-full border-2 border-amber-400 inline-block" aria-hidden="true" />
     )}
-    <div className="text-sm text-neutral-700 min-w-0">{children}</div>
+    <div className="text-sm text-gray-700 min-w-0">{children}</div>
   </div>
 )
 
@@ -814,7 +811,7 @@ const UfaRequirementsPanel = ({ ufa, totalBlocks, ufaShortfall, campusDays, tota
   return (
     <div className={`mb-5 rounded-xl border p-4 ${allMet ? 'border-green-200 bg-green-50/40' : 'border-amber-200 bg-amber-50/40'}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-        <h2 className="text-sm font-semibold text-neutral-900">UFA Private School requirements</h2>
+        <h2 className="text-sm font-semibold text-gray-900">UFA Private School requirements</h2>
         <span className={`text-xs font-semibold ${allMet ? 'text-green-700' : 'text-amber-700'}`}>
           {allMet ? 'All requirements met' : 'Not met yet'}
         </span>
@@ -852,7 +849,7 @@ const UfaRequirementsPanel = ({ ufa, totalBlocks, ufaShortfall, campusDays, tota
                     { value: 'elementary_at_home', label: 'Elementary At-Home Academic Learning Day', disabled: false },
                   ].map((opt) => (
                     <label key={opt.value}
-                      className={`flex items-center gap-2 text-sm ${opt.disabled ? 'text-neutral-300' : 'text-neutral-700 cursor-pointer'}`}>
+                      className={`flex items-center gap-2 text-sm ${opt.disabled ? 'text-gray-300' : 'text-gray-700 cursor-pointer'}`}>
                       <input type="radio" name="ufa-learning-day" value={opt.value}
                         checked={learningChoice === opt.value}
                         disabled={opt.disabled || busy}
@@ -862,13 +859,13 @@ const UfaRequirementsPanel = ({ ufa, totalBlocks, ufaShortfall, campusDays, tota
                     </label>
                   ))}
                   {learningChoice === 'elementary_at_home' && (
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-gray-500">
                       {orgName} will follow up with the at-home academic learning day options form.
                     </p>
                   )}
                   {learningChoice && (
                     <button type="button" onClick={() => onSelect(null)} disabled={busy}
-                      className="text-xs text-neutral-400 underline hover:text-neutral-600 disabled:opacity-50">
+                      className="text-xs text-gray-400 underline hover:text-gray-600 disabled:opacity-50">
                       Clear choice
                     </button>
                   )}
@@ -899,7 +896,7 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Classes at {slotLabel(slot)}</h2>
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-gray-400">
             {enrolledHere.length ? 'What’s scheduled now, plus other classes at this time.' : 'Pick a class for this time slot.'}
             {age != null ? ` Showing classes for age ${age}.` : ''}
           </p>
@@ -912,8 +909,8 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
         {enrolledHere.map((c) => (
           <div key={`enr-${c.id}`} className="flex items-center justify-between rounded-lg border border-optio-purple/40 bg-optio-purple/5 px-3 py-2.5">
             <div className="min-w-0">
-              <div className="font-medium text-neutral-900 truncate">{c.name}</div>
-              <div className="text-xs text-neutral-500">{meetingText(c.meetings)}</div>
+              <div className="font-medium text-gray-900 truncate">{c.name}</div>
+              <div className="text-xs text-gray-500">{meetingText(c.meetings)}</div>
               <span className="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-optio-purple/10 text-optio-purple">Enrolled</span>
             </div>
             <div className="shrink-0 ml-3 flex items-center gap-2">
@@ -928,10 +925,10 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
           </div>
         ))}
         {enrolledHere.length > 0 && classes.length > 0 && (
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 pt-1">Other classes at this time</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 pt-1">Other classes at this time</p>
         )}
         {classes.length === 0 && enrolledHere.length === 0 && (
-          <p className="text-sm text-neutral-400 py-4 text-center">
+          <p className="text-sm text-gray-400 py-4 text-center">
             {/* Only blame age when the age filter actually hid something —
                 otherwise "for age 17" misreads a thin catalog as an age problem. */}
             {ageHidden.length > 0
@@ -945,8 +942,8 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
           return (
             <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
               <div className="min-w-0">
-                <div className="font-medium text-neutral-900 truncate">{c.name}</div>
-                <div className="text-xs text-neutral-500">
+                <div className="font-medium text-gray-900 truncate">{c.name}</div>
+                <div className="text-xs text-gray-500">
                   {meetingText(c.meetings)}
                   {money(c.price_cents) ? ` · ${money(c.price_cents)}` : ''}
                   {c.spots_left != null && !full ? ` · ${c.spots_left} spot${c.spots_left === 1 ? '' : 's'} left` : ''}
@@ -960,7 +957,7 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
                 <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
                 <button onClick={() => onAdd(c)} disabled={busy === c.id || !!conflict}
                   title={conflict ? `Overlaps ${conflict} — drop it first` : undefined}
-                  className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                  className="btn-primary">
                   {busy === c.id ? 'Adding…' : full ? 'Waitlist' : 'Add'}
                 </button>
               </div>
@@ -989,20 +986,20 @@ const AgeExceptionFooter = ({ ageHidden, requestedIds, busy, onRequest }) => {
   return (
     <div className="pt-3 mt-1 border-t border-gray-100 space-y-1.5">
       {requested.map((c) => (
-        <p key={c.id} className="text-xs text-neutral-400">
+        <p key={c.id} className="text-xs text-gray-400">
           Age exception requested for {c.name} — the school will follow up.
         </p>
       ))}
       {askable.length > 0 && (!open ? (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-gray-400">
           Some classes at this time are for other ages. Exceptions are rare, but you can{' '}
-          <button type="button" onClick={() => setOpen(true)} className="underline hover:text-neutral-600">
+          <button type="button" onClick={() => setOpen(true)} className="underline hover:text-gray-600">
             ask the school for an age exception
           </button>.
         </p>
       ) : (
         <div className="space-y-2">
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-gray-500">
             The school reviews each request individually and will follow up with you.
           </p>
           <select className={`${field} w-full`} value={chosen?.id || ''}
@@ -1023,7 +1020,7 @@ const AgeExceptionFooter = ({ ageHidden, requestedIds, busy, onRequest }) => {
               className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-optio-purple/40 text-optio-purple hover:bg-optio-purple/5 disabled:opacity-50">
               {busy === chosen?.id ? 'Sending…' : 'Send request'}
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="text-sm text-neutral-400 hover:underline">Cancel</button>
+            <button type="button" onClick={() => setOpen(false)} className="text-sm text-gray-400 hover:underline">Cancel</button>
           </div>
         </div>
       ))}

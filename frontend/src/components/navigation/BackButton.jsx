@@ -28,7 +28,6 @@ const TAB_ROOTS = new Set([
   '/evidence-reports',
   '/admin',
   '/advisor',
-  '/advisor/dashboard',
   '/parent',
   '/parent/dashboard',
   '/organization',

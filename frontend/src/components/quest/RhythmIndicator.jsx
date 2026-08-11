@@ -90,7 +90,6 @@ const RhythmIndicator = ({
         <Icon className={`w-4 h-4 ${config.iconClass}`} />
         <span
           className={`text-xs font-medium ${config.textClass}`}
-          style={{ fontFamily: 'Poppins' }}
         >
           {stateDisplay}
         </span>
@@ -109,13 +108,11 @@ const RhythmIndicator = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
         <span
           className={`text-xs sm:text-sm font-semibold ${config.textClass}`}
-          style={{ fontFamily: 'Poppins' }}
         >
           {stateDisplay}
         </span>
         <span
           className="hidden sm:inline text-xs text-gray-500"
-          style={{ fontFamily: 'Poppins' }}
         >
           {message}
         </span>

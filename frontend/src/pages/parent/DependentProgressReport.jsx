@@ -12,6 +12,7 @@ import {
   ClockIcon,
   FireIcon
 } from '@heroicons/react/24/outline';
+import { GlassTabBar, Spinner } from '../../components/ui';
 
 const DATE_RANGES = [
   { label: 'Last 7 Days', value: '7days' },
@@ -96,7 +97,7 @@ export default function DependentProgressReport() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-pink mx-auto"></div>
+          <Spinner size="lg" className="mx-auto" />
           <p className="mt-4 text-gray-600">Loading progress report...</p>
         </div>
       </div>
@@ -110,7 +111,7 @@ export default function DependentProgressReport() {
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg"
+            className="btn-primary"
           >
             Go Back
           </button>
@@ -124,7 +125,7 @@ export default function DependentProgressReport() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Hide on print */}
-      <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white py-8 print:hidden">
+      <div className="bg-gradient-primary text-white py-8 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -172,7 +173,7 @@ export default function DependentProgressReport() {
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Generated via</p>
-              <p className="text-lg font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+              <p className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
                 Optio
               </p>
             </div>
@@ -185,21 +186,14 @@ export default function DependentProgressReport() {
         <div className="flex items-center space-x-2">
           <CalendarIcon className="h-5 w-5 text-gray-400" />
           <span className="text-sm text-gray-600">Time Period:</span>
-          <div className="flex space-x-2">
-            {DATE_RANGES.map((range) => (
-              <button
-                key={range.value}
-                onClick={() => setDateRange(range.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  dateRange === range.value
-                    ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {range.label}
-              </button>
-            ))}
-          </div>
+          <GlassTabBar
+            size="md"
+            className="!mx-0"
+            tabs={DATE_RANGES.map((range) => ({ id: range.value, label: range.label }))}
+            active={dateRange}
+            onSelect={setDateRange}
+            aria-label="Time period"
+          />
         </div>
       </div>
 
@@ -207,19 +201,19 @@ export default function DependentProgressReport() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 print:px-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total XP</p>
                 <p className="text-3xl font-bold text-gray-900">{stats?.total_xp || 0}</p>
               </div>
-              <div className="p-3 bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg">
+              <div className="p-3 bg-gradient-primary rounded-lg">
                 <FireIcon className="h-6 w-6 text-white" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Quests Completed</p>
@@ -233,7 +227,7 @@ export default function DependentProgressReport() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Current Streak</p>
@@ -247,7 +241,7 @@ export default function DependentProgressReport() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Avg XP/Week</p>
@@ -255,8 +249,8 @@ export default function DependentProgressReport() {
                   {stats?.avg_xp_per_week || 0}
                 </p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <ClockIcon className="h-6 w-6 text-blue-600" />
+              <div className="p-3 bg-optio-purple/10 rounded-lg">
+                <ClockIcon className="h-6 w-6 text-optio-purple" />
               </div>
             </div>
           </div>
@@ -268,7 +262,7 @@ export default function DependentProgressReport() {
         </div>
 
         {/* Quest History */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
           <h3 className="text-xl font-bold text-gray-800 mb-4">Quest History</h3>
           {quests && quests.length > 0 ? (
             <div className="space-y-3">
@@ -294,7 +288,7 @@ export default function DependentProgressReport() {
                     <p className="text-lg font-bold text-gray-900">{quest.xp_earned} XP</p>
                     <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
                       <div
-                        className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
+                        className="bg-gradient-primary h-2 rounded-full"
                         style={{ width: `${quest.completion_percentage}%` }}
                       ></div>
                     </div>
@@ -314,7 +308,7 @@ export default function DependentProgressReport() {
 
         {/* Badges Earned */}
         {badges && badges.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Badges Earned</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {badges.map((badge) => (
@@ -329,7 +323,7 @@ export default function DependentProgressReport() {
                       className="w-16 h-16 mb-2"
                     />
                   ) : (
-                    <div className="w-16 h-16 mb-2 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                    <div className="w-16 h-16 mb-2 bg-gradient-primary rounded-full flex items-center justify-center text-white text-2xl font-bold">
                       {badge.name.charAt(0)}
                     </div>
                   )}

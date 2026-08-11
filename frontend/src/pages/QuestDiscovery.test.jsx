@@ -114,7 +114,7 @@ describe('QuestDiscovery', () => {
   describe('rendering', () => {
     it('renders page heading', async () => {
       renderQuestDiscovery()
-      expect(screen.getByText('Discover Your Next Adventure')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Quests', level: 1 })).toBeInTheDocument()
     })
 
     it('renders search input', () => {
@@ -169,20 +169,51 @@ describe('QuestDiscovery', () => {
 
   // --- Topic filters ---
   describe('topic filters', () => {
-    it('renders topic chips after loading', async () => {
+    it('renders topic tabs after loading', async () => {
       renderQuestDiscovery()
       await waitFor(() => {
-        expect(screen.getByText(/Creative/)).toBeInTheDocument()
-        expect(screen.getByText(/Science/)).toBeInTheDocument()
-        expect(screen.getByText(/Building/)).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Creative/ })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Science/ })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Building/ })).toBeInTheDocument()
       })
+      // "All" tab clears the topic filter and is selected by default
+      expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
     })
 
     it('displays topic counts', async () => {
       renderQuestDiscovery()
       await waitFor(() => {
-        expect(screen.getByText(/\(5\)/)).toBeInTheDocument()
-        expect(screen.getByText(/\(3\)/)).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Creative/ })).toHaveTextContent('5')
+        expect(screen.getByRole('tab', { name: /Science/ })).toHaveTextContent('3')
+      })
+    })
+
+    it('selecting a topic refetches quests with the topic param', async () => {
+      renderQuestDiscovery()
+      const creativeTab = await screen.findByRole('tab', { name: /Creative/ })
+
+      fireEvent.click(creativeTab)
+
+      await waitFor(() => {
+        expect(creativeTab).toHaveAttribute('aria-selected', 'true')
+        const questCalls = api.get.mock.calls
+          .map(([url]) => url)
+          .filter((url) => url.includes('/api/quests?'))
+        expect(questCalls.some((url) => url.includes('topic=Creative'))).toBe(true)
+      })
+    })
+  })
+
+  // --- Ordering ---
+  describe('ordering', () => {
+    it('requests popularity-first ordering from the API', async () => {
+      renderQuestDiscovery()
+      await waitFor(() => {
+        const questCall = api.get.mock.calls
+          .map(([url]) => url)
+          .find((url) => url.includes('/api/quests?'))
+        expect(questCall).toBeTruthy()
+        expect(questCall).toContain('sort=popular')
       })
     })
   })

@@ -80,11 +80,11 @@ const QuestDetailHeader = ({
   const getPillarGradient = () => {
     const pillar = quest?.pillar_primary || 'stem';
     const gradients = {
-      stem: 'from-blue-500 to-purple-600',
-      wellness: 'from-green-500 to-teal-600',
-      communication: 'from-amber-500 to-orange-600',
-      civics: 'from-indigo-500 to-blue-600',
-      art: 'from-pink-500 to-rose-600'
+      stem: 'from-pillar-stem to-pillar-stem-dark',
+      wellness: 'from-pillar-wellness to-pillar-wellness-dark',
+      communication: 'from-pillar-communication to-pillar-communication-dark',
+      civics: 'from-pillar-civics to-pillar-civics-dark',
+      art: 'from-pillar-art to-pillar-art-dark'
     };
     return gradients[pillar] || 'from-optio-purple to-optio-pink';
   };
@@ -181,7 +181,6 @@ const QuestDetailHeader = ({
             <button
               onClick={handleBackClick}
               className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1.5 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm min-h-[44px] touch-manipulation"
-              style={{ fontFamily: 'Poppins' }}
             >
               <ArrowLeftIcon className="w-4 h-4" />
               <span>Back</span>
@@ -191,14 +190,18 @@ const QuestDetailHeader = ({
           {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
           <div className={`max-w-xl sm:max-w-2xl pb-2 ${isFocusMode() ? 'pt-2' : 'pt-14'}`}>
             {totalXP > 0 && (
-              <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold shadow-sm">
+              <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-primary text-white rounded-full text-xs font-semibold shadow-sm">
                 {totalXP} XP
+              </div>
+            )}
+            {quest?.student_created && (
+              <div className="inline-block mb-1 ml-1.5 px-2 py-0.5 bg-optio-purple/10 text-optio-purple rounded-full text-xs font-semibold">
+                Student-created
               </div>
             )}
 
             <h1
               className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 leading-tight line-clamp-2"
-              style={{ fontFamily: 'Poppins' }}
             >
               {quest?.title}
             </h1>
@@ -207,7 +210,6 @@ const QuestDetailHeader = ({
               <>
                 <p
                   className={`text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed ${descriptionExpanded ? '' : 'line-clamp-2'}`}
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   {descriptionText}
                 </p>
@@ -216,7 +218,6 @@ const QuestDetailHeader = ({
                     type="button"
                     onClick={() => setDescriptionExpanded((prev) => !prev)}
                     className="mt-1 text-xs font-semibold text-optio-purple hover:text-optio-pink transition-colors"
-                    style={{ fontFamily: 'Poppins' }}
                   >
                     {descriptionExpanded ? 'Show less' : 'Show more'}
                   </button>
@@ -241,7 +242,6 @@ const QuestDetailHeader = ({
                   <button
                     onClick={() => setShowJourney(!showJourney)}
                     className="flex items-center gap-1 text-xs text-gray-600 hover:text-optio-purple transition-colors bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full"
-                    style={{ fontFamily: 'Poppins' }}
                   >
                     <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showJourney ? 'rotate-180' : ''}`} />
                     <span>{showJourney ? 'Hide' : 'Show'} journey</span>
@@ -255,7 +255,7 @@ const QuestDetailHeader = ({
           {showJourney && engagement?.calendar && (
             <div className="max-w-xl sm:max-w-2xl pb-3 animate-fade-in">
               <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-gray-200">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">
                   Your Journey
                 </div>
                 <EngagementCalendar
@@ -303,8 +303,7 @@ const QuestDetailHeader = ({
               href={quest.material_link}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
-              style={{ fontFamily: 'Poppins' }}
+              className="btn-primary min-h-[44px] touch-manipulation"
             >
               <ArrowTopRightOnSquareIcon className="w-4 h-4" />
               View Curriculum
@@ -312,8 +311,7 @@ const QuestDetailHeader = ({
           ) : quest?.has_curriculum && isEnrolled ? (
             <button
               onClick={() => navigate(`/quests/${quest.id}/curriculum`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
-              style={{ fontFamily: 'Poppins' }}
+              className="btn-primary min-h-[44px] touch-manipulation"
             >
               <AcademicCapIcon className="w-4 h-4" />
               View Curriculum
@@ -324,8 +322,7 @@ const QuestDetailHeader = ({
           {quest?.has_curriculum && user && ['admin', 'superadmin', 'advisor', 'teacher'].includes(user.role) && (
             <button
               onClick={() => navigate(`/quests/${quest.id}/curriculum/edit`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
-              style={{ fontFamily: 'Poppins' }}
+              className="btn-secondary min-h-[44px] touch-manipulation"
             >
               <PencilSquareIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Edit Curriculum</span>
@@ -342,8 +339,7 @@ const QuestDetailHeader = ({
                 }
               }}
               disabled={endQuestMutation?.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation disabled:opacity-50"
-              style={{ fontFamily: 'Poppins' }}
+              className="btn-primary min-h-[44px] touch-manipulation"
             >
               {endQuestMutation?.isPending ? 'Marking...' : 'Mark Complete'}
             </button>

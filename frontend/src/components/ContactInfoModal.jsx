@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui/Modal';
+import { ButtonSpinner } from './ui/Spinner';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 
@@ -67,16 +68,10 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
       <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
         <div className="text-center py-8">
           <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h3
-            className="text-xl font-bold text-gray-900 mb-2"
-            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-          >
+          <h3 className="text-xl font-bold text-gray-900 mb-2">
             Thank You!
           </h3>
-          <p
-            className="text-gray-600"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-          >
+          <p className="text-gray-600 font-medium">
             We received your info and will be in touch soon.
           </p>
         </div>
@@ -91,7 +86,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
           <label
             htmlFor="contact-name"
             className="block text-sm font-medium text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             Name <span className="text-red-500">*</span>
           </label>
@@ -102,7 +96,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all"
-            style={{ fontFamily: 'Poppins' }}
             placeholder="Your name"
             disabled={loading}
           />
@@ -112,7 +105,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
           <label
             htmlFor="contact-email"
             className="block text-sm font-medium text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             Email <span className="text-red-500">*</span>
           </label>
@@ -123,7 +115,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all"
-            style={{ fontFamily: 'Poppins' }}
             placeholder="you@example.com"
             disabled={loading}
           />
@@ -133,7 +124,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
           <label
             htmlFor="contact-phone"
             className="block text-sm font-medium text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             Phone <span className="text-gray-400">(optional)</span>
           </label>
@@ -143,7 +133,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all"
-            style={{ fontFamily: 'Poppins' }}
             placeholder="(555) 123-4567"
             disabled={loading}
           />
@@ -153,7 +142,6 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
           <label
             htmlFor="contact-message"
             className="block text-sm font-medium text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             Message <span className="text-gray-400">(optional)</span>
           </label>
@@ -163,14 +151,13 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
             rows={3}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all resize-none"
-            style={{ fontFamily: 'Poppins' }}
             placeholder={config.placeholder}
             disabled={loading}
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-600" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-sm text-red-600">
             {error}
           </p>
         )}
@@ -178,15 +165,11 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-60"
-          style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+          className="btn-primary w-full min-h-[44px]"
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <ButtonSpinner />
               Sending...
             </span>
           ) : (

@@ -73,7 +73,7 @@ const SkillsChart = ({ skillData }) => {
             onClick={() => setChartType('radar')}
             className={`min-h-[44px] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               chartType === 'radar'
-                ? 'bg-purple-100 text-purple-700'
+                ? 'bg-optio-purple/10 text-optio-purple'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -83,7 +83,7 @@ const SkillsChart = ({ skillData }) => {
             onClick={() => setChartType('bar')}
             className={`min-h-[44px] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               chartType === 'bar'
-                ? 'bg-purple-100 text-purple-700'
+                ? 'bg-optio-purple/10 text-optio-purple'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >

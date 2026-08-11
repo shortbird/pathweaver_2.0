@@ -68,7 +68,7 @@ export const CardHeader = ({
   className = ''
 }) => {
   const gradientClass = gradient
-    ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 -m-6 mb-6 rounded-t-xl'
+    ? 'bg-gradient-primary text-white p-6 -m-6 mb-6 rounded-t-xl'
     : 'pb-4 border-b border-gray-200';
 
   return (

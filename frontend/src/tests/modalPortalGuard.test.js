@@ -82,7 +82,6 @@ const BASELINE = [
   'src/components/admin/UserDetailsModal.jsx',
   'src/components/admin/ai/ReviewQueueTab.jsx',
   'src/components/admin/curriculum-upload/UploadDetailModal.jsx',
-  'src/components/advisor/AdvisorNotesModal.jsx',
   'src/components/advisor/CheckinHistoryModal.jsx',
   'src/components/bounty/EvidenceViewerModal.jsx',
   'src/components/classes/CreateCreditClassModal.jsx',

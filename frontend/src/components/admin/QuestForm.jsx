@@ -1079,7 +1079,7 @@ const QuestForm = ({
                     <button
                       type="button"
                       onClick={handleAICleanup}
-                      className="px-4 py-2 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap touch-manipulation"
+                      className="px-4 py-2 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap touch-manipulation"
                       disabled={cleanupLoading || loading}
                     >
                       <SparklesIcon className="w-5 h-5" />

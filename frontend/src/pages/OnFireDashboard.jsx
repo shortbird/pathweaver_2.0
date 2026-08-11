@@ -6,6 +6,9 @@ import { useAuth } from '../contexts/AuthContext'
 import EnrollStudentForm from '../components/partner/EnrollStudentForm'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { MagnifyingGlassIcon, UsersIcon, UserPlusIcon } from '@heroicons/react/24/outline'
+import GlassTabBar from '../components/ui/GlassTabBar'
+import EmptyState from '../components/ui/EmptyState'
+import { PageLoader } from '../components/ui/Spinner'
 
 const TABS = [
   { id: 'enrollments', label: 'Active Enrollments', icon: UsersIcon },
@@ -94,28 +97,25 @@ export default function OnFireDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-6">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 pb-3 -mb-px border-b-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'border-optio-purple text-optio-purple'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
+      <GlassTabBar
+        size="md"
+        className="mb-6"
+        aria-label="Dashboard sections"
+        tabs={TABS.map(tab => {
+          const Icon = tab.icon
+          return {
+            id: tab.id,
+            label: (
+              <span className="inline-flex items-center gap-2">
                 <Icon className="w-4 h-4" />
                 {tab.label}
-              </button>
+              </span>
             )
-          })}
-        </nav>
-      </div>
+          }
+        })}
+        active={activeTab}
+        onSelect={setActiveTab}
+      />
 
       {activeTab === 'enrollments' && (
         <div>
@@ -137,13 +137,12 @@ export default function OnFireDashboard() {
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             {loading ? (
-              <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
-              </div>
+              <PageLoader className="py-12" />
             ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                {enrollments.length === 0 ? 'No active enrollments yet. Register a student to get started.' : 'No matches for your search.'}
-              </div>
+              <EmptyState
+                plain
+                title={enrollments.length === 0 ? 'No active enrollments yet. Register a student to get started.' : 'No matches for your search.'}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -201,14 +200,14 @@ export default function OnFireDashboard() {
               <button
                 onClick={() => setRemoveTarget(null)}
                 disabled={removing}
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="btn-quiet flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={removeAccess}
                 disabled={removing}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+                className="btn-danger flex-1"
               >
                 {removing ? 'Removing...' : 'Remove access'}
               </button>

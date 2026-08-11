@@ -37,10 +37,10 @@ describe('OrganizationDashboard', () => {
   })
 
   describe('loading state', () => {
-    it('shows loading text while fetching', () => {
+    it('shows a loading spinner while fetching', () => {
       api.get.mockImplementation(() => new Promise(() => {}))
       render(<OrganizationDashboard />)
-      expect(screen.getByText('Loading organizations...')).toBeInTheDocument()
+      expect(screen.getByRole('status', { name: 'Loading organizations' })).toBeInTheDocument()
     })
   })
 

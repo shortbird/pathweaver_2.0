@@ -7,6 +7,8 @@ import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 import UserConnectionsTab from './UserConnectionsTab'
 import UserEnrollmentsTab from './UserEnrollmentsTab'
+import GlassTabBar from '../ui/GlassTabBar'
+import Spinner from '../ui/Spinner'
 import { startMasquerade } from '../../services/masqueradeService'
 import { queryKeys } from '../../utils/queryKeys'
 
@@ -48,6 +50,17 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     fetchUserDetails()
     fetchOrganizations()
   }, [user.id])
+
+  // Close on Escape, but let any nested modal handle its own dismissal first
+  const nestedModalOpen = showChatLogsModal || showResetPasswordModal || showAdvisorCheckinsModal
+  useEffect(() => {
+    if (nestedModalOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [nestedModalOpen, onClose])
 
   const fetchUserDetails = async () => {
     try {
@@ -237,7 +250,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         if (role === 'parent') {
           targetPath = '/parent/dashboard'
         } else if (role === 'advisor') {
-          targetPath = '/advisor/dashboard'
+          targetPath = '/dashboard'
         }
 
         window.location.href = targetPath
@@ -339,7 +352,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     const colors = {
       superadmin: 'bg-red-700 text-white',
       org_admin: 'bg-orange-100 text-orange-700',
-      org_managed: 'bg-indigo-100 text-indigo-700',
+      org_managed: 'bg-optio-purple/10 text-optio-purple',
       advisor: 'bg-yellow-100 text-yellow-700',
       parent: 'bg-green-100 text-green-700',
       student: 'bg-blue-100 text-blue-700',
@@ -349,7 +362,16 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center sm:p-4 z-50"
+      onMouseDown={(e) => {
+        // Only the backdrop itself -- not the panel, and not a nested modal's backdrop
+        if (e.target === e.currentTarget) onClose()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="User details"
+    >
       <div className="bg-white rounded-t-2xl sm:rounded-lg w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 sm:p-6 border-b flex-shrink-0">
@@ -359,7 +381,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {currentAvatarUrl ? (
                 <img src={currentAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-sm font-bold">{(formData.first_name?.[0] || user.email[0]).toUpperCase()}</span>
                 </div>
               )}
@@ -381,20 +403,17 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b overflow-x-auto flex-shrink-0" style={{ WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-          {['profile', 'role', 'connections', 'enrollments', 'actions'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 sm:px-5 py-2.5 sm:py-3 min-h-[44px] text-sm sm:text-base font-medium capitalize whitespace-nowrap flex-shrink-0 ${
-                activeTab === tab
-                  ? 'text-optio-purple border-b-2 border-optio-purple'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="px-4 py-3 border-b flex-shrink-0">
+          <GlassTabBar
+            size="md"
+            aria-label="User details sections"
+            tabs={['profile', 'role', 'connections', 'enrollments', 'actions'].map((tab) => ({
+              id: tab,
+              label: tab.charAt(0).toUpperCase() + tab.slice(1),
+            }))}
+            active={activeTab}
+            onSelect={setActiveTab}
+          />
         </div>
 
         {/* Content */}
@@ -411,7 +430,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                       className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-200"
                     />
                   ) : (
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center border-2 border-gray-200">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-primary flex items-center justify-center border-2 border-gray-200">
                       <span className="text-white text-xl sm:text-2xl font-bold">
                         {(formData.first_name?.[0] || user.email[0]).toUpperCase()}
                       </span>
@@ -419,7 +438,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   )}
                   {uploadingAvatar && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                      <Spinner size="sm" className="border-white" />
                     </div>
                   )}
                 </div>
@@ -427,7 +446,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   <button
                     onClick={handleUploadAvatar}
                     disabled={uploadingAvatar}
-                    className="px-3 py-1.5 min-h-[36px] text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1.5"
+                    className="btn-quiet min-h-[36px]"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -449,7 +468,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="first_name"
                     value={formData.first_name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
                 <div>
@@ -462,7 +481,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="last_name"
                     value={formData.last_name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
               </div>
@@ -476,7 +495,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
               <div>
@@ -490,7 +509,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.phone_number}
                   onChange={handleInputChange}
                   placeholder="(555) 123-4567"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
               <div>
@@ -503,7 +522,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   name="date_of_birth"
                   value={formData.date_of_birth}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
               <div>
@@ -517,7 +536,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.address_line1}
                   onChange={handleInputChange}
                   placeholder="123 Main Street"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
               <div>
@@ -531,7 +550,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.address_line2}
                   onChange={handleInputChange}
                   placeholder="Apt, Suite, Unit (optional)"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -546,7 +565,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.city}
                     onChange={handleInputChange}
                     placeholder="New York"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
                 <div>
@@ -560,7 +579,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.state}
                     onChange={handleInputChange}
                     placeholder="NY"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
               </div>
@@ -576,7 +595,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.postal_code}
                     onChange={handleInputChange}
                     placeholder="10001"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
                 <div>
@@ -590,7 +609,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.country}
                     onChange={handleInputChange}
                     placeholder="United States"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   />
                 </div>
               </div>
@@ -624,7 +643,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               <button
                 onClick={handleSaveProfile}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-2 min-h-[44px] rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+                className="btn-primary w-full min-h-[44px]"
               >
                 {loading ? 'Saving...' : 'Save Profile Changes'}
               </button>
@@ -653,7 +672,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="role"
                     value={formData.role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   >
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
@@ -682,11 +701,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUpdateRole}
                   disabled={loading || formData.role === (user.role || 'student')}
-                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
-                    formData.role === (user.role || 'student')
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-optio-purple text-white hover:bg-purple-700'
-                  } disabled:bg-gray-400`}
+                  className="btn-primary w-full min-h-[44px]"
                 >
                   {loading ? 'Updating...' : 'Update Role'}
                 </button>
@@ -712,7 +727,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="organization_id"
                     value={formData.organization_id}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   >
                     <option value="">No Organization</option>
                     {organizations.map(org => (
@@ -723,8 +738,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   </select>
                 </div>
 
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
+                <div className="p-3 bg-optio-purple/5 rounded-lg">
+                  <p className="text-sm text-optio-purple-dark">
                     <span className="font-semibold">Note:</span> Assigning a user to an organization determines which quests they can access based on the organization's visibility policy.
                   </p>
                 </div>
@@ -732,11 +747,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUpdateOrganization}
                   disabled={loading || formData.organization_id === originalOrgId}
-                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
-                    formData.organization_id === originalOrgId
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  } disabled:bg-gray-400`}
+                  className="btn-primary w-full min-h-[44px]"
                 >
                   {loading ? 'Updating...' : 'Update Organization'}
                 </button>
@@ -750,7 +761,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     Current Organizational Role
                   </label>
                   <span className={`px-3 py-2 rounded-full text-sm font-semibold ${
-                    originalOrgRole === 'org_admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                    originalOrgRole === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple' : 'bg-gray-100 text-gray-700'
                   }`}>
                     {({
                       student: 'Student',
@@ -770,7 +781,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="org_role"
                     value={formData.org_role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
                   >
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
@@ -780,8 +791,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   </select>
                 </div>
 
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-purple-800">
+                <div className="p-3 bg-optio-purple/5 rounded-lg">
+                  <p className="text-sm text-optio-purple-dark">
                     <span className="font-semibold">Note:</span> This sets the user's role within their organization. Organization Admins can manage organization settings, users, and quests.
                   </p>
                 </div>
@@ -789,11 +800,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUpdateOrgRole}
                   disabled={loading || formData.org_role === originalOrgRole}
-                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
-                    formData.org_role === originalOrgRole
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-optio-purple text-white hover:bg-purple-700'
-                  } disabled:bg-gray-400`}
+                  className="btn-primary w-full min-h-[44px]"
                 >
                   {loading ? 'Updating...' : 'Update Organizational Role'}
                 </button>
@@ -816,7 +823,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* View Chat Logs */}
               <button
                 onClick={handleViewChatLogs}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-optio-purple/5 text-optio-purple rounded-lg hover:bg-optio-purple/10 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -1006,7 +1013,7 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2 min-h-[44px] border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            className="btn-quiet flex-1 min-h-[44px]"
             disabled={loading}
           >
             Cancel
@@ -1014,7 +1021,7 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="btn-primary flex-1 min-h-[44px]"
             disabled={loading}
           >
             {loading ? 'Resetting...' : 'Reset Password'}

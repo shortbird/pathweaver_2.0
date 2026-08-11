@@ -128,7 +128,7 @@ function RelationshipsSection({
                                 {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                               </p>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                                advisor.role === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple-dark' : 'bg-blue-100 text-blue-800'
                               }`}>
                                 {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                               </span>
@@ -155,7 +155,7 @@ function RelationshipsSection({
                               </h4>
                               <button
                                 onClick={() => setShowAssignModal(true)}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium text-sm"
                               >
                                 <UserPlusIcon className="w-4 h-4" />
                                 Assign
@@ -200,7 +200,7 @@ function RelationshipsSection({
                   <div className="flex justify-end">
                     <button
                       onClick={() => setShowAddConnectionModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium text-sm"
                     >
                       <UserPlusIcon className="w-4 h-4" />
                       Add Connection

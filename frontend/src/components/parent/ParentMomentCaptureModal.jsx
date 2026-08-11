@@ -206,7 +206,6 @@ const ParentMomentCaptureModal = ({
             onClick={handleClose}
             disabled={isSubmitting}
             className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors disabled:opacity-50 min-h-[44px]"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             Cancel
           </button>
@@ -214,8 +213,7 @@ const ParentMomentCaptureModal = ({
             type="button"
             onClick={handleSubmit}
             disabled={!isValid || isSubmitting || isUploading}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
+            className="btn-primary min-h-[44px]"
           >
             {isSubmitting ? 'Saving...' : 'Save Moment'}
           </button>
@@ -227,7 +225,6 @@ const ParentMomentCaptureModal = ({
         <div>
           <label
             className="block text-sm font-semibold text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             For
           </label>
@@ -242,10 +239,9 @@ const ParentMomentCaptureModal = ({
                   disabled={isSubmitting}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all min-h-[44px] border-2 ${
                     isSelected
-                      ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white border-transparent shadow-md'
+                      ? 'bg-gradient-primary text-white border-transparent shadow-md'
                       : 'bg-white text-gray-700 border-gray-300 hover:border-optio-purple hover:text-optio-purple'
                   } disabled:opacity-50`}
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   {child.name}
                 </button>
@@ -253,7 +249,7 @@ const ParentMomentCaptureModal = ({
             })}
           </div>
           {children.length > 1 && (
-            <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-xs text-gray-500 mt-1">
               Select multiple to add this moment to each child
             </p>
           )}
@@ -264,7 +260,6 @@ const ParentMomentCaptureModal = ({
           <label
             htmlFor="description"
             className="block text-sm font-semibold text-gray-700 mb-1"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             What happened?
           </label>
@@ -276,7 +271,6 @@ const ParentMomentCaptureModal = ({
             placeholder="Describe the learning moment..."
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all resize-none"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           />
         </div>
 
@@ -287,7 +281,6 @@ const ParentMomentCaptureModal = ({
             onClick={() => photoInputRef.current?.click()}
             disabled={isSubmitting}
             className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors disabled:opacity-50 min-h-[44px]"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <PhotoIcon className="w-5 h-5" />
             <span className="font-medium">Camera</span>
@@ -306,7 +299,6 @@ const ParentMomentCaptureModal = ({
             onClick={() => fileInputRef.current?.click()}
             disabled={isSubmitting}
             className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors disabled:opacity-50 min-h-[44px]"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <DocumentIcon className="w-5 h-5" />
             <span className="font-medium">File</span>
@@ -329,7 +321,6 @@ const ParentMomentCaptureModal = ({
                 ? 'border-optio-purple text-optio-purple'
                 : 'border-gray-300 text-gray-600 hover:border-optio-purple hover:text-optio-purple'
             }`}
-            style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <LinkIcon className="w-5 h-5" />
             <span className="font-medium">Link</span>
@@ -352,7 +343,6 @@ const ParentMomentCaptureModal = ({
               placeholder="Paste URL (e.g., https://youtube.com/watch?v=...)"
               disabled={isSubmitting}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all min-h-[44px]"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
               autoFocus
             />
             <button
@@ -360,7 +350,6 @@ const ParentMomentCaptureModal = ({
               onClick={handleAddLink}
               disabled={isSubmitting || !media.linkInput.trim()}
               className="px-4 py-2 bg-optio-purple text-white rounded-lg font-medium hover:bg-optio-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
             >
               Add
             </button>

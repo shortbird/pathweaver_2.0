@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { Spinner } from './ui/Spinner';
 
 /**
  * ReflectionModal
@@ -74,9 +75,9 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-t-2xl">
+        <div className="bg-gradient-primary p-6 rounded-t-2xl">
           <h2 className="text-2xl font-bold text-white">Setting Down: {questTitle}</h2>
-          <p className="text-purple-100 mt-2">
+          <p className="text-white/80 mt-2">
             Take a moment to reflect on what you discovered (optional)
           </p>
         </div>
@@ -85,7 +86,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
         <div className="p-6 space-y-6">
           {loadingPrompts ? (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-optio-purple border-t-transparent"></div>
+              <Spinner className="mx-auto" />
               <p className="mt-2 text-gray-600">Loading reflection prompts...</p>
             </div>
           ) : (
@@ -103,8 +104,8 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
                       className={`
                         w-full text-left p-4 rounded-lg border-2 transition-all
                         ${selectedPromptId === prompt.id
-                          ? 'border-optio-purple bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-300 bg-white'
+                          ? 'border-optio-purple bg-optio-purple/5'
+                          : 'border-gray-200 hover:border-optio-purple/40 bg-white'
                         }
                       `}
                     >
@@ -144,7 +145,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
                     value={reflectionText}
                     onChange={(e) => setReflectionText(e.target.value)}
                     placeholder={`${selectedPrompt.prompt_text}\n\nShare your thoughts here...`}
-                    className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-optio-purple focus:ring focus:ring-purple-200 resize-none"
+                    className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-optio-purple focus:ring focus:ring-optio-purple/20 resize-none"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {reflectionText.length} characters
@@ -160,7 +161,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium disabled:opacity-50"
+            className="btn-quiet"
           >
             Cancel
           </button>
@@ -169,7 +170,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
             <button
               onClick={() => handleSetDown(true)}
               disabled={isLoading}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors disabled:opacity-50"
+              className="btn-quiet"
             >
               Skip Reflection
             </button>
@@ -177,7 +178,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
             <button
               onClick={() => handleSetDown(false)}
               disabled={isLoading || !reflectionText.trim()}
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:from-purple-700 hover:to-pink-700 font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary"
             >
               {isLoading ? 'Setting Down...' : 'Set Down with Reflection'}
             </button>

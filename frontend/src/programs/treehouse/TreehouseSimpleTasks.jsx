@@ -128,7 +128,7 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
               <CameraCaptureButton
                 disabled={busy}
                 onPhoto={(file) => finish(openTask, file)}
-                className={`block w-full text-center py-4 rounded-2xl bg-gradient-to-r from-optio-purple to-optio-pink text-white text-lg font-bold ${busy ? 'opacity-60 pointer-events-none' : ''}`}
+                className={`block w-full text-center py-4 rounded-2xl bg-gradient-primary text-white text-lg font-bold ${busy ? 'opacity-60 pointer-events-none' : ''}`}
               >
                 📷 Take a photo &amp; finish
               </CameraCaptureButton>

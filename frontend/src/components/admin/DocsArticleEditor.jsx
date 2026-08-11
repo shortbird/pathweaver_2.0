@@ -311,7 +311,7 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium disabled:opacity-50"
+          className="px-6 py-2.5 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium disabled:opacity-50"
         >
           {saving ? 'Saving...' : (isEditing ? 'Update Article' : 'Create Article')}
         </button>

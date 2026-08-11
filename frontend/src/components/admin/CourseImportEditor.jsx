@@ -216,7 +216,7 @@ const CourseImportEditor = ({ previewData, onBack, onImportComplete }) => {
                   <button
                     onClick={handleSearchImage}
                     disabled={searchingImage || !quest.title.trim()}
-                    className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {searchingImage ? 'Searching...' : 'Search for Image'}
                   </button>
@@ -349,7 +349,7 @@ const CourseImportEditor = ({ previewData, onBack, onImportComplete }) => {
             <button
               onClick={handleImport}
               disabled={importing || !quest.title.trim() || tasks.length === 0}
-              className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-8 py-3 bg-gradient-primary text-white rounded-lg font-medium hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {importing ? 'Importing...' : 'Import Quest'}
             </button>

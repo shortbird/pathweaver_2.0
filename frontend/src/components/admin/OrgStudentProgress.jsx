@@ -272,7 +272,7 @@ export default function OrgStudentProgress({ orgId }) {
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-medium">
+                          <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-medium">
                             {student.name?.charAt(0)?.toUpperCase() || '?'}
                           </div>
                         </div>

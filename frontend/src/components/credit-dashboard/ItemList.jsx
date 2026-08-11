@@ -3,7 +3,7 @@ import FilterBar from './FilterBar'
 import StatusTimeline from './StatusTimeline'
 
 const statusColors = {
-  pending_org_approval: 'bg-purple-100 text-purple-800',
+  pending_org_approval: 'bg-optio-purple/10 text-optio-purple-dark',
   pending_review: 'bg-yellow-100 text-yellow-800',
   grow_this: 'bg-orange-100 text-orange-800',
   finalized: 'bg-emerald-100 text-emerald-800',

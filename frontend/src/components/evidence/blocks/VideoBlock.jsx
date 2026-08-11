@@ -61,7 +61,7 @@ const VideoBlock = ({ block, displayMode }) => {
           {(title || item.duration_seconds) && (
             <div className="p-3 flex items-center gap-2">
               {title && (
-                <h4 className="font-bold text-gray-900 flex-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h4 className="font-bold text-gray-900 flex-1">
                   {title}
                 </h4>
               )}
@@ -84,7 +84,7 @@ const VideoBlock = ({ block, displayMode }) => {
         <div key={index} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           {title && (
             <div className="p-4 border-b border-gray-200 bg-gray-50">
-              <h4 className="font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <h4 className="font-bold text-gray-900">
                 {title}
               </h4>
             </div>
@@ -111,11 +111,11 @@ const VideoBlock = ({ block, displayMode }) => {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all min-h-[56px]"
+        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-optio-purple/30 transition-all min-h-[56px]"
       >
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
-            <svg className="h-6 w-6 text-pink-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex-shrink-0 w-10 h-10 bg-optio-pink/10 rounded-lg flex items-center justify-center">
+            <svg className="h-6 w-6 text-optio-pink-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -123,12 +123,12 @@ const VideoBlock = ({ block, displayMode }) => {
 
           <div className="flex-1 min-w-0">
             {title && (
-              <h4 className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <h4 className="font-bold text-gray-900 mb-1">
                 {title}
               </h4>
             )}
 
-            <p className="text-xs text-optio-pink font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-xs text-optio-pink font-semibold truncate">
               {url}
             </p>
           </div>

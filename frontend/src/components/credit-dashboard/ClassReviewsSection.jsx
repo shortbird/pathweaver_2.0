@@ -122,7 +122,7 @@ const ClassReviewsSection = ({ onReviewed }) => {
               key={it.quest_id}
               type="button"
               onClick={() => selectItem(it)}
-              className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 ${selectedId === it.quest_id ? 'bg-purple-50' : ''}`}
+              className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 ${selectedId === it.quest_id ? 'bg-optio-purple/5' : ''}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium text-gray-900 truncate">{it.title}</div>
@@ -169,15 +169,15 @@ const ClassReviewsSection = ({ onReviewed }) => {
             )}
 
             <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <div className="text-[10px] uppercase tracking-wider text-purple-600 font-semibold">Approved XP</div>
-                <div className="text-2xl font-bold text-purple-900">{detail.approved_subject_xp}</div>
-                <div className="text-xs text-purple-700">in {detail.quest.transcript_subject_display}</div>
+              <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-wider text-optio-purple font-semibold">Approved XP</div>
+                <div className="text-2xl font-bold text-optio-purple-dark">{detail.approved_subject_xp}</div>
+                <div className="text-xs text-optio-purple-dark">in {detail.quest.transcript_subject_display}</div>
               </div>
-              <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
-                <div className="text-[10px] uppercase tracking-wider text-pink-600 font-semibold">Target</div>
-                <div className="text-2xl font-bold text-pink-900">{detail.target_xp}</div>
-                <div className="text-xs text-pink-700">for 0.5 credit</div>
+              <div className="bg-optio-pink/5 border border-optio-pink/20 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-wider text-optio-pink font-semibold">Target</div>
+                <div className="text-2xl font-bold text-optio-pink-dark">{detail.target_xp}</div>
+                <div className="text-xs text-optio-pink-dark">for 0.5 credit</div>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="text-[10px] uppercase tracking-wider text-green-600 font-semibold">Credits</div>
@@ -241,7 +241,7 @@ const ClassReviewsSection = ({ onReviewed }) => {
                       type="button"
                       onClick={approve}
                       disabled={acting}
-                      className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-md disabled:opacity-50"
+                      className="px-4 py-2 bg-gradient-primary text-white rounded-md disabled:opacity-50"
                     >
                       Approve credit
                     </button>

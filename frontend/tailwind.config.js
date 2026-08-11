@@ -23,11 +23,14 @@ export default {
         'poppins': ['Poppins', 'sans-serif'],
         'inter': ['Inter', 'sans-serif'],
       },
+      // Real weight scale (restored 2026-08-10). For months medium/semibold/bold
+      // all mapped to 600, which flattened hierarchy and drove pages to inline
+      // style={{fontWeight:700}} workarounds. See docs/design/DESIGN_SYSTEM.md §2.
       fontWeight: {
         'normal': '400',
-        'medium': '600',
+        'medium': '500',
         'semibold': '600',
-        'bold': '600',
+        'bold': '700',
       },
       colors: {
         // Design System: Brand colors (PRIMARY)
@@ -99,6 +102,9 @@ export default {
       backgroundImage: {
         // Brand gradients
         'gradient-primary': 'linear-gradient(135deg, #6D469B 0%, #EF597B 100%)',
+
+        // Display-text gradient for dark marketing heroes (bg-clip-text)
+        'gradient-hero-accent': 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
 
         // Pillar gradients
         'gradient-pillar-stem': 'linear-gradient(135deg, #2469D1 0%, #1B4FA3 100%)',

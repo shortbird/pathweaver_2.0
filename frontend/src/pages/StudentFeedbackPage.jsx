@@ -5,6 +5,8 @@ import { observerAPI } from '../services/api';
 import FeedCard from '../components/observer/FeedCard';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
+import EmptyState from '../components/ui/EmptyState';
+import { PageLoader } from '../components/ui/Spinner';
 import {
   SparklesIcon,
   ArrowRightIcon,
@@ -154,7 +156,7 @@ export default function StudentFeedbackPage() {
             <button
               onClick={handleGenerateLink}
               disabled={linkGenerating}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity text-sm"
+              className="btn-primary w-full"
             >
               <LinkIcon className="w-4 h-4" />
               {linkGenerating ? 'Generating...' : 'Generate Invite Link'}
@@ -264,9 +266,7 @@ export default function StudentFeedbackPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-      </div>
+      <PageLoader className="min-h-[400px]" />
     );
   }
 
@@ -274,7 +274,7 @@ export default function StudentFeedbackPage() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Activity Feed</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Activity Feed</h1>
         <p className="text-gray-600">
           See your completed work and feedback from your observers.
         </p>
@@ -296,21 +296,20 @@ export default function StudentFeedbackPage() {
           )}
 
           {feedItems.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-              <SparklesIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">No Activity Yet</h2>
-              <p className="text-gray-600 max-w-md mx-auto mb-6">
-                Complete some tasks to see your activity here. When observers leave comments
-                or likes, you'll see them too!
-              </p>
-              <Link
-                to="/dashboard"
-                className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink font-medium"
-              >
-                Go to Dashboard
-                <ArrowRightIcon className="w-4 h-4" />
-              </Link>
-            </div>
+            <EmptyState
+              icon={SparklesIcon}
+              title="No Activity Yet"
+              hint="Complete some tasks to see your activity here. When observers leave comments or likes, you'll see them too!"
+              action={(
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink font-medium"
+                >
+                  Go to Dashboard
+                  <ArrowRightIcon className="w-4 h-4" />
+                </Link>
+              )}
+            />
           ) : (
             <div className="space-y-4">
               {feedItems.map((item) => (
@@ -326,7 +325,7 @@ export default function StudentFeedbackPage() {
 
           {/* Encouragement Note */}
           {feedItems.length > 0 && (
-            <div className="mt-8 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+            <div className="mt-8 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-6 border border-optio-purple/10">
               <div className="flex items-start gap-4">
                 <HeartIcon className="w-6 h-6 text-optio-purple shrink-0 mt-0.5" />
                 <div>

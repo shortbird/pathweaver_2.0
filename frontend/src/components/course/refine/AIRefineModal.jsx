@@ -313,7 +313,7 @@ const AIRefineModal = ({
     <div className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-4 sm:p-6 text-white flex items-center justify-between">
+        <div className="bg-gradient-primary p-4 sm:p-6 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <SparklesIcon className="w-6 h-6" />
             <div>
@@ -568,7 +568,7 @@ const AIRefineModal = ({
                     {!showPromptUpdate && !promptModifier && (
                       <button
                         onClick={handleGeneratePromptUpdate}
-                        className="px-3 py-1.5 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+                        className="px-3 py-1.5 text-sm bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
                       >
                         <SparklesIcon className="w-4 h-4" />
                         Generate
@@ -608,7 +608,7 @@ const AIRefineModal = ({
               <button
                 onClick={handleStartSession}
                 disabled={!userRequest.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continue
                 <ArrowRightIcon className="w-4 h-4" />
@@ -619,7 +619,7 @@ const AIRefineModal = ({
               <button
                 onClick={handleSubmitAnswers}
                 disabled={questions.some(q => !answers[q.id])}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Generate Preview
                 <ArrowRightIcon className="w-4 h-4" />
@@ -630,7 +630,7 @@ const AIRefineModal = ({
               <button
                 onClick={handleApplyChanges}
                 disabled={selectedChanges.size === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Apply {selectedChanges.size} Changes
                 <CheckIcon className="w-4 h-4" />

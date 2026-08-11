@@ -84,16 +84,15 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
         bodyClassName="p-0"
         header={
           <div className="flex-1">
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins' }}>
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
               {task.title}
             </h3>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90" style={{ fontFamily: 'Poppins' }}>
+              <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90">
                 {getPillarData(task.pillar).name}
               </div>
               <div
                 className="px-3 py-1 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 bg-white/20 text-white"
-                style={{ fontFamily: 'Poppins' }}
               >
                 <TrophyIcon className="w-4 h-4" />
                 {task.xp_amount} XP
@@ -106,14 +105,14 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
             {/* Task description section */}
             {task.description && (
               <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-200 bg-white">
-                <div className="text-gray-600 text-sm sm:text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-gray-600 text-sm sm:text-base leading-relaxed">
                   {task.description.split('\n').map((line, idx) => {
                     const trimmedLine = line.trim();
                     if (trimmedLine.startsWith('•')) {
                       return (
                         <div key={idx} className="flex items-start mb-2">
                           <span className="mr-3 mt-1 text-lg font-bold" style={{ color: pillarData.color }}>•</span>
-                          <span className="text-gray-600" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
+                          <span className="text-gray-600">{trimmedLine.substring(1).trim()}</span>
                         </div>
                       );
                     } else if (trimmedLine) {
@@ -130,12 +129,12 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
             {/* Success criteria - what the evidence needs to show */}
             {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
               <div className="px-4 sm:px-8 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Definition of Done
                 </p>
                 <ul className="space-y-1.5">
                   {task.success_criteria.map((criterion, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                       <span className="mt-0.5 font-bold" style={{ color: pillarData.color }}>✓</span>
                       <span>{criterion}</span>
                     </li>
@@ -149,12 +148,11 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
               {/* Add Content Block Section with Submit Button or Completion Indicator */}
               <div className="sticky top-0 z-10 px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-                  <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
+                  <span className="text-sm font-semibold text-gray-700">Add new content block</span>
                   {!isTaskCompleted && (
                     <button
                       onClick={handleSubmitForXP}
                       className="px-4 sm:px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2 w-full sm:w-auto justify-center touch-manipulation min-h-[44px]"
-                      style={{ fontFamily: 'Poppins' }}
                     >
                       <TrophyIcon className="w-4 h-4" />
                       Submit for XP
@@ -167,7 +165,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-green-700 font-bold text-sm" style={{ fontFamily: 'Poppins' }}>
+                      <span className="text-green-700 font-bold text-sm">
                         Task Completed
                       </span>
                     </div>
@@ -183,8 +181,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                         className="px-4 py-2 rounded-lg border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
                         style={{
                           borderColor: pillarData.color,
-                          color: pillarData.color,
-                          fontFamily: 'Poppins'
+                          color: pillarData.color
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = pillarData.color;
@@ -218,7 +215,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <span className="text-red-700 text-base font-medium" style={{ fontFamily: 'Poppins' }}>{error}</span>
+                    <span className="text-red-700 text-base font-medium">{error}</span>
                   </div>
                 </div>
               )}
@@ -244,11 +241,11 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                   borderColor: pillarData.color
                 }}
               >
-                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
+                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color }}>
                   <ExclamationCircleIcon className="w-5 h-5" />
                   Your Evidence Is Public
                 </h4>
-                <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-700 text-base leading-relaxed">
                   This evidence will appear on your <strong>public portfolio</strong> for others to see. Make sure your content reflects well on you and showcases your best efforts.
                 </p>
               </div>
@@ -275,11 +272,11 @@ function AttachedMomentBanner({ moment, pillarColor }) {
     >
       <div className="flex items-center gap-2 mb-3">
         <SparklesIcon className="w-5 h-5" style={{ color: pillarColor }} />
-        <h4 className="font-bold text-base" style={{ color: pillarColor, fontFamily: 'Poppins' }}>
+        <h4 className="font-bold text-base" style={{ color: pillarColor }}>
           From your journal
         </h4>
       </div>
-      <p className="text-sm text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+      <p className="text-sm text-gray-600 mb-4">
         You captured this moment on mobile and attached it to this task. Use it to build your evidence below.
       </p>
       <div className="flex gap-4 items-start">
@@ -291,17 +288,17 @@ function AttachedMomentBanner({ moment, pillarColor }) {
         )}
         <div className="flex-1 min-w-0">
           {moment.title && (
-            <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins' }}>
+            <div className="font-semibold text-gray-900 mb-1">
               {moment.title}
             </div>
           )}
           {moment.description && (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">
               {moment.description}
             </p>
           )}
           {otherBlocks.length > 0 && (
-            <div className="mt-2 text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+            <div className="mt-2 text-xs text-gray-500">
               + {otherBlocks.length} additional attachment{otherBlocks.length === 1 ? '' : 's'}
             </div>
           )}

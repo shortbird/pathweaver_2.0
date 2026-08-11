@@ -127,7 +127,7 @@ const TranscriptSection = ({ studentId }) => {
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ fontFamily: 'Poppins, sans-serif' }}>
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Mini header */}
       <div className="border-b border-gray-200 px-6 py-3 flex items-center justify-between bg-gray-50">
         <div className="flex items-center gap-2">
@@ -192,7 +192,7 @@ const TranscriptSection = ({ studentId }) => {
       <div className="px-6 py-2 border-t border-gray-100 bg-gray-50 flex justify-end">
         <Link
           to={`/admin/user/${studentId}/transcript`}
-          className="text-xs text-optio-purple hover:text-purple-700 font-medium flex items-center gap-1"
+          className="text-xs text-optio-purple hover:text-optio-purple-dark font-medium flex items-center gap-1"
         >
           View Full Transcript
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

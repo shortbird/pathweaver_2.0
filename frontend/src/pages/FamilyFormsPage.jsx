@@ -14,7 +14,7 @@ import BackToSchool from '../components/navigation/BackToSchool'
  */
 
 const STATUS_STYLES = {
-  submitted: 'bg-gray-100 text-neutral-600',
+  submitted: 'bg-gray-100 text-gray-600',
   under_review: 'bg-blue-100 text-blue-700',
   resolved: 'bg-green-100 text-green-700',
 }
@@ -101,14 +101,14 @@ const FamilyFormsPage = () => {
   )
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-neutral-500">Loading…</div>
+    return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-500">Loading…</div>
   }
 
   if (error || !orgs.length) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-neutral-900 mb-2">Submit a request</h1>
-        <p className="text-neutral-500">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Submit a request</h1>
+        <p className="text-gray-500">
           Family requests aren’t available for your family yet. If your school uses Optio,
           ask them to add your family.
         </p>
@@ -119,8 +119,8 @@ const FamilyFormsPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Submit a request</h1>
-      <p className="text-neutral-500 mb-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Submit a request</h1>
+      <p className="text-gray-500 mb-6">
         Send a request to {org?.organization_name || 'your school'} — they’ll see it come in and follow up.
       </p>
 
@@ -128,7 +128,7 @@ const FamilyFormsPage = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-end gap-3">
         {orgs.length > 1 && (
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">School</span>
+            <span className="block text-gray-500 mb-1">School</span>
             <select value={orgId} onChange={(e) => setOrgId(e.target.value)} className={inputClass}>
               {orgs.map((o) => (
                 <option key={o.organization_id} value={o.organization_id}>{o.organization_name || 'School'}</option>
@@ -138,7 +138,7 @@ const FamilyFormsPage = () => {
         )}
         {students.length > 0 && (
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">About a child (optional)</span>
+            <span className="block text-gray-500 mb-1">About a child (optional)</span>
             <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputClass}>
               <option value="">Not about a specific child</option>
               {students.map((s) => <option key={s.student_id} value={s.student_id}>{s.name}</option>)}
@@ -149,52 +149,52 @@ const FamilyFormsPage = () => {
 
       {/* New request */}
       <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4 mb-8 space-y-3">
-        <h2 className="font-semibold text-neutral-900">New request</h2>
+        <h2 className="font-semibold text-gray-900">New request</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">Type</span>
+            <span className="block text-gray-500 mb-1">Type</span>
             <select value={form.form_type} onChange={(e) => setForm({ ...form, form_type: e.target.value })} className={inputClass}>
               {Object.entries(formTypes).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
           </label>
           <label className="text-sm">
-            <span className="block text-neutral-500 mb-1">Short title (optional)</span>
+            <span className="block text-gray-500 mb-1">Short title (optional)</span>
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
               maxLength={120} placeholder="e.g. Records for transfer" className={inputClass} />
           </label>
         </div>
         <label className="text-sm block">
-          <span className="block text-neutral-500 mb-1">Details</span>
+          <span className="block text-gray-500 mb-1">Details</span>
           <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })}
             rows={4} placeholder={`Tell ${org?.organization_name || 'us'} what you need.`}
             className={`${inputClass} resize-none`} />
         </label>
         <div className="flex justify-end">
           <button type="submit" disabled={busy}
-            className="rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            className="btn-primary">
             {busy ? 'Submitting…' : 'Submit request'}
           </button>
         </div>
       </form>
 
       {/* Past submissions */}
-      <h2 className="font-semibold text-neutral-900 mb-3">Your requests</h2>
-      {!submissions.length && <p className="text-sm text-neutral-400">You haven’t submitted any requests yet.</p>}
+      <h2 className="font-semibold text-gray-900 mb-3">Your requests</h2>
+      {!submissions.length && <p className="text-sm text-gray-400">You haven’t submitted any requests yet.</p>}
       <ul className="space-y-2">
         {submissions.map((f) => (
           <li key={f.id} className="bg-white rounded-xl border border-gray-200 p-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{f.form_type_label}</span>
-              <span className="font-medium text-neutral-900">{f.title}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{f.form_type_label}</span>
+              <span className="font-medium text-gray-900">{f.title}</span>
               <StatusPill status={f.status} />
-              <span className="text-xs text-neutral-400 ml-auto">{new Date(f.created_at).toLocaleDateString()}</span>
+              <span className="text-xs text-gray-400 ml-auto">{new Date(f.created_at).toLocaleDateString()}</span>
             </div>
             {f.student_user_id && (
-              <p className="text-xs text-neutral-400 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 About {f.student_name || studentNameById[f.student_user_id] || 'a child'}
               </p>
             )}
-            {f.payload?.body && <p className="text-sm text-neutral-600 mt-1 whitespace-pre-wrap">{f.payload.body}</p>}
+            {f.payload?.body && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{f.payload.body}</p>}
             {f.resolution_notes && <p className="text-sm text-green-700 mt-1">Response: {f.resolution_notes}</p>}
           </li>
         ))}

@@ -363,7 +363,7 @@ const TaskLinker = ({
               className={`
                 w-full sm:w-auto px-4 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2
                 ${selectedTaskIds.length > 0
-                  ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+                  ? 'bg-gradient-primary text-white hover:opacity-90'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }
               `}
@@ -380,7 +380,7 @@ const TaskLinker = ({
               className={`
                 w-full sm:w-auto px-4 sm:px-6 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2
                 ${acceptedCount > 0 && !isCreating
-                  ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+                  ? 'bg-gradient-primary text-white hover:opacity-90'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }
               `}
@@ -563,7 +563,7 @@ const TaskLinker = ({
                           key={task.id}
                           className={`
                             flex items-center gap-3 p-4 cursor-pointer transition-colors
-                            ${isSelected ? 'bg-purple-50' : 'hover:bg-gray-50'}
+                            ${isSelected ? 'bg-optio-purple/5' : 'hover:bg-gray-50'}
                           `}
                         >
                           <div className="flex-shrink-0">
@@ -647,7 +647,7 @@ const TaskLinker = ({
                     <button
                       onClick={handleGenerateTasks}
                       disabled={isGenerating}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {isGenerating ? (
                         <>

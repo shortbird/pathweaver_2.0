@@ -13,6 +13,11 @@ import logger from '../utils/logger';
 import QuestCard from '../components/quest/QuestCard';
 import CreateQuestModal from '../components/CreateQuestModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
+import GlassTabBar from '../components/ui/GlassTabBar';
+
+// Sentinel id for the "no topic selected" tab
+const ALL_TOPICS = '__all__';
 
 // Topic taxonomy with subtopics
 const TOPIC_TAXONOMY = {
@@ -27,25 +32,14 @@ const TOPIC_TAXONOMY = {
   Games: ['Board Games', 'Video Games', 'Puzzles', 'Strategy', 'Sports']
 };
 
-// Topic colors for styling
-const TOPIC_COLORS = {
-  Creative: { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', light: 'bg-purple-100 text-purple-800' },
-  Science: { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', light: 'bg-blue-100 text-blue-800' },
-  Building: { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', light: 'bg-orange-100 text-orange-800' },
-  Nature: { bg: 'bg-green-500', hover: 'hover:bg-green-600', light: 'bg-green-100 text-green-800' },
-  Business: { bg: 'bg-slate-500', hover: 'hover:bg-slate-600', light: 'bg-slate-100 text-slate-800' },
-  Personal: { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', light: 'bg-pink-100 text-pink-800' },
-  Academic: { bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600', light: 'bg-indigo-100 text-indigo-800' },
-  Food: { bg: 'bg-amber-500', hover: 'hover:bg-amber-600', light: 'bg-amber-100 text-amber-800' },
-  Games: { bg: 'bg-cyan-500', hover: 'hover:bg-cyan-600', light: 'bg-cyan-100 text-cyan-800' }
-};
-
 /**
  * QuestDiscovery - Explore and discover quests
  * Features:
+ * - Compact header band: title + search + topic filters in one slim block,
+ *   so quests are visible above the fold
  * - Topic-based filtering with subtopics
  * - Enhanced search (title + big_idea)
- * - Pyramid layout for topic chips
+ * - "Exciting first" ordering (sort=popular: hand-curated featured quests first, then newest — see backend/utils/quest_popularity.py)
  */
 const QuestDiscovery = () => {
   const { user } = useAuth();
@@ -148,6 +142,8 @@ const QuestDiscovery = () => {
       const params = new URLSearchParams({
         page: pageToFetch,
         per_page: 12,
+        // "Exciting first": backend puts the hand-curated featured quests first, then newest
+        sort: 'popular',
         t: Date.now()
       });
 
@@ -214,22 +210,14 @@ const QuestDiscovery = () => {
     observerRef.current.observe(node);
   }, [isLoadingMoreQuests, questsLoading, hasMoreQuests]);
 
-  // Handle topic click
-  const handleTopicClick = (topicName) => {
-    if (selectedTopic === topicName) {
-      setSelectedTopic(null);
-    } else {
-      setSelectedTopic(topicName);
-    }
+  // Handle topic selection from the tab rail ("All" clears the filter)
+  const handleTopicSelect = (topicId) => {
+    setSelectedTopic(topicId === ALL_TOPICS ? null : topicId);
   };
 
-  // Handle subtopic click
-  const handleSubtopicClick = (subtopicName) => {
-    if (selectedSubtopic === subtopicName) {
-      setSelectedSubtopic(null);
-    } else {
-      setSelectedSubtopic(subtopicName);
-    }
+  // Handle subtopic selection from the tab rail ("All" clears the filter)
+  const handleSubtopicSelect = (subtopicId) => {
+    setSelectedSubtopic(subtopicId === ALL_TOPICS ? null : subtopicId);
   };
 
   // Clear all filters
@@ -241,7 +229,6 @@ const QuestDiscovery = () => {
 
   // Get subtopics for selected topic
   const subtopics = selectedTopic ? TOPIC_TAXONOMY[selectedTopic] || [] : [];
-  const topicColors = selectedTopic ? TOPIC_COLORS[selectedTopic] : null;
 
   // Handle quest click
   const handleQuestClick = (quest) => {
@@ -255,87 +242,90 @@ const QuestDiscovery = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-optio-purple to-optio-pink text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-3">
-              Discover Your Next Adventure
-            </h1>
-            <p className="text-lg text-white/80 max-w-2xl mx-auto">
-              Explore quests that match your interests and start your learning journey
-            </p>
-          </div>
+    <div className="min-h-screen bg-neutral-50">
+      {/* Compact header band: title + search + filters, quests above the fold */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
+        {/* Slim brand gradient accent (replaces the old full-bleed hero) */}
+        <div className="h-1 bg-gradient-primary" aria-hidden="true" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          {/* Row 1: title + search + count + actions */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <h1 className="text-2xl font-bold text-gray-900 whitespace-nowrap">Quests</h1>
 
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <div className="relative flex-1 min-w-[180px] max-w-xl">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
+                aria-label="Search quests"
                 placeholder="Search quests..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-12 py-4 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg"
+                className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-optio-purple"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <XMarkIcon className="h-5 w-5" />
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm text-gray-500 whitespace-nowrap" aria-live="polite">
+                {questsLoading ? 'Loading...' : `${totalQuests} quests`}
+              </span>
+              {(selectedTopic || selectedSubtopic || debouncedSearchTerm) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-sm font-medium text-optio-purple hover:underline whitespace-nowrap"
+                >
+                  Clear filters
+                </button>
+              )}
+              {user && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="btn-primary"
+                >
+                  <PlusIcon className="h-5 w-5" />
+                  <span className="hidden sm:inline">Create Quest</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Topic Chips - Dynamic responsive layout */}
+          {/* Row 2: topic filter rail (scrolls horizontally when it overflows) */}
           {!topicsLoading && topics.length > 0 && (
-            <div className="max-w-5xl mx-auto">
-              {/* All topics in a single flex container for natural wrapping */}
-              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                {topics.map((topic) => (
-                  <button
-                    key={topic.name}
-                    onClick={() => handleTopicClick(topic.name)}
-                    className={`
-                      px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap
-                      ${selectedTopic === topic.name
-                        ? 'bg-white text-gray-900 shadow-lg scale-105'
-                        : 'bg-white/20 text-white hover:bg-white/30'
-                      }
-                    `}
-                  >
-                    {topic.name}
-                    <span className="ml-1 opacity-70">({topic.count})</span>
-                  </button>
-                ))}
-              </div>
+            <div className="mt-3">
+              <GlassTabBar
+                aria-label="Quest topics"
+                tabs={[
+                  { id: ALL_TOPICS, label: 'All' },
+                  ...topics.map((topic) => ({
+                    id: topic.name,
+                    label: topic.name,
+                    badge: topic.count
+                  }))
+                ]}
+                active={selectedTopic || ALL_TOPICS}
+                onSelect={handleTopicSelect}
+              />
 
-              {/* Subtopics - shown when a topic is selected */}
+              {/* Row 3: subtopics, only when a topic is selected */}
               {selectedTopic && subtopics.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/20">
-                  <div className="flex items-center justify-center mb-3">
-                    <span className="text-white/70 text-sm">Filter by:</span>
-                  </div>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {subtopics.map((subtopic) => (
-                      <button
-                        key={subtopic}
-                        onClick={() => handleSubtopicClick(subtopic)}
-                        className={`
-                          px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap
-                          ${selectedSubtopic === subtopic
-                            ? 'bg-white text-gray-900 shadow-md'
-                            : 'bg-white/10 text-white/90 hover:bg-white/20 border border-white/30'
-                          }
-                        `}
-                      >
-                        {subtopic}
-                      </button>
-                    ))}
-                  </div>
+                <div className="mt-2">
+                  <GlassTabBar
+                    aria-label={`${selectedTopic} subtopics`}
+                    tabs={[
+                      { id: ALL_TOPICS, label: `All ${selectedTopic}` },
+                      ...subtopics.map((subtopic) => ({ id: subtopic, label: subtopic }))
+                    ]}
+                    active={selectedSubtopic || ALL_TOPICS}
+                    onSelect={handleSubtopicSelect}
+                  />
                 </div>
               )}
             </div>
@@ -343,76 +333,38 @@ const QuestDiscovery = () => {
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Results count and filters */}
-            <div className="flex items-center gap-4">
-              <span className="text-gray-600">
-                {questsLoading ? 'Loading...' : `${totalQuests} quests`}
-              </span>
-              {(selectedTopic || selectedSubtopic || debouncedSearchTerm) && (
-                <button
-                  onClick={clearFilters}
-                  className="text-sm text-optio-purple hover:text-optio-pink"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-
-            {/* Create Quest Button */}
-            {user && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
-              >
-                <PlusIcon className="h-5 w-5" />
-                <span className="hidden sm:inline">Create Quest</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {questsError && (
           <div className="text-center py-8 text-red-600">{questsError}</div>
         )}
 
         {questsLoading && quests.length === 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
         ) : quests.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-gray-400 mb-4">
-              <MagnifyingGlassIcon className="h-16 w-16 mx-auto" />
-            </div>
-            <h3 className="text-xl font-medium text-gray-600 mb-2">
-              No quests found
-            </h3>
-            <p className="text-gray-500 mb-6">
-              {selectedTopic || selectedSubtopic || debouncedSearchTerm
-                ? 'Try adjusting your filters or search terms'
-                : 'Be the first to create a quest!'}
-            </p>
-            {user && (
+          <EmptyState
+            plain
+            icon={MagnifyingGlassIcon}
+            title="No quests found"
+            hint={selectedTopic || selectedSubtopic || debouncedSearchTerm
+              ? 'Try adjusting your filters or search terms'
+              : 'Be the first to create a quest!'}
+            action={user && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90"
+                className="btn-primary"
               >
                 <PlusIcon className="h-5 w-5" />
                 Create Your First Quest
               </button>
             )}
-          </div>
+          />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {quests.map((quest, index) => (
               <div
                 key={quest.id}

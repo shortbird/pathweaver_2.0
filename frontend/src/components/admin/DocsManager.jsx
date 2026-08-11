@@ -136,7 +136,7 @@ const DocsManager = () => {
           </div>
           <button
             onClick={() => { setEditingCategory(null); setShowCategoryEditor(true) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 text-sm font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-primary text-white rounded-lg hover:opacity-90 text-sm font-medium"
           >
             <PlusIcon className="w-4 h-4" /> Add Category
           </button>
@@ -199,7 +199,7 @@ const DocsManager = () => {
             </div>
             <button
               onClick={() => { setEditArticleId(null); setView('new-article') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 text-sm font-medium whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-primary text-white rounded-lg hover:opacity-90 text-sm font-medium whitespace-nowrap"
             >
               <PlusIcon className="w-4 h-4" /> New Article
             </button>

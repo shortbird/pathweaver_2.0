@@ -21,7 +21,7 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
         'This creates natural curiosity and immediate application.',
         'You\'re not studying for "someday" - you\'re learning for RIGHT NOW.'
       ],
-      gradient: 'from-optio-purple to-purple-700'
+      gradient: 'from-optio-purple to-optio-purple-dark'
     },
     {
       title: 'Zone of Proximal Development',
@@ -33,7 +33,7 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
         'Scaffolding and examples help you bridge the gap.',
         'You\'re always challenged, never overwhelmed.'
       ],
-      gradient: 'from-purple-600 to-optio-pink'
+      gradient: 'from-optio-purple to-optio-pink'
     },
     {
       title: 'Tasks as Demonstrations',
@@ -45,7 +45,7 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
         'Your work becomes evidence of growth and capability.',
         'Learning becomes visible through what you build.'
       ],
-      gradient: 'from-optio-pink to-pink-700'
+      gradient: 'from-optio-pink to-optio-pink-dark'
     },
     {
       title: 'Process Over Outcomes',
@@ -57,7 +57,7 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
         'Progress is measured by growth, not grades.',
         'You\'re becoming who you want to be, right now.'
       ],
-      gradient: 'from-pink-600 to-optio-purple'
+      gradient: 'from-optio-pink to-optio-purple'
     }
   ];
 
@@ -130,7 +130,6 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
             <h2
               id="philosophy-guide-title"
               className="text-3xl font-bold mb-2"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
             >
               {currentSlideData.title}
             </h2>
@@ -209,7 +208,7 @@ const PhilosophyGuide = ({ isOpen, onClose }) => {
           ) : (
             <button
               onClick={handleSkip}
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-lg transition-shadow font-medium"
+              className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-shadow font-medium"
             >
               Get Started
             </button>

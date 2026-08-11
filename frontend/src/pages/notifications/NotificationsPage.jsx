@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import NotificationDetailModal from '../../components/notifications/NotificationDetailModal'
 import SendNotificationModal from '../../components/notifications/SendNotificationModal'
+import { GlassTabBar, Spinner } from '../../components/ui'
 
 /**
  * NotificationsPage
@@ -146,7 +147,7 @@ const NotificationsPage = () => {
           {canSendNotifications && (
             <button
               onClick={() => setShowSendModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+              className="btn-primary"
             >
               <PlusIcon className="h-4 w-4" />
               Send Notification
@@ -154,28 +155,13 @@ const NotificationsPage = () => {
           )}
 
           {/* Filter Toggle */}
-          <div className="flex rounded-lg bg-gray-100 p-1">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                filter === 'all'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                filter === 'unread'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Unread
-            </button>
-          </div>
+          <GlassTabBar
+            className="!mx-0"
+            tabs={[{ id: 'all', label: 'All' }, { id: 'unread', label: 'Unread' }]}
+            active={filter}
+            onSelect={setFilter}
+            aria-label="Filter notifications"
+          />
 
           {unreadCount > 0 && (
             <button
@@ -192,7 +178,7 @@ const NotificationsPage = () => {
       {/* Notification List */}
       {isLoading && notifications.length === 0 ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+          <Spinner size="md" />
         </div>
       ) : notifications.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -203,7 +189,7 @@ const NotificationsPage = () => {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-100">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100">
           {notifications.map((notification) => (
             <div
               key={notification.id}

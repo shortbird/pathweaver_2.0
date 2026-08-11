@@ -138,7 +138,7 @@ export default function QuestGroupsManager({ orgId, refreshKey = 0 }) {
                   type="checkbox"
                   checked={!!membership[q.id]}
                   onChange={() => setMembership(m => ({ ...m, [q.id]: !m[q.id] }))}
-                  className="w-4 h-4 accent-purple-600"
+                  className="w-4 h-4 accent-optio-purple"
                 />
                 <span className="text-sm text-gray-900">{q.title}</span>
               </label>
@@ -156,7 +156,7 @@ export default function QuestGroupsManager({ orgId, refreshKey = 0 }) {
             <button
               onClick={saveMembership}
               disabled={busy}
-              className="px-4 py-1.5 text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg disabled:opacity-50"
+              className="px-4 py-1.5 text-sm font-semibold text-white bg-gradient-primary rounded-lg disabled:opacity-50"
             >
               {busy ? 'Saving…' : 'Save group'}
             </button>

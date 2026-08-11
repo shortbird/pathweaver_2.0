@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { checkinAPI } from '../../services/api'
+import Spinner from '../ui/Spinner'
 
 const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
   const [loading, setLoading] = useState(true)
@@ -45,13 +46,13 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+        <div className="bg-gradient-primary p-6 text-white">
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-2xl font-bold mb-1">Check-in History</h2>
-              <p className="text-purple-100 font-medium">{studentName}</p>
+              <p className="text-white/80 font-medium">{studentName}</p>
               {checkins.length > 0 && (
-                <p className="text-purple-100 text-sm mt-2">
+                <p className="text-white/80 text-sm mt-2">
                   Total check-ins: {checkins.length}
                 </p>
               )}
@@ -69,7 +70,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+              <Spinner size="lg" />
             </div>
           ) : error ? (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
@@ -85,7 +86,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
               {checkins.map((checkin) => (
                 <div
                   key={checkin.id}
-                  className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 transition-colors"
+                  className="border border-gray-200 rounded-lg overflow-hidden hover:border-optio-purple/60 transition-colors"
                 >
                   {/* Check-in Summary (Always Visible) */}
                   <div
@@ -104,7 +105,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                         )}
                       </div>
                       <button
-                        className="ml-0 sm:ml-4 text-optio-purple font-semibold text-sm hover:text-purple-700 min-h-[44px] self-start"
+                        className="ml-0 sm:ml-4 text-optio-purple font-semibold text-sm hover:text-optio-purple-dark min-h-[44px] self-start"
                       >
                         {expandedCheckinId === checkin.id ? 'Hide' : 'View Details'}
                       </button>
@@ -129,7 +130,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                                   <div className="flex items-center gap-3 mt-2">
                                     <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                                       <div
-                                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                                        className="h-full bg-gradient-primary"
                                         style={{ width: `${quest.completion_percent}%` }}
                                       />
                                     </div>
@@ -141,8 +142,8 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                                   {/* Quest-specific notes */}
                                   {questNote && questNote.notes && (
                                     <div className="mt-3 pt-3 border-t border-gray-200">
-                                      <p className="text-xs font-semibold text-purple-700 mb-1">Quest Notes:</p>
-                                      <p className="text-sm text-gray-700 bg-purple-50 p-2 rounded">
+                                      <p className="text-xs font-semibold text-optio-purple mb-1">Quest Notes:</p>
+                                      <p className="text-sm text-gray-700 bg-optio-purple/5 p-2 rounded">
                                         {questNote.notes}
                                       </p>
                                     </div>
@@ -193,7 +194,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                       {checkin.student_voice && (
                         <div>
                           <h4 className="font-bold text-gray-800 mb-2">Student Voice</h4>
-                          <p className="text-gray-700 italic whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-400 p-3 rounded">
+                          <p className="text-gray-700 italic whitespace-pre-wrap bg-optio-purple/5 border-l-4 border-optio-purple/40 p-3 rounded">
                             "{checkin.student_voice}"
                           </p>
                         </div>

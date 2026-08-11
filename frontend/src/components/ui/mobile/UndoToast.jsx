@@ -41,11 +41,11 @@ const UndoToast = ({
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
       className="fixed bottom-4 left-4 right-4 z-50 pointer-events-auto"
     >
-      <div className="bg-gray-900 text-white rounded-lg shadow-2xl overflow-hidden">
+      <div className="bg-neutral-900 text-white rounded-lg shadow-2xl overflow-hidden">
         {/* Progress bar */}
         <div className="h-1 bg-gray-700">
           <motion.div
-            className="h-full bg-gradient-to-r from-optio-purple to-optio-pink"
+            className="h-full bg-gradient-primary"
             initial={{ width: '100%' }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.016, ease: 'linear' }}
@@ -60,7 +60,7 @@ const UndoToast = ({
 
           <button
             onClick={onUndo}
-            className="flex-shrink-0 min-w-[44px] min-h-[44px] px-4 py-2 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150 touch-manipulation focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900"
+            className="flex-shrink-0 min-w-[44px] min-h-[44px] px-4 py-2 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150 touch-manipulation focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-neutral-900"
             aria-label={`Undo delete ${itemType}`}
           >
             Undo

@@ -77,7 +77,7 @@ const ParentInvitationSection = () => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center gap-2 mb-6">
         <UserGroupIcon className="w-7 h-7 text-optio-purple" />
-        <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h2 className="text-2xl font-bold text-gray-900">
           Parent Access
         </h2>
       </div>
@@ -88,10 +88,10 @@ const ParentInvitationSection = () => {
           <div className="flex items-start gap-3">
             <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 flex-shrink-0" />
             <div>
-              <h3 className="font-semibold text-yellow-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+              <h3 className="font-semibold text-yellow-900 mb-1">
                 Important to know
               </h3>
-              <p className="text-sm text-yellow-800 font-medium" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-sm text-yellow-800 font-medium">
                 Once approved, parent access is permanent and cannot be revoked. Parents can view your progress, quests, and AI tutor conversations.
               </p>
             </div>
@@ -102,7 +102,7 @@ const ParentInvitationSection = () => {
       {/* Pending Requests */}
       {pendingApprovals.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-3">
             Pending Requests ({pendingApprovals.length})
           </h3>
           <div className="space-y-3">
@@ -113,10 +113,10 @@ const ParentInvitationSection = () => {
                     <UserGroupIcon className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                    <p className="font-semibold text-gray-900">
                       {request.parent_first_name} {request.parent_last_name}
                     </p>
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       {request.parent_email} • Requested {new Date(request.requested_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -146,7 +146,7 @@ const ParentInvitationSection = () => {
       {/* Linked Parents */}
       {linkedParents.length > 0 && (
         <div>
-          <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+          <h3 className="text-lg font-bold text-gray-900 mb-3">
             Connected Parents
           </h3>
           <div className="space-y-3">
@@ -155,15 +155,15 @@ const ParentInvitationSection = () => {
                 <div className="flex items-center gap-3">
                   <CheckCircleIcon className="w-5 h-5 text-green-600" />
                   <div>
-                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                    <p className="font-semibold text-gray-900">
                       {parent.first_name || parent.parent_name}
                     </p>
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       Connected since {new Date(parent.approved_at || parent.linked_since).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
                   Active
                 </div>
               </div>

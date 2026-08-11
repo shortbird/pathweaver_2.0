@@ -60,7 +60,7 @@ function NewCourseForm({ course, setCourse, isCreating, onCreateCourse }) {
               <button
                 onClick={onCreateCourse}
                 disabled={isCreating || !course?.title?.trim()}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px]"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px]"
               >
                 {isCreating ? (
                   <>

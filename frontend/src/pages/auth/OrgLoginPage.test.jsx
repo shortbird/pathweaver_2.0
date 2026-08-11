@@ -67,7 +67,7 @@ describe('OrgLoginPage when already authenticated', () => {
     expect(mockNavigate).not.toHaveBeenCalled()
   })
 
-  it('Continue sends an org-managed parent to the parent dashboard', async () => {
+  it('Continue sends an org-managed parent to the role home', async () => {
     localStorage.setItem('session_sync', JSON.stringify({ userId: 'other', action: 'login', timestamp: 1 }))
     authState = {
       ...authState,
@@ -75,6 +75,6 @@ describe('OrgLoginPage when already authenticated', () => {
     }
     renderPage()
     fireEvent.click(await screen.findByText('Continue as Pat'))
-    expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
   })
 })

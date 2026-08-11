@@ -12,6 +12,7 @@ import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSection'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
+import GlassTabBar from '../components/ui/GlassTabBar'
 import useIsMobile from '../hooks/useIsMobile'
 
 // orgId is set when this page is embedded in the org management screen
@@ -323,30 +324,23 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
           </h1>
           {/* Tasks vs full-class submissions (superadmin reviews classes) */}
           {canReviewClasses && (
-          <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden text-sm">
-            <button
-              onClick={() => setMainTab('tasks')}
-              className={`px-3 py-1.5 ${mainTab === 'tasks' ? 'bg-optio-purple text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-            >
-              Tasks
-            </button>
-            <button
-              onClick={() => setMainTab('classes')}
-              className={`px-3 py-1.5 flex items-center gap-1.5 border-l border-gray-200 ${mainTab === 'classes' ? 'bg-optio-purple text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-            >
-              Classes
-              {classPendingCount > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${mainTab === 'classes' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'}`}>
-                  {classPendingCount}
-                </span>
-              )}
-            </button>
+          <div className="shrink-0">
+            <GlassTabBar
+              size="md"
+              aria-label="Review queue"
+              tabs={[
+                { id: 'tasks', label: 'Tasks' },
+                { id: 'classes', label: 'Classes', badge: classPendingCount > 0 ? classPendingCount : null },
+              ]}
+              active={mainTab}
+              onSelect={setMainTab}
+            />
           </div>
           )}
           {mainTab === 'tasks' && stats && (
             <div className="flex gap-2 text-sm overflow-x-auto no-scrollbar">
               {stats.pending_org_approval > 0 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
                   {stats.pending_org_approval} pending org
                 </span>
               )}

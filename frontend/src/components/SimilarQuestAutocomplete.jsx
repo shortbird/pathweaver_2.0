@@ -105,11 +105,11 @@ const SimilarQuestAutocomplete = ({
         </div>
       ) : suggestions.length > 0 ? (
         <>
-          <div className="px-4 py-2 bg-purple-50 border-b border-purple-100">
-            <p className="text-sm text-purple-800 font-medium">
+          <div className="px-4 py-2 bg-optio-purple/5 border-b border-optio-purple/10">
+            <p className="text-sm text-optio-purple-dark font-medium">
               Similar quests found ({suggestions.length})
             </p>
-            <p className="text-xs text-purple-600">
+            <p className="text-xs text-optio-purple">
               Click to use an existing quest instead of creating a new one
             </p>
           </div>
@@ -121,7 +121,7 @@ const SimilarQuestAutocomplete = ({
                 aria-selected={index === selectedIndex}
                 className={`px-4 py-3 cursor-pointer border-b border-gray-100 last:border-0 transition-colors ${
                   index === selectedIndex
-                    ? 'bg-purple-100'
+                    ? 'bg-optio-purple/10'
                     : 'hover:bg-gray-50'
                 }`}
                 onClick={() => onSelectQuest(quest)}

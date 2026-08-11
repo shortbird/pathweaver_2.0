@@ -85,7 +85,7 @@ const AddQuestModal = ({
               <h2 className="text-xl font-bold text-gray-900">Add Project to Course</h2>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
               >
                 <PlusIcon className="w-4 h-4" />
                 Create New Quest
@@ -152,7 +152,7 @@ const AddQuestModal = ({
             <button
               onClick={handleAdd}
               disabled={!selectedQuestId}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Project
             </button>

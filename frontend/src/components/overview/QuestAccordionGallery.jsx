@@ -271,7 +271,7 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
           <p className="text-gray-500 text-sm">No quests match this filter</p>
           <button
             onClick={() => setSelectedPillar('all')}
-            className="mt-2 text-sm text-optio-purple hover:text-purple-800 font-medium"
+            className="mt-2 text-sm text-optio-purple hover:text-optio-purple-dark font-medium"
           >
             Clear filter
           </button>
@@ -435,7 +435,7 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
             {activeEvidence ? (
               <>
                 <p className="text-white/70 text-xs font-medium mb-1">{group.title}</p>
-                <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h2 className="text-lg font-bold text-white">
                   {activeEvidence.taskTitle}
                 </h2>
                 <div className="flex items-center gap-2 mt-1.5">
@@ -448,7 +448,7 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
               </>
             ) : (
               <>
-                <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h2 className="text-xl font-bold text-white mb-2">
                   {group.title}
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">

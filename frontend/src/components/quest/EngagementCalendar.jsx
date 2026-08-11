@@ -15,10 +15,10 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
   // Intensity to color class mapping (using optio brand colors)
   const intensityColors = {
     0: 'bg-gray-100',
-    1: 'bg-purple-200',
-    2: 'bg-purple-400',
-    3: 'bg-purple-600',
-    4: 'bg-gradient-to-br from-optio-purple to-optio-pink'
+    1: 'bg-optio-purple/20',
+    2: 'bg-optio-purple-light',
+    3: 'bg-optio-purple',
+    4: 'bg-gradient-primary'
   };
 
   // Calculate tooltip position to avoid edge cutoff
@@ -152,7 +152,7 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
   if (!days || days.length === 0) {
     return (
       <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-        <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+        <p className="text-sm text-gray-600">
           Your journey calendar will appear here as you engage with learning.
           Each day you complete tasks, add evidence, or explore, a square lights up.
         </p>
@@ -164,11 +164,11 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
   const activeDaysCount = days.filter(d => d.activity_count > 0).length;
   if (days.length <= 1 || activeDaysCount <= 1) {
     return (
-      <div className="bg-white rounded-lg p-4 border border-purple-200 shadow-sm">
-        <p className="text-sm text-gray-700 mb-2" style={{ fontFamily: 'Poppins' }}>
+      <div className="bg-white rounded-lg p-4 border border-optio-purple/20 shadow-sm">
+        <p className="text-sm text-gray-700 mb-2">
           <span className="font-medium text-optio-purple">You're getting started!</span>
         </p>
-        <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+        <p className="text-xs text-gray-500">
           Your journey calendar tracks your learning rhythm over time. As you engage
           each day, squares light up to show your pattern. Check back in a few days
           to see your rhythm develop.
@@ -180,7 +180,7 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
   return (
     <div className="space-y-2 overflow-visible" ref={containerRef}>
       {/* Date range header */}
-      <div className="flex items-center justify-between text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+      <div className="flex items-center justify-between text-xs text-gray-500">
         <span>
           {dateInfo && `${formatDateShort(dateInfo.startDate)} - ${formatDateShort(dateInfo.endDate)}`}
         </span>

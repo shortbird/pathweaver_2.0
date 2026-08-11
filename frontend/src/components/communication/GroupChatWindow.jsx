@@ -195,7 +195,7 @@ const GroupChatWindow = ({ group, onBack }) => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white">
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-white">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
@@ -208,7 +208,7 @@ const GroupChatWindow = ({ group, onBack }) => {
             </button>
           )}
 
-          <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
             <UsersIcon className="w-5 h-5 text-white" />
           </div>
 
@@ -232,7 +232,7 @@ const GroupChatWindow = ({ group, onBack }) => {
 
       {/* Pinned message banner */}
       {pinnedMessage && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border-b border-purple-100">
+        <div className="flex items-center gap-2 px-4 py-2 bg-optio-purple/5 border-b border-optio-purple/10">
           <button
             type="button"
             onClick={scrollToPinned}
@@ -262,7 +262,7 @@ const GroupChatWindow = ({ group, onBack }) => {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-gray-50">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
@@ -302,7 +302,7 @@ const GroupChatWindow = ({ group, onBack }) => {
                           className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm flex-shrink-0">
+                        <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm flex-shrink-0">
                           {senderName.charAt(0).toUpperCase()}
                         </div>
                       )
@@ -330,7 +330,7 @@ const GroupChatWindow = ({ group, onBack }) => {
                       <div
                         className={`px-3.5 py-2 rounded-2xl text-sm ${
                           isOwn
-                            ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-br-md'
+                            ? 'bg-gradient-primary text-white rounded-br-md'
                             : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'
                         } ${msg.isOptimistic ? 'opacity-70' : ''}`}
                       >

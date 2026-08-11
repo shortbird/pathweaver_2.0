@@ -74,7 +74,7 @@ function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
@@ -520,7 +520,7 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
             <button
               onClick={handleSaveHelpVideo}
               disabled={savingVideo}
-              className="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink disabled:opacity-50"
+              className="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-primary disabled:opacity-50"
             >
               {savingVideo ? 'Saving...' : 'Save'}
             </button>

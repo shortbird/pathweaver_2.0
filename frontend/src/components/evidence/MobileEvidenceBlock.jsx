@@ -49,11 +49,11 @@ const MobileEvidenceBlock = ({
               <div className="w-full max-w-xs px-4">
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-optio-purple to-optio-pink transition-all duration-300"
+                    className="h-full bg-gradient-primary transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
-                <p className="mt-2 text-sm font-medium text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <p className="mt-2 text-sm font-medium text-gray-600">
                   Uploading... {uploadProgress}%
                 </p>
               </div>

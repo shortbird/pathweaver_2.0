@@ -92,10 +92,10 @@ const ParentInvitationApproval = () => {
       <div className="max-w-3xl mx-auto px-4 py-12">
         <div className="text-center bg-white rounded-lg border border-gray-200 p-12">
           <EnvelopeIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             No Pending Invitations
           </h2>
-          <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-gray-600 font-medium">
             You don't have any student invitations waiting for approval.
           </p>
         </div>
@@ -107,30 +107,30 @@ const ParentInvitationApproval = () => {
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Student Invitations
         </h1>
-        <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-gray-600 font-medium">
           You have {invitations.length} pending invitation{invitations.length !== 1 ? 's' : ''} to connect with student{invitations.length !== 1 ? 's' : ''}.
         </p>
       </div>
 
       {/* Important Notice */}
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-8">
+      <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-6 mb-8">
         <div className="flex items-start gap-3">
           <ExclamationTriangleIcon className="w-6 h-6 text-optio-purple flex-shrink-0" />
           <div>
-            <h3 className="font-semibold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h3 className="font-semibold text-optio-purple-dark mb-2">
               What you'll have access to:
             </h3>
-            <ul className="text-sm text-purple-800 space-y-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <ul className="text-sm text-optio-purple-dark space-y-1 font-medium">
               <li>✓ View their active quests and progress</li>
               <li>✓ See their learning patterns and insights</li>
               <li>✓ Monitor AI tutor conversations for safety</li>
               <li>✓ Upload evidence on their behalf (with their approval)</li>
               <li>✓ Receive learning rhythm updates</li>
             </ul>
-            <p className="text-sm text-purple-800 mt-3 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm text-optio-purple-dark mt-3 font-semibold">
               ⚠️ Once approved, this connection is permanent and cannot be revoked.
             </p>
           </div>
@@ -144,25 +144,25 @@ const ParentInvitationApproval = () => {
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-optio-purple to-pink-500 rounded-full flex items-center justify-center text-white text-xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center text-white text-xl font-bold">
                     {invitation.student_first_name?.[0]}{invitation.student_last_name?.[0]}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <h3 className="text-xl font-bold text-gray-900">
                       {invitation.student_first_name} {invitation.student_last_name}
                     </h3>
-                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm text-gray-600 font-medium">
                       {invitation.student_email}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <div className="flex items-center gap-2 text-sm text-gray-600 font-medium mb-4">
                   <ClockIcon className="w-4 h-4" />
                   Invited {new Date(invitation.created_at).toLocaleDateString()} • {formatTimeRemaining(invitation.expires_at)}
                 </div>
 
-                <p className="text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <p className="text-gray-700 font-medium">
                   {invitation.student_first_name} has invited you to support their learning journey on Optio.
                   You'll have read-only access to their progress, quests, and insights to help guide and encourage them.
                 </p>
@@ -173,7 +173,6 @@ const ParentInvitationApproval = () => {
                   onClick={() => approveInvitation(invitation.id, invitation.student_first_name)}
                   disabled={processing === invitation.id}
                   className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   {processing === invitation.id ? (
                     <>
@@ -191,7 +190,6 @@ const ParentInvitationApproval = () => {
                   onClick={() => declineInvitation(invitation.id, invitation.student_first_name)}
                   disabled={processing === invitation.id}
                   className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   <XCircleIcon className="w-5 h-5" />
                   Decline

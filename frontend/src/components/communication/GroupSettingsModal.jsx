@@ -255,7 +255,7 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                                   className="w-8 h-8 rounded-full object-cover"
                                 />
                               ) : (
-                                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
+                                <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
                                   {name.charAt(0).toUpperCase()}
                                 </div>
                               )}
@@ -304,7 +304,7 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                               className="w-8 h-8 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
+                            <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
                               {name.charAt(0).toUpperCase()}
                             </div>
                           )}

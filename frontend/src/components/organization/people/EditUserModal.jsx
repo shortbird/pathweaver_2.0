@@ -247,7 +247,7 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>

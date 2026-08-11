@@ -3,20 +3,20 @@ import { Link } from 'react-router-dom'
 
 const OptioAcademyHandbook = () => {
   return (
-    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant Handbook</h1>
 
           <div className="prose prose-gray max-w-none">
             <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
 
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-optio-purple p-6 mb-8">
+            <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-l-4 border-optio-purple p-6 mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Optio Academy!</h3>
               <p className="text-gray-700">
                 This handbook walks you through how Optio Academy works day-to-day. It's the companion to
                 the{' '}
-                <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-agreement" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Participant &amp; Parent Agreement
                 </Link>
                 . Read it once at enrollment, then keep it as a reference whenever you have a question
@@ -186,7 +186,7 @@ const OptioAcademyHandbook = () => {
               <p className="mb-4">
                 If you witness bullying, harassment, or any behavior that makes you or another student
                 feel unsafe, tell your teacher or email{' '}
-                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:tanner@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   tanner@optioeducation.com
                 </a>
                 . Reports are taken seriously and investigated promptly.
@@ -235,7 +235,7 @@ const OptioAcademyHandbook = () => {
               <p className="mb-4">
                 We never sell student data. Full details on what we collect, how it's used, and your
                 rights live in the{' '}
-                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                <Link to="/privacy" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Privacy Policy
                 </Link>
                 .
@@ -277,7 +277,7 @@ const OptioAcademyHandbook = () => {
                 credit fees are refunded for credits not yet begun. The full refund policy — including
                 how refunds work for students whose tuition is funded by a scholarship — is in Section
                 4 of the{' '}
-                <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-agreement" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Academy Agreement
                 </Link>
                 .
@@ -290,7 +290,7 @@ const OptioAcademyHandbook = () => {
                 If Optio Academy isn't the right fit, you're free to leave at any time and transfer to
                 another school. Optio does not require any contract or signature that limits this right.
                 Your parent or guardian withdraws you by emailing{' '}
-                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:tanner@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   tanner@optioeducation.com
                 </a>
                 . We send your transcript and any portfolio records to your new school on request.
@@ -326,7 +326,7 @@ const OptioAcademyHandbook = () => {
                 serious Code of Conduct violations, sustained lack of engagement after support has been
                 offered, safety concerns, or non-payment of tuition where tuition is paid directly. Full
                 termination provisions are in Section 16 of the{' '}
-                <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
+                <Link to="/academy-agreement" className="text-optio-purple hover:text-optio-purple-dark underline">
                   Academy Agreement
                 </Link>
                 .
@@ -349,7 +349,7 @@ const OptioAcademyHandbook = () => {
               <p className="mb-4">
                 For bigger issues — concerns about safety, conduct, fit, billing — contact Dr. Tanner
                 Bowman, Head of School, at{' '}
-                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:tanner@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   tanner@optioeducation.com
                 </a>
                 .
@@ -358,14 +358,14 @@ const OptioAcademyHandbook = () => {
               <h3 className="text-xl font-semibold mb-3">Technical Support</h3>
               <p className="mb-4">
                 For platform bugs, login problems, or general technical issues, email{' '}
-                <a href="mailto:support@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                <a href="mailto:support@optioeducation.com" className="text-optio-purple hover:text-optio-purple-dark underline">
                   support@optioeducation.com
                 </a>
                 .
               </p>
             </section>
 
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-optio-purple p-6 mt-8">
+            <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-l-4 border-optio-purple p-6 mt-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Your Learning Adventure!</h3>
               <p className="text-gray-700 mb-4">
                 You're part of something new at Optio Academy. You have the freedom to design your
@@ -397,12 +397,12 @@ const OptioAcademyHandbook = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200 flex justify-between items-center">
-            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
+            <Link to="/register" className="text-optio-purple hover:text-optio-purple-dark font-medium">
               ← Back to Registration
             </Link>
             <Link
               to="/academy-agreement"
-              className="text-primary hover:text-optio-purple font-medium"
+              className="text-optio-purple hover:text-optio-purple-dark font-medium"
             >
               View Full Academy Agreement →
             </Link>

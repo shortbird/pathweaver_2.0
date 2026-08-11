@@ -53,7 +53,7 @@ describe('MarketingNav auth awareness', () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent' } }
     renderNav()
     screen.getAllByRole('link', { name: 'Go to my dashboard' })
-      .forEach((link) => expect(link).toHaveAttribute('href', '/parent/dashboard'))
+      .forEach((link) => expect(link).toHaveAttribute('href', '/dashboard'))
   })
 
   it('shows neither CTA while a probable session is still resolving', () => {

@@ -174,7 +174,7 @@ export default function BulkUsernameCreateModal({ orgId, orgSlug, orgName, onClo
                 <button
                   onClick={handleSubmit}
                   disabled={loading || parsedStudents.length === 0}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 disabled:opacity-50"
                 >
                   {loading ? 'Creating...' : `Create ${parsedStudents.length || ''} Account${parsedStudents.length === 1 ? '' : 's'}`}
                 </button>
@@ -232,7 +232,7 @@ export default function BulkUsernameCreateModal({ orgId, orgSlug, orgName, onClo
                 </button>
                 <button
                   onClick={handlePrintCards}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90"
+                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90"
                 >
                   Print Login Cards
                 </button>

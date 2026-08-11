@@ -61,7 +61,7 @@ const RecentCompletions = ({ recentItems }) => {
               className={`p-4 rounded-lg transition-all duration-200 ${
                 isTask
                   ? 'bg-gradient-to-r from-gray-50 to-white border border-gray-200 hover:shadow-md'
-                  : 'bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 hover:shadow-lg hover:border-purple-300'
+                  : 'bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-2 border-optio-purple/20 hover:shadow-lg hover:border-optio-purple/30'
               }`}
             >
               <div className="flex items-start gap-4">
@@ -69,7 +69,7 @@ const RecentCompletions = ({ recentItems }) => {
                 <div className={`rounded-lg flex items-center justify-center flex-shrink-0 ${
                   isTask
                     ? `w-10 h-10 ${pillarData ? `${pillarData.bg} ${pillarData.text}` : 'bg-blue-100 text-blue-600'}`
-                    : 'w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg'
+                    : 'w-12 h-12 bg-gradient-primary text-white shadow-lg'
                 }`}>
                   {isTask ? (
                     <CheckCircleIcon className="w-5 h-5" />
@@ -85,7 +85,7 @@ const RecentCompletions = ({ recentItems }) => {
                       <h3 className={`truncate ${
                         isTask
                           ? 'text-sm font-semibold text-gray-900'
-                          : 'text-base font-bold text-purple-900'
+                          : 'text-base font-bold text-optio-purple-dark'
                       }`}>
                         {item.title}
                       </h3>
@@ -98,7 +98,7 @@ const RecentCompletions = ({ recentItems }) => {
                       )}
 
                       {!isTask && (
-                        <p className="text-sm text-purple-700 mt-1 font-medium">
+                        <p className="text-sm text-optio-purple mt-1 font-medium">
                           Quest Completed!
                         </p>
                       )}
@@ -108,7 +108,7 @@ const RecentCompletions = ({ recentItems }) => {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
                           isTask
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-purple-100 text-purple-800 border-purple-300 font-semibold'
+                            : 'bg-optio-purple/10 text-optio-purple-dark border-optio-purple/30 font-semibold'
                         }`}>
                           {isTask ? 'Task' : 'Quest Complete'}
                         </span>
@@ -149,7 +149,7 @@ const RecentCompletions = ({ recentItems }) => {
         <div className="mt-6 text-center">
           <Link
             to="/overview"
-            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
+            className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium transition-colors"
           >
             view all completions on diploma →
           </Link>

@@ -141,7 +141,7 @@ const MyEvidenceReports = () => {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
               About Evidence Reports
             </h2>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
                   <svg className="w-5 h-5 text-optio-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -43,9 +43,9 @@ const blockTypes = {
   link: {
     Icon: LinkIcon,
     label: 'Links',
-    color: 'from-purple-500 to-pink-500',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200'
+    color: 'from-optio-purple to-optio-pink',
+    bgColor: 'bg-optio-purple/5',
+    borderColor: 'border-optio-purple/20'
   },
   document: {
     Icon: DocumentIcon,
@@ -464,7 +464,7 @@ export const EvidenceBlockRenderer = ({
       <div className="space-y-4">
         {/* Link List */}
         {items.map((item, itemIndex) => (
-          <div key={itemIndex} className="space-y-2 p-4 bg-purple-50/50 rounded-lg border border-purple-200">
+          <div key={itemIndex} className="space-y-2 p-4 bg-optio-purple/5 rounded-lg border border-optio-purple/20">
             <div className="flex items-center gap-2">
               <input
                 type="url"

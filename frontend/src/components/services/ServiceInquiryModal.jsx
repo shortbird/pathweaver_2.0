@@ -95,21 +95,20 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
           </button>
 
           <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
               Inquiry Sent!
             </h3>
-            <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <p className="font-medium text-gray-600 mb-6">
               Thank you for your interest in {service.name}. We'll get back to you within 24 hours.
             </p>
             <button
               onClick={onClose}
-              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="bg-gradient-primary text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold"
             >
               Close
             </button>
@@ -130,17 +129,17 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
           <XMarkIcon className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
           Inquire About {service.name}
         </h2>
-        <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+        <p className="font-medium text-gray-600 mb-6">
           Fill out the form below and we'll get back to you within 24 hours.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div>
-            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-1">
               Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -149,15 +148,14 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-transparent"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-medium"
               required
             />
           </div>
 
           {/* Email */}
           <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-1">
               Email <span className="text-red-500">*</span>
             </label>
             <input
@@ -166,15 +164,14 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-transparent"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-medium"
               required
             />
           </div>
 
           {/* Phone (optional) */}
           <div>
-            <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+            <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-1">
               Phone (optional)
             </label>
             <input
@@ -183,14 +180,13 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-transparent"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-medium"
             />
           </div>
 
           {/* Message */}
           <div>
-            <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+            <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-1">
               Message <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -199,8 +195,7 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
               value={formData.message}
               onChange={handleChange}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-transparent resize-none"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none font-medium"
               placeholder="Tell us about your needs, questions, or how we can help..."
               required
             />
@@ -208,7 +203,7 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
 
           {/* Error message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg font-medium">
               {error}
             </div>
           )}
@@ -219,15 +214,13 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
               type="button"
               onClick={onClose}
               className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              className="flex-1 bg-gradient-primary text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Sending...' : 'Send Inquiry'}
             </button>

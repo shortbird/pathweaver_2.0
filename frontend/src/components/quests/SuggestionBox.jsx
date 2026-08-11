@@ -19,10 +19,10 @@ const SuggestionBox = ({
 
   if (isLoading) {
     return (
-      <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+      <div className="mt-4 p-4 bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
         <div className="flex items-center gap-2">
           <div className="animate-spin h-5 w-5 border-2 border-optio-purple border-t-transparent rounded-full" />
-          <span className="text-purple-900 font-medium">Getting suggestions...</span>
+          <span className="text-optio-purple-dark font-medium">Getting suggestions...</span>
         </div>
       </div>
     );
@@ -33,17 +33,17 @@ const SuggestionBox = ({
   }
 
   return (
-    <div className="mt-4 border border-purple-200 rounded-lg overflow-hidden">
+    <div className="mt-4 border border-optio-purple/20 rounded-lg overflow-hidden">
       {/* Header with collapse toggle */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 bg-purple-50 hover:bg-purple-100 transition-colors flex items-center justify-between"
+        className="w-full px-4 py-3 bg-optio-purple/5 hover:bg-optio-purple/10 transition-colors flex items-center justify-between"
         aria-expanded={isExpanded}
         aria-controls="suggestion-box-content"
       >
         <div className="flex items-center gap-2">
           <span className="text-xl">💡</span>
-          <span className="text-purple-900 font-semibold">
+          <span className="text-optio-purple-dark font-semibold">
             Ideas to explore ({suggestions.length})
           </span>
         </div>
@@ -77,10 +77,10 @@ const SuggestionBox = ({
 
           {/* Undo button (shows when there's a last applied suggestion) */}
           {lastAppliedSuggestion && (
-            <div className="pt-3 border-t border-purple-100">
+            <div className="pt-3 border-t border-optio-purple/10">
               <button
                 onClick={onUndo}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-optio-purple-dark hover:text-optio-purple-dark hover:bg-optio-purple/5 rounded transition-colors"
                 aria-label="Undo last suggestion"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

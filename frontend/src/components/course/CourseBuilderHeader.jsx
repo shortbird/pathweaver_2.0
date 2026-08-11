@@ -101,7 +101,7 @@ function CourseBuilderHeader({
               <button
                 onClick={onShowAITools}
                 disabled={quests.length === 0}
-                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-primary hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="AI Tools"
               >
                 <SparklesIcon className="w-4 h-4" />
@@ -135,7 +135,7 @@ function CourseBuilderHeader({
               className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[40px] ${
                 course?.status === 'published'
                   ? 'bg-gray-600 text-white hover:bg-gray-700'
-                  : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                  : 'bg-gradient-primary text-white'
               }`}
             >
               <RocketLaunchIcon className="w-4 h-4" />

@@ -108,7 +108,7 @@ const OrganizationSignup = () => {
   // Loading state
   if (orgLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
       </div>
     )
@@ -117,7 +117,7 @@ const OrganizationSignup = () => {
   // Error state
   if (orgError || !organization) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
@@ -147,7 +147,7 @@ const OrganizationSignup = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Organization Branding */}
         <div className="text-center">

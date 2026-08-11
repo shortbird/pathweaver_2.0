@@ -66,9 +66,9 @@ const ChatLogsModal = ({ user, onClose }) => {
     const colors = {
       'study_buddy': 'bg-blue-100 text-blue-700',
       'teacher': 'bg-green-100 text-green-700',
-      'discovery': 'bg-purple-100 text-purple-700',
+      'discovery': 'bg-optio-purple/10 text-optio-purple-dark',
       'review': 'bg-orange-100 text-orange-700',
-      'creative': 'bg-pink-100 text-pink-700'
+      'creative': 'bg-optio-pink/10 text-optio-pink-dark'
     }
     return colors[mode] || 'bg-gray-100 text-gray-700'
   }

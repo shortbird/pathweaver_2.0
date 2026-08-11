@@ -396,7 +396,7 @@ const CourseDetailsModal = ({
                     <button
                       onClick={handleGenerateWithAI}
                       disabled={isGenerating || !courseId}
-                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {isGenerating ? (
                         <>
@@ -598,7 +598,7 @@ const CourseDetailsModal = ({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>

@@ -16,8 +16,8 @@ const PhilosophyModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 sm:p-8 pb-4 flex items-start justify-between border-b border-white/10">
           <div>
-            <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-2" style={{ fontFamily: 'Poppins' }}>The Optio Philosophy</p>
-            <h2 className="text-2xl sm:text-3xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-2">The Optio Philosophy</p>
+            <h2 className="text-2xl sm:text-3xl font-bold">
               The Process Is The Goal
             </h2>
           </div>
@@ -34,7 +34,7 @@ const PhilosophyModal = ({ isOpen, onClose }) => {
 
         {/* Content */}
         <div className="p-6 sm:p-8">
-          <p className="text-lg text-white/80 leading-relaxed mb-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+          <p className="text-lg text-white/80 leading-relaxed mb-8 font-medium">
             Learning is not about reaching a destination or impressing others. It's about who students become through the journey of discovery, creation, and growth.
           </p>
 
@@ -58,27 +58,27 @@ const PhilosophyModal = ({ isOpen, onClose }) => {
               },
             ].map((item) => (
               <div key={item.title} className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/10">
-                <p className="text-xs font-semibold text-optio-pink uppercase tracking-wider mb-1" style={{ fontFamily: 'Poppins' }}>{item.subtitle}</p>
-                <h3 className="text-lg font-bold text-white mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                <p className="text-sm text-white/70 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                <p className="text-xs font-semibold text-optio-pink uppercase tracking-wider mb-1">{item.subtitle}</p>
+                <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                <p className="text-sm text-white/70 leading-relaxed font-medium">{item.desc}</p>
               </div>
             ))}
           </div>
 
           {/* SDT explanation */}
-          <p className="text-white/60 text-sm leading-relaxed mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+          <p className="text-white/60 text-sm leading-relaxed mb-6 font-medium">
             These three pillars come from Self-Determination Theory, decades of research showing that intrinsic motivation flourishes when students have autonomy, feel competent, and connect personally with their learning. When all three align, motivation becomes self-sustaining.
           </p>
 
           {/* Contrast */}
           <div className="grid sm:grid-cols-2 gap-4 max-w-lg mx-auto">
             <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-              <p className="text-xs text-white/40 mb-1" style={{ fontFamily: 'Poppins' }}>Traditional approach</p>
-              <p className="text-sm text-white/50 line-through" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>"This will help you in the future"</p>
+              <p className="text-xs text-white/40 mb-1">Traditional approach</p>
+              <p className="text-sm text-white/50 line-through font-medium">"This will help you in the future"</p>
             </div>
             <div className="bg-white/5 rounded-lg p-4 border border-optio-pink/30">
-              <p className="text-xs text-optio-pink mb-1" style={{ fontFamily: 'Poppins' }}>Optio approach</p>
-              <p className="text-sm text-white" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>"This is helping you grow right now"</p>
+              <p className="text-xs text-optio-pink mb-1">Optio approach</p>
+              <p className="text-sm text-white font-medium">"This is helping you grow right now"</p>
             </div>
           </div>
         </div>

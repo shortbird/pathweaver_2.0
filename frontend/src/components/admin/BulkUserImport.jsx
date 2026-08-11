@@ -348,7 +348,7 @@ export default function BulkUserImport({ organizationId, onImportComplete }) {
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                             row.role === 'advisor' ? 'bg-blue-100 text-blue-700' :
                             row.role === 'parent' ? 'bg-green-100 text-green-700' :
-                            row.role === 'org_admin' ? 'bg-purple-100 text-purple-700' :
+                            row.role === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple-dark' :
                             'bg-gray-100 text-gray-700'
                           }`}>
                             {row.role === 'advisor' ? 'Teacher' : row.role}
@@ -379,7 +379,7 @@ export default function BulkUserImport({ organizationId, onImportComplete }) {
             <button
               onClick={handleImport}
               disabled={!validationResult.can_import || loading}
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Importing...' : `Import ${validationResult.valid_count} Users`}
             </button>

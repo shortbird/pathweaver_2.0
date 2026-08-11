@@ -16,6 +16,7 @@ import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useDeleteEnrollment } from '../hooks/api/useQuests';
 import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import Spinner, { PageLoader } from '../components/ui/Spinner';
 import { useProgramQuestView } from '../programs/registry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
 
@@ -30,20 +31,18 @@ const CreditClassProgressPanel = lazy(() => import('../components/classes/Credit
 
 // Loading spinner
 const LoadingFallback = () => (
-  <div className="flex justify-center items-center h-64">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
-  </div>
+  <PageLoader className="h-64" />
 );
 
 // Full-screen wizard loading overlay
 const WizardLoadingOverlay = () => (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-      <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent"></div>
-      <p className="text-lg font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+      <Spinner size="lg" />
+      <p className="text-lg font-semibold text-gray-700">
         Loading personalization wizard...
       </p>
-      <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+      <p className="text-sm text-gray-500">
         Getting everything ready for you
       </p>
     </div>
@@ -486,13 +485,13 @@ const QuestDetail = () => {
           <p className="text-gray-600 mb-4">{errorMsg}</p>
           <button
             onClick={() => refetchQuest()}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all mr-4 min-h-[44px] touch-manipulation"
+            className="btn-primary mr-4 min-h-[44px] touch-manipulation"
           >
             Retry
           </button>
           <button
             onClick={() => navigate((isFocusMode() && getFocusConfig().homeRoute) || '/quests')}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all min-h-[44px] touch-manipulation"
+            className="btn-quiet min-h-[44px] touch-manipulation"
           >
             {isFocusMode() ? 'Go Home' : 'Back to Quests'}
           </button>
@@ -523,7 +522,7 @@ const QuestDetail = () => {
           <div className="text-red-500 text-xl mb-4">Quest not found</div>
           <button
             onClick={() => navigate('/quests')}
-            className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all min-h-[44px] touch-manipulation"
+            className="btn-primary min-h-[44px] touch-manipulation"
           >
             Back to Quests
           </button>
@@ -634,7 +633,6 @@ const QuestDetail = () => {
               onClick={handleEndQuest}
               disabled={endQuestMutation?.isPending}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
-              style={{ fontFamily: 'Poppins' }}
             >
               <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
               <span>
@@ -664,25 +662,22 @@ const QuestDetail = () => {
           <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
             <h3
               className="text-lg font-bold text-gray-900 mb-3"
-              style={{ fontFamily: 'Poppins' }}
             >
               Delete Enrollment?
             </h3>
-            <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-600 mb-6">
               This will permanently remove this quest and all associated tasks, evidence, and XP. This cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors min-h-[44px] touch-manipulation"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-quiet min-h-[44px] touch-manipulation"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDeleteEnrollment}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors min-h-[44px] touch-manipulation"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-danger min-h-[44px] touch-manipulation"
               >
                 Delete
               </button>
@@ -695,11 +690,11 @@ const QuestDetail = () => {
       {isEnrollmentLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent"></div>
-            <p className="text-lg font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+            <Spinner size="lg" />
+            <p className="text-lg font-semibold text-gray-700">
               Setting up your quest...
             </p>
-            <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-sm text-gray-500">
               Preparing your tasks and getting everything ready
             </p>
           </div>

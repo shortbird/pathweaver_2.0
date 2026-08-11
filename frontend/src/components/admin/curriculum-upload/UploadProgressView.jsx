@@ -64,7 +64,7 @@ function UploadProgressView({ progress, onResume, onReset }) {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
-                  className="bg-gradient-to-r from-optio-purple to-optio-pink h-3 rounded-full transition-all duration-500"
+                  className="bg-gradient-primary h-3 rounded-full transition-all duration-500"
                   style={{ width: `${progress.progress || 0}%` }}
                 />
               </div>
@@ -164,14 +164,14 @@ function UploadProgressView({ progress, onResume, onReset }) {
           {isComplete ? (
             <a
               href="/courses"
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium"
+              className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-medium"
             >
               View Courses
             </a>
           ) : (
             <a
               href="/admin/curriculum-upload"
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium"
+              className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-medium"
             >
               Back to Uploads
             </a>

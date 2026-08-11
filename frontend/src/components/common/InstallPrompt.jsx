@@ -146,7 +146,7 @@ const InstallPrompt = () => {
         {platform === 'android' && deferredPrompt && (
           <button
             onClick={handleInstall}
-            className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg"
+            className="mt-3 w-full py-2 px-4 bg-gradient-primary text-white text-sm font-medium rounded-lg"
           >
             Install
           </button>

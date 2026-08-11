@@ -156,7 +156,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, o
                     setErrors({ ...errors, title: '' })
                   }
                 }}
-                className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                 placeholder="e.g., Build a Community Garden"
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -214,7 +214,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, o
                 <button
                   type="button"
                   onClick={handleAICleanup}
-                  className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                  className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
                   disabled={cleanupLoading || loading}
                 >
                   <SparklesIcon size={18} />

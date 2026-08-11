@@ -36,7 +36,7 @@ const TouchToggle = ({
   const variantMap = {
     default: checked ? 'bg-green-500' : 'bg-gray-300',
     success: checked ? 'bg-green-500' : 'bg-gray-300',
-    brand: checked ? 'bg-gradient-to-r from-optio-purple to-optio-pink' : 'bg-gray-300'
+    brand: checked ? 'bg-gradient-primary' : 'bg-gray-300'
   };
 
   const bgColor = variantMap[variant] || variantMap.default;

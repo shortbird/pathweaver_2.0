@@ -46,9 +46,9 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     link: {
       icon: '🔗',
       label: 'External Link',
-      color: 'from-purple-500 to-pink-500',
-      bgColor: 'bg-purple-50',
-      borderColor: 'border-purple-200'
+      color: 'from-optio-purple to-optio-pink',
+      bgColor: 'bg-optio-purple/5',
+      borderColor: 'border-optio-purple/20'
     },
     camera: {
       icon: '📸',
@@ -377,11 +377,11 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       </div>
 
       {showTemplates && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-optio-purple/5 rounded-xl border border-optio-purple/20">
           {evidenceTemplates.link.map((template, idx) => (
             <div 
               key={idx}
-              className="p-3 bg-white rounded-lg border border-purple-100 cursor-pointer hover:shadow-md transition-shadow"
+              className="p-3 bg-white rounded-lg border border-optio-purple/10 cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => applyTemplate(template)}
             >
               <h4 className="font-medium text-sm text-gray-900 mb-1">{template.title}</h4>
@@ -421,7 +421,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       </div>
 
       {linkUrl && (
-        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+        <div className="p-3 bg-optio-purple/5 rounded-lg border border-optio-purple/20">
           <p className="text-xs text-gray-600 mb-1">Preview:</p>
           <a 
             href={linkUrl} 

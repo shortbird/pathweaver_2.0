@@ -11,9 +11,9 @@ const StatsOverview = ({ totalXP, questsCompleted, tasksCompleted, currentStreak
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      color: 'from-purple-500 to-pink-500',
-      bgColor: 'bg-purple-50',
-      borderColor: 'border-purple-200'
+      color: 'from-optio-purple to-optio-pink',
+      bgColor: 'bg-optio-purple/5',
+      borderColor: 'border-optio-purple/20'
     },
     {
       label: 'Quests Done',

@@ -179,7 +179,7 @@ const MobileModal = ({
         >
           {/* Swipe handle (mobile only) */}
           {showMobileCloseHandle && fullScreenOnMobile && (
-            <div className="sm:hidden flex justify-center py-2 bg-gradient-to-r from-optio-purple to-optio-pink">
+            <div className="sm:hidden flex justify-center py-2 bg-gradient-primary">
               <div className="w-12 h-1.5 bg-white/50 rounded-full" />
             </div>
           )}
@@ -188,7 +188,7 @@ const MobileModal = ({
           {(header || title) && (
             <div
               className={`
-                bg-gradient-to-r from-optio-purple to-optio-pink p-4 sm:p-6 text-white
+                bg-gradient-primary p-4 sm:p-6 text-white
                 flex items-center justify-between
                 ${mobileHeaderFixed ? 'sticky top-0 z-10' : ''}
                 ${headerClassName}

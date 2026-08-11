@@ -63,7 +63,7 @@ const DocumentBlock = ({ block, displayMode }) => {
     return (
       <div
         key={index}
-        className="block w-full bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-purple-300 transition-all"
+        className="block w-full bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-optio-purple/30 transition-all"
       >
         <a
           href={url}
@@ -73,18 +73,18 @@ const DocumentBlock = ({ block, displayMode }) => {
           className="block p-6"
         >
           <div className="flex items-center gap-4">
-            <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-              <span className="text-xs font-bold text-purple-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 rounded-lg flex items-center justify-center">
+              <span className="text-xs font-bold text-optio-purple-dark">
                 {extension}
               </span>
             </div>
 
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-gray-900 mb-1 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <h4 className="font-bold text-gray-900 mb-1 truncate">
                 {title || filename || 'Document'}
               </h4>
 
-              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
                 {formattedSize && (
                   <>
                     <span>{formattedSize}</span>
@@ -106,7 +106,7 @@ const DocumentBlock = ({ block, displayMode }) => {
         </a>
         {description && (
           <div className="px-6 pb-4 pt-0">
-            <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm text-gray-600">
               {description}
             </p>
           </div>

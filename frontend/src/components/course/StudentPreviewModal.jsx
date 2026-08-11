@@ -87,7 +87,7 @@ const StudentPreviewModal = ({
     <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center">
       <div className="bg-white w-full h-full md:rounded-2xl md:max-w-[95vw] md:max-h-[95vh] md:w-[95vw] md:h-[95vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-optio-purple to-optio-pink p-4 text-white">
+        <div className="flex-shrink-0 bg-gradient-primary p-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <EyeIcon className="w-6 h-6" />
@@ -140,7 +140,7 @@ const StudentPreviewModal = ({
                           <div className="flex items-start gap-3">
                             <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
                               isSelected
-                                ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                                ? 'bg-gradient-primary text-white'
                                 : 'bg-gray-200 text-gray-600'
                             }`}>
                               <FolderIcon className="w-4 h-4" />
@@ -206,7 +206,7 @@ const StudentPreviewModal = ({
                         {currentLessons.length > 0 && (
                           <button
                             onClick={handleViewLessons}
-                            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+                            className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
                           >
                             Start Lessons
                           </button>
@@ -310,7 +310,7 @@ const StudentPreviewModal = ({
           </p>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity"
           >
             Close Preview
           </button>

@@ -94,7 +94,7 @@ function UploadHistoryTable({
           {uploadHistory.map((upload) => (
             <React.Fragment key={upload.id}>
               <tr
-                className={`${upload.id === currentUploadId ? 'bg-purple-50' : ''} cursor-pointer hover:bg-gray-50`}
+                className={`${upload.id === currentUploadId ? 'bg-optio-purple/5' : ''} cursor-pointer hover:bg-gray-50`}
                 onClick={() => onSelectUpload(upload)}
               >
                 <td className="px-4 py-3">
@@ -126,7 +126,7 @@ function UploadHistoryTable({
                     <div className="flex items-center gap-2">
                       <div className="w-24 bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${upload.progress_percent || 0}%` }}
                         />
                       </div>

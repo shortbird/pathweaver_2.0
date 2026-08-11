@@ -109,13 +109,12 @@ const ParentQuestView = () => {
   if (error || !questData) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-        <p className="text-red-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <p className="text-red-600 font-medium mb-4">
           {error || 'Quest not found'}
         </p>
         <button
           onClick={() => navigate(`/parent/dashboard/${studentId}`)}
-          className="flex items-center gap-2 text-optio-purple hover:text-purple-800 font-semibold"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
+          className="flex items-center gap-2 text-optio-purple hover:text-optio-purple-dark font-semibold"
         >
           <ArrowLeftIcon className="w-5 h-5" />
           Back to Dashboard
@@ -144,7 +143,6 @@ const ParentQuestView = () => {
         <button
           onClick={() => navigate(`/parent/dashboard/${studentId}`)}
           className="absolute top-4 left-4 flex items-center gap-2 text-white/90 hover:text-white font-medium transition-colors z-10"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <ArrowLeftIcon className="w-5 h-5" />
           <span className="hidden sm:inline">Back</span>
@@ -152,11 +150,11 @@ const ParentQuestView = () => {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
               {quest.title}
             </h1>
             {quest.description && (
-              <p className="text-white/80 text-sm sm:text-base line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-white/80 text-sm sm:text-base line-clamp-2">
                 {quest.description}
               </p>
             )}
@@ -167,16 +165,16 @@ const ParentQuestView = () => {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Help Banner */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mb-6">
+        <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/20 rounded-xl p-4 mb-6">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
               <PlusIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="font-semibold text-gray-900">
                 Help Upload Evidence
               </p>
-              <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-sm text-gray-600 mt-1">
                 Add photos, documents, or links for any task below. Your child will review and can mark tasks complete.
               </p>
             </div>
@@ -187,7 +185,7 @@ const ParentQuestView = () => {
         <div className="space-y-3">
           {tasks.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center border border-gray-200">
-              <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-gray-600 font-medium">
                 No tasks have been added to this quest yet.
               </p>
             </div>
@@ -199,10 +197,10 @@ const ParentQuestView = () => {
               return (
                 <div
                   key={task.id}
-                  className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${
+                  className={`bg-white rounded-xl border overflow-hidden transition-all ${
                     task.is_completed
                       ? 'border-green-200 bg-green-50/30'
-                      : 'border-gray-200 hover:border-purple-200'
+                      : 'border-gray-200 hover:border-optio-purple/20'
                   }`}
                 >
                   {/* Task Header - Always Visible */}
@@ -217,11 +215,11 @@ const ParentQuestView = () => {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-semibold ${task.is_completed ? 'text-gray-600' : 'text-gray-900'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        <h3 className={`font-semibold ${task.is_completed ? 'text-gray-600' : 'text-gray-900'}`}>
                           {task.title}
                         </h3>
                         {task.description && (
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">
                             {task.description}
                           </p>
                         )}
@@ -231,8 +229,7 @@ const ParentQuestView = () => {
                             <button
                               type="button"
                               onClick={() => setExpandedTaskId(task.id)}
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-full transition-colors"
-                              style={{ fontFamily: 'Poppins, sans-serif' }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-optio-purple bg-optio-purple/5 hover:bg-optio-purple/10 px-2 py-1 rounded-full transition-colors"
                             >
                               <PhotoIcon className="w-3 h-3" />
                               View evidence
@@ -249,7 +246,6 @@ const ParentQuestView = () => {
                             ? 'bg-gray-100 text-gray-700'
                             : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:shadow-md'
                         }`}
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
                       >
                         {isExpanded ? 'Close' : hasEvidence ? 'View / Add Evidence' : '+ Add Evidence'}
                       </button>
@@ -262,7 +258,7 @@ const ParentQuestView = () => {
                       {/* Existing Evidence */}
                       {hasEvidence && (
                         <div className="mb-4">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                             Current Evidence
                           </p>
                           <UnifiedEvidenceDisplay
@@ -283,12 +279,11 @@ const ParentQuestView = () => {
                       <button
                         onClick={() => handleOpenEvidenceModal(task.id)}
                         className="w-full px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-md transition-all min-h-[44px] flex items-center justify-center gap-2"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
                       >
                         <PlusIcon className="w-5 h-5" />
                         Add Evidence
                       </button>
-                      <p className="text-xs text-gray-600 mt-2 text-center" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      <p className="text-xs text-gray-600 mt-2 text-center">
                         Your student will see this evidence when they work on this task. They can edit or remove it before completing.
                       </p>
                     </div>
@@ -302,7 +297,7 @@ const ParentQuestView = () => {
         {/* Quick Actions Footer */}
         {incompleteTasks > 0 && (
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <p className="text-sm text-gray-500 mb-2">
               {incompleteTasks} task{incompleteTasks !== 1 ? 's' : ''} remaining
             </p>
           </div>

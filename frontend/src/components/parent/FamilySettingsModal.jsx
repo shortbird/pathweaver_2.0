@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Modal, Alert } from '../ui';
+import { Modal, Alert, Spinner } from '../ui';
 import { observerAPI, parentAPI } from '../../services/api';
 import { createDependent, updateDependentAIFeatures } from '../../services/dependentAPI';
 import { useAuth } from '../../contexts/AuthContext';
@@ -446,7 +446,7 @@ const FamilySettingsModal = ({
                 <button
                   type="submit"
                   disabled={isAddingChild}
-                  className="w-full py-2 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                  className="btn-primary w-full min-h-[44px]"
                 >
                   {isAddingChild ? 'Creating...' : 'Create Profile'}
                 </button>
@@ -654,7 +654,7 @@ const FamilySettingsModal = ({
                 <button
                   onClick={handleGenerateObserverLink}
                   disabled={isGeneratingLink || selectedChildrenForInvite.length === 0}
-                  className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                  className="btn-primary w-full min-h-[44px]"
                 >
                   <LinkIcon className="w-5 h-5" />
                   {isGeneratingLink ? 'Generating...' : 'Generate Invitation Link'}
@@ -679,7 +679,7 @@ const FamilySettingsModal = ({
                   />
                   <button
                     onClick={handleCopyLink}
-                    className="flex items-center gap-1 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="btn-quiet"
                   >
                     {copied ? <CheckIcon className="w-4 h-4" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
                     {copied ? 'Copied' : 'Copy'}
@@ -698,7 +698,7 @@ const FamilySettingsModal = ({
             {/* Current Observers */}
             {loadingObservers ? (
               <div className="text-center py-4">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-optio-purple rounded-full animate-spin mx-auto" />
+                <Spinner size="sm" className="mx-auto" />
               </div>
             ) : observers.length > 0 ? (
               <div className="space-y-3 border-t pt-4">
@@ -767,7 +767,7 @@ const FamilySettingsModal = ({
               <h4 className="text-sm font-medium text-gray-700 mb-2">Current Parents</h4>
               {loadingParents ? (
                 <div className="text-center py-4">
-                  <div className="w-6 h-6 border-2 border-gray-200 border-t-optio-purple rounded-full animate-spin mx-auto" />
+                  <Spinner size="sm" className="mx-auto" />
                 </div>
               ) : (
                 <div className="space-y-2">

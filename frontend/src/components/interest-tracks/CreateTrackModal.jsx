@@ -176,7 +176,7 @@ const CreateTrackModal = ({
             <button
               type="submit"
               disabled={isSubmitting || !name.trim()}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-lg disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg disabled:opacity-50 font-medium flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>

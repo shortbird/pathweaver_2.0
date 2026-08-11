@@ -41,7 +41,7 @@ const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
       <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 bg-gray-50/50">
         <div className="text-center mb-4">
           <PlusIcon className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-          <p className="text-gray-500 text-sm" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-gray-500 text-sm">
             Add evidence to show your learning
           </p>
         </div>
@@ -54,7 +54,7 @@ const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
                          hover:border-optio-purple hover:bg-optio-purple/5 transition-all group min-h-[44px]"
             >
               <type.icon className="w-5 h-5 text-gray-400 group-hover:text-optio-purple transition-colors" />
-              <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
+              <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple transition-colors">
                 {type.label}
               </span>
             </button>
@@ -67,7 +67,7 @@ const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
   // Compact mode - single row of icon buttons (for when blocks already exist)
   return (
     <div className="flex items-center justify-center gap-1 py-2">
-      <span className="text-xs text-gray-400 mr-2" style={{ fontFamily: 'Poppins' }}>Add:</span>
+      <span className="text-xs text-gray-400 mr-2">Add:</span>
       {BLOCK_TYPES.map((type) => (
         <button
           key={type.id}

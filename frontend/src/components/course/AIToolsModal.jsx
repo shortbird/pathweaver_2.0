@@ -67,7 +67,7 @@ const AIToolsModal = ({
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl max-w-lg w-full shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-5 text-white">
+        <div className="bg-gradient-primary p-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <SparklesIcon className="w-6 h-6" />
@@ -110,7 +110,7 @@ const AIToolsModal = ({
                     isDisabled
                       ? 'bg-gray-200 text-gray-400'
                       : tool.gradient
-                      ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                      ? 'bg-gradient-primary text-white'
                       : 'bg-optio-purple/10 text-optio-purple'
                   }`}>
                     <Icon className="w-5 h-5" />

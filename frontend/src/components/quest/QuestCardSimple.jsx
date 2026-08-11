@@ -123,10 +123,10 @@ const MiniHeatMap = ({ days }) => {
   const getIntensityClass = (intensity) => {
     switch (intensity) {
       case 0: return 'bg-gray-200';
-      case 1: return 'bg-purple-200';
-      case 2: return 'bg-purple-400';
-      case 3: return 'bg-purple-600';
-      case 4: return 'bg-gradient-to-r from-optio-purple to-optio-pink';
+      case 1: return 'bg-optio-purple/20';
+      case 2: return 'bg-optio-purple-light';
+      case 3: return 'bg-optio-purple';
+      case 4: return 'bg-gradient-primary';
       default: return 'bg-gray-200';
     }
   };
@@ -215,7 +215,7 @@ const QuestCardSimple = ({ quest }) => {
           /* OnFire Quest: White background with logo on the right */
           <div className="w-full h-full bg-white flex items-center justify-between px-4">
             {/* Title on the left */}
-            <h3 className="text-gray-900 text-base sm:text-lg font-bold leading-tight line-clamp-3 flex-1 pr-4" style={{ fontFamily: 'Poppins' }}>
+            <h3 className="text-gray-900 text-base sm:text-lg font-bold leading-tight line-clamp-3 flex-1 pr-4">
               {quest.title}
             </h3>
             {/* OnFire logo on the right */}
@@ -282,7 +282,7 @@ const QuestCardSimple = ({ quest }) => {
               e.stopPropagation();
               navigate('/overview');
             }}
-            className="mt-auto w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold transition-all duration-200 flex items-center justify-center gap-2"
+            className="mt-auto w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 text-white font-bold transition-all duration-200 flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -329,7 +329,7 @@ const QuestCardSimple = ({ quest }) => {
             </p>
           </div>
           {/* Start Quest Button - Optio gradient, anchored to bottom */}
-          <div className="mt-auto px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+          <div className="mt-auto px-4 py-3 bg-gradient-primary hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
             </svg>

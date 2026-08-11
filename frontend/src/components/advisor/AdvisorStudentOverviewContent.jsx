@@ -55,7 +55,6 @@ const AdvisorStudentOverviewContent = ({ studentId, canEdit = false, orgId }) =>
         <Link
           to={`/public/diploma/${studentId}`}
           className="absolute top-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-white hover:shadow-md transition-all min-h-[40px]"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

@@ -257,7 +257,7 @@ const PublicCoursePage = () => {
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-optio-purple to-optio-pink" />
+            <div className="absolute inset-0 bg-gradient-primary" />
           )}
           {/* Dark overlay for text legibility */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
@@ -378,7 +378,7 @@ const PublicCoursePage = () => {
                         className="w-full h-36 object-cover"
                       />
                     ) : (
-                      <div className="w-full h-36 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center" aria-hidden="true">
+                      <div className="w-full h-36 bg-gradient-primary flex items-center justify-center" aria-hidden="true">
                         <span className="text-4xl font-bold text-white">{index + 1}</span>
                       </div>
                     )}

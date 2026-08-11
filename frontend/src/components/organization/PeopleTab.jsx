@@ -62,7 +62,7 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
 
           <button
             onClick={() => setShowAddPeopleChooser(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90"
           >
             <UserPlusIcon className="w-5 h-5" />
             Add People

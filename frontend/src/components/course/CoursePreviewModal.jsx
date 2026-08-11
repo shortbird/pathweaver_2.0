@@ -49,7 +49,7 @@ const CoursePreviewModal = ({ courseId, onClose }) => {
         }
       >
         {/* Preview chrome. Everything below it is the student view, untouched. */}
-        <div className="flex-shrink-0 flex items-center justify-between gap-3 bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2.5 text-white">
+        <div className="flex-shrink-0 flex items-center justify-between gap-3 bg-gradient-primary px-4 py-2.5 text-white">
           <p className="text-sm font-medium truncate">
             Student view - this is exactly what your students see. Nothing here is saved.
           </p>

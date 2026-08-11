@@ -40,10 +40,10 @@ const QuestEnrollment = ({
       {showPersonalizationPrompt && (
         <div className="text-center py-12 bg-white rounded-xl shadow-md">
           <BookOpenIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-lg text-gray-600 mb-2">
             Ready to personalize this quest?
           </p>
-          <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
+          <p className="text-sm text-gray-500 mb-6">
             {allowsCustomization
               ? 'Create custom tasks, write your own, or browse the task library'
               : 'This quest has no preset tasks yet. Contact your teacher.'}
@@ -52,8 +52,7 @@ const QuestEnrollment = ({
             onClick={() => onShowPersonalizationWizard()}
             onMouseEnter={onPreloadWizard}
             onFocus={onPreloadWizard}
-            className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90 min-h-[44px] touch-manipulation"
-            style={{ fontFamily: 'Poppins' }}
+            className="btn-primary min-h-[44px] touch-manipulation"
           >
             Start Personalizing
           </button>
@@ -64,10 +63,10 @@ const QuestEnrollment = ({
       {showTemplateTasks && (
         <div className="mb-8">
           <div className="text-center mb-6">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
               Quest Tasks
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins' }}>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               {requiredTasks.length > 0 && optionalTasks.length > 0
                 ? 'Complete the required tasks and choose from optional ones'
                 : requiredTasks.length > 0
@@ -87,14 +86,14 @@ const QuestEnrollment = ({
                   <div className="flex items-start gap-4">
                     <div
                       className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
-                      style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                      style={{ backgroundColor: pillarData.color }}
                     >
                       {index + 1}
                     </div>
 
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                        <h3 className="text-lg font-bold text-gray-900">
                           {task.title}
                         </h3>
                         {task.is_required ? (
@@ -110,21 +109,20 @@ const QuestEnrollment = ({
                           className="px-2 py-0.5 rounded-full text-xs font-semibold"
                           style={{
                             backgroundColor: `${pillarData.color}20`,
-                            color: pillarData.color,
-                            fontFamily: 'Poppins'
+                            color: pillarData.color
                           }}
                         >
                           {pillarData.name}
                         </div>
                         <div
                           className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
-                          style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                          style={{ backgroundColor: pillarData.color }}
                         >
                           {task.xp_value} XP
                         </div>
                       </div>
                       {task.description && (
-                        <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                        <p className="text-sm text-gray-700">
                           {task.description}
                         </p>
                       )}
@@ -141,8 +139,7 @@ const QuestEnrollment = ({
               <button
                 onClick={() => onEnroll()}
                 disabled={isEnrolling}
-                className="bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary btn-lg min-h-[44px] touch-manipulation"
               >
                 <FireIcon className="w-5 h-5 inline mr-2" />
                 {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}

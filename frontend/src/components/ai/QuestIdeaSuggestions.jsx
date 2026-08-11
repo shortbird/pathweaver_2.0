@@ -163,10 +163,10 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
 
       {/* Loading State */}
       {loading && suggestions === null && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-4">
           <div className="flex items-center space-x-3">
             <ArrowPathIcon className="h-5 w-5 text-optio-purple animate-spin" />
-            <span className="text-purple-800 font-medium">Analyzing your quest idea...</span>
+            <span className="text-optio-purple-dark font-medium">Analyzing your quest idea...</span>
           </div>
         </div>
       )}
@@ -227,13 +227,13 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
               {suggestions.improvements.title && (
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-2">Better Title</h5>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                    <p className="text-sm text-purple-900">{suggestions.improvements.title}</p>
+                  <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
+                    <p className="text-sm text-optio-purple-dark">{suggestions.improvements.title}</p>
                   </div>
                   {onApplySuggestion && (
                     <button
                       onClick={() => onApplySuggestion('title', suggestions.improvements.title)}
-                      className="mt-2 text-xs text-optio-purple hover:text-purple-700 font-medium"
+                      className="mt-2 text-xs text-optio-purple hover:text-optio-purple-dark font-medium"
                     >
                       Apply this suggestion
                     </button>
@@ -244,13 +244,13 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
               {suggestions.improvements.description && (
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-2">Better Description</h5>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                    <p className="text-sm text-purple-900">{suggestions.improvements.description}</p>
+                  <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
+                    <p className="text-sm text-optio-purple-dark">{suggestions.improvements.description}</p>
                   </div>
                   {onApplySuggestion && (
                     <button
                       onClick={() => onApplySuggestion('description', suggestions.improvements.description)}
-                      className="mt-2 text-xs text-optio-purple hover:text-purple-700 font-medium"
+                      className="mt-2 text-xs text-optio-purple hover:text-optio-purple-dark font-medium"
                     >
                       Apply this suggestion
                     </button>
@@ -430,14 +430,14 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
           <h4 className="font-medium text-gray-900 mb-3">Suggested Tasks</h4>
           <div className="space-y-3">
             {taskRecommendations.tasks?.map((task, index) => (
-              <div key={index} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <div key={index} className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
                 <div className="flex items-start justify-between mb-2">
-                  <h5 className="font-medium text-purple-900">{task.title}</h5>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-200 text-purple-800">
+                  <h5 className="font-medium text-optio-purple-dark">{task.title}</h5>
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-optio-purple/20 text-optio-purple-dark">
                     {task.estimated_xp} XP
                   </span>
                 </div>
-                <p className="text-sm text-purple-700 mb-2">{task.description}</p>
+                <p className="text-sm text-optio-purple-dark mb-2">{task.description}</p>
                 <div className="flex items-center justify-between text-xs text-optio-purple">
                   <span>Pillar: {task.pillar}</span>
                   <span>Time: {task.estimated_time}</span>

@@ -21,11 +21,11 @@ const HeroSection = ({
     : null;
 
   return (
-    <section className="relative bg-gradient-to-r from-optio-purple to-optio-pink text-white py-8 sm:py-12 px-6 rounded-2xl shadow-lg">
+    <section className="relative bg-gradient-primary text-white py-8 sm:py-12 px-6 rounded-2xl shadow-lg">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           {/* Avatar Circle with Image or Initials */}
-          <div className={`w-20 sm:w-24 h-20 sm:h-24 rounded-full flex items-center justify-center border-2 shadow-lg flex-shrink-0 overflow-hidden ${user?.avatar_url ? 'border-white/30' : 'bg-purple-200/60 border-white/30'}`}>
+          <div className={`w-20 sm:w-24 h-20 sm:h-24 rounded-full flex items-center justify-center border-2 shadow-lg flex-shrink-0 overflow-hidden ${user?.avatar_url ? 'border-white/30' : 'bg-optio-purple/20 border-white/30'}`}>
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
@@ -33,7 +33,7 @@ const HeroSection = ({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <span className="text-3xl sm:text-4xl font-bold text-white">
                 {initials || '?'}
               </span>
             )}
@@ -41,16 +41,16 @@ const HeroSection = ({
 
           {/* User Info */}
           <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">
               {user?.first_name} {user?.last_name}
             </h1>
             {formattedMemberSince && (
-              <p className="text-white/90 text-sm sm:text-base md:text-lg mt-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-white/90 text-sm sm:text-base md:text-lg mt-1 font-medium">
                 Learning since {formattedMemberSince}
               </p>
             )}
             {user?.bio && (
-              <p className="text-white/80 text-sm sm:text-base mt-2 max-w-xl leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 400 }}>
+              <p className="text-white/80 text-sm sm:text-base mt-2 max-w-xl leading-relaxed">
                 {user.bio}
               </p>
             )}
@@ -63,7 +63,7 @@ const HeroSection = ({
           <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-4 sm:gap-6 max-w-lg mx-auto">
             {/* Total XP */}
             <div className="text-center">
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
                 {totalXp?.toLocaleString() || 0}
               </div>
               <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
@@ -73,7 +73,7 @@ const HeroSection = ({
 
             {/* Quests Completed */}
             <div className="text-center border-l border-white/20">
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
                 {completedQuestsCount || 0}
               </div>
               <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
@@ -83,7 +83,7 @@ const HeroSection = ({
 
             {/* Tasks Completed */}
             <div className="text-center border-l border-white/20">
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
                 {completedTasksCount || 0}
               </div>
               <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">

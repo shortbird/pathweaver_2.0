@@ -190,7 +190,7 @@ const UploadItem = ({ item, onRetry, onCancel }) => {
       {status === 'uploading' && (
         <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-optio-purple to-optio-pink"
+            className="h-full bg-gradient-primary"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
@@ -215,7 +215,7 @@ const UploadItem = ({ item, onRetry, onCancel }) => {
         <div className="mt-2 flex gap-1">
           <button
             onClick={onRetry}
-            className="flex-1 min-h-[44px] px-2 py-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold rounded hover:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-optio-purple"
+            className="flex-1 min-h-[44px] px-2 py-1 bg-gradient-primary text-white text-xs font-semibold rounded hover:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-optio-purple"
             aria-label="Retry upload"
           >
             Retry
