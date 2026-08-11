@@ -58,7 +58,8 @@ class TestSchoolContextForOrg:
                       'organization_name': 'iCreate',
                       'is_guardian': False,
                       'post_registration_flow': 'goals',
-                      'logo_url': 'data:image/png;base64,x'}],
+                      'logo_url': 'data:image/png;base64,x',
+                      'logo_subtitle': None}],
             'is_guardian': False,
         }
 

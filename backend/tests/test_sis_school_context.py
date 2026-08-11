@@ -66,7 +66,8 @@ class TestWhichSchoolAmIIn:
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
                                 'post_registration_flow': 'schedule',
-                                'logo_url': 'data:image/png;base64,x'}]
+                                'logo_url': 'data:image/png;base64,x',
+                                'logo_subtitle': None}]
 
     def test_a_student_gets_their_own_school(self):
         """The regression this whole change exists for: a student guards nobody,
@@ -77,7 +78,8 @@ class TestWhichSchoolAmIIn:
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
                                 'post_registration_flow': 'schedule',
-                                'logo_url': 'data:image/png;base64,x'}]
+                                'logo_url': 'data:image/png;base64,x',
+                                'logo_subtitle': None}]
 
     def test_a_school_without_a_logo_sends_none_not_a_broken_image(self):
         ctx = _school_context('student-1', member_org='org-1',
@@ -235,7 +237,8 @@ class TestSuperadminPreviewListing:
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
                                   'post_registration_flow': 'schedule',
-                                  'logo_url': 'data:image/png;base64,x'}
+                                  'logo_url': 'data:image/png;base64,x',
+                                  'logo_subtitle': None}
         assert out['is_guardian'] is False
 
     def test_empty_when_nobody_opted_in(self):
