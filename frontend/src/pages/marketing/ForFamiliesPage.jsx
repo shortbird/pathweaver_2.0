@@ -5,9 +5,23 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
+import TestimonialRow from '../../components/marketing/TestimonialRow'
 import WascBadge from '../../components/accreditation/WascBadge'
 
 const PAGE = 'for_families'
+
+const TESTIMONIALS = [
+  {
+    quote: 'My husband and I feel like Optio was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the unique types of learning we do in our family.',
+    name: 'Paige H.',
+    context: 'Homeschool Parent, Utah',
+  },
+  {
+    quote: 'I\'ve loved helping my son recognize learning whenever it happens, like a spontaneous conversation about rhyme scheme at the dinner table, or when he won a rap battle playing games with friends and I told him to earn some XP for the grammar.',
+    name: 'Andrea F.',
+    context: 'Optio Parent',
+  },
+]
 
 const IMAGES = {
   hero: 'https://images.pexels.com/photos/7799601/pexels-photo-7799601.jpeg?auto=compress&cs=tinysrgb&w=1920',
@@ -48,18 +62,17 @@ const ForFamiliesPage = () => {
           <img src={IMAGES.hero} alt="" className="w-full h-full object-cover" style={{ objectPosition: 'center 20%' }} />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/60 via-50% to-transparent" />
         </div>
-        <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
             Homeschool Your Kids All the Way to an Accredited Diploma.
           </h1>
-          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md font-medium" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
             With Optio, the learning your family already does becomes an official, WASC-accredited high school transcript and diploma. You guide the learning; Optio makes it count.
           </p>
           <a
             href="#get-info"
             onClick={() => trackCta('hero_get_info')}
-            className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-            style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+            className="btn-inverse btn-lg"
           >
             Get More Info
           </a>
@@ -71,7 +84,7 @@ const ForFamiliesPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Sound Familiar?
               </h2>
             </div>
@@ -88,8 +101,8 @@ const ForFamiliesPage = () => {
                     <img src={item.img} alt={item.problem} className="w-full h-full object-cover" loading="lazy" />
                   </div>
                   <div className="p-4">
-                    <p className="font-semibold text-gray-800 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.problem}</p>
-                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.detail}</p>
+                    <p className="font-semibold text-gray-800 mb-1">{item.problem}</p>
+                    <p className="text-sm text-gray-500 font-medium">{item.detail}</p>
                   </div>
                 </div>
               </RevealItem>
@@ -103,10 +116,10 @@ const ForFamiliesPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-14">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 One Place for All Their Learning
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Whether it happens in school, at home, or out in the world, Optio captures it all.
               </p>
             </div>
@@ -118,15 +131,15 @@ const ForFamiliesPage = () => {
               <img src={IMAGES.journal} alt="Student journaling" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Capture Every Learning Moment
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Did your kid just spend three hours building something amazing? Snap a photo, write a quick note, and it's recorded. Piano recitals, science experiments, volunteer work. Quick entries that add up to a complete picture of who your child is becoming.
               </p>
               <div className="space-y-3">
                 {['Quick capture from your phone or desktop', 'Organize into topics that evolve into quests', 'Attach photos, videos, and files as evidence', 'Connect any curriculum or outside class'].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -135,15 +148,15 @@ const ForFamiliesPage = () => {
           {/* Feature 2: Automatic Portfolio */}
           <div className="grid lg:grid-cols-2 gap-12 items-center mb-16 sm:mb-20">
             <RevealSection delay={200} className="order-2 lg:order-1">
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Portfolios That Build Themselves
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Every project, reflection, and achievement your kids document automatically becomes part of a professional portfolio. No scrapbooking required. When it's time to apply to colleges or jobs, it's all there.
               </p>
               <div className="space-y-3">
                 {['Social media-style activity feed of learning', 'Evidence of real projects, not just grades', 'Share with colleges, employers, or family', 'Parent controls who can view'].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -162,21 +175,21 @@ const ForFamiliesPage = () => {
               <img src={IMAGES.observer} alt="Family supporting student" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 The Whole Family Can Participate
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Invite grandparents, mentors, and other trusted adults to follow your kids' learning journey. They can see updates, leave encouragement, and even post real-world challenges for your kids to complete.
               </p>
-              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-5 border border-optio-purple/15 mb-6">
-                <p className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Example: A "Bounty" from Grandma</p>
-                <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-5 border border-optio-purple/20 mb-6">
+                <p className="font-semibold text-gray-900 mb-2">Example: A "Bounty" from Grandma</p>
+                <p className="text-gray-600 text-sm font-medium">
                   Grandma posts a challenge: "Help me organize my photo albums." Only available to her grandkids. They earn points for completing it, learn real skills, and Grandma gets help.
                 </p>
               </div>
               <div className="space-y-3">
                 {['You control exactly who can see your kids\' work', 'Observers get a view-only feed, not admin access', 'Challenges from family turn everyday tasks into learning', 'Education becomes something the whole family participates in'].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -184,25 +197,14 @@ const ForFamiliesPage = () => {
 
           {/* Testimonials */}
           <RevealSection ref={testimonialRef}>
-            <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mt-12">
-              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 flex flex-col">
-                <p className="text-base sm:text-lg text-gray-700 italic mb-4 leading-relaxed text-center flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  "My husband and I feel like Optio was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the unique types of learning we do in our family."
-                </p>
-                <p className="text-center">
-                  <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Paige H.</span>
-                  <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Homeschool Parent, Utah</span>
-                </p>
-              </div>
-              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 flex flex-col">
-                <p className="text-base sm:text-lg text-gray-700 italic mb-4 leading-relaxed text-center flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  "I've loved helping my son recognize learning whenever it happens, like a spontaneous conversation about rhyme scheme at the dinner table, or when he won a rap battle playing games with friends and I told him to earn some XP for the grammar."
-                </p>
-                <p className="text-center">
-                  <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Andrea F.</span>
-                  <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Optio Parent</span>
-                </p>
-              </div>
+            <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto mt-12">
+              {TESTIMONIALS.map((t) => (
+                <TestimonialRow
+                  key={t.name}
+                  {...t}
+                  className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/20"
+                />
+              ))}
             </div>
           </RevealSection>
         </div>
@@ -213,10 +215,10 @@ const ForFamiliesPage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Great for Younger Learners Too
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Kids are natural learners. Optio gives them a place to capture what they're discovering and share it with the people who care most.
               </p>
             </div>
@@ -240,13 +242,13 @@ const ForFamiliesPage = () => {
               },
             ].map((item, i) => (
               <RevealItem key={item.title} index={i}>
-                <div className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm h-full">
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm h-full">
                   <div className="aspect-[16/9] overflow-hidden">
                     <img src={item.img} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                   </div>
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                    <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600 font-medium">{item.desc}</p>
                   </div>
                 </div>
               </RevealItem>
@@ -259,10 +261,10 @@ const ForFamiliesPage = () => {
       <section ref={diplomaRef} className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Award an Accredited Diploma, Right From Home
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8 font-medium">
               Your homeschool can graduate your kids with a real high school diploma. Through Optio
               Academy's accreditation by the Accrediting Commission for Schools, Western Association of
               Schools and Colleges (WASC), the learning you already do becomes an official transcript and
@@ -279,13 +281,13 @@ const ForFamiliesPage = () => {
               { title: 'Dual Enrollment', desc: 'Earn college credit while completing high school requirements. Save thousands on tuition.', img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400' },
             ].map((item, i) => (
               <RevealItem key={item.title} index={i}>
-                <div className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm h-full">
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm h-full">
                   <div className="aspect-[16/9] overflow-hidden">
                     <img src={item.img} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                   </div>
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
-                    <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600 font-medium">{item.desc}</p>
                   </div>
                 </div>
               </RevealItem>
@@ -299,14 +301,14 @@ const ForFamiliesPage = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 rounded-2xl p-8 sm:p-10 text-center border border-optio-purple/20">
-              <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-3" style={{ fontFamily: 'Poppins' }}>Optio Family</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-3">Optio Family</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
                 Everything Your Family Needs
               </h2>
-              <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
                 $50<span className="text-lg font-medium text-gray-500">/month</span>
               </p>
-              <p className="text-gray-500 text-sm mb-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-500 text-sm mb-8 font-medium">
                 Per family. All kids included.
               </p>
               <div className="grid sm:grid-cols-2 gap-3 max-w-lg mx-auto mb-8 text-left">
@@ -315,18 +317,17 @@ const ForFamiliesPage = () => {
                     <svg className="w-4 h-4 text-optio-pink flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p>
+                    <p className="text-sm text-gray-600 font-medium">{item}</p>
                   </div>
                 ))}
               </div>
               <a
                 href="#get-info"
                 onClick={() => trackCta('pro_get_info')}
-                className="inline-flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-8 py-3 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                style={{ fontFamily: 'Poppins' }}
+                className="btn-primary btn-lg"
               >
                 Get More Info
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </a>

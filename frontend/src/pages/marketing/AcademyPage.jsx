@@ -5,6 +5,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
+import TestimonialRow from '../../components/marketing/TestimonialRow'
 import WascBadge from '../../components/accreditation/WascBadge'
 
 const PAGE = 'academy'
@@ -82,7 +83,7 @@ const FaqItem = ({ q, a, defaultOpen = false }) => {
         aria-expanded={open}
         className="w-full flex items-center justify-between text-left py-5 gap-4 hover:text-optio-purple transition-colors"
       >
-        <span className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{q}</span>
+        <span className="text-lg font-semibold text-gray-900">{q}</span>
         <svg
           className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -91,7 +92,7 @@ const FaqItem = ({ q, a, defaultOpen = false }) => {
         </svg>
       </button>
       {open && (
-        <p className="pb-5 text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+        <p className="pb-5 text-gray-600 leading-relaxed font-medium">
           {a}
         </p>
       )}
@@ -152,13 +153,13 @@ const AcademyPage = () => {
         <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
           <h1
             className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg"
-            style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+            style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
           >
             Optio Academy
           </h1>
           <p
-            className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md"
-            style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
+            className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md font-medium"
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
           >
             A high school built around your student. They learn at their own pace and graduate
             with an accredited diploma earned through work they actually care about, with a
@@ -169,7 +170,6 @@ const AcademyPage = () => {
               href="#get-info"
               onClick={() => trackCta('hero_discovery_call')}
               className="bg-white text-optio-purple px-7 py-3 rounded-full text-base font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-              style={{ fontFamily: 'Poppins' }}
             >
               Schedule a Discovery Call
             </a>
@@ -177,7 +177,6 @@ const AcademyPage = () => {
               href="#programs"
               onClick={() => trackCta('hero_programs')}
               className="bg-white/10 backdrop-blur-sm border border-white/30 text-white px-7 py-3 rounded-full text-base font-semibold hover:bg-white/20 transition-all duration-200"
-              style={{ fontFamily: 'Poppins' }}
             >
               Compare the Two Programs
             </a>
@@ -192,19 +191,16 @@ const AcademyPage = () => {
             <div className="text-center mb-10">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Accreditation
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 A Real Diploma, Recognized Nationwide
               </h2>
               <p
-                className="text-lg text-gray-600 max-w-3xl mx-auto"
-                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                className="text-lg text-gray-600 max-w-3xl mx-auto font-medium"
               >
                 Optio Academy is accredited by the Accrediting Commission for Schools, Western
                 Association of Schools and Colleges (ACS WASC). Your student's transcript and
@@ -224,13 +220,11 @@ const AcademyPage = () => {
           <RevealSection>
             <p
               className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-              style={{ fontFamily: 'Poppins' }}
             >
               Quick Facts
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold text-gray-900 mb-8"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               What Optio Academy Is
             </h2>
@@ -273,19 +267,16 @@ const AcademyPage = () => {
                 <div className="bg-white rounded-xl border border-gray-200 p-5 h-full">
                   <p
                     className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2"
-                    style={{ fontFamily: 'Poppins' }}
                   >
                     {fact.label}
                   </p>
                   <p
                     className="text-lg font-bold text-gray-900 mb-2"
-                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                   >
                     {fact.value}
                   </p>
                   <p
-                    className="text-sm text-gray-600 leading-relaxed"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                    className="text-sm text-gray-600 leading-relaxed font-medium"
                   >
                     {fact.detail}
                   </p>
@@ -303,17 +294,15 @@ const AcademyPage = () => {
             <div className="text-center mb-12">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Programs & Tuition
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Two Ways to Earn the Diploma
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Every family is different, so Optio Academy offers two paths. The platform, the
                 accreditation, and the diploma are the same on both. What changes is who guides
                 the learning.
@@ -326,14 +315,13 @@ const AcademyPage = () => {
               <div className="bg-white rounded-2xl border-2 border-optio-purple/30 shadow-lg p-6 sm:p-8 h-full flex flex-col">
                 <p
                   className="inline-flex self-start text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-full px-3 py-1 mb-4"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   Full Support
                 </p>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
                   Full-Time Academy
                 </h3>
-                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                <p className="text-gray-600 mb-6 font-medium">
                   Your student works one-on-one with a dedicated Optio teacher who knows them by
                   name and carries the accountability for their progress, all the way to
                   graduation.
@@ -344,14 +332,14 @@ const AcademyPage = () => {
                     'Their teacher sets goals with them, reviews their work, and awards credit',
                     'You get full visibility into progress without running the school day',
                   ].map((item) => (
-                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base font-medium">{item}</p></div>
                   ))}
                 </div>
                 <div className="border-t border-gray-200 pt-6">
-                  <p className="text-2xl font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <p className="text-2xl font-bold text-gray-900 mb-1">
                     Customized tuition
                   </p>
-                  <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-sm text-gray-600 mb-5 font-medium">
                     Because support ranges from daily sessions to weekly check-ins, tuition is
                     tailored to each student. We set it together on your discovery call.
                   </p>
@@ -359,7 +347,6 @@ const AcademyPage = () => {
                     href="#get-info"
                     onClick={() => trackCta('programs_full_time')}
                     className="inline-flex w-full items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Schedule a Discovery Call
                   </a>
@@ -371,14 +358,13 @@ const AcademyPage = () => {
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 h-full flex flex-col">
                 <p
                   className="inline-flex self-start text-xs font-semibold uppercase tracking-wider text-optio-purple bg-optio-purple/10 rounded-full px-3 py-1 mb-4"
-                  style={{ fontFamily: 'Poppins' }}
                 >
                   You Lead
                 </p>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
                   Parent-Supported Diploma
                 </h3>
-                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                <p className="text-gray-600 mb-6 font-medium">
                   You act as your student's teacher and guide the learning day to day. Optio
                   provides the platform, the structure, and the accredited transcript and diploma.
                 </p>
@@ -388,21 +374,20 @@ const AcademyPage = () => {
                     'Credit is added to an official Optio Academy transcript as your student earns it',
                     'The same WASC-accredited diploma as the full-time program',
                   ].map((item) => (
-                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                    <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 text-sm sm:text-base font-medium">{item}</p></div>
                   ))}
                 </div>
                 <div className="border-t border-gray-200 pt-6">
-                  <p className="text-2xl font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <p className="text-2xl font-bold text-gray-900 mb-1">
                     $100 per credit
                   </p>
-                  <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-sm text-gray-600 mb-5 font-medium">
                     A full diploma is 24 credits, so the complete path to graduation costs $2,400.
                   </p>
                   <a
                     href="#get-info"
                     onClick={() => trackCta('programs_parent_supported')}
                     className="inline-flex w-full items-center justify-center border-2 border-optio-purple text-optio-purple px-6 py-3 rounded-full font-semibold hover:bg-optio-purple hover:text-white transition-all duration-200"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Get Started
                   </a>
@@ -412,7 +397,7 @@ const AcademyPage = () => {
           </div>
 
           <RevealSection delay={200}>
-            <p className="text-center text-gray-600 mt-10 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <p className="text-center text-gray-600 mt-10 max-w-2xl mx-auto font-medium">
               Not sure which program fits your family? That is exactly what the discovery call is
               for. Tell us about your student and we will help you choose.
             </p>
@@ -427,17 +412,15 @@ const AcademyPage = () => {
             <div className="text-center mb-14">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 The Program
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Self-Paced Learning With Real Support
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Your student sets the pace. Their mentor makes sure the pace holds. Everything they
                 do becomes part of an official record.
               </p>
@@ -450,10 +433,10 @@ const AcademyPage = () => {
               <img src={IMAGES.selfPaced} alt="Student working at their own pace" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Learning That Moves at Your Student's Speed
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 There are no bell schedules and no waiting for the rest of the class. Students work
                 through their classes on the Optio platform at the pace that fits them, going deep
                 where they're passionate and taking extra time where they need it.
@@ -465,7 +448,7 @@ const AcademyPage = () => {
                   'Work from anywhere, on a schedule that fits your family',
                   'Progress is measured by what they produce, not hours in a seat',
                 ].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -474,10 +457,10 @@ const AcademyPage = () => {
           {/* Feature 2: Dedicated mentor */}
           <div className="grid lg:grid-cols-2 gap-12 items-center mb-16 sm:mb-20">
             <RevealSection delay={200} className="order-2 lg:order-1">
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 A Mentor Who Knows Your Student
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Self-paced never means alone. Every student is matched with a dedicated mentor who
                 meets with them one-on-one, helps them set goals, reviews their work, and holds
                 them accountable. It's the individual attention most students never get in a
@@ -490,7 +473,7 @@ const AcademyPage = () => {
                   'Guidance on projects, classes, and what to tackle next',
                   'Parents stay in the loop on progress and plans',
                 ].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -505,10 +488,10 @@ const AcademyPage = () => {
               <img src={IMAGES.record} alt="Graduate holding a diploma" className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover" loading="lazy" />
             </RevealSection>
             <RevealSection delay={200}>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                 Everything Counts Toward the Diploma
               </h3>
-              <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-gray-600 mb-6 font-medium">
                 Every project, class, and accomplishment is documented on the Optio platform and
                 reviewed by licensed teachers. The result is an official transcript, a portfolio of
                 real work, and a WASC-accredited diploma.
@@ -520,7 +503,7 @@ const AcademyPage = () => {
                   'Work reviewed and credit awarded by licensed teachers',
                   'A diploma colleges and employers recognize nationwide',
                 ].map((item) => (
-                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
+                  <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700 font-medium">{item}</p></div>
                 ))}
               </div>
             </RevealSection>
@@ -535,17 +518,15 @@ const AcademyPage = () => {
             <div className="text-center mb-12">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Day in the Life
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Same Day. Two Very Different Schools.
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Follow one student through a school day, hour by hour, and see what changes when the
                 bells, the bubble sheets, and the busywork disappear.
               </p>
@@ -556,10 +537,10 @@ const AcademyPage = () => {
           <RevealSection delay={100}>
             <div className="hidden md:grid md:grid-cols-[88px_1fr_1fr] gap-4 mb-4">
               <div />
-              <p className="text-center text-sm font-semibold uppercase tracking-wider text-gray-400" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-center text-sm font-semibold uppercase tracking-wider text-gray-400">
                 Traditional School
               </p>
-              <p className="text-center text-sm font-semibold uppercase tracking-wider text-optio-purple" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-center text-sm font-semibold uppercase tracking-wider text-optio-purple">
                 Optio Academy
               </p>
             </div>
@@ -606,23 +587,23 @@ const AcademyPage = () => {
               <RevealItem key={row.time} index={i}>
                 <div className="grid md:grid-cols-[88px_1fr_1fr] gap-3 md:gap-4 items-stretch">
                   <div className="flex md:justify-center">
-                    <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-bold rounded-full px-3 py-1.5 text-center shadow-sm self-start w-[72px]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                    <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-bold rounded-full px-3 py-1.5 text-center shadow-sm self-start w-[72px]">
                       {row.time}
                     </div>
                   </div>
                   <div className="bg-gray-100 rounded-xl border border-gray-200 p-4 sm:p-5">
-                    <p className="md:hidden text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1" style={{ fontFamily: 'Poppins' }}>
+                    <p className="md:hidden text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
                       Traditional School
                     </p>
-                    <p className="text-sm text-gray-500 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    <p className="text-sm text-gray-500 leading-relaxed font-medium">
                       {row.school}
                     </p>
                   </div>
                   <div className="bg-white rounded-xl border border-optio-purple/25 shadow-sm p-4 sm:p-5">
-                    <p className="md:hidden text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1" style={{ fontFamily: 'Poppins' }}>
+                    <p className="md:hidden text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1">
                       Optio Academy
                     </p>
-                    <p className="text-sm text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    <p className="text-sm text-gray-700 leading-relaxed font-medium">
                       {row.optio}
                     </p>
                   </div>
@@ -632,7 +613,7 @@ const AcademyPage = () => {
           </div>
 
           <RevealSection delay={200}>
-            <p className="text-center text-gray-600 mt-12 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            <p className="text-center text-gray-600 mt-12 max-w-2xl mx-auto font-medium">
               By the end of the day, one student has a stack of worksheets. The other has working
               code, a shelter shift, six training miles, and a home-cooked meal, all documented
               evidence on an official transcript.
@@ -648,17 +629,15 @@ const AcademyPage = () => {
             <div className="text-center mb-12">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Is This Your Student?
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Who Thrives at Optio Academy
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Our students have one thing in common: their lives are bigger than a school desk.
               </p>
             </div>
@@ -693,10 +672,10 @@ const AcademyPage = () => {
             ].map((profile, i) => (
               <RevealItem key={profile.title} index={i}>
                 <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 h-full">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
                     {profile.title}
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-sm text-gray-600 leading-relaxed font-medium">
                     {profile.desc}
                   </p>
                 </div>
@@ -713,17 +692,15 @@ const AcademyPage = () => {
             <div className="text-center mb-12">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Curriculum
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 A Full High School Curriculum
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto font-medium">
                 Classes map to five pillars that together cover everything a high school education
                 should. Within each pillar, students shape the work around what they love.
               </p>
@@ -739,10 +716,10 @@ const AcademyPage = () => {
             ].map((pillar, i) => (
               <RevealItem key={pillar.name} index={i}>
                 <div className="bg-white rounded-xl border border-gray-200 p-5 h-full text-center">
-                  <p className="text-lg font-bold text-optio-purple mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <p className="text-lg font-bold text-optio-purple mb-2">
                     {pillar.name}
                   </p>
-                  <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-sm text-gray-600 font-medium">
                     {pillar.desc}
                   </p>
                 </div>
@@ -754,35 +731,28 @@ const AcademyPage = () => {
 
       {/* ========== TESTIMONIALS ========== */}
       <section id="testimonials" ref={voicesRef} className="py-16 sm:py-20 bg-white scroll-mt-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 From Our Families
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Hear It From Students and Parents
               </h2>
             </div>
           </RevealSection>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-5 sm:space-y-6">
             {TESTIMONIALS.map((t, i) => (
               <RevealItem key={t.name} index={i}>
-                <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 h-full flex flex-col">
-                  <p className="text-base sm:text-lg text-gray-700 italic leading-relaxed mb-4 flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    "{t.quote}"
-                  </p>
-                  <p>
-                    <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{t.name}</span>
-                    <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{t.context}</span>
-                  </p>
-                </div>
+                <TestimonialRow
+                  {...t}
+                  className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/10"
+                />
               </RevealItem>
             ))}
           </div>
@@ -796,13 +766,11 @@ const AcademyPage = () => {
             <div className="text-center mb-10">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Meet the Head of School
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 A Note From Dr. Bowman
               </h2>
@@ -810,7 +778,7 @@ const AcademyPage = () => {
           </RevealSection>
           <RevealSection delay={150}>
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-10">
-              <div className="space-y-4 text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <div className="space-y-4 text-gray-700 leading-relaxed font-medium">
                 <p>
                   I keep meeting incredible young people whose school day has almost nothing to do
                   with what they're actually capable of. They build, train, create, and lead in
@@ -840,10 +808,10 @@ const AcademyPage = () => {
                       alt="Signature of Dr. Tanner Bowman"
                       className="h-12 w-auto mb-2"
                     />
-                    <p className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                    <p className="font-bold text-gray-900">
                       Dr. Tanner Bowman
                     </p>
-                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    <p className="text-sm text-gray-500 font-medium">
                       Head of School, Optio Academy
                     </p>
                   </div>
@@ -852,7 +820,6 @@ const AcademyPage = () => {
                   href={`mailto:${ACADEMY_EMAIL}`}
                   onClick={() => trackCta('head_of_school_email')}
                   className="inline-flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                 >
                   Email Dr. Bowman
                 </a>
@@ -869,13 +836,11 @@ const AcademyPage = () => {
             <div className="text-center mb-10">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 FAQ
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Questions Every Family Asks
               </h2>
@@ -898,13 +863,11 @@ const AcademyPage = () => {
             <div className="mb-8">
               <p
                 className="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3"
-                style={{ fontFamily: 'Poppins' }}
               >
                 Contact
               </p>
               <h2
                 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 Talk to Us
               </h2>
@@ -915,24 +878,23 @@ const AcademyPage = () => {
             <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 sm:p-8">
               <div className="grid sm:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
                     Head of School
                   </h3>
-                  <p className="text-gray-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-gray-700 mb-1 font-medium">
                     Dr. Tanner Bowman
                   </p>
                   <a
                     href={`mailto:${ACADEMY_EMAIL}`}
                     onClick={() => trackCta('contact_email')}
-                    className="text-optio-purple hover:text-optio-pink transition-colors"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                    className="text-optio-purple hover:text-optio-pink transition-colors font-medium"
                   >
                     {ACADEMY_EMAIL}
                   </a>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
                     Related Documents
                   </h3>
                   <ul className="space-y-1">
@@ -940,8 +902,7 @@ const AcademyPage = () => {
                       <Link
                         to="/academy-agreement"
                         onClick={() => trackCta('academy_agreement')}
-                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm"
-                        style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm font-medium"
                       >
                         Participant & Parent Agreement
                       </Link>
@@ -950,8 +911,7 @@ const AcademyPage = () => {
                       <Link
                         to="/academy-handbook"
                         onClick={() => trackCta('academy_handbook')}
-                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm"
-                        style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm font-medium"
                       >
                         Participant Handbook
                       </Link>
@@ -960,8 +920,7 @@ const AcademyPage = () => {
                       <Link
                         to="/privacy"
                         onClick={() => trackCta('privacy')}
-                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm"
-                        style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm font-medium"
                       >
                         Privacy Policy
                       </Link>
@@ -970,14 +929,13 @@ const AcademyPage = () => {
                       <Link
                         to="/terms"
                         onClick={() => trackCta('terms')}
-                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm"
-                        style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                        className="text-optio-purple hover:text-optio-pink transition-colors text-sm font-medium"
                       >
                         Terms of Service
                       </Link>
                     </li>
                   </ul>
-                  <p className="text-xs text-gray-400 mt-4" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <p className="text-xs text-gray-400 mt-4 font-medium">
                     Optio Academy is operated by Optio, LLC. Optio Academy admits students of any
                     race, color, national origin, religion, or background, and extends to all
                     students every right, privilege, program, and activity of the school.

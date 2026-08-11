@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
@@ -138,11 +138,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // sidebar is expanded; collapsed mode shows a divider between sections.
 
   // "Home" is the role's own home surface. It absorbs the item that used to
-  // point there (Family for parents, Organization for org admins, Teacher for
-  // advisors) via the path dedupe below — one home, one label.
+  // point there (Family for parents, Organization for org admins) via the
+  // path dedupe below — one home, one label. Advisors share the student
+  // dashboard (/advisor/dashboard was removed 2026-08-10).
   const homePath = role === 'parent' ? '/parent/dashboard'
     : role === 'org_admin' ? '/organization'
-    : role === 'advisor' ? '/advisor/dashboard'
     : '/dashboard'
 
   const primaryItems = [
@@ -304,30 +304,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  const familyItems = []
-
   // Family dashboard: parents, plus org_admins/advisors/superadmin who also
-  // have parent relationships (or superadmin, who can reach everything).
+  // have parent relationships (or superadmin, who can reach everything). Lives
+  // in the primary section — for parents, whose Home IS /parent/dashboard, the
+  // path dedupe below absorbs it; for hybrid users it's a second home link.
+  // (It had its own "Family & Teaching" section until the Teacher item was
+  // removed 2026-08-10 and a one-item section looked stranded.)
   if (hasParentRelationships || user?.role === 'superadmin') {
-    familyItems.push({
+    primaryItems.push({
       name: 'Family',
       path: '/parent/dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      )
-    })
-  }
-
-  // Teacher dashboard: advisors (platform or org), parent-advisors, superadmin.
-  if (isAdvisor || user?.role === 'superadmin') {
-    familyItems.push({
-      name: 'Teacher',
-      path: '/advisor/dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
         </svg>
       )
     })
@@ -375,7 +364,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     { key: 'primary', title: null, items: primaryItems },
     { key: 'learning', title: 'Learning', items: learningItems },
     { key: 'community', title: 'Community', items: communityItems },
-    { key: 'family', title: 'Family & Teaching', items: familyItems },
     { key: 'admin', title: 'Admin', items: adminItems },
   ]
 
@@ -383,7 +371,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // in the SIS console (sis.optioeducation.com), not the learning sidebar. Remove
   // them here. The global platform "Admin" panel (mixed LMS content) is intentionally
   // NOT removed. A "School Admin" launcher (below) links staff to the SIS surface.
-  const SIS_MOVED_ITEMS = new Set(['Organization', 'Teacher', 'Credit Review'])
+  const SIS_MOVED_ITEMS = new Set(['Organization', 'Credit Review'])
   if (sisEnabled) {
     navSections = navSections.map((section) => ({
       ...section,
@@ -405,78 +393,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }))
   const visibleSections = navSections.filter((section) => section.items.length > 0)
 
-  // ── Sliding glass lens ──────────────────────────────────────────────────────
-  // The active-item highlight is one absolutely-positioned "lens" that glides
-  // to the active link (translateY) instead of each link painting its own
-  // background — selecting a new item slides the glass over to it.
-  const itemRefs = useRef({})
-  const lensVisibleRef = useRef(false)
-  const [lens, setLens] = useState(null)
-  // Squash-and-stretch: scaleY briefly during travel, settle on arrival
-  const [lensStretch, setLensStretch] = useState(false)
-
-  // The lens floats as a pill inset from the item bounds (rounded-xl), rather
-  // than filling the row edge-to-edge.
-  const LENS_INSET_X = 4
-  const LENS_INSET_Y = 2
-  const measureLens = (el, wrap) => ({
-    top: el.offsetTop + LENS_INSET_Y,
-    height: el.offsetHeight - LENS_INSET_Y * 2,
-    width: el.offsetWidth - LENS_INSET_X * 2,
-    // Rail height drives the gradient-reveal registration (--og-reveal-h/-y)
-    wrapH: wrap ? wrap.offsetHeight : 0,
-  })
-
-  const activePath = visibleSections
-    .flatMap((section) => section.items)
-    .find((item) => isActiveRoute(item.path))?.path || null
-  // Re-measure when the list composition shifts (async Courses/Classes, role
-  // changes) or the expanded state toggles section headers on/off.
-  const sectionsKey = visibleSections
-    .map((section) => section.items.map((item) => item.path).join(','))
-    .join('|')
-
-  const navWrapRef = useRef(null)
-
-  useLayoutEffect(() => {
-    const el = activePath ? itemRefs.current[activePath] : null
-    if (!el) {
-      lensVisibleRef.current = false
-      setLens(null)
-      return
-    }
-    // Only animate when the lens was already visible — appearing fresh (first
-    // paint, returning from a lens-less page) snaps into place instead of
-    // sliding in from a stale position.
-    const animate = lensVisibleRef.current
-    lensVisibleRef.current = true
-    setLens({ ...measureLens(el, navWrapRef.current), animate })
-
-    // Stretch during travel, settle on arrival: scaleY up immediately, then
-    // release partway through the slide so the spring settles it back to 1.
-    if (animate) {
-      setLensStretch(true)
-      const settle = setTimeout(() => setLensStretch(false), 180)
-      return () => clearTimeout(settle)
-    }
-    setLensStretch(false)
-  }, [activePath, isExpanded, sectionsKey])
-
-  // Keep the lens glued to its item while the rail animates between collapsed
-  // and expanded widths (and any other resize). Width updates have no CSS
-  // transition, so they track the container frame-by-frame instead of lagging.
-  useEffect(() => {
-    if (typeof ResizeObserver === 'undefined' || !activePath) return
-    const wrap = navWrapRef.current
-    if (!wrap) return
-    const ro = new ResizeObserver(() => {
-      const el = itemRefs.current[activePath]
-      if (!el) return
-      setLens((prev) => (prev ? { ...prev, ...measureLens(el, navWrapRef.current) } : prev))
-    })
-    ro.observe(wrap)
-    return () => ro.disconnect()
-  }, [activePath])
   // Superadmin always gets a way into the SIS console; org staff get it once their
   // org is flagged into the SIS beta. Campus coordinators run the console (minus
   // finance), so they count as staff here.
@@ -510,7 +426,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-16 left-0 bottom-0 bg-white shadow-md z-50
+          fixed top-16 left-0 bottom-0 bg-white border-r border-gray-200 z-50
           transform transition-all duration-200 ease-in-out
           flex flex-col
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -521,32 +437,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         onMouseLeave={() => onHoverChange?.(false)}
       >
         {/* overflow-y-auto (not hidden): on short windows the nav must scroll or
-            the items below the fold become unreachable */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pt-6 px-2">
-          <div className="relative" ref={navWrapRef}>
-            {/* Whisper of the brand gradient down the whole rail — the layer
-                the lens "magnifies" (see docs/design/LIQUID_GLASS.md) */}
-            <div aria-hidden="true" className="optio-glass-backdrop absolute inset-0 rounded-xl" />
-
-            {/* The glass lens — one pill that slides to the active item.
-                Positioned relative to this wrapper (the links' offsetParent).
-                Sized from measurement so it fits the collapsed rail exactly;
-                the reveal vars keep its gradient registered with the rail. */}
-            {lens && (
-              <div
-                aria-hidden="true"
-                className="optio-glass optio-glass-lens absolute top-0 rounded-xl"
-                style={{
-                  left: `${LENS_INSET_X}px`,
-                  width: `${lens.width}px`,
-                  height: `${lens.height}px`,
-                  transform: `translateY(${lens.top}px)${lensStretch ? ' scaleY(1.12)' : ''}`,
-                  '--og-reveal-h': `${lens.wrapH}px`,
-                  '--og-reveal-y': `${-lens.top}px`,
-                  ...(lens.animate ? {} : { transition: 'none' }),
-                }}
-              />
-            )}
+            the items below the fold become unreachable. The 8px inset matches on
+            all four sides (pt-2/px-2) so the rail reads as one evenly-padded
+            column under the navbar instead of a panel with a deep top gap. */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pt-2 px-2">
           <nav className="space-y-2">
             {/* SIS launcher — hops staff to the School Admin console (sis. host).
                 First item so it's always visible, even on short windows. */}
@@ -554,7 +448,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
               <button
                 onClick={() => { switchSurfaceInApp('sis', '/'); handleNavClick() }}
                 title={!isExpanded ? 'School Admin' : undefined}
-                className="w-full flex items-center rounded-lg relative font-poppins font-medium transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90"
+                className="w-full flex items-center rounded-lg relative font-poppins font-medium transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3 text-white bg-gradient-primary hover:opacity-90"
               >
                 <span className="w-5 flex-shrink-0">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -591,18 +485,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                         to={item.path}
                         onClick={handleNavClick}
                         title={!isExpanded ? item.name : undefined}
-                        ref={(el) => {
-                          if (el) itemRefs.current[item.path] = el
-                          else delete itemRefs.current[item.path]
-                        }}
                         className={`
                           flex items-center rounded-lg relative
-                          font-poppins transition-[color,background-color,transform] duration-300
+                          font-poppins transition-colors duration-200
                           min-h-[44px] touch-manipulation
                           px-3 py-3
                           ${isActive
-                            ? 'text-optio-purple font-semibold scale-[1.05] origin-left'
-                            : 'text-neutral-700 font-medium hover:bg-[#F3EFF4]'
+                            ? 'bg-optio-purple/10 text-optio-purple font-semibold'
+                            : 'text-neutral-700 font-medium hover:bg-neutral-50'
                           }
                         `}
                       >
@@ -632,7 +522,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
             ))}
 
           </nav>
-          </div>
         </div>
 
         {/* Acting As Banner (when parent is viewing as child) */}
@@ -657,7 +546,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                   setActingAsBannerExpanded(true)
                 }}
                 title="Acting as child - click to expand"
-                className="w-full flex items-center justify-center rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white min-h-[44px] touch-manipulation px-3 py-3"
+                className="w-full flex items-center justify-center rounded-lg bg-gradient-primary text-white min-h-[44px] touch-manipulation px-3 py-3"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -686,7 +575,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                   setMasqueradeBannerExpanded(true)
                 }}
                 title="Masquerading - click to expand"
-                className="w-full flex items-center justify-center rounded-lg bg-gradient-to-r from-yellow-500 to-orange-500 text-white min-h-[44px] touch-manipulation px-3 py-3"
+                className="w-full flex items-center justify-center rounded-lg bg-gradient-primary text-white min-h-[44px] touch-manipulation px-3 py-3"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

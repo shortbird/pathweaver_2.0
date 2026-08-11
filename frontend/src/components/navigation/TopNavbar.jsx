@@ -79,10 +79,18 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
 
   return (
     <nav ref={navRef} className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
-      <div className="h-16 px-4 sm:px-6 lg:px-8">
+      {/* lg:pl-5 = 20px, the sidebar's icon column (rail px-2 + item px-3). The
+          logo and the nav icons below it sit on one vertical line instead of the
+          logo being indented 12px further than everything under it. */}
+      <div className="h-16 px-4 sm:px-6 lg:pl-5 lg:pr-8">
         <div className="flex justify-between items-center h-full">
-          {/* Left Section: Logo + Toggle */}
-          <div className="flex items-center space-x-6">
+          {/* Left Section: Logo + Toggle.
+              gap-3, not space-x-3: space-x's `~ :not([hidden])` selector still
+              matches siblings hidden with `lg:hidden` (display:none is not the
+              hidden attribute), so on desktop the logo was inheriting a phantom
+              12px margin from the mobile menu button — the real source of the
+              corner's off-by-a-bit indent. gap ignores display:none children. */}
+          <div className="flex items-center gap-3">
             {/* Mobile Menu Button */}
             {isAuthenticated && (
               <button
@@ -114,9 +122,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   <img
                     src={organization.branding_config.logo_url}
                     alt={organization.name}
-                    className="h-8 w-auto max-w-[140px] hidden sm:block"
+                    className="h-9 w-auto max-w-[140px] hidden sm:block"
                   />
-                  <div className="h-6 w-px bg-gray-300 hidden sm:block" aria-hidden="true"></div>
+                  <div className="h-7 w-px bg-gray-300 hidden sm:block" aria-hidden="true"></div>
                 </>
               )}
 
@@ -126,16 +134,18 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 <img
                   src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
                   alt="Optio"
-                  className="h-8 w-8"
+                  className="h-9 w-9"
                 />
               ) : siteSettings?.logo_url ? (
+                /* h-10 in a 64px bar: the old h-8 left the mark floating in a
+                   band of dead space above and below it. */
                 <img
                   src={siteSettings.logo_url}
                   alt={siteSettings.site_name || "Optio"}
-                  className="h-8 w-auto"
+                  className="h-10 w-auto"
                 />
               ) : (
-                <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
+                <span className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
                   {siteSettings?.site_name || "Optio"}
                 </span>
               )}
@@ -149,7 +159,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
               <>
                 {/* Acting As Indicator - Show when parent is acting as child */}
                 {actingAsDependent && parentName && (
-                  <div className="hidden sm:flex items-center gap-1 text-xs font-poppins bg-gradient-to-r from-optio-purple to-optio-pink text-white px-2 py-1 rounded-full">
+                  <div className="hidden sm:flex items-center gap-1 text-xs font-poppins bg-gradient-primary text-white px-2 py-1 rounded-full">
                     <span className="font-medium">{parentName}</span>
                     <span className="opacity-80">as</span>
                     <span className="font-semibold">{`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name}</span>
