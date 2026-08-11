@@ -173,6 +173,7 @@ def archive_enrollment(user_id, quest_id):
         data = request.get_json() or {}
         reason = (data.get('reason') or '').strip() or None
         feedback = (data.get('feedback') or '').strip() or None
+        # admin client justified: self-scoped update of the caller's own user_quests row, filtered by user_id from @require_auth (candidate for user-client scoping)
         supabase = get_supabase_admin_client()
         res = supabase.table('user_quests').update({
             'archived_at': datetime.now(timezone.utc).isoformat(),
@@ -193,6 +194,7 @@ def archive_enrollment(user_id, quest_id):
 def unarchive_enrollment(user_id, quest_id):
     """Restore an H1-archived enrollment back to the active list."""
     try:
+        # admin client justified: self-scoped update of the caller's own user_quests row, filtered by user_id from @require_auth (candidate for user-client scoping)
         supabase = get_supabase_admin_client()
         res = supabase.table('user_quests').update({
             'archived_at': None, 'archive_reason': None, 'archive_feedback': None,

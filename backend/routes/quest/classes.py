@@ -122,6 +122,7 @@ def list_my_classes(user_id: str):
     based like the old behavior but does NOT drop completed classes.
     """
     try:
+        # admin client justified: reads only the caller's own user_quests/completions/tasks plus joined quest rows (candidate for user-client scoping)
         supabase = get_supabase_admin_client()
         enrollments = supabase.table('user_quests') \
             .select('quest_id, quests(id, title, transcript_subject, class_review_status, quest_type, is_active, header_image_url, image_url, metadata)') \
@@ -170,6 +171,7 @@ def list_my_classes(user_id: str):
 def get_class_progress(user_id: str, quest_id: str):
     """Return subject-XP progress for a class quest."""
     try:
+        # admin client justified: quest fetch feeds the owner-or-superadmin authz check itself; superadmin path then reads the OWNER's completions/tasks (cross-user)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
             .select('id, title, quest_type, transcript_subject, class_review_status, class_review_submitted_at, class_review_notes, created_by') \
@@ -230,6 +232,7 @@ def submit_class_for_review(user_id: str, quest_id: str):
     is the milestone submission that asks Optio to issue a transcript line.
     """
     try:
+        # admin client justified: quest fetch precedes the created_by ownership check, then writes review-status columns on the quests row (no student RLS write path on quests)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
             .select('id, title, quest_type, transcript_subject, class_review_status, created_by') \

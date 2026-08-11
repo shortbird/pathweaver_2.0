@@ -269,6 +269,7 @@ def upload_evidence_batch(user_id):
     }
     """
     try:
+        # admin client justified: helper (parent/advisor) writes evidence blocks onto another user's (the student's) task; gated below by verify_advisor_access / verify_parent_access + task-ownership check
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
 
@@ -645,6 +646,7 @@ def _verify_helper_can_upload_for_task(user_id: str, student_id: str, task_id: s
 
     # Confirm the task belongs to the named student so a parent can't smuggle
     # files into another kid's evidence document via a forged task_id.
+    # admin client justified: reads another user's (the student's) user_quest_tasks row as part of the access check itself, after advisor/parent relationship verification above
     supabase = get_supabase_admin_client()
     task_check = supabase.table('user_quest_tasks') \
         .select('id, user_id') \
@@ -692,6 +694,7 @@ def helper_signed_upload_init(user_id):
         # student's own evidence and are picked up by their existing read
         # paths (portfolio, journal, etc.).
         from services.media_upload_service import MediaUploadService
+        # admin client justified: creates a signed-upload session under the STUDENT's storage path on the helper's behalf; gated by _verify_helper_can_upload_for_task above
         admin_supabase = get_supabase_admin_client()
         session = MediaUploadService(admin_supabase).create_upload_session(
             user_id=student_id,
@@ -746,6 +749,7 @@ def helper_signed_upload_finalize(user_id):
         _verify_helper_can_upload_for_task(user_id, student_id, task_id)
 
         from services.media_upload_service import MediaUploadService
+        # admin client justified: finalizes an upload stored under the STUDENT's storage path (cross-user); gated by _verify_helper_can_upload_for_task above
         admin_supabase = get_supabase_admin_client()
         result = MediaUploadService(admin_supabase).finalize_upload(
             user_id=student_id,

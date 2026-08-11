@@ -108,6 +108,7 @@ def _authorize_class(user_id, class_id):
     """
     if _bad_uuid(class_id):
         return None, False, (jsonify({'success': False, 'error': 'Invalid class id'}), 400)
+    # admin client justified: discussion tables are RLS-deny-all; this loads the class and runs the _access participant gate (teacher/admin/enrolled student) before anything is returned
     admin = get_supabase_admin_client()
     class_row = _load_org_class(admin, class_id)
     if not class_row:
@@ -130,6 +131,7 @@ def _resolve_class_for_quest(user_id, quest_id):
     """
     if _bad_uuid(quest_id):
         return None, False, (jsonify({'success': False, 'error': 'Invalid quest id'}), 400)
+    # admin client justified: resolves quest -> owning class across class_quests/org_classes (deny-all RLS), then applies the _access participant gate per class
     admin = get_supabase_admin_client()
     links = (
         admin.table('class_quests').select('class_id')
@@ -201,6 +203,7 @@ def _build_thread(class_row, user_id, is_moderator):
     """The full board for a class: top-level posts (newest first) each with their
     replies (oldest first). Soft-deleted leaf posts are omitted; a soft-deleted
     parent with surviving replies renders as a '[deleted]' tombstone."""
+    # admin client justified: RLS-deny-all class_discussion_posts read + cross-user author-name hydration; callers already passed the participant gate
     admin = get_supabase_admin_client()
     posts = (
         admin.table('class_discussion_posts')
@@ -250,6 +253,7 @@ def _create_post(class_row, user_id):
         return jsonify({'success': False, 'error': f'Message is too long (max {_MAX_BODY_LEN} characters)'}), 400
 
     parent_post_id = data.get('parent_post_id')
+    # admin client justified: RLS-deny-all class_discussion_posts insert; author is the authenticated caller and the participant gate was passed by the route
     admin = get_supabase_admin_client()
 
     if parent_post_id:
@@ -325,6 +329,7 @@ def delete_discussion_post(user_id, class_id, post_id):
         return err
     if _bad_uuid(post_id):
         return jsonify({'success': False, 'error': 'Invalid post id'}), 400
+    # admin client justified: soft-delete on RLS-deny-all class_discussion_posts; own-post-or-moderator check enforced below
     admin = get_supabase_admin_client()
     rows = (
         admin.table('class_discussion_posts')
@@ -379,6 +384,7 @@ def delete_discussion_post_by_quest(user_id, quest_id, post_id):
         return err
     if _bad_uuid(post_id):
         return jsonify({'success': False, 'error': 'Invalid post id'}), 400
+    # admin client justified: soft-delete on RLS-deny-all class_discussion_posts; own-post-or-moderator check enforced below
     admin = get_supabase_admin_client()
     rows = (
         admin.table('class_discussion_posts')

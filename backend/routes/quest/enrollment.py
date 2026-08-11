@@ -46,6 +46,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
             try:
                 # IDOR-H5: acting as the child to start a quest is a WRITE;
                 # view-only observers must not enroll on a child's behalf.
+                # admin client justified: parent->child link verification reads parent_student_links / managed_by_parent_id; the lookup IS the access check
                 verify_parent_access(get_supabase_admin_client(), user_id, acting_as_dependent_id, allow_observer=False)
             except AuthorizationError:
                 return error_response(
@@ -59,6 +60,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
             # observers manage/observe but never become learners. A parent who
             # wants to start a quest must do it on behalf of a child via
             # acting_as_dependent_id (handled above).
+            # admin client justified: role-gate lookup of the caller's own users row (role/org_role) to block parent/observer self-enrollment (candidate for user-client scoping)
             caller = get_supabase_admin_client().table('users')\
                 .select('role, org_role, org_roles')\
                 .eq('id', user_id)\

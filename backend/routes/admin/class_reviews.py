@@ -38,6 +38,7 @@ def _student_display_name(u):
 def list_class_reviews(user_id: str):
     """List class submissions. Filterable by status (default: submitted_for_review)."""
     try:
+        # admin client justified: @require_admin; platform-wide read of all students' class quests + user profiles for the review queue
         supabase = get_supabase_admin_client()
         status_filter = request.args.get('status', 'submitted_for_review')
 
@@ -88,6 +89,7 @@ def list_class_reviews(user_id: str):
 def get_class_review_detail(user_id: str, quest_id: str):
     """Full detail: quest, student, contributing tasks (with approved subject XP)."""
     try:
+        # admin client justified: @require_admin; reads the submitting student's quest, profile, completions, and evidence blocks (cross-user)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
             .select('id, title, big_idea, description, transcript_subject, class_review_status, class_review_submitted_at, class_review_notes, created_by, created_at') \
@@ -198,6 +200,7 @@ def get_class_review_detail(user_id: str, quest_id: str):
 def approve_class_review(user_id: str, quest_id: str):
     """Approve a class submission — awards the transcript credit."""
     try:
+        # admin client justified: @require_admin; writes review status onto the student's quest row (cross-user write)
         supabase = get_supabase_admin_client()
         data = request.get_json() or {}
         notes = (data.get('notes') or '').strip() or None
@@ -239,6 +242,7 @@ def approve_class_review(user_id: str, quest_id: str):
 def reject_class_review(user_id: str, quest_id: str):
     """Reject a class submission with notes; student can keep building and resubmit."""
     try:
+        # admin client justified: @require_admin; writes review status + notes onto the student's quest row (cross-user write)
         supabase = get_supabase_admin_client()
         data = request.get_json() or {}
         notes = (data.get('notes') or '').strip()

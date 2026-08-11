@@ -54,6 +54,7 @@ def _read_target(user_id, org_id):
         (request.get_json(silent=True) or {}).get('teacher_id')
     if not target or target == user_id or not sis_service.caller_is_admin(user_id):
         return user_id
+    # admin client justified: cross-user read to confirm the previewed teacher belongs to the caller's org; only reached after caller_is_admin passes
     row = (get_supabase_admin_client().table('users').select('id, organization_id')
            .eq('id', target).limit(1).execute()).data
     if row and row[0].get('organization_id') == org_id:
@@ -92,6 +93,7 @@ def class_roster(user_id, class_id):
     scope = sis_service.class_scope(user_id, org_id)
     if scope is not None and class_id not in scope:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
+    # admin client justified: org_classes ownership check for a roster read; gated by @require_role(STAFF_ROLES) + class_scope filter above, views access-logged
     cls = (get_supabase_admin_client().table('org_classes')
            .select('id, name, organization_id, supply_fee, supply_budget_per_student')
            .eq('id', class_id).limit(1).execute()).data
@@ -131,6 +133,7 @@ def class_messaging(user_id, class_id):
     if scope is not None and class_id not in scope:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
 
+    # admin client justified: cross-user reads/writes (group_members, class roster user profiles) gated by @require_role(STAFF_ROLES) + class_scope filter above
     admin = get_supabase_admin_client()
     cls = (admin.table('org_classes')
            .select('id, name, organization_id, primary_instructor_id, assistant_instructor_ids')
@@ -345,6 +348,7 @@ def upload_onboarding_doc(user_id):
         return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
     file.seek(0)
 
+    # admin client justified: upload to the PRIVATE staff-documents bucket (service-role-only storage); path pinned to org_id/user_id from @require_role(STAFF_ROLES)
     supabase = get_supabase_admin_client()
     try:
         supabase.storage.get_bucket(_STAFF_DOCS_BUCKET)
@@ -380,6 +384,7 @@ def onboarding_doc_url(user_id):
     if not sis_service.caller_is_admin(user_id) and parts[1] != user_id:
         return jsonify({'success': False, 'error': 'Document not found'}), 404
     try:
+        # admin client justified: signed URL on the PRIVATE staff-documents bucket; path prefix checked above (own file, or any org file for caller_is_admin)
         signed = get_supabase_admin_client().storage.from_(_STAFF_DOCS_BUCKET) \
             .create_signed_url(path, 3600)
         url = signed.get('signedURL') or signed.get('signedUrl')
@@ -451,6 +456,7 @@ def my_documents(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: sis_secure_documents is a service-role-only staff-records table; read filtered to owner_user_id == caller AND shared_with_owner
     rows = (get_supabase_admin_client().table('sis_secure_documents')
             .select('id, filename, category, note, size_bytes, created_at, '
                     'shared_with_owner, uploaded_by_owner')
@@ -486,6 +492,7 @@ def upload_my_document(user_id):
         return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
     file.seek(0)
 
+    # admin client justified: upload + insert into service-role-only sis_secure_documents / private bucket; owner_user_id forced to the authenticated caller
     supabase = get_supabase_admin_client()
     try:
         supabase.storage.get_bucket(_SECURE_DOCS_BUCKET)
@@ -538,6 +545,7 @@ def my_document_url(user_id, doc_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: service-role-only sis_secure_documents lookup; org + owner_user_id + shared_with_owner re-checked below before any URL is issued
     rows = (get_supabase_admin_client().table('sis_secure_documents')
             .select('id, storage_path, organization_id, owner_user_id, shared_with_owner')
             .eq('id', doc_id).limit(1).execute()).data or []
@@ -547,6 +555,7 @@ def my_document_url(user_id, doc_id):
             or not doc.get('shared_with_owner')):
         return jsonify({'success': False, 'error': 'Document not found'}), 404
     try:
+        # admin client justified: signed URL on the private sis-secure-documents bucket, only after the ownership/sharing re-check above
         signed = get_supabase_admin_client().storage.from_(_SECURE_DOCS_BUCKET) \
             .create_signed_url(doc['storage_path'], 3600)
         url = signed.get('signedURL') or signed.get('signedUrl')

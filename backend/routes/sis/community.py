@@ -165,6 +165,7 @@ def upload_lost_found_image(user_id):
         return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
     file.seek(0)
 
+    # admin client justified: storage bucket create/upload for Lost & Found photos (service-role-only storage ops); staff-gated route, path pinned to resolved org
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_IMAGE_BUCKET):
@@ -227,6 +228,7 @@ def delete_recognition(user_id, recognition_id):
 def _caller_effective_role(user_id):
     from utils.roles import get_effective_role
     try:
+        # admin client justified: self-read of the caller's own role columns to pick the feed audience
         row = (get_supabase_admin_client().table('users')
                .select('role, org_role, org_roles').eq('id', user_id)
                .limit(1).execute()).data
@@ -293,6 +295,7 @@ def _is_student(user_id):
     """Students read the board; they don't arrange carpools on it."""
     from utils.roles import get_effective_role
     try:
+        # admin client justified: self-read of the caller's own role columns (fails closed) to keep students off the carpool board
         row = (get_supabase_admin_client().table('users')
                .select('role, org_role, org_roles').eq('id', user_id)
                .limit(1).execute()).data
@@ -370,6 +373,7 @@ def delete_carpool(user_id, post_id):
 
 def _org_name(org_id):
     try:
+        # admin client justified: organizations.name lookup for the caller's already-authorized feed org
         row = (get_supabase_admin_client().table('organizations').select('name')
                .eq('id', org_id).limit(1).execute()).data
         return (row[0].get('name') if row else None)

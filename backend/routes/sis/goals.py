@@ -158,6 +158,7 @@ def _parent_ids_for_student(admin, student_id):
 def my_goals(user_id):
     """The caller's students at goals-mode schools, each with the current
     school-year goal row (or null) and the org's goal-setting config."""
+    # admin client justified: cross-user read of the caller's children (parent_student_links / managed_by_parent_id) + their orgs' feature_flags; scoped to _my_student_ids
     admin = get_supabase_admin_client()
     student_ids = _my_student_ids(admin, user_id)
     if not student_ids:
@@ -218,6 +219,7 @@ def save_goals(user_id, student_id):
     Body: {direction, direction_notes, subjects: [{subject, year_goal, long_term}],
     submit: bool}. submit=true sets status='submitted'; editing a reviewed row
     returns it to 'submitted' while preserving the review history fields."""
+    # admin client justified: writes the child's sis_student_goals row; gated by the _is_my_student parent-linkage check immediately below
     admin = get_supabase_admin_client()
     if not _is_my_student(admin, user_id, student_id):
         return jsonify({'success': False, 'error': 'Not authorized for this student'}), 403
@@ -312,6 +314,7 @@ def list_goals(user_id):
             'error': 'No organization in context. Superadmins must pass ?organization_id.'
         }), 400
 
+    # admin client justified: org-wide sis_student_goals read + student/parent name hydration; gated by @require_role(STAFF_ROLES), filtered to resolved org
     admin = get_supabase_admin_client()
     query = admin.table('sis_student_goals').select('*').eq('organization_id', org_id)
     status = request.args.get('status')
@@ -370,6 +373,7 @@ def review_goal(user_id, goal_id):
             'error': 'No organization in context. Superadmins must pass ?organization_id.'
         }), 400
 
+    # admin client justified: marks another family's sis_student_goals row reviewed; gated by @require_role(STAFF_ROLES) + goal-belongs-to-org check below
     admin = get_supabase_admin_client()
     rows = (admin.table('sis_student_goals').select('*')
             .eq('id', goal_id).limit(1).execute()).data

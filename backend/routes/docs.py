@@ -578,6 +578,7 @@ def admin_upload_docs_image(user_id):
         import uuid
         from utils.storage_url import fix_storage_url
 
+        # admin client justified: @require_superadmin; storage write to the shared public docs-images bucket (no per-user storage policy)
         client = get_supabase_admin_client()
         path = f"articles/{uuid.uuid4().hex}.{ext}"
         client.storage.from_('docs-images').upload(

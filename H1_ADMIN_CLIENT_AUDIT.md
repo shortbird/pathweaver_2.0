@@ -310,3 +310,30 @@ Reasons that do NOT count (must replace with `get_user_client()`):
 - "It was easier to use admin client"
 - "RLS policies are confusing"
 - Any read of the *requesting* user's own data
+
+---
+
+## Pass 6 — Ratchet closure sweep (2026-08-11) ✅
+
+`backend/tests/unit/test_admin_client_justified.py` (added with the security
+audit) found 193 call sites still unannotated across 47 files — the SIS
+console routes, the program routes (treehouse, oea, poe, kiosk), and the
+long tail of quest/observer/messaging/account routes and services. All are
+now annotated with per-call justifications written from the actual gate at
+each call site; the ratchet passes. Remaining unchecked boxes in Passes 4–5
+above are covered by this sweep (the ratchet is now the source of truth).
+
+Calls flagged "(candidate for user-client scoping)" during the sweep —
+self-scoped reads/writes that could plausibly move to `get_user_client()`
+in a follow-up:
+- routes/quest_lifecycle.py:177, :198 (archive/unarchive own user_quests)
+- routes/quest/classes.py list_my_classes (own enrollments/completions)
+- routes/quest/enrollment.py:62 (own role read)
+- routes/quest_personalization.py:363 (quest metadata read)
+- routes/lesson_helper.py:92 (lesson content read)
+- routes/treehouse.py /me, /home, quest_more_ideas (own data reads)
+
+Caution from the sweep: account_deletion.py's calls look self-scoped but a
+prior get_user_client(user_id) attempt passed a UUID where a JWT was
+expected (anonymous-client fallback + users-RLS recursion, 42P17) — do not
+naively convert.

@@ -311,6 +311,7 @@ def generate_tasks(user_id: str, quest_id: str):
         if not age_band:
             try:
                 from utils.treehouse import is_treehouse_member
+                # admin client justified: derives the student's Treehouse age band from org tables (organizations / class_enrollments / org_classes) that have no student RLS read path
                 _admin = get_supabase_admin_client()
                 if is_treehouse_member(_admin, user_id):
                     enr = _admin.table('class_enrollments').select('class_id') \
@@ -359,6 +360,7 @@ def generate_tasks(user_id: str, quest_id: str):
         # cross_curricular list so generated tasks naturally pay XP toward
         # the class subject. Student-supplied subjects still come along.
         try:
+            # admin client justified: reads quest_type/transcript_subject of the quest being personalized regardless of catalog visibility (candidate for user-client scoping)
             supabase_admin = get_supabase_admin_client()
             quest_row = supabase_admin.table('quests')\
                 .select('quest_type, transcript_subject')\

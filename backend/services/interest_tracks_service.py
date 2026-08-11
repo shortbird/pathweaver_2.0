@@ -950,6 +950,7 @@ class InterestTracksService(BaseService):
         (matched by URL). Safe to call repeatedly. Returns blocks copied.
         """
         try:
+            # admin client justified: post-upload evidence sync copies a moment's blocks onto its promoted task(s); runs without a caller session and writes evidence rows for the task owner
             supabase = get_supabase_admin_client()
             tasks = supabase.table('user_quest_tasks') \
                 .select('id, user_id, quest_id') \

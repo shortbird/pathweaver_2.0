@@ -629,6 +629,7 @@ def register_routes(bp):
         parent_id = user_id
 
         try:
+            # admin client justified: parent-role gate + cross-user read of covered children's profiles via observer_invitation_students for the parent's own pending invites
             supabase = get_supabase_admin_client()
             parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
             if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
@@ -700,6 +701,7 @@ def register_routes(bp):
         parent_id = user_id
 
         try:
+            # admin client justified: may revoke an invitation CREATED BY A CO-PARENT; authorized below by child-ownership intersection (managed_by_parent_id / approved parent_student_links)
             supabase = get_supabase_admin_client()
             invite = supabase.table('observer_invitations') \
                 .select('id, invited_by_user_id, status') \

@@ -39,6 +39,7 @@ def register_routes(bp):
         observer_id = user_id
 
         try:
+            # admin client justified: cross-user read of the linked student's learning_events (non-confidential only), gated by the observer_student_links check directly below
             supabase = get_supabase_admin_client()
 
             link = supabase.table('observer_student_links') \

@@ -120,10 +120,9 @@ def cancel_account_deletion(user_id):
     Cancel account deletion during grace period
     """
     try:
-        # admin client justified: reads + clears the caller's own deletion fields
-        # (self-scoped by .eq('id', user_id) under @require_auth), matching the
-        # request-deletion sibling. Previously get_user_client(user_id) passed a UUID
-        # where a JWT was expected -> anonymous-client fallback -> users RLS recursion.
+        # Previously get_user_client(user_id) passed a UUID where a JWT was
+        # expected -> anonymous-client fallback -> users RLS recursion.
+        # admin client justified: reads + clears the caller's own deletion fields (self-scoped by .eq('id', user_id) under @require_auth), matching the request-deletion sibling
         supabase = get_supabase_admin_client()
 
         # Get user data
@@ -172,10 +171,9 @@ def get_deletion_status(user_id):
     Get account deletion status
     """
     try:
-        # admin client justified: reads the caller's own deletion status (self-scoped by
-        # .eq('id', user_id) under @require_auth), matching the sibling delete/cancel
-        # endpoints. The previous get_user_client(user_id) call passed a UUID where a JWT
+        # The previous get_user_client(user_id) call passed a UUID where a JWT
         # was expected -> anonymous-client fallback -> users RLS recursion (42P17) -> 500.
+        # admin client justified: reads the caller's own deletion status (self-scoped by .eq('id', user_id) under @require_auth), matching the sibling delete/cancel endpoints
         supabase = get_supabase_admin_client()
 
         user_response = supabase.table('users').select(

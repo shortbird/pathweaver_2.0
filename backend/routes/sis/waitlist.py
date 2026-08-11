@@ -36,6 +36,7 @@ def _org_or_error(user_id):
 
 
 def _class_in_org(org_id, class_id):
+    # admin client justified: org_classes ownership check used as the org-scoping gate by every staff-gated waitlist route
     cls = SisClassRepository(client=get_supabase_admin_client()).find_by_id(class_id)
     return bool(cls and cls.get('organization_id') == org_id)
 

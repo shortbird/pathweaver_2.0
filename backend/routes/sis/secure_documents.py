@@ -64,6 +64,7 @@ def _names_for(ids):
     ids = [i for i in ids if i]
     if not ids:
         return {}
+    # admin client justified: cross-user display-name hydration for org documents; callers are HR_ROLES-gated routes
     rows = (get_supabase_admin_client().table('users')
             .select('id, display_name, first_name, last_name, username, email')
             .in_('id', list(set(ids))).execute()).data or []
@@ -94,6 +95,7 @@ def upload_secure_document(user_id):
         return jsonify({'success': False, 'error': 'File size exceeds 15MB limit'}), 400
     file.seek(0)
 
+    # admin client justified: upload to the PRIVATE sis-secure-documents bucket + insert into its service-role-only table; gated by @require_role(HR_ROLES), row pinned to resolved org
     supabase = get_supabase_admin_client()
     try:
         supabase.storage.get_bucket(_SECURE_DOCS_BUCKET)
@@ -158,6 +160,7 @@ def list_secure_documents(user_id):
     if err:
         return err
 
+    # admin client justified: org-wide read of the service-role-only sis_secure_documents store; gated by @require_role(HR_ROLES), filtered to resolved org
     q = (get_supabase_admin_client().table('sis_secure_documents').select('*')
          .eq('organization_id', org_id))
     owner_filter = request.args.get('owner_user_id')
@@ -185,6 +188,7 @@ def _doc_or_error(user_id, doc_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return None, None, err
+    # admin client justified: service-role-only sis_secure_documents lookup; doc-belongs-to-org verified below before callers act on it
     rows = (get_supabase_admin_client().table('sis_secure_documents').select('*')
             .eq('id', doc_id).limit(1).execute()).data or []
     if not rows or rows[0].get('organization_id') != org_id:
@@ -216,6 +220,7 @@ def update_secure_document(user_id, doc_id):
             fields[key] = (data.get(key) or '').strip() or None
     if not fields:
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    # admin client justified: update of service-role-only sis_secure_documents; gated by @require_role(HR_ROLES) + _doc_or_error org check above
     row = (get_supabase_admin_client().table('sis_secure_documents')
            .update(fields).eq('id', doc_id).execute()).data
     return jsonify({'success': True, 'document': (row or [doc])[0]})
@@ -229,6 +234,7 @@ def secure_document_url(user_id, doc_id):
     if err:
         return err
     try:
+        # admin client justified: signed URL on the private sis-secure-documents bucket; gated by @require_role(HR_ROLES) + _doc_or_error org check above
         signed = get_supabase_admin_client().storage.from_(_SECURE_DOCS_BUCKET) \
             .create_signed_url(doc['storage_path'], 3600)
         url = signed.get('signedURL') or signed.get('signedUrl')
@@ -245,6 +251,7 @@ def delete_secure_document(user_id, doc_id):
     doc, _org_id, err = _doc_or_error(user_id, doc_id)
     if err:
         return err
+    # admin client justified: blob removal + row delete on the service-role-only secure store; gated by @require_role(HR_ROLES) + _doc_or_error org check above
     supabase = get_supabase_admin_client()
     try:
         supabase.storage.from_(_SECURE_DOCS_BUCKET).remove([doc['storage_path']])

@@ -70,6 +70,7 @@ def _clean(data):
 def _org_calendar_settings(org_id):
     """(feature_flags, sis_settings) for the org — calendar categories live here.
     The feed TOKEN does not: it is a credential and lives in organization_secrets."""
+    # admin client justified: reads organizations.feature_flags for calendar settings; callers are staff-gated routes with org_id already resolved
     org = (get_supabase_admin_client().table('organizations')
            .select('feature_flags').eq('id', org_id).single().execute()).data or {}
     flags = org.get('feature_flags') or {}
@@ -86,6 +87,7 @@ def list_events(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: sis_events is deny-all RLS (service role only); gated by @require_role(STAFF_ROLES), filtered to resolved org + audience gate below
     q = (get_supabase_admin_client().table('sis_events').select('*')
          .eq('organization_id', org_id))
     if request.args.get('from'):
@@ -97,6 +99,7 @@ def list_events(user_id):
     # Audience gate: admins see everything; teachers (advisors) see school +
     # teacher events, never admin-only ones. (Families use a separate endpoint.)
     from utils.roles import get_effective_role
+    # admin client justified: self-read of the caller's role columns to apply the audience gate (advisors never see admin-only events)
     viewer = (get_supabase_admin_client().table('users')
               .select('role, org_role, organization_id').eq('id', user_id).limit(1).execute()).data
     role = get_effective_role(viewer[0]) if viewer else None
@@ -120,6 +123,7 @@ def create_event(user_id):
         return jsonify({'success': False, 'error': 'A start date/time is required'}), 400
     fields.update({'organization_id': org_id, 'created_by': user_id})
     try:
+        # admin client justified: insert into deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES), row pinned to resolved org
         row = (get_supabase_admin_client().table('sis_events').insert(fields).execute()).data
     except Exception as e:  # noqa: BLE001
         logger.error(f'sis_events: create failed: {e}')
@@ -128,6 +132,7 @@ def create_event(user_id):
 
 
 def _owned_event(event_id, org_id):
+    # admin client justified: deny-all-RLS sis_events ownership check; result is compared against the caller's resolved org before any write
     rows = (get_supabase_admin_client().table('sis_events').select('id, organization_id')
             .eq('id', event_id).limit(1).execute()).data or []
     return rows[0] if rows and rows[0].get('organization_id') == org_id else None
@@ -149,6 +154,7 @@ def update_event(user_id, event_id):
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
     fields['updated_at'] = datetime.utcnow().isoformat()
     try:
+        # admin client justified: update of deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES) + _owned_event org check above
         row = (get_supabase_admin_client().table('sis_events').update(fields)
                .eq('id', event_id).execute()).data
     except Exception as e:  # noqa: BLE001
@@ -165,6 +171,7 @@ def delete_event(user_id, event_id):
         return err
     if not _owned_event(event_id, org_id):
         return jsonify({'success': False, 'error': 'Event not found'}), 404
+    # admin client justified: delete on deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES) + _owned_event org check above
     get_supabase_admin_client().table('sis_events').delete().eq('id', event_id).execute()
     return jsonify({'success': True})
 
@@ -259,6 +266,7 @@ def calendar_ics(org_id):
     token = (request.args.get('token') or '').strip()
     from utils.org_secrets import (get_org_secret, CALENDAR_FEED_TOKEN,
                                    CALENDAR_FEED_TOKEN_FAMILY)
+    # admin client justified: public unauthenticated ICS feed (calendar apps can't log in); access is enforced by the per-org token compare below
     org = (get_supabase_admin_client().table('organizations')
            .select('name, feature_flags').eq('id', org_id).single().execute()).data
     if not org:
@@ -274,6 +282,7 @@ def calendar_ics(org_id):
     is_staff_token = _match(CALENDAR_FEED_TOKEN)
     if not is_staff_token and not _match(CALENDAR_FEED_TOKEN_FAMILY):
         return 'Not authorized', 403
+    # admin client justified: deny-all-RLS sis_events read for the tokenized feed; token verified above, admin-only events excluded
     q = (get_supabase_admin_client().table('sis_events').select('*')
          .eq('organization_id', org_id)
          # The token can be shared, so never leak admin-only events through the

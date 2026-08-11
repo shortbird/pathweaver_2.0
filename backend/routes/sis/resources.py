@@ -106,6 +106,7 @@ def list_resources(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: org-wide org_resources + sis_resource_acks read gated by @require_role(STAFF_ROLES); audience/role visibility filtered in code below
     supabase = get_supabase_admin_client()
     rows = (supabase.table('org_resources').select('*')
             .eq('organization_id', org_id)
@@ -151,6 +152,7 @@ def reconcile_paperwork_resources(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: reads organizations.feature_flags + creates org_resources rows for the org; gated by @require_role(ADMIN_ROLES)
     supabase = get_supabase_admin_client()
     paperwork = _org_paperwork(supabase, org_id)  # [{key, label, doc_url}]
     existing = (supabase.table('org_resources').select('paperwork_key')
@@ -183,6 +185,7 @@ def acknowledge_resource(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: self-scoped sis_resource_acks upsert (user_id from @require_role) after resource-belongs-to-org check below
     supabase = get_supabase_admin_client()
     resource = _owned_resource(supabase, org_id, resource_id)
     if not resource or (resource.get('audience') or 'families') == 'families':
@@ -203,6 +206,7 @@ def resource_acks(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: cross-user read of all staff acknowledgments for a completion report; gated by @require_role(ADMIN_ROLES) + resource org check below
     supabase = get_supabase_admin_client()
     resource = _owned_resource(supabase, org_id, resource_id)
     if not resource:
@@ -238,6 +242,7 @@ def create_resource(user_id):
         return jsonify({'success': False, 'error': 'Title is required'}), 400
     if not url:
         return jsonify({'success': False, 'error': 'A link or uploaded file is required'}), 400
+    # admin client justified: org_resources create + organizations.feature_flags paperwork bookkeeping; gated by @require_role(ADMIN_ROLES), row pinned to resolved org
     supabase = get_supabase_admin_client()
     paperwork_key = (data.get('paperwork_key') or '').strip() or None
     if paperwork_key:
@@ -295,6 +300,7 @@ def update_resource(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: org_resources update + feature_flags paperwork bookkeeping; gated by @require_role(ADMIN_ROLES) + resource-belongs-to-org check below
     supabase = get_supabase_admin_client()
     existing = _owned_resource(supabase, org_id, resource_id)
     if not existing:
@@ -353,6 +359,7 @@ def delete_resource(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: org_resources delete + feature_flags cleanup; gated by @require_role(ADMIN_ROLES) + resource-belongs-to-org check below
     supabase = get_supabase_admin_client()
     existing = _owned_resource(supabase, org_id, resource_id)
     if not existing:
@@ -386,6 +393,7 @@ def upload_resource_file(user_id):
         return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
     file.seek(0)
 
+    # admin client justified: storage bucket create/upload to org-documents (service-role-only storage ops); gated by @require_role(ADMIN_ROLES), path pinned to resolved org
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_ORG_DOCS_BUCKET):

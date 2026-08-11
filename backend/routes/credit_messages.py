@@ -79,6 +79,7 @@ def _can_access(completion, user, role, admin):
 def get_credit_messages(user_id, completion_id):
     """List the feedback thread for a completion."""
     try:
+        # admin client justified: cross-user thread read (student <-> reviewer) gated by _can_access (owner / superadmin / designated reviewer / same-org admin / assigned advisor)
         admin = get_supabase_admin_client()
         completion, user, role = _load_context(user_id, completion_id, admin)
         if not completion:
@@ -121,6 +122,7 @@ def get_credit_messages(user_id, completion_id):
 def post_credit_message(user_id, completion_id):
     """Post a message to the feedback thread + notify the other party."""
     try:
+        # admin client justified: cross-user thread write + notifications to the other party, gated by _can_access (owner / superadmin / designated reviewer / same-org admin / assigned advisor)
         admin = get_supabase_admin_client()
         completion, user, role = _load_context(user_id, completion_id, admin)
         if not completion:

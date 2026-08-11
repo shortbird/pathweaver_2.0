@@ -89,6 +89,7 @@ def lesson_helper_chat(user_id):
         lesson_title, full_text, current_text = '', '', ''
         if lesson_id:
             try:
+                # admin client justified: reads curriculum_lessons content for AI context; lesson rows are course content without a student RLS read policy (candidate for user-client scoping if one exists)
                 client = get_supabase_admin_client()
                 lesson = client.table('curriculum_lessons')\
                     .select('title, content')\

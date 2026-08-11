@@ -106,6 +106,7 @@ def _authorize(user_id, class_id):
     """(class_row, admin, None) for a moderator, else (None, None, err_tuple)."""
     if _bad_uuid(class_id):
         return None, None, (jsonify({'success': False, 'error': 'Invalid class id'}), 400)
+    # admin client justified: loads the class and runs the _is_moderator gate (teacher/assistant/org admin) over deny-all-RLS class tables before any quest management
     admin = get_supabase_admin_client()
     class_row = _load_org_class(admin, class_id)
     if not class_row:

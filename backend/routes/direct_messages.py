@@ -748,6 +748,7 @@ def upload_attachment(user_id: str):
                               error_code="validation_error")
     file.seek(0)
 
+    # admin client justified: server-side storage upload to user-uploads bucket; path is server-generated under the caller's own user_id from @require_auth
     supabase = get_supabase_admin_client()
     bucket = 'user-uploads'
     path = f"messages/{user_id}/{_uuid.uuid4().hex}.{ext}"

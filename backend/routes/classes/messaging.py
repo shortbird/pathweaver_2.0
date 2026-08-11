@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 
 def _user_info(user_id):
+    # admin client justified: role/org lookup of the caller's own users row that feeds the can_manage_class authz check
     admin = get_supabase_admin_client()
     u = admin.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
     if not u.data:
@@ -47,6 +48,7 @@ def create_class_group(user_id, org_id, class_id):
 
         # Ensure the requesting staff member is in the group (as admin) so they
         # land in a conversation they can manage.
+        # admin client justified: @require_role staff + can_manage_class gate above; writes group_members membership/role for the class group
         admin = get_supabase_admin_client()
         me = admin.table('group_members').select('id, role').eq('group_id', group_id)\
             .eq('user_id', user_id).limit(1).execute()

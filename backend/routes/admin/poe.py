@@ -292,6 +292,7 @@ def auto_link_poe_on_register(user_id: str, email: str) -> dict | None:
         if not email or not user_id:
             return None
 
+        # admin client justified: fire-and-forget hook on the registration path acting on RLS-protected poe_signups/poe_participants before the new user has any session-scoped access
         admin_supabase = get_supabase_admin_client()
         signups = admin_supabase.table('poe_signups').select(
             'poe_cohort_id, is_homeschool, school_name, school_city, school_state, school_contact_email'
@@ -335,6 +336,7 @@ def auto_link_poe_on_signup(email: str, cohort: dict, signup: dict) -> dict | No
         if not email or not cohort:
             return None
 
+        # admin client justified: hook on the public unauthenticated /poe/enroll form — no session at all; provisions another user's quest/enrollment from a signup match
         admin_supabase = get_supabase_admin_client()
         user = _find_user_by_email(admin_supabase, email)
         if not user:
@@ -357,6 +359,7 @@ def list_poe_signups(user_id: str):
         if not slug:
             return error_response(code='COHORT_REQUIRED', message='Pass ?cohort=<slug>', status=400)
 
+        # admin client justified: @require_admin reconciliation read across poe_signups, poe_participants and other users' rows (email -> account matching)
         supabase = get_supabase_admin_client()
         cohort = _get_cohort(supabase, slug)
         if not cohort:
@@ -426,6 +429,7 @@ def link_participant(user_id: str):
         if not email:
             return error_response(code='EMAIL_REQUIRED', message='email is required', status=400)
 
+        # admin client justified: @require_admin onboarding write — creates another student's class quest, enrollment, tasks and participant row
         supabase = get_supabase_admin_client()
 
         user = _find_user_by_email(supabase, email)
@@ -498,6 +502,7 @@ def award_credit(user_id: str):
         target_user_id = (data.get('user_id') or '').strip()
         slug = (data.get('poe_cohort') or '').strip()
 
+        # admin client justified: @require_admin credit award — writes another student's quest review status and deposits their subject/pillar XP
         supabase = get_supabase_admin_client()
 
         if not target_user_id:

@@ -102,6 +102,7 @@ def _authorize_class(user_id, class_id):
     """(class_row, is_moderator, None) on success, or (None, False, err_tuple)."""
     if _bad_uuid(class_id):
         return None, False, (jsonify({'success': False, 'error': 'Invalid class id'}), 400)
+    # admin client justified: class_materials tables are RLS-deny-all; this loads the class and runs the _access participant gate (teacher/admin/enrolled student) before anything is returned
     admin = get_supabase_admin_client()
     class_row = _load_org_class(admin, class_id)
     if not class_row:
@@ -116,6 +117,7 @@ def _resolve_class_for_quest(user_id, quest_id):
     """Resolve the owning SIS class for a quest the caller participates in."""
     if _bad_uuid(quest_id):
         return None, False, (jsonify({'success': False, 'error': 'Invalid quest id'}), 400)
+    # admin client justified: resolves quest -> owning class across class_quests/org_classes (deny-all RLS), then applies the _access participant gate per class
     admin = get_supabase_admin_client()
     links = (
         admin.table('class_quests').select('class_id')
@@ -169,6 +171,7 @@ def list_materials(user_id, class_id):
     class_row, is_moderator, err = _authorize_class(user_id, class_id)
     if err:
         return err
+    # admin client justified: RLS-deny-all class_materials read; per-class participant gate already passed in _authorize_class
     admin = get_supabase_admin_client()
     rows = _list_materials(admin, class_row['id'])
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)
@@ -195,6 +198,7 @@ def add_link_material(user_id, class_id):
         return jsonify({'success': False, 'error': 'Title is too long.'}), 400
     if not (url.startswith('http://') or url.startswith('https://')):
         return jsonify({'success': False, 'error': 'Links must start with http:// or https://'}), 400
+    # admin client justified: RLS-deny-all class_materials insert; moderator (teacher/admin) gate checked above
     admin = get_supabase_admin_client()
     row = admin.table('class_materials').insert({
         'organization_id': class_row['organization_id'],
@@ -238,6 +242,7 @@ def upload_material(user_id, class_id):
     if len(title) > _MAX_TITLE_LEN:
         title = title[:_MAX_TITLE_LEN]
 
+    # admin client justified: storage bucket create/upload + RLS-deny-all class_materials insert; moderator (teacher/admin) gate checked above
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_MATERIALS_BUCKET):
@@ -283,6 +288,7 @@ def delete_material(user_id, class_id, material_id):
         return jsonify({'success': False, 'error': 'Only the class teacher can remove materials.'}), 403
     if _bad_uuid(material_id):
         return jsonify({'success': False, 'error': 'Invalid material id'}), 400
+    # admin client justified: RLS-deny-all class_materials delete + storage cleanup; moderator gate above plus own-material/admin check below
     admin = get_supabase_admin_client()
     rows = (admin.table('class_materials').select('id, class_id, file_path, created_by')
             .eq('id', material_id).limit(1).execute()).data
@@ -312,6 +318,7 @@ def list_materials_by_quest(user_id, quest_id):
     class_row, is_moderator, err = _resolve_class_for_quest(user_id, quest_id)
     if err:
         return err
+    # admin client justified: RLS-deny-all class_materials read; participant gate already passed in _resolve_class_for_quest
     admin = get_supabase_admin_client()
     rows = _list_materials(admin, class_row['id'])
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)

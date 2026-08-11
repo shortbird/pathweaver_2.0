@@ -56,6 +56,7 @@ def _truthy(v):
 
 def _instructor_in_org(org_id, instructor_id):
     """True when the given user belongs to this org (for primary_instructor_id)."""
+    # admin client justified: cross-user read of users.organization_id to validate a teacher belongs to the org; callers are ADMIN_ROLES-gated
     row = (
         get_supabase_admin_client().table('users').select('id, organization_id')
         .eq('id', instructor_id).limit(1).execute()
@@ -143,6 +144,7 @@ def create_class(user_id):
     bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
     if bad_assistant:
         return jsonify({'success': False, 'error': bad_assistant}), 400
+    # admin client justified: org-wide org_classes create gated by @require_role(ADMIN_ROLES); org pinned via sis_service.resolve_org_id
     repo = SisClassRepository(client=get_supabase_admin_client())
     fields = {**data, 'name': name}
     cls = repo.create_for_org(org_id, created_by=user_id, fields=fields)
@@ -179,6 +181,7 @@ def update_class(user_id, class_id):
     bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
     if bad_assistant:
         return jsonify({'success': False, 'error': bad_assistant}), 400
+    # admin client justified: org_classes SIS-field update gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:
@@ -208,6 +211,7 @@ def archive_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: archive gated by @require_role(ADMIN_ROLES); withdraws other students' class_enrollments + closes registration org-wide
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     existing = repo.find_by_id(class_id)
@@ -245,6 +249,7 @@ def restore_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: un-archive of org_classes gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     existing = repo.find_by_id(class_id)
@@ -285,6 +290,7 @@ def list_meetings(user_id, class_id):
     denied = _scope_denied(user_id, org_id, class_id)
     if denied:
         return denied
+    # admin client justified: org-wide class_meetings read gated by @require_role(STAFF_ROLES); advisors filtered by _scope_denied, class org ownership checked below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -306,6 +312,7 @@ def add_meeting(user_id, class_id):
         return jsonify({'success': False, 'error': 'day_of_week must be 0-6'}), 400
     if data['end_time'] <= data['start_time']:
         return jsonify({'success': False, 'error': 'end_time must be after start_time'}), 400
+    # admin client justified: class_meetings write gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -319,6 +326,7 @@ def delete_meeting(user_id, class_id, meeting_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: class_meetings delete gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -336,6 +344,7 @@ def list_prerequisites(user_id, class_id):
     denied = _scope_denied(user_id, org_id, class_id)
     if denied:
         return denied
+    # admin client justified: class prerequisites read gated by @require_role(STAFF_ROLES); advisors filtered by _scope_denied, class org ownership checked below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -351,6 +360,7 @@ def add_prerequisite(user_id, class_id):
     data = request.json or {}
     if not data.get('prerequisite_class_id') and not (data.get('note') or '').strip():
         return jsonify({'success': False, 'error': 'Provide prerequisite_class_id or a note'}), 400
+    # admin client justified: class prerequisites write gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -364,6 +374,7 @@ def delete_prerequisite(user_id, class_id, prerequisite_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: class prerequisites delete gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -381,6 +392,7 @@ def class_roster(user_id, class_id):
     denied = _scope_denied(user_id, org_id, class_id)
     if denied:
         return denied
+    # admin client justified: cross-student roster read (class_enrollments + users profiles) gated by @require_role(STAFF_ROLES); advisors filtered by _scope_denied
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     if not _load_class(repo, org_id, class_id):
@@ -418,6 +430,7 @@ def enroll_student(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: staff enroll another student — writes that student's class_enrollments; gated by @require_role(ADMIN_ROLES) + student-in-org check below
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     if not _load_class(repo, org_id, class_id):
@@ -465,6 +478,7 @@ def unenroll_student(user_id, class_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: staff drop another student — updates that student's class_enrollments; gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     if not _load_class(repo, org_id, class_id):
@@ -545,6 +559,7 @@ def upload_class_image(user_id, class_id):
     if err:
         return err
 
+    # admin client justified: storage bucket create/upload (service-role-only) + org_classes image_url write; gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     existing = _load_class(repo, org_id, class_id)
@@ -629,6 +644,7 @@ def upload_paperwork_doc(user_id):
     if size > _MAX_DOC_BYTES:
         return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
 
+    # admin client justified: storage bucket create/upload to org-documents (service-role-only storage ops); gated by @require_role(ADMIN_ROLES), path pinned to resolved org_id
     supabase = get_supabase_admin_client()
     _ensure_bucket(supabase, _ORG_DOCS_BUCKET)
 

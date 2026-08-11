@@ -116,6 +116,7 @@ def _is_real_email(email: Optional[str]) -> bool:
 
 def collect_class_credit_data(quest_id: str) -> Optional[Dict[str, Any]]:
     """Everything needed to build the portfolio and address the email."""
+    # admin client justified: runs in a background thread after admin approval (no request session); reads the student's quest, profile, completions, evidence + parent links for the credit-award email
     supabase = get_supabase_admin_client()
 
     quest = supabase.table('quests') \

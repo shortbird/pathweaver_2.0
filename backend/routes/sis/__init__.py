@@ -292,6 +292,7 @@ def upload_staff_photo(user_id, staff_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: writes another user's avatar_url + storage bucket ops; gated by @require_role(ADMIN_ROLES) + staff-belongs-to-org check below
     supabase = get_supabase_admin_client()
     row = (
         supabase.table('users').select('id, organization_id, avatar_url')
@@ -375,6 +376,7 @@ def create_household(user_id):
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'success': False, 'error': 'Household name is required'}), 400
+    # admin client justified: households create for the resolved org; gated by @require_role(ADMIN_ROLES)
     repo = HouseholdRepository(client=get_supabase_admin_client())
     fields = {k: data.get(k) for k in (
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
@@ -392,6 +394,7 @@ def update_household(user_id, household_id):
     if err:
         return err
     data = request.json or {}
+    # admin client justified: households update gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
     repo = HouseholdRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
@@ -439,6 +442,7 @@ def delete_household(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: deletes a household + all member links (rows owned by other users); gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
     supabase = get_supabase_admin_client()
     repo = HouseholdRepository(client=supabase)
     existing = repo.find_by_id(household_id)
@@ -457,6 +461,7 @@ def upload_household_image(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: storage bucket create/upload + households image_url write; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
     supabase = get_supabase_admin_client()
     repo = HouseholdRepository(client=supabase)
     existing = repo.find_by_id(household_id)
@@ -516,6 +521,7 @@ def add_household_member(user_id, household_id):
     member_user_id = data.get('user_id')
     email = (data.get('email') or '').strip().lower()
     relationship = data.get('relationship', 'student')
+    # admin client justified: cross-user email->account lookup (platform accounts outside the org) + household member write; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check
     admin = get_supabase_admin_client()
 
     # Connect a student by their Optio account email — covers accounts that
@@ -585,6 +591,7 @@ def remove_household_member(user_id, household_id, member_user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: removes another user's household_members link; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
     repo = HouseholdRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
@@ -750,6 +757,7 @@ def message_household(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: household ownership check before messaging its guardians; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
     repo = HouseholdRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
@@ -797,6 +805,7 @@ def waive_household_fee(user_id, household_id):
     from routes.icreate_registration import _finish_fee_step, _org_config
 
     def _finish(reg):
+        # admin client justified: completes the family's registration record at $0 on their behalf; route gated by @require_role(FINANCE_ROLES), org resolved above
         admin = get_supabase_admin_client()
         return _finish_fee_step(admin, reg, _org_config(admin, org_id),
                                 extra_fields={'fee_cents': 0})
@@ -842,6 +851,7 @@ def list_family_directives(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: sis_family_directives is a staff-managed staging table keyed by parent email (no owning user); gated by @require_role(ADMIN_ROLES), filtered to resolved org
     rows = (get_supabase_admin_client().table('sis_family_directives').select('*')
             .eq('organization_id', org_id).order('email').execute()).data or []
     return jsonify({'success': True, 'directives': rows})
@@ -884,6 +894,7 @@ def upsert_family_directives(user_id):
         })
     if not payload:
         return jsonify({'success': False, 'error': 'No rows had a valid email'}), 400
+    # admin client justified: bulk upsert of staff-managed sis_family_directives (no owning user); gated by @require_role(ADMIN_ROLES), rows pinned to resolved org
     saved = (get_supabase_admin_client().table('sis_family_directives')
              .upsert(payload, on_conflict='organization_id,email').execute()).data or []
     return jsonify({'success': True, 'saved': len(saved), 'skipped': skipped}), 200
@@ -895,6 +906,7 @@ def delete_family_directive(user_id, directive_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # admin client justified: delete of staff-managed sis_family_directives row; gated by @require_role(ADMIN_ROLES) + directive-belongs-to-org check below
     supabase = get_supabase_admin_client()
     existing = (supabase.table('sis_family_directives').select('id, organization_id')
                 .eq('id', directive_id).limit(1).execute()).data or []

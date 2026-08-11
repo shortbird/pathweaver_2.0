@@ -73,6 +73,7 @@ def adjust_completion_xp(user_id, completion_id):
     if not reason:
         return jsonify({'success': False, 'error': 'reason is required'}), 400
 
+    # admin client justified: adjusts another student's task XP (user_quest_tasks / user_skill_xp); gated by @require_role(STAFF_ROLES) + student_in_org/class_scope checks below
     admin = get_supabase_admin_client()
     comp_rows = (
         admin.table('quest_task_completions')

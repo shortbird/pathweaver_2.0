@@ -822,6 +822,7 @@ def propose_sync(org_id: str, sheet_url: str) -> Dict[str, Any]:
     desired, w2 = build_desired_classes(entries, snapshot['time_blocks'], snapshot['staff'])
     warnings += w2
 
+    # admin client justified: read-only org-wide class/meeting/enrollment diff for the sync proposal; caller is the ADMIN_ROLES-gated /api/sis/schedule-sync route, nothing is written here
     repo = SisClassRepository(client=get_supabase_admin_client())
     existing = repo.list_for_org(org_id)
     class_ids = [c['id'] for c in existing]

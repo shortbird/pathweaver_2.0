@@ -55,6 +55,7 @@ def _scope_classes(user_id, org_id):
     resolved org so an advisor's cross-org class ids (impossible today, cheap
     to guard) never leak another org's submissions.
     """
+    # admin client justified: org_classes read constrained to the resolved org + sis_service.class_scope; callers are STAFF_ROLES-gated routes
     admin = get_supabase_admin_client()
     scope = sis_service.class_scope(user_id, org_id)  # None = unrestricted
     q = admin.table('org_classes').select('id, name').eq('organization_id', org_id)
@@ -68,6 +69,7 @@ def _scope_classes(user_id, org_id):
 
 def _class_maps(class_ids):
     """(enrolled, attached): {class_id: set(student_ids)}, {class_id: set(quest_ids)}."""
+    # admin client justified: cross-student class_enrollments/class_quests reads over classes already limited to the caller's scope
     admin = get_supabase_admin_client()
     # Both reads span every class in scope, so both must page: PostgREST
     # truncates a large response silently, and a short read here drops students
@@ -104,6 +106,7 @@ def _completion_in_scope(user_id, org_id, completion_id):
     classes = _scope_classes(user_id, org_id)
     if not classes:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
+    # admin client justified: reads another student's quest_task_completions row, then verifies it sits inside one of the caller's scoped classes (404 otherwise)
     admin = get_supabase_admin_client()
     rows = (
         admin.table('quest_task_completions')
@@ -161,6 +164,7 @@ def list_submissions(user_id):
     if not all_students or not all_quests:
         return empty()
 
+    # admin client justified: cross-student inbox read (completions, evidence, profiles) gated by @require_role(STAFF_ROLES); rows filtered to the caller's scoped classes
     admin = get_supabase_admin_client()
     completions = (
         admin.table('quest_task_completions')
@@ -296,6 +300,7 @@ def review_submission(user_id, completion_id):
     if err:
         return err
     action = ((request.get_json(silent=True) or {}).get('action') or 'accepted').strip()
+    # admin client justified: upsert into staff-only sis_submission_reviews after _completion_in_scope verified the submission is in the caller's classes
     admin = get_supabase_admin_client()
     try:
         saved = admin.table('sis_submission_reviews').upsert({
@@ -322,6 +327,7 @@ def unreview_submission(user_id, completion_id):
     _, err = _completion_in_scope(user_id, org_id, completion_id)
     if err:
         return err
+    # admin client justified: delete on staff-only sis_submission_reviews after _completion_in_scope check; delete additionally pinned to the resolved org
     admin = get_supabase_admin_client()
     try:
         admin.table('sis_submission_reviews').delete() \

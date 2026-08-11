@@ -55,6 +55,7 @@ class EmailService(BaseService):
         """
         try:
             from database import get_supabase_admin_client
+            # admin client justified: email-send plumbing resolves the RECIPIENT's user/org by email address; runs in service context with no caller session
             db = get_supabase_admin_client()
             user = (db.table('users').select('organization_id')
                     .ilike('email', to_email).limit(1).execute()).data

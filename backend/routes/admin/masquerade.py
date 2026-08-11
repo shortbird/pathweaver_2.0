@@ -251,6 +251,7 @@ def list_demo_accounts(user_id):
     can be taken without signing in as each account.
     """
     try:
+        # admin client justified: @require_superadmin; reads other users' profile rows (seeded demo accounts) across the platform
         supabase = get_supabase_admin_client()
         res = supabase.table('users') \
             .select('id, email, first_name, last_name, display_name, role, avatar_url') \

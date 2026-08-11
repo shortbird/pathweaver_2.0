@@ -462,6 +462,7 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
+            # admin client justified: course + caller-role fetch feed the can_manage_course authz check, then writes courses.cover_image_url on a possibly org-owned course
             client = get_supabase_admin_client()
 
             course_result = client.table('courses').select(

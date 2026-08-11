@@ -40,6 +40,7 @@ def create_announcement(user_id):
     the SIS Community Hub composer publishes through the same path.
     """
     try:
+        # admin client justified: role-gated org broadcast — sender's effective role/org is resolved here and the fan-out writes notifications to every member of the org
         admin = get_supabase_admin_client()
         data = request.json or {}
         title = (data.get('title') or '').strip()
@@ -80,6 +81,7 @@ def create_announcement(user_id):
 def list_announcements(user_id):
     """List recent announcements for the caller's organization."""
     try:
+        # admin client justified: reads the org-level announcements table for the caller's org; org resolved from the caller's own users row
         admin = get_supabase_admin_client()
         sender = admin.table('users').select('organization_id')\
             .eq('id', user_id).single().execute().data
@@ -128,6 +130,7 @@ def announcements_archive(user_id):
     Platform parents of org students count as members (resolved via their kids).
     """
     try:
+        # admin client justified: org archive read incl. platform parents with no organization_id (membership resolved via their children); audience filtering applied in-query
         admin = get_supabase_admin_client()
 
         user_row = admin.table('users')\
@@ -233,6 +236,7 @@ def _resolve_admin_org(admin, user_id):
 def get_announcement_templates(user_id):
     """Reusable message templates, stored in feature_flags.sis_settings.message_templates."""
     try:
+        # admin client justified: org_admin/superadmin-gated read of organizations.feature_flags (org row, not caller-owned); org pinned by _resolve_admin_org
         admin = get_supabase_admin_client()
         org_id, _, err = _resolve_admin_org(admin, user_id)
         if err:
@@ -255,6 +259,7 @@ def get_announcement_templates(user_id):
 def put_announcement_templates(user_id):
     """Replace the org's template list: [{id, name, title, body}]."""
     try:
+        # admin client justified: org_admin/superadmin-gated write to organizations.feature_flags for the caller's own org (pinned by _resolve_admin_org)
         admin = get_supabase_admin_client()
         org_id, _, err = _resolve_admin_org(admin, user_id)
         if err:

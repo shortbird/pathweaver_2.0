@@ -25,6 +25,7 @@ bp = Blueprint('sis_schedule_sync', __name__, url_prefix='/api/sis/schedule-sync
 
 
 def _stored_sheet_url(org_id):
+    # admin client justified: reads organizations.feature_flags for the resolved org; callers are @require_role(ADMIN_ROLES) routes
     org = (get_supabase_admin_client().table('organizations')
            .select('feature_flags').eq('id', org_id).single().execute()).data or {}
     settings = (org.get('feature_flags') or {}).get('sis_settings') or {}

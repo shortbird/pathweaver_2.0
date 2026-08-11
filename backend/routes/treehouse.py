@@ -54,6 +54,7 @@ def _treehouse_org_id():
     """Return the Treehouse organization id (cached for the process)."""
     if _org_id_cache.get('id'):
         return _org_id_cache['id']
+    # admin client justified: org slug->id lookup that feeds the membership gate itself; runs before any authorization decision
     admin = get_supabase_admin_client()
     res = admin.table('organizations').select('id').eq('slug', TREEHOUSE_SLUG).limit(1).execute()
     org_id = res.data[0]['id'] if res.data else None
@@ -70,6 +71,7 @@ def _context(user_id):
     Returns dict: {user, org_id, is_member, is_facilitator, is_superadmin}.
     A facilitator is an org_admin or advisor in the Treehouse org (or superadmin).
     """
+    # admin client justified: this role/org lookup IS the auth check every Treehouse route gates on (member/facilitator/superadmin)
     admin = get_supabase_admin_client()
     u = admin.table('users').select(
         'id, role, org_role, org_roles, organization_id, first_name, display_name'
@@ -172,6 +174,7 @@ def treehouse_me(user_id):
     ctx = _context(user_id)
     simplified = False
     if ctx['is_member'] and not ctx['is_facilitator']:
+        # admin client justified: reads the caller's own enrollments + org_classes.ui_mode to pick the littles UI (candidate for user-client scoping)
         admin = get_supabase_admin_client()
         enr = (admin.table('class_enrollments').select('class_id')
                .eq('student_id', user_id).eq('status', 'active').execute().data or [])
@@ -198,6 +201,7 @@ def home(user_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: member-gated reads of the caller's own quests/tasks/completions (candidate for user-client scoping)
     admin = get_supabase_admin_client()
     # Most recent active quest for this student.
     aq = (admin.table('user_quests')
@@ -248,6 +252,7 @@ def list_quests(user_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: member-gated read of the org quest catalog + every student's user_quest_tasks rows to derive each quest's dominant pillar (cross-user)
     admin = get_supabase_admin_client()
     org_id = ctx['org_id']
 
@@ -302,6 +307,7 @@ def quest_more_ideas(user_id, quest_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: member-gated read of the org quest + the caller's own task list and cohort name for the AI prompt (candidate for user-client scoping)
     admin = get_supabase_admin_client()
 
     q = admin.table('quests').select('id, title, big_idea').eq('id', quest_id).limit(1).execute()
@@ -397,6 +403,7 @@ def create_signal(user_id):
     if signal_type not in ('help', 'proud'):
         return jsonify({'success': False, 'error': "signal_type must be 'help' or 'proud'"}), 400
 
+    # admin client justified: writes the caller's own signal row to the treehouse signal table and reads the org's facilitators (cross-user) for notification fan-out
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     row = repo.create_signal({
@@ -433,6 +440,7 @@ def list_signals(user_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated (_context) cross-student read of the org signal queue, filtered to the caller's cohort scope
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     # Cohort scoping (A1): advisors see only their cohorts' students by default;
@@ -458,6 +466,7 @@ def resolve_signal(user_id, signal_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated resolve of another student's signal; the signal's org ownership is verified before the write
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     sig = repo.get_signal(signal_id)
@@ -474,6 +483,7 @@ def list_students(user_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated cross-student roster read, limited to the caller's cohort scope (_scoped_student_ids)
     admin = get_supabase_admin_client()
     allowed = _scoped_student_ids(admin, ctx, request.args.get('cohort_id') or None)
     if not allowed:
@@ -495,6 +505,7 @@ def list_pins(user_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated read across many students' quest completions to build the pin queue, cohort-scoped
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     org_id = ctx['org_id']
@@ -547,6 +558,7 @@ def mark_pins(user_id):
     status = data.get('status', 'created')
     if status not in ('created', 'distributed'):
         return jsonify({'success': False, 'error': "status must be 'created' or 'distributed'"}), 400
+    # admin client justified: facilitator-gated batch upsert of pin rows for other students in the org
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     out = []
@@ -565,6 +577,7 @@ def student_balance(user_id, student_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated read of another student's user row (_student_in_org) before exposing their wallet balance
     admin = get_supabase_admin_client()
     if not (ctx['is_superadmin'] or _student_in_org(admin, student_id, ctx['org_id'])):
         return jsonify({'success': False, 'error': 'Student not in Treehouse'}), 403
@@ -582,6 +595,7 @@ def adjust_balance(user_id, student_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated cross-student wallet adjustment; target's Treehouse membership verified via _student_in_org first
     admin = get_supabase_admin_client()
     if not (ctx['is_superadmin'] or _student_in_org(admin, student_id, ctx['org_id'])):
         return jsonify({'success': False, 'error': 'Student not in Treehouse'}), 403
@@ -608,6 +622,7 @@ def list_showcase(user_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: member-gated read of org showcase events + every participant row (cross-student) for counts and the caller's own signup
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     events = repo.list_events(ctx['org_id'])
@@ -640,6 +655,7 @@ def create_showcase(user_id):
     title = (data.get('title') or '').strip()
     if not title:
         return jsonify({'success': False, 'error': 'title is required'}), 400
+    # admin client justified: facilitator-gated insert of an org-wide showcase event (org-scoped table, not caller-owned rows)
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     event = repo.create_event({
@@ -661,6 +677,7 @@ def update_showcase(user_id, event_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    # admin client justified: facilitator-gated update of an org showcase event; the event's org ownership is checked before the write
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     event = repo.get_event(event_id)
@@ -678,6 +695,7 @@ def showcase_roster(user_id, event_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: member-gated cross-student read: the full event roster plus participant names across the org
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     event = repo.get_event(event_id)
@@ -704,6 +722,7 @@ def join_showcase(user_id, event_id):
     ctx = _context(user_id)
     if not ctx['is_member']:
         return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    # admin client justified: writes a roster row (self-join, or another student when the caller is a facilitator) and reads the student's name for facilitator notifications
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     event = repo.get_event(event_id)
@@ -901,6 +920,7 @@ def enroll_cohort_students(user_id, class_id):
         return jsonify({'success': False, 'error': 'Cohort not found'}), 404
     student_ids = (request.get_json() or {}).get('student_ids') or []
     # Only enroll students who actually belong to this org.
+    # admin client justified: org-admin-gated (_is_admin) cross-user read confirming the requested student ids belong to the Treehouse org
     org_ids = set(_org_student_ids(get_supabase_admin_client(), ctx['org_id']))
     student_ids = [s for s in student_ids if s in org_ids]
     if not student_ids:
@@ -965,6 +985,7 @@ def facilitator_capture(user_id):
     if not description and not media:
         return jsonify({'success': False, 'error': 'Add a caption or a photo'}), 400
 
+    # admin client justified: facilitator-gated writes of learning_events + evidence blocks into other students' portfolios; targets filtered to org membership
     admin = get_supabase_admin_client()
     org_ids = set(_org_student_ids(admin, ctx['org_id']))
     created = []
@@ -1000,6 +1021,7 @@ def list_facilitators(user_id):
     ctx = _context(user_id)
     if not _is_admin(ctx):
         return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    # admin client justified: org-admin-gated read of the org's staff user rows (cross-user) for the cohort-assignment dropdown
     admin = get_supabase_admin_client()
     rows = (admin.table('users')
             .select('id, first_name, last_name, display_name, org_role, org_roles')
@@ -1023,6 +1045,7 @@ def create_kiosk_device(user_id):
     data = request.get_json() or {}
     label = (data.get('label') or 'Classroom device').strip()
     token = 'thk_' + secrets.token_urlsafe(24)
+    # admin client justified: facilitator-gated write of a kiosk device-token hash to the org-level device table
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     device = repo.create_kiosk_device({
@@ -1042,6 +1065,7 @@ def kiosk_roster():
     token = (data.get('device_token') or '').strip()
     if not token:
         return jsonify({'success': False, 'error': 'device_token required'}), 400
+    # admin client justified: pre-auth kiosk flow (no session); the hashed device token is the credential and reads are scoped to that device's org
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     device = repo.get_active_device_by_hash(_hash_token(token))
@@ -1117,6 +1141,7 @@ def kiosk_login():
     student_id = (data.get('student_id') or '').strip()
     if not token or not student_id:
         return jsonify({'success': False, 'error': 'device_token and student_id required'}), 400
+    # admin client justified: pre-auth passwordless kiosk login; hashed device token + student-in-org check gate the session mint
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     device = repo.get_active_device_by_hash(_hash_token(token))

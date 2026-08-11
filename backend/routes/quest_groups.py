@@ -26,6 +26,7 @@ def _org_access(user_id, org_id):
     Caller may manage this org's quest groups: superadmin, or an org_admin /
     advisor belonging to the org.
     """
+    # admin client justified: this role/org lookup IS the auth check every quest-group route gates on (superadmin or org_admin/advisor of the org)
     admin = get_supabase_admin_client()
     u = admin.table('users').select('role, org_role, org_roles, organization_id')\
         .eq('id', user_id).limit(1).execute()
@@ -58,6 +59,7 @@ def list_groups(user_id, org_id):
     """List the org's quest groups with their quest ids."""
     if not _org_access(user_id, org_id):
         return jsonify({'success': False, 'error': 'Organization access required'}), 403
+    # admin client justified: _org_access-gated read of the org's group + item rows (org-level tables, not caller-owned)
     admin = get_supabase_admin_client()
     groups = (admin.table('org_quest_groups').select('id, name, created_at')
               .eq('organization_id', org_id).order('name').execute()).data or []
@@ -83,6 +85,7 @@ def create_group(user_id, org_id):
     name = ((request.get_json() or {}).get('name') or '').strip()
     if not name:
         return jsonify({'success': False, 'error': 'name is required'}), 400
+    # admin client justified: _org_access-gated insert into org_quest_groups scoped to the verified org_id
     admin = get_supabase_admin_client()
     existing = (admin.table('org_quest_groups').select('id')
                 .eq('organization_id', org_id).eq('name', name).limit(1).execute())
@@ -104,6 +107,7 @@ def create_group(user_id, org_id):
 def rename_group(user_id, org_id, group_id):
     if not _org_access(user_id, org_id):
         return jsonify({'success': False, 'error': 'Organization access required'}), 403
+    # admin client justified: _org_access-gated rename; group's org ownership verified via _get_group_in_org before the write
     admin = get_supabase_admin_client()
     if not _get_group_in_org(admin, group_id, org_id):
         return jsonify({'success': False, 'error': 'Group not found'}), 404
@@ -122,6 +126,7 @@ def delete_group(user_id, org_id, group_id):
     """Delete a group (its items cascade). The quests themselves are untouched."""
     if not _org_access(user_id, org_id):
         return jsonify({'success': False, 'error': 'Organization access required'}), 403
+    # admin client justified: _org_access-gated delete; group's org ownership verified via _get_group_in_org before the delete
     admin = get_supabase_admin_client()
     if not _get_group_in_org(admin, group_id, org_id):
         return jsonify({'success': False, 'error': 'Group not found'}), 404
@@ -137,6 +142,7 @@ def set_group_quests(user_id, org_id, group_id):
     """Replace the group's quest membership with the given quest_ids (org quests only)."""
     if not _org_access(user_id, org_id):
         return jsonify({'success': False, 'error': 'Organization access required'}), 403
+    # admin client justified: _org_access-gated membership rewrite; quest ids are re-validated against the org's own quests before insert
     admin = get_supabase_admin_client()
     if not _get_group_in_org(admin, group_id, org_id):
         return jsonify({'success': False, 'error': 'Group not found'}), 404

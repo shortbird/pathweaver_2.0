@@ -146,6 +146,7 @@ def create_device(user_id):
     only its sha256 hash is stored (same model as the Treehouse kiosk).
     """
     data = request.get_json() or {}
+    # admin client justified: role-gated (org_admin/superadmin) provisioning write of a device-token hash to org_kiosk_devices, an org-level table
     admin = get_supabase_admin_client()
     org_id, err = _caller_org_id(admin, user_id, data.get('organization_id'))
     if err:
@@ -190,6 +191,7 @@ def create_device(user_id):
 @require_role('org_admin', 'superadmin')
 def list_devices(user_id):
     """List the org's kiosk devices (no token hashes). Superadmin: ?organization_id=."""
+    # admin client justified: role-gated read of the org's kiosk-device rows (org-level table); _caller_org_id pins the caller to their own org
     admin = get_supabase_admin_client()
     org_id, err = _caller_org_id(admin, user_id, request.args.get('organization_id'))
     if err:
@@ -222,6 +224,7 @@ def list_devices(user_id):
 @validate_uuid_param('device_id')
 def deactivate_device(user_id, device_id):
     """Deactivate a device token (soft revoke — the row is kept for audit)."""
+    # admin client justified: role-gated revoke of an org kiosk device; the device's org is matched against the caller's org before the write
     admin = get_supabase_admin_client()
     res = admin.table('org_kiosk_devices').select('id, organization_id')\
         .eq('id', device_id).limit(1).execute()
@@ -254,6 +257,7 @@ def kiosk_roster():
     if not token:
         return jsonify({'success': False, 'error': 'token required'}), 400
 
+    # admin client justified: pre-auth kiosk flow (no session); the hashed device token is the credential and the roster is scoped to that device's org/class
     admin = get_supabase_admin_client()
     device = _get_active_device_by_token(admin, token)
     if not device:
@@ -311,6 +315,7 @@ def kiosk_login():
     if not token or not student_id:
         return jsonify({'success': False, 'error': 'token and student_id required'}), 400
 
+    # admin client justified: pre-auth passwordless login; hashed device token + device-scope membership check gate the session mint
     admin = get_supabase_admin_client()
     device = _get_active_device_by_token(admin, token)
     if not device:

@@ -36,6 +36,7 @@ bp = Blueprint('oea', __name__, url_prefix='/api/oea')
 
 def _student_org_id(student_id):
     """Return the student's organization_id (or None for platform OEA families)."""
+    # admin client justified: reads the target student's users row (cross-user, parent acting on child) to resolve their org for settings/admin checks
     supabase = get_supabase_admin_client()
     row = supabase.table('users').select('organization_id').eq('id', student_id).execute()
     return row.data[0].get('organization_id') if row.data else None
@@ -43,6 +44,7 @@ def _student_org_id(student_id):
 
 def _settings_for_student(student_id):
     """Load effective OEA settings (program defaults <- the student's org override)."""
+    # admin client justified: reads the student's org settings row — an org the acting parent does not belong to
     return oea_rules.load_oea_settings(get_supabase_admin_client(), _student_org_id(student_id))
 
 
@@ -52,6 +54,7 @@ def _verify_admin_for_student(user_id, student_id):
     superadmin, or an org_admin of the student's organization. Used for the
     cap-override endpoint (parents cannot raise their own student's limits).
     """
+    # admin client justified: this lookup IS the auth check — reads the actor's role/org to allow only a Hearthwood org_admin or superadmin
     supabase = get_supabase_admin_client()
     actor = supabase.table('users') \
         .select('role, org_role, org_roles, organization_id').eq('id', user_id).execute()
@@ -135,6 +138,7 @@ def _is_oea_student(student_id: str) -> bool:
     the overview can show diploma progress / a choose-pathway prompt instead of
     Optio's XP-based credits.
     """
+    # admin client justified: reads the target student's program_key/org (cross-user, parent or advisor acting on the student) to classify diploma membership
     supabase = get_supabase_admin_client()
     u = supabase.table('users') \
         .select('program_key, organization_id').eq('id', student_id).execute()
@@ -763,6 +767,7 @@ def set_credit_caps(user_id, student_id):
         if not fields:
             raise ValidationError("No cap fields to update")
 
+        # admin client justified: org-admin-gated (_verify_admin_for_student) write of another student's enrollment cap overrides
         supabase = get_supabase_admin_client()
         repo = OEARepository(client=supabase)
         enrollment = repo.set_cap_overrides(student_id, fields)
@@ -787,6 +792,7 @@ def set_credit_caps(user_id, student_id):
 def list_credit_periods(user_id, credit_id):
     """Return the grade-period rows for a credit (quarter/semester/annual)."""
     try:
+        # admin client justified: cross-user parent -> student grade-period read; the credit must be fetched to learn its owner, then _verify_manages_student gates
         supabase = get_supabase_admin_client()
         repo = OEARepository(client=supabase)
         credit = repo.get_credit(credit_id)
@@ -834,6 +840,7 @@ def upsert_credit_period(user_id, credit_id):
         if grade is not None and grade not in GRADE_POINTS:
             raise ValidationError("grade must be one of A, B, C, D, F")
 
+        # admin client justified: cross-user parent -> student grade-period write; ownership gated by _verify_manages_student after the credit fetch
         supabase = get_supabase_admin_client()
         repo = OEARepository(client=supabase)
         credit = repo.get_credit(credit_id)
@@ -893,6 +900,7 @@ def _org_branding(org_id):
     """Return {'name', 'logo_url'} for the transcript header (or Optio defaults)."""
     if not org_id:
         return {'name': 'Hearthwood Academy', 'logo_url': None}
+    # admin client justified: reads the student's organization branding — an org row the acting parent has no RLS membership in
     supabase = get_supabase_admin_client()
     row = supabase.table('organizations').select('name, branding_config').eq('id', org_id).execute()
     if not row.data:
@@ -914,6 +922,7 @@ def get_student_transcript(user_id, student_id):
     try:
         _verify_manages_student(user_id, student_id, allow_self=True)
 
+        # admin client justified: cross-user transcript assembly — the student's users row, credits and periods, gated by _verify_manages_student above
         supabase = get_supabase_admin_client()
         repo = OEARepository(client=supabase)
 
@@ -998,6 +1007,7 @@ def get_progress_report(user_id, student_id):
         if term_index not in (1, 2, 3, 4):
             raise ValidationError("term must be 1-4")
 
+        # admin client justified: cross-user progress-report reads (student's credits, periods, users row), gated by _verify_manages_student above
         supabase = get_supabase_admin_client()
         repo = OEARepository(client=supabase)
         from services import oea_compliance_service
@@ -1070,6 +1080,7 @@ def compliance_sweep():
         uid = session_manager.get_effective_user_id()
         is_super = False
         if uid:
+            # admin client justified: cron-endpoint auth fallback — reads users.role to verify the signed-in caller is superadmin (the auth check itself)
             row = get_supabase_admin_client().table('users').select('role') \
                 .eq('id', uid).limit(1).execute().data
             is_super = bool(row and row[0].get('role') == 'superadmin')

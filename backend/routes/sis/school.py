@@ -28,6 +28,7 @@ bp = Blueprint('sis_school', __name__, url_prefix='/api/sis/school')
 def _caller_is_superadmin(user_id):
     """Platform role only — superadmin never appears in org_role."""
     try:
+        # admin client justified: self-read of the caller's own users.role to detect superadmin (this lookup IS the auth check)
         row = (get_supabase_admin_client().table('users').select('role')
                .eq('id', user_id).limit(1).execute()).data
         return bool(row) and row[0].get('role') == 'superadmin'

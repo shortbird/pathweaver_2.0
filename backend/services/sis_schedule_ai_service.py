@@ -70,6 +70,7 @@ def _money_text(field: str, value: Any) -> str:
 
 
 def _repo():
+    # admin client justified: org-wide org_classes/class_meetings reads for the schedule-AI snapshot; callers are ADMIN_ROLES-gated /api/sis/schedule-ai routes passing a resolved org_id
     return SisClassRepository(client=get_supabase_admin_client())
 
 
@@ -82,6 +83,7 @@ def _org_snapshot(org_id: str) -> Dict[str, Any]:
     for m in meetings:
         by_class.setdefault(m['class_id'], []).append(m)
     staff = sis_service.list_org_staff(org_id) or []
+    # admin client justified: reads organizations.feature_flags (time blocks) for the already-authorized org
     org = (get_supabase_admin_client().table('organizations')
            .select('feature_flags').eq('id', org_id).single().execute()).data or {}
     blocks = ((org.get('feature_flags') or {}).get('sis_settings') or {}).get('time_blocks') or []

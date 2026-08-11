@@ -290,6 +290,7 @@ def trigger_advisor_summary_job():
         uid = session_manager.get_effective_user_id()
         is_super = False
         if uid:
+            # admin client justified: superadmin role lookup IS the auth check for this cron/manual trigger endpoint (no decorator gate)
             row = (get_supabase_admin_client().table('users').select('role')
                    .eq('id', uid).limit(1).execute()).data
             is_super = bool(row and row[0].get('role') == 'superadmin')
