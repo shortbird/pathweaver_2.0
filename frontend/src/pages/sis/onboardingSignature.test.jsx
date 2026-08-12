@@ -15,8 +15,9 @@ import { MemoryRouter } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
+let mockUser = { id: 'kate', role: 'org_managed', org_roles: ['advisor'] }
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'kate', role: 'org_managed', org_roles: ['advisor'] } }),
+  useAuth: () => ({ user: mockUser }),
 }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -58,6 +59,7 @@ const mockChecklist = (items) => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockUser = { id: 'kate', role: 'org_managed', org_roles: ['advisor'] }
   api.patch.mockResolvedValue({ data: { success: true } })
 })
 
@@ -154,6 +156,46 @@ describe('signing a document from the office', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Contract - Kate Myers.pdf' }))
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(
       expect.stringContaining('/api/sis/teacher/my-documents/doc-1/url'),
+    ))
+  })
+})
+
+describe('clearing a signature as an admin', () => {
+  it('displays signed status and lets admin clear signature', async () => {
+    mockUser = { id: 'admin1', role: 'org_managed', org_roles: ['org_admin'] }
+
+    const signedAssignment = {
+      id: 'a1', template_name: 'Employee onboarding', user_name: 'Karina Worlton',
+      done_count: 1, total_count: 1,
+      items: [item({
+        key: 'contract', title: 'Staff agreement', status: 'complete',
+        signature: { name: 'Karina Worlton', signed_at: '2026-08-12T10:00:00Z' },
+      })],
+    }
+
+    api.get.mockImplementation((url) => {
+      if (url.includes('/staff-admin/onboarding/templates')) {
+        return Promise.resolve({ data: { templates: [] } })
+      }
+      if (url.includes('/staff-admin/onboarding/assignments')) {
+        return Promise.resolve({ data: { assignments: [signedAssignment] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<OnboardingPage />)
+
+    expect(await screen.findByText(/Signed by/)).toBeInTheDocument()
+    expect(screen.getAllByText('Karina Worlton').length).toBeGreaterThan(0)
+
+    const clearBtn = screen.getByRole('button', { name: 'Clear signature' })
+    fireEvent.click(clearBtn)
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/teacher/onboarding/a1/items/contract',
+      expect.objectContaining({ organization_id: 'org-1', clear_signature: true }),
     ))
   })
 })
