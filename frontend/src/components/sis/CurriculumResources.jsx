@@ -26,6 +26,11 @@ import SearchSelect from '../ui/SearchSelect'
 
 const Empty = ({ children }) => <p className="text-sm text-neutral-400">{children}</p>
 
+// Pickers offer the school's own quests/courses AND Optio's public library.
+// Say which is which — iCreate (2026-08-12) asked whether the list was
+// school-only, which means the mix wasn't visible.
+const optionLabel = (o) => (o.source === 'library' ? `${o.title} · Optio library` : o.title)
+
 export default function CurriculumResources({ orgId, curriculumId, canManage, onChanged }) {
   const [quests, setQuests] = useState([])
   const [courses, setCourses] = useState([])
@@ -120,7 +125,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
             }}
             options={questOptions}
             getId={(o) => o.quest_id}
-            getLabel={(o) => o.title}
+            getLabel={optionLabel}
             placeholder="Add a quest…"
           />
         )}
@@ -165,7 +170,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
             }}
             options={courseOptions}
             getId={(o) => o.course_id}
-            getLabel={(o) => o.title}
+            getLabel={optionLabel}
             placeholder="Add a course…"
           />
         )}

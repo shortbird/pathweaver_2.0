@@ -24,7 +24,7 @@ import CurriculumResources from '../../components/sis/CurriculumResources'
  * class page; students never see it — that's what class materials are for.
  */
 
-const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
+const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel, onResourcesChanged }) => {
   const [f, setF] = useState(() => (entry ? {
     ...curriculumFieldsOf(entry),
     class_ids: (entry.classes || []).map((c) => c.class_id),
@@ -60,7 +60,7 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
         })
       }
       toast.success(entry ? 'Curriculum updated' : 'Curriculum added')
-      onSaved()
+      onSaved(id)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the curriculum')
     } finally {
@@ -96,6 +96,32 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
           </div>
         )}
       </div>
+
+      {/* iCreate, 2026-08-12: "you have to click on the curriculum name [to find
+          the quests/courses] — shouldn't that be in edit?" The quick view behind
+          the row disclosure stays; Edit carries the same panel so everything
+          about an entry is manageable from one place. Only an admin can open
+          this editor, so the panel is always manageable here. */}
+      {entry?.id ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">
+            Quests &amp; courses
+          </p>
+          <p className="text-xs text-neutral-400 mb-2">
+            What classes inherit from this curriculum. Adding or removing saves immediately.
+          </p>
+          <CurriculumResources
+            orgId={orgId}
+            curriculumId={entry.id}
+            canManage
+            onChanged={onResourcesChanged}
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-neutral-400">
+          Save the entry first — the quest and course pickers open right after.
+        </p>
+      )}
 
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">
@@ -238,8 +264,15 @@ const CurriculumPage = () => {
             orgId={orgId}
             entry={editing === 'new' ? null : editing}
             classes={classes}
-            onSaved={() => { setEditing(null); load() }}
+            onSaved={(id) => {
+              // A just-created entry opens straight onto its quests/courses —
+              // attaching them is the natural next step of adding curriculum.
+              if (editing === 'new' && id) setExpanded(id)
+              setEditing(null)
+              load()
+            }}
             onCancel={() => setEditing(null)}
+            onResourcesChanged={load}
           />
         </div>
       )}
@@ -315,7 +348,11 @@ const CurriculumPage = () => {
                       <td className="px-4 py-3 text-right" onClick={(ev) => ev.stopPropagation()}>
                         {admin && (
                           <span className="inline-flex items-center gap-1">
-                            <button onClick={() => setEditing(e)} className="p-1.5 text-gray-400 hover:text-optio-purple"
+                            <button
+                              // Editing shows the same quests/courses panel, so
+                              // collapse the row's copy rather than render both.
+                              onClick={() => { setEditing(e); setExpanded((x) => (x === e.id ? null : x)) }}
+                              className="p-1.5 text-gray-400 hover:text-optio-purple"
                               aria-label={`Edit ${e.title}`}>
                               <PencilSquareIcon className="w-4 h-4" />
                             </button>

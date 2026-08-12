@@ -98,12 +98,14 @@ describe('what a curriculum carries', () => {
     ))
   })
 
-  it('attaches a course', async () => {
+  it('attaches a course, saying when it comes from the Optio library', async () => {
     render(<CurriculumPage />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     const picker = await screen.findByPlaceholderText('Add a course…')
     fireEvent.focus(picker)
-    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Poetry basics' }))
+    // The picker mixes the school's own with Optio's public library, and the
+    // label says which is which (iCreate asked whether the list was school-only).
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Poetry basics · Optio library' }))
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(
       '/api/sis/curriculum/cur1/courses?organization_id=org-1',
@@ -129,5 +131,60 @@ describe('what a curriculum carries', () => {
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Add a quest…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * iCreate, 2026-08-12: "to find the quests/courses for a curriculum, you have
+ * to click on the curriculum name, but shouldn't that be in edit?" The Edit
+ * panel now carries the same quests/courses manager the row disclosure has.
+ */
+describe('editing a curriculum manages what it carries', () => {
+  it('shows the quests and courses, with pickers, inside the Edit panel', async () => {
+    render(<CurriculumPage />)
+    await screen.findByText('Reading Workshop')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Reading Workshop' }))
+    expect(await screen.findByText('Reading log')).toBeInTheDocument()
+    expect(screen.getByText('Reading Workshop course')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Add a quest…')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Add a course…')).toBeInTheDocument()
+  })
+
+  it('collapses the row disclosure when Edit opens, so the panel is not doubled', async () => {
+    render(<CurriculumPage />)
+    fireEvent.click(await screen.findByText('Reading Workshop'))
+    await screen.findByText('Reading log')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Reading Workshop' }))
+    expect(await screen.findByPlaceholderText('Add a quest…')).toBeInTheDocument()
+    // one panel: the editor's — the expanded row closed
+    expect(screen.getAllByPlaceholderText('Add a quest…')).toHaveLength(1)
+    expect(screen.queryByText(/Used by Reading Workshop A/)).not.toBeInTheDocument()
+  })
+
+  it('opens a new entry onto its quests and courses right after saving', async () => {
+    api.post.mockResolvedValue({ data: { curriculum: { id: 'cur9' } } })
+    const NEW = { id: 'cur9', title: 'New Unit', subject: '', description: '', drive_url: '',
+      notes: null, is_active: true, quest_count: 0, course_count: 0, classes: [] }
+    render(<CurriculumPage />)
+    await screen.findByText('Reading Workshop')
+    fireEvent.click(screen.getByRole('button', { name: /Add curriculum/ }))
+    // Before the entry exists there is nothing to attach to — the panel says so.
+    expect(screen.getByText(/Save the entry first/)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Add a quest…')).not.toBeInTheDocument()
+
+    api.get.mockImplementation((url) => {
+      if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
+      if (url.includes('/assignable-courses')) return Promise.resolve({ data: { courses: [] } })
+      if (url.includes('/resources')) return Promise.resolve({ data: { quests: [], courses: [] } })
+      if (url.includes('/api/sis/curriculum')) return Promise.resolve({ data: { curriculum: [ENTRY, NEW] } })
+      if (url.includes('/api/sis/classes')) return Promise.resolve({ data: { classes: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    fireEvent.change(screen.getByPlaceholderText('Title (e.g. Reading Workshop)'), { target: { value: 'New Unit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save curriculum' }))
+
+    // The new row auto-expands so attaching quests/courses is the next click.
+    expect(await screen.findByPlaceholderText('Add a quest…')).toBeInTheDocument()
+    expect(screen.getByText('New Unit')).toBeInTheDocument()
   })
 })
