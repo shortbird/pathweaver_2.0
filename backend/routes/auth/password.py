@@ -4,6 +4,7 @@ Authentication Module: Password Management
 Handles:
 - Forgot password (send reset email)
 - Reset password (validate token and update password)
+- Change password (signed-in, requires the current password)
 - Password strength validation
 """
 
@@ -11,6 +12,7 @@ from flask import Blueprint, request, jsonify
 from app_config import Config
 from database import get_supabase_client, get_supabase_admin_client
 from utils.validation import sanitize_input, validate_password
+from utils.auth.decorators import require_auth
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, mask_user_id, should_log_sensitive_data
 from middleware.error_handler import ValidationError
@@ -340,11 +342,13 @@ def forgot_password():
 
 
 @bp.route('/staff-invite/<token>', methods=['GET'])
+@bp.route('/invite-info/<token>', methods=['GET'])
 @rate_limit(max_requests=30, window_seconds=600)
 def staff_invite_info(token):
-    """Public lookup for the /staff/welcome page: resolves a pending invite
-    token to the inviting org's name + logo and the teacher's email, so the
-    page brands itself from the server instead of trusting query params.
+    """Public lookup for the invite welcome pages (/staff/welcome,
+    /student/welcome): resolves a pending invite token to the inviting org's name
+    + logo and the invitee's email, so the page brands itself from the server
+    instead of trusting query params.
 
     No new capability is exposed: whoever holds the token can already set the
     account's password via /reset-password, so showing them the email/org the
@@ -576,3 +580,96 @@ def reset_password():
     except Exception as e:
         logger.error(f"[RESET_PASSWORD] Error: {str(e)}")
         return jsonify({'error': 'An error occurred while resetting your password'}), 500
+
+
+@bp.route('/change-password', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=900, per_user=True)
+@require_auth
+def change_password(user_id):
+    """Change your own password while logged in (Account Settings).
+
+    Requires the current password: a session alone must not be enough, or an
+    unattended laptop becomes a permanent account takeover.
+
+    Every OTHER session is invalidated (last_logout_at), and this one is
+    re-issued fresh cookies so the person changing the password isn't logged
+    out of the browser they're sitting at. That's the point of the stamp — if
+    someone else has a stolen refresh token, changing the password ends it.
+    """
+    try:
+        # @require_auth hands back the masquerade/acting-as TARGET. Changing
+        # someone else's password needs their current password anyway, but the
+        # intent is never right — refuse outright rather than rely on that.
+        from utils.session_manager import session_manager
+        actual_user_id = session_manager.get_actual_admin_id()
+        if actual_user_id and actual_user_id != user_id:
+            return jsonify({
+                'error': 'Passwords can only be changed from your own account.'
+            }), 403
+
+        data = request.json or {}
+        current_password = data.get('current_password') or ''
+        new_password = data.get('new_password') or ''
+
+        if not current_password or not new_password:
+            return jsonify({'error': 'Current and new password are required'}), 400
+
+        if current_password == new_password:
+            return jsonify({'error': 'Your new password must be different from your current one'}), 400
+
+        is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+
+        # admin client justified: reads auth.users and writes the password via
+        # the Admin API; the user's own session can't do either.
+        admin_client = get_supabase_admin_client()
+
+        auth_user = admin_client.auth.admin.get_user_by_id(user_id)
+        if not auth_user or not auth_user.user:
+            return jsonify({'error': 'User not found'}), 404
+        auth_email = auth_user.user.email
+
+        # Verify the current password by actually signing in with it.
+        try:
+            get_supabase_client().auth.sign_in_with_password({
+                'email': auth_email,
+                'password': current_password
+            })
+        except Exception:
+            logger.info(f"[CHANGE_PASSWORD] Wrong current password for {mask_email(auth_email)}")
+            return jsonify({'error': 'Your current password is incorrect'}), 400
+
+        admin_client.auth.admin.update_user_by_id(user_id, {'password': new_password})
+
+        # Truncate to whole seconds: JWT `iat` has second resolution, so a
+        # sub-second stamp would sit *after* the iat of the tokens we mint
+        # below and the refresh path would reject this very session.
+        now_utc = datetime.now(timezone.utc).replace(microsecond=0)
+        try:
+            admin_client.table('users').update({
+                'last_logout_at': now_utc.isoformat()
+            }).eq('id', user_id).execute()
+        except Exception as invalidate_error:
+            logger.error(f"[CHANGE_PASSWORD] Failed to stamp last_logout_at: {invalidate_error}")
+
+        reset_login_attempts(auth_email)
+        logger.info(f"[CHANGE_PASSWORD] Password changed for {mask_email(auth_email)}")
+
+        from flask import make_response
+        from utils.session_manager import session_manager as sm
+        access_token = sm.generate_access_token(user_id)
+        refresh_token = sm.generate_refresh_token(user_id)
+        response = make_response(jsonify({
+            'message': 'Password updated. You are still signed in here; other devices have been signed out.',
+            'app_access_token': access_token,
+            'app_refresh_token': refresh_token,
+        }), 200)
+        sm.set_auth_cookies(response, user_id, access_token, refresh_token)
+        return response
+
+    except ValidationError as ve:
+        return jsonify({'error': str(ve)}), 400
+    except Exception as e:
+        logger.error(f"[CHANGE_PASSWORD] Error: {str(e)}")
+        return jsonify({'error': 'An error occurred while changing your password'}), 500

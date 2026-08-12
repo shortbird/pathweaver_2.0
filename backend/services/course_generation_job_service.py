@@ -207,6 +207,16 @@ class CourseGenerationJobService:
                 self._add_log(job_id, f'Generating lessons for project {i+1}/{total_projects}: {project_title}', 'info')
 
                 try:
+                    # Retry safety: a retried job re-walks every project, so skip
+                    # ones that already have lessons or they get duplicated.
+                    existing = self.admin_client.table('curriculum_lessons').select(
+                        'id'
+                    ).eq('quest_id', quest_id).limit(1).execute()
+
+                    if existing.data:
+                        self._add_log(job_id, f'Lessons already exist for {project_title}, skipping', 'info')
+                        continue
+
                     # Generate lessons for this project
                     lessons = service.generate_lessons_for_project(course_id, quest_id)
 
@@ -253,6 +263,15 @@ class CourseGenerationJobService:
                 self._add_log(job_id, f'Generating tasks for lesson {i+1}/{total_lessons}: {lesson_title}', 'info')
 
                 try:
+                    # Retry safety: skip lessons that already have tasks (see above).
+                    existing = self.admin_client.table('curriculum_lesson_tasks').select(
+                        'task_id'
+                    ).eq('lesson_id', lesson_id).limit(1).execute()
+
+                    if existing.data:
+                        self._add_log(job_id, f'Tasks already exist for {lesson_title}, skipping', 'info')
+                        continue
+
                     # Generate tasks for this lesson
                     tasks = service.generate_tasks_for_lesson(course_id, quest_id, lesson_id)
 

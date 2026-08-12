@@ -681,17 +681,19 @@ emails:
       - "You earn XP as you finish tasks, and complete a course by reaching its XP goal."
       - "Everything you create is saved to your portfolio."
     highlight_box:
-      title: "Your login details"
-      content: "Log in with this email and temporary password, then set your own password from your profile."
+      # HTML belongs in bullet_points, not content: the wrapper renders bullets
+      # with |safe but escapes content, so tags there reach the reader as text.
+      title: "Setting up your login"
+      content: "Click the button below to choose your password. From then on you'll sign in with:"
       bullet_points:
-        - "Email: {{ student_email }}"
-        - "Temporary password: {{ temp_password }}"
+        - "<strong>{{ student_email }}</strong>"
     closing_paragraphs:
       - "Your purchase includes 6 months of individual support. If you have any questions, concerns, or run into trouble with the class, an Optio teacher will help - just reply to this email."
-      - "Log in, open your first course, and start with the first task."
+      - "Set your password, open your first course, and start with the first task."
+      - "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
     cta:
-      text: "Log in to Optio"
-      url: "{{ login_url }}"
+      text: "Set My Password"
+      url: "{{ invite_link }}"
     signature: "team"
     footer_extra: "If this wasn't expected, you can ignore this email or reply to let us know."
 

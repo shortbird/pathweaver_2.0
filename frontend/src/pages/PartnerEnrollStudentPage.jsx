@@ -20,8 +20,8 @@ export default function PartnerEnrollStudentPage() {
         <h1 className="text-2xl font-bold text-gray-900">Register a Student</h1>
         <p className="text-sm text-gray-600 mt-1">
           Enter the student's details and choose the course(s) they purchased. The student gets an
-          email with their login and an overview of how Optio works. Already have an account on this
-          email? We'll just add the new course(s).
+          email with a link to set their own password, plus an overview of how Optio works. Already
+          have an account on this email? We'll just add the new course(s).
         </p>
       </div>
 

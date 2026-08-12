@@ -19,6 +19,7 @@ from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.password_validator import validate_password_strength
 from datetime import datetime, date
+from urllib.parse import quote
 import re
 import secrets
 
@@ -1267,8 +1268,13 @@ SKILL_PILLARS = [
 ]
 
 
-def generate_email_temp_password(length=12):
-    """Generate a secure temporary password for an email-based account."""
+def generate_unusable_password(length=32):
+    """A random password for a new account that is never shown to anyone.
+
+    Supabase requires a password at create_user time, but the student sets their
+    real one through the invite link. This value is discarded the moment the
+    account exists — see utils/invite_tokens.py for why we don't email it.
+    """
     import string
     alphabet = string.ascii_letters + string.digits + "!@#$%"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
@@ -1298,11 +1304,13 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
     of courses) after a purchase.
 
     Handles both cases:
-      - New student: creates an org-managed account with a temporary password and
-        emails the family their login plus a "how Optio works" overview.
+      - New student: creates an org-managed account and emails the family a
+        set-your-password invite link plus a "how Optio works" overview. The
+        account's email stays unconfirmed until they click the link, so a
+        mistyped address never becomes a working login.
       - Returning student (e.g. a second purchase months later): finds the
         existing account by email and enrolls it in the newly selected courses,
-        skipping any they are already in. No new password is issued.
+        skipping any they are already in. No invite is issued.
 
     Request body:
         first_name: str (required)
@@ -1385,7 +1393,6 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         existing = client.table('users').select('id, organization_id, role, org_role').eq('email', student_email).execute()
         existing_user = existing.data[0] if existing.data else None
         is_new_account = existing_user is None
-        temp_password = None
         user_record = None
 
         if existing_user:
@@ -1404,13 +1411,14 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                 }), 409
             user_id = existing_user['id']
         else:
-            # Create the Supabase Auth account with a temporary password
-            temp_password = generate_email_temp_password()
+            # Create the Supabase Auth account. The password is random and
+            # never leaves this function; the student sets a real one through
+            # the invite link below, which is also what confirms their email.
             try:
                 auth_response = client.auth.admin.create_user({
                     'email': student_email,
-                    'password': temp_password,
-                    'email_confirm': True,
+                    'password': generate_unusable_password(),
+                    'email_confirm': False,
                     'user_metadata': {
                         'first_name': first_name,
                         'last_name': last_name,
@@ -1523,17 +1531,32 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                     brevo_funnel = sync_course_student(student_email, first_name, last_name)
                 except Exception as brevo_err:
                     logger.warning(f"Brevo course-student sync failed for {student_email}: {brevo_err}")
-                email_sent = email_service.send_org_course_welcome_email(
-                    to_email=student_email,
-                    student_name=first_name,
-                    student_email=student_email,
-                    temp_password=temp_password,
-                    org_name=org_name,
-                    courses_sentence=courses_sentence,
-                    course_count=len(email_titles),
-                    login_url=login_url,
-                    brevo_funnel=brevo_funnel
-                )
+                # One link that both confirms the address and sets the password.
+                # If the token write fails there is no safe email to send — a
+                # welcome with a dead link is worse than none, and the admin can
+                # resend from the enrollment manager.
+                from utils.invite_tokens import mint_invite_token, INVITE_EXPIRY_DAYS
+                invite_token = mint_invite_token(user_id, admin=client)
+                if invite_token:
+                    invite_link = (
+                        f"{frontend_url}/student/welcome?token={invite_token}"
+                        f"&email={quote(student_email)}"
+                    )
+                    email_sent = email_service.send_org_course_welcome_email(
+                        to_email=student_email,
+                        student_name=first_name,
+                        student_email=student_email,
+                        invite_link=invite_link,
+                        org_name=org_name,
+                        courses_sentence=courses_sentence,
+                        course_count=len(email_titles),
+                        expiry_days=INVITE_EXPIRY_DAYS,
+                        brevo_funnel=brevo_funnel
+                    )
+                else:
+                    logger.error(
+                        f"Could not mint invite token for {user_id}; welcome email skipped"
+                    )
             elif newly_enrolled_titles:
                 email_sent = email_service.send_org_courses_added_email(
                     to_email=student_email,
@@ -1562,9 +1585,14 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         if user_record is not None:
             response['user'] = user_record
         if is_new_account:
-            # The temp password is emailed directly to the student; it is intentionally
-            # NOT returned to the admin's browser.
-            response['message'] = 'Student registered and enrolled. A welcome email was sent to the student.'
+            # No credential exists to hand back: the student sets their own
+            # password through the invite link in the welcome email.
+            response['message'] = (
+                'Student registered and enrolled. A welcome email was sent with a link to set their password.'
+                if email_sent else
+                'Student registered and enrolled, but the welcome email could not be sent. '
+                'Ask them to use "Forgot password" on the login page with this email address.'
+            )
         else:
             response['message'] = 'Existing student enrolled in the selected course(s).'
         return jsonify(response), 201

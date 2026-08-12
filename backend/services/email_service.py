@@ -1399,17 +1399,17 @@ class EmailService(BaseService):
         to_email: str,
         student_name: str,
         student_email: str,
-        temp_password: str,
+        invite_link: str,
         org_name: str,
         courses_sentence: str,
         course_count: int,
-        login_url: str,
+        expiry_days: int,
         brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send a welcome email when a partner org_admin registers a NEW student for
-        one or more purchased courses. Includes login credentials (temp password)
-        and an overview of how Optio courses work.
+        one or more purchased courses. Carries a set-your-password invite link
+        (never a password) plus an overview of how Optio courses work.
         """
         course_word = 'course' if course_count == 1 else 'courses'
         return self.send_templated_email(
@@ -1419,12 +1419,12 @@ class EmailService(BaseService):
             context={
                 'student_name': student_name,
                 'student_email': student_email,
-                'temp_password': temp_password,
+                'invite_link': invite_link,
                 'org_name': org_name,
                 'courses_sentence': courses_sentence,
                 'course_count': course_count,
                 'course_word': course_word,
-                'login_url': login_url
+                'expiry_days': expiry_days
             },
             brevo_funnel=brevo_funnel
         )

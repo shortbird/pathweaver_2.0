@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useForm } from 'react-hook-form';
-import api from '../../services/api';
+import api, { tokenStore } from '../../services/api';
 import toast from 'react-hot-toast';
+import PasswordStrengthMeter from '../auth/PasswordStrengthMeter';
 
 const AccountSettings = ({
   user,
@@ -13,6 +14,8 @@ const AccountSettings = ({
   const [isExpanded, setIsExpanded] = useState(hideHeader); // Auto-expand when header is hidden
   const [isEditing, setIsEditing] = useState(false);
   const [deletionRequesting, setDeletionRequesting] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm({
     defaultValues: {
@@ -33,6 +36,42 @@ const AccountSettings = ({
       toast.success('Profile updated successfully!');
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to update profile');
+    }
+  };
+
+  // Separate form instance so the profile form's dirty state and the password
+  // fields never share a submit.
+  const {
+    register: registerPassword,
+    handleSubmit: handlePasswordSubmit,
+    formState: { errors: passwordErrors },
+    reset: resetPassword,
+    watch: watchPassword
+  } = useForm();
+
+  const newPassword = watchPassword('new_password', '');
+
+  const onPasswordSubmit = async (data) => {
+    setPasswordSaving(true);
+    try {
+      const response = await api.post('/api/auth/change-password', {
+        current_password: data.current_password,
+        new_password: data.new_password
+      });
+      // The change invalidates every token issued before it. Swap in the fresh
+      // pair the endpoint hands back, or Safari/iOS (header auth, no cookies)
+      // would sign itself out on the next refresh.
+      const { app_access_token, app_refresh_token } = response.data || {};
+      if (app_access_token && app_refresh_token) {
+        await tokenStore.setTokens(app_access_token, app_refresh_token);
+      }
+      resetPassword();
+      setIsChangingPassword(false);
+      toast.success('Password updated. Other devices have been signed out.');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to change password');
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -211,6 +250,116 @@ const AccountSettings = ({
                     <p className="text-gray-900 whitespace-pre-wrap">{user.bio}</p>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Password */}
+          <div className="bg-gray-50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Password</h3>
+              {!isChangingPassword && (
+                <button
+                  onClick={() => setIsChangingPassword(true)}
+                  className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium"
+                >
+                  Change
+                </button>
+              )}
+            </div>
+
+            {isChangingPassword ? (
+              <form onSubmit={handlePasswordSubmit(onPasswordSubmit)} className="space-y-4">
+                <div>
+                  <label htmlFor="current_password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Current password
+                  </label>
+                  <input
+                    {...registerPassword('current_password', { required: 'Enter your current password' })}
+                    id="current_password"
+                    type="password"
+                    autoComplete="current-password"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors min-h-[44px]"
+                  />
+                  {passwordErrors.current_password && (
+                    <p className="mt-1 text-sm text-red-600">{passwordErrors.current_password.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="new_password" className="block text-sm font-medium text-gray-700 mb-1">
+                    New password
+                  </label>
+                  <input
+                    {...registerPassword('new_password', {
+                      required: 'Enter a new password',
+                      minLength: { value: 12, message: 'Password must be at least 12 characters' }
+                    })}
+                    id="new_password"
+                    type="password"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors min-h-[44px]"
+                    placeholder="At least 12 characters"
+                  />
+                  {passwordErrors.new_password && (
+                    <p className="mt-1 text-sm text-red-600">{passwordErrors.new_password.message}</p>
+                  )}
+                  <PasswordStrengthMeter password={newPassword} />
+                </div>
+
+                <div>
+                  <label htmlFor="confirm_password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm new password
+                  </label>
+                  <input
+                    {...registerPassword('confirm_password', {
+                      required: 'Re-enter your new password',
+                      validate: (value) => value === newPassword || 'Passwords do not match'
+                    })}
+                    id="confirm_password"
+                    type="password"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors min-h-[44px]"
+                  />
+                  {passwordErrors.confirm_password && (
+                    <p className="mt-1 text-sm text-red-600">{passwordErrors.confirm_password.message}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={passwordSaving}
+                    className="btn-primary min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {passwordSaving ? 'Updating...' : 'Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangingPassword(false);
+                      resetPassword();
+                    }}
+                    className="btn-quiet min-h-[44px]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Changing your password signs you out everywhere else. You&apos;ll stay
+                  signed in here.
+                </p>
+                <p className="text-sm text-gray-500">
+                  Signed in with Google or Apple, or don&apos;t know your current password?
+                  Use{' '}
+                  <a href="/forgot-password" className="text-optio-purple hover:underline font-medium">
+                    Forgot password
+                  </a>{' '}
+                  instead.
+                </p>
               </div>
             )}
           </div>
