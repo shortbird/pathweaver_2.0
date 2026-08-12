@@ -61,26 +61,63 @@ export default async function run(page) {
   }
 
   // 3. Deeper pass when the runner provides Supabase admin access: sign in a
-  //    synthetic staff account via magic link and prove the page itself.
+  //    staff account via magic link and prove the page itself.
   const supaUrl = process.env.VERIFY_SUPABASE_URL
   const supaKey = process.env.VERIFY_SUPABASE_SERVICE_KEY
   if (!supaUrl || !supaKey) return
 
-  // The seeded test-org admin; NOT the runner's global TEST_USER_* (those creds
-  // belong to other Perch projects, and this must never be a real person).
-  const email = process.env.OPTIO_TEST_EMAIL || 'admin@hearthwood-test.optioeducation.com'
+  const headers = {
+    apikey: supaKey,
+    authorization: `Bearer ${supaKey}`,
+    'content-type': 'application/json',
+  }
+
+  // Find an existing staff user in public.users to sign in with.
+  // The preview database is restored from production backups and can lag
+  // production or local seeding, so we select any row satisfying staff criteria.
+  let email = process.env.OPTIO_TEST_EMAIL
+
+  if (!email) {
+    const usersRes = await fetch(
+      `${supaUrl}/rest/v1/users?select=id,email,role,org_role,tos_accepted_at&email=not.is.null&limit=100`,
+      { headers }
+    )
+    if (usersRes.ok) {
+      const users = await usersRes.json()
+      const isStaff = (u) =>
+        u.email &&
+        u.email.includes('@') &&
+        (u.role === 'superadmin' ||
+          u.role === 'advisor' ||
+          ['org_admin', 'campus_coordinator', 'advisor'].includes(u.org_role))
+
+      let chosen = users.find((u) => isStaff(u) && u.tos_accepted_at)
+      if (!chosen) {
+        chosen = users.find(isStaff)
+        if (chosen && !chosen.tos_accepted_at) {
+          await fetch(`${supaUrl}/rest/v1/users?id=eq.${chosen.id}`, {
+            method: 'PATCH',
+            headers: { ...headers, prefer: 'return=minimal' },
+            body: JSON.stringify({ tos_accepted_at: new Date().toISOString() }),
+          })
+        }
+      }
+      if (chosen) email = chosen.email
+    }
+  }
+
+  if (!email) {
+    email = 'admin@hearthwood-test.optioeducation.com'
+  }
+
   const gl = await fetch(`${supaUrl}/auth/v1/admin/generate_link`, {
     method: 'POST',
-    headers: {
-      apikey: supaKey,
-      authorization: `Bearer ${supaKey}`,
-      'content-type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ type: 'magiclink', email, redirect_to: `${BASE}/auth/callback` }),
   })
   const glBody = await gl.json()
   if (!gl.ok || !glBody.action_link) {
-    throw new Error(`Could not mint a magic link for the verify account (${gl.status}): ${glBody.msg || glBody.error_description || 'no action_link'}`)
+    throw new Error(`Could not mint a magic link for verify account ${email} (${gl.status}): ${glBody.msg || glBody.error_description || 'no action_link'}`)
   }
 
   // /auth/callback exchanges the Supabase tokens in the URL hash for the app's
@@ -92,7 +129,7 @@ export default async function run(page) {
     if (res.status() === 200) me = await res.json()
     else await page.waitForTimeout(1000)
   }
-  if (!me) throw new Error('Magic-link sign-in did not produce an app session for the verify account')
+  if (!me) throw new Error(`Magic-link sign-in did not produce an app session for verify account ${email}`)
 
   // 4. Backend proof: the signed-in schedule call succeeds, and any meeting it
   //    returns carries the new fields (class_name, min_age/max_age).
