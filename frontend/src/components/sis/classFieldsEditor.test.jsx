@@ -50,6 +50,42 @@ describe('the class field grid', () => {
     expect(screen.queryByLabelText('Class image')).not.toBeInTheDocument()
   })
 
+  /**
+   * iCreate, 2026-08-11: "I want to NOT assign a teacher, but that's not an
+   * option. We don't have any placeholders any more since I deleted them!"
+   *
+   * Nothing ever required a teacher — the column is nullable and no validation
+   * checked it. What made it feel required was the picker: no visible "none"
+   * choice, and the field vanishing entirely when the org had no staff left.
+   */
+  describe('a class can stand without a teacher', () => {
+    it('offers an explicit way to choose nobody', () => {
+      setup()
+      fireEvent.focus(screen.getByPlaceholderText('Search staff…'))
+      expect(screen.getByText('No teacher yet')).toBeInTheDocument()
+    })
+
+    it('clears the teacher when that choice is taken', () => {
+      const onChange = setup()
+      fireEvent.focus(screen.getByPlaceholderText('Search staff…'))
+      fireEvent.mouseDown(screen.getByText('No teacher yet'))
+      expect(onChange).toHaveBeenCalledWith({ primary_instructor_id: '' })
+    })
+
+    it('still shows the teacher field when the org has no staff at all', () => {
+      // The reporter deleted their placeholder teachers; the field disappearing
+      // is what made a teacher-less class look impossible rather than optional.
+      setup({ staff: [] })
+      expect(screen.getByText('Teacher (optional)')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('No staff to assign yet')).toBeInTheDocument()
+    })
+
+    it('sends an empty teacher to the API as null, not as an empty string', () => {
+      expect(draftToPayload({ ...toDraft(CLASS), primary_instructor_id: '' })
+        .primary_instructor_id).toBeNull()
+    })
+  })
+
   it('does not put registration among the fields', () => {
     // It saves immediately while everything else is a draft, so it belongs
     // beside the class, not in the grid.
@@ -141,7 +177,7 @@ describe('the grid earns its space', () => {
     // nested inside some of them.
     const labels = [...container.querySelector('section').querySelectorAll(':scope div.grid > div')]
       .map((f) => f.querySelector('label').textContent)
-    expect(labels).toEqual(['Name', 'Teacher', 'Assistant teacher(s)', 'Description', 'Class image'])
+    expect(labels).toEqual(['Name', 'Teacher (optional)', 'Assistant teacher(s)', 'Description', 'Class image'])
   })
 
   it('lets the image tile stretch to the description’s height', () => {

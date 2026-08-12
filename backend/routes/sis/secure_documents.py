@@ -32,6 +32,15 @@ bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 _SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE bucket
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 15 * 1024 * 1024
+_MAX_TITLE_LEN = 200  # matches routes/sis/class_materials.py
+
+# One upload can be filed against several people at once (a handbook, a policy
+# every teacher signs). Each person gets their OWN row and their OWN blob
+# rather than sharing one — because everything downstream of a document is
+# per-person: shared_with_owner is toggled for one teacher at a time, and
+# DELETE removes the blob. Sharing a blob between rows would mean deleting one
+# person's copy blanks the file for everyone else still holding it.
+_MAX_ATTACH_PEOPLE = 50
 
 
 def _org_or_error(user_id):
@@ -59,6 +68,62 @@ def _display_name(u):
     return full or u.get('username') or u.get('email')
 
 
+def _field(key):
+    """A single trimmed form/query value, or None."""
+    v = (request.form.get(key) or request.args.get(key) or '').strip()
+    return v or None
+
+
+def _field_list(key):
+    """A repeated multipart field as a de-duped, order-preserving list.
+
+    Falls back to the single-value form so the one-person callers that predate
+    multi-attach keep working unchanged.
+    """
+    raw = request.form.getlist(key) or request.args.getlist(key)
+    out = []
+    for v in raw:
+        v = (v or '').strip()
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
+def _clean_title(value, fallback):
+    """A document's display name: trimmed, capped, never empty."""
+    title = (value or '').strip() or (fallback or '').strip() or 'Untitled document'
+    return title[:_MAX_TITLE_LEN]
+
+
+def _title_from_form(fallback):
+    return _clean_title(request.form.get('title') or request.args.get('title'), fallback)
+
+
+def _remove_blobs(supabase, paths):
+    """Best-effort cleanup so a failed upload leaves no orphans behind."""
+    if not paths:
+        return
+    try:
+        supabase.storage.from_(_SECURE_DOCS_BUCKET).remove(paths)
+    except Exception:
+        logger.debug('Secure document blob cleanup failed (non-fatal)', exc_info=True)
+
+
+def _attach_targets():
+    """The (owner, student) pairs this upload should be filed against.
+
+    Owners and students are separate columns rather than one person column, so
+    the form sends two lists and we flatten them into one row spec per person.
+    No people selected is still legal — an unfiled document sitting in the
+    org's store, which is what the page did before it could attach at all.
+    """
+    targets = [{'owner_user_id': o, 'student_user_id': None}
+               for o in _field_list('owner_user_id')]
+    targets += [{'owner_user_id': None, 'student_user_id': s}
+                for s in _field_list('student_user_id')]
+    return targets or [{'owner_user_id': None, 'student_user_id': None}]
+
+
 def _names_for(ids):
     """Map user_id -> display name for the given ids (one query)."""
     ids = [i for i in ids if i]
@@ -75,11 +140,20 @@ def _names_for(ids):
 @require_role(*STAFF_ROLES)
 def upload_secure_document(user_id):
     """Upload a sensitive file to the PRIVATE secure-documents bucket and record
-    a metadata row. Multipart: `file` plus form/query fields organization_id,
-    owner_user_id, student_user_id, category, note."""
+    a metadata row per person it is filed against.
+
+    Multipart: `file` plus form/query fields organization_id, category, note,
+    title, and `owner_user_id` / `student_user_id` — either of which may repeat
+    to file one upload against several people at once.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+
+    targets = _attach_targets()
+    if len(targets) > _MAX_ATTACH_PEOPLE:
+        return jsonify({'success': False,
+                        'error': f'Attach to at most {_MAX_ATTACH_PEOPLE} people at a time'}), 400
 
     if 'file' not in request.files:
         return jsonify({'success': False, 'error': 'No file provided'}), 400
@@ -105,31 +179,32 @@ def upload_secure_document(user_id):
         except Exception:
             pass
 
-    path = f"{org_id}/{_uuid.uuid4().hex}.{ext}"
+    # Read once, write once per person — each row owns its blob (see
+    # _MAX_ATTACH_PEOPLE).
+    blob = file.read()
+    paths = []
     try:
-        supabase.storage.from_(_SECURE_DOCS_BUCKET).upload(
-            path=path, file=file.read(),
-            file_options={'content-type': file.content_type or 'application/octet-stream'},
-        )
+        for _ in targets:
+            path = f"{org_id}/{_uuid.uuid4().hex}.{ext}"
+            supabase.storage.from_(_SECURE_DOCS_BUCKET).upload(
+                path=path, file=blob,
+                file_options={'content-type': file.content_type or 'application/octet-stream'},
+            )
+            paths.append(path)
     except Exception as e:
         logger.error(f'Secure document upload failed: {e}')
+        _remove_blobs(supabase, paths)
         return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
 
-    def _clean(v):
-        v = (request.form.get(v) or request.args.get(v) or '').strip()
-        return v or None
-
-    row = {
+    common = {
         'organization_id': org_id,
-        'owner_user_id': _clean('owner_user_id'),
-        'student_user_id': _clean('student_user_id'),
         'uploaded_by': user_id,
-        'storage_path': path,
         'filename': file.filename,
+        'title': _title_from_form(file.filename),
         'content_type': file.content_type,
         'size_bytes': size_bytes,
-        'category': _clean('category'),
-        'note': _clean('note'),
+        'category': _field('category'),
+        'note': _field('note'),
         # Opt-in, and off unless the admin says otherwise. This store holds
         # background checks; a document must never become visible to the person
         # it is about just because it was filed against them.
@@ -137,18 +212,20 @@ def upload_secure_document(user_id):
                               or request.args.get('shared_with_owner')
                               or '').strip().lower() in ('1', 'true', 'yes'),
     }
+    rows = [{**common, **t, 'storage_path': p} for t, p in zip(targets, paths)]
     try:
-        inserted = (supabase.table('sis_secure_documents').insert(row).execute()).data
+        inserted = (supabase.table('sis_secure_documents').insert(rows).execute()).data
     except Exception as e:
         logger.error(f'Secure document insert failed: {e}')
-        # Don't leave an orphan blob if the metadata row failed.
-        try:
-            supabase.storage.from_(_SECURE_DOCS_BUCKET).remove([path])
-        except Exception:
-            pass
+        # Don't leave orphan blobs if the metadata rows failed.
+        _remove_blobs(supabase, paths)
         return jsonify({'success': False, 'error': 'Failed to save document'}), 500
 
-    return jsonify({'success': True, 'document': (inserted or [row])[0]}), 201
+    documents = inserted or rows
+    # `document` kept alongside `documents` for the single-person callers that
+    # predate multi-attach.
+    return jsonify({'success': True, 'documents': documents,
+                    'document': documents[0]}), 201
 
 
 @bp.route('/secure-documents', methods=['GET'])
@@ -215,6 +292,10 @@ def update_secure_document(user_id, doc_id):
             return jsonify({'success': False,
                             'error': 'Attach this document to a person before sharing it'}), 400
         fields['shared_with_owner'] = bool(data['shared_with_owner'])
+    if 'title' in data:
+        # Renaming can't blank a document: clearing the box falls back to the
+        # name the file arrived under, so the list always has something to show.
+        fields['title'] = _clean_title(data.get('title'), doc.get('filename'))
     for key in ('category', 'note'):
         if key in data:
             fields[key] = (data.get(key) or '').strip() or None

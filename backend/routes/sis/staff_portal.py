@@ -440,6 +440,18 @@ def my_time_entries(user_id):
 # ── My documents (the staff member's own secure documents) ────────────────────
 
 _SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE — same store the admin page uses
+_MAX_DOC_TITLE_LEN = 200
+
+
+def _clean_doc_title(value, fallback):
+    """A document's display name: trimmed, capped, never empty.
+
+    Mirrors routes/sis/secure_documents._clean_title — both write the same
+    column, and a title that can be blank on one path is a blank row in the
+    office's list.
+    """
+    title = (value or '').strip() or (fallback or '').strip() or 'Untitled document'
+    return title[:_MAX_DOC_TITLE_LEN]
 
 
 @bp.route('/my-documents', methods=['GET'])
@@ -458,7 +470,7 @@ def my_documents(user_id):
         return err
     # admin client justified: sis_secure_documents is a service-role-only staff-records table; read filtered to owner_user_id == caller AND shared_with_owner
     rows = (get_supabase_admin_client().table('sis_secure_documents')
-            .select('id, filename, category, note, size_bytes, created_at, '
+            .select('id, filename, title, category, note, size_bytes, created_at, '
                     'shared_with_owner, uploaded_by_owner')
             .eq('organization_id', org_id).eq('owner_user_id', user_id)
             .eq('shared_with_owner', True)
@@ -518,6 +530,9 @@ def upload_my_document(user_id):
         'uploaded_by': user_id,
         'storage_path': path,
         'filename': file.filename,
+        # The uploader names it. iCreate's ask: a teacher naming the file in the
+        # office's standard form up front saves the office renaming it later.
+        'title': _clean_doc_title(request.form.get('title'), file.filename),
         'content_type': file.content_type,
         'size_bytes': size_bytes,
         'category': category,

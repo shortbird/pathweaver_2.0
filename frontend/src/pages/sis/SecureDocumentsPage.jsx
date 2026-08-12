@@ -36,11 +36,16 @@ const SecureDocumentsPage = () => {
 
   // Upload form state
   const [file, setFile] = useState(null)
+  const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [note, setNote] = useState('')
-  const [personId, setPersonId] = useState('')
+  const [personIds, setPersonIds] = useState([])
   const [uploading, setUploading] = useState(false)
   const [fileKey, setFileKey] = useState(0) // reset the <input type=file> after upload
+
+  // Inline rename: the id being renamed, and the text being typed.
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameText, setRenameText] = useState('')
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -58,7 +63,8 @@ const SecureDocumentsPage = () => {
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    setDocs([]); setFilter(''); setFile(null); setCategory(''); setNote(''); setPersonId('')
+    setDocs([]); setFilter(''); setFile(null); setTitle(''); setCategory(''); setNote('')
+    setPersonIds([]); setRenamingId(null)
   }, [orgId])
 
   const personLabel = useCallback((p) => {
@@ -66,11 +72,15 @@ const SecureDocumentsPage = () => {
     return `${p.name} (${role})`
   }, [])
 
+  // What the office calls this document. Older rows predate titles, so the
+  // filename it arrived under is still the fallback everywhere it's shown.
+  const docName = useCallback((d) => d.title || d.filename || 'Untitled document', [])
+
   const filteredDocs = useMemo(() => {
     const q = filter.trim().toLowerCase()
     if (!q) return docs
     return docs.filter((d) => (
-      `${d.filename || ''} ${d.category || ''} ${d.owner_name || ''} ${d.student_name || ''} ${d.uploaded_by_name || ''}`
+      `${d.title || ''} ${d.filename || ''} ${d.category || ''} ${d.owner_name || ''} ${d.student_name || ''} ${d.uploaded_by_name || ''}`
         .toLowerCase().includes(q)
     ))
   }, [docs, filter])
@@ -78,29 +88,51 @@ const SecureDocumentsPage = () => {
   const handleUpload = useCallback(async (e) => {
     e.preventDefault()
     if (!file || !orgId) return
-    const person = people.find((p) => p.student_id === personId)
     const form = new FormData()
     form.append('file', file)
     form.append('organization_id', orgId)
+    if (title.trim()) form.append('title', title.trim())
     if (category.trim()) form.append('category', category.trim())
     if (note.trim()) form.append('note', note.trim())
     // A student attaches as student_user_id; anyone else as owner_user_id.
-    if (person) {
-      if (person.is_student) form.append('student_user_id', person.student_id)
-      else form.append('owner_user_id', person.student_id)
-    }
+    // Both fields repeat — the upload is filed once per person selected, so
+    // each of them gets their own copy to share, annotate or delete.
+    personIds.forEach((id) => {
+      const person = people.find((p) => p.student_id === id)
+      if (!person) return
+      form.append(person.is_student ? 'student_user_id' : 'owner_user_id', person.student_id)
+    })
     setUploading(true)
     try {
-      await api.post('/api/sis/secure-documents/upload', form)
-      toast.success('Document uploaded')
-      setFile(null); setCategory(''); setNote(''); setPersonId(''); setFileKey((k) => k + 1)
+      const res = await api.post('/api/sis/secure-documents/upload', form)
+      const n = res.data?.documents?.length || 1
+      toast.success(n > 1 ? `Document filed for ${n} people` : 'Document uploaded')
+      setFile(null); setTitle(''); setCategory(''); setNote(''); setPersonIds([])
+      setFileKey((k) => k + 1)
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Failed to upload document')
     } finally {
       setUploading(false)
     }
-  }, [file, orgId, people, personId, category, note, load])
+  }, [file, orgId, people, personIds, title, category, note, load])
+
+  const handleRename = useCallback(async (doc) => {
+    const next = renameText.trim()
+    setRenamingId(null)
+    if (!next || next === docName(doc)) return
+    const previous = doc.title
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, title: next } : d)))
+    try {
+      await api.patch(`/api/sis/secure-documents/${doc.id}`, {
+        organization_id: orgId, title: next,
+      })
+      toast.success('Renamed')
+    } catch (err) {
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, title: previous } : d)))
+      toast.error(err?.response?.data?.error || 'Could not rename the document')
+    }
+  }, [orgId, renameText, docName])
 
   const handleDownload = useCallback(async (doc) => {
     try {
@@ -114,7 +146,7 @@ const SecureDocumentsPage = () => {
   }, [orgId])
 
   const handleDelete = useCallback(async (doc) => {
-    if (!window.confirm(`Delete "${doc.filename}"? This permanently removes the file.`)) return
+    if (!window.confirm(`Delete "${docName(doc)}"? This permanently removes the file.`)) return
     try {
       await api.delete(withOrg(`/api/sis/secure-documents/${doc.id}`, orgId))
       toast.success('Document deleted')
@@ -122,7 +154,7 @@ const SecureDocumentsPage = () => {
     } catch {
       toast.error('Failed to delete document')
     }
-  }, [orgId])
+  }, [orgId, docName])
 
   const aboutLabel = (d) => d.student_name || d.owner_name || '—'
 
@@ -132,7 +164,7 @@ const SecureDocumentsPage = () => {
   const toggleShare = useCallback(async (doc) => {
     const next = !doc.shared_with_owner
     if (next && !window.confirm(
-      `Share "${doc.filename}" with ${doc.owner_name}? They'll see it in My Documents.`)) return
+      `Share "${docName(doc)}" with ${doc.owner_name}? They'll see it in My Documents.`)) return
     try {
       await api.patch(`/api/sis/secure-documents/${doc.id}`, {
         organization_id: orgId, shared_with_owner: next,
@@ -142,7 +174,7 @@ const SecureDocumentsPage = () => {
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not change sharing')
     }
-  }, [orgId])
+  }, [orgId, docName])
 
   return (
     <div>
@@ -181,6 +213,22 @@ const SecureDocumentsPage = () => {
                   <p className="text-xs text-neutral-400 mt-1">PDF, Word, or image up to 15MB.</p>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Document name <span className="text-neutral-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    aria-label="Document name"
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={file?.name || 'Defaults to the file name'}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                  />
+                  <p className="text-xs text-neutral-400 mt-1">
+                    What this file is called in the list. You can rename it later.
+                  </p>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Category</label>
                   <input
                     type="text"
@@ -192,16 +240,37 @@ const SecureDocumentsPage = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Attach to a person <span className="text-neutral-400 font-normal">(optional)</span>
+                    Attach to people <span className="text-neutral-400 font-normal">(optional)</span>
                   </label>
+                  {personIds.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-1.5">
+                      {personIds.map((id) => {
+                        const p = people.find((x) => x.student_id === id)
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
+                            {p ? p.name : 'Person'}
+                            <button type="button" aria-label={`Remove ${p ? p.name : 'person'}`}
+                              onClick={() => setPersonIds((prev) => prev.filter((x) => x !== id))}
+                              className="hover:text-optio-pink font-bold leading-none">×</button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
                   <SearchSelect
-                    value={personId}
-                    onChange={setPersonId}
-                    options={people}
+                    value=""
+                    onChange={(id) => {
+                      if (id) setPersonIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+                    }}
+                    options={people.filter((p) => !personIds.includes(p.student_id))}
                     getId={(p) => p.student_id}
                     getLabel={personLabel}
                     placeholder="Search staff, parents, or students…"
                   />
+                  <p className="text-xs text-neutral-400 mt-1">
+                    Pick as many as you need — each person gets their own copy, shared and
+                    deleted separately.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -268,7 +337,34 @@ const SecureDocumentsPage = () => {
                     {filteredDocs.map((d) => (
                       <tr key={d.id} className="border-b border-gray-100 align-top">
                         <td className="py-3 px-4 text-neutral-900">
-                          <div className="font-medium">{d.filename}</div>
+                          {renamingId === d.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={renameText}
+                                aria-label={`Rename ${docName(d)}`}
+                                onChange={(e) => setRenameText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleRename(d)
+                                  if (e.key === 'Escape') setRenamingId(null)
+                                }}
+                                className="w-48 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                              />
+                              <button type="button" onClick={() => handleRename(d)}
+                                className="px-2 py-1 text-xs font-medium text-optio-purple hover:underline">Save</button>
+                              <button type="button" onClick={() => setRenamingId(null)}
+                                className="px-1 py-1 text-xs text-neutral-500 hover:underline">Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="font-medium">{docName(d)}</div>
+                          )}
+                          {/* The name it arrived under, once it is no longer what
+                              the office calls it — provenance for the person
+                              matching a paper file against the system. */}
+                          {d.title && d.filename && d.title !== d.filename && (
+                            <div className="text-xs text-neutral-400 mt-0.5">File: {d.filename}</div>
+                          )}
                           {d.note && <div className="text-xs text-neutral-500 mt-0.5">{d.note}</div>}
                           {d.size_bytes != null && (
                             <div className="text-xs text-neutral-400 mt-0.5">{formatSize(d.size_bytes)}</div>
@@ -308,6 +404,13 @@ const SecureDocumentsPage = () => {
                             className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
                           >
                             Open
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setRenamingId(d.id); setRenameText(docName(d)) }}
+                            className="ml-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
+                          >
+                            Rename
                           </button>
                           <button
                             type="button"

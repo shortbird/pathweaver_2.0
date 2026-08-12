@@ -99,16 +99,21 @@ export default function ClassFieldsEditor({
             aria-label="Class name" onChange={(e) => set({ name: e.target.value })} />
         </Field>
 
-        {staff.length > 0 && (
-          <Field label="Teacher">
-            <SearchSelect
-              value={d.primary_instructor_id}
-              onChange={(id) => set({ primary_instructor_id: id })}
-              options={staff} getId={(s) => s.id} getLabel={(s) => s.name}
-              placeholder="Search staff…"
-            />
-          </Field>
-        )}
+        {/* Always rendered, even before any staff exist: a school setting up
+            its catalog needs to see that a class can stand without a teacher.
+            Hiding the field left the only teacher-less path looking broken
+            (iCreate: "I want to NOT assign a teacher, but that's not an
+            option. We don't have any placeholders any more since I deleted
+            them!"). */}
+        <Field label="Teacher (optional)">
+          <SearchSelect
+            value={d.primary_instructor_id}
+            onChange={(id) => set({ primary_instructor_id: id })}
+            options={staff} getId={(s) => s.id} getLabel={(s) => s.name}
+            placeholder={staff.length ? 'Search staff…' : 'No staff to assign yet'}
+            emptyLabel="No teacher yet"
+          />
+        </Field>
 
         {staff.length > 0 && (
           <Field label="Assistant teacher(s)">

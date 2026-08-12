@@ -30,6 +30,7 @@ const MyDocumentsPage = () => {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [name, setName] = useState('')
   const [note, setNote] = useState('')
   const fileRef = useRef(null)
 
@@ -51,12 +52,13 @@ const MyDocumentsPage = () => {
     const form = new FormData()
     form.append('file', file)
     form.append('organization_id', orgId)
+    if (name.trim()) form.append('title', name.trim())
     if (note.trim()) form.append('note', note.trim())
     setUploading(true)
     try {
       await api.post('/api/sis/teacher/my-documents/upload', form)
       toast.success('Sent to the school office')
-      setNote('')
+      setName(''); setNote('')
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not upload the document')
@@ -89,7 +91,7 @@ const MyDocumentsPage = () => {
             <div key={d.id} className="p-4 flex items-center gap-3">
               <DocumentTextIcon className="w-5 h-5 text-neutral-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{d.filename}</p>
+                <p className="text-sm font-medium text-neutral-900 truncate">{d.title || d.filename}</p>
                 <p className="text-xs text-neutral-400">
                   {d.category || 'Document'}
                   {d.size_bytes ? ` · ${formatSize(d.size_bytes)}` : ''}
@@ -122,6 +124,12 @@ const MyDocumentsPage = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
         <p className="text-sm font-semibold text-neutral-900 mb-2">Send a document to the office</p>
+        {/* Naming it here is the whole point: the office would otherwise get
+            "IMG_4021.jpg" and have to rename it by hand. */}
+        <input value={name} onChange={(e) => setName(e.target.value)}
+          aria-label="Document name"
+          placeholder="Name this file (optional — e.g. Smith - Contract 2026)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
         <input value={note} onChange={(e) => setNote(e.target.value)}
           placeholder="What is it? (optional — e.g. signed contract)"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
