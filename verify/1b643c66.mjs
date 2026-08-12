@@ -18,6 +18,8 @@ const BASE = (() => {
 
 const IS_PROD_TARGET = BASE.includes('optioeducation.com')
 
+const isJson = (res) => (res.headers()['content-type'] || '').includes('application/json')
+
 export default async function run(page) {
   let apiOrigin = null
   page.on('request', (req) => {
@@ -40,12 +42,12 @@ export default async function run(page) {
     data: { organization_id: '00000000-0000-0000-0000-000000000000', clear_signature: true },
     failOnStatusCode: false,
   })
-  if (res.status() === 404 || res.status() === 405) {
-    if (IS_PROD_TARGET) {
-      throw new Error(`PATCH /api/sis/teacher/onboarding returned ${res.status()} — endpoint not deployed`)
-    }
-  } else if (res.status() < 400) {
+  if (res.status() < 400 && isJson(res)) {
     throw new Error(`PATCH /api/sis/teacher/onboarding returned ${res.status()} unauthenticated — expected an auth rejection`)
+  }
+  const deployed = res.status() >= 400 && res.status() !== 404 && res.status() !== 405
+  if (!deployed && IS_PROD_TARGET) {
+    throw new Error(`PATCH /api/sis/teacher/onboarding returned ${res.status()} on production — endpoint not deployed`)
   }
 
   // 3. Behavioral proof on the shipped frontend.
@@ -92,7 +94,7 @@ export default async function run(page) {
   await page.route('**/api/auth/me**', json(adminUser))
   await page.route('**/api/sis/staff-admin/onboarding/templates**', json({ success: true, templates: [] }))
   await page.route('**/api/sis/staff-admin/onboarding/assignments**', json({ success: true, assignments: [assignment] }))
-  await page.route('**/api/sis/teacher/onboarding/a1/items/contract', async (route) => {
+  await page.route('**/api/sis/teacher/onboarding/a1/items/contract**', async (route) => {
     if (route.request().method() === 'PATCH') {
       const data = route.request().postDataJSON()
       if (data?.clear_signature) {
@@ -113,7 +115,10 @@ export default async function run(page) {
   page.on('dialog', (dialog) => dialog.accept())
 
   await page.goto(`${BASE}/onboarding?app=sis`, { waitUntil: 'domcontentloaded' })
-  await page.getByText('Karina Worlton').first().waitFor({ timeout: 20000 })
+  const staffRow = page.getByText('Karina Worlton').first()
+  await staffRow.waitFor({ timeout: 20000 })
+  await staffRow.click()
+
   await page.getByText('Signed by').waitFor({ timeout: 10000 })
 
   const clearBtn = page.getByRole('button', { name: 'Clear signature' })
