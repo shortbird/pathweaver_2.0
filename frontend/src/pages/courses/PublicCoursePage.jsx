@@ -2,43 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import api from '../../services/api'
+import MarketingLayout from '../../components/marketing/MarketingLayout'
+import CourseInterestModal from '../../components/marketing/CourseInterestModal'
 
-const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
-
-// Floating "New to Optio" button component (always expanded)
-const FloatingNewToOptioButton = () => {
-  return (
-    <Link
-      to="/how-it-works"
-      className="hidden sm:block fixed bottom-6 right-6 z-40"
-      aria-label="Learn how Optio works"
-    >
-      <div
-        className="
-          flex items-center gap-3 px-5 py-4 rounded-full shadow-lg
-          bg-white border-2 border-optio-purple
-          text-optio-purple font-semibold
-          transform transition-all duration-300 ease-out
-          hover:shadow-xl hover:scale-105
-        "
-      >
-        <img src={OPTIO_LOGO_URL} alt="" className="w-7 h-7 flex-shrink-0" />
-        <span className="flex flex-col leading-tight">
-          <span className="text-sm">New to Optio?</span>
-          <span className="text-xs font-normal text-gray-500">Click to learn more</span>
-        </span>
-      </div>
-    </Link>
-  )
-}
+const COURSE_PRICE = '$149'
 
 // Icons (decorative - hidden from screen readers)
-const ArrowRightIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-  </svg>
-)
-
 const CheckIcon = ({ className = "w-5 h-5 flex-shrink-0 mt-0.5" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -50,6 +19,38 @@ const XIcon = ({ className = "w-5 h-5 flex-shrink-0 mt-0.5" }) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
   </svg>
 )
+
+const BackArrowIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+  </svg>
+)
+
+// In-page back control. Pops in-app history when there is some (preserves the
+// catalog's scroll position); deep links land on /catalog instead.
+const BackToCourses = ({ className = '' }) => {
+  const navigate = useNavigate()
+
+  const handleBack = () => {
+    const idx = window.history.state?.idx ?? 0
+    if (idx > 0) {
+      navigate(-1)
+    } else {
+      navigate('/catalog')
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleBack}
+      className={`inline-flex items-center gap-1.5 text-sm font-semibold rounded-full px-4 py-2 bg-white/90 text-gray-800 shadow-sm hover:bg-white transition-colors ${className}`}
+    >
+      <BackArrowIcon />
+      Back to Courses
+    </button>
+  )
+}
 
 const LearningApproachSection = () => {
   const traditional = [
@@ -169,6 +170,7 @@ const PublicCoursePage = () => {
   const [course, setCourse] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [interestOpen, setInterestOpen] = useState(false)
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -194,34 +196,42 @@ const PublicCoursePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50" aria-busy="true">
-        <div className="sr-only" role="status">Loading course...</div>
-        <div className="animate-pulse" aria-hidden="true">
-          {/* Hero skeleton */}
-          <div className="h-64 bg-gray-200" />
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="h-8 bg-gray-200 rounded w-1/2 mb-4" />
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-            <div className="h-4 bg-gray-200 rounded w-2/3" />
+      <MarketingLayout>
+        <div className="min-h-screen bg-gray-50" aria-busy="true">
+          <div className="sr-only" role="status">Loading course...</div>
+          <div className="animate-pulse" aria-hidden="true">
+            {/* Hero skeleton */}
+            <div className="h-64 bg-gray-200" />
+            <div className="max-w-4xl mx-auto px-4 py-8">
+              <div className="h-8 bg-gray-200 rounded w-1/2 mb-4" />
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-4 bg-gray-200 rounded w-2/3" />
+            </div>
           </div>
         </div>
-      </div>
+      </MarketingLayout>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{error}</h1>
-          <p className="text-gray-600 mb-6">
-            This course may be private or no longer available.
-          </p>
-          <Button onClick={() => navigate('/catalog')}>
-            Browse Courses
-          </Button>
+      <MarketingLayout>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{error}</h1>
+            <p className="text-gray-600 mb-6">
+              This course may be private or no longer available.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/catalog')}
+              className="btn-primary"
+            >
+              Browse Courses
+            </button>
+          </div>
         </div>
-      </div>
+      </MarketingLayout>
     )
   }
 
@@ -229,7 +239,7 @@ const PublicCoursePage = () => {
   const quests = course?.quests || []
 
   return (
-    <>
+    <MarketingLayout>
       <Helmet>
         <title>{course.title} | Optio</title>
         <meta name="description" content={course.description || `Learn ${course.title} at Optio`} />
@@ -241,7 +251,7 @@ const PublicCoursePage = () => {
         <link rel="canonical" href={`https://www.optioeducation.com/course/${course.slug}`} />
       </Helmet>
 
-      <main className="min-h-screen bg-gray-50 -mt-12 sm:mt-0">
+      <main className="min-h-screen bg-gray-50">
         {/* Skip link for keyboard users */}
         <a href="#course-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-optio-purple focus:rounded-lg focus:shadow-lg">
           Skip to course content
@@ -261,6 +271,10 @@ const PublicCoursePage = () => {
           )}
           {/* Dark overlay for text legibility */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
+          {/* Back button */}
+          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
+            <BackToCourses />
+          </div>
           {/* Content */}
           <div className="relative z-10 w-full max-w-4xl mx-auto px-4 pb-8 sm:pb-12 pt-24 sm:pt-32 text-white">
             {course.organization_name && (
@@ -276,6 +290,23 @@ const PublicCoursePage = () => {
                 {course.description}
               </p>
             )}
+            {/* Facts + CTA */}
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <button
+                type="button"
+                onClick={() => setInterestOpen(true)}
+                className="btn-primary"
+              >
+                Get this course · {COURSE_PRICE}
+              </button>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/90">
+                {quests.length > 0 && (
+                  <span>{quests.length} real-world project{quests.length !== 1 ? 's' : ''}</span>
+                )}
+                <span>Any age</span>
+                <span>HS credit available</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -384,6 +415,9 @@ const PublicCoursePage = () => {
                     )}
                     {/* Project content */}
                     <div className="p-4 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1">
+                        Project {index + 1}
+                      </p>
                       <h3 className="font-semibold text-gray-900">
                         {quest.title}
                       </h3>
@@ -404,13 +438,44 @@ const PublicCoursePage = () => {
             <ParentGuidanceSection guidance={course.parent_guidance} cleanText={cleanText} />
           )}
 
+          {/* Closing CTA */}
+          <section aria-labelledby="cta-heading">
+            <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/10 rounded-xl p-6 sm:p-8 text-center">
+              <h2 id="cta-heading" className="text-2xl font-bold text-gray-900 mb-2">
+                Ready to start?
+              </h2>
+              <p className="text-gray-600 max-w-xl mx-auto mb-6">
+                {COURSE_PRICE} per course. Open to any age, with high school credit
+                available. Younger kids can make it a family project.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setInterestOpen(true)}
+                  className="btn-primary btn-lg"
+                >
+                  Get this course
+                </button>
+                <Link
+                  to="/catalog"
+                  className="px-6 py-3 text-sm font-semibold text-optio-purple hover:text-optio-pink transition-colors"
+                >
+                  Browse all courses
+                </Link>
+              </div>
+            </div>
+          </section>
         </div>
 
-        {/* Floating "New to Optio" button - hidden on mobile to avoid covering enroll button */}
-        <FloatingNewToOptioButton />
-
+        {/* Course purchase interest capture */}
+        <CourseInterestModal
+          open={interestOpen}
+          course={course}
+          onClose={() => setInterestOpen(false)}
+          source="course_page"
+        />
       </main>
-    </>
+    </MarketingLayout>
   )
 }
 

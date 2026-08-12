@@ -472,6 +472,9 @@ function App() {
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
+              {/* Public course catalog + detail — marketing chrome (nav + footer), no auth */}
+              <Route path="catalog" element={<PublicCatalogPage />} />
+              <Route path="course/:slug" element={<PublicCoursePage />} />
               {/* Program public/marketing routes (e.g. POE) — see src/programs/registry.jsx */}
               {getProgramRoutes('public')}
 
@@ -514,9 +517,6 @@ function App() {
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
-                {/* Public course pages (no auth required) */}
-                <Route path="catalog" element={<PublicCatalogPage />} />
-                <Route path="course/:slug" element={<PublicCoursePage />} />
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
