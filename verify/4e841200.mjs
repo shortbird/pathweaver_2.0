@@ -82,7 +82,7 @@ export default async function run(page) {
   await page.getByText('Intro to Science', { exact: true }).click()
 
   // Verify Classroom dropdown has Room 101 (Science Lab)
-  const roomSelect = page.getByLabelText('Classroom')
+  const roomSelect = page.getByLabel('Classroom')
   await roomSelect.waitFor({ timeout: 5000 })
   const optionText = await roomSelect.textContent()
   if (!optionText.includes('Room 101 (Science Lab)')) {
