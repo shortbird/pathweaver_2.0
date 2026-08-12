@@ -5,6 +5,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SisOrgSettings from '../../components/sis/SisOrgSettings'
+import ClassroomsCard from '../../components/sis/ClassroomsCard'
 import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
 import CalendarCategoriesCard from '../../components/sis/CalendarCategoriesCard'
 import QuickLinksCard from '../../components/sis/QuickLinksCard'
@@ -75,6 +76,7 @@ const SettingsPage = () => {
             onUpdate={fetchOrg}
             onLogoChange={refreshOrganization}
           />
+          <ClassroomsCard key={`rooms-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <CalendarCategoriesCard key={`cats-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <QuickLinksCard key={`links-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
