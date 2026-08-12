@@ -15,6 +15,11 @@ import React, { useState } from 'react'
  *
  * Shared by the SIS staff checklist and the family portal, because a signature
  * should not be two implementations with two sets of bugs.
+ *
+ * Items that sign a document from the office (item.sign_docs present) show that
+ * document to read and withhold the sign box until it exists — you cannot sign
+ * a contract you were never given. The backend refuses such a signature too;
+ * this is the courteous version of the same rule.
  */
 
 const FALLBACK_STATEMENT = 'I am typing my own name below, and I intend it to count as my official signature.'
@@ -25,7 +30,7 @@ const fmtSigned = (iso) => {
   catch { return null }
 }
 
-export default function ChecklistSignature({ item, statement, disabled = false, busy = false, onSign }) {
+export default function ChecklistSignature({ item, statement, disabled = false, busy = false, onSign, onOpenDoc }) {
   const [name, setName] = useState('')
   const [agreed, setAgreed] = useState(false)
 
@@ -40,6 +45,22 @@ export default function ChecklistSignature({ item, statement, disabled = false, 
     )
   }
 
+  // sign_docs (an array) marks an item that signs a document the office uploads
+  // to the person's portal. Empty means the office hasn't provided it yet, so
+  // there is nothing to sign — no sign box (iCreate: teachers signed "Review &
+  // Sign Your Contract" before any contract existed). Checked before `disabled`
+  // so an admin previewing sees why nothing has been signed.
+  const docs = item.sign_docs
+  if (Array.isArray(docs) && docs.length === 0) {
+    return (
+      <p className="mt-1.5 text-sm text-neutral-400">
+        {disabled
+          ? 'Waiting for the office to upload their document — they sign it here once it arrives.'
+          : 'Your document is not here yet. The office will upload it to your portal, and you will review and sign it here.'}
+      </p>
+    )
+  }
+
   if (disabled) {
     return <p className="mt-1.5 text-sm text-neutral-400">Waiting for their signature.</p>
   }
@@ -48,6 +69,17 @@ export default function ChecklistSignature({ item, statement, disabled = false, 
 
   return (
     <div className="mt-2 rounded-lg border border-gray-200 bg-neutral-50 p-3 space-y-2">
+      {Array.isArray(docs) && docs.length > 0 && (
+        <div>
+          <span className="block text-xs font-medium text-neutral-500 mb-1">Review before signing</span>
+          {docs.map((d) => (
+            <button key={d.id} type="button" onClick={() => onOpenDoc?.(d)}
+              className="block text-sm text-optio-purple hover:underline">
+              {d.title}
+            </button>
+          ))}
+        </div>
+      )}
       <label className="block">
         <span className="block text-xs font-medium text-neutral-500 mb-1">Type your full name</span>
         <input

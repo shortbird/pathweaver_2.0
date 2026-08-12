@@ -87,6 +87,17 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
     }
   }
 
+  // A document the office shared to the signer's portal (item.sign_docs) — the
+  // thing a signature item signs. Same signed-URL door as My Documents.
+  const openSignDoc = async (doc) => {
+    try {
+      const r = await api.get(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId))
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
   if (!assignments.length) {
     if (hideWhenEmpty) return null
     return (
@@ -129,6 +140,17 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
                     </div>
                     {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
                     {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
+                    {/* The document or link the office gives THEM (the family
+                        portal always showed it; this view never did — teachers
+                        had no way to reach the I-9 they were asked to fill). */}
+                    {item.link && (
+                      <div className="mt-1.5">
+                        <a href={item.link} target="_blank" rel="noopener noreferrer"
+                          className="text-sm text-optio-purple hover:underline">
+                          Open link
+                        </a>
+                      </div>
+                    )}
                     {item.needs_signature && (
                       <ChecklistSignature
                         item={item}
@@ -136,6 +158,7 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
                         disabled={Boolean(preview)}
                         busy={busy}
                         onSign={(fields) => patchItem(a.id, item.key, fields)}
+                        onOpenDoc={openSignDoc}
                       />
                     )}
                     {item.needs_document && (
