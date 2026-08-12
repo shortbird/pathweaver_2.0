@@ -29,7 +29,7 @@ const TYPE_BADGE = {
 
 const EMPTY_FORM = { type: 'offer', message: '', area: '', days: '' }
 
-export default function CarpoolBoard({ posts = [], canPost = false, canModerate = false, onChanged = () => {} }) {
+export default function CarpoolBoard({ posts = [], canPost = false, canModerate = false, onChanged = () => {}, defaultOpen = false }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -87,6 +87,7 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
   return (
     <FeedSection
       id="board-carpool" title="Carpool" Icon={TruckIcon}
+      defaultOpen={defaultOpen}
       intro="Offer seats or find a ride with other families. Arranging happens over Messages — right here or in the mobile app."
     >
       {canPost && !showForm && (

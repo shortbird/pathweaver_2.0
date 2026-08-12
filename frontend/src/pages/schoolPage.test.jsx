@@ -60,6 +60,11 @@ function renderPage() {
   )
 }
 
+async function expandMessages() {
+  const btn = await screen.findByRole('button', { name: /Messages/i })
+  fireEvent.click(btn)
+}
+
 describe('SchoolPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,9 +72,10 @@ describe('SchoolPage', () => {
   })
 
   describe('loading state', () => {
-    it('shows a spinner while loading', () => {
+    it('shows a spinner while loading', async () => {
       api.get.mockImplementation(() => new Promise(() => {}))
       renderPage()
+      await expandMessages()
       expect(document.querySelector('.animate-spin')).toBeTruthy()
     })
   })
@@ -96,6 +102,7 @@ describe('SchoolPage', () => {
 
     it('renders announcement titles and bodies', async () => {
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
         expect(screen.getByText('Picture Day')).toBeInTheDocument()
@@ -107,6 +114,7 @@ describe('SchoolPage', () => {
       // The page is titled with the school; repeating it on each announcement
       // was noise and went in the 2026-08-06 redesign.
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
@@ -115,6 +123,7 @@ describe('SchoolPage', () => {
 
     it('shows a Read more toggle for long bodies', async () => {
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Read more')).toBeInTheDocument()
       })
@@ -127,6 +136,7 @@ describe('SchoolPage', () => {
     it('shows an empty message when there are no announcements', async () => {
       api.get.mockResolvedValue(mockArchiveResponse({ announcements: [], total: 0 }))
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('No messages yet.')).toBeInTheDocument()
       })
@@ -136,6 +146,7 @@ describe('SchoolPage', () => {
   describe('search', () => {
     it('re-fetches with the query after typing in search', async () => {
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
@@ -153,6 +164,7 @@ describe('SchoolPage', () => {
 
     it('shows a no-results message for an empty search', async () => {
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
@@ -169,6 +181,7 @@ describe('SchoolPage', () => {
     it('shows Load more when there are more announcements and appends the next page', async () => {
       api.get.mockResolvedValue(mockArchiveResponse({ total: 5 }))
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Load more')).toBeInTheDocument()
       })
@@ -204,6 +217,7 @@ describe('SchoolPage', () => {
 
     it('hides Load more when everything is loaded', async () => {
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Fall Newsletter')).toBeInTheDocument()
       })
@@ -215,6 +229,7 @@ describe('SchoolPage', () => {
     it('shows an error message when the API fails', async () => {
       api.get.mockRejectedValue({ response: { data: { error: 'Failed to load archive' } } })
       renderPage()
+      await expandMessages()
       await waitFor(() => {
         expect(screen.getByText('Failed to load archive')).toBeInTheDocument()
       })

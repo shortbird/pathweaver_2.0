@@ -451,6 +451,7 @@ export default function SchoolPage() {
             canPost={carpoolPerms.canPost}
             canModerate={carpoolPerms.canModerate}
             onChanged={refreshFeed}
+            defaultOpen={showing !== 'all'}
           />
         )}
       </div>
@@ -468,6 +469,7 @@ export default function SchoolPage() {
         id="school-messages"
         title={schoolName ? `Messages from ${schoolName}` : 'Messages'}
         Icon={EnvelopeIcon}
+        defaultOpen={showing !== 'all'}
       >
       {/* Search */}
       <div className="relative mb-4">

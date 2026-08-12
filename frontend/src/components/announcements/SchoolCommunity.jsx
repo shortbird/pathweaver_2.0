@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  MegaphoneIcon, CalendarDaysIcon, ArchiveBoxIcon, SparklesIcon,
+  MegaphoneIcon, CalendarDaysIcon, ArchiveBoxIcon, SparklesIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 import AnnouncementBody from './AnnouncementBody'
 
@@ -61,20 +62,59 @@ const fmtWhen = (e) => {
 
 /** A feed block: white card, icon-tile header — the cards' language, reused.
  * `id` is the jump-bar anchor; scroll-mt keeps the sticky bar off the title. */
-export const FeedSection = ({ id, title, Icon, count, intro, children }) => (
-  <section id={id} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 mb-4 scroll-mt-14">
-    <div className="flex items-center gap-2.5 mb-3">
-      <span className="w-8 h-8 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-[18px] h-[18px] text-optio-purple" />
-      </span>
-      <h2 className="text-sm font-semibold text-gray-900">
-        {title}{count ? ` (${count})` : ''}
-      </h2>
-    </div>
-    {intro && <p className="text-sm text-gray-500 -mt-1 mb-3">{intro}</p>}
-    {children}
-  </section>
-)
+export const FeedSection = ({
+  id, title, Icon, count, intro, action, children,
+  collapsible = true, defaultOpen = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  useEffect(() => {
+    setIsOpen(defaultOpen)
+  }, [defaultOpen])
+
+  return (
+    <section id={id} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 mb-4 scroll-mt-14 transition-all">
+      <div className="flex items-center justify-between gap-2.5">
+        <button
+          type="button"
+          onClick={() => collapsible && setIsOpen((prev) => !prev)}
+          className={`flex items-center gap-2.5 flex-1 text-left py-1 ${
+            collapsible ? 'cursor-pointer select-none group' : ''
+          }`}
+          aria-expanded={collapsible ? isOpen : undefined}
+          aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${title}`}
+        >
+          <span className="w-8 h-8 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-optio-purple/20 transition-colors">
+            <Icon className="w-[18px] h-[18px] text-optio-purple" />
+          </span>
+          <h2 className="text-sm font-semibold text-gray-900 group-hover:text-optio-purple transition-colors">
+            {title}{count ? ` (${count})` : ''}
+          </h2>
+          {collapsible && (
+            <ChevronDownIcon
+              className={`w-4 h-4 text-gray-400 group-hover:text-optio-purple ml-1 transition-transform duration-200 ${
+                isOpen ? 'rotate-180' : ''
+              }`}
+            />
+          )}
+        </button>
+
+        {action && (
+          <div className="flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+            {action}
+          </div>
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="mt-3">
+          {intro && <p className="text-sm text-gray-500 mb-3">{intro}</p>}
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
 
 /**
  * A section shows its first few items; the rest wait behind "Show all". The
@@ -116,7 +156,7 @@ export default function SchoolCommunity({ feed, expanded = false }) {
   return (
     <div>
       {announcements.length > 0 && (
-        <FeedSection id="board-announcements" title="Announcements" Icon={MegaphoneIcon}>
+        <FeedSection id="board-announcements" title="Announcements" Icon={MegaphoneIcon} defaultOpen={expanded}>
           <div className="space-y-3">
             {ann.visible.map((a) => (
               <article
@@ -151,7 +191,20 @@ export default function SchoolCommunity({ feed, expanded = false }) {
       )}
 
       {events.length > 0 && (
-        <FeedSection id="board-events" title="Upcoming events" Icon={CalendarDaysIcon}>
+        <FeedSection
+          id="board-events"
+          title="Upcoming events"
+          Icon={CalendarDaysIcon}
+          defaultOpen={expanded}
+          action={
+            <Link
+              to="/school-calendar"
+              className="text-xs font-medium text-optio-purple hover:underline flex items-center gap-1"
+            >
+              View calendar &rarr;
+            </Link>
+          }
+        >
           <div className="divide-y divide-gray-100">
             {evts.visible.map((e) => (
               <div key={e.id} className="py-3 first:pt-0 last:pb-0">
@@ -164,7 +217,15 @@ export default function SchoolCommunity({ feed, expanded = false }) {
               </div>
             ))}
           </div>
-          <ShowAllToggle capped={evts} total={events.length} noun="events" />
+          <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+            <ShowAllToggle capped={evts} total={events.length} noun="events" />
+            <Link
+              to="/school-calendar"
+              className="text-xs font-medium text-optio-purple hover:underline ml-auto"
+            >
+              View full calendar &rarr;
+            </Link>
+          </div>
         </FeedSection>
       )}
 
@@ -173,6 +234,7 @@ export default function SchoolCommunity({ feed, expanded = false }) {
           id="board-lost-found"
           title="Lost &amp; found" Icon={ArchiveBoxIcon} count={lostFound.length}
           intro="Recognize something? Collect it from the office."
+          defaultOpen={expanded}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {lost.visible.map((item) => (
@@ -206,7 +268,7 @@ export default function SchoolCommunity({ feed, expanded = false }) {
       )}
 
       {recognition.length > 0 && (
-        <FeedSection id="board-shout-outs" title="Shout-outs" Icon={SparklesIcon}>
+        <FeedSection id="board-shout-outs" title="Shout-outs" Icon={SparklesIcon} defaultOpen={expanded}>
           <div className="space-y-3">
             {recog.visible.map((r) => (
               <article key={r.id} className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">

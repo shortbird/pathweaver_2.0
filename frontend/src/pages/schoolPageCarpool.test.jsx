@@ -52,6 +52,11 @@ const feedWith = (overrides = {}) => ({
 
 const renderPage = () => render(<MemoryRouter><SchoolPage /></MemoryRouter>)
 
+async function expandCarpool() {
+  const btn = await screen.findByRole('button', { name: /Carpool/i })
+  fireEvent.click(btn)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   feedResponse = feedWith()
@@ -61,6 +66,7 @@ beforeEach(() => {
 describe('the carpool board', () => {
   it('shows posts with type, author and details — and no phone numbers', async () => {
     renderPage()
+    await expandCarpool()
     expect(await screen.findByText('Two seats from Lehi, Tue & Thu mornings.')).toBeInTheDocument()
     expect(screen.getByText('Offering seats')).toBeInTheDocument()
     expect(screen.getByText('Dana C.')).toBeInTheDocument()
@@ -69,6 +75,7 @@ describe('the carpool board', () => {
 
   it('messages the author through the app, addressed by post id', async () => {
     renderPage()
+    await expandCarpool()
     fireEvent.click(await screen.findByRole('button', { name: 'Message Dana' }))
     fireEvent.change(screen.getByLabelText('Message Dana'), {
       target: { value: 'Is there room for one more on Thursdays?' },
@@ -87,6 +94,7 @@ describe('the carpool board', () => {
 
   it('posts an offer through the form', async () => {
     renderPage()
+    await expandCarpool()
     fireEvent.click(await screen.findByRole('button', { name: 'Post a ride offer or need' }))
     fireEvent.change(screen.getByLabelText('Carpool message'), {
       target: { value: 'We need a ride from Saratoga Springs.' },
@@ -105,6 +113,7 @@ describe('the carpool board', () => {
       feed: { announcements: [], lost_found: [], recognition: [], events: [], carpool: [{ ...POST, mine: true }] },
     })
     renderPage()
+    await expandCarpool()
     await screen.findByText('Two seats from Lehi, Tue & Thu mornings.')
     expect(screen.queryByRole('button', { name: 'Message Dana' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
@@ -116,6 +125,7 @@ describe('the carpool board', () => {
   it('gives an admin Remove on posts that are not theirs', async () => {
     feedResponse = feedWith({ can_moderate: true })
     renderPage()
+    await expandCarpool()
     await screen.findByText('Two seats from Lehi, Tue & Thu mornings.')
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
@@ -123,6 +133,7 @@ describe('the carpool board', () => {
   it('shows a student the board read-only, and hides an empty board entirely', async () => {
     feedResponse = feedWith({ can_post_carpool: false })
     renderPage()
+    await expandCarpool()
     await screen.findByText('Two seats from Lehi, Tue & Thu mornings.')
     expect(screen.queryByRole('button', { name: 'Post a ride offer or need' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Message Dana' })).not.toBeInTheDocument()
@@ -139,7 +150,7 @@ describe('the carpool board', () => {
       feed: { announcements: [], lost_found: [], recognition: [], events: [], carpool: [] },
     })
     renderPage()
-    await screen.findByText('No messages yet.')
+    await screen.findByRole('heading', { name: 'iCreate' })
     expect(screen.queryByText('Carpool')).not.toBeInTheDocument()
   })
 })
