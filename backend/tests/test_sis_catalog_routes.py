@@ -133,3 +133,28 @@ class TestMeetingRoutes:
             resp = client.post('/api/sis/classes/c1/meetings', headers=auth_headers,
                                json={'day_of_week': 2, 'start_time': '09:00', 'end_time': '10:30'})
         assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestTeacherConflictRoutes:
+
+    def test_requires_auth(self, client):
+        assert client.get('/api/sis/teacher-conflicts').status_code == 401
+
+    def test_forbidden_for_student(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('student')):
+            resp = client.get('/api/sis/teacher-conflicts', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_lists_conflicts_for_staff(self, client, auth_headers, mock_verify_token):
+        row = {'teacher_id': 't1', 'teacher_name': 'Hollie Smith',
+               'class_a_id': 'a', 'class_a': 'Digital Art Studio',
+               'class_b_id': 'b', 'class_b': 'Story Detectives',
+               'day_of_week': 4, 'start_time': '14:00', 'end_time': '15:00'}
+        with staff(), patch('services.sis_registration_service.list_teacher_conflicts',
+                            return_value=[row]):
+            resp = client.get('/api/sis/teacher-conflicts?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.get_json()['conflicts'] == [row]

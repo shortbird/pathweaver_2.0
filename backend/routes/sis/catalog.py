@@ -273,6 +273,20 @@ def schedule_conflicts(user_id):
     return jsonify({'success': True, 'conflicts': regs.list_schedule_conflicts(org_id)})
 
 
+@bp.route('/teacher-conflicts', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def teacher_conflicts(user_id):
+    """Teachers double-booked as primary instructor of two overlapping classes.
+    Surfaced on the Classes page after teacher/schedule edits so the front
+    office catches an accidental double-booking at save time (iCreate).
+    Advisory only — never blocks."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_registration_service as regs
+    return jsonify({'success': True, 'conflicts': regs.list_teacher_conflicts(org_id)})
+
+
 # ── Class meetings (schedule) ────────────────────────────────────────────────
 def _load_class(repo, org_id, class_id):
     existing = repo.find_by_id(class_id)
