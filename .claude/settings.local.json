@@ -8,6 +8,7 @@
       "Bash(npm run test:run:*)", "Bash(npm run test:coverage:*)", "Bash(npx vitest run:*)",
       "Bash(docker --version)", "Bash(docker compose *)", "Bash(docker info *)",
       "mcp__supabase__execute_sql", "mcp__supabase__apply_migration", "mcp__supabase-optio__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration", "mcp__claude_ai_Supabase__execute_sql",
       "mcp__brevo__domains_get_domains", "mcp__brevo__attributes_get_attributes",
       "mcp__brevo__lists_get_lists", "mcp__brevo__folders_get_folders"
     ]
