@@ -119,4 +119,41 @@ describe('signing a checklist item', () => {
     await screen.findByText('Read the handbook')
     expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
   })
+
+  it('shows the link the office gave them', async () => {
+    // The family portal always showed item.link; this view never did, so
+    // teachers could not reach the I-9 they were asked to fill in.
+    mockChecklist([item({ key: 'i9', title: 'Upload your I-9', needs_signature: false,
+      link: 'https://example.org/i-9.pdf' })])
+    render(<OnboardingPage />)
+    const link = await screen.findByRole('link', { name: 'Open link' })
+    expect(link).toHaveAttribute('href', 'https://example.org/i-9.pdf')
+  })
+})
+
+describe('signing a document from the office', () => {
+  // iCreate, 2026-08-12: "User can sign contract without having one." The item
+  // said the contract would be uploaded to the teacher's portal, and the sign
+  // box appeared anyway — teachers signed against nothing. sign_docs (from the
+  // backend) is the office's uploads for this person; empty means nothing to
+  // sign yet.
+  it('withholds the sign box until the office uploads the document', async () => {
+    mockChecklist([item({ sign_docs: [] })])
+    render(<OnboardingPage />)
+    await screen.findByText('Staff agreement')
+    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.getByText(/Your document is not here yet/)).toBeInTheDocument()
+  })
+
+  it('offers the document to read, then the sign box', async () => {
+    mockChecklist([item({ sign_docs: [{ id: 'doc-1', title: 'Contract - Kate Myers.pdf' }] })])
+    render(<OnboardingPage />)
+    expect(await screen.findByText('Review before signing')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Your full name')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Contract - Kate Myers.pdf' }))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/teacher/my-documents/doc-1/url'),
+    ))
+  })
 })

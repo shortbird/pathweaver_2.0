@@ -256,7 +256,39 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
         # Sent so the checkbox shows the exact sentence that gets recorded,
         # rather than the client and the server each keeping their own wording.
         r['signature_statement'] = SIGNATURE_STATEMENT
+    if user_id:
+        _attach_sign_docs(org_id, user_id, rows)
     return rows
+
+
+def office_documents(org_id: str, user_id: str) -> List[Dict[str, Any]]:
+    """Documents the office has put in this person's portal — shared with them,
+    not uploaded by them. This is the pool a document-signature item signs
+    against (see _attach_sign_docs)."""
+    rows = (_admin().table('sis_secure_documents')
+            .select('id, title, filename')
+            .eq('organization_id', org_id).eq('owner_user_id', user_id)
+            .eq('shared_with_owner', True).eq('uploaded_by_owner', False)
+            .order('created_at', desc=True).execute()).data or []
+    return [{'id': r['id'], 'title': r.get('title') or r.get('filename') or 'Document'}
+            for r in rows]
+
+
+def _attach_sign_docs(org_id: str, user_id: str, rows: List[Dict[str, Any]]) -> None:
+    """On a person's own staff checklist, a signature item with no template link
+    signs a document the office uploads to their portal ("Your contract will be
+    uploaded to your teacher portal"). Those items carry `sign_docs` — the
+    office-shared documents — so the UI can offer them to read and withhold the
+    sign box while the list is empty. Without this, teachers signed "Review &
+    Sign Your Contract" before any contract existed (iCreate, 2026-08-12)."""
+    wants = [i for r in rows if _clean_audience(r.get('audience')) == 'staff'
+             for i in (r.get('items') or [])
+             if i.get('needs_signature') and not i.get('link') and not i.get('signature')]
+    if not wants:
+        return
+    docs = office_documents(org_id, user_id)
+    for i in wants:
+        i['sign_docs'] = docs
 
 
 def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
@@ -311,7 +343,8 @@ _MAX_SIGNATURE_NAME = 120
 
 
 def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
-                     actor_id: str) -> Optional[str]:
+                     actor_id: str,
+                     documents: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
     """Record a typed signature on an item, or return why it can't be.
 
     A typed name is a valid electronic signature when you can show who typed it,
@@ -323,9 +356,19 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
     Refusing an un-agreed signature matters more than it looks: a checklist that
     accepts a name without the affirmation records something that is not a
     signature while looking exactly like one that is.
+
+    `documents` is the same rule one level up: an item that signs a document from
+    the office (a contract in their portal — see _attach_sign_docs) must not be
+    signable while the office hasn't provided one. Pass the person's office
+    documents to enforce that; an empty list refuses the signature, a non-empty
+    one is recorded on it as what the signer had in front of them. None means
+    the item doesn't sign a portal document (it has a link, or is a family item).
     """
     if not target.get('needs_signature'):
         return 'This item is not signed here'
+    if documents is not None and not documents:
+        return ("The office hasn't uploaded the document to sign yet — "
+                'it will appear on this item once it does')
     name = (fields.get('signature_name') or '').strip()
     if not name:
         return 'Type your full name to sign'
@@ -340,6 +383,9 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
         'signed_at': _now(),
         'ip': (fields.get('signature_ip') or None),
     }
+    if documents:
+        # What the signer had in front of them when they signed.
+        target['signature']['documents'] = documents
     return None
 
 
@@ -371,7 +417,14 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     if signing:
         if is_admin and assignment.get('user_id') != actor_id:
             return {'error': 'Only the person themselves can sign this'}
-        problem = _apply_signature(target, fields, actor_id)
+        # A staff signature item with no link signs a document from the office's
+        # portal uploads; look those up so a signature can't outrun the document
+        # (and so the signature records which documents were there).
+        documents = None
+        if (target.get('needs_signature') and not target.get('link')
+                and _clean_audience(assignment.get('audience')) == 'staff'):
+            documents = office_documents(org_id, assignment['user_id'])
+        problem = _apply_signature(target, fields, actor_id, documents=documents)
         if problem:
             return {'error': problem}
         status = 'complete'

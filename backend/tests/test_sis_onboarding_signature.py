@@ -34,12 +34,20 @@ def _item(**over):
     return base
 
 
-def _assignment(items=None, user_id=SIGNER):
+def _assignment(items=None, user_id=SIGNER, audience='staff'):
     return {'id': ASSIGNMENT_ID, 'organization_id': ORG, 'user_id': user_id,
+            'audience': audience,
             'template_name': 'Employee onboarding', 'items': items or [_item()]}
 
 
-def _run(fields, assignment=None, actor_id=SIGNER, is_admin=False):
+# What the office shared to the signer's portal. A staff signature item with no
+# link signs against these, so the default gives the signer one to keep the
+# plain signing tests signing; pass [] to model an office that hasn't uploaded.
+OFFICE_DOCS = [{'id': 'doc-1', 'title': 'Contract - Kate Myers.pdf'}]
+
+
+def _run(fields, assignment=None, actor_id=SIGNER, is_admin=False,
+         office_docs=OFFICE_DOCS):
     """Call update_item against a stubbed assignment; return (result, saved_items)."""
     assignment = assignment or _assignment()
     saved = {}
@@ -51,6 +59,7 @@ def _run(fields, assignment=None, actor_id=SIGNER, is_admin=False):
     with patch.object(onboarding, '_load_assignment', return_value=assignment), \
          patch.object(onboarding, '_save_items', side_effect=_fake_save), \
          patch.object(onboarding, '_admin', return_value=Mock()), \
+         patch.object(onboarding, 'office_documents', return_value=office_docs), \
          patch('services.sis_notifications.notify'), \
          patch.object(onboarding.sis_service, 'org_admin_ids', return_value=[]):
         result = onboarding.update_item(ORG, ASSIGNMENT_ID, 'contract', fields,
@@ -99,7 +108,8 @@ class TestSigning:
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=rows)
         client.table.return_value = table
-        with patch.object(onboarding, '_admin', return_value=client):
+        with patch.object(onboarding, '_admin', return_value=client), \
+             patch.object(onboarding, 'office_documents', return_value=[]):
             out = onboarding.list_assignments(ORG, user_id=SIGNER)
         assert out[0]['signature_statement'] == onboarding.SIGNATURE_STATEMENT
 
@@ -148,6 +158,74 @@ class TestWhatItRefuses:
         own = _assignment(user_id='molly')
         result, _ = _run(SIGN, assignment=own, actor_id='molly', is_admin=True)
         assert result.get('error') is None
+
+
+@pytest.mark.unit
+class TestSigningNeedsTheDocument:
+    """iCreate, 2026-08-12: "User can sign contract without having one." The
+    contract item said "Your contract will be uploaded to your teacher portal",
+    and teachers signed it while the office had uploaded nothing — a recorded
+    signature over a document that did not exist. A staff signature item with no
+    template link signs against the office's portal uploads, so those now gate
+    it."""
+
+    def test_it_refuses_when_the_office_has_uploaded_nothing(self):
+        result, items = _run(SIGN, office_docs=[])
+        assert "office hasn't uploaded" in result['error']
+        assert items is None
+
+    def test_a_template_link_is_the_document(self):
+        """An item whose link carries the thing signed (a handbook) needs no
+        portal upload."""
+        linked = _assignment([_item(link='https://example.org/handbook.pdf')])
+        result, items = _run(SIGN, assignment=linked, office_docs=[])
+        assert result.get('error') is None
+        assert 'documents' not in items[0]['signature']
+
+    def test_family_items_are_not_gated_on_the_staff_portal(self):
+        """Family checklists have no My Documents; their signature items keep
+        signing the statement/link they always did."""
+        fam = _assignment(audience='family')
+        result, _ = _run(SIGN, assignment=fam, office_docs=[])
+        assert result.get('error') is None
+
+    def test_the_signature_records_what_they_had_in_front_of_them(self):
+        _, items = _run(SIGN)
+        assert items[0]['signature']['documents'] == OFFICE_DOCS
+
+    def test_the_checklist_carries_the_documents_to_sign(self):
+        """list_assignments hands the UI `sign_docs` on unsigned document-
+        signature items, so the sign box can be withheld while it is empty."""
+        rows = [{'id': ASSIGNMENT_ID, 'user_id': SIGNER, 'audience': 'staff',
+                 'items': [_item()]}]
+        client = Mock()
+        table = Mock()
+        for chained in ('select', 'eq', 'order', 'in_'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        client.table.return_value = table
+        with patch.object(onboarding, '_admin', return_value=client), \
+             patch.object(onboarding, 'office_documents', return_value=[]) as docs:
+            out = onboarding.list_assignments(ORG, user_id=SIGNER)
+        docs.assert_called_once_with(ORG, SIGNER)
+        assert out[0]['items'][0]['sign_docs'] == []
+
+    def test_the_admin_roll_up_does_not_look_up_documents(self):
+        """The org-wide progress list is per-admin, not per-person — no user, no
+        portal to look in."""
+        rows = [{'id': ASSIGNMENT_ID, 'user_id': SIGNER, 'audience': 'staff',
+                 'items': [_item()]}]
+        client = Mock()
+        table = Mock()
+        for chained in ('select', 'eq', 'order', 'in_'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        client.table.return_value = table
+        with patch.object(onboarding, '_admin', return_value=client), \
+             patch.object(onboarding, 'office_documents', return_value=[]) as docs:
+            out = onboarding.list_assignments(ORG)
+        docs.assert_not_called()
+        assert 'sign_docs' not in out[0]['items'][0]
 
 
 @pytest.mark.unit
