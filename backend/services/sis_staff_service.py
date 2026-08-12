@@ -182,7 +182,7 @@ def _classes_by_ids(org_id: str, class_ids: List[str]) -> List[Dict[str, Any]]:
     return (
         _admin().table('org_classes')
         .select('id, name, description, location, capacity, status, image_url, '
-                'primary_instructor_id, assistant_instructor_ids')
+                'min_age, max_age, primary_instructor_id, assistant_instructor_ids')
         .eq('organization_id', org_id).in_('id', class_ids)
         .neq('status', 'archived').execute()
     ).data or []
@@ -243,10 +243,17 @@ def teacher_schedule(user_id: str, org_id: str) -> Dict[str, Any]:
     """Weekly view: recurring class meetings + duties, plus upcoming one-offs."""
     ids = sis_service.advisor_class_ids(user_id, org_id)
     classes = {c['id']: c for c in _classes_by_ids(org_id, ids)}
-    meetings = [
-        {**m, 'class_name': (classes.get(m['class_id']) or {}).get('name')}
-        for m in _meetings_for_classes(org_id, list(classes.keys()))
-    ]
+    meetings = []
+    for m in _meetings_for_classes(org_id, list(classes.keys())):
+        cls = classes.get(m['class_id']) or {}
+        meetings.append({
+            **m,
+            'class_name': cls.get('name'),
+            # Most orgs set the room on the class, not each meeting.
+            'location': m.get('location') or cls.get('location'),
+            'min_age': cls.get('min_age'),
+            'max_age': cls.get('max_age'),
+        })
     duties = list_assignments(org_id, user_id)
     return {'meetings': meetings, 'assignments': duties}
 
