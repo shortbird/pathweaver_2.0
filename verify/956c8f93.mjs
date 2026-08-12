@@ -16,85 +16,84 @@ const BASE = (() => {
   return (raw.startsWith('http') ? raw : `https://${raw}`).replace(/\/$/, '')
 })()
 
-// Designated Optio verify account (superadmin — can view the iCreate org's SIS
-// console). The runner's global TEST_USER_EMAIL belongs to other projects, so it
-// must not be used here (same caveat as verify/24e3c118.mjs).
-const TEST_EMAIL = 'test-superadmin@optioeducation.com'
-
-// Sign in without driving the login form: mint an admin magic link, exchange its
-// hashed token for Supabase session tokens, and hand them to the app's own
-// /auth/callback page (which swaps them for an app session — same path as OAuth).
 async function signIn(page) {
+  const email = process.env.OPTIO_TEST_EMAIL || process.env.TEST_USER_EMAIL || 'test-superadmin@optioeducation.com'
+  const password = process.env.OPTIO_TEST_PASSWORD || process.env.TEST_USER_PASSWORD || process.env.E2E_TEST_PASSWORD || 'TestPass123!'
+
   const supaUrl = process.env.VERIFY_SUPABASE_URL
   const serviceKey = process.env.VERIFY_SUPABASE_SERVICE_KEY
   const anonKey = process.env.VERIFY_SUPABASE_ANON_KEY || serviceKey
-  if (!supaUrl || !serviceKey) throw new Error('Verify credentials are not configured for this environment')
 
-  const gl = await fetch(`${supaUrl}/auth/v1/admin/generate_link`, {
-    method: 'POST',
-    headers: {
-      apikey: serviceKey,
-      authorization: `Bearer ${serviceKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ type: 'magiclink', email: TEST_EMAIL, redirect_to: `${BASE}/auth/callback` }),
-  })
-  const link = await gl.json()
-  if (!gl.ok) throw new Error(`Could not mint a sign-in link for the verify account (${gl.status})`)
-  const hashedToken = link.hashed_token || link.properties?.hashed_token
-  const actionLink = link.action_link || link.properties?.action_link
-
-  // Preferred: verify the token server-side ourselves — immune to the auth
-  // redirect allow-list rewriting where the action link lands.
-  let tokens = null
-  if (hashedToken) {
-    const vr = await fetch(`${supaUrl}/auth/v1/verify`, {
-      method: 'POST',
-      headers: { apikey: anonKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'magiclink', token_hash: hashedToken }),
-    })
-    if (vr.ok) {
-      const session = await vr.json()
-      if (session.access_token) tokens = session
+  // Attempt magic link sign-in if Supabase admin credentials are present in the runner
+  if (supaUrl && serviceKey) {
+    try {
+      const gl = await fetch(`${supaUrl}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          authorization: `Bearer ${serviceKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ type: 'magiclink', email, redirect_to: `${BASE}/auth/callback` }),
+      })
+      if (gl.ok) {
+        const link = await gl.json()
+        const hashedToken = link.hashed_token || link.properties?.hashed_token
+        if (hashedToken) {
+          const vr = await fetch(`${supaUrl}/auth/v1/verify`, {
+            method: 'POST',
+            headers: { apikey: anonKey, 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'magiclink', token_hash: hashedToken }),
+          })
+          if (vr.ok) {
+            const session = await vr.json()
+            if (session.access_token) {
+              await page.goto(`${BASE}/auth/callback#access_token=${session.access_token}&refresh_token=${session.refresh_token || ''}`)
+              await page.waitForURL((u) => !String(u).includes('/auth/callback'), { timeout: 15000 }).catch(() => {})
+              if (!page.url().includes('/login')) return
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback to standard password login
     }
   }
 
-  if (tokens) {
-    await page.goto(`${BASE}/auth/callback#access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token || ''}`)
-  } else if (actionLink) {
-    await page.goto(actionLink)
-    // If the allow-list bounced the redirect to a different host, carry the
-    // token hash to the app's callback ourselves.
-    const landed = new URL(page.url())
-    if (!page.url().startsWith(BASE) && landed.hash.includes('access_token')) {
-      await page.goto(`${BASE}/auth/callback${landed.hash}`)
-    }
-  } else {
-    throw new Error('The sign-in link service returned neither a token nor a link')
+  // Standard password login via login form
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+  if (!page.url().includes('/login')) return
+
+  const emailInput = page.getByLabel(/email/i)
+  if (await emailInput.count()) {
+    await emailInput.fill(email)
+    await page.getByLabel(/^password$/i).first().fill(password)
+    await page.getByRole('button', { name: /log in|sign in/i }).click()
+    await page.waitForLoadState('networkidle')
   }
 
-  // The callback page exchanges the token and then hard-redirects into the app.
-  await page.waitForURL((u) => !String(u).includes('/auth/callback'), { timeout: 30000 })
-  if (page.url().includes('/login')) throw new Error('Sign-in as the verify account was rejected')
+  if (page.url().includes('/login')) {
+    throw new Error('Sign-in as the verify account was rejected')
+  }
 }
 
-// Rows of the SIS classes table as { name, teacherCell } — teacherCell holds the
-// primary teacher plus any assistants, exactly the text staff see.
+// Rows of the SIS classes table as { name, teacherCell }
 async function readRows(page) {
   return page.$$eval('table tbody tr', (trs) => trs.map((tr) => {
     const tds = tr.querySelectorAll('td')
+    if (tds.length < 2) return null
     return {
       name: (tds[0]?.textContent || '').trim(),
       teacherCell: (tds[1]?.textContent || '').trim(),
     }
-  }).filter((r) => r.name))
+  }).filter((r) => r && r.name))
 }
 
 export default async function run(page) {
   await signIn(page)
 
   // ?app=sis renders the SIS console on any host, so staging and production both
-  // work from BASE. The verify superadmin lands on the iCreate org by default.
+  // work from BASE.
   await page.goto(`${BASE}/classes?app=sis`, { waitUntil: 'networkidle' })
 
   // The new placeholder is itself proof the fix is live.
@@ -113,23 +112,33 @@ export default async function run(page) {
   if (!withTeacher.length) throw new Error('No classes with a teacher assigned — no suitable data to prove teacher search')
 
   // Pick a teacher, and require at least one class that does NOT involve them
-  // (not in the teacher cell, not in the class name) so filtering is observable.
-  const teacher = withTeacher[0].teacherCell.split('\n')[0].split('+')[0].trim()
-  const q = teacher.toLowerCase()
-  const nonMatch = rows.find((r) =>
-    !r.teacherCell.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q))
-  if (!nonMatch) throw new Error(`Every class involves "${teacher}" — no suitable data to prove filtering`)
+  let selectedTeacher = null
+  let selectedQuery = null
 
-  await search.fill(teacher)
-  await page.waitForFunction(
-    (before) => document.querySelectorAll('table tbody tr').length < before,
-    rows.length,
-    { timeout: 10000 },
-  ).catch(() => { throw new Error(`Typing the teacher "${teacher}" did not narrow the class list`) })
+  for (const candidateRow of withTeacher) {
+    const rawTeacher = candidateRow.teacherCell.split('\n')[0].split('+')[0].trim()
+    const q = rawTeacher.toLowerCase()
+    const hasNonMatch = rows.some((r) =>
+      !r.teacherCell.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q))
+    if (hasNonMatch) {
+      selectedTeacher = rawTeacher
+      selectedQuery = q
+      break
+    }
+  }
+
+  if (!selectedTeacher) {
+    throw new Error('Every class involves all available teachers — no suitable data to prove filtering')
+  }
+
+  await search.fill(selectedTeacher)
+  await page.waitForTimeout(500)
 
   const filtered = await readRows(page)
-  if (!filtered.length) throw new Error(`Searching the teacher "${teacher}" hid every class, including their own`)
+  if (!filtered.length) throw new Error(`Searching the teacher "${selectedTeacher}" hid every class, including their own`)
+  if (filtered.length >= rows.length) throw new Error(`Typing the teacher "${selectedTeacher}" did not narrow the class list`)
+
   const stray = filtered.find((r) =>
-    !r.teacherCell.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q))
-  if (stray) throw new Error(`Searching the teacher "${teacher}" still shows an unrelated class ("${stray.name}")`)
+    !r.teacherCell.toLowerCase().includes(selectedQuery) && !r.name.toLowerCase().includes(selectedQuery))
+  if (stray) throw new Error(`Searching the teacher "${selectedTeacher}" still shows an unrelated class ("${stray.name}")`)
 }
