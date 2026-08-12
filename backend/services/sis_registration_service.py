@@ -285,6 +285,73 @@ def list_schedule_conflicts(org_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def list_teacher_conflicts(org_id: str) -> List[Dict[str, Any]]:
+    """Every teacher who is the primary instructor of two classes whose
+    meetings overlap — the front office double-booked a person (iCreate:
+    the same teacher on two classes at Thu 2-3pm). Advisory only — never
+    blocks a save. Archived classes are ignored (they no longer run).
+    Assistant assignments are deliberately not checked: an assistant listed
+    on two concurrent classes is a normal floating-helper pattern.
+    Rows carry class ids alongside names so the Classes page can warn about
+    the specific class that was just saved."""
+    admin = _admin()
+    classes = fetch_all_rows(lambda: (
+        admin.table('org_classes').select('id, name, status, primary_instructor_id')
+        .eq('organization_id', org_id)
+    ))
+    live = [c for c in classes
+            if c.get('status') != 'archived' and c.get('primary_instructor_id')]
+    class_name = {c['id']: c.get('name') for c in live}
+    classes_by_teacher: Dict[str, List[str]] = {}
+    for c in live:
+        classes_by_teacher.setdefault(c['primary_instructor_id'], []).append(c['id'])
+    # Only a teacher with two or more classes can be double-booked.
+    classes_by_teacher = {t: ids for t, ids in classes_by_teacher.items() if len(ids) > 1}
+    if not classes_by_teacher:
+        return []
+
+    class_ids = sorted({cid for ids in classes_by_teacher.values() for cid in ids})
+    meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for m in _classes_repo().meetings_for_classes(class_ids):
+        meetings_by_class.setdefault(m['class_id'], []).append(m)
+
+    pairs = elig.find_double_bookings(classes_by_teacher, meetings_by_class)
+    if not pairs:
+        return []
+
+    users = {
+        u['id']: u for u in (
+            admin.table('users')
+            .select('id, first_name, last_name, display_name')
+            .in_('id', list(classes_by_teacher.keys())).execute()
+        ).data or []
+    }
+
+    def _name(uid: str) -> str:
+        u = users.get(uid) or {}
+        return (u.get('display_name')
+                or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                or 'Unknown')
+
+    out = []
+    for p in pairs:
+        slot = _first_overlap_slot(meetings_by_class.get(p['class_a'], []),
+                                   meetings_by_class.get(p['class_b'], [])) or {}
+        out.append({
+            'teacher_id': p['key'],
+            'teacher_name': _name(p['key']),
+            'class_a_id': p['class_a'],
+            'class_a': class_name.get(p['class_a'], 'Unknown'),
+            'class_b_id': p['class_b'],
+            'class_b': class_name.get(p['class_b'], 'Unknown'),
+            'day_of_week': slot.get('day_of_week'),
+            'start_time': slot.get('start_time'),
+            'end_time': slot.get('end_time'),
+        })
+    out.sort(key=lambda r: (r['teacher_name'].lower(), r['class_a'] or ''))
+    return out
+
+
 def add_item(org_id: str, reg_id: str, class_id: str) -> Dict[str, Any]:
     """Add a class to a registration. Returns the item + soft-eligibility eval."""
     reg = get_registration(org_id, reg_id)

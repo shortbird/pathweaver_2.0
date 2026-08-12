@@ -16,6 +16,7 @@ import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
 import CoursePreviewModal from '../../components/course/CoursePreviewModal'
+import { fmt12ap } from '../../components/sis/classFields'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -44,6 +45,16 @@ const isSelectableCourse = (course, orgId) =>
   !course.credit_subject &&
   !COURSE_CODE_RE.test((course.title || '').trim())
 
+// One teacher double-booking as a sentence, for the warning banner and the
+// post-save toast. Rows come from GET /api/sis/teacher-conflicts.
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const conflictText = (c) => {
+  const when = c.start_time && c.end_time
+    ? `both meet ${c.day_of_week != null ? `${DOW_FULL[c.day_of_week]}s ` : ''}${fmt12ap(c.start_time)}–${fmt12ap(c.end_time)}`
+    : 'meet at the same time'
+  return `${c.teacher_name} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
+}
+
 const Chip = ({ children, className = '' }) => (
   <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 shadow-sm ${className}`}>{children}</span>
 )
@@ -65,6 +76,7 @@ const ClassesPage = () => {
   const [courseSettings, setCourseSettings] = useState({}) // course_id -> {teacher}
   const [courseTuition, setCourseTuition] = useState(null)  // org-wide tuition (cents) for all Optio courses
   const [loading, setLoading] = useState(true)
+  const [teacherConflicts, setTeacherConflicts] = useState([]) // advisory double-booking rows
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)     // class being edited
   const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
@@ -105,9 +117,11 @@ const ClassesPage = () => {
       api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
       api.get(`/api/admin/organizations/${orgId}`).catch(() => ({ data: {} })),
+      api.get(withOrg('/api/sis/teacher-conflicts', orgId)).catch(() => ({ data: {} })),
     ])
-      .then(([cls, crs, stf, ct, org]) => {
+      .then(([cls, crs, stf, ct, org, tc]) => {
         setClasses(cls.data?.classes || [])
+        setTeacherConflicts(tc.data?.conflicts || [])
         const all = crs.data?.courses || []
         setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
         setStaff(stf.data?.staff || [])
@@ -135,6 +149,20 @@ const ClassesPage = () => {
         day_of_week: day, start_time: startTime, end_time: end, organization_id: orgId,
       })
     }
+  }
+
+  // The cross-check iCreate asked for: after any save that can touch a teacher
+  // or a schedule, warn right away if that class's teacher is now booked into
+  // two classes that meet at the same time. Advisory only — the save already
+  // went through, and a failed check must never break it.
+  const warnIfTeacherDoubleBooked = async (classId) => {
+    try {
+      const r = await api.get(withOrg('/api/sis/teacher-conflicts', orgId))
+      const conflicts = r.data?.conflicts || []
+      setTeacherConflicts(conflicts)
+      const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      if (hit) toast(conflictText(hit), { icon: '⚠️', duration: 10000 })
+    } catch { /* advisory only */ }
   }
 
   const classBody = (payload) => ({
@@ -179,6 +207,7 @@ const ClassesPage = () => {
       toast.success('Class created')
       setCreating(false)
       load()
+      if (id) warnIfTeacherDoubleBooked(id)
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not create class')
     }
@@ -192,6 +221,7 @@ const ClassesPage = () => {
       if (imageFile) await uploadImage(cls.id, imageFile)
       toast.success('Class updated')
       load(true)  // silent — keep the table mounted so scroll position is preserved
+      warnIfTeacherDoubleBooked(cls.id)
       return true
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not update class')
@@ -237,6 +267,9 @@ const ClassesPage = () => {
       }
       toast.success('Class duplicated — review and open registration when ready')
       load(true)
+      // A copy shares the original's teacher and times, so it usually IS a
+      // double-booking until the schedule is edited — say so up front.
+      if (id) warnIfTeacherDoubleBooked(id)
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not duplicate class')
     }
@@ -458,6 +491,21 @@ const ClassesPage = () => {
           </button>
         )}
       </div>
+
+      {/* Teacher double-booking cross-check — advisory, so an intentional save
+          still goes through; this just makes sure nobody finds out on the day. */}
+      {tab === 'classes' && teacherConflicts.length > 0 && (
+        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold mb-1">
+            Teacher double-booked
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {teacherConflicts.map((c) => (
+              <li key={`${c.teacher_id}-${c.class_a_id}-${c.class_b_id}`}>{conflictText(c)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Optio-course billing notice — Optio invoices the school per enrollment */}
       {tab === 'courses' && (

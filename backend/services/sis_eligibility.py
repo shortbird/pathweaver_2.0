@@ -144,21 +144,20 @@ def schedule_conflicts(prospective: List[Dict[str, Any]],
     return conflicts
 
 
-def find_roster_conflicts(enrollments_by_student: Dict[str, List[str]],
-                          meetings_by_class: Dict[str, List[Dict[str, Any]]]
-                          ) -> List[Dict[str, Any]]:
-    """Across a whole org, find every student double-booked into two classes
-    whose meetings overlap. Used to re-validate rosters whenever a class's
-    schedule changes (a late meeting edit can strand students who were
-    conflict-free when they enrolled).
+def find_double_bookings(class_ids_by_key: Dict[str, List[str]],
+                         meetings_by_class: Dict[str, List[Dict[str, Any]]]
+                         ) -> List[Dict[str, Any]]:
+    """Generic core of the double-booking checks: for each key — a student's
+    enrollments, a teacher's assignments — find every pair of that key's
+    classes whose meetings overlap.
 
-    enrollments_by_student: {student_id: [class_id, ...]} — active only.
-    meetings_by_class:      {class_id: [meeting, ...]}.
-    Returns one row per overlapping pair: {student_id, class_a, class_b} with
+    class_ids_by_key:  {key: [class_id, ...]}.
+    meetings_by_class: {class_id: [meeting, ...]}.
+    Returns one row per overlapping pair: {key, class_a, class_b} with
     class_a < class_b (deduped, order-stable), NOT one per meeting.
     """
     out: List[Dict[str, Any]] = []
-    for student_id, class_ids in enrollments_by_student.items():
+    for key, class_ids in class_ids_by_key.items():
         uniq = sorted(set(class_ids))
         for i, a in enumerate(uniq):
             a_meetings = meetings_by_class.get(a) or []
@@ -167,8 +166,22 @@ def find_roster_conflicts(enrollments_by_student: Dict[str, List[str]],
             for b in uniq[i + 1:]:
                 b_meetings = meetings_by_class.get(b) or []
                 if any(meetings_overlap(am, bm) for am in a_meetings for bm in b_meetings):
-                    out.append({'student_id': student_id, 'class_a': a, 'class_b': b})
+                    out.append({'key': key, 'class_a': a, 'class_b': b})
     return out
+
+
+def find_roster_conflicts(enrollments_by_student: Dict[str, List[str]],
+                          meetings_by_class: Dict[str, List[Dict[str, Any]]]
+                          ) -> List[Dict[str, Any]]:
+    """Across a whole org, find every student double-booked into two classes
+    whose meetings overlap. Used to re-validate rosters whenever a schedule
+    changes (a late meeting edit can strand students who were conflict-free
+    when they enrolled). The student-keyed view of find_double_bookings.
+
+    enrollments_by_student: {student_id: [class_id, ...]} — active only.
+    """
+    return [{'student_id': r['key'], 'class_a': r['class_a'], 'class_b': r['class_b']}
+            for r in find_double_bookings(enrollments_by_student, meetings_by_class)]
 
 
 # ── Aggregate ────────────────────────────────────────────────────────────────

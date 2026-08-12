@@ -196,3 +196,19 @@ class TestRosterConflicts:
 
     def test_no_enrollments(self):
         assert elig.find_roster_conflicts({}, self.MEETINGS) == []
+
+
+class TestFindDoubleBookings:
+    """The generic core find_roster_conflicts wraps — also keyed by teacher
+    (the Classes page's teacher double-booking cross-check)."""
+    MEETINGS = TestRosterConflicts.MEETINGS
+
+    def test_teacher_keyed_pair(self):
+        out = elig.find_double_bookings({'hollie': ['hist_mon', 'sci_mon']}, self.MEETINGS)
+        assert out == [{'key': 'hollie', 'class_a': 'hist_mon', 'class_b': 'sci_mon'}]
+
+    def test_different_days_no_double_booking(self):
+        assert elig.find_double_bookings({'hollie': ['hist_mon', 'sci_wed']}, self.MEETINGS) == []
+
+    def test_single_class_never_conflicts(self):
+        assert elig.find_double_bookings({'hollie': ['hist_mon']}, self.MEETINGS) == []

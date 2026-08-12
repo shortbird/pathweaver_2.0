@@ -9,14 +9,19 @@ let orgState = { organization: { id: 'org-1', name: 'Org' } }
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => orgState }))
-vi.mock('react-hot-toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-  default: { success: vi.fn(), error: vi.fn() },
-}))
+// The page calls both toast.success/error and bare toast(msg, {icon}) (the
+// double-booking warning), so the mock must be callable itself.
+const { toastMock } = vi.hoisted(() => {
+  const t = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
+  return { toastMock: t }
+})
+vi.mock('react-hot-toast', () => ({ toast: toastMock, default: toastMock }))
 
-const { api } = vi.hoisted(() => {
+const { api, apiData, conflictRows } = vi.hoisted(() => {
+  const conflictRows = [] // teacher double-bookings served by the mock API; tests push rows
   const apiData = (url) => {
     if (url.includes('/waitlist')) return { data: { waitlist: [] } }
+    if (url.includes('/api/sis/teacher-conflicts')) return { data: { conflicts: [...conflictRows] } }
     if (url.includes('/api/courses')) {
       return { data: { courses: [
         { id: 'crs1', title: 'Intro to Robotics', description: 'Build robots', status: 'published',
@@ -46,6 +51,8 @@ const { api } = vi.hoisted(() => {
     return { data: {} }
   }
   return {
+    conflictRows,
+    apiData,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
       post: vi.fn(() => Promise.resolve({ data: { class: { id: 'c2' } } })),
@@ -72,7 +79,11 @@ beforeEach(() => {
   orgState = { organization: { id: 'org-1', name: 'Org' } }
   // the card/table choice persists to localStorage — clear any stored choice
   try { window.localStorage.removeItem('sis_classes_view') } catch { /* jsdom quirk */ }
+  conflictRows.length = 0
   vi.clearAllMocks()
+  // A few specs replace api.get's implementation wholesale; clearAllMocks
+  // does not undo that, so restore the default before every test.
+  api.get.mockImplementation((url) => Promise.resolve(apiData(url)))
 })
 
 // Card-view specs: render and switch to cards (table is the default view).
@@ -405,5 +416,42 @@ describe('ClassesPage', () => {
         requires_full_day: true,
       })),
     )
+  })
+
+  // Teacher double-booking cross-check (iCreate): the same person as primary
+  // teacher on two classes that meet at the same time gets a standing banner,
+  // and a save that causes it gets an immediate warning toast.
+  const HOLLIE_CLASH = {
+    teacher_id: 's1', teacher_name: 'Jane Doe',
+    class_a_id: 'c1', class_a: 'Digital Art Studio',
+    class_b_id: 'c9', class_b: 'Story Detectives',
+    day_of_week: 4, start_time: '14:00', end_time: '15:00',
+  }
+
+  it('shows a banner when a teacher is double-booked across two classes', async () => {
+    conflictRows.push(HOLLIE_CLASH)
+    render(<ClassesPage />)
+    await screen.findByText('Teacher double-booked')
+    expect(screen.getByText(
+      'Jane Doe is double-booked: Digital Art Studio and Story Detectives both meet Thursdays 2pm–3pm.',
+    )).toBeInTheDocument()
+  })
+
+  it('shows no double-booking banner when schedules are clean', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    expect(screen.queryByText('Teacher double-booked')).not.toBeInTheDocument()
+  })
+
+  it('warns right after a save that double-books the teacher', async () => {
+    await renderCards()
+    conflictRows.push(HOLLIE_CLASH) // the clash appears once this save lands
+    fireEvent.click(screen.getByText('Pottery'))
+    fireEvent.change(await screen.findByDisplayValue('Pottery'), { target: { value: 'Digital Art Studio' } })
+    fireEvent.click(screen.getByText('Save changes'))
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(
+      'Jane Doe is double-booked: Digital Art Studio and Story Detectives both meet Thursdays 2pm–3pm.',
+      expect.objectContaining({ icon: '⚠️' }),
+    ))
   })
 })
