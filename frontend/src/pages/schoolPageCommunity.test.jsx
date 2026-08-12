@@ -102,17 +102,21 @@ describe('the school community feed', () => {
   it('is simply the announcements when the school posts nothing to the board', async () => {
     mockApi(EMPTY_FEED)
     renderPage()
+    const btn = await screen.findByRole('button', { name: /Messages/i })
+    fireEvent.click(btn)
     expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
     expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })
 
-  it('survives a board the viewer cannot read at all', async () => {
+  it('hides the board when the user has no feed permission', async () => {
     api.get.mockImplementation((url) => (
       url.includes('/api/sis/community/feed')
         ? Promise.reject(new Error('403'))
         : Promise.resolve(archive)
     ))
     renderPage()
+    const btn = await screen.findByRole('button', { name: /Messages/i })
+    fireEvent.click(btn)
     expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
     expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })

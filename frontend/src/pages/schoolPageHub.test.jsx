@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -65,6 +65,12 @@ const cardGrid = async () => {
 const cardNames = async () => {
   const grid = await cardGrid()
   return within(grid).getAllByRole('heading').map((h) => h.textContent.trim())
+}
+
+const expandMessages = async () => {
+  const btn = await screen.findByRole('button', { name: /Messages/i })
+  fireEvent.click(btn)
+  return screen.findByText('Picture day is Thursday')
 }
 
 beforeEach(() => {
@@ -139,7 +145,7 @@ describe('a school that is not on the SIS', () => {
     // The endpoint returns no orgs for them, which is the signal for no cards.
     schoolContext = { success: true, orgs: [], is_guardian: false }
     renderPage()
-    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+    expect(await expandMessages()).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: /school/i })).not.toBeInTheDocument()
   })
 
@@ -150,7 +156,7 @@ describe('a school that is not on the SIS', () => {
       return Promise.resolve({ data: { success: true, feed: null } })
     })
     renderPage()
-    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+    expect(await expandMessages()).toBeInTheDocument()
   })
 })
 
@@ -161,14 +167,14 @@ describe('the school logo', () => {
       orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo' }],
     }
     const { container } = renderPage()
-    await screen.findByText('Picture day is Thursday')
+    await expandMessages()
     expect(container.querySelector('img[src="data:image/png;base64,logo"]')).toBeTruthy()
   })
 
   it('falls back to a neutral tile, never a broken image, without one', async () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
     const { container } = renderPage()
-    await screen.findByText('Picture day is Thursday')
+    await expandMessages()
     expect(container.querySelector('header img')).toBeNull()
   })
 
@@ -178,7 +184,7 @@ describe('the school logo', () => {
       orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo', logo_subtitle: 'academy' }],
     }
     renderPage()
-    await screen.findByText('Picture day is Thursday')
+    await expandMessages()
     expect(screen.getByText('academy')).toBeInTheDocument()
   })
 
@@ -188,7 +194,7 @@ describe('the school logo', () => {
       orgs: [{ ...GUARDIAN_ORG, logo_url: 'data:image/png;base64,logo' }],
     }
     renderPage()
-    await screen.findByText('Picture day is Thursday')
+    await expandMessages()
     expect(screen.queryByText('academy')).not.toBeInTheDocument()
   })
 })
@@ -197,11 +203,59 @@ describe('the announcements archive', () => {
   it('is still on the page itself, not behind a card', async () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
     renderPage()
-    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+    expect(await expandMessages()).toBeInTheDocument()
   })
 
   it('is not one of the cards', async () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
     expect(await cardNames()).not.toContain('Announcements')
+  })
+})
+
+describe('collapsible feed sections', () => {
+  beforeEach(() => {
+    archive = { success: true, announcements: [], total: 0 }
+  })
+
+  it('starts sections closed by default', async () => {
+    communityFeed = {
+      success: true,
+      feed: {
+        events: [{ id: 'e1', title: 'Science Fair', start_at: '2026-09-01T10:00:00Z' }],
+        announcements: [], lost_found: [], recognition: [], carpool: [],
+      },
+    }
+    renderPage()
+    const sectionBtn = await screen.findByRole('button', { name: /Upcoming events/i })
+    expect(sectionBtn).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Science Fair')).not.toBeInTheDocument()
+  })
+
+  it('expands section when dropdown header is clicked', async () => {
+    communityFeed = {
+      success: true,
+      feed: {
+        events: [{ id: 'e1', title: 'Science Fair', start_at: '2026-09-01T10:00:00Z' }],
+        announcements: [], lost_found: [], recognition: [], carpool: [],
+      },
+    }
+    renderPage()
+    const sectionBtn = await screen.findByRole('button', { name: /Upcoming events/i })
+    fireEvent.click(sectionBtn)
+    expect(sectionBtn).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText('Science Fair')).toBeInTheDocument()
+  })
+
+  it('includes a link to the full calendar in the events section', async () => {
+    communityFeed = {
+      success: true,
+      feed: {
+        events: [{ id: 'e1', title: 'Science Fair', start_at: '2026-09-01T10:00:00Z' }],
+        announcements: [], lost_found: [], recognition: [], carpool: [],
+      },
+    }
+    renderPage()
+    const calLinks = await screen.findAllByRole('link', { name: /calendar/i })
+    expect(calLinks.some((a) => a.getAttribute('href') === '/school-calendar')).toBe(true)
   })
 })
