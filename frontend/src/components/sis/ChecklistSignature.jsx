@@ -40,6 +40,20 @@ export default function ChecklistSignature({ item, statement, disabled = false, 
     )
   }
 
+  // Nothing to sign yet: the template gave no link and the school hasn't
+  // attached this person's document. The backend refuses the signature in this
+  // state (iCreate, 2026-08-12: a contract was "signed" before it existed), so
+  // showing the form here could only ever produce an error.
+  if (!item.link && !item.admin_document_url) {
+    return (
+      <p className="mt-1.5 text-sm text-neutral-400">
+        {disabled
+          ? 'Waiting for the document to be attached — they can sign once it is.'
+          : "Your school hasn't added this document yet. You'll be able to sign it once it's here."}
+      </p>
+    )
+  }
+
   if (disabled) {
     return <p className="mt-1.5 text-sm text-neutral-400">Waiting for their signature.</p>
   }

@@ -129,6 +129,22 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
                     </div>
                     {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
                     {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
+                    {/* What they're being asked to read/sign: the template's link,
+                        or the document the office attached for this person. */}
+                    {(item.link || item.admin_document_url) && (
+                      <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+                        {item.link && (
+                          <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+                            Open link
+                          </a>
+                        )}
+                        {item.admin_document_url && (
+                          <button onClick={() => openDoc(item.admin_document_url)} className="text-sm text-optio-purple hover:underline">
+                            View document
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {item.needs_signature && (
                       <ChecklistSignature
                         item={item}
@@ -247,7 +263,9 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
             <p className="text-xs text-neutral-400">
               They type their full name and confirm it counts as their signature. Their name, the
               time and the account that signed are recorded. Put the thing they are agreeing to in
-              the link field above.
+              the link field above — or, for a per-person document like a contract, attach it to
+              each person under Staff progress after assigning. They can't sign until one of the
+              two is there.
             </p>
           )}
         </div>
@@ -369,6 +387,45 @@ const AdminOnboarding = ({ orgId }) => {
     }
   }
 
+  // The document a signature item asks this person to sign (their contract).
+  // Until it's attached — or the item has a link — they can't sign.
+  const attachDoc = async (assignmentId, itemKey, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      await api.post(withOrg(`/api/sis/staff-admin/onboarding/assignments/${assignmentId}/items/${itemKey}/document`, orgId), form)
+      toast.success('Document attached — they can sign it now')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not attach the document')
+    }
+  }
+
+  const openDoc = async (path) => {
+    try {
+      const r = await api.get(withOrg(`/api/sis/teacher/onboarding/doc-url?path=${encodeURIComponent(path)}`, orgId))
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
+  // For a signature recorded against a document that was never there (or the
+  // wrong one): back to pending, so the person signs again once it's right.
+  const voidSignature = async (a, item) => {
+    const who = item.signature?.name ? `the signature by ${item.signature.name}` : 'this signature'
+    if (!window.confirm(`Clear ${who} on "${item.title}" for ${a.user_name}?\n\nThe item goes back to pending and they'll be asked to sign again.`)) return
+    try {
+      await api.patch(`/api/sis/teacher/onboarding/${a.id}/items/${item.key}`, {
+        organization_id: orgId, void_signature: true,
+      })
+      toast.success('Signature cleared')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not clear the signature')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -465,17 +522,43 @@ const AdminOnboarding = ({ orgId }) => {
               </summary>
               <ul className="px-3 pb-3 divide-y divide-gray-100">
                 {(a.items || []).map((item) => (
-                  <li key={item.key} className="py-2 flex items-center gap-2 text-sm">
+                  <li key={item.key} className="py-2 flex items-center gap-2 flex-wrap text-sm">
                     <span className="text-neutral-800">{item.title}</span>
                     <ItemBadge status={item.status} />
-                    {item.needs_approval && item.status === 'complete' && (
-                      <span className="ml-auto flex gap-2">
-                        <button onClick={() => reviewItem(a.id, item.key, 'approved')}
-                          className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
-                        <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
-                          className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
-                      </span>
+                    {item.signature?.name && (
+                      <span className="text-xs text-neutral-400">signed by {item.signature.name}</span>
                     )}
+                    <span className="ml-auto flex items-center gap-2.5">
+                      {item.needs_signature && (
+                        <>
+                          {item.admin_document_url && a.audience !== 'family' && (
+                            <button onClick={() => openDoc(item.admin_document_url)}
+                              className="text-xs text-optio-purple hover:underline">View document</button>
+                          )}
+                          <label className="text-xs text-optio-purple hover:underline cursor-pointer"
+                            title="The document this person is being asked to sign. They can't sign until it (or a link on the item) is here.">
+                            {item.admin_document_url ? 'Replace document' : 'Attach document'}
+                            <input type="file" className="hidden"
+                              onChange={(e) => e.target.files?.[0] && attachDoc(a.id, item.key, e.target.files[0])} />
+                          </label>
+                          {item.signature?.name && (
+                            <button onClick={() => voidSignature(a, item)}
+                              className="text-xs text-red-600 hover:underline"
+                              title="Clear this signature and set the item back to pending">
+                              Void signature
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {item.needs_approval && item.status === 'complete' && (
+                        <>
+                          <button onClick={() => reviewItem(a.id, item.key, 'approved')}
+                            className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+                          <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
+                            className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
+                        </>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>

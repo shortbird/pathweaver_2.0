@@ -36,9 +36,13 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import OnboardingPage from './OnboardingPage'
 
+// link present by default: a signature item with neither a link nor a
+// school-attached document shows the waiting note instead of the form
+// (see "until there is something to sign" below).
 const item = (over = {}) => ({
   key: 'contract', title: 'Staff agreement', required: true,
   needs_signature: true, needs_document: false, status: 'pending',
+  link: 'https://example.com/agreement.pdf', admin_document_url: null,
   signature: null, ...over,
 })
 
@@ -118,5 +122,40 @@ describe('signing a checklist item', () => {
     render(<OnboardingPage />)
     await screen.findByText('Read the handbook')
     expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+  })
+})
+
+describe('until there is something to sign', () => {
+  // iCreate, 2026-08-12: "Erik Pearson marked sign your contract as complete,
+  // but he hasn't actually gotten one yet!" With no link and no attached
+  // document there is nothing being agreed to, so the form waits.
+  it('shows a waiting note instead of the form', async () => {
+    mockChecklist([item({ link: null, admin_document_url: null })])
+    render(<OnboardingPage />)
+    expect(await screen.findByText(/hasn't added this document yet/)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+  })
+
+  it('a checklist from before the fix locks the same way', async () => {
+    const legacy = item({ link: null })
+    delete legacy.admin_document_url
+    mockChecklist([legacy])
+    render(<OnboardingPage />)
+    expect(await screen.findByText(/hasn't added this document yet/)).toBeInTheDocument()
+  })
+
+  it('unlocks once the school attaches the document, with a way to read it', async () => {
+    mockChecklist([item({ link: null, admin_document_url: 'org-1/kate/abc.pdf' })])
+    render(<OnboardingPage />)
+    expect(await screen.findByPlaceholderText('Your full name')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View document' })).toBeInTheDocument()
+  })
+
+  it('a link on the item is also enough, and is shown', async () => {
+    mockChecklist([item()])
+    render(<OnboardingPage />)
+    expect(await screen.findByPlaceholderText('Your full name')).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'Open link' })
+    expect(link).toHaveAttribute('href', 'https://example.com/agreement.pdf')
   })
 })

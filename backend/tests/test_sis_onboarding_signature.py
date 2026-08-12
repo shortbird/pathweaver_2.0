@@ -25,9 +25,13 @@ SIGNER = 'kate'
 
 
 def _item(**over):
+    # link present by default: a signature item with neither a link nor an
+    # attached document is refused (TestNothingToSign), and most tests here are
+    # about the signing itself, not the gate.
     base = {'key': 'contract', 'title': 'Staff agreement', 'required': True,
             'needs_document': False, 'needs_signature': True, 'needs_approval': False,
-            'status': 'pending', 'document_url': None, 'submitted_at': None,
+            'status': 'pending', 'document_url': None, 'admin_document_url': None,
+            'link': 'https://example.com/agreement.pdf', 'submitted_at': None,
             'approved_by': None, 'approved_at': None, 'admin_notes': None,
             'signature': None}
     base.update(over)
@@ -148,6 +152,151 @@ class TestWhatItRefuses:
         own = _assignment(user_id='molly')
         result, _ = _run(SIGN, assignment=own, actor_id='molly', is_admin=True)
         assert result.get('error') is None
+
+
+@pytest.mark.unit
+class TestNothingToSign:
+    """iCreate, 2026-08-12: "Erik Pearson marked sign your contract as complete,
+    but he hasn't actually gotten one yet!" A signature needs a thing being
+    signed — the template's link, or the document the office attached for this
+    person. With neither, signing is refused."""
+
+    def test_signing_is_refused_when_there_is_no_document(self):
+        bare = _assignment([_item(link=None, admin_document_url=None)])
+        result, items = _run(SIGN, assignment=bare)
+        assert 'nothing to sign yet' in result['error']
+        assert items is None
+
+    def test_an_old_snapshot_without_the_field_is_also_refused(self):
+        """Assignments created before this fix have no admin_document_url key
+        at all — they must lock, not crash or slip through."""
+        legacy = _item(link=None)
+        legacy.pop('admin_document_url')
+        result, items = _run(SIGN, assignment=_assignment([legacy]))
+        assert 'nothing to sign yet' in result['error']
+        assert items is None
+
+    def test_a_template_link_is_enough(self):
+        result, items = _run(SIGN)  # default item carries a link
+        assert result.get('error') is None
+        assert items[0]['signature']['name'] == 'Kate Myers'
+
+    def test_an_attached_document_is_enough(self):
+        attached = _assignment([_item(link=None, admin_document_url='org-1/kate/abc.pdf')])
+        result, items = _run(SIGN, assignment=attached)
+        assert result.get('error') is None
+        assert items[0]['status'] == 'complete'
+
+
+@pytest.mark.unit
+class TestAttachingTheDocument:
+    def test_an_admin_attaches_the_document(self):
+        bare = _assignment([_item(link=None)])
+        result, items = _run({'admin_document_url': 'org-1/kate/abc.pdf'},
+                             assignment=bare, actor_id='molly', is_admin=True)
+        assert result.get('error') is None
+        assert items[0]['admin_document_url'] == 'org-1/kate/abc.pdf'
+        assert items[0]['status'] == 'pending'  # attaching is not completing
+
+    def test_the_person_themselves_cannot_attach_it(self):
+        """The whole point is that the OFFICE supplies the contract. If the
+        signer could set this field, the gate would be a formality."""
+        result, items = _run({'admin_document_url': 'org-1/kate/abc.pdf'})
+        assert 'administrator' in result['error']
+        assert items is None
+
+    def test_it_only_goes_on_signature_items(self):
+        plain = _assignment([_item(needs_signature=False, link=None)])
+        result, items = _run({'admin_document_url': 'org-1/kate/abc.pdf'},
+                             assignment=plain, actor_id='molly', is_admin=True)
+        assert 'signed here' in result['error']
+        assert items is None
+
+    def _attach(self, assignment):
+        """Run attach_document with storage stubbed; return (result, storage)."""
+        storage = Mock()
+        with patch.object(onboarding, '_load_assignment', return_value=assignment), \
+             patch.object(onboarding, '_admin', return_value=Mock(storage=storage)), \
+             patch.object(onboarding, '_save_items',
+                          side_effect=lambda a, items: {**a, 'items': items}), \
+             patch('services.sis_notifications.notify'):
+            result = onboarding.attach_document(
+                ORG, ASSIGNMENT_ID, 'contract', blob=b'pdf', ext='pdf',
+                content_type='application/pdf', actor_id='molly')
+        return result, storage
+
+    def test_the_file_lands_in_the_owner_s_own_folder(self):
+        """Pinned to {org}/{owner}/ so the person opens it through the same
+        doc-url endpoint as their own uploads — no new read path."""
+        result, storage = self._attach(_assignment([_item(link=None)]))
+        assert result.get('error') is None
+        storage.from_.assert_any_call('staff-documents')
+        path = storage.from_.return_value.upload.call_args.kwargs['path']
+        assert path.startswith(f'{ORG}/{SIGNER}/')
+        assert path.endswith('.pdf')
+        assert result['assignment']['items'][0]['admin_document_url'] == path
+
+    def test_a_family_checklist_uses_the_family_bucket(self):
+        """The family portal reads from family-documents; a contract parked in
+        the staff bucket would be unopenable from there."""
+        fam = {**_assignment([_item(link=None)]), 'audience': 'family'}
+        result, storage = self._attach(fam)
+        assert result.get('error') is None
+        storage.from_.assert_any_call('family-documents')
+
+    def test_a_refused_attach_does_not_leave_the_file_behind(self):
+        plain = _assignment([_item(needs_signature=False, link=None)])
+        result, storage = self._attach(plain)
+        assert result.get('error')
+        uploaded = storage.from_.return_value.upload.call_args.kwargs['path']
+        storage.from_.return_value.remove.assert_called_once_with([uploaded])
+
+    def test_attaching_tells_the_person_their_document_is_ready(self):
+        bare = _assignment([_item(link=None)])
+        with patch.object(onboarding, '_load_assignment', return_value=bare), \
+             patch.object(onboarding, '_save_items',
+                          side_effect=lambda a, items: {**a, 'items': items}), \
+             patch('services.sis_notifications.notify') as notify, \
+             patch.object(onboarding.sis_service, 'org_admin_ids', return_value=[]):
+            onboarding.update_item(ORG, ASSIGNMENT_ID, 'contract',
+                                   {'admin_document_url': 'org-1/kate/abc.pdf'},
+                                   'molly', True)
+        assert notify.called
+        args, kwargs = notify.call_args
+        assert args[0] == SIGNER
+        assert 'ready to sign' in args[1].lower()
+        assert kwargs.get('link') == '/onboarding'
+
+
+@pytest.mark.unit
+class TestVoidingASignature:
+    """The undo for a signature recorded against nothing: an admin clears it and
+    the item returns to pending, so the person signs again once the document is
+    really there. Erik and three colleagues need exactly this."""
+
+    def _signed_item(self):
+        return _item(link=None, status='complete',
+                     submitted_at='2026-08-11T04:12:20+00:00',
+                     signature={'name': 'Karl Erik Pearson', 'signed_by': SIGNER,
+                                'signed_at': '2026-08-11T04:12:20+00:00',
+                                'agreed_to': onboarding.SIGNATURE_STATEMENT})
+
+    def test_an_admin_voids_it(self):
+        signed = _assignment([self._signed_item()])
+        result, items = _run({'void_signature': True}, assignment=signed,
+                             actor_id='molly', is_admin=True)
+        assert result.get('error') is None
+        assert items[0]['signature'] is None
+        assert items[0]['status'] == 'pending'
+        assert items[0]['submitted_at'] is None
+
+    def test_the_signer_cannot_void_their_own(self):
+        """Un-signing is an office decision — otherwise "I signed it" stops
+        being a statement anyone can rely on."""
+        signed = _assignment([self._signed_item()])
+        result, items = _run({'void_signature': True}, assignment=signed)
+        assert 'administrator' in result['error']
+        assert items is None
 
 
 @pytest.mark.unit

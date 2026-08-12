@@ -20,6 +20,7 @@ name they typed, that they affirmed it, when, and from which address. See
 `_apply_signature`.
 """
 
+import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -157,6 +158,7 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     is_family = _clean_audience(template.get('audience')) == 'family'
     link = '/family/portal' if is_family else '/onboarding'
     items = [{**i, 'status': 'pending', 'document_url': None,
+              'admin_document_url': None,
               'submitted_at': None, 'approved_by': None, 'approved_at': None,
               'admin_notes': None, 'signature': None}
              for i in (template.get('items') or [])]
@@ -289,6 +291,53 @@ def _load_assignment(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]
     return rows[0]
 
 
+def attach_document(org_id: str, assignment_id: str, item_key: str, *,
+                    blob: bytes, ext: str, content_type: Optional[str],
+                    actor_id: str) -> Dict[str, Any]:
+    """The office attaches the document a signature item asks someone to sign —
+    their contract. Signing that item is refused until this exists (iCreate,
+    2026-08-12: a teacher signed a contract nobody had uploaded).
+
+    The file lands in the same private bucket the person's own uploads use,
+    pinned to THEIR folder ({org}/{owner}/…), so the existing doc-url endpoints
+    open it without any new read path. Staff checklists read from
+    staff-documents, family ones from family-documents — the bucket must match
+    the portal that will open it.
+    """
+    assignment = _load_assignment(org_id, assignment_id)
+    if not assignment:
+        return {'error': 'Checklist not found', 'status': 404}
+    bucket = ('family-documents' if assignment.get('audience') == 'family'
+              else 'staff-documents')
+    # admin client justified: upload to a PRIVATE bucket (service-role-only storage); callers gate on ADMIN_ROLES and the path is pinned to the org-checked assignment's owner
+    supabase = _admin()
+    try:
+        supabase.storage.get_bucket(bucket)
+    except Exception:
+        try:
+            supabase.storage.create_bucket(bucket, options={'public': False})
+        except Exception:
+            pass
+    path = f"{org_id}/{assignment['user_id']}/{_uuid.uuid4().hex}.{ext}"
+    try:
+        supabase.storage.from_(bucket).upload(
+            path=path, file=blob,
+            file_options={'content-type': content_type or 'application/octet-stream'},
+        )
+    except Exception as e:
+        logger.error(f'Onboarding item document upload failed: {e}')
+        return {'error': 'Failed to upload document', 'status': 500}
+    result = update_item(org_id, assignment_id, item_key,
+                         {'admin_document_url': path},
+                         actor_id=actor_id, is_admin=True)
+    if result.get('error'):
+        try:
+            supabase.storage.from_(bucket).remove([path])
+        except Exception:
+            pass
+    return result
+
+
 def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:
     required = [i for i in items if i.get('required')]
     all_done = all(i.get('status') in ('complete', 'approved') for i in required) if required else True
@@ -326,6 +375,12 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
     """
     if not target.get('needs_signature'):
         return 'This item is not signed here'
+    # A signature needs a thing being signed: either the template linked it, or
+    # the office attached this person's copy (admin_document_url). iCreate,
+    # 2026-08-12: a teacher signed "Review & Sign Your Contract" before any
+    # contract existed — a recorded agreement to nothing.
+    if not (target.get('link') or target.get('admin_document_url')):
+        return 'There is nothing to sign yet — your school has not added the document'
     name = (fields.get('signature_name') or '').strip()
     if not name:
         return 'Type your full name to sign'
@@ -364,6 +419,35 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
 
     if 'document_url' in fields:
         target['document_url'] = fields.get('document_url') or None
+
+    # The office's side of a signature item: the document this person is being
+    # asked to sign (their contract). Signing stays refused until it exists.
+    if 'admin_document_url' in fields:
+        if not is_admin:
+            return {'error': 'Only an administrator can attach this document'}
+        if not target.get('needs_signature'):
+            return {'error': 'Documents are attached to items that are signed here'}
+        target['admin_document_url'] = fields.get('admin_document_url') or None
+        # The attach is the "your contract is ready" moment — tell them, unless
+        # they somehow already signed (a re-attach after the fact).
+        if target['admin_document_url'] and not target.get('signature'):
+            is_family = _clean_audience(assignment.get('audience')) == 'family'
+            sis_notifications.notify(
+                assignment['user_id'], 'Document ready to sign',
+                f'{target["title"]} — {assignment.get("template_name") or "onboarding"}',
+                link='/family/portal' if is_family else '/onboarding',
+                organization_id=org_id)
+
+    # An admin can void a signature that should never have been recorded (signed
+    # before the document existed). The item returns to pending so the person
+    # signs again once the document is really there.
+    if fields.get('void_signature'):
+        if not is_admin:
+            return {'error': 'Only an administrator can reset a signature'}
+        target['signature'] = None
+        target['submitted_at'] = None
+        target['status'] = 'pending'
+        return {'assignment': _save_items(assignment, items)}
 
     # Signing is what completes a signature item, so it implies status=complete
     # rather than needing the client to send both.

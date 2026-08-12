@@ -27,9 +27,12 @@ vi.mock('../services/api', () => ({ default: api }))
 
 import FamilyPortalPage from './FamilyPortalPage'
 
+// The link is what's being agreed to — without it (or a school-attached
+// document) the shared signature block waits instead of offering the form.
 const ITEM = {
   key: 'media', title: 'Photo and media release', required: true,
   needs_signature: true, needs_document: false, status: 'pending', signature: null,
+  link: 'https://example.com/media-release.pdf', admin_document_url: null,
 }
 
 beforeEach(() => {

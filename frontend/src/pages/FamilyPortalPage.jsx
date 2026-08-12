@@ -210,6 +210,13 @@ const FamilyPortalPage = () => {
                               Open link
                             </a>
                           )}
+                          {/* The document the school attached for this family to
+                              sign — signing stays locked until it exists. */}
+                          {item.admin_document_url && (
+                            <button onClick={() => openDoc(item.admin_document_url)} className="text-sm text-optio-purple hover:underline">
+                              View document
+                            </button>
+                          )}
                           {item.needs_document && (
                             <>
                               {item.document_url && (

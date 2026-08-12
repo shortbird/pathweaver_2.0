@@ -264,6 +264,38 @@ def unassign_onboarding(user_id, assignment_id):
     return jsonify({'success': True, **result})
 
 
+_ONBOARDING_DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
+_ONBOARDING_MAX_DOC_BYTES = 10 * 1024 * 1024
+
+
+@bp.route('/onboarding/assignments/<assignment_id>/items/<item_key>/document',
+          methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def attach_onboarding_item_document(user_id, assignment_id, item_key):
+    """The office attaches the document a signature item is asking someone to
+    sign — their contract. Signing that item is refused until this exists
+    (iCreate, 2026-08-12: a teacher signed a contract nobody had uploaded)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in _ONBOARDING_DOC_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Allowed types: pdf, doc, docx, png, jpg, webp'}), 400
+    blob = file.read()
+    if len(blob) > _ONBOARDING_MAX_DOC_BYTES:
+        return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
+    result = onboarding.attach_document(org_id, assignment_id, item_key,
+                                        blob=blob, ext=ext,
+                                        content_type=file.content_type,
+                                        actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), 201
+
+
 @bp.route('/onboarding/recipients', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def onboarding_recipients(user_id):
