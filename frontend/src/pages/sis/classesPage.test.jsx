@@ -14,7 +14,7 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-const { api } = vi.hoisted(() => {
+const { api, apiData } = vi.hoisted(() => {
   const apiData = (url) => {
     if (url.includes('/waitlist')) return { data: { waitlist: [] } }
     if (url.includes('/api/courses')) {
@@ -46,6 +46,7 @@ const { api } = vi.hoisted(() => {
     return { data: {} }
   }
   return {
+    apiData,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
       post: vi.fn(() => Promise.resolve({ data: { class: { id: 'c2' } } })),
@@ -73,6 +74,9 @@ beforeEach(() => {
   // the card/table choice persists to localStorage — clear any stored choice
   try { window.localStorage.removeItem('sis_classes_view') } catch { /* jsdom quirk */ }
   vi.clearAllMocks()
+  // clearAllMocks clears calls, not implementations — put back the default
+  // dataset so a spec's mockImplementation can't leak into the next one
+  api.get.mockImplementation((url) => Promise.resolve(apiData(url)))
 })
 
 // Card-view specs: render and switch to cards (table is the default view).
@@ -376,6 +380,65 @@ describe('ClassesPage', () => {
     fireEvent.click(screen.getByTitle('Table view'))
     await screen.findByText('Waitlist')
     expect(screen.queryByRole('button', { name: 'Offer next seat' })).not.toBeInTheDocument()
+  })
+
+  // iCreate, 2026-08-12: the front office looks for classes by who teaches
+  // them ("Sarah's classes"), not just by what the class is called.
+  it('search matches the teacher name in the table view', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Pottery', registration_status: 'open', meetings: [],
+            primary_instructor: { id: 's1', name: 'Jane Doe' } },
+          { id: 'c2', name: 'Woodshop', registration_status: 'open', meetings: [],
+            primary_instructor: { id: 's2', name: 'Sam Lee' } },
+        ] } })
+      }
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.change(screen.getByPlaceholderText('Search by class or teacher…'), { target: { value: 'jane' } })
+    expect(await screen.findByText('Pottery')).toBeInTheDocument()
+    expect(screen.queryByText('Woodshop')).not.toBeInTheDocument()
+  })
+
+  it('search matches assistant teachers too, in the card view', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Pottery', registration_status: 'open', meetings: [],
+            primary_instructor: { id: 's1', name: 'Jane Doe' },
+            assistant_instructors: [{ id: 's2', name: 'Sam Lee' }] },
+          { id: 'c2', name: 'Woodshop', registration_status: 'open', meetings: [],
+            primary_instructor: { id: 's1', name: 'Jane Doe' } },
+        ] } })
+      }
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    const btn = screen.getByTitle('Card view')
+    if (btn.getAttribute('aria-pressed') !== 'true') fireEvent.click(btn)
+    fireEvent.change(screen.getByPlaceholderText('Search by class or teacher…'), { target: { value: 'sam lee' } })
+    expect(await screen.findByText('Pottery')).toBeInTheDocument()
+    expect(screen.queryByText('Woodshop')).not.toBeInTheDocument()
+  })
+
+  it('search matches the assigned teacher on the courses tab', async () => {
+    await renderCards()
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
+    await screen.findByText('Intro to Robotics')
+    const box = screen.getByPlaceholderText('Search by course or teacher…')
+    // crs1's teacher is Jane Doe (course-settings) — matches
+    fireEvent.change(box, { target: { value: 'jane' } })
+    expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
+    // an unassigned name does not
+    fireEvent.change(box, { target: { value: 'sam' } })
+    expect(screen.queryByText('Intro to Robotics')).not.toBeInTheDocument()
   })
 
   it('creates classes open for registration by default, with the checkbox opting out', async () => {

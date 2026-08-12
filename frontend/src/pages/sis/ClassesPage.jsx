@@ -55,6 +55,20 @@ const stripHtml = (html) => {
   return doc.body.textContent || ''
 }
 
+// The search box matches who teaches, not just what it's called — the front
+// office knows "Sarah's classes" before they remember each class name
+// (iCreate, 2026-08-12). Assistants count: she still teaches in that room.
+const classSearchText = (c) => [
+  c.name,
+  c.primary_instructor?.name || c.primary_instructor?.display_name,
+  ...(c.assistant_instructors || []).map((a) => a.name || a.display_name),
+].filter(Boolean).join(' ').toLowerCase()
+
+// Optio courses carry no instructor of their own; the teacher is the org's
+// assignment from course-settings.
+const courseSearchText = (c, settings) =>
+  [c.title, settings?.teacher?.name].filter(Boolean).join(' ').toLowerCase()
+
 const ClassesPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
@@ -361,16 +375,16 @@ const ClassesPage = () => {
   // ── Tab-scoped, searched catalog ─────────────────────────────────────────────
   const items = useMemo(() => {
     const source = tab === 'courses'
-      ? courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
-      : classes.map((c) => ({ kind: 'class', _name: c.name, ...c }))
+      ? courses.map((c) => ({ kind: 'course', _name: c.title, _search: courseSearchText(c, courseSettings[c.id]), ...c }))
+      : classes.map((c) => ({ kind: 'class', _name: c.name, _search: classSearchText(c), ...c }))
     const q = search.trim().toLowerCase()
-    return q ? source.filter((i) => (i._name || '').toLowerCase().includes(q)) : source
-  }, [classes, courses, tab, search])
+    return q ? source.filter((i) => i._search.includes(q)) : source
+  }, [classes, courses, courseSettings, tab, search])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return q ? classes.filter((c) => (c.name || '').toLowerCase().includes(q)) : classes
+    return q ? classes.filter((c) => classSearchText(c).includes(q)) : classes
   }, [classes, search])
 
   const TABS = [
@@ -422,7 +436,7 @@ const ClassesPage = () => {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search…"
+          placeholder={tab === 'courses' ? 'Search by course or teacher…' : 'Search by class or teacher…'}
           className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
         />
         {tab === 'classes' && (
