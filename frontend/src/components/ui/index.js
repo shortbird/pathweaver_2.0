@@ -10,6 +10,7 @@
 // Modal components
 export { Modal, ModalHeader, ModalBody, ModalFooter } from './Modal';
 export { default as ModalOverlay } from './ModalOverlay';
+export { default as ConfirmDialog } from './ConfirmDialog';
 
 // Alert component
 export { Alert } from './Alert';

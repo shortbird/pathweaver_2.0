@@ -79,7 +79,6 @@ const BASELINE = [
   'src/components/admin/QuestCreationForm.jsx',
   'src/components/admin/QuestSelectionModal.jsx',
   'src/components/admin/ServiceFormModal.jsx',
-  'src/components/admin/UserDetailsModal.jsx',
   'src/components/admin/ai/ReviewQueueTab.jsx',
   'src/components/admin/curriculum-upload/UploadDetailModal.jsx',
   'src/components/advisor/CheckinHistoryModal.jsx',

@@ -1,1034 +1,906 @@
-import React, { useState, useEffect, memo } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import api from '../../services/api'
 import toast from 'react-hot-toast'
+import {
+  AcademicCapIcon,
+  ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  EllipsisVerticalIcon,
+  PhotoIcon,
+  QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline'
+import api from '../../services/api'
 import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
-import UserConnectionsTab from './UserConnectionsTab'
-import UserEnrollmentsTab from './UserEnrollmentsTab'
-import GlassTabBar from '../ui/GlassTabBar'
-import Spinner from '../ui/Spinner'
+import UserPeopleTab from './UserPeopleTab'
+import { ConfirmDialog, GlassTabBar, Modal, Spinner } from '../ui'
 import { startMasquerade } from '../../services/masqueradeService'
-import { queryKeys } from '../../utils/queryKeys'
 
-// import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
+/**
+ * UserDetailsModal — the admin's view of one user.
+ *
+ * Condensed from five tabs (Profile / Role / Connections / Enrollments /
+ * Actions) to three. What changed and why:
+ *  - Identity lives in the header at every breakpoint, so the modal no longer
+ *    spends its title bar on the words "User Details".
+ *  - Overview leads with the stats the detail endpoint already returned and the
+ *    old modal threw away (XP, quests completed, last active).
+ *  - Access is one form with one Save and one diff confirm, replacing three
+ *    buttons and three `window.confirm`s.
+ *  - Connections and Enrollments were the same widget twice; they are one tab.
+ *  - The eight-colour Actions tab is gone: record views sit at the bottom of
+ *    Overview, account-state actions in Access, and the two identity-level
+ *    actions (masquerade, delete) in the header menu.
+ */
+
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'access', label: 'Access' },
+  { id: 'people', label: 'People' },
+]
+
+const PLATFORM_ROLES = [
+  { value: 'student', label: 'Student' },
+  { value: 'parent', label: 'Parent' },
+  { value: 'advisor', label: 'Teacher' },
+  { value: 'observer', label: 'Observer' },
+  { value: 'org_managed', label: 'Organization Managed' },
+  { value: 'org_admin', label: 'Organization Admin' },
+  { value: 'superadmin', label: 'Superadmin' },
+]
+
+// Mirrors utils/roles.py OrgRole. campus_coordinator is org-only and was
+// missing here, so the role could not be assigned from this screen at all.
+const ORG_ROLES = [
+  { value: 'student', label: 'Student' },
+  { value: 'parent', label: 'Parent' },
+  { value: 'advisor', label: 'Teacher' },
+  { value: 'observer', label: 'Observer' },
+  { value: 'campus_coordinator', label: 'Campus Coordinator' },
+  { value: 'org_admin', label: 'Organization Admin' },
+]
+
+const ROLE_GLOSSARY = [
+  ['Student', 'Completes quests and builds a diploma'],
+  ['Parent', "Views linked children's progress"],
+  ['Teacher', 'Manages student groups and provides guidance'],
+  ['Observer', 'View-only access to linked students'],
+  ['Campus Coordinator', 'Org admin tools without the financial data'],
+  ['Organization Admin', 'Full organization management'],
+  ['Organization Managed', 'Platform role for org users; the real role is the org role below'],
+  ['Superadmin', 'Platform-wide access'],
+]
+
+const PROFILE_FIELDS = [
+  'first_name',
+  'last_name',
+  'email',
+  'phone_number',
+  'date_of_birth',
+  'address_line1',
+  'address_line2',
+  'city',
+  'state',
+  'postal_code',
+  'country',
+]
+
+const ADDRESS_FIELDS = ['address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country']
+
+const labelFor = (list, value) => list.find((o) => o.value === value)?.label || value || '—'
+
+const pickProfile = (source = {}) =>
+  PROFILE_FIELDS.reduce((acc, key) => ({ ...acc, [key]: source[key] || '' }), {})
+
+const derivedOrgRole = (source = {}) =>
+  source.org_role || (source.is_org_admin ? 'org_admin' : 'student')
+
+const fullName = (u) =>
+  `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.display_name || u.email
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+
+const Field = ({ id, label, children }) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+      {label}
+    </label>
+    {children}
+  </div>
+)
+
+const Stat = ({ label, value }) => (
+  <div className="px-3 py-2">
+    <p className="text-xs text-gray-500">{label}</p>
+    <p className="text-sm font-semibold text-gray-900 mt-0.5">{value}</p>
+  </div>
+)
+
+const RecordRow = ({ icon: Icon, title, hint, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-100 bg-gray-50/60 hover:border-optio-purple/60 hover:bg-white transition-all"
+  >
+    <span className="w-9 h-9 rounded-lg bg-optio-purple/10 text-optio-purple flex items-center justify-center flex-shrink-0">
+      <Icon className="w-5 h-5" />
+    </span>
+    <span className="min-w-0">
+      <span className="block text-sm font-medium text-gray-900">{title}</span>
+      <span className="block text-xs text-gray-500 truncate">{hint}</span>
+    </span>
+  </button>
+)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState('profile')
-  const [formData, setFormData] = useState({
-    first_name: user.first_name || '',
-    last_name: user.last_name || '',
-    email: user.email || '',
+  const [activeTab, setActiveTab] = useState('overview')
+
+  const [profile, setProfile] = useState(() => pickProfile(user))
+  const [profileBaseline, setProfileBaseline] = useState(() => pickProfile(user))
+  const [access, setAccess] = useState(() => ({
     role: user.role || 'student',
     organization_id: user.organization_id || '',
-    org_role: user.org_role || (user.is_org_admin ? 'org_admin' : 'student'),
-    phone_number: user.phone_number || '',
-    address_line1: user.address_line1 || '',
-    address_line2: user.address_line2 || '',
-    city: user.city || '',
-    state: user.state || '',
-    postal_code: user.postal_code || '',
-    country: user.country || '',
-    date_of_birth: user.date_of_birth || ''
-  })
-  const [loading, setLoading] = useState(false)
-  const [showChatLogsModal, setShowChatLogsModal] = useState(false)
-  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
-  const [showAdvisorCheckinsModal, setShowAdvisorCheckinsModal] = useState(false)
+    org_role: derivedOrgRole(user),
+  }))
+  const [accessBaseline, setAccessBaseline] = useState(() => ({
+    role: user.role || 'student',
+    organization_id: user.organization_id || '',
+    org_role: derivedOrgRole(user),
+  }))
+
+  const [stats, setStats] = useState(null)
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || '')
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(user.avatar_url || '')
-  const [masquerading, setMasquerading] = useState(false)
   const [organizations, setOrganizations] = useState([])
-  const [currentOrgName, setCurrentOrgName] = useState(user.organization_name || user.organization?.name || '')
-  const [originalOrgId, setOriginalOrgId] = useState(user.organization_id || '')
-  const [originalOrgRole, setOriginalOrgRole] = useState(user.org_role || (user.is_org_admin ? 'org_admin' : 'student'))
+  const [orgName, setOrgName] = useState(user.organization_name || user.organization?.name || '')
+  const [saving, setSaving] = useState(false)
+  const [showAddress, setShowAddress] = useState(false)
+  const [showGlossary, setShowGlossary] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirm, setConfirm] = useState(null)
+  const [nested, setNested] = useState(null) // 'chat' | 'checkins'
+  const menuRef = useRef(null)
 
-  useEffect(() => {
-    fetchUserDetails()
-    fetchOrganizations()
-  }, [user.id])
-
-  // Close on Escape, but let any nested modal handle its own dismissal first
-  const nestedModalOpen = showChatLogsModal || showResetPasswordModal || showAdvisorCheckinsModal
-  useEffect(() => {
-    if (nestedModalOpen) return
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [nestedModalOpen, onClose])
-
-  const fetchUserDetails = async () => {
-    try {
-      console.log('[UserDetailsModal] Fetching user details from:', `/api/admin/users/${user.id}`)
-      const response = await api.get(`/api/admin/users/${user.id}`)
-      // API returns { user: {...}, xp_by_pillar: {...}, ... }
-      const userData = response.data.user || response.data
-      // Update formData with fetched user details (including new fields)
-      const orgRole = userData.org_role || (userData.is_org_admin ? 'org_admin' : 'student')
-      setFormData(prev => ({
-        ...prev,
-        phone_number: userData.phone_number || '',
-        address_line1: userData.address_line1 || '',
-        address_line2: userData.address_line2 || '',
-        city: userData.city || '',
-        state: userData.state || '',
-        postal_code: userData.postal_code || '',
-        country: userData.country || '',
-        date_of_birth: userData.date_of_birth || '',
-        organization_id: userData.organization_id || '',
-        org_role: orgRole
-      }))
-      setOriginalOrgRole(orgRole)
-      setCurrentAvatarUrl(userData.avatar_url || '')
-      // Update original org tracking
-      const orgId = userData.organization_id || ''
-      setOriginalOrgId(orgId)
-      // Handle both flat organization_name and nested organization.name
-      const orgName = userData.organization_name || userData.organization?.name || ''
-      setCurrentOrgName(orgName)
-    } catch (error) {
-      toast.error('Failed to load user details')
-    }
-  }
-
-  const fetchOrganizations = async () => {
-    try {
-      const response = await api.get('/api/admin/organizations')
-      setOrganizations(response.data.organizations || [])
-    } catch (error) {
-      console.error('Failed to fetch organizations:', error)
-    }
-  }
-
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
-
-  const handleSaveProfile = async () => {
-    setLoading(true)
-    try {
-      await api.put(`/api/admin/users/${user.id}`, {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        phone_number: formData.phone_number,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
-        city: formData.city,
-        state: formData.state,
-        postal_code: formData.postal_code,
-        country: formData.country,
-        date_of_birth: formData.date_of_birth
+  const profileDirty = useMemo(
+    () => PROFILE_FIELDS.some((key) => profile[key] !== profileBaseline[key]),
+    [profile, profileBaseline]
+  )
+  const accessChanges = useMemo(() => {
+    const changes = []
+    if (access.role !== accessBaseline.role) {
+      changes.push({
+        key: 'role',
+        label: 'Platform role',
+        from: labelFor(PLATFORM_ROLES, accessBaseline.role),
+        to: labelFor(PLATFORM_ROLES, access.role),
       })
-      toast.success('Profile updated successfully')
-      onSave()
-    } catch (error) {
-      toast.error('Failed to update profile')
-    } finally {
-      setLoading(false)
     }
-  }
+    if (access.organization_id !== accessBaseline.organization_id) {
+      changes.push({
+        key: 'organization',
+        label: 'Organization',
+        from: orgName || 'None',
+        to: organizations.find((o) => o.id === access.organization_id)?.name || 'None',
+      })
+    }
+    if (access.org_role !== accessBaseline.org_role) {
+      changes.push({
+        key: 'org_role',
+        label: 'Organization role',
+        from: labelFor(ORG_ROLES, accessBaseline.org_role),
+        to: labelFor(ORG_ROLES, access.org_role),
+      })
+    }
+    return changes
+  }, [access, accessBaseline, orgName, organizations])
 
-  const handleUpdateRole = async () => {
-    const roleDisplayNames = {
-      superadmin: 'Superadmin',
-      org_admin: 'Organization Admin',
-      org_managed: 'Organization Managed',
-      advisor: 'Teacher',
-      parent: 'Parent',
-      student: 'Student',
-      observer: 'Observer'
-    };
-    const displayName = roleDisplayNames[formData.role] || formData.role;
-    if (window.confirm(`Change role to ${displayName}?`)) {
-      setLoading(true)
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
       try {
-        await api.put(`/api/admin/users/${user.id}/role`, {
-          role: formData.role
-        })
-        toast.success('Role updated successfully')
-        onSave()
-      } catch (error) {
-        toast.error('Failed to update role')
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
-
-  const handleUpdateOrganization = async () => {
-    const selectedOrg = organizations.find(o => o.id === formData.organization_id)
-    const orgName = selectedOrg?.name || 'None'
-    if (window.confirm(`Change organization to ${orgName}?`)) {
-      setLoading(true)
-      try {
-        await api.put(`/api/admin/users/${user.id}/organization`, {
-          organization_id: formData.organization_id || null
-        })
-        toast.success('Organization updated successfully')
-        setCurrentOrgName(orgName === 'None' ? '' : orgName)
-        setOriginalOrgId(formData.organization_id)
-        onSave()
-      } catch (error) {
-        toast.error('Failed to update organization')
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
-
-  const handleUpdateOrgRole = async () => {
-    const orgRoleDisplayNames = {
-      student: 'Student',
-      parent: 'Parent',
-      advisor: 'Teacher',
-      org_admin: 'Organization Admin',
-      observer: 'Observer'
-    }
-    const displayName = orgRoleDisplayNames[formData.org_role] || formData.org_role
-    if (window.confirm(`Change organizational role to ${displayName}?`)) {
-      setLoading(true)
-      try {
-        await api.put(`/api/admin/users/${user.id}/org-role`, {
-          org_role: formData.org_role
-        })
-        toast.success('Organizational role updated successfully')
-        setOriginalOrgRole(formData.org_role)
-        onSave()
-      } catch (error) {
-        toast.error('Failed to update organizational role')
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
-
-  const handleViewChatLogs = () => {
-    setShowChatLogsModal(true)
-  }
-
-  const handleResetPassword = () => {
-    setShowResetPasswordModal(true)
-  }
-
-  const handleViewAdvisorCheckins = () => {
-    setShowAdvisorCheckinsModal(true)
-  }
-
-  const handleMasquerade = async () => {
-    if (masquerading) {
-      toast.error('Please exit current masquerade session first')
-      return
-    }
-
-    // Confirm masquerade action
-    if (!window.confirm(`Masquerade as ${`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email}?\n\nYou will be viewing the platform as this user.`)) {
-      return
-    }
-
-    setMasquerading(true)
-
-    try {
-      const result = await startMasquerade(user.id, '', api)
-
-      if (result.success) {
-        toast.success(`Now masquerading as ${`${result.targetUser.first_name || ''} ${result.targetUser.last_name || ''}`.trim() || result.targetUser.display_name || result.targetUser.email}`)
-
-        // Close modal
-        onClose()
-
-        // Redirect based on user role - full page load required to reinitialize AuthContext
-        // After this initial load, navigation within masquerade mode is smooth (no reloads)
-        const role = result.targetUser.role
-        let targetPath = '/dashboard'
-
-        if (role === 'parent') {
-          targetPath = '/parent/dashboard'
-        } else if (role === 'advisor') {
-          targetPath = '/dashboard'
+        const { data } = await api.get(`/api/admin/users/${user.id}`)
+        if (cancelled) return
+        const detail = data.user || data
+        const nextProfile = pickProfile(detail)
+        setProfile(nextProfile)
+        setProfileBaseline(nextProfile)
+        const nextAccess = {
+          role: detail.role || 'student',
+          organization_id: detail.organization_id || '',
+          org_role: derivedOrgRole(detail),
         }
-
-        window.location.href = targetPath
-      } else {
-        toast.error(result.error || 'Failed to start masquerade')
-        setMasquerading(false)
-      }
-    } catch (error) {
-      console.error('Masquerade error:', error)
-      toast.error('Failed to start masquerade session')
-      setMasquerading(false)
-    }
-  }
-
-  const handleVerifyEmail = async () => {
-    if (window.confirm(`Manually verify email for ${user.first_name} ${user.last_name} (${user.email})?\n\nThis will allow them to login without email verification.`)) {
-      try {
-        await api.post(`/api/admin/users/${user.id}/verify-email`, {})
-        toast.success(`Email verified for ${user.first_name} ${user.last_name}`)
-        onSave()
-      } catch (error) {
-        toast.error(error.response?.data?.error || 'Failed to verify email')
+        setAccess(nextAccess)
+        setAccessBaseline(nextAccess)
+        setAvatarUrl(detail.avatar_url || '')
+        setOrgName(detail.organization_name || detail.organization?.name || '')
+        setStats({
+          total_xp: data.total_xp || 0,
+          quests_completed: data.quests_completed || 0,
+          last_active: data.last_active || detail.last_active,
+          created_at: detail.created_at || user.created_at,
+        })
+      } catch {
+        if (!cancelled) toast.error('Failed to load user details')
       }
     }
-  }
 
-  const handleDeleteUser = async () => {
-    if (window.confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}?\n\nThis action cannot be undone and will permanently delete all user data.`)) {
-      try {
-        await api.delete(`/api/admin/users/${user.id}`)
-        toast.success('User deleted successfully')
-        onClose()
-        onSave()
-      } catch (error) {
-        toast.error('Failed to delete user')
-      }
+    load()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [user.id, user.created_at])
 
-  const handleUploadAvatar = () => {
-    // Create file input element
-    const fileInput = document.createElement('input')
-    fileInput.type = 'file'
-    fileInput.accept = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif'
+  // Only needed by the Access tab's organization picker.
+  useEffect(() => {
+    if (activeTab !== 'access' || organizations.length) return
+    let cancelled = false
+    api
+      .get('/api/admin/organizations')
+      .then(({ data }) => {
+        if (!cancelled) setOrganizations(data.organizations || [])
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Failed to load organizations')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, organizations.length])
 
-    fileInput.onchange = async (e) => {
-      const file = e.target.files[0]
-      if (!file) return
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDocClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [menuOpen])
 
-      // Validate file size (5MB max)
-      const maxSize = 5 * 1024 * 1024
-      if (file.size > maxSize) {
-        toast.error('Image size must be less than 5MB')
+  // --- Unsaved-changes guard --------------------------------------------
+  // Editing the profile and switching tabs used to discard the edit silently.
+
+  const guard = useCallback(
+    (proceed) => {
+      if (!profileDirty) {
+        proceed()
         return
       }
+      setConfirm({
+        title: 'Discard unsaved changes?',
+        body: 'The profile edits on this screen have not been saved.',
+        confirmLabel: 'Discard',
+        destructive: true,
+        run: async () => {
+          setProfile(profileBaseline)
+          proceed()
+        },
+      })
+    },
+    [profileDirty, profileBaseline]
+  )
 
-      // Create FormData for file upload
-      const formData = new FormData()
-      formData.append('file', file)
+  const requestClose = () => guard(onClose)
+  const requestTab = (tab) => guard(() => setActiveTab(tab))
 
+  const setProfileField = (e) => setProfile((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+
+  // --- Mutations ---------------------------------------------------------
+
+  const saveProfile = async () => {
+    setSaving(true)
+    try {
+      await api.put(`/api/admin/users/${user.id}`, profile)
+      setProfileBaseline(profile)
+      toast.success('Profile saved')
+      onSave()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to save profile')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const applyAccessChanges = async () => {
+    // Order matters: the organization must exist on the user before an org
+    // role can be set against it.
+    for (const change of accessChanges) {
+      if (change.key === 'role') {
+        await api.put(`/api/admin/users/${user.id}/role`, { role: access.role })
+      } else if (change.key === 'organization') {
+        await api.put(`/api/admin/users/${user.id}/organization`, {
+          organization_id: access.organization_id || null,
+        })
+        setOrgName(organizations.find((o) => o.id === access.organization_id)?.name || '')
+      } else {
+        await api.put(`/api/admin/users/${user.id}/org-role`, { org_role: access.org_role })
+      }
+    }
+    setAccessBaseline(access)
+    toast.success('Access updated')
+    onSave()
+  }
+
+  const uploadAvatar = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif'
+    input.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be under 5MB')
+        return
+      }
+      const body = new FormData()
+      body.append('file', file)
+      setUploadingAvatar(true)
       try {
-        setUploadingAvatar(true)
-        const loadingToast = toast.loading('Uploading profile picture...')
-
-        const response = await api.post(
-          `/api/admin/users/${user.id}/upload-avatar`,
-          formData
-        )
-
-        toast.dismiss(loadingToast)
-        toast.success('Profile picture uploaded successfully')
-        setCurrentAvatarUrl(response.data.avatar_url)
+        const { data } = await api.post(`/api/admin/users/${user.id}/upload-avatar`, body)
+        setAvatarUrl(data.avatar_url)
+        toast.success('Photo updated')
         onSave()
       } catch (error) {
-        toast.error(error.response?.data?.error || 'Failed to upload profile picture')
+        toast.error(error.response?.data?.error || 'Failed to upload photo')
       } finally {
         setUploadingAvatar(false)
       }
     }
-
-    // Trigger file selection dialog
-    fileInput.click()
+    input.click()
   }
 
-  const getRoleDisplayName = (role) => {
-    const roleNames = {
-      superadmin: 'Superadmin',
-      org_admin: 'Organization Admin',
-      org_managed: 'Organization Managed',
-      advisor: 'Teacher',
-      parent: 'Parent',
-      student: 'Student',
-      observer: 'Observer'
+  const masquerade = async () => {
+    const result = await startMasquerade(user.id, '', api)
+    if (!result.success) {
+      toast.error(result.error || 'Failed to start masquerade')
+      throw new Error('masquerade failed')
     }
-    return roleNames[role] || role
+    toast.success(`Now masquerading as ${fullName(result.targetUser)}`)
+    onClose()
+    // Full load so AuthContext re-initialises; navigation stays smooth after.
+    window.location.href = result.targetUser.role === 'parent' ? '/parent/dashboard' : '/dashboard'
   }
 
-  const getRoleBadge = (role) => {
-    const colors = {
-      superadmin: 'bg-red-700 text-white',
-      org_admin: 'bg-orange-100 text-orange-700',
-      org_managed: 'bg-optio-purple/10 text-optio-purple',
-      advisor: 'bg-yellow-100 text-yellow-700',
-      parent: 'bg-green-100 text-green-700',
-      student: 'bg-blue-100 text-blue-700',
-      observer: 'bg-gray-100 text-gray-700'
-    }
-    return colors[role] || 'bg-gray-100 text-gray-700'
-  }
+  const goTo = (path) => guard(() => {
+    onClose()
+    navigate(path)
+  })
 
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center sm:p-4 z-50"
-      onMouseDown={(e) => {
-        // Only the backdrop itself -- not the panel, and not a nested modal's backdrop
-        if (e.target === e.currentTarget) onClose()
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="User details"
-    >
-      <div className="bg-white rounded-t-2xl sm:rounded-lg w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 sm:p-6 border-b flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Mobile avatar + name in header */}
-            <div className="sm:hidden flex items-center gap-2.5 min-w-0">
-              {currentAvatarUrl ? (
-                <img src={currentAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-sm font-bold">{(formData.first_name?.[0] || user.email[0]).toUpperCase()}</span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">{formData.first_name} {formData.last_name}</p>
-                <p className="text-xs text-gray-500 truncate">{user.email}</p>
-              </div>
-            </div>
-            <h2 className="hidden sm:block text-2xl font-bold">User Details</h2>
+  // --- Render ------------------------------------------------------------
+
+  const displayName = fullName({ ...user, ...profile })
+  const roleLabel = labelFor(PLATFORM_ROLES, accessBaseline.role)
+
+  const header = (
+    <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="relative flex-shrink-0">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-white/40" />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-white/20 ring-2 ring-white/40 flex items-center justify-center">
+            <span className="text-lg font-bold">
+              {(profile.first_name?.[0] || user.email?.[0] || '?').toUpperCase()}
+            </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 -mr-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+        )}
+        <button
+          type="button"
+          onClick={uploadAvatar}
+          disabled={uploadingAvatar}
+          title="Change photo"
+          aria-label="Change photo"
+          className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-optio-purple shadow flex items-center justify-center hover:bg-gray-50 disabled:opacity-60"
+        >
+          {uploadingAvatar ? <Spinner size="sm" className="!h-3 !w-3" /> : <PhotoIcon className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+      <div className="min-w-0">
+        <h2 className="text-lg sm:text-xl font-bold truncate">{displayName}</h2>
+        <p className="text-xs sm:text-sm text-white/80 truncate">{user.email}</p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-medium">
+            {roleLabel}
+          </span>
+          {orgName && (
+            <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-medium">
+              {orgName}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="relative ml-auto flex-shrink-0" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+        >
+          <EllipsisVerticalIcon className="w-5 h-5" />
+        </button>
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => {
+                setMenuOpen(false)
+                setConfirm({
+                  title: 'Masquerade as this user?',
+                  body: `You will browse the platform as ${displayName} until you exit the session.`,
+                  confirmLabel: 'Masquerade',
+                  run: masquerade,
+                })
+              }}
+            >
+              Masquerade as user
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              onClick={() => {
+                setMenuOpen(false)
+                setConfirm({
+                  title: 'Delete this account?',
+                  body: `${displayName} and all of their data will be permanently deleted. This cannot be undone.`,
+                  confirmLabel: 'Delete account',
+                  destructive: true,
+                  run: async () => {
+                    await api.delete(`/api/admin/users/${user.id}`)
+                    toast.success('User deleted')
+                    onClose()
+                    onSave()
+                  },
+                })
+              }}
+            >
+              Delete account
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const footer =
+    activeTab === 'overview' && profileDirty ? (
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">Unsaved changes</p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setProfile(profileBaseline)} className="btn-quiet">
+            Reset
+          </button>
+          <button type="button" onClick={saveProfile} disabled={saving} className="btn-primary">
+            {saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
+      </div>
+    ) : activeTab === 'access' && accessChanges.length > 0 ? (
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">
+          {accessChanges.length} pending change{accessChanges.length === 1 ? '' : 's'}
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setAccess(accessBaseline)} className="btn-quiet">
+            Reset
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() =>
+              setConfirm({
+                title: 'Apply access changes?',
+                node: (
+                  <ul className="space-y-1">
+                    {accessChanges.map((c) => (
+                      <li key={c.key}>
+                        <span className="font-medium text-gray-900">{c.label}:</span> {c.from} &rarr; {c.to}
+                      </li>
+                    ))}
+                  </ul>
+                ),
+                confirmLabel: 'Apply',
+                run: applyAccessChanges,
+              })
+            }
+          >
+            Apply changes
+          </button>
+        </div>
+      </div>
+    ) : null
 
-        {/* Tabs */}
-        <div className="px-4 py-3 border-b flex-shrink-0">
+  return (
+    <>
+      <Modal
+        isOpen
+        onClose={requestClose}
+        header={header}
+        size="md"
+        bodyClassName="!p-0"
+        footer={footer}
+      >
+        <div className="sticky top-0 z-10 bg-white px-4 sm:px-6 pt-4 pb-3 border-b border-gray-200">
           <GlassTabBar
             size="md"
             aria-label="User details sections"
-            tabs={['profile', 'role', 'connections', 'enrollments', 'actions'].map((tab) => ({
-              id: tab,
-              label: tab.charAt(0).toUpperCase() + tab.slice(1),
-            }))}
+            tabs={TABS}
             active={activeTab}
-            onSelect={setActiveTab}
+            onSelect={requestTab}
           />
         </div>
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
-          {activeTab === 'profile' && (
-            <div className="space-y-4">
-              {/* Profile Picture Section */}
-              <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-                <div className="relative flex-shrink-0">
-                  {currentAvatarUrl ? (
-                    <img
-                      src={currentAvatarUrl}
-                      alt={`Profile picture of ${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User profile picture'}
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-200"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-primary flex items-center justify-center border-2 border-gray-200">
-                      <span className="text-white text-xl sm:text-2xl font-bold">
-                        {(formData.first_name?.[0] || user.email[0]).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  {uploadingAvatar && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                      <Spinner size="sm" className="border-white" />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <button
-                    onClick={handleUploadAvatar}
-                    disabled={uploadingAvatar}
-                    className="btn-quiet min-h-[36px]"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
-                  </button>
-                  <p className="text-xs text-gray-400 mt-1">JPEG, PNG, GIF, WEBP (max 5MB)</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="user-first-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name
-                  </label>
-                  <input
-                    id="user-first-name"
-                    type="text"
-                    name="first_name"
-                    value={formData.first_name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="user-last-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name
-                  </label>
-                  <input
-                    id="user-last-name"
-                    type="text"
-                    name="last_name"
-                    value={formData.last_name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="user-email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                    id="user-email"
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                />
-              </div>
-              <div>
-                <label htmlFor="user-phone-number" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                    id="user-phone-number"
-                  type="tel"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  placeholder="(555) 123-4567"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                />
-              </div>
-              <div>
-                <label htmlFor="user-date-of-birth" className="block text-sm font-medium text-gray-700 mb-1">
-                  Date of Birth
-                </label>
-                <input
-                    id="user-date-of-birth"
-                  type="date"
-                  name="date_of_birth"
-                  value={formData.date_of_birth}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                />
-              </div>
-              <div>
-                <label htmlFor="user-address-line1" className="block text-sm font-medium text-gray-700 mb-1">
-                  Address Line 1
-                </label>
-                <input
-                    id="user-address-line1"
-                  type="text"
-                  name="address_line1"
-                  value={formData.address_line1}
-                  onChange={handleInputChange}
-                  placeholder="123 Main Street"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                />
-              </div>
-              <div>
-                <label htmlFor="user-address-line2" className="block text-sm font-medium text-gray-700 mb-1">
-                  Address Line 2
-                </label>
-                <input
-                    id="user-address-line2"
-                  type="text"
-                  name="address_line2"
-                  value={formData.address_line2}
-                  onChange={handleInputChange}
-                  placeholder="Apt, Suite, Unit (optional)"
-                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="user-city" className="block text-sm font-medium text-gray-700 mb-1">
-                    City
-                  </label>
-                  <input
-                    id="user-city"
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    placeholder="New York"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="user-state" className="block text-sm font-medium text-gray-700 mb-1">
-                    State/Province
-                  </label>
-                  <input
-                    id="user-state"
-                    type="text"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleInputChange}
-                    placeholder="NY"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="user-postal-code" className="block text-sm font-medium text-gray-700 mb-1">
-                    Postal Code
-                  </label>
-                  <input
-                    id="user-postal-code"
-                    type="text"
-                    name="postal_code"
-                    value={formData.postal_code}
-                    onChange={handleInputChange}
-                    placeholder="10001"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="user-country" className="block text-sm font-medium text-gray-700 mb-1">
-                    Country
-                  </label>
-                  <input
-                    id="user-country"
-                    type="text"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    placeholder="United States"
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  />
-                </div>
-              </div>
-              <div className="pt-4 border-t border-gray-200">
-                <p className="text-sm font-medium text-gray-700 mb-2">Read-Only Information</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      User ID
-                    </label>
-                    <input
-                      type="text"
-                      value={user.id}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Created At
-                    </label>
-                    <input
-                      type="text"
-                      value={new Date(user.created_at).toLocaleString()}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={handleSaveProfile}
-                disabled={loading}
-                className="btn-primary w-full min-h-[44px]"
-              >
-                {loading ? 'Saving...' : 'Save Profile Changes'}
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'role' && (
+        <div className="px-4 sm:px-6 py-5">
+          {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Role Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">User Role</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Role
-                  </label>
-                  <span className={`px-3 py-2 rounded-full text-sm font-semibold ${getRoleBadge(user.role || 'student')}`}>
-                    {getRoleDisplayName(user.role || 'student')}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    New Role
-                  </label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                  >
-                    <option value="student">Student</option>
-                    <option value="parent">Parent</option>
-                    <option value="advisor">Teacher</option>
-                    <option value="observer">Observer</option>
-                    <option value="org_admin">Organization Admin</option>
-                    <option value="org_managed">Organization Managed</option>
-                    <option value="superadmin">Superadmin</option>
-                  </select>
-                </div>
-
-                {/* Role Descriptions */}
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Role Descriptions:</p>
-                  <ul className="text-sm text-gray-600 space-y-2">
-                    <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
-                    <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
-                    <li><span className="font-semibold">Teacher:</span> Can manage student groups and provide guidance</li>
-                    <li><span className="font-semibold">Observer:</span> View-only access to linked students</li>
-                    <li><span className="font-semibold">Org Admin:</span> Organization admin with org management tools</li>
-                    <li><span className="font-semibold">Org Managed:</span> Role controlled by organization (uses org_role)</li>
-                    <li><span className="font-semibold">Superadmin:</span> Platform-wide superadmin access</li>
-                  </ul>
-                </div>
-
-                <button
-                  onClick={handleUpdateRole}
-                  disabled={loading || formData.role === (user.role || 'student')}
-                  className="btn-primary w-full min-h-[44px]"
-                >
-                  {loading ? 'Updating...' : 'Update Role'}
-                </button>
+              <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+                <Stat label="Total XP" value={stats ? stats.total_xp.toLocaleString() : '—'} />
+                <Stat label="Quests done" value={stats ? stats.quests_completed : '—'} />
+                <Stat label="Last active" value={stats ? formatDate(stats.last_active) : '—'} />
+                <Stat label="Joined" value={stats ? formatDate(stats.created_at) : '—'} />
               </div>
 
-              {/* Organization Section */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Organization</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Organization
-                  </label>
-                  <span className="px-3 py-2 rounded-full text-sm font-semibold bg-blue-100 text-blue-700">
-                    {currentOrgName || 'No Organization'}
-                  </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field id="user-first-name" label="First name">
+                    <input
+                      id="user-first-name"
+                      name="first_name"
+                      type="text"
+                      value={profile.first_name}
+                      onChange={setProfileField}
+                      className="input-field !py-2 min-h-[44px]"
+                    />
+                  </Field>
+                  <Field id="user-last-name" label="Last name">
+                    <input
+                      id="user-last-name"
+                      name="last_name"
+                      type="text"
+                      value={profile.last_name}
+                      onChange={setProfileField}
+                      className="input-field !py-2 min-h-[44px]"
+                    />
+                  </Field>
+                </div>
+                <Field id="user-email" label="Email">
+                  <input
+                    id="user-email"
+                    name="email"
+                    type="email"
+                    value={profile.email}
+                    onChange={setProfileField}
+                    className="input-field !py-2 min-h-[44px]"
+                  />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field id="user-phone" label="Phone">
+                    <input
+                      id="user-phone"
+                      name="phone_number"
+                      type="tel"
+                      value={profile.phone_number}
+                      onChange={setProfileField}
+                      placeholder="(555) 123-4567"
+                      className="input-field !py-2 min-h-[44px]"
+                    />
+                  </Field>
+                  <Field id="user-dob" label="Date of birth">
+                    <input
+                      id="user-dob"
+                      name="date_of_birth"
+                      type="date"
+                      value={profile.date_of_birth}
+                      onChange={setProfileField}
+                      className="input-field !py-2 min-h-[44px]"
+                    />
+                  </Field>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assign to Organization
-                  </label>
-                  <select
-                    name="organization_id"
-                    value={formData.organization_id}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+                <div className="border border-gray-200 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddress((v) => !v)}
+                    aria-expanded={showAddress}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-gray-700"
                   >
-                    <option value="">No Organization</option>
-                    {organizations.map(org => (
-                      <option key={org.id} value={org.id}>
-                        {org.name}
-                      </option>
+                    Mailing address
+                    <span className="flex items-center gap-2 text-gray-500">
+                      {!showAddress && (
+                        <span className="text-xs">
+                          {ADDRESS_FIELDS.some((f) => profile[f]) ? 'On file' : 'Not set'}
+                        </span>
+                      )}
+                      <ChevronDownIcon
+                        className={`w-4 h-4 transition-transform ${showAddress ? 'rotate-180' : ''}`}
+                      />
+                    </span>
+                  </button>
+                  {showAddress && (
+                    <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
+                      <Field id="user-address1" label="Address line 1">
+                        <input
+                          id="user-address1"
+                          name="address_line1"
+                          type="text"
+                          value={profile.address_line1}
+                          onChange={setProfileField}
+                          placeholder="123 Main Street"
+                          className="input-field !py-2"
+                        />
+                      </Field>
+                      <Field id="user-address2" label="Address line 2">
+                        <input
+                          id="user-address2"
+                          name="address_line2"
+                          type="text"
+                          value={profile.address_line2}
+                          onChange={setProfileField}
+                          placeholder="Apt, suite, unit (optional)"
+                          className="input-field !py-2"
+                        />
+                      </Field>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Field id="user-city" label="City">
+                          <input
+                            id="user-city"
+                            name="city"
+                            type="text"
+                            value={profile.city}
+                            onChange={setProfileField}
+                            className="input-field !py-2"
+                          />
+                        </Field>
+                        <Field id="user-state" label="State / province">
+                          <input
+                            id="user-state"
+                            name="state"
+                            type="text"
+                            value={profile.state}
+                            onChange={setProfileField}
+                            className="input-field !py-2"
+                          />
+                        </Field>
+                        <Field id="user-postal" label="Postal code">
+                          <input
+                            id="user-postal"
+                            name="postal_code"
+                            type="text"
+                            value={profile.postal_code}
+                            onChange={setProfileField}
+                            className="input-field !py-2"
+                          />
+                        </Field>
+                        <Field id="user-country" label="Country">
+                          <input
+                            id="user-country"
+                            name="country"
+                            type="text"
+                            value={profile.country}
+                            onChange={setProfileField}
+                            className="input-field !py-2"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-900">Records</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <RecordRow
+                    icon={ChatBubbleLeftRightIcon}
+                    title="Chat logs"
+                    hint="AI tutor conversation history"
+                    onClick={() => setNested('chat')}
+                  />
+                  <RecordRow
+                    icon={ClipboardDocumentListIcon}
+                    title="Teacher check-ins"
+                    hint="Confidential check-in log"
+                    onClick={() => setNested('checkins')}
+                  />
+                  <RecordRow
+                    icon={DocumentTextIcon}
+                    title="Transcript"
+                    hint="Formal transcript with planned credits"
+                    onClick={() => goTo(`/admin/user/${user.id}/transcript`)}
+                  />
+                  <RecordRow
+                    icon={AcademicCapIcon}
+                    title="Transfer credits"
+                    hint="Import credits from external transcripts"
+                    onClick={() => goTo(`/admin/user/${user.id}/transfer-credits`)}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                User ID <span className="font-mono text-gray-500">{user.id}</span>
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'access' && (
+            <div className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="user-role" className="block text-sm font-medium text-gray-700">
+                    Platform role
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowGlossary((v) => !v)}
+                    aria-expanded={showGlossary}
+                    className="text-xs font-medium text-optio-purple hover:underline inline-flex items-center gap-1"
+                  >
+                    <QuestionMarkCircleIcon className="w-4 h-4" />
+                    What do these mean?
+                  </button>
+                </div>
+                <select
+                  id="user-role"
+                  value={access.role}
+                  onChange={(e) => setAccess((prev) => ({ ...prev, role: e.target.value }))}
+                  className="input-field !py-2 min-h-[44px]"
+                >
+                  {PLATFORM_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                {showGlossary && (
+                  <dl className="mt-2 p-3 bg-optio-purple/5 rounded-lg text-sm text-gray-600 space-y-1">
+                    {ROLE_GLOSSARY.map(([name, description]) => (
+                      <div key={name}>
+                        <dt className="inline font-medium text-gray-900">{name}: </dt>
+                        <dd className="inline">{description}</dd>
+                      </div>
                     ))}
-                  </select>
-                </div>
-
-                <div className="p-3 bg-optio-purple/5 rounded-lg">
-                  <p className="text-sm text-optio-purple-dark">
-                    <span className="font-semibold">Note:</span> Assigning a user to an organization determines which quests they can access based on the organization's visibility policy.
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleUpdateOrganization}
-                  disabled={loading || formData.organization_id === originalOrgId}
-                  className="btn-primary w-full min-h-[44px]"
-                >
-                  {loading ? 'Updating...' : 'Update Organization'}
-                </button>
+                  </dl>
+                )}
               </div>
 
-              {/* Organizational Role Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Organizational Role</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Organizational Role
-                  </label>
-                  <span className={`px-3 py-2 rounded-full text-sm font-semibold ${
-                    originalOrgRole === 'org_admin' ? 'bg-optio-purple/10 text-optio-purple' : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {({
-                      student: 'Student',
-                      parent: 'Parent',
-                      advisor: 'Teacher',
-                      org_admin: 'Organization Admin',
-                      observer: 'Observer'
-                    })[originalOrgRole] || originalOrgRole}
-                  </span>
-                </div>
+              <Field id="user-org" label="Organization">
+                <select
+                  id="user-org"
+                  value={access.organization_id}
+                  onChange={(e) => setAccess((prev) => ({ ...prev, organization_id: e.target.value }))}
+                  className="input-field !py-2 min-h-[44px]"
+                >
+                  <option value="">No organization</option>
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Determines which quests the user can see, via the organization's visibility policy.
+                </p>
+              </Field>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Set Organizational Role
-                  </label>
-                  <select
-                    name="org_role"
-                    value={formData.org_role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+              <Field id="user-org-role" label="Organization role">
+                <select
+                  id="user-org-role"
+                  value={access.org_role}
+                  onChange={(e) => setAccess((prev) => ({ ...prev, org_role: e.target.value }))}
+                  disabled={!access.organization_id}
+                  className="input-field !py-2 min-h-[44px] disabled:bg-gray-50 disabled:text-gray-400"
+                >
+                  {ORG_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {access.organization_id
+                    ? "The user's role inside their organization. Applies when the platform role is Organization Managed."
+                    : 'Assign an organization first.'}
+                </p>
+              </Field>
+
+              <div className="pt-4 border-t border-gray-200 space-y-2">
+                <h3 className="text-sm font-semibold text-gray-900">Account state</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-quiet"
+                    onClick={() =>
+                      setConfirm({
+                        title: 'Verify this email?',
+                        body: `${user.email} will be marked verified and can sign in without confirming.`,
+                        confirmLabel: 'Verify email',
+                        run: async () => {
+                          await api.post(`/api/admin/users/${user.id}/verify-email`, {})
+                          toast.success('Email verified')
+                          onSave()
+                        },
+                      })
+                    }
                   >
-                    <option value="student">Student</option>
-                    <option value="parent">Parent</option>
-                    <option value="advisor">Teacher</option>
-                    <option value="observer">Observer</option>
-                    <option value="org_admin">Organization Admin</option>
-                  </select>
+                    Verify email
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-quiet"
+                    onClick={() =>
+                      setConfirm({
+                        title: 'Reset password?',
+                        node: (
+                          <>
+                            <p>
+                              The password for {displayName} will be set to{' '}
+                              <code className="font-mono font-semibold text-gray-900">changeme!</code>
+                            </p>
+                            <p>Share it with them and have them change it after signing in.</p>
+                          </>
+                        ),
+                        confirmLabel: 'Reset password',
+                        destructive: true,
+                        run: async () => {
+                          const { data } = await api.post(`/api/admin/users/${user.id}/reset-password`, {})
+                          toast.success(`Password reset to "${data?.new_password || 'changeme!'}"`)
+                          onSave()
+                        },
+                      })
+                    }
+                  >
+                    Reset password
+                  </button>
                 </div>
-
-                <div className="p-3 bg-optio-purple/5 rounded-lg">
-                  <p className="text-sm text-optio-purple-dark">
-                    <span className="font-semibold">Note:</span> This sets the user's role within their organization. Organization Admins can manage organization settings, users, and quests.
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleUpdateOrgRole}
-                  disabled={loading || formData.org_role === originalOrgRole}
-                  className="btn-primary w-full min-h-[44px]"
-                >
-                  {loading ? 'Updating...' : 'Update Organizational Role'}
-                </button>
               </div>
             </div>
           )}
 
-          {activeTab === 'connections' && (
-            <UserConnectionsTab user={user} />
-          )}
-
-          {activeTab === 'enrollments' && (
-            <UserEnrollmentsTab user={user} />
-          )}
-
-          {activeTab === 'actions' && (
-            <div className="space-y-3">
-              <p className="text-gray-600 mb-4">Admin actions for this user account</p>
-
-              {/* View Chat Logs */}
-              <button
-                onClick={handleViewChatLogs}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-optio-purple/5 text-optio-purple rounded-lg hover:bg-optio-purple/10 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">View Chat Logs</p>
-                  <p className="text-sm text-optio-purple">View AI tutor conversation history</p>
-                </div>
-              </button>
-
-              {/* View Advisor Check-ins */}
-              <button
-                onClick={handleViewAdvisorCheckins}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
-                <div>
-                  <p className="font-semibold">View Teacher Check-ins</p>
-                  <p className="text-sm text-blue-600">View confidential teacher check-in logs</p>
-                </div>
-              </button>
-
-              {/* Transfer Credits */}
-              <button
-                onClick={() => {
-                  onClose()
-                  navigate(`/admin/user/${user.id}/transfer-credits`)
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Transfer Credits</p>
-                  <p className="text-sm text-emerald-600">Import credits from external transcripts</p>
-                </div>
-              </button>
-
-              {/* Generate Transcript */}
-              <button
-                onClick={() => {
-                  onClose()
-                  navigate(`/admin/user/${user.id}/transcript`)
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Generate Transcript</p>
-                  <p className="text-sm text-gray-500">Formal academic transcript with planned credits</p>
-                </div>
-              </button>
-
-              {/* Masquerade */}
-              <button
-                onClick={handleMasquerade}
-                disabled={masquerading}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Masquerade as User</p>
-                  <p className="text-sm text-orange-600">View platform as this user</p>
-                </div>
-              </button>
-
-              {/* Reset Password */}
-              <button
-                onClick={handleResetPassword}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Reset Password</p>
-                  <p className="text-sm text-yellow-600">Sets password to "changeme!"</p>
-                </div>
-              </button>
-
-              {/* Verify Email */}
-              <button
-                onClick={handleVerifyEmail}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Verify Email</p>
-                  <p className="text-sm text-teal-600">Manually verify user's email address</p>
-                </div>
-              </button>
-
-              {/* Delete Account */}
-              <button
-                onClick={handleDeleteUser}
-                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Delete Account</p>
-                  <p className="text-sm text-red-600">Permanently delete user account</p>
-                </div>
-              </button>
-            </div>
-          )}
+          {activeTab === 'people' && <UserPeopleTab user={user} />}
         </div>
-      </div>
+      </Modal>
 
-      {/* Chat Logs Modal */}
-      {showChatLogsModal && (
-        <ChatLogsModal
-          user={user}
-          onClose={() => setShowChatLogsModal(false)}
-        />
-      )}
-
-      {/* Reset Password Modal */}
-      {showResetPasswordModal && (
-        <ResetPasswordModal
-          user={user}
-          onClose={() => setShowResetPasswordModal(false)}
-          onSuccess={(newPassword) => {
-            setShowResetPasswordModal(false)
-            toast.success(`Password reset to "${newPassword}"`)
-            onSave()
-          }}
-        />
-      )}
-
-      {/* Advisor Check-ins Modal */}
-      {showAdvisorCheckinsModal && (
+      {nested === 'chat' && <ChatLogsModal user={user} onClose={() => setNested(null)} />}
+      {nested === 'checkins' && (
         <CheckinHistoryModal
           studentId={user.id}
-          studentName={`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}
-          onClose={() => setShowAdvisorCheckinsModal(false)}
+          studentName={displayName}
+          onClose={() => setNested(null)}
         />
       )}
-    </div>
-  )
-}
 
-// Reset Password Modal Component
-const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
-  const [loading, setLoading] = useState(false)
-
-  const handleConfirm = async () => {
-    setLoading(true)
-    try {
-      const response = await api.post(`/api/admin/users/${user.id}/reset-password`, {})
-      onSuccess(response.data?.new_password || 'changeme!')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to reset password')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-lg p-6 max-w-full sm:max-w-md w-full mx-4">
-        <h3 className="text-xl font-bold mb-4">Reset Password</h3>
-        <p className="text-gray-600 mb-4">
-          This will reset the password for <strong>{user.first_name} {user.last_name}</strong> ({user.email}) to:
-        </p>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 text-center">
-          <code className="text-lg font-mono font-semibold text-gray-900">changeme!</code>
-        </div>
-
-        <p className="text-sm text-gray-500 mb-4">
-          Share this password with the user and have them change it after logging in.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-quiet flex-1 min-h-[44px]"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            className="btn-primary flex-1 min-h-[44px]"
-            disabled={loading}
-          >
-            {loading ? 'Resetting...' : 'Reset Password'}
-          </button>
-        </div>
-      </div>
-    </div>
+      <ConfirmDialog
+        isOpen={!!confirm}
+        onClose={() => setConfirm(null)}
+        title={confirm?.title}
+        confirmLabel={confirm?.confirmLabel}
+        destructive={confirm?.destructive}
+        onConfirm={async () => {
+          try {
+            await confirm.run()
+          } catch (error) {
+            if (error?.response) {
+              toast.error(error.response?.data?.error || 'Action failed')
+            }
+            throw error
+          }
+        }}
+      >
+        {confirm?.node || <p>{confirm?.body}</p>}
+      </ConfirmDialog>
+    </>
   )
 }
 
