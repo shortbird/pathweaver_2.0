@@ -103,16 +103,20 @@ def remove_for_students(org_id: str, student_user_ids: List[str]) -> None:
 
 def waiting_entry(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
     """The student's live waiting row, with their position in the band queue."""
-    rows = (
-        _admin().table(TABLE).select('*')
-        .eq('organization_id', org_id).eq('student_user_id', student_user_id)
-        .eq('status', 'waiting').limit(1).execute()
-    ).data or []
-    if not rows:
+    try:
+        rows = (
+            _admin().table(TABLE).select('*')
+            .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+            .eq('status', 'waiting').limit(1).execute()
+        ).data or []
+        if not rows:
+            return None
+        entry = rows[0]
+        entry['position'] = _position(entry)
+        return entry
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Failed to fetch waiting_entry for {student_user_id}: {e}")
         return None
-    entry = rows[0]
-    entry['position'] = _position(entry)
-    return entry
 
 
 # ── Queue ordering (staff order → frozen prefix → sibling priority) ───────────

@@ -309,11 +309,29 @@ const ClpPage = () => {
     }
   }
 
-  const enroll = (cls) => runAction(
-    cls.class_id,
-    () => api.post(`/api/sis/classes/${cls.class_id}/enrollments`, { student_user_id: selectedId, organization_id: orgId }),
-    `Enrolled in ${cls.name}`,
-  )
+  const enroll = async (cls, confirmWaitlist = false) => {
+    setBusyId(cls.class_id)
+    try {
+      await api.post(`/api/sis/classes/${cls.class_id}/enrollments`, {
+        student_user_id: selectedId,
+        organization_id: orgId,
+        ...(confirmWaitlist ? { confirm_enrollment_waitlist: true } : {}),
+      })
+      toast.success(`Enrolled in ${cls.name}`)
+      loadStudent(selectedId)
+    } catch (e) {
+      const data = e?.response?.data
+      if (data?.needs_confirmation && !confirmWaitlist) {
+        if (window.confirm(data.error)) {
+          return enroll(cls, true)
+        }
+        return
+      }
+      toast.error(data?.error || 'Something went wrong')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const drop = (cls) => runAction(
     cls.class_id,
@@ -321,11 +339,29 @@ const ClpPage = () => {
     `Dropped ${cls.name}`,
   )
 
-  const joinWaitlist = (cls) => runAction(
-    cls.class_id,
-    () => api.post(`/api/sis/classes/${cls.class_id}/waitlist`, { student_user_id: selectedId, organization_id: orgId }),
-    `Added to the waitlist for ${cls.name}`,
-  )
+  const joinWaitlist = async (cls, confirmWaitlist = false) => {
+    setBusyId(cls.class_id)
+    try {
+      await api.post(`/api/sis/classes/${cls.class_id}/waitlist`, {
+        student_user_id: selectedId,
+        organization_id: orgId,
+        ...(confirmWaitlist ? { confirm_enrollment_waitlist: true } : {}),
+      })
+      toast.success(`Added to the waitlist for ${cls.name}`)
+      loadStudent(selectedId)
+    } catch (e) {
+      const data = e?.response?.data
+      if (data?.needs_confirmation && !confirmWaitlist) {
+        if (window.confirm(data.error)) {
+          return joinWaitlist(cls, true)
+        }
+        return
+      }
+      toast.error(data?.error || 'Something went wrong')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const leaveWaitlist = (cls) => runAction(
     cls.class_id,

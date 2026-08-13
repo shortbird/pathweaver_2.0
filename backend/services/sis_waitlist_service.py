@@ -108,12 +108,33 @@ def _age_from_dob(dob):
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
-def add_to_waitlist(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:
+def add_to_waitlist(org_id: str, class_id: str, student_user_id: str, confirm_enrollment_waitlist: bool = False) -> Dict[str, Any]:
     """Append a student to a class waitlist (idempotent on class+student).
 
     A student who is already actively enrolled is never queued — a child on the
     roster *and* on the waitlist is the state that made iCreate's counts look
     haunted."""
+    if not confirm_enrollment_waitlist:
+        from services import sis_enrollment_waitlist_service
+        ew_entry = sis_enrollment_waitlist_service.waiting_entry(org_id, student_user_id)
+        if ew_entry:
+            u_row = (
+                _admin().table('users')
+                .select('display_name, first_name, last_name, username, email')
+                .eq('id', student_user_id).limit(1).execute()
+            ).data or []
+            stu_name = 'This student'
+            if u_row:
+                u = u_row[0]
+                stu_name = (u.get('display_name')
+                            or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                            or u.get('username') or u.get('email') or 'This student')
+            return {
+                'needs_confirmation': True,
+                'enrollment_waitlisted': True,
+                'student_name': stu_name,
+                'error': f"{stu_name} is currently on the enrollment waitlist. Are you sure you want to add them to a class waitlist before releasing them from the enrollment waitlist?",
+            }
     active = (
         _admin().table('class_enrollments').select('id')
         .eq('class_id', class_id).eq('student_id', student_user_id)

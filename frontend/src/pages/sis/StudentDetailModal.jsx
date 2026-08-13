@@ -465,15 +465,27 @@ const SchedulePanel = ({ student, orgId }) => {
     api.get(`/api/sis/classes?organization_id=${orgId}`).then((r) => setAll(r.data?.classes || [])).catch(() => {})
   }, [orgId])
 
-  const enroll = async () => {
+  const enroll = async (confirmWaitlist = false) => {
     if (!chosen) { toast.error('Pick a class'); return }
     setBusy(true)
     try {
-      const r = await api.post(`/api/sis/classes/${chosen}/enrollments`, { student_user_id: student.student_id })
+      const r = await api.post(`/api/sis/classes/${chosen}/enrollments`, {
+        student_user_id: student.student_id,
+        ...(confirmWaitlist ? { confirm_enrollment_waitlist: true } : {}),
+      })
       toast.success(r.data?.already_enrolled ? 'Already enrolled' : 'Enrolled in class')
       setChosen('')
       reload()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Could not enroll') }
+    } catch (e) {
+      const data = e?.response?.data
+      if (data?.needs_confirmation && !confirmWaitlist) {
+        if (window.confirm(data.error)) {
+          return enroll(true)
+        }
+        return
+      }
+      toast.error(data?.error || 'Could not enroll')
+    }
     finally { setBusy(false) }
   }
 

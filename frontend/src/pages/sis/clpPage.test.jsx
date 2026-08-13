@@ -122,6 +122,34 @@ describe('ClpPage', () => {
     )
   })
 
+  it('prompts confirmation when joining waitlist for an enrollment-waitlisted student and resubmits on confirm', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    api.post.mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          success: false,
+          needs_confirmation: true,
+          error: 'Alice Ant is currently on the enrollment waitlist. Are you sure you want to add them to a class waitlist?'
+        }
+      }
+    }).mockResolvedValueOnce({ data: { success: true } })
+
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    await screen.findByText('Choir')
+    fireEvent.click(screen.getByText('Join waitlist'))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('on the enrollment waitlist')))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenLastCalledWith(
+        '/api/sis/classes/c3/waitlist',
+        expect.objectContaining({ student_user_id: 's1', confirm_enrollment_waitlist: true }),
+      )
+    )
+    confirmSpy.mockRestore()
+  })
+
   it('shows ages, payment form, and per-day supply totals', async () => {
     render(<ClpPage />)
     fireEvent.click(await screen.findByText('Alice Ant'))

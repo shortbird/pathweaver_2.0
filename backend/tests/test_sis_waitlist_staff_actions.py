@@ -429,23 +429,51 @@ class TestCrossSectionClashGuard:
         assert out['section'] == 'Ukelele Jam (Thu 1:00)'
         assert 'enrolled' not in out
 
-    def test_force_goes_through(self):
+
+@pytest.mark.unit
+class TestEnrollmentWaitlistWarning:
+    """When a student is on the enrollment waitlist, adding them to a class waitlist
+    returns a confirmation warning unless confirm_enrollment_waitlist is True."""
+
+    def test_returns_needs_confirmation_when_unconfirmed(self):
         client = Mock()
         table = Mock()
         client.table.return_value = table
-        for chained in ('select', 'eq', 'limit', 'in_', 'update', 'upsert'):
+        for chained in ('select', 'eq', 'limit', 'in_', 'update'):
             getattr(table, chained).return_value = table
-        table.execute.return_value = Mock(data=[{'id': 'w1', 'status': 'promoted'}])
-        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
-             patch('services.sis_waitlist_service.sibling_sections',
-                   return_value=[{'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)'}]), \
-             patch('services.sis_waitlist_service.schedule_conflicts',
-                   return_value=[{'class_id': 'cX', 'class_name': 'Art Expeditions'}]), \
-             patch('services.sis_waitlist_service._admin', return_value=client), \
-             patch('services.class_group_sync_service.sync_class_group'), \
-             patch('services.sis_waitlist_service.clear_entry_for_enrollment'):
-            out = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1', class_id='c2', force=True)
-        assert out['enrolled'] is True
+        table.execute.return_value = Mock(data=[{'display_name': 'Alex Smith'}])
+
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value={'id': 'ew-1'}):
+            out = wl.add_to_waitlist('org-1', 'c1', 's1', confirm_enrollment_waitlist=False)
+
+        assert out['needs_confirmation'] is True
+        assert out['enrollment_waitlisted'] is True
+        assert 'Alex Smith' in out['error']
+
+    def test_bypasses_check_when_confirmed(self):
+        client = Mock()
+
+        def _table(name):
+            t = Mock()
+            for chained in ('select', 'eq', 'limit', 'in_', 'update', 'upsert'):
+                getattr(t, chained).return_value = t
+            if name == 'class_enrollments':
+                t.execute.return_value = Mock(data=[])  # not actively enrolled
+            elif name == 'sis_waitlist_entries':
+                t.execute.return_value = Mock(data=[{'id': 'w1', 'status': 'waiting', 'student_user_id': 'other'}])
+            else:
+                t.execute.return_value = Mock(data=[])
+            return t
+
+        client.table.side_effect = _table
+
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value={'id': 'ew-1'}):
+            out = wl.add_to_waitlist('org-1', 'c1', 's1', confirm_enrollment_waitlist=True)
+
+        assert 'needs_confirmation' not in out
+        assert out.get('status') == 'waiting'
 
     def test_a_failed_conflict_lookup_never_blocks_staff(self):
         with patch('services.sis_exception_service._same_time_conflicts',

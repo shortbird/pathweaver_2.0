@@ -60,11 +60,14 @@ def add_waitlist(user_id, class_id):
         return err
     data = request.json or {}
     student_user_id = data.get('student_user_id')
+    confirm = bool(data.get('confirm_enrollment_waitlist') or data.get('confirm_duplicate') or data.get('confirm') or data.get('force'))
     if not student_user_id:
         return jsonify({'success': False, 'error': 'student_user_id is required'}), 400
     if not _class_in_org(org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    entry = waitlist.add_to_waitlist(org_id, class_id, student_user_id)
+    entry = waitlist.add_to_waitlist(org_id, class_id, student_user_id, confirm_enrollment_waitlist=confirm)
+    if isinstance(entry, dict) and entry.get('needs_confirmation'):
+        return jsonify({'success': False, **entry}), 409
     return jsonify({'success': True, 'entry': entry}), 201
 
 

@@ -462,12 +462,31 @@ def enroll_student(user_id, class_id):
 
     data = request.json or {}
     student_id = data.get('student_user_id')
+    confirm = bool(data.get('confirm_enrollment_waitlist') or data.get('confirm_duplicate') or data.get('confirm') or data.get('force'))
     if not student_id:
         return jsonify({'success': False, 'error': 'student_user_id is required'}), 400
     # Student must belong to this org.
     stu = supabase.table('users').select('id, organization_id').eq('id', student_id).limit(1).execute().data
     if not stu or stu[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Student not in this organization'}), 404
+
+    if not confirm:
+        from services import sis_enrollment_waitlist_service
+        ew_entry = sis_enrollment_waitlist_service.waiting_entry(org_id, student_id)
+        if ew_entry:
+            u_row = supabase.table('users').select('display_name, first_name, last_name, username, email').eq('id', student_id).limit(1).execute().data
+            stu_name = 'This student'
+            if u_row:
+                u = u_row[0]
+                stu_name = (u.get('display_name')
+                            or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                            or u.get('username') or u.get('email') or 'This student')
+            return jsonify({
+                'success': False,
+                'needs_confirmation': True,
+                'enrollment_waitlisted': True,
+                'error': f"{stu_name} is currently on the enrollment waitlist. Are you sure you want to enroll them in a class before releasing them from the enrollment waitlist?",
+            }), 409
 
     existing = (
         supabase.table('class_enrollments').select('id, status')
