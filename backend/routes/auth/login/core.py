@@ -55,8 +55,11 @@ def _member_school(admin_client, user_id):
         org_id = sis_service.member_org_id(user_id)
         if not org_id:
             return None
-        row = (admin_client.table('organizations').select('id, name, feature_flags')
-               .eq('id', org_id).maybe_single().execute()).data
+        # maybe_single() returns None outright on an empty body, so the
+        # response can't be dereferenced without a guard.
+        result = (admin_client.table('organizations').select('id, name, feature_flags')
+                  .eq('id', org_id).maybe_single().execute())
+        row = result.data if result else None
         return _school_payload(row) if row else None
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not resolve school for {mask_user_id(user_id)}: {e}")
@@ -75,8 +78,9 @@ def _attach_school(admin_client, user_row):
         return
     try:
         if user_row.get('organization_id'):
-            org = (admin_client.table('organizations').select('id, name, feature_flags')
-                   .eq('id', user_row['organization_id']).maybe_single().execute()).data
+            result = (admin_client.table('organizations').select('id, name, feature_flags')
+                      .eq('id', user_row['organization_id']).maybe_single().execute())
+            org = result.data if result else None
             user_row['school'] = _school_payload(org) if org else None
         else:
             user_row['school'] = _member_school(admin_client, user_row['id'])
@@ -125,13 +129,16 @@ def register_routes(bp):
                         admin_client = get_supabase_admin_client()
                         # maybe_single(): a valid token whose users row is gone
                         # (deleted/unmigrated profile) must not raise PGRST116 and
-                        # log an error — data=None skips the logout check cleanly.
+                        # log an error — no row skips the logout check cleanly.
                         user_data = with_connection_retry(
                             lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).maybe_single().execute(),
                             operation_name='check_last_logout_at'
                         )
 
-                        if user_data.data and user_data.data.get('last_logout_at'):
+                        # supabase-py returns None (not an APIResponse with
+                        # data=None) from maybe_single() on an empty body, so
+                        # the response itself has to be guarded before .data.
+                        if user_data and user_data.data and user_data.data.get('last_logout_at'):
                             last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))
 
                             # If token was issued before logout, reject it

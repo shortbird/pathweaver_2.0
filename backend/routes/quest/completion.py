@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify, g
 from datetime import datetime
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.quest_status import is_enrollment_complete, enrollment_completed_at
 from services.webhook_service import WebhookService
@@ -156,33 +157,40 @@ def get_user_completed_quests(user_id: str):
             .order('completed_at', desc=True)\
             .execute()
 
+        # These reads all grow with the student's whole task history, so a
+        # long-tenured student crosses PostgREST's silent 1000-row cap and the
+        # diploma quietly loses its oldest work (the truncation canary caught
+        # exactly that here). Page them — every row genuinely matters.
+
         # Query 2: Get ALL task completions for this user with task details
-        quest_task_completions = supabase.table('quest_task_completions')\
-            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects)')\
-            .eq('user_id', user_id)\
-            .execute()
+        quest_task_completions = fetch_all_rows(lambda: (
+            supabase.table('quest_task_completions')
+            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects)')
+            .eq('user_id', user_id)
+        ))
 
         # Query 2b: Get ALL approved tasks from user_quest_tasks as fallback
         # This is needed for org students whose completions aren't synced to quest_task_completions
-        approved_tasks = supabase.table('user_quest_tasks')\
-            .select('id, title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects, approval_status, updated_at')\
-            .eq('user_id', user_id)\
-            .eq('approval_status', 'approved')\
-            .execute()
+        approved_tasks = fetch_all_rows(lambda: (
+            supabase.table('user_quest_tasks')
+            .select('id, title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects, approval_status, updated_at')
+            .eq('user_id', user_id)
+            .eq('approval_status', 'approved')
+        ))
 
         # Query 3: Get ALL evidence documents with blocks for this user
-        evidence_documents_response = supabase.table('user_task_evidence_documents')\
-            .select('*, evidence_document_blocks(*)')\
-            .eq('user_id', user_id)\
-            .execute()
+        evidence_documents = fetch_all_rows(lambda: (
+            supabase.table('user_task_evidence_documents')
+            .select('*, evidence_document_blocks(*)')
+            .eq('user_id', user_id)
+        ))
 
         # Map evidence documents by task_id for quick lookup
         evidence_docs_by_task = {}
-        if evidence_documents_response.data:
-            for doc in evidence_documents_response.data:
-                task_id = doc.get('task_id')
-                if task_id:
-                    evidence_docs_by_task[task_id] = doc
+        for doc in evidence_documents:
+            task_id = doc.get('task_id')
+            if task_id:
+                evidence_docs_by_task[task_id] = doc
 
         # Separate completed and in-progress quests using the shared completion
         # rule (utils/quest_status) — a credit-awarded class counts as complete
@@ -198,24 +206,27 @@ def get_user_completed_quests(user_id: str):
         all_user_quest_ids = [q['id'] for q in (user_quests_response.data or [])]
         task_counts_by_quest = {}
         if all_user_quest_ids:
-            # Fetch all user quest tasks to count them by user_quest_id
-            all_tasks_response = supabase.table('user_quest_tasks')\
-                .select('id, user_quest_id')\
-                .in_('user_quest_id', all_user_quest_ids)\
-                .execute()
+            # Fetch all user quest tasks to count them by user_quest_id.
+            # Paged for the same reason as above: a truncated read here made
+            # in-progress percentages read high (a smaller denominator).
+            all_tasks = fetch_all_rows(lambda: (
+                supabase.table('user_quest_tasks')
+                .select('id, user_quest_id')
+                .in_('user_quest_id', all_user_quest_ids)
+            ))
 
             # Count tasks per quest
-            for task in (all_tasks_response.data or []):
+            for task in all_tasks:
                 uq_id = task.get('user_quest_id')
                 if uq_id:
                     task_counts_by_quest[uq_id] = task_counts_by_quest.get(uq_id, 0) + 1
 
         # If quest_task_completions is empty but we have approved tasks, create completion-like entries
         # This handles org students whose completions aren't synced to quest_task_completions
-        if not quest_task_completions.data and approved_tasks.data:
-            logger.info(f"Using approved_tasks fallback for {len(approved_tasks.data)} tasks (user: {user_id})")
+        if not quest_task_completions and approved_tasks:
+            logger.info(f"Using approved_tasks fallback for {len(approved_tasks)} tasks (user: {user_id})")
             synthetic_completions = []
-            for task in approved_tasks.data:
+            for task in approved_tasks:
                 synthetic_completions.append({
                     'id': task.get('id'),
                     'user_quest_task_id': task.get('id'),
@@ -232,7 +243,7 @@ def get_user_completed_quests(user_id: str):
                     }
                 })
             # Replace the empty completions with synthetic ones
-            quest_task_completions = type('obj', (object,), {'data': synthetic_completions})()
+            quest_task_completions = synthetic_completions
 
         # Fetch course info for all quests (one query)
         all_quest_ids = [q.get('quests', {}).get('id') for q in (user_quests_response.data or []) if q.get('quests')]
@@ -264,7 +275,7 @@ def get_user_completed_quests(user_id: str):
 
             # Get task completions for this quest
             quest_completions = [
-                tc for tc in (quest_task_completions.data or [])
+                tc for tc in quest_task_completions
                 if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
                 and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
             ]
@@ -332,7 +343,7 @@ def get_user_completed_quests(user_id: str):
 
             # Get task completions for this quest
             quest_completions = [
-                tc for tc in (quest_task_completions.data or [])
+                tc for tc in quest_task_completions
                 if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
                 and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
             ]
