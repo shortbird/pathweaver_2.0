@@ -95,6 +95,7 @@ const ClassesPage = () => {
   }
   const [search, setSearch] = useState('')
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
+  const [rooms, setRooms] = useState([]) // classrooms & activity spaces (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   const [showArchived, setShowArchived] = useState(false) // include archived classes
   // cards | table — table is the spreadsheet view of the org's classes.
@@ -130,6 +131,7 @@ const ClassesPage = () => {
         setCourseSettings(map)
         setCourseTuition(ct.data?.optio_course_tuition_cents ?? null)
         setTimeBlocks(org.data?.organization?.feature_flags?.sis_settings?.time_blocks || [])
+        setRooms(org.data?.organization?.feature_flags?.sis_settings?.rooms || [])
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
@@ -539,6 +541,7 @@ const ClassesPage = () => {
           classes={tableClasses}
           staff={staff}
           timeBlocks={timeBlocks}
+          rooms={rooms}
           onSave={saveClass}
           onToggleRegistration={toggleRegistration}
           onOpen={openEditor}
@@ -573,13 +576,14 @@ const ClassesPage = () => {
       )}
 
       {creating && (
-        <CreateClassModal staff={staff} timeBlocks={timeBlocks} onClose={() => setCreating(false)} onSubmit={handleCreate} />
+        <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms} onClose={() => setCreating(false)} onSubmit={handleCreate} />
       )}
       {editing && (
         <ClassDetailModal
           cls={classes.find((c) => c.id === editing.id) || editing}
           staff={staff}
           timeBlocks={timeBlocks}
+          rooms={rooms}
           orgId={orgId}
           initialTab={editTab}
           onClose={() => setEditing(null)}
@@ -833,7 +837,7 @@ const CLASS_TABS = [
 // editable (the embedded CreateClassModal form), plus registration + archive.
 // "Preview" renders the exact read-only modal parents and students see in the
 // Schedule Builder.
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
   const [tab, setTab] = useState(initialTab)
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
@@ -892,7 +896,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'de
                 </button>
               </div>
 
-              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} onClose={onClose} onSubmit={onSubmit} />
+              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms} onClose={onClose} onSubmit={onSubmit} />
 
               <div className="pt-1">
                 {isArchived ? (

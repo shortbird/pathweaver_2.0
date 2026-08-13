@@ -76,6 +76,7 @@ export default function ClassFieldsEditor({
   onChange,
   staff = [],
   timeBlocks = [],
+  rooms = [],
   // Image editing needs a file and a class id to upload against, so the host
   // owns it; passing null leaves the tile out entirely.
   imagePreview = null,
@@ -90,6 +91,13 @@ export default function ClassFieldsEditor({
 }) {
   const set = (patch) => onChange(patch)
   const pickable = timeBlocks.filter((b) => !b.label)
+
+  const normalizedRooms = (rooms || [])
+    .map((r) => (typeof r === 'string' ? { name: r, description: '' } : { name: r?.name || '', description: r?.description || '' }))
+    .filter((r) => r.name)
+
+  const matchedRoom = normalizedRooms.find((r) => r.name === d.location)
+  const [customRoom, setCustomRoom] = React.useState(() => Boolean(d.location && !matchedRoom))
 
   return (
     <div className="space-y-4">
@@ -248,8 +256,50 @@ export default function ClassFieldsEditor({
         </Field>
 
         <Field label="Classroom">
-          <input className={cell} placeholder="Room" value={d.location} aria-label="Classroom"
-            onChange={(e) => set({ location: e.target.value })} />
+          {normalizedRooms.length > 0 ? (
+            <div className="space-y-1">
+              <select
+                className={cell}
+                value={customRoom ? '__custom__' : (d.location || '')}
+                aria-label="Classroom"
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setCustomRoom(true)
+                  } else {
+                    setCustomRoom(false)
+                    set({ location: e.target.value })
+                  }
+                }}
+              >
+                <option value="">No room assigned</option>
+                {normalizedRooms.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.name}{r.description ? ` (${r.description})` : ''}
+                  </option>
+                ))}
+                <option value="__custom__">Custom / Other room...</option>
+              </select>
+
+              {customRoom && (
+                <input
+                  className={cell}
+                  placeholder="Enter custom room"
+                  value={d.location || ''}
+                  aria-label="Custom classroom name"
+                  onChange={(e) => set({ location: e.target.value })}
+                />
+              )}
+
+              {!customRoom && matchedRoom?.description && (
+                <p className="text-[11px] text-neutral-500 leading-tight">
+                  {matchedRoom.description}
+                </p>
+              )}
+            </div>
+          ) : (
+            <input className={cell} placeholder="Room" value={d.location || ''} aria-label="Classroom"
+              onChange={(e) => set({ location: e.target.value })} />
+          )}
         </Field>
 
         {/* A rule about which days a student must fill — a schedule constraint,

@@ -80,7 +80,7 @@ const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
   )
 }
 
-const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
+const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   // Picked-but-not-yet-uploaded images, by class. The file rides along with the
   // Save (the upload needs the class id, so it can't happen on pick), and the
@@ -282,6 +282,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                         onChange={(patch) => edit(c, patch)}
                         staff={staff}
                         timeBlocks={timeBlocks}
+                        rooms={rooms}
                         imagePreview={imagePreviews[c.id] ?? c.image_url ?? null}
                         onImageChange={(file) => pickImage(c, file)}
                         onImageRemove={() => clearImage(c)}
