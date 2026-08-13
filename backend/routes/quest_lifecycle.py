@@ -13,6 +13,10 @@ from utils.auth.decorators import require_auth
 from services.quest_lifecycle_service import QuestLifecycleService
 from services.quest_invitation_service import QuestInvitationService
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
+from repositories.base_repository import (
+    ValidationError as RepoValidationError,
+    NotFoundError as RepoNotFoundError,
+)
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -261,12 +265,21 @@ def accept_quest_invitation(user_id, invitation_id):
             'message': 'Invitation accepted and enrolled in quest' if not result['already_enrolled'] else 'Invitation accepted (already enrolled)'
         }), 200
 
-    except ValidationError as e:
+    except (ValidationError, RepoValidationError) as e:
+        # RepoValidationError matters: the repository raises
+        # repositories.base_repository.ValidationError, a DIFFERENT class from
+        # the middleware one imported above. Without it, "Invitation does not
+        # belong to this user" fell through to the generic handler and a student
+        # POSTing to someone else's invitation got a 500 -- correctly refused,
+        # but reported as a server fault, which pages ops and tells the caller
+        # nothing. Ownership failures answer 403 below.
+        if 'does not belong to this user' in str(e):
+            return jsonify({'success': False, 'error': 'This invitation is not yours'}), 403
         return jsonify({
             'success': False,
             'error': str(e)
         }), 400
-    except NotFoundError as e:
+    except (NotFoundError, RepoNotFoundError) as e:
         return jsonify({
             'success': False,
             'error': str(e)
@@ -293,7 +306,10 @@ def decline_quest_invitation(user_id, invitation_id):
             'message': 'Invitation declined'
         }), 200
 
-    except ValidationError as e:
+    except (ValidationError, RepoValidationError) as e:
+        # Same split-exception-class trap as accept, above.
+        if 'does not belong to this user' in str(e):
+            return jsonify({'success': False, 'error': 'This invitation is not yours'}), 403
         return jsonify({
             'success': False,
             'error': str(e)

@@ -81,17 +81,29 @@ class TaskRepository(BaseRepository):
             NotFoundError: If task not found or not owned by user
         """
         try:
+            # maybe_single(), not single(): the query is scoped by user_id, so a
+            # task belonging to somebody else matches zero rows -- and single()
+            # answers that with PGRST116 "Cannot coerce the result to a single
+            # JSON object", an APIError that sailed past the NotFoundError check
+            # below and out of the route as a 500. Every user who touched a task
+            # id that was not theirs (or a stale one) produced a server error
+            # instead of a 404, which is both the wrong answer and a permanent
+            # source of noise in the 500 rate.
             result = self.client.table(self.table_name)\
                 .select('*, quests(id, title), user_quests!user_quest_id(id, user_id)')\
                 .eq('id', task_id)\
                 .eq('user_id', user_id)\
-                .single()\
+                .maybe_single()\
                 .execute()
 
-            if not result.data:
+            if not result or not result.data:
                 raise NotFoundError(f"Task {task_id} not found or not owned by user")
 
             return result.data
+        except NotFoundError:
+            # Expected: a missing or unowned task. The caller turns this into a
+            # 404. Logging it as an error made real failures harder to find.
+            raise
         except Exception as e:
             logger.error(f"Error fetching task {task_id} with relations: {e}")
             raise

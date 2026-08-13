@@ -113,7 +113,7 @@ class TestTaskRepository:
                 'quests': {'id': str(uuid.uuid4()), 'title': 'Test Quest'},
                 'user_quests': {'id': str(uuid.uuid4()), 'user_id': user_id}
             }
-            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.single.return_value.execute.return_value = mock_task
+            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = mock_task
 
             task = repo.get_task_with_relations(task_id, user_id)
 
@@ -123,7 +123,14 @@ class TestTaskRepository:
             assert 'user_quests' in task
 
     def test_get_task_with_relations_not_found(self):
-        """Test getting task with relations raises NotFoundError when not found"""
+        """A missing or unowned task raises NotFoundError, not an APIError.
+
+        The query is scoped by user_id, so another user's task matches zero
+        rows. That used to go through .single(), which answers zero rows with
+        PGRST116 -- an APIError that escaped as a 500. It is .maybe_single()
+        now, so the miss returns None and this NotFoundError (a 404 at the
+        route) is what callers actually see.
+        """
         repo = TaskRepository()
         task_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
@@ -131,7 +138,7 @@ class TestTaskRepository:
         with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = None
-            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.single.return_value.execute.return_value = mock_result
+            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = mock_result
 
             with pytest.raises(NotFoundError):
                 repo.get_task_with_relations(task_id, user_id)

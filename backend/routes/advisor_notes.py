@@ -117,13 +117,17 @@ def create_note(user_id):
 
             if not assignment_response.data:
                 # Check if subject is a parent of an assigned student
+                # parent_user_id / student_user_id are the real columns; the
+                # parent_id / student_id spelling raises 42703, so an advisor
+                # writing a note about an assigned student's PARENT got a 500
+                # instead of the authorization check this branch exists to do.
                 parent_link_response = supabase.table('parent_student_links')\
-                    .select('student_id')\
-                    .eq('parent_id', data['subject_id'])\
+                    .select('student_user_id')\
+                    .eq('parent_user_id', data['subject_id'])\
                     .execute()
 
                 if parent_link_response.data:
-                    student_ids = [link['student_id'] for link in parent_link_response.data]
+                    student_ids = [link['student_user_id'] for link in parent_link_response.data]
                     assignment_response = supabase.table('advisor_student_assignments')\
                         .select('id')\
                         .eq('advisor_id', user_id)\

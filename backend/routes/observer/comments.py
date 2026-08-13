@@ -241,10 +241,15 @@ def register_routes(bp):
             if not is_author and not is_superadmin:
                 student_id = comment.data['student_id']
                 # Check parent_student_links table
+                # Columns are parent_user_id / student_user_id. They were
+                # queried as parent_id / student_id, which do not exist, so
+                # PostgREST raised 42703 and this returned 500 instead of
+                # authorizing -- on exactly the path where a parent removes an
+                # inappropriate comment from their child's work.
                 parent_link = supabase.table('parent_student_links') \
                     .select('id') \
-                    .eq('parent_id', user_id) \
-                    .eq('student_id', student_id) \
+                    .eq('parent_user_id', user_id) \
+                    .eq('student_user_id', student_id) \
                     .execute()
                 is_parent_of_student = bool(parent_link.data)
 

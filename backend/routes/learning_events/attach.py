@@ -268,10 +268,15 @@ def list_attachable_tasks(user_id):
                     pass
             if not allowed:
                 try:
+                    # parent_user_id / student_user_id are the real columns.
+                    # Queried as parent_id / student_id they raise 42703, and
+                    # the surrounding `except: pass` swallowed it -- so every
+                    # parent was quietly denied access to their own child's
+                    # learning event, with nothing logged to explain why.
                     pl = supabase.table('parent_student_links') \
                         .select('id') \
-                        .eq('parent_id', user_id) \
-                        .eq('student_id', requested_student) \
+                        .eq('parent_user_id', user_id) \
+                        .eq('student_user_id', requested_student) \
                         .limit(1).execute()
                     if pl.data:
                         allowed = True
