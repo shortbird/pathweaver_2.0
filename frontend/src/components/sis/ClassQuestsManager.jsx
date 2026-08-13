@@ -5,6 +5,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import QuestDraftForm, { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
+import QuestAiDraftPanel from './QuestAiDraftPanel'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -395,6 +396,15 @@ export default function ClassQuestsManager({ classId }) {
 
           {mode === 'new' && (
             <div className="space-y-3">
+              {/* Teachers get the same AI head start admins get in the
+                  curriculum library — this is the screen where most quests are
+                  actually written. */}
+              <QuestAiDraftPanel
+                hasDraft={Boolean(newTitle.trim() || newDesc.trim() || newTasks.some((t) => t.title.trim()))}
+                onDrafted={({ title, description, tasks }) => {
+                  setNewTitle(title); setNewDesc(description); setNewTasks(tasks)
+                }}
+              />
               <QuestDraftForm
                 title={newTitle} setTitle={setNewTitle}
                 description={newDesc} setDescription={setNewDesc}

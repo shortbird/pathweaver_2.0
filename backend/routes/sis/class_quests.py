@@ -34,26 +34,23 @@ from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
+from services.sis_quest_authoring import (
+    MAX_TITLE_LEN as _MAX_TITLE_LEN,
+    MAX_TASKS as _MAX_TASKS,
+    PILLAR_ALIASES as _PILLAR_ALIASES,
+    DEFAULT_PILLAR as _DEFAULT_PILLAR,
+    DEFAULT_XP as _DEFAULT_XP,
+    MIN_XP as _MIN_XP,
+    QuestAuthoringError,
+    clean_task as _clean_task,
+    create_org_quest,
+    norm_pillar as _norm_pillar,
+)
 from database import get_supabase_admin_client
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_class_quests', __name__, url_prefix='/api/sis')
-
-_MAX_TITLE_LEN = 300
-_MAX_TASKS = 40
-# Canonical DB pillar keys (what quest_template_tasks.pillar / user_quest_tasks.pillar
-# actually store), with friendly aliases the client may send.
-_PILLAR_ALIASES = {
-    'art': 'art', 'creativity': 'art', 'arts_creativity': 'art',
-    'stem': 'stem', 'critical_thinking': 'stem',
-    'communication': 'communication',
-    'wellness': 'wellness', 'practical_skills': 'wellness',
-    'civics': 'civics', 'cultural_literacy': 'civics',
-}
-_DEFAULT_PILLAR = 'art'
-_DEFAULT_XP = 100
-_MIN_XP = 25
 
 
 def _now_iso():
@@ -66,10 +63,6 @@ def _bad_uuid(*values):
         if not ok:
             return True
     return False
-
-
-def _norm_pillar(value):
-    return _PILLAR_ALIASES.get((value or '').strip().lower(), _DEFAULT_PILLAR)
 
 
 def _load_org_class(admin, class_id):
@@ -140,28 +133,6 @@ def _serialize_task(t):
         'xp_value': t.get('xp_value'),
         'is_required': bool(t.get('is_required')),
         'order_index': t.get('order_index', 0),
-    }
-
-
-def _clean_task(raw, order_index):
-    title = (raw.get('title') or '').strip()
-    if not title:
-        return None
-    try:
-        xp = int(raw.get('xp_value') or _DEFAULT_XP)
-    except (TypeError, ValueError):
-        xp = _DEFAULT_XP
-    xp = max(_MIN_XP, xp)
-    return {
-        'title': title[:_MAX_TITLE_LEN],
-        'description': (raw.get('description') or '').strip(),
-        'pillar': _norm_pillar(raw.get('pillar')),
-        'xp_value': xp,
-        'is_required': bool(raw.get('is_required', True)),
-        'order_index': order_index,
-        'ai_generated': False,
-        'created_at': _now_iso(),
-        'updated_at': _now_iso(),
     }
 
 
@@ -517,48 +488,18 @@ def create_quest_with_tasks(user_id, class_id):
     if err:
         return err
     data = request.get_json(silent=True) or {}
-    title = (data.get('title') or '').strip()
-    description = (data.get('description') or '').strip()
-    if not title:
-        return jsonify({'success': False, 'error': 'A quest title is required.'}), 400
-    if len(title) > _MAX_TITLE_LEN:
-        return jsonify({'success': False, 'error': 'Title is too long.'}), 400
-
-    raw_tasks = data.get('tasks') or []
-    if len(raw_tasks) > _MAX_TASKS:
-        return jsonify({'success': False, 'error': f'A quest can have at most {_MAX_TASKS} tasks.'}), 400
-
-    org_id = class_row['organization_id']
-    image_url = None
     try:
-        from services.image_service import search_quest_image
-        image_url = search_quest_image(title, description)
-    except Exception as e:
-        logger.warning(f'Class-quest image lookup failed (non-fatal): {e}')
-
-    quest_row = admin.table('quests').insert({
-        'title': title,
-        'big_idea': description,
-        'description': description,
-        'is_v3': True,
-        'is_active': True,
-        'is_public': False,
-        'quest_type': 'optio',
-        'header_image_url': image_url,
-        'image_url': image_url,
-        'created_by': user_id,
-        'created_at': _now_iso(),
-        'organization_id': org_id,
-    }).execute().data
-    if not quest_row:
-        return jsonify({'success': False, 'error': 'Could not create the quest.'}), 500
-    quest_id = quest_row[0]['id']
-
-    cleaned = [t for t in (_clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
-    if cleaned:
-        for t in cleaned:
-            t['quest_id'] = quest_id
-        admin.table('quest_template_tasks').insert(cleaned).execute()
+        created = create_org_quest(
+            admin,
+            org_id=class_row['organization_id'],
+            user_id=user_id,
+            title=data.get('title'),
+            description=data.get('description'),
+            raw_tasks=data.get('tasks'),
+        )
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    quest_id = created['quest_id']
 
     existing = (admin.table('class_quests').select('sequence_order')
                 .eq('class_id', class_row['id']).order('sequence_order', desc=True)
@@ -569,7 +510,7 @@ def create_quest_with_tasks(user_id, class_id):
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
 
-    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': len(cleaned)})
+    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count']})
 
 
 # ── Preset (template) tasks on an assigned, org-owned quest ────────────────────

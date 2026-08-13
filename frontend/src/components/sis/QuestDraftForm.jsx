@@ -1,5 +1,6 @@
 import React from 'react'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 
 /**
  * The form for building a school quest: a title, a description, and the preset
@@ -15,13 +16,18 @@ import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
  * copy of them drifts.
  */
 
-export const PILLARS = [
-  ['art', 'Arts & Creativity'],
-  ['stem', 'STEM'],
-  ['communication', 'Communication'],
-  ['wellness', 'Life & Wellness'],
-  ['civics', 'Society & Culture'],
-]
+/**
+ * The five pillars, named exactly as the rest of the platform names them.
+ *
+ * These were hardcoded here as "Arts & Creativity", "Life & Wellness" and
+ * "Society & Culture" — the names the pillars carried before they were
+ * shortened in January 2025. Those strings now live only in the LEGACY map in
+ * utils/pillarMappings, so a teacher picking "Arts & Creativity" in the SIS was
+ * labelling a task the learner would then see as "Art". Read from the shared
+ * config instead of restating it, because a copy is what drifted last time.
+ */
+const PILLAR_ORDER = ['art', 'stem', 'communication', 'wellness', 'civics']
+export const PILLARS = PILLAR_ORDER.map((key) => [key, PILLAR_CONFIG[key].display_name])
 export const PILLAR_LABEL = Object.fromEntries(PILLARS)
 
 // 25 is the XP floor since the scale was halved (2026-06-15), and the step

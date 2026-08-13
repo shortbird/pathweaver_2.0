@@ -993,6 +993,8 @@ def register_sis_routes(app):
     app.register_blueprint(class_quests_bp)
     from routes.sis.curriculum import bp as sis_curriculum_bp
     app.register_blueprint(sis_curriculum_bp)
+    from routes.sis.quest_drafts import bp as quest_drafts_bp
+    app.register_blueprint(quest_drafts_bp)
     from routes.sis.staff_training import bp as staff_training_bp
     app.register_blueprint(staff_training_bp)
     from routes.sis.secure_documents import bp as secure_documents_bp

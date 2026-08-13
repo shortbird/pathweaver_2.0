@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { safeHref } from '../../utils/safeHref'
+import { getPillarName } from '../../utils/pillarMappings'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -431,9 +432,12 @@ const SubmissionsPage = () => {
                     <p className="text-sm text-neutral-600 mt-1">{selected.task.description}</p>
                   )}
                   <div className="mt-2 flex items-center gap-3 flex-wrap">
+                    {/* Named the way the learner sees it. Printing the raw
+                        column turned a legacy key like stem_logic into
+                        "stem logic", which is not a pillar at all. */}
                     {selected.task?.pillar && (
-                      <span className="text-xs rounded-full bg-optio-purple/10 text-optio-purple px-2 py-0.5 capitalize">
-                        {String(selected.task.pillar).replace(/_/g, ' ')}
+                      <span className="text-xs rounded-full bg-optio-purple/10 text-optio-purple px-2 py-0.5">
+                        {getPillarName(selected.task.pillar)}
                       </span>
                     )}
                     <XpAdjust

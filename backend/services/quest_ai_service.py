@@ -323,6 +323,114 @@ Return ONLY valid JSON (no markdown code blocks):
                 'tasks': []
             }
 
+    def draft_quest_from_context(self, context: str, notes: str = "",
+                                 target_task_count: int = 4) -> Dict[str, Any]:
+        """Turn whatever material a school already has into a quest draft.
+
+        Built for the SIS (2026-08-12): staff paste a syllabus, a unit outline or
+        a list of activities — or upload the document — and get back a title, a
+        description and preset tasks to review. Nothing is written; the draft
+        fills the same form they would otherwise type into, so a human still
+        approves every word before it reaches a student.
+
+        Distinct from suggest_tasks_for_quest (which needs a quest to already
+        exist) and generate_quest_from_topic (which invents from a topic rather
+        than reading the school's own material). Here the source text is
+        authoritative: the model reorganizes what is there, it does not replace
+        it with a generic unit on the same subject.
+        """
+        context = (context or '').strip()
+        if not context:
+            return {'success': False, 'error': 'Some context is required', 'quest': None}
+
+        target_task_count = max(2, min(8, target_task_count))
+        pillars = ', '.join(self.valid_pillars)
+        extra = f"\nWhat the teacher wants emphasised: {notes.strip()}\n" if (notes or '').strip() else ""
+
+        prompt = f"""
+You are helping a teacher turn material they already wrote into an Optio quest.
+
+{CORE_PHILOSOPHY}
+
+SOURCE MATERIAL (authoritative — build from THIS, do not substitute your own
+version of the subject; if it already names activities, those become the tasks):
+\"\"\"
+{context[:20000]}
+\"\"\"
+{extra}
+Produce ONE quest:
+- title: 3-8 words, concrete, no colons or subtitles
+- description: 2-3 sentences saying what the learner will actually do
+- tasks: exactly {target_task_count} tasks drawn from the source material, in a
+  sensible order, each with:
+    - title: starts with a simple action verb (Make, Build, Write, Draw, Record,
+      Interview, Test, Show). 5-8 words, ONE idea.
+    - description: 1-2 sentences, plain words, suggesting how they might do it.
+    - pillar: one of [{pillars}]
+    - xp_value: 25-150, a multiple of 25, scaled to real effort
+    - is_required: true for the core of the unit, false for extensions
+
+READING LEVEL: 5th-6th grade. The task may be hard; the words must be easy.
+Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
+
+{JSON_OUTPUT_INSTRUCTIONS}
+Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}}
+"""
+
+        try:
+            data = self.generate_json(prompt, generation_config_preset='structured_output')
+        except Exception as e:
+            logger.error(f'Quest draft generation failed: {e}')
+            return {'success': False, 'error': str(e), 'quest': None}
+
+        if isinstance(data, list):  # model returned bare tasks
+            data = {'title': '', 'description': '', 'tasks': data}
+        if not isinstance(data, dict) or not data.get('tasks'):
+            return {'success': False,
+                    'error': 'The AI could not find enough to build a quest from that.',
+                    'quest': None}
+
+        return {'success': True, 'quest': self._normalize_quest_draft(data, target_task_count)}
+
+    def _normalize_quest_draft(self, data: Dict[str, Any], target_task_count: int) -> Dict[str, Any]:
+        """Coerce a model draft into exactly the shape the SIS quest form holds.
+
+        The form is the contract: anything missing or out of range is corrected
+        here rather than left for the client, so a partially-good generation is
+        still editable instead of arriving broken.
+        """
+        tasks = []
+        for raw in (data.get('tasks') or [])[:target_task_count]:
+            if not isinstance(raw, dict):
+                continue
+            title = str(raw.get('title') or '').strip()
+            if not title:
+                continue
+            pillar = str(raw.get('pillar') or '').strip().lower()
+            if pillar not in self.valid_pillars:
+                pillar = 'art'
+            try:
+                xp = int(raw.get('xp_value') or 100)
+            except (TypeError, ValueError):
+                xp = 100
+            # 25 is the XP floor and the step the form's picker uses; rounding
+            # here keeps a generated value from being one the teacher cannot
+            # reproduce by hand.
+            xp = max(25, min(150, round(xp / 25) * 25))
+            tasks.append({
+                'title': title[:300],
+                'description': str(raw.get('description') or '').strip()[:1000],
+                'pillar': pillar,
+                'xp_value': xp,
+                'is_required': bool(raw.get('is_required', True)),
+            })
+
+        return {
+            'title': str(data.get('title') or '').strip()[:300],
+            'description': str(data.get('description') or data.get('big_idea') or '').strip()[:2000],
+            'tasks': tasks,
+        }
+
     def generate_tasks_from_lesson(self, lesson_content: str, lesson_title: str = "",
                                    target_task_count: int = 3, max_retries: int = 3) -> Dict[str, Any]:
         """

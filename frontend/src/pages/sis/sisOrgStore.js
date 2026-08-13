@@ -17,7 +17,12 @@ const read = () => {
   try { return localStorage.getItem(STORE_KEY) } catch { return null }
 }
 const persist = (id) => {
-  try { if (id) localStorage.setItem(STORE_KEY, id) } catch { /* ignore */ }
+  try {
+    if (id) localStorage.setItem(STORE_KEY, id)
+    // Clearing matters: a selection can stop being valid (an org with SIS
+    // turned off), and leaving the old id behind would restore it on reload.
+    else localStorage.removeItem(STORE_KEY)
+  } catch { /* ignore */ }
 }
 
 let state = { orgId: read(), orgs: [], fetched: false, loading: false }
@@ -55,10 +60,26 @@ const preferredDefault = (orgs) =>
   ?? orgs[0]?.id
   ?? null
 
+/**
+ * Only orgs running the SIS belong in this picker. The list the superadmin
+ * fetches is every active organization on the platform, and most of them have
+ * never opened the console — offering them made the picker a long list of orgs
+ * whose every SIS page is empty by definition.
+ *
+ * Turning SIS on is not done here (it is the toggle on the admin organization
+ * dashboard), so filtering the picker cannot strand a new school: it appears
+ * the moment the flag is set.
+ */
+const isSisOrg = (o) => Boolean(o?.feature_flags?.sis_enabled)
+
 /** Store the fetched org list; default the selection to iCreate, else the first org. */
 export function setOrgs(list) {
-  const orgs = Array.isArray(list) ? list : []
-  const orgId = state.orgId || preferredDefault(orgs)
+  const orgs = (Array.isArray(list) ? list : []).filter(isSisOrg)
+  // A remembered selection survives only while it is still on offer — an org
+  // that has since had SIS turned off would otherwise stay selected while its
+  // name was absent from the dropdown, which reads as a broken picker.
+  const keep = state.orgId && orgs.some((o) => o.id === state.orgId)
+  const orgId = keep ? state.orgId : preferredDefault(orgs)
   persist(orgId)
   state = { ...state, orgs, orgId, fetched: true, loading: false }
   emit()

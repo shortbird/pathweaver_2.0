@@ -40,6 +40,7 @@ from utils.auth.decorators import require_role, require_auth
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
+from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
@@ -489,6 +490,54 @@ def set_curriculum_quests(user_id, curriculum_id):
     _replace_links('sis_curriculum_quests', curriculum_id, 'quest_id', valid_order, user_id)
     return jsonify({'success': True, 'attached': len(valid_order),
                     'rejected': len(requested) - len(valid_order)})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/create', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_curriculum_quest(user_id, curriculum_id):
+    """Author a new school quest and append it to this curriculum's set.
+
+    Same form and same result as the teacher's "create a quest" on a class
+    (routes/sis/class_quests.py) — shared via services/sis_quest_authoring — the
+    difference being where it lands. iCreate, 2026-08-12: the library could only
+    attach a quest somebody had already built somewhere else, which is a dead end
+    for an admin setting up next year before any section exists.
+
+    Appended, not inserted: the quest set is ordered, and a new quest joining at
+    the end is the only position that can't reorder what teachers already see.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    try:
+        created = create_org_quest(
+            _admin(),
+            org_id=org_id,
+            user_id=user_id,
+            title=data.get('title'),
+            description=data.get('description'),
+            raw_tasks=data.get('tasks'),
+        )
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+
+    existing = (_admin().table('sis_curriculum_quests').select('sequence_order')
+                .eq('curriculum_id', curriculum_id)
+                .order('sequence_order', desc=True).limit(1).execute()).data
+    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
+    _admin().table('sis_curriculum_quests').insert({
+        'curriculum_id': curriculum_id,
+        'quest_id': created['quest_id'],
+        'sequence_order': next_order,
+        'added_by': user_id,
+    }).execute()
+
+    return jsonify({'success': True, 'quest_id': created['quest_id'],
+                    'task_count': created['task_count']})
 
 
 @bp.route('/curriculum/<curriculum_id>/courses', methods=['PUT'])

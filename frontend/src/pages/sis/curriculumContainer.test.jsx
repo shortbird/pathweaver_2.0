@@ -6,10 +6,16 @@
  * than requiring teachers to create their own quests."
  *
  * The library row now says what a class inherits by being given this curriculum,
- * and opening it is where an admin attaches more. The copy distinguishes the two
- * behaviours on purpose — quests are copied onto a class, courses are linked —
- * because "why did my change not show up on the class" and "why did my change
- * show up on every class" are both bad surprises.
+ * and opening it is where an admin attaches more — or builds one, from scratch
+ * or from material the school already has (2026-08-12).
+ *
+ * The copy has to keep saying that quests are COPIED onto a class, because "why
+ * did my change not show up on the class I already set up" is the bad surprise
+ * this panel invites.
+ *
+ * Courses were removed from this panel on 2026-08-12 (iCreate will not attach
+ * courses to curriculum), so the assertions here are that the way to add one is
+ * gone — not that course links are impossible, which the API still allows.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -53,7 +59,10 @@ beforeEach(() => {
   api.put.mockResolvedValue({ data: { success: true, attached: 1 } })
   api.get.mockImplementation((url) => {
     if (url.includes('/assignable-quests')) {
-      return Promise.resolve({ data: { quests: [{ quest_id: 'q2', title: 'Book report', source: 'organization' }] } })
+      return Promise.resolve({ data: { quests: [
+        { quest_id: 'q2', title: 'Book report', source: 'organization' },
+        { quest_id: 'q3', title: 'Poetry basics', source: 'library' },
+      ] } })
     }
     if (url.includes('/assignable-courses')) {
       return Promise.resolve({ data: { courses: [{ course_id: 'co2', title: 'Poetry basics', status: 'published', source: 'library' }] } })
@@ -71,18 +80,16 @@ describe('what a curriculum carries', () => {
     expect(await screen.findByText('3 quests · 1 course')).toBeInTheDocument()
   })
 
-  it('lists the quests and courses when the row is opened', async () => {
+  it('lists the quests when the row is opened', async () => {
     render(<CurriculumPage />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
-    expect(screen.getByText('Reading Workshop course')).toBeInTheDocument()
   })
 
-  it('says quests are copied and courses are live, so neither is a surprise', async () => {
+  it('says quests are copied onto a class, so the delay is not a surprise', async () => {
     render(<CurriculumPage />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     expect(await screen.findByText(/applies to the\s+next class set up from this curriculum/i)).toBeInTheDocument()
-    expect(screen.getByText(/Every class using it shows these/i)).toBeInTheDocument()
   })
 
   it('attaches a quest from the library screen, without going via a class', async () => {
@@ -98,30 +105,30 @@ describe('what a curriculum carries', () => {
     ))
   })
 
-  it('attaches a course, saying when it comes from the Optio library', async () => {
-    render(<CurriculumPage />)
-    fireEvent.click(await screen.findByText('Reading Workshop'))
-    const picker = await screen.findByPlaceholderText('Add a course…')
-    fireEvent.focus(picker)
+  it('says when a quest comes from the Optio library rather than the school', async () => {
     // The picker mixes the school's own with Optio's public library, and the
     // label says which is which (iCreate asked whether the list was school-only).
-    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Poetry basics · Optio library' }))
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
-      '/api/sis/curriculum/cur1/courses?organization_id=org-1',
-      { course_ids: ['co1', 'co2'] },
-    ))
-  })
-
-  it('removes a course from the set', async () => {
+    // Carried over from the course picker, which this panel no longer has.
     render(<CurriculumPage />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove Reading Workshop course' }))
+    const picker = await screen.findByPlaceholderText('Add a quest…')
+    fireEvent.focus(picker)
+    expect(await screen.findByRole('button', { name: 'Poetry basics · Optio library' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Book report' })).toBeInTheDocument()
+  })
 
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
-      '/api/sis/curriculum/cur1/courses?organization_id=org-1',
-      { course_ids: [] },
-    ))
+  it('offers no way to attach a course', async () => {
+    render(<CurriculumPage />)
+    fireEvent.click(await screen.findByText('Reading Workshop'))
+    await screen.findByText('Reading log')
+    expect(screen.queryByPlaceholderText('Add a course…')).not.toBeInTheDocument()
+  })
+
+  it('does not go looking for courses it can no longer attach', async () => {
+    render(<CurriculumPage />)
+    fireEvent.click(await screen.findByText('Reading Workshop'))
+    await screen.findByText('Reading log')
+    expect(api.get.mock.calls.some(([url]) => url.includes('/assignable-courses'))).toBe(false)
   })
 
   it('shows a teacher what the curriculum carries but no way to change it', async () => {
@@ -131,23 +138,87 @@ describe('what a curriculum carries', () => {
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Add a quest…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument()
+    // The AI builder is a way to change it, so it is not a teacher's to see here.
+    expect(screen.queryByRole('button', { name: /Generate draft/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('building a quest from the curriculum page', () => {
+  const open = async () => {
+    render(<CurriculumPage />)
+    fireEvent.click(await screen.findByText('Reading Workshop'))
+    await screen.findByText('Reading log')
+  }
+
+  it('creates a quest and adds it to the curriculum in one step', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q9', task_count: 1 } })
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: /Create a new quest/i }))
+
+    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Watercolor Basics' } })
+    fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Paint something' } })
+    fireEvent.change(screen.getByPlaceholderText(/Task 1 — what should they do\?/), {
+      target: { value: 'Mix three colors' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Create & add/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/curriculum/cur1/quests/create?organization_id=org-1',
+      expect.objectContaining({
+        title: 'Watercolor Basics',
+        description: 'Paint something',
+        tasks: [expect.objectContaining({ title: 'Mix three colors' })],
+      }),
+    ))
+  })
+
+  it('will not post a quest with no title', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: /Create a new quest/i }))
+    expect(screen.getByRole('button', { name: /Create & add/i })).toBeDisabled()
+  })
+
+  it('an AI draft fills the form and saves nothing on its own', async () => {
+    api.post.mockResolvedValue({
+      data: {
+        success: true,
+        quest: {
+          title: 'Bridge Building',
+          description: 'Build and test a bridge',
+          tasks: [{ title: 'Sketch a design', pillar: 'stem', xp_value: 50, is_required: true }],
+        },
+      },
+    })
+    await open()
+
+    fireEvent.change(screen.getByLabelText('Source material'), {
+      target: { value: 'Week 1: sketch a bridge. Week 2: build it.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Generate draft/i }))
+
+    // The draft lands in the form the admin will review...
+    expect(await screen.findByDisplayValue('Bridge Building')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Sketch a design')).toBeInTheDocument()
+    // ...and generating is the only call made; creating is a separate click.
+    expect(api.post).toHaveBeenCalledTimes(1)
+    expect(api.post.mock.calls[0][0]).toBe('/api/sis/quest-drafts/generate')
   })
 })
 
 /**
- * iCreate, 2026-08-12: "to find the quests/courses for a curriculum, you have
- * to click on the curriculum name, but shouldn't that be in edit?" The Edit
- * panel now carries the same quests/courses manager the row disclosure has.
+ * iCreate, 2026-08-12: "to find the quests for a curriculum, you have to click
+ * on the curriculum name, but shouldn't that be in edit?" The Edit panel now
+ * carries the same quest manager the row disclosure has. (Written while the
+ * panel still managed courses too; courses left it the same day.)
  */
 describe('editing a curriculum manages what it carries', () => {
-  it('shows the quests and courses, with pickers, inside the Edit panel', async () => {
+  it('shows the quests, with the picker, inside the Edit panel', async () => {
     render(<CurriculumPage />)
     await screen.findByText('Reading Workshop')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Reading Workshop' }))
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
-    expect(screen.getByText('Reading Workshop course')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Add a quest…')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Add a course…')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Add a course…')).not.toBeInTheDocument()
   })
 
   it('collapses the row disclosure when Edit opens, so the panel is not doubled', async () => {
