@@ -192,7 +192,7 @@ describe('the grid earns its space', () => {
   it('keeps every band tight — no half-empty rows', () => {
     expect(shape(full().container)).toEqual([
       { title: 'Basics', cols: 4, rows: 2 },
-      { title: 'Schedule', cols: 4, rows: 1 },
+      { title: 'Schedule', cols: 5, rows: 1 },
       { title: 'Enrollment & money', cols: 5, rows: 1 },
       { title: 'Internal notes', cols: 4, rows: 1 },
     ])
