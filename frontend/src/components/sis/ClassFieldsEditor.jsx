@@ -200,7 +200,7 @@ export default function ClassFieldsEditor({
         )}
       </Band>
 
-      <Band title="Schedule">
+      <Band title="Schedule" cols={5}>
         <Field label="Days">
           <div className="inline-flex gap-1">
             {DAY_OPTIONS.map((day) => {
@@ -303,7 +303,7 @@ export default function ClassFieldsEditor({
         </Field>
 
         {/* A rule about which days a student must fill — a schedule constraint,
-            so it sits with the schedule and fills the fourth column. */}
+            so it sits with the schedule. */}
         <Field label="Full-day program">
           <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
             <input type="checkbox" checked={d.requires_full_day}
@@ -311,6 +311,16 @@ export default function ClassFieldsEditor({
               onChange={(e) => set({ requires_full_day: e.target.checked })}
               className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
             <span className="text-xs text-neutral-500 leading-tight">Must fill its meeting days</span>
+          </label>
+        </Field>
+
+        <Field label="Parent visibility">
+          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+            <input type="checkbox" checked={d.is_visible_to_parents}
+              aria-label="Show class to parents"
+              onChange={(e) => set({ is_visible_to_parents: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            <span className="text-xs text-neutral-500 leading-tight">Show to parents on schedule</span>
           </label>
         </Field>
       </Band>

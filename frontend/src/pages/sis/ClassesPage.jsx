@@ -188,6 +188,7 @@ const ClassesPage = () => {
     ...(payload.assistant_instructor_ids !== undefined
       ? { assistant_instructor_ids: payload.assistant_instructor_ids } : {}),
     ...(payload.show_assistants !== undefined ? { show_assistants: payload.show_assistants } : {}),
+    ...(payload.is_visible_to_parents !== undefined ? { is_visible_to_parents: payload.is_visible_to_parents } : {}),
     ...(payload.internal_notes !== undefined ? { internal_notes: payload.internal_notes } : {}),
     ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
     ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
@@ -250,6 +251,7 @@ const ClassesPage = () => {
         primary_instructor_id: c.primary_instructor_id ?? null,
         assistant_instructor_ids: c.assistant_instructor_ids ?? [],
         show_assistants: c.show_assistants !== false,
+        is_visible_to_parents: c.is_visible_to_parents !== false,
         capacity: c.capacity ?? null,
         price_cents: c.price_cents ?? null,
         supply_fee: c.supply_fee ?? null,
