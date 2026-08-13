@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTiles'
+import AICostChart from '../../components/home/AICostChart'
 
 /**
  * Superadmin Home — the platform cockpit (rendered by RoleHome at /dashboard).
@@ -155,6 +156,8 @@ export default function SuperadminHome() {
         className="grid-cols-2 md:grid-cols-3"
         stats={stats}
       />
+
+      <AICostChart />
 
       <HomeDoorGrid ariaLabel="Superadmin surfaces" doors={DOORS} />
     </div>

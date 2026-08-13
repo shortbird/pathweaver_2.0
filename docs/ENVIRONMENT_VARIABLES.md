@@ -74,10 +74,14 @@ This document provides a complete reference for all environment variables used i
   - Where to get: Google AI Studio (https://makersuite.google.com/app/apikey)
   - Features disabled if missing: AI tutor chat, quest suggestions
 
-- **`GEMINI_MODEL`** - Gemini model to use
-  - Default: `gemini-2.5-flash-lite`
-  - Options: `gemini-2.5-flash-lite`, `gemini-pro`, etc.
-  - Note: Always use `gemini-2.5-flash-lite` per project guidelines
+- **`GEMINI_MODEL`** - The model used by every AI call in the platform
+  - Default: `gemini-3.7-flash`
+  - Note: single source of truth. Change this one variable to swap models
+    everywhere; never hardcode a model name in service code.
+- **`GEMINI_FALLBACK_MODELS`** - Transient-error fallbacks, tried left to right
+  - Default: `gemini-3.6-flash,gemini-3.5-flash`
+- **`GEMINI_CURRICULUM_MODEL`** - Optional override for the curriculum pipeline
+  - Default: follows `GEMINI_MODEL`
 
 ### Image Generation
 
@@ -170,7 +174,7 @@ VITE_API_URL=https://optio-dev-backend-5flj.onrender.com
 
 # Optional - AI Features
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.7-flash
 PEXELS_API_KEY=your_pexels_api_key_here
 
 # Optional - Feature Flags
@@ -200,7 +204,7 @@ VITE_API_URL=https://optio-prod-backend-966k.onrender.com
 
 # Optional - AI Features
 GEMINI_API_KEY=your_production_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.7-flash
 PEXELS_API_KEY=your_production_pexels_api_key
 
 # Optional - LMS Integration (if using)

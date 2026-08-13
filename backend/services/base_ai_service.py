@@ -35,6 +35,7 @@ import hashlib
 from typing import Dict, List, Optional, Any, Union
 from services.base_service import BaseService
 from app_config import Config
+from utils.ai_pricing import get_model_pricing
 
 from utils.logger import get_logger
 
@@ -100,6 +101,49 @@ class AIParsingError(AIServiceError):
     pass
 
 
+class _EmptyAIResponseError(AIGenerationError):
+    """A model returned no text -- typically a reasoning model that spent its
+    whole output budget on thought parts.
+
+    Internal to generate_with_fallback, which treats it like a transient error
+    and moves to the next candidate model. Subclasses AIGenerationError so it
+    still surfaces as a generation failure if no model produces text.
+    """
+    pass
+
+
+class _SafeAIResponse:
+    """A Gemini response whose ``.text`` is guaranteed not to raise.
+
+    Every caller of ``generate_with_fallback`` reads ``response.text``
+    directly. On a thinking-only response the real accessor raises
+    ValueError("Empty text content") instead of returning falsy, so a
+    `if not response.text` guard blows up rather than handling the case.
+
+    This wrapper carries text already extracted via _extract_response_text
+    (which also recovers text from non-thought parts when the accessor fails)
+    and delegates every other attribute to the underlying response.
+    """
+
+    __slots__ = ('_response', '_text')
+
+    def __init__(self, response, text: str):
+        self._response = response
+        self._text = text
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def __getattr__(self, name):
+        # Only called for attributes not found normally, so usage_metadata,
+        # candidates, prompt_feedback etc. still reach the real response.
+        return getattr(self._response, name)
+
+    def __repr__(self):
+        return f"<_SafeAIResponse text={self._text[:40]!r}...>"
+
+
 class BaseAIService(BaseService):
     """
     Base class for all AI-powered services.
@@ -122,8 +166,9 @@ class BaseAIService(BaseService):
     # Class-level cache for alternative models
     _alt_models = {}
 
-    # Default configuration (fallback when Config.GEMINI_MODEL is unset)
-    DEFAULT_MODEL = 'gemini-3.5-flash-lite'
+    # No model name is declared here on purpose -- Config.GEMINI_MODEL is the
+    # single source of truth for every Gemini call. Read it through
+    # `default_model` so an env override or a test monkeypatch is picked up.
     # PERF-H3 fix: keep (retries × per-request timeout + backoff) UNDER the
     # gunicorn worker timeout (120s), or a slow provider triggers a worker
     # SIGKILL and cascading 502s. Worst case here: 2 × 45s + ≤8s backoff = 98s
@@ -160,6 +205,11 @@ class BaseAIService(BaseService):
         # the point where the model is actually needed.
 
     @classmethod
+    def default_model(cls) -> str:
+        """The platform-wide Gemini model. Single source: Config.GEMINI_MODEL."""
+        return Config.GEMINI_MODEL
+
+    @classmethod
     def _ensure_model_initialized(cls):
         """
         Initialize Gemini model as singleton.
@@ -175,7 +225,7 @@ class BaseAIService(BaseService):
                 "Set GEMINI_API_KEY environment variable."
             )
 
-        model_name = Config.GEMINI_MODEL or cls.DEFAULT_MODEL
+        model_name = cls.default_model()
 
         try:
             import google.generativeai as genai
@@ -228,7 +278,7 @@ class BaseAIService(BaseService):
         """Get the current model name."""
         if self._model_override:
             return self._model_override
-        return self._model_name or self.DEFAULT_MODEL
+        return self._model_name or self.default_model()
 
     # Substrings that mark a transient/overload error worth falling back on.
     _TRANSIENT_ERROR_MARKERS = (
@@ -356,13 +406,39 @@ class BaseAIService(BaseService):
                 continue
 
             try:
+                started = time.time()
                 response = generate_with_timeout(model, prompt, **kwargs)
+
+                # Reasoning models can spend the whole output budget on thought
+                # parts and return no text; `response.text` then raises
+                # ValueError, which every caller here would hit head-on since
+                # they all read `.text` directly. Extract defensively and treat
+                # "no text" as a reason to try the next model rather than a 500.
+                text = self._extract_response_text(response)
+                if not text:
+                    self._log_empty_response(response)
+                    raise _EmptyAIResponseError(
+                        f"Model '{model_name}' returned no text content "
+                        f"(likely thinking-only response)"
+                    )
+
                 if idx > 0:
                     logger.info(f"AI generation succeeded on fallback model '{model_name}' (primary unavailable)")
-                return response
+
+                self._track_fallback_usage(
+                    response, model_name, int((time.time() - started) * 1000)
+                )
+                # Wrapped so `.text` is the extracted text -- callers keep using
+                # `.text` and can no longer trip the ValueError above.
+                return _SafeAIResponse(response, text)
             except Exception as e:
                 last_error = e
-                is_transient = self._is_transient_ai_error(e)
+                # An empty/thinking-only response is worth another model for the
+                # same reason a 503 is: the request was fine, this model wasn't.
+                is_transient = (
+                    isinstance(e, _EmptyAIResponseError)
+                    or self._is_transient_ai_error(e)
+                )
                 has_more = idx < len(candidates) - 1
                 if is_transient and has_more:
                     logger.warning(
@@ -377,6 +453,32 @@ class BaseAIService(BaseService):
         if last_error:
             raise last_error
         raise AIServiceError("No AI model available for generation")
+
+    def _track_fallback_usage(self, response, model_name: str, elapsed_ms: int):
+        """Record token usage/cost for a generate_with_fallback() call.
+
+        generate() has always logged usage; generate_with_fallback() never did,
+        so the majority of the platform's AI traffic (quest_ai_service,
+        personalization_service, lessons, images) was invisible to
+        ai_usage_logs and to the admin cost dashboard. Never let a tracking
+        failure break a generation that already succeeded.
+        """
+        try:
+            usage = getattr(response, 'usage_metadata', None)
+            if not usage:
+                return
+            input_tokens = getattr(usage, 'prompt_token_count', None)
+            output_tokens = getattr(usage, 'candidates_token_count', None)
+            if input_tokens is None or output_tokens is None:
+                return
+            self._track_usage_async(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                model_name=model_name,
+                response_time_ms=elapsed_ms,
+            )
+        except Exception as e:
+            logger.debug(f"Could not track fallback usage: {e}")
 
     @property
     def safety_service(self):
@@ -1490,17 +1592,16 @@ class BaseAIService(BaseService):
         Args:
             input_tokens: Number of input tokens
             output_tokens: Number of output tokens
-            model: Model name (for future model-specific pricing)
+            model: Model name; defaults to the model this service uses.
 
         Returns:
             Estimated cost in USD
         """
-        # Gemini 2.5 Flash Lite pricing (January 2025)
-        INPUT_COST_PER_MILLION = 0.075
-        OUTPUT_COST_PER_MILLION = 0.30
+        model = model or self.model_name
+        input_rate, output_rate = get_model_pricing(model)
 
-        input_cost = (input_tokens / 1_000_000) * INPUT_COST_PER_MILLION
-        output_cost = (output_tokens / 1_000_000) * OUTPUT_COST_PER_MILLION
+        input_cost = (input_tokens / 1_000_000) * input_rate
+        output_cost = (output_tokens / 1_000_000) * output_rate
 
         return input_cost + output_cost
 

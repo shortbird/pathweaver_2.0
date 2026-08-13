@@ -43,12 +43,19 @@ const creditStatsPayload = {
 
 const flaggedPayload = { success: true, tasks: [{ id: 't1' }], count: 5 }
 
+const today = new Date().toISOString().slice(0, 10)
+const aiCostsPayload = {
+  period_days: 30,
+  trends: [{ date: today, cost_usd: 0.0042, requests: 9, tokens: 4500 }],
+}
+
 function mockHappyApi() {
   api.get.mockImplementation((url) => {
     if (url === '/api/admin/users') return Promise.resolve({ data: usersPayload })
     if (url === '/api/admin/organizations') return Promise.resolve({ data: orgsPayload })
     if (url === '/api/credit-dashboard/stats') return Promise.resolve({ data: creditStatsPayload })
     if (url === '/api/admin/flagged-tasks') return Promise.resolve({ data: flaggedPayload })
+    if (url === '/api/admin/ai/costs/trends') return Promise.resolve({ data: aiCostsPayload })
     return Promise.reject(new Error(`Unexpected GET ${url}`))
   })
 }
@@ -148,6 +155,37 @@ describe('SuperadminHome', () => {
     expect(screen.getByText('Pending credit review').closest('a')).toHaveTextContent('7')
     expect(screen.queryByText('Total users')).not.toBeInTheDocument()
     expect(screen.queryByText('Flagged tasks')).not.toBeInTheDocument()
+  })
+
+  it('shows the AI cost chart with the period total', async () => {
+    mockHappyApi()
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: /ai api cost/i })).toBeInTheDocument()
+    })
+    // Sub-cent precision: $0.01 would round the real figure away.
+    expect(await screen.findByText('$0.0042')).toBeInTheDocument()
+    expect(screen.getByText(/9 logged calls over 30 days/i)).toBeInTheDocument()
+    // The coverage caveat must ship with the number, not be optional chrome.
+    expect(screen.getByText(/undercount/i)).toBeInTheDocument()
+  })
+
+  it('hides the cost chart rather than erroring when the endpoint fails', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/admin/ai/costs/trends') return Promise.reject(new Error('boom'))
+      if (url === '/api/admin/users') return Promise.resolve({ data: usersPayload })
+      if (url === '/api/admin/organizations') return Promise.resolve({ data: orgsPayload })
+      if (url === '/api/credit-dashboard/stats') return Promise.resolve({ data: creditStatsPayload })
+      if (url === '/api/admin/flagged-tasks') return Promise.resolve({ data: flaggedPayload })
+      return Promise.reject(new Error(`Unexpected GET ${url}`))
+    })
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Total users')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('region', { name: /ai api cost/i })).not.toBeInTheDocument()
   })
 })
 

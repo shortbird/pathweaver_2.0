@@ -19,7 +19,7 @@ An educational platform where students create self-validated diplomas through co
 
 **Backend**: Flask 3.0.0 + Supabase (PostgreSQL) + JWT (httpOnly cookies)
 **Frontend**: React 18.3.1 + Vite + TailwindCSS
-**AI**: OpenAI/Gemini APIs
+**AI**: Google Gemini API (model set in one place: `Config.GEMINI_MODEL`)
 **Payments**: Stripe
 **Hosting**: Render.com
 

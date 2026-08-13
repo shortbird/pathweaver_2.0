@@ -153,7 +153,9 @@ DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
 # AI Tutor Configuration
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+# NOTE: the Gemini model name is NOT declared here. Config.GEMINI_MODEL in
+# app_config.py is the single source of truth; a duplicate lived here unused
+# until 2026-08-13 and was a trap for anyone swapping models.
 MAX_TUTOR_TOKENS = 1000
 TUTOR_SAFETY_THRESHOLD = 0.7
 

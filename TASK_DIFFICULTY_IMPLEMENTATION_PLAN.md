@@ -34,7 +34,7 @@ Two levers, shipped together:
 | UI labels | **Easier / Standard / Challenge**. API values: `'easier' \| 'standard' \| 'challenge'`. |
 | Per-task dial | Stateless endpoint (client sends the task object + direction, gets the adjusted task back). No session coupling, so it drops into every v2 call site. UI caps adjustment at 2 steps in either direction from the original. |
 | Age bands | Challenge level composes with the existing `age_band` guidance (Treehouse 5-7 / 8-13) - difficulty is expressed *relative to* the age band, never overriding it. |
-| Model | `gemini-2.5-flash-lite` via the existing `generate_with_fallback()` - no new AI infrastructure. |
+| Model | The platform model (`Config.GEMINI_MODEL`) via the existing `generate_with_fallback()` - no new AI infrastructure. |
 
 ---
 

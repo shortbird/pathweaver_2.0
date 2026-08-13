@@ -156,7 +156,7 @@ Professional services offered to families and institutions:
 - **Verifiable:** Anyone can view actual student work, not just claims
 
 ### 4. AI Tutor System
-**Description:** Conversational AI learning assistant powered by Google Gemini 2.5 Flash Lite
+**Description:** Conversational AI learning assistant powered by Google Gemini
 
 **Key Features:**
 - **5 Tutor Modes:** Study Buddy, Teacher, Discovery, Review, Creative
@@ -257,7 +257,7 @@ Professional services offered to families and institutions:
 - **Framework:** Flask 3.0.0 (Python)
 - **Database:** Supabase (PostgreSQL) with Row Level Security (RLS)
 - **Authentication:** JWT tokens in httpOnly cookies + CSRF protection
-- **AI Services:** Google Gemini API (Model: gemini-2.5-flash-lite)
+- **AI Services:** Google Gemini API (model: `gemini-3.7-flash`)
 - **LMS Integration:** LTI 1.3 (JWT verification, JWKS), OAuth 2.0
 - **Email:** SendGrid SMTP with Jinja2 templating
 - **Hosting:** Render (auto-deploy from GitHub branches)

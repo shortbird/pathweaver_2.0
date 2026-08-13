@@ -52,7 +52,7 @@ class SubjectClassificationService(BaseAIService):
     - Unified retry logic with exponential backoff
     - Robust JSON extraction from AI responses
     - Token usage tracking and cost monitoring
-    - Consistent model access (gemini-2.5-flash-lite per CLAUDE.md)
+    - Consistent model access (Config.GEMINI_MODEL)
     """
 
     def __init__(self):
@@ -60,7 +60,7 @@ class SubjectClassificationService(BaseAIService):
         from database import get_supabase_admin_client
 
         try:
-            # Initialize BaseAIService (uses gemini-2.5-flash-lite by default)
+            # Initialize BaseAIService (uses Config.GEMINI_MODEL)
             super().__init__()
             self._model_available = True
             logger.info("SubjectClassificationService initialized with Gemini model")

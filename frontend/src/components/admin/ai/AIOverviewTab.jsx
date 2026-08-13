@@ -34,7 +34,9 @@ const AIOverviewTab = () => {
         rate_limit_status: 'healthy',
         error_rate: 2,
         recent_activity: [],
-        last_model_update: data.ai_model || 'gemini-2.5-flash-lite'
+        // Backend reports the live model from Config.GEMINI_MODEL; never
+        // hardcode a name here or the dashboard lies after a model swap.
+        last_model_update: data.ai_model || 'unknown'
       })
     } catch (error) {
       console.error('Failed to load AI metrics:', error)

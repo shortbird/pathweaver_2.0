@@ -32,7 +32,7 @@ class QuestCompletionService(BaseAIService):
 
     def __init__(self):
         """Initialize the service with BaseAIService."""
-        # Initialize BaseAIService (uses gemini-2.5-flash-lite by default per CLAUDE.md)
+        # Initialize BaseAIService (uses Config.GEMINI_MODEL)
         super().__init__()
         
     def complete_quest(self, partial_quest: Dict[str, Any]) -> Dict[str, Any]:

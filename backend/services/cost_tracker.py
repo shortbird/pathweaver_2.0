@@ -6,7 +6,9 @@ Tracks token usage and estimated costs for quest generation.
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 from services.base_service import BaseService
+from app_config import Config
 from database import get_supabase_admin_client
+from utils.ai_pricing import get_model_pricing
 from utils.logger import get_logger
 from utils.db_fetch import fetch_all_rows
 
@@ -16,34 +18,36 @@ logger = get_logger(__name__)
 class CostTracker(BaseService):
     """Track and report on AI API costs"""
 
-    # Pricing per 1M tokens (Gemini 2.5 Flash Lite - January 2025)
-    GEMINI_FLASH_LITE_INPUT_COST = 0.075  # per 1M tokens
-    GEMINI_FLASH_LITE_OUTPUT_COST = 0.30  # per 1M tokens
+    # Pricing lives in Config.GEMINI_PRICING (see utils/ai_pricing.py) so it
+    # tracks whatever model Config.GEMINI_MODEL currently points at.
 
     def __init__(self):
         super().__init__()
         # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
 
-    def calculate_cost(self, input_tokens: int, output_tokens: int, model: str = 'gemini-2.5-flash-lite') -> Dict:
+    def calculate_cost(self, input_tokens: int, output_tokens: int, model: str = None) -> Dict:
         """
         Calculate cost for token usage.
 
         Args:
             input_tokens: Number of input tokens used
             output_tokens: Number of output tokens generated
-            model: Model name (currently only supports gemini-2.5-flash-lite)
+            model: Model name; defaults to the platform model (Config.GEMINI_MODEL)
 
         Returns:
             Dict with cost breakdown
         """
+        model = model or Config.GEMINI_MODEL
+        input_rate, output_rate = get_model_pricing(model)
+
         # Convert to millions
         input_millions = input_tokens / 1_000_000
         output_millions = output_tokens / 1_000_000
 
         # Calculate costs
-        input_cost = input_millions * self.GEMINI_FLASH_LITE_INPUT_COST
-        output_cost = output_millions * self.GEMINI_FLASH_LITE_OUTPUT_COST
+        input_cost = input_millions * input_rate
+        output_cost = output_millions * output_rate
         total_cost = input_cost + output_cost
 
         return {

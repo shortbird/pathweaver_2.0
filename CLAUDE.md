@@ -111,7 +111,7 @@ Rules when adding SIS routes or fields:
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
 - **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`) — the production web app
 - **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `frontend-v2/`, dev builds via EAS — iOS/Android app
-- **AI**: Gemini `gemini-3.5-flash-lite` (primary), fallbacks `gemini-3.6-flash` → `gemini-2.5-flash`. Configured in `app_config.py` (`GEMINI_MODEL` / `GEMINI_FALLBACK_MODELS`).
+- **AI**: Gemini `gemini-3.7-flash` for **every** AI call. `Config.GEMINI_MODEL` in `app_config.py` is the single source of truth — change that one line (or set `GEMINI_MODEL`) to swap models platform-wide. Never hardcode a model name elsewhere; `tests/unit/test_single_model_source.py` fails the build if you do. Outage fallbacks: `GEMINI_FALLBACK_MODELS` (`gemini-3.6-flash` → `gemini-3.5-flash`). `GEMINI_CURRICULUM_MODEL` optionally pins the curriculum pipeline to a heavier model; it follows `GEMINI_MODEL` by default.
 - **Host**: Render
 
 > **Surface names:** say **web platform** and **mobile app** ("learning app" is

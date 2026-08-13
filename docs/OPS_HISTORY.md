@@ -60,6 +60,25 @@ is 40% line coverage — ratchet it up over time, never down.
 ## Gemini model history
 
 Upgraded 2026-07-28 from `gemini-2.5-flash-lite`, which had aged into frequent 503
-"high demand" errors, to `gemini-3.5-flash-lite` (GA 2026-07-21). Fallback chain
-and current models are configured in `app_config.py` (`GEMINI_MODEL` /
-`GEMINI_FALLBACK_MODELS`).
+"high demand" errors, to `gemini-3.5-flash-lite` (GA 2026-07-21).
+
+**2026-08-13 — consolidated to one variable, moved to `gemini-3.7-flash`.**
+An audit found the model name restated in five places, so "change the model"
+only ever changed some of them:
+
+| Was | Now |
+|---|---|
+| `config/constants.py: GEMINI_MODEL` (dead, never imported) | deleted |
+| `BaseAIService.DEFAULT_MODEL` | `BaseAIService.default_model()` → `Config.GEMINI_MODEL` |
+| `CurriculumAIService.CURRICULUM_MODEL = 'gemini-2.5-pro'` | `Config.GEMINI_CURRICULUM_MODEL`, defaults to `GEMINI_MODEL` |
+| pricing hardcoded in `base_ai_service` **and** `cost_tracker` | `Config.GEMINI_PRICING` via `utils/ai_pricing.py` |
+
+The curriculum pipeline moved off `gemini-2.5-pro` in the same change — it was
+picked up incidentally in the repository-pattern refactor (80835938), not
+benchmarked, and its thinking-only responses are what forced the
+`_extract_response_text` ValueError workaround and `CURRICULUM_MAX_RETRIES = 5`
+(both kept; 3.x flash models reason too). Set `GEMINI_CURRICULUM_MODEL` to pin
+it back if curriculum output quality regresses.
+
+`tests/unit/test_single_model_source.py` now fails the build on any new
+hardcoded `gemini-*` literal in backend source.

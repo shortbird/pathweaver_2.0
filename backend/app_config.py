@@ -168,17 +168,44 @@ class Config:
     
     # Google Gemini Configuration
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-    # Primary model: gemini-3.5-flash-lite (GA 2026-07-21) — fastest/lowest-cost
-    # in the 3.5 family, built for high-throughput structured generation. Replaced
-    # gemini-2.5-flash-lite, which had aged into frequent 503 "high demand" errors.
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite')
+    # ---------------------------------------------------------------
+    # THE model setting. Change this one line (or set GEMINI_MODEL in the
+    # environment) to move every Gemini call in the platform to a new model.
+    # Everything else in the codebase derives from it -- do NOT hardcode a
+    # model name anywhere else. tests/unit/test_single_model_source.py fails
+    # the build if a stray 'gemini-*' literal reappears.
+    # ---------------------------------------------------------------
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.7-flash')
+
     # Ordered fallback models tried when the primary model returns a transient
     # error (e.g. 503 "high demand"). Comma-separated; tried left to right.
+    # These exist purely for outage resilience -- normal traffic uses
+    # GEMINI_MODEL above.
     GEMINI_FALLBACK_MODELS = [
         m.strip() for m in os.getenv(
-            'GEMINI_FALLBACK_MODELS', 'gemini-3.6-flash,gemini-2.5-flash'
+            'GEMINI_FALLBACK_MODELS', 'gemini-3.6-flash,gemini-3.5-flash'
         ).split(',') if m.strip()
     ]
+
+    # The curriculum pipeline (structure detection / philosophy alignment /
+    # content generation) follows GEMINI_MODEL by default. It ran on
+    # gemini-2.5-pro until 2026-08-13; set GEMINI_CURRICULUM_MODEL to pin it
+    # back to a heavier reasoning model without moving the rest of the app.
+    GEMINI_CURRICULUM_MODEL = os.getenv('GEMINI_CURRICULUM_MODEL', GEMINI_MODEL)
+
+    # Pricing per 1M tokens, keyed by model -> (input, output), used for the
+    # cost figures in logs and the admin AI dashboard. Add an entry when you
+    # change GEMINI_MODEL; unknown models fall back to GEMINI_PRICING_DEFAULT
+    # and log a warning rather than silently costing $0.
+    GEMINI_PRICING = {
+        'gemini-2.5-flash-lite': (0.075, 0.30),
+        'gemini-2.5-flash': (0.30, 2.50),
+        'gemini-2.5-pro': (1.25, 10.00),
+    }
+    # UNVERIFIED for the 3.x family -- confirm against
+    # https://ai.google.dev/gemini-api/docs/pricing and add explicit entries
+    # above. Until then 3.x models bill at these placeholder rates.
+    GEMINI_PRICING_DEFAULT = (0.075, 0.30)
     GOOGLE_API_KEY = GEMINI_API_KEY  # Backward-compat alias
 
     # Pexels Image API

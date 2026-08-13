@@ -12,6 +12,7 @@ import json
 import uuid
 from typing import Dict, List, Optional, Any
 
+from app_config import Config
 from services.base_ai_service import BaseAIService, AIGenerationError
 from utils.logger import get_logger
 
@@ -27,18 +28,21 @@ class CurriculumAIService(BaseAIService):
     - Stage 3: Philosophy alignment
     - Stage 4: Content generation
 
-    Uses gemini-2.5-pro for better reasoning on complex curriculum tasks.
+    Follows the platform model (Config.GEMINI_MODEL) by default. Ran on
+    gemini-2.5-pro until 2026-08-13; set GEMINI_CURRICULUM_MODEL to pin this
+    pipeline to a heavier reasoning model without moving the rest of the app.
     """
 
-    CURRICULUM_MODEL = 'gemini-2.5-pro'
-    # Thinking models need more retries (can return thought-only responses)
+    # Thinking models need more retries (can return thought-only responses).
+    # Kept regardless of model -- the 3.x flash family reasons too, so a
+    # thought-only response is still possible.
     CURRICULUM_MAX_RETRIES = 5
     # Ensure plenty of output room for thinking + text
     CURRICULUM_MAX_OUTPUT_TOKENS = 65536
 
     def __init__(self):
-        """Initialize with advanced AI model for curriculum processing."""
-        super().__init__(model_override=self.CURRICULUM_MODEL)
+        """Initialize with the curriculum model (defaults to Config.GEMINI_MODEL)."""
+        super().__init__(model_override=Config.GEMINI_CURRICULUM_MODEL)
         logger.info(f"CurriculumAIService using model: {self.model_name}")
 
     def detect_structure(self, parse_result: Dict) -> Dict[str, Any]:

@@ -322,7 +322,7 @@ Key endpoints:
 
 Key endpoints:
 - `POST /api/tutor/chat` - Send chat message to AI tutor
-- Gemini 2.5 Flash Lite model used for responses
+- Uses the platform Gemini model (`Config.GEMINI_MODEL`) for responses
 - Safety filtering enabled
 
 ---

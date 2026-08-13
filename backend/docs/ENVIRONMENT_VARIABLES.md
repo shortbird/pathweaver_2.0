@@ -363,9 +363,23 @@ Complete guide to all configurable environment variables for the Optio Platform 
 - **Example**: `GOOGLE_API_KEY=AIzaSy...`
 
 ### GEMINI_MODEL
-- **Description**: Gemini model to use
-- **Default**: `gemini-1.5-flash`
-- **Example**: `GEMINI_MODEL=gemini-2.5-flash-lite`
+- **Description**: The Gemini model used by **every** AI call in the platform.
+  Single source of truth (`Config.GEMINI_MODEL`) — no other model name is
+  hardcoded anywhere, and `tests/unit/test_single_model_source.py` enforces it.
+- **Default**: `gemini-3.7-flash`
+- **Example**: `GEMINI_MODEL=gemini-3.7-flash`
+
+### GEMINI_FALLBACK_MODELS
+- **Description**: Comma-separated models tried, left to right, only when the
+  primary returns a transient error (503 "high demand", 429, timeout).
+- **Default**: `gemini-3.6-flash,gemini-3.5-flash`
+
+### GEMINI_CURRICULUM_MODEL
+- **Description**: Optional override for the curriculum pipeline (structure
+  detection, philosophy alignment, content generation). Defaults to
+  `GEMINI_MODEL`; set it to pin that pipeline to a heavier reasoning model
+  (e.g. `gemini-2.5-pro`) without moving the rest of the app.
+- **Default**: same as `GEMINI_MODEL`
 
 ### PEXELS_API_KEY
 - **Description**: Pexels API key for image generation
