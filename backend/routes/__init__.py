@@ -119,6 +119,7 @@ def register_all(app):
 
     from routes.admin import (
         user_management,
+        user_observer_links,
         quest_management,
         student_task_management,
         sample_task_management,
@@ -151,6 +152,7 @@ def register_all(app):
         audit_logs,
     )
     app.register_blueprint(user_management.bp)
+    app.register_blueprint(user_observer_links.observer_links_bp)
     app.register_blueprint(quest_management.bp)
     app.register_blueprint(student_task_management.bp)
     app.register_blueprint(sample_task_management.bp)
