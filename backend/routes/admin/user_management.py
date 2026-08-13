@@ -81,101 +81,130 @@ def get_users(user_id):
 
 @bp.route('/users/<target_user_id>', methods=['GET'])
 @require_admin
-def get_user_details(user_id, target_user_id):
+def get_user_details(admin_id, target_user_id):
     """Get detailed information about a specific user"""
-    try:
-        user_repo = UserRepository()
-
-        # Get user with stats
-        user_data = user_repo.get_user_with_stats(target_user_id)
-
-        if not user_data:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-
-        # Get organization info if needed
-        if user_data.get('organization_id'):
-            user_with_org = user_repo.get_user_with_organization(target_user_id)
-            if user_with_org:
-                user_data['organization'] = user_with_org.get('organization')
-                user_data['organization_name'] = user_with_org.get('organization_name')
-
-        stats = user_data.pop('stats', {})
-
-        return jsonify({
-            'success': True,
-            **user_data,
-            'stats': stats
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting user details: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to retrieve user details'
-        }), 500
-
-@bp.route('/users/<target_user_id>', methods=['PUT'])
-@require_school_admin
-def update_user(user_id, target_user_id):
-    """
-    Update user information.
-    Superadmins can update any user.
-    Org admins can update users in their own organization.
-    """
-    from utils.roles import get_effective_role
-
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
-        # Check if caller is superadmin or org_admin
-        admin_user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
-        if not admin_user.data:
-            return jsonify({'success': False, 'error': 'Admin user not found'}), 404
+        # Get user details
+        user_response = supabase.table('users').select('*').eq('id', target_user_id).execute()
 
-        admin_effective_role = get_effective_role(admin_user.data)
-        is_superadmin = admin_effective_role == 'superadmin'
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
 
-        # If not superadmin, verify target user is in same org
-        if not is_superadmin:
-            target_user = supabase.table('users').select('organization_id').eq('id', target_user_id).single().execute()
-            if not target_user.data:
-                return jsonify({'success': False, 'error': 'User not found'}), 404
+        user = user_response.data[0]
 
-            admin_org_id = admin_user.data.get('organization_id')
-            target_org_id = target_user.data.get('organization_id')
+        # Get organization name if user has an organization_id
+        if user.get('organization_id'):
+            org_response = supabase.table('organizations')\
+                .select('id, name')\
+                .eq('id', user['organization_id'])\
+                .maybe_single()\
+                .execute()
+            user['organization_name'] = org_response.data.get('name') if org_response.data else None
+        else:
+            user['organization_name'] = None
 
-            if not admin_org_id or admin_org_id != target_org_id:
-                return jsonify({'success': False, 'error': 'You can only modify users in your organization'}), 403
+        # Get XP by pillar
+        xp_response = supabase.table('user_skill_xp')\
+            .select('pillar, xp_amount')\
+            .eq('user_id', target_user_id)\
+            .execute()
 
-        data = request.json
+        xp_by_pillar = {}
+        total_xp = 0
+        if xp_response.data:
+            for xp in xp_response.data:
+                xp_by_pillar[xp['pillar']] = xp['xp_amount']
+                total_xp += xp['xp_amount']
 
-        # Build update data
-        update_data = {}
-        allowed_fields = [
-            'first_name', 'last_name', 'email',
-            'phone_number', 'address_line1', 'address_line2',
-            'city', 'state', 'postal_code', 'country',
-            'date_of_birth'
-        ]
+        # Get completed quests
+        completed_quests_response = supabase.table('user_quests')\
+            .select('*, quests(title)')\
+            .eq('user_id', target_user_id)\
+            .not_.is_('completed_at', 'null')\
+            .order('completed_at', desc=True)\
+            .execute()
+
+        completed_quests = []
+        quests_completed = 0
+        if completed_quests_response.data:
+            quests_completed = len(completed_quests_response.data)
+            for quest in completed_quests_response.data:
+                completed_quests.append({
+                    'id': quest.get('quest_id'),
+                    'title': quest.get('quests', {}).get('title') if quest.get('quests') else 'Unknown Quest',
+                    'completed_at': quest.get('completed_at'),
+                    'xp_earned': 0  # Would need to be derived from the quest's tasks
+                })
+
+        return jsonify({
+            'user': user,
+            'xp_by_pillar': xp_by_pillar,
+            'total_xp': total_xp,
+            'completed_quests': completed_quests,
+            'quests_completed': quests_completed,
+            'last_active': user.get('last_active'),
+            'current_streak': 0  # Could implement streak calculation
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching user details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<target_user_id>', methods=['PUT'])
+@require_school_admin
+def update_user_profile(admin_id, target_user_id):
+    """
+    Update user profile information.
+
+    Superadmins can update any user; org admins are scoped to their own
+    organization.
+
+    Org admins need this because the org People tab saves the profile before it
+    saves roles — a superadmin-only gate here 403'd the whole save and blocked
+    org admins from promoting anyone to org_admin.
+    """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+    supabase = get_supabase_admin_client()
+    data = request.json
+
+    try:
+        from utils.roles import get_effective_role
+
+        admin_rows = (supabase.table('users').select('role, org_role, org_roles, organization_id')
+                      .eq('id', admin_id).limit(1).execute()).data
+        if not admin_rows:
+            return jsonify({'error': 'Admin user not found'}), 404
+
+        if get_effective_role(admin_rows[0]) != 'superadmin':
+            admin_org_id = admin_rows[0].get('organization_id')
+            target_rows = (supabase.table('users').select('organization_id')
+                           .eq('id', target_user_id).limit(1).execute()).data
+            if not target_rows:
+                return jsonify({'error': 'User not found'}), 404
+            if not admin_org_id or admin_org_id != target_rows[0].get('organization_id'):
+                return jsonify({'error': 'You can only modify users in your organization'}), 403
+
         # Blank strings for these optional fields must be stored as NULL, not ''.
         # Critically, dependents must have email IS NULL (check_dependent_no_email):
         # edit forms submit the whole user object with an empty email for a
         # dependent, and persisting '' would violate the constraint on ANY update.
-        nullable_fields = {
-            'email', 'phone_number', 'address_line1', 'address_line2',
-            'city', 'state', 'postal_code', 'country', 'date_of_birth'
-        }
+        def _blank_to_none(value):
+            return None if isinstance(value, str) and value.strip() == '' else value
 
-        for field in allowed_fields:
+        update_data = {}
+        if 'first_name' in data:
+            update_data['first_name'] = data['first_name']
+        if 'last_name' in data:
+            update_data['last_name'] = data['last_name']
+        for field in ('email', 'phone_number', 'address_line1', 'address_line2',
+                      'city', 'state', 'postal_code', 'country'):
             if field in data:
-                value = data[field]
-                if field in nullable_fields and isinstance(value, str) and value.strip() == '':
-                    value = None
-                update_data[field] = value
-
-        if not update_data:
-            return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+                update_data[field] = _blank_to_none(data[field])
+        if 'date_of_birth' in data:
+            update_data['date_of_birth'] = data['date_of_birth'] or None
 
         # Keep the COPPA promotion date in sync when a dependent's birthday
         # changes (mirrors DependentRepository.update_dependent). Non-dependents
@@ -187,30 +216,38 @@ def update_user(user_id, target_user_id):
                 dob = datetime.strptime(update_data['date_of_birth'], '%Y-%m-%d').date()
                 update_data['promotion_eligible_at'] = str(dob + relativedelta(years=13))
 
-        # Note: users table has no updated_at column
+        if update_data:
+            response = supabase.table('users')\
+                .update(update_data)\
+                .eq('id', target_user_id)\
+                .execute()
 
-        # Update user
-        result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
+            if not response.data:
+                return jsonify({'error': 'User not found'}), 404
 
-        if not result.data:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
+        # If a non-blank email was provided, also sync it to auth.users. Skip when
+        # blank/None (e.g. dependents, who have no auth account until promoted) —
+        # pushing an empty email to auth would error.
+        if update_data.get('email'):
+            try:
+                supabase.auth.admin.update_user_by_id(
+                    target_user_id,
+                    {'email': update_data['email']}
+                )
+                logger.info(f"Admin {admin_id} updated email for user {target_user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to update auth.users email: {e}")
+                # Continue anyway since users table was updated successfully
 
-        return jsonify({
-            'success': True,
-            'message': 'User updated successfully',
-            'user': result.data[0]
-        })
+        return jsonify({'message': 'User updated successfully'}), 200
 
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update user: {str(e)}'
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<target_user_id>/role', methods=['PUT'])
 @require_admin
-def update_user_role(user_id, target_user_id):
+def update_user_role(admin_id, target_user_id):
     """
     Update user's platform role (superadmin only).
     Platform roles: superadmin, org_admin, student, parent, advisor, observer, org_managed
@@ -232,7 +269,7 @@ def update_user_role(user_id, target_user_id):
             return jsonify({'success': False, 'error': f'Invalid role. Must be one of: {valid_roles}'}), 400
 
         # Prevent user from removing their own admin role
-        if target_user_id == user_id and new_role not in ['org_admin', 'superadmin']:
+        if target_user_id == admin_id and new_role not in ['org_admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'Cannot remove your own admin privileges'}), 403
 
         target_rows = (supabase.table('users').select('organization_id, role, org_role')
@@ -305,34 +342,44 @@ def update_user_role(user_id, target_user_id):
 
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
 @require_admin
-def delete_user(user_id, target_user_id):
-    """Delete a user account from both auth.users and public.users (admin only)"""
+def delete_user(admin_id, target_user_id):
+    """Permanently delete a user account and all associated data"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+    supabase = get_supabase_admin_client()
+
     try:
         # Prevent admin from deleting themselves
-        if target_user_id == user_id:
-            return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 403
+        if target_user_id == admin_id:
+            return jsonify({'error': 'Cannot delete your own account'}), 403
 
-        user_repo = UserRepository()
+        # Delete user data in proper order to avoid foreign key violations
 
-        # Check if user exists
-        user = user_repo.find_by_id(target_user_id)
-        if not user:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
+        # Delete user XP data
+        supabase.table('user_skill_xp').delete().eq('user_id', target_user_id).execute()
 
-        # Delete user and all related data using repository
-        user_repo.delete_user_complete(target_user_id, user_id)
+        # Clean up org_invitations references
+        supabase.table('org_invitations').delete().eq('accepted_by', target_user_id).execute()
+        supabase.table('org_invitations').update({'invited_by': None}).eq('invited_by', target_user_id).execute()
 
-        return jsonify({
-            'success': True,
-            'message': 'User deleted successfully from both authentication and profile tables'
-        })
+        # Delete user quest enrollments and completions
+        # NOTE: With CASCADE constraint, quest_task_completions will auto-delete when user_quest_tasks are deleted
+        # But we delete explicitly here for clarity and to handle any edge cases
+        supabase.table('quest_task_completions').delete().eq('user_id', target_user_id).execute()
+        supabase.table('user_quest_tasks').delete().eq('user_id', target_user_id).execute()
+        supabase.table('user_quests').delete().eq('user_id', target_user_id).execute()
+
+        # Delete user profile
+        # Note: AFTER DELETE trigger automatically syncs deletion to auth.users
+        response = supabase.table('users').delete().eq('id', target_user_id).execute()
+
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        return jsonify({'message': 'User account deleted successfully'}), 200
 
     except Exception as e:
         logger.error(f"Error deleting user: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete user: {str(e)}'
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 
 @bp.route('/users/bulk-delete', methods=['POST'])
@@ -436,6 +483,84 @@ def admin_reset_password(user_id, target_user_id):
             'success': False,
             'error': f'Failed to reset password: {str(e)}'
         }), 500
+
+@bp.route('/users/<target_user_id>/toggle-status', methods=['POST'])
+@require_admin
+def toggle_user_status(admin_id, target_user_id):
+    """Enable or disable a user account"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get current status
+        user_response = supabase.table('users').select('status').eq('id', target_user_id).execute()
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        current_status = user_response.data[0].get('status', 'active')
+        new_status = 'disabled' if current_status == 'active' else 'active'
+
+        # Update status
+        response = supabase.table('users')\
+            .update({
+                'status': new_status,
+                'updated_at': datetime.utcnow().isoformat()
+            })\
+            .eq('id', target_user_id)\
+            .execute()
+
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        return jsonify({
+            'message': f'User account {"enabled" if new_status == "active" else "disabled"} successfully',
+            'status': new_status
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error toggling user status: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/users/bulk-email', methods=['POST'])
+@require_admin
+def send_bulk_email(admin_id):
+    """Send email to multiple users"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+    supabase = get_supabase_admin_client()
+    data = request.json
+
+    try:
+        user_ids = data.get('user_ids', [])
+        subject = data.get('subject', '')
+        message = data.get('message', '')
+
+        if not user_ids or not subject or not message:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Get user details with email from users table
+        users_response = supabase.table('users')\
+            .select('id, first_name, last_name, email')\
+            .in_('id', user_ids)\
+            .execute()
+
+        if not users_response.data:
+            return jsonify({'error': 'No users found'}), 404
+
+        # NOTE: this endpoint has never actually sent anything — it counts
+        # addressable users and reports success. Wire it to the email service
+        # before relying on it.
+        emails_sent = sum(1 for user in users_response.data if user.get('email'))
+
+        return jsonify({
+            'message': f'Bulk email prepared for {emails_sent} users',
+            'emails_sent': emails_sent
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error sending bulk email: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 @bp.route('/users/<target_user_id>/verify-email', methods=['POST'])
 @require_admin
@@ -1110,6 +1235,133 @@ def revoke_advisor_role(user_id, target_user_id):
             'success': False,
             'error': 'Failed to revoke advisor role'
         }), 500
+
+
+def _person(row: dict) -> dict:
+    """Shrink a users row to the fields the connections list renders."""
+    row = row or {}
+    name = f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip()
+    return {
+        'id': row.get('id'),
+        'name': name or row.get('display_name') or 'Unknown',
+        'email': row.get('email'),
+    }
+
+
+@bp.route('/users/<user_id>/connections', methods=['GET'])
+@require_admin
+def get_user_connections(admin_user_id: str, user_id: str):
+    """Every person linked to this user, in one response.
+
+    The admin user-details modal used to assemble this client-side, and the
+    advisor half cost 1 + N requests: fetch every advisor, then fetch each
+    advisor's whole roster just to test whether this one user appeared in it.
+    Six of the seven calls were wrapped in silent `catch {}`, so a failing
+    endpoint rendered as "No connections" — indistinguishable from a user who
+    genuinely has none. This does the same work in a fixed number of queries
+    and lets failures surface as a 500.
+
+    Returns links in both directions for all three relationship types:
+      advisor  -> direction 'student' (this user teaches them) | 'advisor'
+      parent   -> direction 'child'   (this user parents them) | 'parent'
+      observer -> direction 'observing'                        | 'observed_by'
+    """
+    try:
+        # admin client justified: admin-only route (@require_admin) — needs RLS bypass for cross-tenant administration
+        supabase = get_supabase_admin_client()
+        connections = []
+
+        # --- Advisor assignments, both directions, in two queries ---------
+        assignments = supabase.table('advisor_student_assignments') \
+            .select('id, advisor_id, student_id, assigned_at') \
+            .or_(f'advisor_id.eq.{user_id},student_id.eq.{user_id}') \
+            .eq('is_active', True) \
+            .execute()
+
+        assignment_rows = assignments.data or []
+        counterpart_ids = {
+            row['student_id'] if row['advisor_id'] == user_id else row['advisor_id']
+            for row in assignment_rows
+        }
+
+        # --- Parent links, both directions, in one query ------------------
+        parent_links = supabase.table('parent_student_links') \
+            .select('id, parent_user_id, student_user_id, created_at') \
+            .or_(f'parent_user_id.eq.{user_id},student_user_id.eq.{user_id}') \
+            .execute()
+
+        parent_rows = parent_links.data or []
+        counterpart_ids |= {
+            row['student_user_id'] if row['parent_user_id'] == user_id else row['parent_user_id']
+            for row in parent_rows
+        }
+
+        # --- Observer links, both directions, in one query ----------------
+        observer_links = supabase.table('observer_student_links') \
+            .select('id, observer_id, student_id, created_at') \
+            .or_(f'observer_id.eq.{user_id},student_id.eq.{user_id}') \
+            .execute()
+
+        observer_rows = observer_links.data or []
+        counterpart_ids |= {
+            row['student_id'] if row['observer_id'] == user_id else row['observer_id']
+            for row in observer_rows
+        }
+
+        # --- One lookup for every counterpart -----------------------------
+        counterpart_ids.discard(user_id)
+        counterpart_ids.discard(None)
+        people = {}
+        if counterpart_ids:
+            people_rows = supabase.table('users') \
+                .select('id, first_name, last_name, display_name, email') \
+                .in_('id', list(counterpart_ids)) \
+                .execute()
+            people = {row['id']: row for row in (people_rows.data or [])}
+
+        for row in assignment_rows:
+            this_user_is_advisor = row['advisor_id'] == user_id
+            other_id = row['student_id'] if this_user_is_advisor else row['advisor_id']
+            connections.append({
+                'id': f"advisor-{row['id']}",
+                'link_id': row['id'],
+                'type': 'advisor',
+                'direction': 'student' if this_user_is_advisor else 'advisor',
+                'advisor_id': row['advisor_id'],
+                'student_id': row['student_id'],
+                'person': _person(people.get(other_id)),
+                'created_at': row.get('assigned_at'),
+            })
+
+        for row in parent_rows:
+            this_user_is_parent = row['parent_user_id'] == user_id
+            other_id = row['student_user_id'] if this_user_is_parent else row['parent_user_id']
+            connections.append({
+                'id': f"parent-{row['id']}",
+                'link_id': row['id'],
+                'type': 'parent',
+                'direction': 'child' if this_user_is_parent else 'parent',
+                'person': _person(people.get(other_id)),
+                'created_at': row.get('created_at'),
+            })
+
+        for row in observer_rows:
+            this_user_is_observer = row['observer_id'] == user_id
+            other_id = row['student_id'] if this_user_is_observer else row['observer_id']
+            connections.append({
+                'id': f"observer-{row['id']}",
+                'link_id': row['id'],
+                'type': 'observer',
+                'direction': 'observing' if this_user_is_observer else 'observed_by',
+                'person': _person(people.get(other_id)),
+                'created_at': row.get('created_at'),
+            })
+
+        return success_response(data={'connections': connections})
+
+    except Exception as e:
+        logger.error(f"Error fetching connections for {user_id}: {str(e)}")
+        return error_response('Failed to load connections', status_code=500, error_code='FETCH_ERROR')
 
 
 @bp.route('/users/<user_id>/observer-links', methods=['GET'])
