@@ -64,9 +64,17 @@ def _goals_config(org_row):
 
 
 def _full_name(u):
-    name = (u.get('display_name') or
-            f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()
-    return name or (u.get('username') or u.get('email') or 'Unnamed')
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    name = (u.get('display_name') or f"{first} {last}".strip()).strip()
+    return name or u.get('username') or u.get('email') or 'Unnamed'
 
 
 def _my_student_ids(admin, parent_id):
@@ -165,7 +173,7 @@ def my_goals(user_id):
         return jsonify({'success': True, 'students': []})
 
     students = (admin.table('users')
-                .select('id, first_name, last_name, display_name, username, email, '
+                .select('id, first_name, last_name, display_name, preferred_name, username, email, '
                         'avatar_url, organization_id')
                 .in_('id', student_ids).execute()).data or []
     org_ids = list({s['organization_id'] for s in students if s.get('organization_id')})

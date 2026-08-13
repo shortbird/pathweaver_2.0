@@ -55,12 +55,19 @@ def _org_admins(org_id: str) -> List[Dict[str, Any]]:
 
 
 def _student_name(student_id: str) -> str:
-    rows = _admin().table('users').select('display_name, first_name, last_name') \
+    rows = _admin().table('users').select('display_name, first_name, last_name, preferred_name') \
         .eq('id', student_id).limit(1).execute().data or []
     if not rows:
         return 'Student'
     u = rows[0]
-    return u.get('display_name') or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip() or 'Student'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    return u.get('display_name') or f"{first} {last}".strip() or 'Student'
 
 
 def _missing_text(missing: Dict[str, int]) -> str:

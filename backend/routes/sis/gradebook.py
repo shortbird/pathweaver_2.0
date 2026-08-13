@@ -133,8 +133,17 @@ def _average(rows):
 
 
 def _student_name(u):
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
     return ((u.get('display_name')
-             or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+             or f"{first} {last}".strip()
              or u.get('username') or u.get('email') or 'Unnamed'))
 
 
@@ -325,7 +334,7 @@ def class_gradebook(user_id, class_id):
     users = []
     if student_ids:
         users = (_admin().table('users')
-                 .select('id, display_name, first_name, last_name, username, email, avatar_url')
+                 .select('id, display_name, first_name, last_name, preferred_name, username, email, avatar_url')
                  .in_('id', student_ids).execute()).data or []
     profile = {u['id']: u for u in users}
 

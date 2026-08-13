@@ -255,7 +255,7 @@ const PersonSection = ({ title, people, selectedId, unreadByUser, onSelect, empt
             <span className={`block text-sm truncate ${unread > 0 ? 'font-bold text-neutral-900' : 'font-medium text-neutral-800'}`}>
               {p.name}
             </span>
-            {p.preferred_name && p.preferred_name !== p.name && (
+            {p.preferred_name && !p.name.toLowerCase().includes(p.preferred_name.toLowerCase()) && (
               <span className="block text-xs text-neutral-400 truncate">Goes by {p.preferred_name}</span>
             )}
           </span>

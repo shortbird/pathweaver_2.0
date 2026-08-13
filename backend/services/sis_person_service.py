@@ -45,15 +45,24 @@ def _now_iso() -> str:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
     name = (u.get('display_name')
-            or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip())
+            or f"{first} {last}".strip())
     return name or u.get('username') or u.get('email') or 'Unnamed'
 
 
 def _user(org_id: str, target_id: str) -> Optional[Dict[str, Any]]:
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, username, email, role, '
+        .select('id, first_name, last_name, display_name, preferred_name, username, email, role, '
                 'org_role, org_roles, organization_id, is_dependent, managed_by_parent_id')
         .eq('id', target_id).limit(1).execute()
     ).data or []
