@@ -8,6 +8,7 @@ import api, { treehouseAPI } from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import TreehouseSignalBar from './TreehouseSignalBar'
 import CameraCaptureButton from './CameraCaptureButton'
+import TaskStepsModal from '../../components/quest/TaskStepsModal'
 
 /**
  * F1: simplified "littles" task view for young Treehouse learners (cohort
@@ -26,6 +27,7 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
   const queryClient = useQueryClient()
   const completeTask = useCompleteTask()
   const [openTask, setOpenTask] = useState(null)
+  const [stepsTask, setStepsTask] = useState(null)
   const [busy, setBusy] = useState(false)
   // null = closed | 'loading' | array of ideas
   const [ideas, setIdeas] = useState(null)
@@ -82,11 +84,11 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
     <div className="p-4 h-full overflow-y-auto">
       <ul className="space-y-3 max-w-xl mx-auto">
         {sorted.map((task) => (
-          <li key={task.id}>
+          <li key={task.id} className="flex items-center gap-2">
             <button
               onClick={() => !task.is_completed && setOpenTask(task)}
               disabled={task.is_completed}
-              className={`w-full flex items-center gap-4 p-5 rounded-3xl text-left text-xl font-bold transition active:scale-[0.98] ${
+              className={`flex-1 flex items-center gap-4 p-5 rounded-3xl text-left text-xl font-bold transition active:scale-[0.98] ${
                 task.is_completed
                   ? 'bg-green-50 text-green-700'
                   : 'bg-white border-2 border-optio-purple/30 text-neutral-900 shadow-sm'
@@ -99,6 +101,16 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
               </span>
               <span className="flex-1">{task.title}</span>
             </button>
+            {!task.is_completed && (
+              <button
+                type="button"
+                onClick={() => setStepsTask(task)}
+                className="flex items-center gap-1.5 px-4 py-5 rounded-3xl border-2 border-optio-purple/30 bg-optio-purple/5 text-optio-purple font-bold text-base hover:bg-optio-purple/10 active:scale-95 transition shrink-0 shadow-sm min-h-[44px] touch-manipulation"
+                title="Break into steps"
+              >
+                ✨ Steps
+              </button>
+            )}
           </li>
         ))}
         {sorted.length === 0 && (
@@ -138,6 +150,18 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
                 className="w-full py-4 rounded-2xl bg-green-100 text-green-800 text-lg font-bold disabled:opacity-60"
               >
                 ✓ Just finish
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const t = openTask
+                  setOpenTask(null)
+                  setStepsTask(t)
+                }}
+                disabled={busy}
+                className="w-full py-4 rounded-2xl bg-optio-purple/10 text-optio-purple text-lg font-bold hover:bg-optio-purple/20 active:scale-95 transition disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                ✨ Break into steps
               </button>
             </div>
 
@@ -183,6 +207,17 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
             </button>
           </div>
         </ModalOverlay>
+      )}
+
+      {/* Steps breakdown modal */}
+      {stepsTask && (
+        <TaskStepsModal
+          isOpen={!!stepsTask}
+          onClose={() => setStepsTask(null)}
+          taskId={stepsTask.id}
+          taskTitle={stepsTask.title}
+          isTaskCompleted={stepsTask.is_completed}
+        />
       )}
     </div>
   )
