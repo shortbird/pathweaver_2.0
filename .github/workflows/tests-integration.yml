@@ -1,0 +1,134 @@
+name: Integration Tests (reusable)
+
+# The `requires_db` tests -- the ones that drive the real Flask app end to end
+# against a real PostgREST + GoTrue, where mocks cannot help.
+#
+# WHAT CHANGED (2026-08-13)
+# ------------------------
+# This used to be integration-tests.yml: workflow_dispatch-only, pointed at a
+# hand-created Supabase preview branch via three repo secrets, never in any
+# gate. It ran exactly once, ever. Meanwhile 143 tests sat skipped, which reads
+# like "covered, just not here" and is really "not covered at all".
+#
+# It now boots a throwaway Supabase stack on the runner instead:
+#   - free (the preview-branch approach was billing real money -- see
+#     supabase-branch-reaper.yml for what that cost)
+#   - no service-role key for a production clone sitting in CI secrets
+#   - cannot be aimed at production by a mistyped secret, because there is no
+#     secret to mistype. The old workflow needed a string check on the URL as
+#     the only thing standing between a typo and production data.
+#
+# This became possible on 2026-08-12, when supabase/migrations/ got a real
+# baseline (d7ac23ea). Before that the first migration opened with
+# `ALTER TABLE public.users` against an empty database and died at statement 0.
+#
+# NOT YET IN THE DEPLOY GATE. See the honesty note at the bottom of the run
+# step: the harness is sound, but most of the suite it runs was written against
+# an architecture the app does not have. Add this job to the `deploy` job's
+# `needs:` in release.yml once the ported suite is green and meaningful.
+
+on:
+  workflow_call:
+    inputs:
+      enforcing:
+        description: >-
+          true = a failing test fails the job. false = failures are reported as
+          warnings and the job stays green. See the run step for why this exists
+          and when to remove it.
+        required: false
+        default: true
+        type: boolean
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Backend integration (local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        # Boots Postgres + PostgREST + GoTrue + Storage in Docker (~60-90s) and
+        # replays supabase/migrations/ onto the empty database, which is exactly
+        # what the prod-schema baseline exists to make possible.
+        run: |
+          set -euo pipefail
+          supabase start
+          supabase status
+
+      - name: Bootstrap the local stack
+        # grants.sql: the baseline is schema-only by design, so PostgREST 42501s
+        # on every request without it (verified -- this is not theoretical).
+        # test_helpers.sql: the truncate-between-tests RPC the fixtures call.
+        run: |
+          set -euo pipefail
+          for f in supabase/ci/grants.sql supabase/ci/test_helpers.sql; do
+            echo "applying $f"
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+              -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run requires_db tests
+        working-directory: backend
+        env:
+          FLASK_ENV: testing
+          FLASK_SECRET_KEY: test-secret-key-for-ci-only
+          RUN_DB_INTEGRATION_TESTS: '1'
+        run: |
+          set -euo pipefail
+          # Pull the local stack's URL and keys straight from the CLI rather than
+          # from secrets. These are the well-known local development keys; they
+          # are not sensitive and they unlock nothing outside this runner.
+          eval "$(supabase status -o env | sed \
+            -e 's/^API_URL=/export SUPABASE_URL=/' \
+            -e 's/^SERVICE_ROLE_KEY=/export SUPABASE_SERVICE_ROLE_KEY=/' \
+            -e 's/^ANON_KEY=/export SUPABASE_ANON_KEY=/')"
+          echo "Target: $SUPABASE_URL"
+
+          # No coverage here -- this is a subset of the suite, and coverage is
+          # measured once in tests-backend.yml.
+          #
+          # ADVISORY MODE (`enforcing: false`) -- temporary, and not the same
+          # animal as the `|| true` that was removed from the backend suite on
+          # 2026-08-01. That one hid failures in a suite that was supposed to be
+          # passing. This one runs a suite that is KNOWN not to pass, for a
+          # documented reason, and says so loudly on every run. The distinction
+          # that matters: nothing here has ever been green, so nothing can
+          # silently regress. Delete the branch and the input once the port is
+          # done -- see backend/tests/integration/README.md.
+          set +e
+          python -m pytest tests/ -m requires_db --tb=short -v \
+            -p no:cacheprovider --no-cov
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "${{ inputs.enforcing }}" != "true" ]; then
+            echo "::warning::Integration suite failed (exit $rc). Reported, not enforced --"
+            echo "::warning::the harness booted, the suite still needs porting. See backend/tests/integration/README.md."
+            exit 0
+          fi
+          exit $rc
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true

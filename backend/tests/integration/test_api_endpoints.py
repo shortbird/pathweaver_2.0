@@ -9,7 +9,20 @@ from utils.logger import get_logger
 # Every test here drives the real app end-to-end: /api/health pings the
 # database, login and profile reads go through PostgREST. They need a live
 # stack, not mocks.
-pytestmark = pytest.mark.requires_db
+# NOT YET PORTED -- quarantined, not silently skipped.
+#
+# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
+# that has never existed in any Optio database) and authenticates by setting
+# `session['user_id']` (which require_auth does not read). It cannot pass
+# against a database; wiring one up would turn these skips into errors.
+#
+# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
+# their shape. backend/tests/integration/README.md has the three defects and the
+# per-file plan. Porting this file means deleting this marker.
+pytestmark = pytest.mark.skip(
+    reason='Not yet ported to the real fixtures -- see '
+           'backend/tests/integration/README.md'
+)
 
 logger = get_logger(__name__)
 

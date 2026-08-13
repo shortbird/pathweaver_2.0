@@ -59,7 +59,12 @@ logger = logging.getLogger(__name__)
 
 
 
-from routes.parental_consent import bp
+# generate_consent_token / hash_token were called at four sites in this module
+# but never imported, so every request to /parental-consent/send, /verify and
+# /resend died with "name 'generate_consent_token' is not defined" and returned
+# 500 -- the whole COPPA consent flow, in production. Found 2026-08-13 by the
+# ported integration tests the first time they were ever able to run.
+from routes.parental_consent import bp, generate_consent_token, hash_token
 
 
 @bp.route('/parental-consent/send', methods=['POST'])
