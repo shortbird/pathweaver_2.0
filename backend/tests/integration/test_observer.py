@@ -1,782 +1,284 @@
-"""
-Integration tests for Observer API.
+"""Integration tests for observer access control.
 
-Tests the complete observer system including:
-- Observer invitations (student sends, observer accepts)
-- Observer-student linking
-- Portfolio viewing (read-only access)
-- Observer comments on student work
-- Access control and permissions
-- COPPA/FERPA compliance auditing
+Observers are the read-only role: a grandparent or mentor a student shares work
+with. Every boundary here is a FERPA-adjacent one -- an observer must see
+exactly the students linked to them and nothing else -- so these run against a
+real database and assert on the link table that actually gates access.
+
+Ported 2026-08-13. The originals could not run (an `execute_sql` RPC that has
+never existed, a `test_schema` the app never reads, `session['user_id']` auth
+that require_auth ignores) AND they targeted an API that no longer exists:
+`/api/observers/invite` was replaced by generate-link / parent-invite /
+family-invite. They are rewritten here against the current routes rather than
+translated. See backend/tests/integration/README.md.
 """
+
+import uuid
 
 import pytest
-import json
-import uuid
-from datetime import datetime, timedelta
-from unittest.mock import patch, Mock
 
-from utils.logger import get_logger
-
-# NOT YET PORTED -- quarantined, not silently skipped.
-#
-# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
-# that has never existed in any Optio database) and authenticates by setting
-# `session['user_id']` (which require_auth does not read). It cannot pass
-# against a database; wiring one up would turn these skips into errors.
-#
-# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
-# their shape. backend/tests/integration/README.md has the three defects and the
-# per-file plan. Porting this file means deleting this marker.
-pytestmark = pytest.mark.skip(
-    reason='Not yet ported to the real fixtures -- see '
-           'backend/tests/integration/README.md'
-)
+pytestmark = pytest.mark.requires_db
 
 
-logger = get_logger(__name__)
+@pytest.fixture
+def observer(make_user):
+    return make_user(role='observer')
+
+
+@pytest.fixture
+def link_observer(db):
+    """Link an observer to a student, as accepting an invitation would."""
+    def _link(observer_id, student_id, can_comment=True, can_view_evidence=True):
+        row = {
+            'observer_id': observer_id,
+            'student_id': student_id,
+            'can_comment': can_comment,
+            'can_view_evidence': can_view_evidence,
+        }
+        db.table('observer_student_links').insert(row).execute()
+        return row
+
+    return _link
+
+
+def _comment(client, headers, student_id, text='Nice work on this.'):
+    return client.post('/api/observers/comments', headers=headers, json={
+        'student_id': student_id,
+        'comment_text': text,
+    })
+
+
+# Posting comments
 
 
 @pytest.mark.integration
 @pytest.mark.critical
-def test_send_observer_invitation_success(client, test_supabase):
-    """Test student can send observer invitation"""
-    # Create student user
-    student_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, first_name, last_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'Test', 'Student', 'student')
-        """
-    })
+def test_linked_observer_with_permission_can_comment(
+    client, db, observer, student, link_observer, auth_headers_for
+):
+    link_observer(observer['id'], student['id'], can_comment=True)
 
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    # Mock email service to avoid actual email sending
-    with patch('services.email_service.EmailService.send_templated_email') as mock_email:
-        mock_email.return_value = True
-
-        response = client.post('/api/observers/invite', json={
-            'observer_email': 'grandparent@example.com',
-            'observer_name': 'Grandma Smith'
-        })
-
-        assert response.status_code == 200
-        assert response.json['status'] == 'success'
-        assert 'invitation_link' in response.json
-        assert 'invitation_id' in response.json
-        mock_email.assert_called_once()
-
-
-@pytest.mark.integration
-def test_send_observer_invitation_missing_fields(client, test_supabase):
-    """Test sending invitation without required fields fails"""
-    student_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    # Missing observer_email
-    response = client.post('/api/observers/invite', json={
-        'observer_name': 'Grandma Smith'
-    })
-    assert response.status_code == 400
-    assert 'observer_email' in response.json.get('error', '').lower()
-
-    # Missing observer_name
-    response = client.post('/api/observers/invite', json={
-        'observer_email': 'grandparent@example.com'
-    })
-    assert response.status_code == 400
-    assert 'observer_name' in response.json.get('error', '').lower()
-
-
-@pytest.mark.integration
-def test_get_my_invitations_success(client, test_supabase):
-    """Test student can retrieve sent invitations"""
-    student_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create invitation
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status)
-            VALUES ('{invitation_id}', '{student_id}', 'grandparent@example.com', 'Grandma Smith', 'abc123', 'pending')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.get('/api/observers/my-invitations')
+    response = _comment(client, auth_headers_for(observer['id']), student['id'])
 
     assert response.status_code == 200
-    assert len(response.json['invitations']) >= 1
+    rows = db.table('observer_comments').select('observer_id, student_id, comment_text') \
+        .eq('student_id', student['id']).execute().data
+    assert len(rows) == 1
+    assert rows[0]['observer_id'] == observer['id']
 
 
 @pytest.mark.integration
-def test_cancel_invitation_success(client, test_supabase):
-    """Test student can cancel pending invitation"""
-    student_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_unlinked_observer_cannot_comment(client, db, observer, student, auth_headers_for):
+    """No link, no access. This is the whole control."""
+    response = _comment(client, auth_headers_for(observer['id']), student['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
+    assert response.status_code == 403
+    assert db.table('observer_comments').select('id').execute().data == []
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status)
-            VALUES ('{invitation_id}', '{student_id}', 'grandparent@example.com', 'Grandma Smith', 'abc123', 'pending')
-        """
-    })
 
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_link_without_comment_permission_cannot_comment(
+    client, db, observer, student, link_observer, auth_headers_for
+):
+    """can_comment=False means view-only, not merely a hidden button."""
+    link_observer(observer['id'], student['id'], can_comment=False)
 
-    response = client.delete(f'/api/observers/invitations/{invitation_id}/cancel')
+    response = _comment(client, auth_headers_for(observer['id']), student['id'])
+
+    assert response.status_code == 403
+    assert db.table('observer_comments').select('id').execute().data == []
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_a_link_to_one_student_grants_nothing_over_another(
+    client, db, observer, make_user, link_observer, auth_headers_for
+):
+    """The link is per student. Holding one must not leak the next."""
+    linked_student = make_user(role='student')
+    other_student = make_user(role='student')
+    link_observer(observer['id'], linked_student['id'], can_comment=True)
+
+    response = _comment(client, auth_headers_for(observer['id']), other_student['id'])
+
+    assert response.status_code == 403
+    assert db.table('observer_comments').select('id') \
+        .eq('student_id', other_student['id']).execute().data == []
+
+
+@pytest.mark.integration
+def test_superadmin_can_comment_without_a_link(client, make_user, student, auth_headers_for):
+    superadmin = make_user(role='superadmin')
+
+    response = _comment(client, auth_headers_for(superadmin['id']), student['id'])
 
     assert response.status_code == 200
-    assert response.json['status'] == 'success'
 
 
 @pytest.mark.integration
-def test_cancel_invitation_wrong_student_fails(client, test_supabase):
-    """Test student cannot cancel another student's invitation"""
-    student1_id = str(uuid.uuid4())
-    student2_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
+@pytest.mark.parametrize('payload, why', [
+    ({'comment_text': 'no student'}, 'missing student_id'),
+    ({'student_id': str(uuid.uuid4())}, 'missing comment_text'),
+])
+def test_comment_requires_student_and_text(
+    client, observer, student, link_observer, auth_headers_for, payload, why
+):
+    link_observer(observer['id'], student['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student1_id}', 'student1@example.com', 'Student 1', 'student'),
-            ('{student2_id}', 'student2@example.com', 'Student 2', 'student')
-        """
-    })
+    response = client.post(
+        '/api/observers/comments',
+        headers=auth_headers_for(observer['id']),
+        json=payload,
+    )
 
-    # Create invitation for student1
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status)
-            VALUES ('{invitation_id}', '{student1_id}', 'grandparent@example.com', 'Grandma Smith', 'abc123', 'pending')
-        """
-    })
-
-    # Try to cancel as student2
-    with client.session_transaction() as session:
-        session['user_id'] = student2_id
-
-    response = client.delete(f'/api/observers/invitations/{invitation_id}/cancel')
-
-    assert response.status_code == 404
+    assert response.status_code == 400, why
 
 
 @pytest.mark.integration
-def test_get_my_observers_success(client, test_supabase):
-    """Test student can view linked observers"""
-    student_id = str(uuid.uuid4())
-    observer_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
+def test_comment_length_is_capped(client, db, observer, student, link_observer, auth_headers_for):
+    link_observer(observer['id'], student['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Test Student', 'student'),
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer')
-        """
-    })
-
-    # Create observer-student link
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.get('/api/observers/my-observers')
-
-    assert response.status_code == 200
-    assert len(response.json['observers']) >= 1
-
-
-@pytest.mark.integration
-def test_remove_observer_success(client, test_supabase):
-    """Test student can remove observer access"""
-    student_id = str(uuid.uuid4())
-    observer_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Test Student', 'student'),
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.delete(f'/api/observers/{link_id}/remove')
-
-    assert response.status_code == 200
-    assert response.json['status'] == 'success'
-
-
-@pytest.mark.integration
-def test_remove_observer_wrong_student_fails(client, test_supabase):
-    """Test student cannot remove another student's observer link"""
-    student1_id = str(uuid.uuid4())
-    student2_id = str(uuid.uuid4())
-    observer_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student1_id}', 'student1@example.com', 'Student 1', 'student'),
-            ('{student2_id}', 'student2@example.com', 'Student 2', 'student'),
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer')
-        """
-    })
-
-    # Create link for student1
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student1_id}', 'grandparent', true, true)
-        """
-    })
-
-    # Try to remove as student2
-    with client.session_transaction() as session:
-        session['user_id'] = student2_id
-
-    response = client.delete(f'/api/observers/{link_id}/remove')
-
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
-def test_accept_invitation_creates_account(client, test_supabase):
-    """Test accepting invitation creates new observer account"""
-    student_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
-    invitation_code = 'test_code_' + str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create invitation with future expiry
-    expires_at = (datetime.utcnow() + timedelta(days=7)).isoformat()
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status, expires_at)
-            VALUES ('{invitation_id}', '{student_id}', 'newobserver@example.com', 'New Observer', '{invitation_code}', 'pending', '{expires_at}')
-        """
-    })
-
-    response = client.post(f'/api/observers/accept/{invitation_code}', json={
-        'first_name': 'New',
-        'last_name': 'Observer',
-        'relationship': 'grandparent'
-    })
-
-    assert response.status_code == 200
-    assert response.json['status'] == 'success'
-    assert 'observer_id' in response.json
-    assert response.json['student_id'] == student_id
-
-
-@pytest.mark.integration
-def test_accept_invitation_expired_fails(client, test_supabase):
-    """Test accepting expired invitation fails"""
-    student_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
-    invitation_code = 'expired_code_' + str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create invitation with past expiry
-    expires_at = (datetime.utcnow() - timedelta(days=1)).isoformat()
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status, expires_at)
-            VALUES ('{invitation_id}', '{student_id}', 'observer@example.com', 'Observer', '{invitation_code}', 'pending', '{expires_at}')
-        """
-    })
-
-    response = client.post(f'/api/observers/accept/{invitation_code}', json={
-        'relationship': 'grandparent'
-    })
+    response = _comment(client, auth_headers_for(observer['id']), student['id'], 'x' * 2001)
 
     assert response.status_code == 400
-    assert 'expired' in response.json.get('error', '').lower()
+    assert db.table('observer_comments').select('id').execute().data == []
 
 
 @pytest.mark.integration
-@pytest.mark.requires_db
-def test_accept_invitation_not_found(client):
-    """Test accepting non-existent invitation fails"""
-    response = client.post('/api/observers/accept/invalid_code_12345', json={
-        'relationship': 'grandparent'
-    })
+def test_a_comment_at_the_limit_is_accepted(client, observer, student, link_observer, auth_headers_for):
+    """2000 is allowed; 2001 is not. Pin the boundary, not just the rejection."""
+    link_observer(observer['id'], student['id'])
 
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
-def test_get_my_students_success(client, test_supabase):
-    """Test observer can view linked students"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create observer-student link
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    response = client.get('/api/observers/my-students')
+    response = _comment(client, auth_headers_for(observer['id']), student['id'], 'x' * 2000)
 
     assert response.status_code == 200
-    assert len(response.json['students']) >= 1
+
+
+# Reading comments
 
 
 @pytest.mark.integration
-def test_get_student_portfolio_success(client, test_supabase):
-    """Test observer can view student portfolio"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
+def test_a_student_can_read_comments_on_their_own_work(
+    client, observer, student, link_observer, auth_headers_for
+):
+    link_observer(observer['id'], student['id'])
+    _comment(client, auth_headers_for(observer['id']), student['id'], 'Well argued.')
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
+    response = client.get(
+        f'/api/observers/student/{student["id"]}/comments',
+        headers=auth_headers_for(student['id']),
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    # Mock get_diploma_data to avoid complex portfolio logic
-    with patch('routes.portfolio.get_diploma_data') as mock_portfolio:
-        mock_portfolio.return_value = {
-            'student': {'display_name': 'Test Student', 'portfolio_slug': 'test-student'},
-            'badges': [],
-            'quests': []
-        }
-
-        response = client.get(f'/api/observers/student/{student_id}/portfolio')
-
-        assert response.status_code == 200
-        assert 'student' in response.json
+    assert response.status_code == 200
+    assert 'Well argued.' in response.get_data(as_text=True)
 
 
 @pytest.mark.integration
-def test_get_student_portfolio_no_access_fails(client, test_supabase):
-    """Test observer cannot view portfolio without link"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
+def test_a_linked_observer_can_read_the_comment_thread(
+    client, observer, student, link_observer, auth_headers_for
+):
+    link_observer(observer['id'], student['id'])
+    _comment(client, auth_headers_for(observer['id']), student['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
+    response = client.get(
+        f'/api/observers/student/{student["id"]}/comments',
+        headers=auth_headers_for(observer['id']),
+    )
 
-    # No link created
+    assert response.status_code == 200
 
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
 
-    response = client.get(f'/api/observers/student/{student_id}/portfolio')
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_an_unlinked_observer_cannot_read_the_comment_thread(
+    client, observer, student, auth_headers_for
+):
+    response = client.get(
+        f'/api/observers/student/{student["id"]}/comments',
+        headers=auth_headers_for(observer['id']),
+    )
 
     assert response.status_code == 403
 
 
 @pytest.mark.integration
-def test_post_comment_success(client, test_supabase):
-    """Test observer can post comment on student work"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_one_student_cannot_read_another_students_comments(
+    client, make_user, auth_headers_for
+):
+    subject = make_user(role='student')
+    snooper = make_user(role='student')
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    response = client.post('/api/observers/comments', json={
-        'student_id': student_id,
-        'comment_text': 'Great work! So proud of you!'
-    })
-
-    assert response.status_code == 200
-    assert response.json['status'] == 'success'
-    assert 'comment' in response.json
-
-
-@pytest.mark.integration
-def test_post_comment_no_permission_fails(client, test_supabase):
-    """Test observer cannot comment without permission"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create link with can_comment = false
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', false, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    response = client.post('/api/observers/comments', json={
-        'student_id': student_id,
-        'comment_text': 'Great work!'
-    })
+    response = client.get(
+        f'/api/observers/student/{subject["id"]}/comments',
+        headers=auth_headers_for(snooper['id']),
+    )
 
     assert response.status_code == 403
 
 
-@pytest.mark.integration
-def test_post_comment_too_long_fails(client, test_supabase):
-    """Test posting comment over character limit fails"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    # Create comment over 2000 characters
-    long_comment = 'A' * 2001
-
-    response = client.post('/api/observers/comments', json={
-        'student_id': student_id,
-        'comment_text': long_comment
-    })
-
-    assert response.status_code == 400
-    assert '2000' in response.json.get('error', '')
+# Deleting comments
 
 
 @pytest.mark.integration
-def test_get_student_comments_as_student(client, test_supabase):
-    """Test student can view their own observer comments"""
-    student_id = str(uuid.uuid4())
-    observer_id = str(uuid.uuid4())
-    comment_id = str(uuid.uuid4())
+@pytest.mark.authorization
+def test_an_observer_cannot_delete_another_observers_comment(
+    client, db, make_user, student, link_observer, auth_headers_for
+):
+    author = make_user(role='observer')
+    intruder = make_user(role='observer')
+    link_observer(author['id'], student['id'])
+    link_observer(intruder['id'], student['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Test Student', 'student'),
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer')
-        """
-    })
+    posted = _comment(client, auth_headers_for(author['id']), student['id'])
+    assert posted.status_code == 200
+    comment_id = db.table('observer_comments').select('id').execute().data[0]['id']
 
-    # Create comment
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_comments
-            (id, observer_id, student_id, comment_text)
-            VALUES ('{comment_id}', '{observer_id}', '{student_id}', 'Great work!')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.get(f'/api/observers/student/{student_id}/comments')
-
-    assert response.status_code == 200
-    assert len(response.json['comments']) >= 1
-
-
-@pytest.mark.integration
-def test_get_student_comments_as_observer(client, test_supabase):
-    """Test observer can view student comments"""
-    student_id = str(uuid.uuid4())
-    observer_id = str(uuid.uuid4())
-    link_id = str(uuid.uuid4())
-    comment_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Test Student', 'student'),
-            ('{observer_id}', 'observer@example.com', 'Grandma Smith', 'observer')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_student_links
-            (id, observer_id, student_id, relationship, can_comment, can_view_evidence)
-            VALUES ('{link_id}', '{observer_id}', '{student_id}', 'grandparent', true, true)
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_comments
-            (id, observer_id, student_id, comment_text)
-            VALUES ('{comment_id}', '{observer_id}', '{student_id}', 'Great work!')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    response = client.get(f'/api/observers/student/{student_id}/comments')
-
-    assert response.status_code == 200
-    assert len(response.json['comments']) >= 1
-
-
-@pytest.mark.integration
-def test_get_student_comments_no_access_fails(client, test_supabase):
-    """Test unauthorized user cannot view student comments"""
-    student_id = str(uuid.uuid4())
-    unauthorized_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Test Student', 'student'),
-            ('{unauthorized_id}', 'unauthorized@example.com', 'Unauthorized', 'observer')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = unauthorized_id
-
-    response = client.get(f'/api/observers/student/{student_id}/comments')
+    response = client.delete(
+        f'/api/observers/comments/{comment_id}',
+        headers=auth_headers_for(intruder['id']),
+    )
 
     assert response.status_code == 403
+    # And the comment survives.
+    assert db.table('observer_comments').select('id').eq('id', comment_id).execute().data
 
 
 @pytest.mark.integration
-def test_get_pending_invitations_for_observer(client, test_supabase):
-    """Test observer can see pending invitations for their email"""
-    observer_id = str(uuid.uuid4())
-    student_id = str(uuid.uuid4())
-    invitation_id = str(uuid.uuid4())
+def test_an_observer_can_delete_their_own_comment(
+    client, db, observer, student, link_observer, auth_headers_for
+):
+    link_observer(observer['id'], student['id'])
+    _comment(client, auth_headers_for(observer['id']), student['id'])
+    comment_id = db.table('observer_comments').select('id').execute().data[0]['id']
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{observer_id}', 'observer@example.com', 'Observer', 'observer'),
-            ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
-
-    # Create pending invitation for observer's email
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.observer_invitations
-            (id, student_id, observer_email, observer_name, invitation_code, status)
-            VALUES ('{invitation_id}', '{student_id}', 'observer@example.com', 'Observer', 'abc123', 'pending')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = observer_id
-
-    response = client.get('/api/observers/pending-invitations')
+    response = client.delete(
+        f'/api/observers/comments/{comment_id}',
+        headers=auth_headers_for(observer['id']),
+    )
 
     assert response.status_code == 200
-    assert len(response.json['invitations']) >= 1
+    assert db.table('observer_comments').select('id').eq('id', comment_id).execute().data == []
+
+
+# Anonymous access
 
 
 @pytest.mark.integration
-def test_unauthenticated_requests_fail(client):
-    """Test all observer endpoints require authentication"""
-    fake_id = str(uuid.uuid4())
+@pytest.mark.security
+@pytest.mark.parametrize('method, path', [
+    ('post', '/api/observers/comments'),
+    ('get', '/api/observers/my-students'),
+    ('get', '/api/observers/pending-invitations'),
+    ('post', '/api/observers/generate-link'),
+])
+def test_observer_endpoints_reject_anonymous_callers(client, method, path):
+    response = getattr(client, method)(path, json={})
 
-    endpoints = [
-        # /api/observers/invite was replaced by /api/observers/family-invite.
-        ('POST', '/api/observers/family-invite', {'observer_email': 'test@example.com', 'observer_name': 'Test'}),
-        ('GET', '/api/observers/my-invitations', None),
-        ('DELETE', f'/api/observers/invitations/{fake_id}/cancel', None),
-        ('GET', '/api/observers/my-observers', None),
-        ('DELETE', f'/api/observers/{fake_id}/remove', None),
-        ('GET', '/api/observers/my-students', None),
-        ('GET', f'/api/observers/student/{fake_id}/portfolio', None),
-        ('POST', '/api/observers/comments', {'student_id': fake_id, 'comment_text': 'Test'}),
-        ('GET', f'/api/observers/student/{fake_id}/comments', None),
-        ('GET', '/api/observers/pending-invitations', None),
-    ]
-
-    for method, endpoint, data in endpoints:
-        if method == 'GET':
-            response = client.get(endpoint)
-        elif method == 'POST':
-            response = client.post(endpoint, json=data)
-        elif method == 'DELETE':
-            response = client.delete(endpoint)
-
-        assert response.status_code == 401, f"Endpoint {method} {endpoint} should require authentication"
-
-
-@pytest.mark.integration
-def test_observer_invitation_includes_link(client, test_supabase):
-    """Test observer invitation email includes proper invitation link"""
-    student_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, first_name, last_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'Test', 'Student', 'student')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    with patch('services.email_service.EmailService.send_templated_email') as mock_email:
-        mock_email.return_value = True
-
-        response = client.post('/api/observers/invite', json={
-            'observer_email': 'grandparent@example.com',
-            'observer_name': 'Grandma Smith'
-        })
-
-        assert response.status_code == 200
-
-        # Verify email was called with correct template and context
-        call_args = mock_email.call_args
-        assert call_args[1]['template_name'] == 'observer_invitation'
-        assert 'invitation_link' in call_args[1]['context']
-        assert 'student_name' in call_args[1]['context']
-        assert 'observer_name' in call_args[1]['context']
+    assert response.status_code == 401

@@ -1,341 +1,182 @@
-"""
-Integration tests for quest completion flow.
+"""Integration tests for task completion and XP.
 
-Tests the complete quest completion system including:
-- Starting quests
-- Completing tasks with evidence
-- XP award to correct pillar
-- Race condition prevention
-- Quest completion bonus calculation
-- Quest abandonment
+XP is the platform's ledger: it drives levels, badges, and the 1000-XP class
+credit target. These check that completing a task credits the right pillar
+exactly once, and that a replayed completion cannot mint more.
+
+Ported 2026-08-13 -- see backend/tests/integration/README.md.
 """
+
+import uuid
 
 import pytest
-import json
-import uuid
-from datetime import datetime
 
-from utils.logger import get_logger
-
-# NOT YET PORTED -- quarantined, not silently skipped.
-#
-# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
-# that has never existed in any Optio database) and authenticates by setting
-# `session['user_id']` (which require_auth does not read). It cannot pass
-# against a database; wiring one up would turn these skips into errors.
-#
-# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
-# their shape. backend/tests/integration/README.md has the three defects and the
-# per-file plan. Porting this file means deleting this marker.
-pytestmark = pytest.mark.skip(
-    reason='Not yet ported to the real fixtures -- see '
-           'backend/tests/integration/README.md'
-)
+pytestmark = pytest.mark.requires_db
 
 
-logger = get_logger(__name__)
+@pytest.fixture
+def enrolled(db, student, make_quest):
+    """A student enrolled in a quest, with one task ready to complete.
+
+    Mirrors the real row shape: user_quest_tasks hangs off a user_quests row
+    (user_quest_id is NOT NULL), which is what enrolment creates.
+    """
+    quest = make_quest(title='XP Quest')
+
+    user_quest = {
+        'id': str(uuid.uuid4()),
+        'user_id': student['id'],
+        'quest_id': quest['id'],
+        'is_active': True,
+    }
+    db.table('user_quests').insert(user_quest).execute()
+
+    def _task(pillar='stem', xp_value=100, **fields):
+        row = {
+            'id': str(uuid.uuid4()),
+            'user_id': student['id'],
+            'quest_id': quest['id'],
+            'user_quest_id': user_quest['id'],
+            'title': 'Build something',
+            'pillar': pillar,
+            'xp_value': xp_value,
+        }
+        row.update(fields)
+        db.table('user_quest_tasks').insert(row).execute()
+        return row
+
+    return {'student': student, 'quest': quest, 'user_quest': user_quest, 'task': _task}
 
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_start_quest_creates_user_quest(client, test_user, test_quest, test_supabase):
-    """Test starting a quest creates user_quest record"""
-    quest_data, _ = test_quest
+def _complete(client, headers, task_id, **body):
+    """POST a completion.
 
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Start quest
-    response = client.post(f'/api/quests/{quest_data["id"]}/start', json={})
-
-    # Should succeed or return conflict if already started
-    assert response.status_code in [200, 201, 409]
-
-    if response.status_code in [200, 201]:
-        # Verify user_quest created in test schema
-        result = test_supabase.rpc('execute_sql', {
-            'query': f"""
-                SELECT * FROM test_schema.user_quests
-                WHERE user_id = '{test_user['id']}' AND quest_id = '{quest_data['id']}'
-            """
-        })
-        # User quest should exist
-        assert result is not None
+    This endpoint reads request.form, not JSON -- it accepts file uploads for
+    image/document evidence -- so the body goes as form data. Sending JSON gets
+    "Evidence type is required" because request.form is empty.
+    """
+    payload = {'evidence_type': 'text', 'text_content': 'Here is what I made.'}
+    payload.update(body)
+    # Content-Type must come from the form encoding, not the JSON default the
+    # auth_headers_for helper sets.
+    form_headers = {k: v for k, v in headers.items() if k.lower() != 'content-type'}
+    return client.post(f'/api/tasks/{task_id}/complete', headers=form_headers, data=payload)
 
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_task_completion_awards_xp(client, test_user, test_quest, test_supabase):
-    """Test completing a task awards XP to the correct pillar"""
-    quest_data, task_template = test_quest
-
-    # Create user quest first
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
-
-    # Create task for this user
-    task_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quest_tasks
-            (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required)
-            VALUES ('{task_id}', '{test_user['id']}', '{quest_data['id']}', '{user_quest_id}',
-                    'Test Task', 'A test task', 'stem', 100, 1, true)
-        """
-    })
-
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Complete task
-    response = client.post(f'/api/tasks/{task_id}/complete', json={
-        'evidence_text': 'I completed this task successfully!'
-    })
-
-    # Should succeed
-    assert response.status_code in [200, 201]
-
-    if response.status_code in [200, 201]:
-        # Verify XP was awarded
-        assert 'xp_awarded' in response.json or 'xp' in response.json
+def _xp_for(db, user_id, pillar):
+    rows = db.table('user_skill_xp').select('xp_amount') \
+        .eq('user_id', user_id).eq('pillar', pillar).execute().data
+    return rows[0]['xp_amount'] if rows else 0
 
 
 @pytest.mark.integration
 @pytest.mark.critical
-def test_duplicate_task_completion_prevented(client, test_user, test_quest, test_supabase):
-    """Test that completing the same task twice is prevented (race condition protection)"""
-    quest_data, task_template = test_quest
+def test_completing_a_task_records_the_completion(client, db, enrolled, auth_headers_for):
+    task = enrolled['task']()
+    student = enrolled['student']
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    response = _complete(client, auth_headers_for(student['id']), task['id'])
 
-    # Create task
-    task_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quest_tasks
-            (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required)
-            VALUES ('{task_id}', '{test_user['id']}', '{quest_data['id']}', '{user_quest_id}',
-                    'Test Task', 'A test task', 'stem', 100, 1, true)
-        """
-    })
-
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Complete task first time
-    response1 = client.post(f'/api/tasks/{task_id}/complete', json={
-        'evidence_text': 'First completion'
-    })
-
-    # Should succeed
-    assert response1.status_code in [200, 201]
-
-    # Try to complete same task again
-    response2 = client.post(f'/api/tasks/{task_id}/complete', json={
-        'evidence_text': 'Second completion attempt'
-    })
-
-    # Should be rejected (already completed or conflict)
-    assert response2.status_code in [400, 409]
+    assert response.status_code == 200, response.get_data(as_text=True)
+    completions = db.table('quest_task_completions').select('user_id, task_id') \
+        .eq('user_id', student['id']).execute().data
+    assert len(completions) == 1
+    assert completions[0]['task_id'] == task['id']
 
 
 @pytest.mark.integration
-def test_quest_completion_bonus_calculated(client, test_user, test_quest, test_supabase):
-    """Test that quest completion bonus (50%) is calculated correctly"""
-    quest_data, task_template = test_quest
+@pytest.mark.critical
+def test_completing_a_task_credits_its_own_pillar(client, db, enrolled, auth_headers_for):
+    """XP lands on the task's pillar. Mis-crediting silently skews the whole
+    diploma picture, and nothing downstream would notice."""
+    task = enrolled['task'](pillar='stem', xp_value=100)
+    student = enrolled['student']
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    _complete(client, auth_headers_for(student['id']), task['id'])
 
-    # Create multiple tasks (3 tasks * 100 XP = 300 base XP)
-    tasks = []
-    for i in range(3):
-        task_id = str(uuid.uuid4())
-        test_supabase.rpc('execute_sql', {
-            'query': f"""
-                INSERT INTO test_schema.user_quest_tasks
-                (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required)
-                VALUES ('{task_id}', '{test_user['id']}', '{quest_data['id']}', '{user_quest_id}',
-                        'Test Task {i}', 'A test task', 'stem', 100, {i+1}, true)
-            """
-        })
-        tasks.append(task_id)
-
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Complete all tasks
-    for task_id in tasks:
-        response = client.post(f'/api/tasks/{task_id}/complete', json={
-            'evidence_text': f'Completed task {task_id}'
-        })
-        assert response.status_code in [200, 201]
-
-    # Last task completion should trigger quest completion with bonus
-    # 300 base XP * 1.5 (50% bonus) = 450 XP total
-    # Bonus = 150 XP (rounded to nearest 50 = 150)
+    assert _xp_for(db, student['id'], 'stem') == 100
+    assert _xp_for(db, student['id'], 'wellness') == 0
 
 
 @pytest.mark.integration
-def test_quest_abandonment(client, test_user, test_quest, test_supabase):
-    """Test that a user can abandon a quest"""
-    quest_data, _ = test_quest
+@pytest.mark.critical
+def test_a_task_cannot_be_completed_twice_for_double_xp(client, db, enrolled, auth_headers_for):
+    """Replaying the request is the cheapest way to farm XP, so the second one
+    must not add to the ledger."""
+    task = enrolled['task'](pillar='stem', xp_value=100)
+    student = enrolled['student']
+    headers = auth_headers_for(student['id'])
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    first = _complete(client, headers, task['id'])
+    assert first.status_code == 200
 
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
+    _complete(client, headers, task['id'])
 
-    # Abandon quest
-    response = client.delete(f'/api/quests/{quest_data["id"]}/abandon')
-
-    # Should succeed
-    assert response.status_code in [200, 204, 404]
+    completions = db.table('quest_task_completions').select('id') \
+        .eq('user_id', student['id']).eq('task_id', task['id']).execute().data
+    assert len(completions) == 1, 'the task was completed twice'
+    assert _xp_for(db, student['id'], 'stem') == 100, 'XP was awarded twice'
 
 
 @pytest.mark.integration
-def test_evidence_document_upload(client, test_user, test_quest, test_supabase):
-    """Test uploading evidence document for task completion"""
-    quest_data, task_template = test_quest
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_student_cannot_complete_another_students_task(
+    client, db, enrolled, make_user, auth_headers_for
+):
+    task = enrolled['task']()
+    intruder = make_user(role='student')
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    response = _complete(client, auth_headers_for(intruder['id']), task['id'])
 
-    # Create task
-    task_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quest_tasks
-            (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required)
-            VALUES ('{task_id}', '{test_user['id']}', '{quest_data['id']}', '{user_quest_id}',
-                    'Test Task', 'A test task', 'stem', 100, 1, true)
-        """
-    })
-
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Complete task with evidence URL
-    response = client.post(f'/api/tasks/{task_id}/complete', json={
-        'evidence_text': 'My evidence description',
-        'evidence_url': 'https://example.com/my-evidence.pdf'
-    })
-
-    # Should succeed
-    assert response.status_code in [200, 201]
+    assert response.status_code in (403, 404)
+    assert db.table('quest_task_completions').select('id') \
+        .eq('user_id', intruder['id']).execute().data == []
 
 
 @pytest.mark.integration
-def test_xp_distributed_to_correct_pillar(client, test_user, test_quest, test_supabase):
-    """Test that XP is distributed to the task's specific pillar"""
-    quest_data, _ = test_quest
+@pytest.mark.security
+def test_completing_a_task_requires_authentication(client, enrolled):
+    task = enrolled['task']()
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    response = client.post(
+        f'/api/tasks/{task["id"]}/complete',
+        data={'evidence_type': 'text', 'text_content': 'x'},
+    )
 
-    # Create tasks in different pillars
-    pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-    tasks = []
-
-    for i, pillar in enumerate(pillars):
-        task_id = str(uuid.uuid4())
-        test_supabase.rpc('execute_sql', {
-            'query': f"""
-                INSERT INTO test_schema.user_quest_tasks
-                (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required)
-                VALUES ('{task_id}', '{test_user['id']}', '{quest_data['id']}', '{user_quest_id}',
-                        'Test Task {pillar}', 'A test task', '{pillar}', 100, {i+1}, true)
-            """
-        })
-        tasks.append((task_id, pillar))
-
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Complete one task from each pillar
-    for task_id, pillar in tasks:
-        response = client.post(f'/api/tasks/{task_id}/complete', json={
-            'evidence_text': f'Completed {pillar} task'
-        })
-
-        assert response.status_code in [200, 201]
-
-        # Verify XP went to correct pillar (if response includes this info)
-        if response.status_code == 200:
-            data = response.json
-            if 'pillar' in data:
-                assert data['pillar'] == pillar
+    assert response.status_code == 401
 
 
 @pytest.mark.integration
-def test_get_quest_progress(client, test_user, test_quest, test_supabase):
-    """Test retrieving quest progress for a user"""
-    quest_data, _ = test_quest
+def test_completing_an_unknown_task_is_not_a_server_error(client, student, auth_headers_for):
+    response = _complete(client, auth_headers_for(student['id']), str(uuid.uuid4()))
 
-    # Create user quest
-    user_quest_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.user_quests (id, user_id, quest_id, is_active, started_at)
-            VALUES ('{user_quest_id}', '{test_user['id']}', '{quest_data['id']}', true, NOW())
-        """
-    })
+    assert response.status_code in (403, 404), \
+        f'expected a clean refusal, got {response.status_code}'
 
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
 
-    # Get quest progress
-    response = client.get(f'/api/quests/{quest_data["id"]}/progress')
+@pytest.mark.integration
+def test_xp_accumulates_across_tasks_in_the_same_pillar(client, db, enrolled, auth_headers_for):
+    student = enrolled['student']
+    headers = auth_headers_for(student['id'])
+    first = enrolled['task'](pillar='stem', xp_value=100)
+    second = enrolled['task'](pillar='stem', xp_value=50)
 
-    # Should succeed or return 404 if endpoint doesn't exist
-    assert response.status_code in [200, 404]
+    _complete(client, headers, first['id'])
+    _complete(client, headers, second['id'])
 
-    if response.status_code == 200:
-        data = response.json
-        # Should contain progress information
-        assert 'progress' in data or 'completed' in data or 'tasks' in data
+    assert _xp_for(db, student['id'], 'stem') == 150
+
+
+@pytest.mark.integration
+def test_tasks_in_different_pillars_are_tracked_separately(client, db, enrolled, auth_headers_for):
+    student = enrolled['student']
+    headers = auth_headers_for(student['id'])
+    stem = enrolled['task'](pillar='stem', xp_value=100)
+    wellness = enrolled['task'](pillar='wellness', xp_value=25)
+
+    _complete(client, headers, stem['id'])
+    _complete(client, headers, wellness['id'])
+
+    assert _xp_for(db, student['id'], 'stem') == 100
+    assert _xp_for(db, student['id'], 'wellness') == 25

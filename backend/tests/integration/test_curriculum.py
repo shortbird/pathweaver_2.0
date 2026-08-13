@@ -17,20 +17,6 @@ import re
 
 from utils.logger import get_logger
 
-# NOT YET PORTED -- quarantined, not silently skipped.
-#
-# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
-# that has never existed in any Optio database) and authenticates by setting
-# `session['user_id']` (which require_auth does not read). It cannot pass
-# against a database; wiring one up would turn these skips into errors.
-#
-# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
-# their shape. backend/tests/integration/README.md has the three defects and the
-# per-file plan. Porting this file means deleting this marker.
-pytestmark = pytest.mark.skip(
-    reason='Not yet ported to the real fixtures -- see '
-           'backend/tests/integration/README.md'
-)
 
 
 logger = get_logger(__name__)
@@ -169,63 +155,6 @@ def test_file_type_validation_allows_safe_types():
 # ==================== Permission Tests ====================
 
 @pytest.mark.integration
-@pytest.mark.critical
-@pytest.mark.authorization
-def test_curriculum_edit_requires_advisor_role(client, test_user):
-    """Test that only advisors and admins can edit curriculum"""
-    # Student user should be rejected
-    response = client.post('/api/curriculum/quests', json={
-        'title': 'Test Quest',
-        'description': 'Test description',
-        'organization_id': test_user['organization_id']
-    })
-
-    # Should be 403 Forbidden for students
-    assert response.status_code in [401, 403]
-
-
-@pytest.mark.integration
-@pytest.mark.critical
-@pytest.mark.authorization
-def test_advisor_can_create_curriculum(client, test_advisor):
-    """Test that advisors can create custom quests"""
-    response = client.post('/api/curriculum/quests', json={
-        'title': 'Custom Quest',
-        'description': 'A custom learning path',
-        'organization_id': test_advisor['organization_id'],
-        'tasks': [
-            {
-                'title': 'Task 1',
-                'description': 'Learn something',
-                'pillar': 'knowledge',
-                'xp_value': 50
-            }
-        ]
-    })
-
-    # Should succeed for advisors (if mocked properly)
-    # In real implementation, would return 201
-    assert response.status_code in [200, 201, 401]  # 401 if not fully mocked
-
-
-@pytest.mark.integration
-@pytest.mark.authorization
-def test_advisor_cannot_edit_other_org_curriculum(client, test_advisor):
-    """Test that advisors can only edit curriculum in their organization"""
-    other_org_id = 'different-org-uuid'
-
-    response = client.post('/api/curriculum/quests', json={
-        'title': 'Cross-Org Quest',
-        'description': 'Should fail',
-        'organization_id': other_org_id
-    })
-
-    assert response.status_code in [403, 401]
-
-
-# ==================== Content Auto-Save Tests ====================
-
-@pytest.mark.integration
 @pytest.mark.skip(reason="No draft/autosave implementation exists: CurriculumService has no save_draft and there is no drafts table. This describes a feature, not a regression.")
 def test_curriculum_auto_save_creates_draft():
     """Test that auto-save creates a draft version"""
@@ -313,46 +242,6 @@ def test_markdown_script_injection_prevention():
 
 # ==================== API Endpoint Tests ====================
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_create_quest_endpoint_validates_required_fields(client, test_advisor):
-    """Test that quest creation validates required fields"""
-    # Missing title
-    response = client.post('/api/curriculum/quests', json={
-        'description': 'No title provided'
-    })
-
-    assert response.status_code in [400, 401]
-
-    if response.status_code == 400:
-        assert 'title' in str(response.json).lower()
-
-
-@pytest.mark.integration
-def test_delete_quest_requires_author_permission(client, test_advisor):
-    """Test that only quest author or admin can delete quest"""
-    quest_id = 'someone-elses-quest'
-
-    response = client.delete(f'/api/curriculum/quests/{quest_id}')
-
-    # Should be forbidden or not found
-    assert response.status_code in [401, 403, 404]
-
-
-@pytest.mark.integration
-def test_upload_attachment_validates_content_type(client, test_advisor):
-    """Test that file uploads validate content type"""
-    # Would test with multipart/form-data in real implementation
-    response = client.post('/api/curriculum/quests/test-id/attachments',
-                          data='invalid',
-                          content_type='text/plain')
-
-    # Should reject non-multipart uploads
-    assert response.status_code in [400, 401, 415]
-
-
-# ==================== Fixtures ====================
-
 @pytest.fixture
 def test_advisor(test_supabase):
     """Create a test advisor user"""
@@ -392,3 +281,18 @@ def create_test_task(quest_id, title, pillar='knowledge', xp_value=50):
         'xp_value': xp_value,
         'content_markdown': ''
     }
+
+
+# Six tests were removed here on 2026-08-13 rather than ported:
+# test_advisor_can_create_curriculum, test_advisor_cannot_edit_other_org_curriculum,
+# test_curriculum_edit_requires_advisor_role, test_create_quest_endpoint_validates_required_fields,
+# test_delete_quest_requires_author_permission, test_upload_attachment_validates_content_type.
+#
+# They posted to /api/curriculum/quests and /api/curriculum/quests/<id>/attachments,
+# neither of which exists any more, and seeded through the `execute_sql` RPC that
+# never existed at all. Rewriting them would have meant inventing endpoints.
+#
+# What remains are genuine unit tests of CurriculumService.validate_iframe_urls
+# and utils.rich_text.sanitize -- pure functions that never needed a database.
+# They were marked requires_db and so had not run since the marker was added;
+# they now run in the ordinary backend suite on every push.

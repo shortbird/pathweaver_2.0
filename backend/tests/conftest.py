@@ -283,6 +283,9 @@ _RESET_TABLES = (
     'user_skill_xp',
     'parent_student_links',
     'parent_invitations',
+    'observer_comments',
+    'advisor_student_assignments',
+    'observer_invitation_students',
     'observer_student_links',
     'observer_invitations',
     'login_attempts',
@@ -293,6 +296,7 @@ _RESET_TABLES = (
     'curriculum_lessons',
     'quests',
     'users',
+    'organizations',
 )
 
 
@@ -435,13 +439,39 @@ def parent(make_user):
 
 
 @pytest.fixture
+def make_org(db):
+    """An organization, for the org-scoped surfaces (announcements, SIS, quest
+    invitations). Slug is unique per call so tests never collide."""
+    def _make(name='Test Org', **fields):
+        row = {
+            'id': str(uuid.uuid4()),
+            'name': name,
+            'slug': f'test-org-{uuid.uuid4().hex[:10]}',
+        }
+        row.update(fields)
+        db.table('organizations').insert(row).execute()
+        return row
+
+    return _make
+
+
+@pytest.fixture
 def make_quest(db):
-    """Factory for an active quest."""
+    """Factory for an active quest.
+
+    quest_type is set explicitly and must stay that way: the column DEFAULT is
+    `'custom'::quest_source`, but `check_quest_type` only allows
+    optio/course/class, so any insert that omits it dies with 23514. Every
+    application call site happens to set it, which is the only reason this
+    hasn't surfaced in production -- but a new insert that leans on the default
+    will fail, and the error names the constraint rather than the default.
+    """
     def _make(**fields):
         row = {
             'id': str(uuid.uuid4()),
             'title': 'Test Quest',
             'description': 'A quest for integration testing',
+            'quest_type': 'optio',
             'is_active': True,
         }
         row.update(fields)

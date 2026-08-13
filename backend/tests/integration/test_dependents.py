@@ -1,624 +1,345 @@
-"""
-Integration tests for Dependent Profiles API.
+"""Integration tests for parent-managed dependent accounts.
 
-Tests the complete dependent profiles system including:
-- Creating dependent profiles (parent-only)
-- Retrieving dependent profiles
-- Updating dependent profiles
-- Deleting dependent profiles
-- Promoting dependents to independent accounts at age 13
-- Generating acting-as tokens for parents
-- COPPA compliance (age restrictions, no email/password for under 13)
+A dependent is a child account a parent creates and controls (`is_dependent`,
+`managed_by_parent_id`). The boundary that matters: a parent may act on their
+own dependents and no one else's. These run against a real database.
+
+Ported 2026-08-13 -- see backend/tests/integration/README.md for what was wrong
+with the originals.
 """
+
+import uuid
 
 import pytest
-import json
-import uuid
-from datetime import datetime, timedelta
-from unittest.mock import patch
 
-from utils.logger import get_logger
-
-# NOT YET PORTED -- quarantined, not silently skipped.
-#
-# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
-# that has never existed in any Optio database) and authenticates by setting
-# `session['user_id']` (which require_auth does not read). It cannot pass
-# against a database; wiring one up would turn these skips into errors.
-#
-# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
-# their shape. backend/tests/integration/README.md has the three defects and the
-# per-file plan. Porting this file means deleting this marker.
-pytestmark = pytest.mark.skip(
-    reason='Not yet ported to the real fixtures -- see '
-           'backend/tests/integration/README.md'
-)
+pytestmark = pytest.mark.requires_db
 
 
-logger = get_logger(__name__)
+@pytest.fixture
+def make_dependent(db):
+    """A child account owned by `parent_id`.
+
+    Mirrors DependentRepository.create_dependent exactly, because the schema
+    enforces the shape: `check_dependent_no_email` requires
+    is_dependent=false OR email IS NULL, and public.users.id is FK'd to
+    auth.users(id). So a dependent is a stub auth account on a placeholder
+    address plus a public.users row with a NULL email -- COPPA: the child has
+    no login and no contactable address of their own.
+    """
+    def _make(parent_id, display_name='Test Child', **fields):
+        placeholder = f'dependent_{uuid.uuid4().hex}@optio-internal-placeholder.local'
+        auth_user = db.auth.admin.create_user({
+            'email': placeholder,
+            'email_confirm': False,
+            'user_metadata': {'is_dependent': True, 'managed_by_parent_id': parent_id},
+        })
+        row = {
+            'id': auth_user.user.id,
+            'display_name': display_name,
+            'first_name': display_name.split()[0],
+            'last_name': ' '.join(display_name.split()[1:]) or 'Child',
+            'email': None,
+            'role': 'student',
+            'is_dependent': True,
+            'managed_by_parent_id': parent_id,
+        }
+        row.update(fields)
+        db.table('users').insert(row).execute()
+        return row
+
+    return _make
+
+
+def _create_payload(**overrides):
+    """Body for POST /api/dependents/create.
+
+    Note there are two creation endpoints with different contracts: `/create`
+    takes display_name (the COPPA dependent profile) while `/add-child` takes
+    first_name/last_name/email and branches on age. These target `/create`.
+    """
+    payload = {
+        'display_name': 'Test Child',
+        'date_of_birth': '2018-05-04',
+    }
+    payload.update(overrides)
+    return payload
+
+
+# Creating
 
 
 @pytest.mark.integration
 @pytest.mark.critical
-def test_create_dependent_success(client, test_supabase):
-    """Test parent can successfully create a dependent profile"""
-    # Create parent user
-    parent_id = str(uuid.uuid4())
-    parent_data = {
-        'id': parent_id,
-        'email': f'parent_{uuid.uuid4().hex[:8]}@example.com',
-        'display_name': 'Test Parent',
-        'first_name': 'Test',
-        'last_name': 'Parent',
-        'role': 'parent',
-    }
+def test_a_parent_can_create_a_dependent(client, db, parent, auth_headers_for):
+    response = client.post(
+        '/api/dependents/create',
+        headers=auth_headers_for(parent['id']),
+        json=_create_payload(display_name='Ada'),
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, first_name, last_name, role)
-            VALUES ('{parent_data['id']}', '{parent_data['email']}', '{parent_data['display_name']}',
-                    '{parent_data['first_name']}', '{parent_data['last_name']}', '{parent_data['role']}')
-        """
-    })
+    assert response.status_code in (200, 201), response.get_data(as_text=True)
 
-    # Simulate authenticated parent
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    # Create dependent
-    response = client.post('/api/dependents/create', json={
-        'display_name': 'Child User',
-        'date_of_birth': '2015-06-15'
-    })
-
-    assert response.status_code == 201
-    assert response.json['success'] is True
-    assert response.json['dependent']['display_name'] == 'Child User'
-    assert response.json['dependent']['is_dependent'] is True
-    assert response.json['dependent']['managed_by_parent_id'] == parent_id
+    rows = db.table('users').select('id, display_name, is_dependent, managed_by_parent_id') \
+        .eq('managed_by_parent_id', parent['id']).execute().data
+    assert len(rows) == 1
+    assert rows[0]['display_name'] == 'Ada'
+    # Both flags matter: is_dependent drives the UI, managed_by_parent_id is the
+    # authorization edge. A row with one and not the other is a security hole.
+    assert rows[0]['is_dependent'] is True
 
 
 @pytest.mark.integration
-def test_create_dependent_non_parent_fails(client, test_supabase):
-    """Test non-parent user cannot create dependent"""
-    # Create student user
-    student_id = str(uuid.uuid4())
-    student_data = {
-        'id': student_id,
-        'email': f'student_{uuid.uuid4().hex[:8]}@example.com',
-        'display_name': 'Test Student',
-        'role': 'student',
-    }
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_data['id']}', '{student_data['email']}',
-                    '{student_data['display_name']}', '{student_data['role']}')
-        """
-    })
-
-    # Simulate authenticated student
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    # Try to create dependent
-    response = client.post('/api/dependents/create', json={
-        'display_name': 'Child User',
-        'date_of_birth': '2015-06-15'
-    })
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_student_cannot_create_a_dependent(client, db, student, auth_headers_for):
+    """Only parents manage children. A student minting dependents would be an
+    unbounded account-creation primitive."""
+    response = client.post(
+        '/api/dependents/create',
+        headers=auth_headers_for(student['id']),
+        json=_create_payload(),
+    )
 
     assert response.status_code == 403
-    assert 'Only parent or admin accounts' in response.json.get('error', '')
+    assert db.table('users').select('id').eq('managed_by_parent_id', student['id']).execute().data == []
 
 
 @pytest.mark.integration
-def test_create_dependent_missing_fields(client, test_supabase):
-    """Test creating dependent without required fields fails"""
-    # Create parent user
-    parent_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
+@pytest.mark.parametrize('missing', ['display_name', 'date_of_birth'])
+def test_creating_a_dependent_requires_name_and_birthdate(client, parent, auth_headers_for, missing):
+    payload = _create_payload()
+    del payload[missing]
 
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
+    response = client.post(
+        '/api/dependents/create',
+        headers=auth_headers_for(parent['id']),
+        json=payload,
+    )
 
-    # Missing display_name
-    response = client.post('/api/dependents/create', json={
-        'date_of_birth': '2015-06-15'
-    })
     assert response.status_code == 400
-    assert 'display_name is required' in response.json.get('error', '')
-
-    # Missing date_of_birth
-    response = client.post('/api/dependents/create', json={
-        'display_name': 'Child User'
-    })
-    assert response.status_code == 400
-    assert 'date_of_birth is required' in response.json.get('error', '')
 
 
 @pytest.mark.integration
-def test_create_dependent_invalid_date_format(client, test_supabase):
-    """Test creating dependent with invalid date format fails"""
-    parent_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    # Invalid date format
-    response = client.post('/api/dependents/create', json={
-        'display_name': 'Child User',
-        'date_of_birth': '06/15/2015'  # Wrong format, should be YYYY-MM-DD
-    })
+def test_creating_a_dependent_rejects_a_malformed_birthdate(client, parent, auth_headers_for):
+    response = client.post(
+        '/api/dependents/create',
+        headers=auth_headers_for(parent['id']),
+        json=_create_payload(date_of_birth='05/04/2018'),
+    )
 
     assert response.status_code == 400
-    assert 'YYYY-MM-DD' in response.json.get('error', '')
+
+
+# Listing and reading
 
 
 @pytest.mark.integration
-def test_get_my_dependents_success(client, test_supabase):
-    """Test parent can retrieve all their dependents"""
-    # Create parent user
-    parent_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
+@pytest.mark.critical
+def test_my_dependents_returns_only_this_parents_children(
+    client, parent, make_user, make_dependent, auth_headers_for
+):
+    mine = make_dependent(parent['id'], display_name='Mine')
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'], display_name='Theirs')
 
-    # Create two dependents for this parent
-    dependent1_id = str(uuid.uuid4())
-    dependent2_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES
-            ('{dependent1_id}', 'Child 1', 'student', true, '{parent_id}', '2015-01-01'),
-            ('{dependent2_id}', 'Child 2', 'student', true, '{parent_id}', '2016-02-02')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.get('/api/dependents/my-dependents')
+    response = client.get('/api/dependents/my-dependents', headers=auth_headers_for(parent['id']))
 
     assert response.status_code == 200
-    assert response.json['success'] is True
-    assert response.json['count'] == 2
-    assert len(response.json['dependents']) == 2
+    body = response.get_data(as_text=True)
+    assert mine['id'] in body
+    assert theirs['id'] not in body, "another parent's child leaked into the list"
 
 
 @pytest.mark.integration
-def test_get_my_dependents_non_parent_fails(client, test_supabase):
-    """Test non-parent cannot retrieve dependents"""
-    student_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Test Student', 'student')
-        """
-    })
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_parent_cannot_read_another_parents_dependent(
+    client, parent, make_user, make_dependent, auth_headers_for
+):
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'])
 
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
+    response = client.get(
+        f'/api/dependents/{theirs["id"]}',
+        headers=auth_headers_for(parent['id']),
+    )
 
-    response = client.get('/api/dependents/my-dependents')
-
-    assert response.status_code == 403
+    assert response.status_code in (403, 404)
 
 
 @pytest.mark.integration
-def test_get_specific_dependent_success(client, test_supabase):
-    """Test parent can retrieve a specific dependent"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+def test_a_parent_can_read_their_own_dependent(client, parent, make_dependent, auth_headers_for):
+    child = make_dependent(parent['id'], display_name='Grace Hopper')
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2015-06-15')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.get(f'/api/dependents/{dependent_id}')
+    response = client.get(
+        f'/api/dependents/{child["id"]}',
+        headers=auth_headers_for(parent['id']),
+    )
 
     assert response.status_code == 200
-    assert response.json['success'] is True
-    assert response.json['dependent']['id'] == dependent_id
-    assert response.json['dependent']['display_name'] == 'Child User'
+    assert 'Grace' in response.get_data(as_text=True)
+
+
+# Updating and deleting
 
 
 @pytest.mark.integration
-def test_get_dependent_wrong_parent_fails(client, test_supabase):
-    """Test parent cannot access another parent's dependent"""
-    parent1_id = str(uuid.uuid4())
-    parent2_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_parent_cannot_update_another_parents_dependent(
+    client, db, parent, make_user, make_dependent, auth_headers_for
+):
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'], display_name='Untouched')
 
-    # Create two parents
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{parent1_id}', 'parent1@example.com', 'Parent 1', 'parent'),
-            ('{parent2_id}', 'parent2@example.com', 'Parent 2', 'parent')
-        """
-    })
+    response = client.put(
+        f'/api/dependents/{theirs["id"]}',
+        headers=auth_headers_for(parent['id']),
+        json={'display_name': 'Hijacked'},
+    )
 
-    # Create dependent owned by parent1
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent1_id}', '2015-06-15')
-        """
-    })
-
-    # Try to access as parent2
-    with client.session_transaction() as session:
-        session['user_id'] = parent2_id
-
-    response = client.get(f'/api/dependents/{dependent_id}')
-
-    assert response.status_code == 404  # Permission error returns 404
+    assert response.status_code in (403, 404)
+    row = db.table('users').select('display_name').eq('id', theirs['id']).execute().data[0]
+    assert row['display_name'] == 'Untouched'
 
 
 @pytest.mark.integration
-def test_update_dependent_success(client, test_supabase):
-    """Test parent can update dependent profile"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_updating_a_dependent_cannot_change_its_owner(
+    client, db, parent, make_user, make_dependent, auth_headers_for
+):
+    """Re-parenting a child by request body would let anyone adopt any account."""
+    attacker = make_user(role='parent')
+    child = make_dependent(parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
+    client.put(
+        f'/api/dependents/{child["id"]}',
+        headers=auth_headers_for(parent['id']),
+        json={'managed_by_parent_id': attacker['id'], 'role': 'superadmin'},
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2015-06-15')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.put(f'/api/dependents/{dependent_id}', json={
-        'display_name': 'Updated Child Name',
-        'bio': 'Loves science and art'
-    })
-
-    assert response.status_code == 200
-    assert response.json['success'] is True
-    assert response.json['dependent']['display_name'] == 'Updated Child Name'
+    row = db.table('users').select('managed_by_parent_id, role') \
+        .eq('id', child['id']).execute().data[0]
+    assert row['managed_by_parent_id'] == parent['id']
+    assert row['role'] != 'superadmin'
 
 
 @pytest.mark.integration
-def test_update_dependent_disallowed_fields(client, test_supabase):
-    """Test updating dependent with disallowed fields is rejected"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.authorization
+def test_a_parent_cannot_delete_another_parents_dependent(
+    client, db, parent, make_user, make_dependent, auth_headers_for
+):
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
+    response = client.delete(
+        f'/api/dependents/{theirs["id"]}',
+        headers=auth_headers_for(parent['id']),
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2015-06-15')
-        """
-    })
+    assert response.status_code in (403, 404)
+    assert db.table('users').select('id').eq('id', theirs['id']).execute().data
 
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
 
-    # Try to update disallowed fields (like email, role)
-    response = client.put(f'/api/dependents/{dependent_id}', json={
-        'email': 'hacker@evil.com',
-        'role': 'admin'
-    })
-
-    # Should fail validation (no allowed fields provided)
-    assert response.status_code == 400
-    assert 'At least one valid field' in response.json.get('error', '')
+# Promotion to a standalone account
 
 
 @pytest.mark.integration
-def test_delete_dependent_success(client, test_supabase):
-    """Test parent can delete dependent profile"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.security
+def test_promoting_a_dependent_rejects_a_weak_password(
+    client, parent, make_dependent, auth_headers_for
+):
+    child = make_dependent(parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2015-06-15')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.delete(f'/api/dependents/{dependent_id}')
-
-    assert response.status_code == 200
-    assert response.json['success'] is True
-    assert 'deleted' in response.json['message'].lower()
-
-
-@pytest.mark.integration
-def test_delete_dependent_wrong_parent_fails(client, test_supabase):
-    """Test parent cannot delete another parent's dependent"""
-    parent1_id = str(uuid.uuid4())
-    parent2_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{parent1_id}', 'parent1@example.com', 'Parent 1', 'parent'),
-            ('{parent2_id}', 'parent2@example.com', 'Parent 2', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent1_id}', '2015-06-15')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent2_id
-
-    response = client.delete(f'/api/dependents/{dependent_id}')
-
-    assert response.status_code == 404  # Permission error returns 404
-
-
-@pytest.mark.integration
-def test_promote_dependent_success(client, test_supabase):
-    """Test promoting eligible dependent (age 13+) to independent account"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
-
-    # Calculate date that makes child exactly 13 years old
-    thirteen_years_ago = (datetime.now() - timedelta(days=13*365)).strftime('%Y-%m-%d')
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '{thirteen_years_ago}')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    # Mock Supabase auth to avoid actual account creation
-    with patch('repositories.dependent_repository.get_supabase_admin_client') as mock_client:
-        # Setup mock to return success
-        mock_response = type('obj', (object,), {'data': [{'id': dependent_id, 'email': None}]})()
-        mock_client.return_value.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
-
-        response = client.post(f'/api/dependents/{dependent_id}/promote', json={
-            'email': 'newchild@example.com',
-            'password': 'StrongP@ssw0rd123!'
-        })
-
-        # May succeed or fail depending on repository implementation
-        assert response.status_code in [200, 400, 500]
-
-
-@pytest.mark.integration
-def test_promote_dependent_weak_password_fails(client, test_supabase):
-    """Test promoting dependent with weak password fails"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
-
-    thirteen_years_ago = (datetime.now() - timedelta(days=13*365)).strftime('%Y-%m-%d')
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '{thirteen_years_ago}')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.post(f'/api/dependents/{dependent_id}/promote', json={
-        'email': 'newchild@example.com',
-        'password': 'weak'  # Too short, no special chars, etc.
-    })
+    response = client.post(
+        f'/api/dependents/{child["id"]}/promote',
+        headers=auth_headers_for(parent['id']),
+        json={'email': f'grown_{uuid.uuid4().hex[:8]}@example.com', 'password': 'weak'},
+    )
 
     assert response.status_code == 400
-    assert 'password' in response.json.get('error', '').lower()
 
 
 @pytest.mark.integration
-def test_promote_dependent_missing_email_fails(client, test_supabase):
-    """Test promoting dependent without email fails"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+def test_promoting_a_dependent_requires_an_email(client, parent, make_dependent, auth_headers_for):
+    child = make_dependent(parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2012-01-01')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    response = client.post(f'/api/dependents/{dependent_id}/promote', json={
-        'password': 'StrongP@ssw0rd123!'
-    })
+    response = client.post(
+        f'/api/dependents/{child["id"]}/promote',
+        headers=auth_headers_for(parent['id']),
+        json={'password': 'StrongP@ssw0rd123!'},
+    )
 
     assert response.status_code == 400
-    assert 'email is required' in response.json.get('error', '')
 
 
 @pytest.mark.integration
-def test_generate_acting_as_token_success(client, test_supabase):
-    """Test parent can generate acting-as token for their dependent"""
-    parent_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.authorization
+def test_a_parent_cannot_promote_another_parents_dependent(
+    client, parent, make_user, make_dependent, auth_headers_for
+):
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Test Parent', 'parent')
-        """
-    })
+    response = client.post(
+        f'/api/dependents/{theirs["id"]}/promote',
+        headers=auth_headers_for(parent['id']),
+        json={'email': f'x_{uuid.uuid4().hex[:8]}@example.com', 'password': 'StrongP@ssw0rd123!'},
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent_id}', '2015-06-15')
-        """
-    })
+    assert response.status_code in (403, 404)
 
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
 
-    response = client.post(f'/api/dependents/{dependent_id}/act-as')
-
-    assert response.status_code == 200
-    assert response.json['success'] is True
-    assert 'acting_as_token' in response.json
-    assert response.json['dependent_id'] == dependent_id
+# Acting as a dependent
 
 
 @pytest.mark.integration
-def test_generate_acting_as_token_wrong_parent_fails(client, test_supabase):
-    """Test parent cannot generate acting-as token for another parent's dependent"""
-    parent1_id = str(uuid.uuid4())
-    parent2_id = str(uuid.uuid4())
-    dependent_id = str(uuid.uuid4())
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_parent_cannot_act_as_another_parents_dependent(
+    client, parent, make_user, make_dependent, auth_headers_for
+):
+    """An acting-as token is a full session for the child. Issuing one for
+    somebody else's child is account takeover."""
+    other_parent = make_user(role='parent')
+    theirs = make_dependent(other_parent['id'])
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{parent1_id}', 'parent1@example.com', 'Parent 1', 'parent'),
-            ('{parent2_id}', 'parent2@example.com', 'Parent 2', 'parent')
-        """
-    })
+    response = client.post(
+        f'/api/dependents/{theirs["id"]}/act-as',
+        headers=auth_headers_for(parent['id']),
+        json={},
+    )
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, display_name, role, is_dependent, managed_by_parent_id, date_of_birth)
-            VALUES ('{dependent_id}', 'Child User', 'student', true, '{parent1_id}', '2015-06-15')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent2_id
-
-    response = client.post(f'/api/dependents/{dependent_id}/act-as')
-
-    assert response.status_code == 403
+    assert response.status_code in (403, 404)
 
 
 @pytest.mark.integration
-def test_unauthenticated_requests_fail(client):
-    """Test all dependent endpoints require authentication"""
-    fake_id = str(uuid.uuid4())
+@pytest.mark.authorization
+def test_a_student_cannot_act_as_a_dependent(
+    client, student, parent, make_dependent, auth_headers_for
+):
+    child = make_dependent(parent['id'])
 
-    endpoints = [
-        ('GET', '/api/dependents/my-dependents', None),
-        ('POST', '/api/dependents/create', {'display_name': 'Test', 'date_of_birth': '2015-01-01'}),
-        ('GET', f'/api/dependents/{fake_id}', None),
-        ('PUT', f'/api/dependents/{fake_id}', {'display_name': 'Updated'}),
-        ('DELETE', f'/api/dependents/{fake_id}', None),
-        ('POST', f'/api/dependents/{fake_id}/promote', {'email': 'test@example.com', 'password': 'Test123!'}),
-        # Needs a JSON body: the content-type gate answers 400 before
-        # @require_auth is reached, which would mask the 401 under test.
-        ('POST', f'/api/dependents/{fake_id}/act-as', {}),
-    ]
+    response = client.post(
+        f'/api/dependents/{child["id"]}/act-as',
+        headers=auth_headers_for(student['id']),
+        json={},
+    )
 
-    for method, endpoint, data in endpoints:
-        if method == 'GET':
-            response = client.get(endpoint)
-        elif method == 'POST':
-            response = client.post(endpoint, json=data)
-        elif method == 'PUT':
-            response = client.put(endpoint, json=data)
-        elif method == 'DELETE':
-            response = client.delete(endpoint)
+    assert response.status_code in (403, 404)
 
-        assert response.status_code == 401, f"Endpoint {method} {endpoint} should require authentication"
+
+# Anonymous access
+
+
+@pytest.mark.integration
+@pytest.mark.security
+@pytest.mark.parametrize('method, path', [
+    ('get', '/api/dependents/my-dependents'),
+    ('post', '/api/dependents/create'),
+])
+def test_dependent_endpoints_reject_anonymous_callers(client, method, path):
+    response = getattr(client, method)(path, json={})
+
+    assert response.status_code == 401

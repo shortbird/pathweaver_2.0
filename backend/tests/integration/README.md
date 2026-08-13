@@ -8,22 +8,24 @@ production data.
 
 ## Status
 
-| File | Tests | State |
-|---|---|---|
-| `test_auth_flow.py` | 21 | **Ported, green, enforcing** |
-| `test_parental_consent.py` | 22 | **Ported, green, enforcing** |
-| `test_observer.py` | 22 | Quarantined |
-| `test_dependents.py` | 17 | Quarantined |
-| `test_parent_dashboard.py` | 17 | Quarantined |
-| `test_announcements.py` | 12 | Quarantined |
-| `test_quest_invitations.py` | 11 | Quarantined |
-| `test_quest_completion.py` | 8 | Quarantined |
-| `test_curriculum.py` | 6 | Quarantined |
-| `test_api_endpoints.py` | 12 | Quarantined |
+**All eight files are ported. 128 integration tests run on every PR, enforcing.**
 
-Quarantined files carry an explicit `pytestmark = pytest.mark.skip(...)`. They
-are not merely unrun — in their current form they **cannot pass against any
-database**, so wiring one up would turn skips into errors.
+| File | Tests | Covers |
+|---|---|---|
+| `test_auth_flow.py` | 21 | Login, registration, CSRF, token refresh, admin boundary |
+| `test_parental_consent.py` | 22 | COPPA: token hashing, single use, replay, admin review |
+| `test_observer.py` | 19 | FERPA-adjacent: per-student link scoping, comment permissions |
+| `test_dependents.py` | 18 | Parent-child ownership, promotion, acting-as |
+| `test_quest_invitations.py` | 11 | Per-student invitation ownership, accept/decline |
+| `test_parent_dashboard.py` | 10 | Cross-account exposure on the parent surfaces |
+| `test_announcements.py` | 9 | Cross-organization isolation |
+| `test_api_endpoints.py` | 9 | Health, quest listing, anonymous-access sweep |
+| `test_quest_completion.py` | 8 | XP ledger: correct pillar, no double-award |
+| `test_curriculum.py` | 8 + 3 skipped | iframe/markdown sanitisation (pure functions, no DB) |
+
+`test_curriculum.py` no longer requires a database — it was always testing pure
+functions and had been sitting behind `requires_db`, so it had not run at all.
+It now runs in the ordinary backend suite on every push.
 
 ## What was wrong with the originals
 
@@ -91,10 +93,22 @@ Rules learned the hard way:
   [supabase/ci/test_helpers.sql](../../../supabase/ci/test_helpers.sql) and
   `_RESET_TABLES` in `conftest.py`.
 
-Porting a file means deleting its quarantine marker. Suggested order, highest
-regulatory and safety weight first: `test_observer.py` (FERPA-adjacent access
-scoping), `test_dependents.py`, `test_parent_dashboard.py` (cross-account
-exposure), then the rest.
+Two more fixtures worth knowing: `make_org(name=...)` for the org-scoped
+surfaces, and `make_quest` — which sets `quest_type` explicitly on purpose, since
+the column DEFAULT (`'custom'`) violates the `check_quest_type` constraint that
+only allows optio/course/class.
+
+**Endpoints move.** Several files here tested URLs that no longer exist
+(`/api/observers/invite`, `/api/parents/invite`, `/api/curriculum/quests`,
+`/api/users/dashboard`). Check the route actually exists before porting a test
+for it — `app.url_map` is the fastest source of truth:
+
+```python
+python -c "from app import app; print([str(r) for r in app.url_map.iter_rules() if 'quest' in str(r)])"
+```
+
+Tests for deleted endpoints were removed rather than rewritten against invented
+URLs, with a note in the file recording what went and why.
 
 ## Running locally
 

@@ -1,157 +1,90 @@
-"""Integration tests for API endpoints"""
+"""Integration smoke tests for the core API surface.
+
+Thin on purpose: health, the quest list, and the authentication boundary on a
+few representative endpoints. Deep behaviour lives in the focused files
+(test_auth_flow, test_quest_completion, test_observer, ...).
+
+Ported 2026-08-13. The original was mock-based despite living in
+tests/integration and being marked requires_db -- it patched
+`mock_supabase`/`mock_verify_token` and then asserted on the mock, so it would
+have passed against a database that did not exist. Half its endpoints
+(/api/users/dashboard, /api/users/profile, /api/users/completed-quests,
+/api/admin/ai-review-queue, POST /api/quests) have since been removed, and
+those tests are gone rather than rewritten against invented URLs.
+See backend/tests/integration/README.md.
+"""
 
 import pytest
-import json
-from unittest.mock import Mock, patch
 
-from utils.logger import get_logger
+pytestmark = pytest.mark.requires_db
 
-# Every test here drives the real app end-to-end: /api/health pings the
-# database, login and profile reads go through PostgREST. They need a live
-# stack, not mocks.
-# NOT YET PORTED -- quarantined, not silently skipped.
-#
-# This file still seeds through `test_supabase.rpc('execute_sql', ...)` (an RPC
-# that has never existed in any Optio database) and authenticates by setting
-# `session['user_id']` (which require_auth does not read). It cannot pass
-# against a database; wiring one up would turn these skips into errors.
-#
-# test_auth_flow.py and test_parental_consent.py are ported and green -- copy
-# their shape. backend/tests/integration/README.md has the three defects and the
-# per-file plan. Porting this file means deleting this marker.
-pytestmark = pytest.mark.skip(
-    reason='Not yet ported to the real fixtures -- see '
-           'backend/tests/integration/README.md'
-)
 
-logger = get_logger(__name__)
-
-def test_health_check(client):
-    """Test health check endpoint"""
+@pytest.mark.integration
+@pytest.mark.critical
+def test_health_reports_the_database_as_reachable(client):
+    """/api/health is what the post-deploy smoke check polls, and it pings the
+    database -- so against a live stack it must come back healthy, not merely
+    respond."""
     response = client.get('/api/health')
+
     assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['status'] == 'healthy'
+    body = response.get_json() or {}
+    assert body, 'health returned no JSON body'
+    text = response.get_data(as_text=True).lower()
+    assert 'unhealthy' not in text and 'error' not in text, text[:300]
 
-def test_login_with_valid_credentials(client, mock_supabase):
-    """Test login endpoint with valid credentials"""
-    mock_supabase.auth.sign_in_with_password.return_value.user = Mock(id='test-user-123')
-    mock_supabase.auth.sign_in_with_password.return_value.session = Mock(access_token='test-token')
-    
-    response = client.post('/api/auth/login', 
-        json={
-            'email': 'test@example.com',
-            'password': 'Test1234!'
-        }
-    )
-    
-    assert response.status_code in [200, 401]  # Depends on mock setup
 
-def test_get_quests_without_auth(client):
-    """Test getting quests without authentication"""
+@pytest.mark.integration
+def test_health_names_the_running_commit(client):
+    """release.yml's smoke job waits for /api/health to report the deployed SHA.
+    If the field disappears, that job waits 20 minutes and then fails the
+    release for the wrong reason."""
+    body = client.get('/api/health').get_json() or {}
+
+    assert 'commit' in body, f'health payload lost its commit field: {sorted(body)}'
+
+
+@pytest.mark.integration
+def test_the_quest_list_is_public(client):
+    """Browsing quests deliberately needs no account -- it is the shop window.
+    Pinned so the intent is explicit: if a future change adds @require_auth
+    here, that is a product decision, not an accident.
+    """
     response = client.get('/api/quests')
-    assert response.status_code in [200, 401]  # Public endpoint or requires auth
 
-def test_get_quests_with_auth(client, auth_headers, mock_verify_token, mock_supabase):
-    """Test getting quests with authentication"""
-    mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
-    
-    response = client.get('/api/quests', headers=auth_headers)
-    assert response.status_code in [200, 401]
+    assert response.status_code == 200
 
-def test_create_quest_as_admin(client, auth_headers, mock_verify_token, mock_auth_supabase, admin_user):
-    """Test creating a quest as admin"""
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = admin_user
-    
-    quest_data = {
-        'title': 'New Test Quest',
-        'description': 'This is a test quest',
-        'primary_skill': 'creativity',
-        'difficulty_level': 'beginner',
-        'xp_reward': 100
-    }
-    
-    response = client.post('/api/quests', 
-        headers=auth_headers,
-        json=quest_data
-    )
-    
-    assert response.status_code in [201, 401, 403]
 
-def test_get_user_dashboard(client, auth_headers, mock_verify_token, mock_auth_supabase):
-    """Test getting user dashboard"""
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
-        'id': 'test-user-123',
-        'display_name': 'Test User',
-        'email': 'test@example.com'
-    }
-    
-    response = client.get('/api/users/dashboard', headers=auth_headers)
-    assert response.status_code in [200, 401]
+@pytest.mark.integration
+def test_an_authenticated_student_can_list_quests(client, student, auth_headers_for):
+    response = client.get('/api/quests', headers=auth_headers_for(student['id']))
 
-def test_submit_quest_completion(client, auth_headers, mock_verify_token, mock_auth_supabase):
-    """Test submitting a quest completion"""
-    submission_data = {
-        'evidence': 'Here is my work',
-        'reflection': 'I learned a lot',
-        'time_spent_minutes': 30
-    }
-    
-    response = client.post('/api/quests/quest-123/complete',
-        headers=auth_headers,
-        json=submission_data
-    )
-    
-    assert response.status_code in [200, 201, 400, 401, 404]
+    assert response.status_code == 200
 
-def test_get_user_profile(client, auth_headers, mock_verify_token, mock_auth_supabase):
-    """Test getting user profile"""
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
-        'id': 'test-user-123',
-        'display_name': 'Test User',
-        'email': 'test@example.com',
-        'bio': 'Test bio'
-    }
-    
-    response = client.get('/api/users/profile', headers=auth_headers)
-    assert response.status_code in [200, 401]
 
-def test_update_user_profile(client, auth_headers, mock_verify_token, mock_auth_supabase):
-    """Test updating user profile"""
-    profile_data = {
-        'display_name': 'Updated Name',
-        'bio': 'Updated bio'
-    }
-    
-    response = client.put('/api/users/profile',
-        headers=auth_headers,
-        json=profile_data
-    )
-    
-    assert response.status_code in [200, 400, 401]
+@pytest.mark.integration
+def test_an_active_quest_appears_in_the_list(client, student, make_quest, auth_headers_for):
+    # The listing filters is_active AND is_public; a quest missing either is
+    # invisible, which is easy to mistake for a broken endpoint.
+    quest = make_quest(title='Findable Quest', is_active=True, is_public=True)
 
-def test_get_completed_quests(client, auth_headers, mock_verify_token, mock_auth_supabase):
-    """Test getting completed quests"""
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
-    
-    response = client.get('/api/users/completed-quests', headers=auth_headers)
-    assert response.status_code in [200, 401]
+    response = client.get('/api/quests', headers=auth_headers_for(student['id']))
 
-def test_admin_get_ai_queue(client, auth_headers, mock_verify_token, mock_auth_supabase, admin_user):
-    """Test admin getting AI review queue"""
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = admin_user
-    mock_auth_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
-    
-    response = client.get('/api/admin/ai-review-queue', headers=auth_headers)
-    assert response.status_code in [200, 401, 403]
+    assert response.status_code == 200
+    assert quest['id'] in response.get_data(as_text=True)
 
-def test_rate_limiting(client):
-    """Test rate limiting functionality"""
-    # Make multiple requests quickly
-    responses = []
-    for _ in range(10):
-        response = client.get('/api/health')
-        responses.append(response.status_code)
-    
-    # All should be successful (rate limiting may not be enabled in test)
-    assert all(status in [200, 429] for status in responses)
+
+@pytest.mark.integration
+@pytest.mark.security
+@pytest.mark.parametrize('method, path', [
+    ('get', '/api/auth/me'),
+    ('get', '/api/dependents/my-dependents'),
+    ('get', '/api/observers/my-students'),
+    ('get', '/api/admin/users'),
+])
+def test_protected_endpoints_reject_anonymous_callers(client, method, path):
+    """One sweep across the surfaces, so a route that loses its @require_auth in
+    a refactor fails here even if its own file's tests are still green."""
+    response = getattr(client, method)(path)
+
+    assert response.status_code == 401, f'{method.upper()} {path} served an anonymous caller'

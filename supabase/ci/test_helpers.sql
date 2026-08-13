@@ -32,6 +32,9 @@ declare
     'user_skill_xp',
     'parent_student_links',
     'parent_invitations',
+    'observer_comments',
+    'advisor_student_assignments',
+    'observer_invitation_students',
     'observer_student_links',
     'observer_invitations',
     'login_attempts',
@@ -41,9 +44,11 @@ declare
     'curriculum_lesson_tasks',
     'curriculum_lessons',
     'quests',
-    'users'
+    'users',
+    'organizations'
   ];
   present text;
+  attempt int;
 begin
   -- Only truncate what this schema actually has, so the helper survives tables
   -- being added or renamed without failing every test with a 42P01.
@@ -54,7 +59,28 @@ begin
      and table_name = any(target_tables);
 
   if present is not null then
-    execute format('truncate %s restart identity cascade', present);
+    -- TRUNCATE takes an AccessExclusiveLock, which conflicts with the row locks
+    -- PostgREST's pooled connections still hold from the request the test just
+    -- made. That deadlocks (40P01) intermittently -- and an intermittently
+    -- failing reset is worse than a slow one, because it fails a test that has
+    -- nothing to do with the problem.
+    --
+    -- lock_timeout turns the wait into a fast, catchable error, and the retry
+    -- loop rides out the window where the previous request's connection is
+    -- still settling.
+    for attempt in 1..5 loop
+      begin
+        set local lock_timeout = '2s';
+        execute format('truncate %s restart identity cascade', present);
+        exit;
+      exception
+        when deadlock_detected or lock_not_available then
+          if attempt = 5 then
+            raise;
+          end if;
+          perform pg_sleep(0.1 * attempt);
+      end;
+    end loop;
   end if;
 
   -- public.users.id references auth.users(id) on delete cascade, so the auth
