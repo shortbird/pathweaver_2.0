@@ -265,3 +265,39 @@ class TestTheTemplateFlag:
 
         assert captured['payload']['items'][0]['signature'] is None
         assert captured['payload']['items'][0]['needs_signature'] is True
+
+
+@pytest.mark.unit
+class TestClearingSignatures:
+    def test_admin_can_clear_a_signature(self):
+        signed_item = _item(status='complete', signature={'name': 'Karina Worlton', 'signed_at': '2026-08-12T10:00:00Z'})
+        assignment = _assignment([signed_item])
+        client = Mock()
+        table = Mock()
+        for chained in ('select', 'eq', 'limit', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[assignment])
+        client.table.return_value = table
+
+        with patch.object(onboarding, '_admin', return_value=client):
+            res = onboarding.update_item(ORG, ASSIGNMENT_ID, 'contract', {'clear_signature': True}, actor_id='admin_1', is_admin=True)
+
+        assert res.get('error') is None
+        items = res['assignment']['items']
+        assert items[0]['signature'] is None
+        assert items[0]['status'] == 'pending'
+
+    def test_non_admin_cannot_clear_a_signature(self):
+        signed_item = _item(status='complete', signature={'name': 'Karina Worlton', 'signed_at': '2026-08-12T10:00:00Z'})
+        assignment = _assignment([signed_item])
+        client = Mock()
+        table = Mock()
+        for chained in ('select', 'eq', 'limit', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[assignment])
+        client.table.return_value = table
+
+        with patch.object(onboarding, '_admin', return_value=client):
+            res = onboarding.update_item(ORG, ASSIGNMENT_ID, 'contract', {'clear_signature': True}, actor_id=SIGNER, is_admin=False)
+
+        assert res.get('error') == 'Only an administrator can clear a signature'

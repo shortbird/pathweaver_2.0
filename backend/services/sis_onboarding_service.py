@@ -402,6 +402,18 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     if not target:
         return {'error': 'Item not found'}
 
+    if fields.get('clear_signature'):
+        if not is_admin:
+            return {'error': 'Only an administrator can clear a signature'}
+        target['signature'] = None
+        target['status'] = 'pending'
+        target['submitted_at'] = None
+        target['approved_by'] = None
+        target['approved_at'] = None
+        if is_admin and 'admin_notes' in fields:
+            target['admin_notes'] = (fields.get('admin_notes') or '').strip() or None
+        return {'assignment': _save_items(assignment, items)}
+
     status = fields.get('status')
     if status and status not in ITEM_STATUSES:
         return {'error': 'Invalid status'}

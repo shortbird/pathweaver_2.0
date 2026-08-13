@@ -392,6 +392,19 @@ const AdminOnboarding = ({ orgId }) => {
     }
   }
 
+  const clearSignature = async (assignmentId, itemKey, signerName) => {
+    if (!window.confirm(`Clear ${signerName ? `${signerName}'s` : 'the'} signature on this item? They will need to sign again.`)) return
+    try {
+      await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
+        organization_id: orgId, clear_signature: true,
+      })
+      toast.success('Signature cleared')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not clear signature')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -488,17 +501,31 @@ const AdminOnboarding = ({ orgId }) => {
               </summary>
               <ul className="px-3 pb-3 divide-y divide-gray-100">
                 {(a.items || []).map((item) => (
-                  <li key={item.key} className="py-2 flex items-center gap-2 text-sm">
+                  <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-neutral-800">{item.title}</span>
                     <ItemBadge status={item.status} />
-                    {item.needs_approval && item.status === 'complete' && (
-                      <span className="ml-auto flex gap-2">
-                        <button onClick={() => reviewItem(a.id, item.key, 'approved')}
-                          className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
-                        <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
-                          className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
+                    {item.signature?.name && (
+                      <span className="text-xs text-neutral-500">
+                        Signed by <span className="font-medium text-neutral-700">{item.signature.name}</span>
+                        {item.signature.signed_at ? ` on ${new Date(item.signature.signed_at).toLocaleDateString()}` : ''}
                       </span>
                     )}
+                    <span className="ml-auto flex items-center gap-2">
+                      {item.signature && (
+                        <button onClick={() => clearSignature(a.id, item.key, item.signature.name)}
+                          className="text-xs text-red-600 font-medium hover:underline">
+                          Clear signature
+                        </button>
+                      )}
+                      {item.needs_approval && item.status === 'complete' && (
+                        <>
+                          <button onClick={() => reviewItem(a.id, item.key, 'approved')}
+                            className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+                          <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
+                            className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
+                        </>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
