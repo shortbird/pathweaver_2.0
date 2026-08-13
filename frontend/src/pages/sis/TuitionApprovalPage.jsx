@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
@@ -43,6 +43,10 @@ const TuitionApprovalPage = () => {
   const [sending, setSending] = useState(false)
   const [previewing, setPreviewing] = useState(false)
 
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('default')
+  const previewRef = useRef(null)
+
   const loadQueue = useCallback(() => {
     if (!orgId) { setQueue([]); return }
     setQueue(null)
@@ -67,9 +71,34 @@ const TuitionApprovalPage = () => {
           class_id: li.class_id || null,
         })))
         setDiscountStr('0'); setNote(''); setDueDate('')
+        if (typeof previewRef.current?.scrollIntoView === 'function') {
+          previewRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        }
       })
       .catch(() => { toast.error('Failed to load the invoice preview'); setSelectedId(null) })
   }, [orgId])
+
+  const filteredQueue = useMemo(() => {
+    if (!queue) return null
+    let list = [...queue]
+    const q = search.trim().toLowerCase()
+    if (q) {
+      list = list.filter((s) =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.household_name || '').toLowerCase().includes(q)
+      )
+    }
+    if (sort === 'name_asc') {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    } else if (sort === 'name_desc') {
+      list.sort((a, b) => (b.name || '').localeCompare(a.name || ''))
+    } else if (sort === 'amount_desc') {
+      list.sort((a, b) => (b.estimated_total_cents || 0) - (a.estimated_total_cents || 0))
+    } else if (sort === 'amount_asc') {
+      list.sort((a, b) => (a.estimated_total_cents || 0) - (b.estimated_total_cents || 0))
+    }
+    return list
+  }, [queue, search, sort])
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + toCents(l.amountStr), 0), [lines])
   const discountCents = Math.max(0, Math.min(toCents(discountStr), subtotal))
@@ -153,48 +182,105 @@ const TuitionApprovalPage = () => {
         against their schedule, adjust it if needed, and send the invoice to the family.
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] items-start gap-6">
         {/* ── Queue ─────────────────────────────────────────────────────── */}
-        <div>
-          {queue === null && <p className="text-neutral-500">Loading…</p>}
-          {queue?.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-neutral-500">
-              No students are waiting for a tuition invoice. Mark a CLP done and the student appears here.
-            </div>
-          )}
+        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] flex flex-col min-h-0">
           {!!queue?.length && (
-            <div className="space-y-2">
-              {queue.map((s) => {
-                const active = s.student_id === selectedId
-                return (
+            <div className="mb-3 space-y-2 pb-1 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    className={`${field} w-full pr-7 text-xs`}
+                    placeholder="Search name or family…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-xs px-1"
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <select
+                  className={`${field} text-xs py-2`}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort queue"
+                >
+                  <option value="default">Default order</option>
+                  <option value="name_asc">Name (A–Z)</option>
+                  <option value="name_desc">Name (Z–A)</option>
+                  <option value="amount_desc">Amount (High–Low)</option>
+                  <option value="amount_asc">Amount (Low–High)</option>
+                </select>
+              </div>
+              {search && (
+                <div className="text-xs text-neutral-500 flex items-center justify-between px-0.5">
+                  <span>Showing {filteredQueue?.length || 0} of {queue.length}</span>
                   <button
-                    key={s.student_id}
-                    onClick={() => selectStudent(s.student_id)}
-                    className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${active
-                      ? 'border-optio-purple bg-[#F7F2FB]'
-                      : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                    onClick={() => setSearch('')}
+                    className="text-optio-purple hover:underline"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-neutral-900">{s.name}</span>
-                      <span className="text-sm font-semibold text-neutral-700">{money(s.estimated_total_cents)}</span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
-                      <span>{s.household_name || 'No family'}</span>
-                      <span>·</span>
-                      <span>{s.class_count} {s.class_count === 1 ? 'class' : 'classes'}</span>
-                      {s.pay_through_ufa && (
-                        <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">UFA</span>
-                      )}
-                    </div>
+                    Clear search
                   </button>
-                )
-              })}
+                </div>
+              )}
             </div>
           )}
+
+          <div className="overflow-y-auto space-y-2 pr-1 min-h-0 flex-1">
+            {queue === null && <p className="text-neutral-500">Loading…</p>}
+            {queue?.length === 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-neutral-500">
+                No students are waiting for a tuition invoice. Mark a CLP done and the student appears here.
+              </div>
+            )}
+            {!!queue?.length && filteredQueue?.length === 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-sm text-neutral-500">
+                <p>No students match &ldquo;{search}&rdquo;.</p>
+                <button
+                  onClick={() => setSearch('')}
+                  className="mt-2 text-xs font-medium text-optio-purple hover:underline"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
+            {!!filteredQueue?.length && filteredQueue.map((s) => {
+              const active = s.student_id === selectedId
+              return (
+                <button
+                  key={s.student_id}
+                  onClick={() => selectStudent(s.student_id)}
+                  className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${active
+                    ? 'border-optio-purple bg-[#F7F2FB]'
+                    : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-neutral-900">{s.name}</span>
+                    <span className="text-sm font-semibold text-neutral-700">{money(s.estimated_total_cents)}</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
+                    <span>{s.household_name || 'No family'}</span>
+                    <span>·</span>
+                    <span>{s.class_count} {s.class_count === 1 ? 'class' : 'classes'}</span>
+                    {s.pay_through_ufa && (
+                      <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">UFA</span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* ── Invoice preview + editor ──────────────────────────────────── */}
-        <div>
+        <div ref={previewRef} className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
           {!selectedId && (
             <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-neutral-500">
               Select a student to preview their tuition invoice.
