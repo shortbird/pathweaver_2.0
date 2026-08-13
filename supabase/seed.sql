@@ -2,21 +2,50 @@
 -- This file populates a fresh branch with test data for development
 -- Run automatically when branch is created/reset, or manually via:
 --   psql $DATABASE_URL -f supabase/seed.sql
+--
+-- 2026-08-12: first version of this file that has actually executed — Supabase
+-- preview branches never got past migrations until the baseline landed, so the
+-- inserts below were never validated. Fixed against the real schema:
+-- auth.users rows first (public.users.id FKs auth.users), the real
+-- parent_student_links / observer_student_links column names, explicit
+-- user_quests ids (user_quest_tasks.user_quest_id is NOT NULL), and the
+-- current pillar values (stem/art/communication/civics/wellness).
+
+-- ============================================================================
+-- AUTH USERS (public.users.id references auth.users.id)
+-- ============================================================================
+-- DB-level rows only; enough for FKs and for GoTrue to list them. To log in,
+-- set a real password via the Dashboard or the app's registration flow.
+INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
+                        email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+                        created_at, updated_at)
+SELECT '00000000-0000-0000-0000-000000000000', v.id, 'authenticated', 'authenticated',
+       v.email, '', NOW(),
+       '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, NOW(), NOW()
+FROM (VALUES
+  ('11111111-1111-1111-1111-111111111111'::uuid, 'test-superadmin@optioeducation.com'),
+  ('22222222-2222-2222-2222-222222222222'::uuid, 'test-student@example.com'),
+  ('33333333-3333-3333-3333-333333333333'::uuid, 'test-parent@example.com'),
+  ('44444444-4444-4444-4444-444444444444'::uuid, 'test-advisor@example.com'),
+  ('55555555-5555-5555-5555-555555555555'::uuid, 'test-observer@example.com'),
+  ('66666666-6666-6666-6666-666666666666'::uuid, 'org-admin@test-academy.com'),
+  ('77777777-7777-7777-7777-777777777777'::uuid, 'org-student@test-academy.com'),
+  ('88888888-8888-8888-8888-888888888888'::uuid, 'org-advisor@test-academy.com'),
+  ('99999999-9999-9999-9999-999999999999'::uuid, 'child@example.com')
+) AS v(id, email)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- ORGANIZATIONS
 -- ============================================================================
 INSERT INTO organizations (id, name, slug, quest_visibility_policy, is_active) VALUES
   ('00000000-0000-0000-0000-000000000001', 'Test Academy', 'test-academy', 'all_optio', true),
-  ('00000000-0000-0000-0000-000000000002', 'Demo High School', 'demo-high', 'org_only', true)
+  ('00000000-0000-0000-0000-000000000002', 'Demo High School', 'demo-high', 'curated', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- TEST USERS
 -- ============================================================================
--- Note: These users need corresponding entries in auth.users for login to work.
--- For local development, you can create them via the Supabase Dashboard or
--- use the registration flow.
 
 -- Platform Users (no organization)
 INSERT INTO users (id, email, display_name, first_name, last_name, role, total_xp, level, tutorial_completed_at) VALUES
@@ -52,7 +81,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Dependent Child (managed by parent)
 INSERT INTO users (id, email, display_name, first_name, last_name, role, is_dependent, managed_by_parent_id, total_xp, level, tutorial_completed_at) VALUES
-  ('99999999-9999-9999-9999-999999999999', 'child@example.com', 'Test Child', 'Test', 'Child', 'student', true, '33333333-3333-3333-3333-333333333333', 100, 1, NOW())
+  ('99999999-9999-9999-9999-999999999999', NULL, 'Test Child', 'Test', 'Child', 'student', true, '33333333-3333-3333-3333-333333333333', 100, 1, NOW())
 ON CONFLICT (id) DO UPDATE SET
   email = EXCLUDED.email,
   display_name = EXCLUDED.display_name,
@@ -64,11 +93,11 @@ ON CONFLICT (id) DO UPDATE SET
 -- ============================================================================
 INSERT INTO quests (id, title, description, big_idea, quest_type, is_active, is_public, created_by) VALUES
   -- Public Quest
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Learn to Code', 'Introduction to programming fundamentals', 'Programming opens doors to creativity and problem-solving', 'standard', true, true, '11111111-1111-1111-1111-111111111111'),
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Learn to Code', 'Introduction to programming fundamentals', 'Programming opens doors to creativity and problem-solving', 'optio', true, true, '11111111-1111-1111-1111-111111111111'),
   -- Standard Quest
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Financial Literacy', 'Understanding money management and investing', 'Financial knowledge empowers independence', 'standard', true, false, '11111111-1111-1111-1111-111111111111'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Financial Literacy', 'Understanding money management and investing', 'Financial knowledge empowers independence', 'optio', true, false, '11111111-1111-1111-1111-111111111111'),
   -- Organization Quest
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Academy Special Project', 'Exclusive project for Test Academy members', 'Collaboration builds community', 'standard', true, false, '66666666-6666-6666-6666-666666666666')
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Academy Special Project', 'Exclusive project for Test Academy members', 'Collaboration builds community', 'optio', true, false, '66666666-6666-6666-6666-666666666666')
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
   description = EXCLUDED.description,
@@ -80,23 +109,24 @@ UPDATE quests SET organization_id = '00000000-0000-0000-0000-000000000001' WHERE
 -- ============================================================================
 -- USER QUEST ENROLLMENTS
 -- ============================================================================
-INSERT INTO user_quests (user_id, quest_id, status, started_at) VALUES
-  ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'active', NOW()),
-  ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'active', NOW()),
-  ('77777777-7777-7777-7777-777777777777', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'active', NOW()),
-  ('99999999-9999-9999-9999-999999999999', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'active', NOW())
+-- Explicit ids: user_quest_tasks.user_quest_id below is NOT NULL.
+INSERT INTO user_quests (id, user_id, quest_id, status, started_at) VALUES
+  ('a1111111-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'picked_up', NOW()),
+  ('a1111111-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'picked_up', NOW()),
+  ('a1111111-0000-0000-0000-000000000003', '77777777-7777-7777-7777-777777777777', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'picked_up', NOW()),
+  ('a1111111-0000-0000-0000-000000000004', '99999999-9999-9999-9999-999999999999', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'picked_up', NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- USER QUEST TASKS
 -- ============================================================================
-INSERT INTO user_quest_tasks (id, user_id, quest_id, title, description, pillar, xp_value, approval_status) VALUES
+INSERT INTO user_quest_tasks (id, user_id, quest_id, user_quest_id, title, description, pillar, xp_value, approval_status) VALUES
   -- Test Student's tasks
-  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Complete Python Tutorial', 'Work through the Python basics tutorial', 'Knowledge', 50, 'approved'),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Build a Calculator App', 'Create a simple calculator using Python', 'Skill', 100, 'pending'),
-  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Track Expenses for a Week', 'Record all spending for 7 days', 'Character', 75, 'pending'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a1111111-0000-0000-0000-000000000001', 'Complete Python Tutorial', 'Work through the Python basics tutorial', 'stem', 50, 'approved'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a1111111-0000-0000-0000-000000000001', 'Build a Calculator App', 'Create a simple calculator using Python', 'stem', 100, 'pending'),
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'a1111111-0000-0000-0000-000000000002', 'Track Expenses for a Week', 'Record all spending for 7 days', 'civics', 75, 'pending'),
   -- Org Student's tasks
-  ('11111111-2222-3333-4444-555555555555', '77777777-7777-7777-7777-777777777777', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'Team Project Kickoff', 'Attend kickoff meeting and define roles', 'Community', 50, 'approved')
+  ('11111111-2222-3333-4444-555555555555', '77777777-7777-7777-7777-777777777777', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'a1111111-0000-0000-0000-000000000003', 'Team Project Kickoff', 'Attend kickoff meeting and define roles', 'communication', 50, 'approved')
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
   approval_status = EXCLUDED.approval_status;
@@ -104,15 +134,15 @@ ON CONFLICT (id) DO UPDATE SET
 -- ============================================================================
 -- PARENT-STUDENT LINKS
 -- ============================================================================
-INSERT INTO parent_student_links (parent_id, student_id, relationship_type, status, verified_at) VALUES
-  ('33333333-3333-3333-3333-333333333333', '99999999-9999-9999-9999-999999999999', 'parent', 'active', NOW())
+INSERT INTO parent_student_links (parent_user_id, student_user_id, status, verified_at) VALUES
+  ('33333333-3333-3333-3333-333333333333', '99999999-9999-9999-9999-999999999999', 'approved', NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- OBSERVER-STUDENT LINKS
 -- ============================================================================
-INSERT INTO observer_student_links (observer_id, student_id, status, created_at) VALUES
-  ('55555555-5555-5555-5555-555555555555', '22222222-2222-2222-2222-222222222222', 'active', NOW())
+INSERT INTO observer_student_links (observer_id, student_id, created_at) VALUES
+  ('55555555-5555-5555-5555-555555555555', '22222222-2222-2222-2222-222222222222', NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -160,6 +190,5 @@ ON CONFLICT DO NOTHING;
 --   - Financial Literacy (standard)
 --   - Academy Special Project (org-specific)
 --
--- NOTE: To log in as these users, you need to:
--- 1. Create matching auth.users entries (via Dashboard or registration)
--- 2. Or use the app's registration flow with these emails
+-- NOTE: auth.users rows exist but carry no usable password. To log in as one
+-- of these users, set a password via the Dashboard or register through the app.

@@ -7,14 +7,17 @@ name: Integration Tests (live database)
 #
 # WHY A SUPABASE BRANCH AND NOT `supabase start`
 # ----------------------------------------------
-# The local stack cannot work: supabase/migrations/ has no baseline. Its earliest
-# file (20250130_legal_compliance.sql) opens with `ALTER TABLE public.users`, and
-# nothing in the repo ever creates that table -- the core schema was built outside
-# the migration history. Run 1 of this workflow proved it:
+# Historically the local stack could not work: supabase/migrations/ had no
+# baseline. Its earliest file (20250130_legal_compliance.sql) opened with
+# `ALTER TABLE public.users`, and nothing in the repo ever created that table --
+# the core schema was built outside the migration history. Run 1 of this
+# workflow proved it:
 #     Applying migration 20250130_legal_compliance.sql...
 #     ERROR: relation "public.users" does not exist (SQLSTATE 42P01)
-# A Supabase BRANCH sidesteps this entirely: branches are cloned from the
-# production schema, so the tables already exist.
+# 2026-08-12: supabase/migrations/ was squashed to a generated prod-schema
+# baseline (history in supabase/migrations-archive/), so `supabase start` is now
+# viable in principle. A Supabase BRANCH remains the simpler path here: branches
+# are cloned from the production schema, so the tables already exist.
 #
 # STATUS: NOT IN THE DEPLOY GATE. Prove it green by hand first, then add
 # `integration` to the `deploy` job's `needs:` in release.yml.

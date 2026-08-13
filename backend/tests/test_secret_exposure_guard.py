@@ -41,6 +41,10 @@ from utils.org_secrets import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_DIRS = [
     REPO_ROOT / 'supabase' / 'migrations',
+    # Pre-baseline history (2026-08-12: supabase/migrations/ was squashed to a
+    # generated prod-schema baseline so preview branches can replay it; the
+    # original files moved here and remain part of the audit surface).
+    REPO_ROOT / 'supabase' / 'migrations-archive',
     REPO_ROOT / 'backend' / 'migrations',
 ]
 

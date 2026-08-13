@@ -29,7 +29,13 @@ from utils.roles import OrgRole
 
 
 REPO = Path(__file__).resolve().parents[2]
-MIGRATION_DIRS = (REPO / 'supabase' / 'migrations', REPO / 'backend' / 'migrations')
+# migrations-archive holds the pre-baseline history (squashed 2026-08-12 so
+# preview branches can replay supabase/migrations/ from an empty database).
+# The baseline file is generated from the live catalogs, so it sorts last and
+# usually IS the latest definition these tests pick up.
+MIGRATION_DIRS = (REPO / 'supabase' / 'migrations',
+                  REPO / 'supabase' / 'migrations-archive',
+                  REPO / 'backend' / 'migrations')
 
 
 def _migrations():
@@ -135,7 +141,9 @@ class TestIsOrgAdminIsDerivedNotWritten:
 
     def test_a_trigger_keeps_the_flag_in_step(self):
         source, body = _last_match(self.TRIGGER)
-        assert 'BEFORE INSERT OR UPDATE ON users' in ' '.join(body.split()), source
+        # pg_get_triggerdef (the baseline's format) schema-qualifies the table.
+        assert re.search(r'BEFORE INSERT OR UPDATE ON (public\.)?users',
+                         ' '.join(body.split())), source
         assert 'sync_is_org_admin()' in body
 
     def test_it_derives_from_all_three_role_columns(self):
