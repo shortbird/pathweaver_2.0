@@ -121,12 +121,6 @@ export default function ClassFieldsEditor({
             placeholder={staff.length ? 'Search staff…' : 'No staff to assign yet'}
             emptyLabel="No teacher yet"
           />
-          <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-            <input type="checkbox" checked={d.is_visible_to_parents !== false}
-              onChange={(e) => set({ is_visible_to_parents: e.target.checked })}
-              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span>Show this class to parents on the schedule and catalog</span>
-          </label>
         </Field>
 
         {staff.length > 0 && (

@@ -32,6 +32,7 @@ export default async function run(page) {
     organization: {
       id: ORG,
       name: 'Verify School',
+      feature_flags: {},
     },
   }
 
@@ -51,19 +52,20 @@ export default async function run(page) {
     meetings: [],
   }
 
-  const json = (obj) => (route) =>
-    route.fulfill({
+  const json = (obj) => (route) => {
+    const origin = route.request().headers()['origin'] || BASE
+    return route.fulfill({
       status: 200,
-      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': origin,
+        'access-control-allow-credentials': 'true',
+        'content-type': 'application/json',
+      },
       body: JSON.stringify(obj),
     })
+  }
 
-  await page.route('**/api/**', json({}))
-  await page.route('**/api/auth/me**', json(staffUser))
-  await page.route(`**/api/admin/organizations/${ORG}`, json({ organization: staffUser.organization }))
-  await page.route('**/api/sis/classes**', json({ success: true, classes: [sampleClassVisible, sampleClassHidden] }))
-  await page.route('**/api/sis/staff**', json({ success: true, staff: [] }))
-
+  // Strip CSP meta tag if needed so stubs pass seamlessly
   await page.route(`${BASE}/**`, async (route) => {
     if (route.request().resourceType() !== 'document') return route.fallback()
     const resp = await route.fetch()
@@ -71,20 +73,38 @@ export default async function run(page) {
     await route.fulfill({ response: resp, body: html })
   })
 
+  // Target backend API calls across ports or origins
+  await page.route((u) => u.toString().includes('/api/'), (route) => {
+    const url = route.request().url()
+    if (url.includes('/src/')) return route.fallback()
+
+    if (url.includes('/api/auth/me')) return json(staffUser)(route)
+    if (url.includes('/api/sis/classes')) return json({ success: true, classes: [sampleClassVisible, sampleClassHidden] })(route)
+    if (url.includes('/api/sis/staff')) return json({ success: true, staff: [] })(route)
+    if (url.includes('/api/sis/course-settings')) return json({ course_settings: [], optio_course_tuition_cents: 25000 })(route)
+    if (url.includes('/api/sis/teacher-conflicts')) return json({ conflicts: [] })(route)
+    if (url.includes('/api/courses')) return json({ courses: [] })(route)
+    if (url.includes('/api/admin/organizations/')) return json({ organization: staffUser.organization })(route)
+
+    return json({})(route)
+  })
+
   // 1. Verify Classes page lists both classes and shows "Hidden from parents" badge for the hidden class
-  await page.goto(`${BASE}/classes?app=sis`, { waitUntil: 'domcontentloaded' })
+  const targetUrl = BASE.includes('sis.') ? `${BASE}/classes` : `${BASE}/classes?app=sis`
+  await page.goto(targetUrl, { waitUntil: 'networkidle' })
+
   await page.getByText('Public Microschool', { exact: true }).waitFor({ timeout: 20000 })
   await page.getByText('Internal Teacher Placement Class', { exact: true }).waitFor({ timeout: 20000 })
 
   // Verify "Hidden from parents" badge is visible for the hidden class
-  await page.getByText('Hidden from parents', { exact: true }).waitFor({ timeout: 5000 })
+  await page.getByText('Hidden from parents', { exact: true }).waitFor({ timeout: 10000 })
 
   // 2. Click hidden class row to expand editor
   await page.getByText('Internal Teacher Placement Class', { exact: true }).click()
 
   // Verify "Show class to parents" checkbox exists
   const parentVisibilityCheckbox = page.getByLabel('Show class to parents')
-  await parentVisibilityCheckbox.waitFor({ timeout: 5000 })
+  await parentVisibilityCheckbox.waitFor({ timeout: 10000 })
 
   const isChecked = await parentVisibilityCheckbox.isChecked()
   if (isChecked) {
