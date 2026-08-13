@@ -3,44 +3,40 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AcademicCapIcon,
-  ChatBubbleLeftRightIcon,
   CheckCircleIcon,
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
   EnvelopeOpenIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
+import { switchSurfaceInApp } from '../../utils/appSurface'
 import api from '../../services/api'
 import { Spinner } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
 
 /**
- * Teacher Home — the non-SIS advisor's landing (rendered by RoleHome at
- * /dashboard). SIS-org teachers never see this: they front-door the SIS
- * console via /sis-launch.
+ * Teacher Home — a teacher's landing on the learning app (rendered by RoleHome
+ * at /dashboard). SIS staff normally front-door the console via /sis-launch,
+ * but they reach this page whenever they switch back to the learning app, so it
+ * has to serve both models.
+ *
+ * TWO CLASS MODELS, ONE PAGE. Optio's advisor/student relationship (quest
+ * invitations, the LMS class pages under /org-classes) and the SIS's class
+ * model overlap. The rule: an org with sis_enabled defaults to its SIS
+ * features — class cards hop to the console — and the LMS-only advisor
+ * features are kept for programs that don't run the SIS.
  *
  * A lightweight triage page ("who needs me today"), deliberately NOT a heavy
- * dashboard: greeting -> waiting-on-you strip (verification queue + pending
- * quest invitations) -> my classes -> door tiles for the rest. Every data
- * source degrades silently on error — a broken feed hides itself rather than
- * blocking the page.
+ * dashboard: greeting -> waiting-on-you strip -> my classes. No door tiles —
+ * every surface they linked to (Messages, quest invitations) is already one
+ * click away in the sidebar, so the tiles were a second front door to the same
+ * pages. Every data source degrades silently on error — a broken feed hides
+ * itself rather than blocking the page.
  */
 
 const QUEUE_PREVIEW_COUNT = 3
 
-/** The door-tile row kept from the v1 stub: surfaces not covered above. */
-const DOORS = [
-  {
-    name: 'Messages', path: '/messages', Icon: ChatBubbleLeftRightIcon,
-    description: 'Conversations with students and families.',
-  },
-  {
-    name: 'Assign Quests', path: '/advisor/invitations', Icon: EnvelopeOpenIcon,
-    description: 'Add quests to your students’ libraries.',
-  },
-]
-
-function useTeacherHomeData(userId) {
+function useTeacherHomeData(userId, sisEnabled) {
   const common = {
     enabled: !!userId,
     staleTime: 60 * 1000,
@@ -58,7 +54,9 @@ function useTeacherHomeData(userId) {
     ...common,
   })
 
-  // Pending quest invitations across the advisor's organization.
+  // Pending quest invitations across the advisor's organization. An LMS-only
+  // feed: SIS orgs assign work through the console, so it isn't even fetched
+  // for them.
   const invitations = useQuery({
     queryKey: ['teacher-home', 'pending-invitations', userId],
     queryFn: async () => {
@@ -66,6 +64,7 @@ function useTeacherHomeData(userId) {
       return response.data?.invitations || []
     },
     ...common,
+    enabled: !!userId && !sisEnabled,
   })
 
   // Same endpoint AdvisorClassesPage's ClassList reads (advisor view).
@@ -82,20 +81,22 @@ function useTeacherHomeData(userId) {
 }
 
 /** "Waiting on you" — the triage strip. Failed sources drop out silently. */
-function WaitingOnYou({ verifications, invitations }) {
-  const bothFailed = verifications.isError && invitations.isError
-  const loading =
-    (verifications.isLoading && !verifications.isError) ||
-    (invitations.isLoading && !invitations.isError)
+function WaitingOnYou({ verifications, invitations, showInvitations }) {
+  const invitationsOut = !showInvitations || invitations.isError
+  const bothFailed = verifications.isError && invitationsOut
 
   if (bothFailed) return null
+
+  const loading =
+    (verifications.isLoading && !verifications.isError) ||
+    (!invitationsOut && invitations.isLoading)
 
   const pendingTasks = verifications.data || []
   const pendingInvitations = invitations.data || []
   const allClear =
     !loading &&
     (verifications.isError || pendingTasks.length === 0) &&
-    (invitations.isError || pendingInvitations.length === 0)
+    (invitationsOut || pendingInvitations.length === 0)
 
   return (
     <section aria-labelledby="waiting-on-you-heading" className="mt-8">
@@ -164,7 +165,7 @@ function WaitingOnYou({ verifications, invitations }) {
           </div>
         )}
 
-        {!loading && !invitations.isError && pendingInvitations.length > 0 && (
+        {!loading && !invitationsOut && pendingInvitations.length > 0 && (
           <Link
             to="/advisor/invitations"
             className="group flex items-center justify-between gap-3 p-4"
@@ -185,17 +186,55 @@ function WaitingOnYou({ verifications, invitations }) {
   )
 }
 
+const CARD_CLASS =
+  'group flex items-center gap-3 w-full text-left bg-white border border-gray-200 ' +
+  'rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all'
+
+/**
+ * A class card's destination depends on the org's surface.
+ *
+ * SIS-org teachers do their class work in the console (roster, attendance,
+ * curriculum, messages), so their cards hop surfaces to /my-classes/:id rather
+ * than landing on the learning app's thinner /org-classes/:id page. The hop
+ * goes through switchSurfaceInApp so a same-origin switch stays client-side and
+ * the session is never re-initialized. Non-SIS advisors keep the plain link.
+ */
+function ClassCard({ children, sisEnabled, sisPath, learningPath }) {
+  if (sisEnabled) {
+    return (
+      <button
+        type="button"
+        onClick={() => switchSurfaceInApp('sis', sisPath)}
+        className={CARD_CLASS}
+      >
+        {children}
+      </button>
+    )
+  }
+  return <Link to={learningPath} className={CARD_CLASS}>{children}</Link>
+}
+
 /** The advisor's working set: compact link cards into each class. */
-function MyClasses({ classes }) {
+function MyClasses({ classes, sisEnabled }) {
   return (
     <section aria-labelledby="my-classes-heading" className="mt-8">
       <div className="flex items-center justify-between">
         <h2 id="my-classes-heading" className="text-sm font-semibold text-gray-900">
           My classes
         </h2>
-        <Link to="/org-classes" className="text-sm font-medium text-optio-purple hover:underline">
-          View all
-        </Link>
+        {sisEnabled ? (
+          <button
+            type="button"
+            onClick={() => switchSurfaceInApp('sis', '/my-classes')}
+            className="text-sm font-medium text-optio-purple hover:underline"
+          >
+            View all
+          </button>
+        ) : (
+          <Link to="/org-classes" className="text-sm font-medium text-optio-purple hover:underline">
+            View all
+          </Link>
+        )}
       </div>
 
       <div className="mt-2">
@@ -215,9 +254,10 @@ function MyClasses({ classes }) {
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {classes.data.map((cls) => (
               <li key={cls.id}>
-                <Link
-                  to={`/org-classes/${cls.id}`}
-                  className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all"
+                <ClassCard
+                  sisEnabled={sisEnabled}
+                  sisPath={`/my-classes/${cls.id}`}
+                  learningPath={`/org-classes/${cls.id}`}
                 >
                   <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary transition-colors">
                     <AcademicCapIcon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
@@ -232,7 +272,7 @@ function MyClasses({ classes }) {
                       {cls.quest_count ?? 0} quest{(cls.quest_count ?? 0) !== 1 ? 's' : ''}
                     </span>
                   </span>
-                </Link>
+                </ClassCard>
               </li>
             ))}
           </ul>
@@ -245,33 +285,21 @@ function MyClasses({ classes }) {
 export default function TeacherHome() {
   const { user } = useAuth()
   const firstName = user?.first_name || 'there'
-  const { verifications, invitations, classes } = useTeacherHomeData(user?.id)
+  // Same flag getPostLoginPath reads to front-door SIS staff into the console.
+  const sisEnabled = Boolean(user?.organization?.feature_flags?.sis_enabled)
+  const { verifications, invitations, classes } = useTeacherHomeData(user?.id, sisEnabled)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
       <p className="text-sm text-gray-500 mt-1">Here's who needs you today.</p>
 
-      <WaitingOnYou verifications={verifications} invitations={invitations} />
-      <MyClasses classes={classes} />
-
-      <nav aria-label="Teacher surfaces" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-8">
-        {DOORS.map(({ name, path, description, Icon }) => (
-          <Link
-            key={path}
-            to={path}
-            className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all"
-          >
-            <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary transition-colors">
-              <Icon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">{name}</span>
-              <span className="block text-xs text-gray-500 truncate">{description}</span>
-            </span>
-          </Link>
-        ))}
-      </nav>
+      <WaitingOnYou
+        verifications={verifications}
+        invitations={invitations}
+        showInvitations={!sisEnabled}
+      />
+      <MyClasses classes={classes} sisEnabled={sisEnabled} />
     </div>
   )
 }

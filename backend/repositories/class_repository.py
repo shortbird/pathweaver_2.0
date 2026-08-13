@@ -143,36 +143,54 @@ class ClassRepository(BaseRepository):
         return bool(response.data)
 
     def get_advisor_classes(self, advisor_id: str, status: str = 'active') -> List[Dict[str, Any]]:
-        """Get all classes an advisor is assigned to"""
-        response = self.admin_client.table('class_advisors')\
-            .select('*, org_classes(*, organizations(id, name, slug))')\
+        """Get all classes an advisor teaches.
+
+        A teacher reaches a class through any of the three sources
+        `class_membership_service` documents — primary_instructor_id,
+        assistant_instructor_ids, or an active class_advisors row. The SIS
+        assigns instructors via the org_classes columns and never writes
+        class_advisors, so reading the link table alone showed SIS teachers
+        an empty class list on /dashboard.
+        """
+        from services.class_membership_service import teacher_class_ids
+
+        class_ids = list(teacher_class_ids(advisor_id))
+        if not class_ids:
+            return []
+
+        classes: List[Dict[str, Any]] = []
+        for chunk in (class_ids[i:i + 100] for i in range(0, len(class_ids), 100)):
+            query = self.admin_client.table('org_classes')\
+                .select('*, organizations(id, name, slug)')\
+                .in_('id', chunk)
+            if status is not None:
+                query = query.eq('status', status)
+            classes.extend(query.execute().data or [])
+
+        # Keep the legacy `assignment` block for classes that do have a
+        # class_advisors row; SIS-assigned classes simply omit it.
+        assignments = self.admin_client.table('class_advisors')\
+            .select('class_id, assigned_at, assigned_by')\
             .eq('advisor_id', advisor_id)\
             .eq('is_active', True)\
-            .execute()
-
-        classes = []
-        if response.data:
-            for assignment in response.data:
-                if assignment.get('org_classes'):
-                    cls = assignment['org_classes']
-                    if status is None or cls.get('status') == status:
-                        cls['assignment'] = {
-                            'assigned_at': assignment['assigned_at'],
-                            'assigned_by': assignment['assigned_by']
-                        }
-                        classes.append(cls)
+            .execute().data or []
+        by_class = {a['class_id']: a for a in assignments}
+        for cls in classes:
+            assignment = by_class.get(cls['id'])
+            if assignment:
+                cls['assignment'] = {
+                    'assigned_at': assignment.get('assigned_at'),
+                    'assigned_by': assignment.get('assigned_by'),
+                }
 
         return classes
 
     def is_class_advisor(self, class_id: str, user_id: str) -> bool:
-        """Check if a user is an advisor for a class"""
-        response = self.admin_client.table('class_advisors')\
-            .select('id')\
-            .eq('class_id', class_id)\
-            .eq('advisor_id', user_id)\
-            .eq('is_active', True)\
-            .execute()
-        return bool(response.data)
+        """Check if a user teaches a class — as primary instructor, assistant
+        instructor, or an active class_advisors row (see get_advisor_classes)."""
+        from services.class_membership_service import class_teacher_ids
+
+        return user_id in class_teacher_ids(class_id)
 
     # ===== Student Enrollment =====
 

@@ -1,15 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TeacherHome from './TeacherHome'
 import api from '../../services/api'
+import { switchSurfaceInApp } from '../../utils/appSurface'
 
 let authState = {}
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))
+
+vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
+
+/** An org that runs the SIS: its teachers default to the console's features. */
+const SIS_USER = {
+  id: 'adv-1',
+  first_name: 'Lisa',
+  role: 'org_managed',
+  org_role: 'advisor',
+  organization: { feature_flags: { sis_enabled: true } },
+}
 
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn() }
@@ -119,7 +132,7 @@ describe('TeacherHome', () => {
     expect(await screen.findByText('Nothing waiting on you right now.')).toBeInTheDocument()
   })
 
-  it('renders classes as link cards to the class page', async () => {
+  it('renders classes as link cards to the LMS class page for non-SIS orgs', async () => {
     mockApi({ classes: CLASSES })
     renderHome()
 
@@ -161,9 +174,62 @@ describe('TeacherHome', () => {
     expect(await screen.findByText(/Couldn’t load your classes right now/)).toBeInTheDocument()
   })
 
-  it('keeps door tiles for Messages and Assign Quests', () => {
+  it('offers no door tiles — the sidebar already owns those surfaces', () => {
     renderHome()
-    expect(screen.getByText('Messages').closest('a')).toHaveAttribute('href', '/messages')
-    expect(screen.getByText('Assign Quests').closest('a')).toHaveAttribute('href', '/advisor/invitations')
+    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assign Quests')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * SIS orgs default to SIS features. iCreate assigns teachers to classes in the
+ * console, so a class card must land on the console's class page — the learning
+ * app's /org-classes/:id is the LMS model, kept for programs without the SIS.
+ */
+describe('TeacherHome for an SIS org', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authState = { user: SIS_USER }
+    mockApi({ classes: CLASSES })
+  })
+
+  it('sends a class card to the SIS class page, not the LMS one', async () => {
+    renderHome()
+
+    const card = await screen.findByText('Morning Advisory')
+    expect(card.closest('a')).toBeNull()
+
+    await userEvent.click(card)
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/my-classes/class-1')
+  })
+
+  it('sends "View all" to the SIS classes list', async () => {
+    renderHome()
+    await userEvent.click(await screen.findByText('View all'))
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/my-classes')
+  })
+
+  it('drops the LMS quest-invitations feed entirely', async () => {
+    renderHome()
+    await screen.findByText('Morning Advisory')
+    expect(api.get).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/advisor/quest-invitations')
+    )
+  })
+
+  it('still reports the all-clear when nothing is pending', async () => {
+    renderHome()
+    expect(await screen.findByText('Nothing waiting on you right now.')).toBeInTheDocument()
+  })
+
+  it('hides the waiting strip when the only remaining feed errors', async () => {
+    mockApi({ tasks: new Error('boom'), classes: CLASSES })
+    renderHome()
+
+    await screen.findByText('Morning Advisory')
+    await waitFor(() => {
+      expect(screen.queryByText('Waiting on you')).not.toBeInTheDocument()
+    })
   })
 })
