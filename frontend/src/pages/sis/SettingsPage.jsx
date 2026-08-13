@@ -33,16 +33,20 @@ const SettingsPage = () => {
   const [orgData, setOrgData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchOrg = useCallback(() => {
+  const fetchOrg = useCallback((options = {}) => {
+    const showSpinner = options?.showSpinner ?? false
     if (!orgId) { setOrgData(null); setLoading(false); return }
-    setLoading(true)
+    if (showSpinner) setLoading(true)
     api.get(`/api/admin/organizations/${orgId}`)
       .then((r) => setOrgData(r.data))
       .catch(() => setOrgData(null))
       .finally(() => setLoading(false))
   }, [orgId])
 
-  useEffect(() => { fetchOrg() }, [fetchOrg])
+  useEffect(() => {
+    setOrgData(null)
+    fetchOrg({ showSpinner: true })
+  }, [orgId, fetchOrg])
 
   // The registration section moved to the Registration page — send old
   // bookmarks and in-app links (/settings#registration) there.

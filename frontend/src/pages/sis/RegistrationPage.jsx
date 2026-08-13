@@ -36,16 +36,20 @@ const RegistrationPage = () => {
   const tab = searchParams.get('tab') === 'queues' ? 'queues' : 'setup'
   const setTab = (t) => setSearchParams(t === 'setup' ? {} : { tab: t }, { replace: true })
 
-  const fetchOrg = useCallback(() => {
+  const fetchOrg = useCallback((options = {}) => {
+    const showSpinner = options?.showSpinner ?? false
     if (!orgId) { setOrgData(null); setLoading(false); return }
-    setLoading(true)
+    if (showSpinner) setLoading(true)
     api.get(`/api/admin/organizations/${orgId}`)
       .then((r) => setOrgData(r.data))
       .catch(() => setOrgData(null))
       .finally(() => setLoading(false))
   }, [orgId])
 
-  useEffect(() => { fetchOrg() }, [fetchOrg])
+  useEffect(() => {
+    setOrgData(null)
+    fetchOrg({ showSpinner: true })
+  }, [orgId, fetchOrg])
 
   return (
     <div>
