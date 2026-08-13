@@ -116,6 +116,7 @@ export const toDraft = (c = {}) => {
     min_age: c.min_age != null ? String(c.min_age) : '',
     max_age: c.max_age != null ? String(c.max_age) : '',
     requires_full_day: !!c.requires_full_day,
+    internal_notes: c.internal_notes || '',
   }
 }
 
@@ -145,4 +146,5 @@ export const draftToPayload = (d) => ({
   min_age: numOrUndef(d.min_age),
   max_age: numOrUndef(d.max_age),
   requires_full_day: !!d.requires_full_day,
+  internal_notes: (d.internal_notes || '').trim() || null,
 })

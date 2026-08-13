@@ -31,6 +31,9 @@ SIS_CLASS_FIELDS = (
     # Per-class override for the tuition-funded materials allowance, in dollars
     # per enrolled student per year. NULL falls back to the org default.
     'supply_budget_per_student',
+    # Staff-only scratchpad. sis_catalog_service strips it from every
+    # non-staff audience — keep it in STAFF_ONLY_FIELDS there or it leaks.
+    'internal_notes',
 )
 
 

@@ -19,6 +19,11 @@ BILLING_TYPES = ('flat', 'per_class', 'recurring')
 BILLING_CADENCES = ('monthly', 'semester', 'full')
 REGISTRATION_STATUSES = ('open', 'closed')
 
+# org_classes columns for the office's eyes only. The parent Schedule Builder
+# and the public embed both read classes through this service with
+# audience='family' — anything listed here is stripped from those payloads.
+STAFF_ONLY_FIELDS = ('internal_notes',)
+
 
 def _admin():
     return get_supabase_admin_client()
@@ -61,6 +66,15 @@ def _instructors_by_id(instructor_ids: List[str]) -> Dict[str, Dict[str, Any]]:
             for u in rows}
 
 
+def _for_audience(cls: Dict[str, Any], audience: str) -> Dict[str, Any]:
+    """Drop staff-only columns from a class payload bound for a non-staff
+    audience. Mutates and returns cls (every caller built it fresh)."""
+    if audience != 'staff':
+        for k in STAFF_ONLY_FIELDS:
+            cls.pop(k, None)
+    return cls
+
+
 def _visible_assistants(cls: Dict[str, Any], people: Dict[str, Any],
                         audience: str) -> List[Dict[str, Any]]:
     """The assistant teachers this audience is allowed to see.
@@ -99,7 +113,7 @@ def list_classes(org_id: str, include_archived: bool = False,
         enrolled = enrollment_counts.get(c['id'], 0)
         cap = c.get('capacity')
         wl = waitlist_breakdown.get(c['id']) or {'waiting': 0, 'offered': 0}
-        out.append({
+        out.append(_for_audience({
             **c,
             'enrolled_count': enrolled,
             'waitlist_count': wl['waiting'] + wl['offered'],
@@ -112,7 +126,7 @@ def list_classes(org_id: str, include_archived: bool = False,
             'meetings': meetings_by_class.get(c['id'], []),
             'primary_instructor': instructors.get(c.get('primary_instructor_id')),
             'assistant_instructors': _visible_assistants(c, instructors, audience),
-        })
+        }, audience))
     return out
 
 
@@ -133,7 +147,7 @@ def get_class_detail(org_id: str, class_id: str,
     people = _instructors_by_id(all_ids)
     cls['primary_instructor'] = people.get(cls.get('primary_instructor_id'))
     cls['assistant_instructors'] = _visible_assistants(cls, people, audience)
-    return cls
+    return _for_audience(cls, audience)
 
 
 # ── Optio-course settings (org_course_settings) ──────────────────────────────

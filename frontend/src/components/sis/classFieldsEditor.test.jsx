@@ -21,6 +21,7 @@ const CLASS = {
   supply_fee: 15, supply_budget_per_student: 40, min_age: 8, max_age: 12,
   location: 'Room 3', primary_instructor_id: 's1', assistant_instructor_ids: ['s2'],
   show_assistants: true, requires_full_day: false, image_url: null,
+  internal_notes: 'Kiln needs 30 min warm-up',
   meetings: [{ day_of_week: 2, start_time: '14:00', end_time: '15:00' }],
 }
 const STAFF = [{ id: 's1', name: 'Jane Doe' }, { id: 's2', name: 'Sam Lee' }]
@@ -37,6 +38,15 @@ describe('the class field grid', () => {
     expect(screen.getByText('Basics')).toBeInTheDocument()
     expect(screen.getByText('Schedule')).toBeInTheDocument()
     expect(screen.getByText('Enrollment & money')).toBeInTheDocument()
+    expect(screen.getByText('Internal notes')).toBeInTheDocument()
+  })
+
+  it('labels the internal notes as staff-only', () => {
+    // The whole point of the field is that families never see it — the editor
+    // must say so, or staff will treat it as one more public description box.
+    setup()
+    expect(screen.getByLabelText('Internal notes')).toHaveValue('Kiln needs 30 min warm-up')
+    expect(screen.getByText(/staff only — families never see these/i)).toBeInTheDocument()
   })
 
   it('carries the two fields that used to need the full editor', () => {
@@ -113,6 +123,7 @@ describe('the draft round trip', () => {
       supply_budget_per_student: '40', min_age: '8', max_age: '12',
       location: 'Room 3', assistant_instructor_ids: ['s2'], days_of_week: [2],
       start_time: '14:00', duration_minutes: '60',
+      internal_notes: 'Kiln needs 30 min warm-up',
     })
   })
 
@@ -125,6 +136,7 @@ describe('the draft round trip', () => {
       supply_budget_per_student: 40, min_age: 8, max_age: 12,
       assistant_instructor_ids: ['s2'], show_assistants: true,
       days_of_week: [2], start_time: '14:00', duration_minutes: 60,
+      internal_notes: 'Kiln needs 30 min warm-up',
     })
   })
 
@@ -132,6 +144,11 @@ describe('the draft round trip', () => {
     // '' means "use the school default", and 0 would mean "no allowance".
     const payload = draftToPayload({ ...toDraft(CLASS), supply_budget_per_student: '' })
     expect(payload.supply_budget_per_student).toBeNull()
+  })
+
+  it('sends cleared internal notes as null so the save actually erases them', () => {
+    const payload = draftToPayload({ ...toDraft(CLASS), internal_notes: '  ' })
+    expect(payload.internal_notes).toBeNull()
   })
 
   it('survives a class with nothing set on it', () => {
@@ -163,11 +180,12 @@ describe('the grid earns its space', () => {
       onImageChange={() => {}} timeBlocks={[]} />,
   )
 
-  it('fits every field into four rows, each one full', () => {
+  it('keeps every band tight — no half-empty rows', () => {
     expect(shape(full().container)).toEqual([
       { title: 'Basics', cols: 4, rows: 2 },
       { title: 'Schedule', cols: 4, rows: 1 },
       { title: 'Enrollment & money', cols: 5, rows: 1 },
+      { title: 'Internal notes', cols: 4, rows: 1 },
     ])
   })
 
