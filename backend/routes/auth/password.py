@@ -443,6 +443,47 @@ def _apply_invite_profile(admin_client, user_id, data):
         logger.error(f"[RESET_PASSWORD] Could not apply invited-staff profile: {e}")
 
 
+def _release_reset_token(admin_client, reset_token: str) -> None:
+    """Un-claim a token whose password update never actually landed.
+
+    /reset-password claims the token BEFORE touching auth.users so two
+    concurrent submits can't both spend it. The cost of claiming first is that
+    any failure downstream burns a link the user did nothing wrong with: they
+    see a 500, hit submit again, and the retry reports "Invalid or already used
+    reset token" — which sends them off to request another email that fails the
+    same way. (Exactly how an iCreate teacher burned four links in an hour: a
+    breached password, rejected by Supabase's leaked-password check, and no
+    message anywhere saying so.) Releasing on failure keeps the race protection
+    and gives the link back.
+    """
+    try:
+        admin_client.table('password_reset_tokens')\
+            .update({'used': False, 'used_at': None})\
+            .eq('token', reset_token)\
+            .execute()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[RESET_PASSWORD] Could not release reset token: {e}")
+
+
+# GoTrue rejects passwords found in the HaveIBeenPwned corpus with a 422 when
+# leaked-password protection is on. That check lives in Supabase, not in
+# validate_password(), so a password can pass every rule we enforce locally and
+# still be refused here — the user has to be told which one it was.
+_WEAK_PASSWORD_MESSAGE = (
+    'That password has appeared in a known data breach, so it cannot be used. '
+    'Please choose a different password — your reset link is still valid.'
+)
+
+
+def _is_weak_password_error(exc: Exception) -> bool:
+    if getattr(exc, 'code', None) == 'weak_password':
+        return True
+    if getattr(exc, 'status', None) == 422:
+        return True
+    text = str(getattr(exc, 'message', '') or exc).lower()
+    return 'password' in text and ('weak' in text or 'pwned' in text)
+
+
 @bp.route('/reset-password', methods=['POST'])
 @rate_limit(max_requests=10, window_seconds=600)  # AUTH-H6: throttle reset-token consumption (10 / 10 min per IP)
 def reset_password():
@@ -503,6 +544,7 @@ def reset_password():
             # Get user from auth.users (source of truth for authentication)
             auth_user = admin_client.auth.admin.get_user_by_id(user_id)
             if not auth_user or not auth_user.user:
+                _release_reset_token(admin_client, reset_token)
                 return jsonify({'error': 'User not found'}), 404
 
             auth_email = auth_user.user.email
@@ -516,12 +558,24 @@ def reset_password():
                 update_data['email_confirm'] = True
                 logger.info(f"[RESET_PASSWORD] Also confirming email for {mask_email(auth_email)}")
 
-            auth_response = admin_client.auth.admin.update_user_by_id(
-                user_id,
-                update_data
-            )
+            try:
+                auth_response = admin_client.auth.admin.update_user_by_id(
+                    user_id,
+                    update_data
+                )
+            except Exception as update_error:
+                # The password never changed, so the link must survive.
+                _release_reset_token(admin_client, reset_token)
+                if _is_weak_password_error(update_error):
+                    logger.info(
+                        f"[RESET_PASSWORD] Rejected breached password for "
+                        f"{mask_email(auth_email)}; token released"
+                    )
+                    return jsonify({'error': _WEAK_PASSWORD_MESSAGE}), 400
+                raise
 
             if not auth_response:
+                _release_reset_token(admin_client, reset_token)
                 return jsonify({'error': 'Failed to update password'}), 500
 
             # Sync email in public.users to match auth.users (prevent future mismatches)
@@ -570,6 +624,10 @@ def reset_password():
             }), 200
 
         except Exception as auth_error:
+            # Anything that lands here failed before the password changed (every
+            # step after the update swallows its own errors), so give the link
+            # back rather than stranding the user on a burned token.
+            _release_reset_token(admin_client, reset_token)
             logger.error(f"[RESET_PASSWORD] Error: {str(auth_error)}")
             return jsonify({
                 'error': 'Failed to reset password. Please try again or request a new reset link.'
