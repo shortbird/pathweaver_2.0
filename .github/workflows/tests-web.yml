@@ -1,0 +1,67 @@
+name: Web (v1) Tests (reusable)
+
+# See tests-backend.yml for why the test jobs are reusable workflows rather
+# than copies: one definition, called by both the pre-merge gate (ci.yml) and
+# the release gate (release.yml).
+
+on:
+  workflow_call:
+    inputs:
+      coverage-floor:
+        description: 'Minimum line coverage percent. Ratchet up, never down.'
+        required: false
+        default: 53
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web (v1) Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."; sleep 10
+          done
+          exit 1
+      - name: npm audit (high/critical only)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: Run tests + coverage gate
+        working-directory: frontend
+        # Single run is both the pass/fail gate (pipefail) and the coverage gate.
+        #
+        # The floor was 44 while actual coverage was 54.44 -- ten points of slack,
+        # which meant more than a fifth of the tested surface could be deleted
+        # without the gate noticing. A floor below actual coverage does not
+        # protect anything; it only records an old number. Ratcheted to 53 on
+        # 2026-08-13 (1 point under measured, for flake tolerance).
+        env:
+          MIN_COVERAGE: ${{ inputs.coverage-floor }}
+        run: |
+          set -o pipefail
+          npm run test:coverage 2>&1 | tee /tmp/cov.log
+          LINE_PCT=$(grep -E '^All files' /tmp/cov.log | awk -F'|' '{gsub(/ /, "", $2); print $2}' | head -1)
+          LINE_INT=${LINE_PCT%.*}
+          echo "Line coverage: ${LINE_PCT:-0}% (required: ${MIN_COVERAGE}%)"
+          if [ "${LINE_INT:-0}" -lt "${MIN_COVERAGE}" ]; then
+            echo "FAILED: line coverage (${LINE_PCT:-0}%) below ${MIN_COVERAGE}%"; exit 1
+          fi
+          echo "PASSED: coverage gate met"

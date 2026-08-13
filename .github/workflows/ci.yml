@@ -1,0 +1,65 @@
+name: CI (pre-merge)
+
+# THE PRE-MERGE GATE. Until 2026-08-13 there wasn't one: every workflow in this
+# repo triggered on push-to-main or push-to-develop, so `grep -rn pull_request
+# .github/` returned nothing and no test had ever run on a pull request. Tests
+# ran only after code had already landed. release.yml gated the *deploy*, which
+# stops a bad commit reaching production but not from reaching main -- and on
+# develop nothing gated anything at all.
+#
+# Meanwhile Supabase was creating a preview database for every PR, at real cost,
+# that no test ever connected to. That combination -- paying for per-PR
+# databases while running zero per-PR tests -- is what this workflow and
+# tests-integration.yml exist to fix.
+#
+# Every job here is a reusable workflow shared with release.yml, so the thing
+# that gates the merge is byte-identical to the thing that gates the deploy.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '**/*.md'
+
+# A new push to the same PR cancels the previous run: only the tip commit's
+# result is meaningful, and the runner minutes spent on a superseded commit buy
+# nothing. (release.yml deliberately does NOT do this -- there, every commit
+# that lands on main must be independently verified before deploying.)
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    uses: ./.github/workflows/tests-backend.yml
+    with:
+      coverage-floor: 41
+
+  web:
+    uses: ./.github/workflows/tests-web.yml
+    with:
+      coverage-floor: 53
+
+  mobile:
+    uses: ./.github/workflows/tests-mobile.yml
+
+  # ENFORCING. Runs the ported integration tests against a throwaway local
+  # Supabase stack -- real PostgREST, real GoTrue, real auth.
+  #
+  # 44 tests as of 2026-08-13 (test_auth_flow.py, test_parental_consent.py).
+  # The other eight files in tests/integration/ are quarantined with an explicit
+  # skip marker until they are ported; they cannot pass against a database in
+  # their current form. See backend/tests/integration/README.md.
+  #
+  # These paid for themselves on their first run: they caught
+  # generate_consent_token being called but never imported, which had been
+  # 500ing the entire COPPA parental-consent flow in production.
+  integration:
+    uses: ./.github/workflows/tests-integration.yml

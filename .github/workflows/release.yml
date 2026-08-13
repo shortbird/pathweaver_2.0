@@ -27,182 +27,28 @@ permissions:
   contents: read
 
 jobs:
+  # The three test jobs are reusable workflows shared with ci.yml (the
+  # pre-merge gate), so the suite that gates the merge and the suite that gates
+  # the deploy cannot drift apart. Their full definitions and the reasoning
+  # behind each gate live in tests-*.yml.
   backend:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pip-audit
-      - name: pip-audit (fail on high/critical CVEs)
-        # DEP-H1 fix: audit the ROOT requirements.txt — that is the file Render
-        # actually deploys (render.yaml rootDir: "" + pip install -r
-        # requirements.txt). Previously this ran in backend/ and audited
-        # backend/requirements.txt, so the enforcing gate was blind to prod.
-        # Supply-chain gate (enforcing). Documented ignores re-reviewed per bump:
-        # - PYSEC-2024-271 (flask-cors): log-injection only at LOG_LEVEL=debug;
-        #   prod runs at WARNING. No upstream fix.
-        # - PYSEC-2025-183 (pyjwt): disputed (CVE-2025-45768); our keys are 64-hex.
-        # - PYSEC-2026-1845 (pytest): pytest is a TEST-only dependency (fix is a
-        #   major 9.x bump); it is not part of the deployed runtime attack surface.
-        run: |
-          pip-audit --requirement requirements.txt \
-            --strict \
-            --vulnerability-service osv \
-            --ignore-vuln PYSEC-2024-271 \
-            --ignore-vuln PYSEC-2025-183 \
-            --ignore-vuln PYSEC-2026-1845 \
-            || { echo "::error::pip-audit found vulnerabilities"; exit 1; }
-      - name: Secret-exposure guards (ENFORCING)
-        working-directory: backend
-        # These encode the 2026-08-01 critical findings (AUDIT.md C1/C2/C3):
-        # a live Stripe secret key readable over the public anon key, and two
-        # tables shipped without RLS. They are pure/static -- no database, no
-        # network -- so unlike the suite below they can and do gate the build.
-        #
-        # Deliberately a SEPARATE step from the `|| true` run underneath: folding
-        # them into that command would silently un-enforce them.
-        env:
-          FLASK_ENV: testing
-          FLASK_SECRET_KEY: test-secret-key-for-ci-only
-        run: |
-          # --no-cov is required, not cosmetic: pytest.ini sets
-          # --cov-fail-under=40 in addopts, which applies to THIS single-file
-          # run too. One file covers ~1.5% of the backend, so the step exited 1
-          # with all 42 guards passing -- reported as "Secret-exposure guard
-          # failed", which is the opposite of what happened. Coverage is
-          # measured by the full-suite step below; it is meaningless here.
-          python -m pytest tests/test_secret_exposure_guard.py \
-            --tb=short -v --no-header -p no:cacheprovider --no-cov \
-            || { echo "::error::Secret-exposure guard failed -- see AUDIT.md"; exit 1; }
-
-      - name: Run pytest (ENFORCING)
-        working-directory: backend
-        # `|| true` removed 2026-08-01. It had made the whole backend suite
-        # advisory: 455 collection errors and 164 failures had accumulated
-        # unseen, including a stored-XSS iframe bypass, an app that could not
-        # boot without GEMINI_API_KEY, and a CSRF-exempt entry missing for the
-        # iCreate fee step. A suite that cannot fail teaches nothing.
-        #
-        # Placeholder Supabase credentials are supplied because unit tests need
-        # to CONSTRUCT a client against mocks; nothing here reaches a real
-        # database. Tests that genuinely need one are marked `requires_db` and
-        # skip unless RUN_DB_INTEGRATION_TESTS=1 -- integration-tests.yml runs
-        # those against a real Supabase stack.
-        #
-        # test_admin_client_justified is deselected, NOT weakened: it reports
-        # 195 get_supabase_admin_client() calls with no justification comment,
-        # each one an un-audited RLS bypass. Keeping it out of the gate leaves
-        # the finding honest and visible instead of re-baselining it away.
-        # Re-select it once the calls are annotated.
-        env:
-          FLASK_ENV: testing
-          FLASK_SECRET_KEY: test-secret-key-for-ci-only
-          SUPABASE_URL: https://placeholder.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
-          SUPABASE_ANON_KEY: placeholder-anon-key
-        run: |
-          # Coverage floor is 38 here, not the 40 in pytest.ini, because this
-          # run no longer executes the `requires_db` tests -- they moved to
-          # integration-tests.yml. Measured on 2026-08-01: 40.31% with them,
-          # 38.82% without. The 1.5% did not disappear, it moved. Raise this
-          # back toward 40 by adding coverage to THIS run, and never by
-          # un-skipping database tests that cannot pass here.
-          python -m pytest tests/ --tb=short -v -p no:cacheprovider \
-            --cov-fail-under=38 \
-            --deselect tests/unit/test_admin_client_justified.py::test_every_admin_client_call_has_justification_comment
+    uses: ./.github/workflows/tests-backend.yml
+    with:
+      coverage-floor: 41
 
   web:
-    name: Web (v1) Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
-        working-directory: frontend
-        run: |
-          npm config set fetch-retries 5
-          npm config set fetch-retry-mintimeout 20000
-          npm config set fetch-retry-maxtimeout 120000
-          for i in 1 2 3; do
-            if npm ci; then exit 0; fi
-            echo "npm ci attempt $i failed; retrying..."; sleep 10
-          done
-          exit 1
-      - name: npm audit (high/critical only)
-        working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
-      - name: Run tests + coverage gate
-        working-directory: frontend
-        # Single run is both the pass/fail gate (pipefail) and the coverage gate.
-        # Ratchet MIN_COVERAGE upward over time, never down.
-        env:
-          MIN_COVERAGE: 44
-        run: |
-          set -o pipefail
-          npm run test:coverage 2>&1 | tee /tmp/cov.log
-          LINE_PCT=$(grep -E '^All files' /tmp/cov.log | awk -F'|' '{gsub(/ /, "", $2); print $2}' | head -1)
-          LINE_INT=${LINE_PCT%.*}
-          echo "Line coverage: ${LINE_PCT:-0}% (required: ${MIN_COVERAGE}%)"
-          if [ "${LINE_INT:-0}" -lt "${MIN_COVERAGE}" ]; then
-            echo "FAILED: line coverage (${LINE_PCT:-0}%) below ${MIN_COVERAGE}%"; exit 1
-          fi
-          echo "PASSED: coverage gate met"
+    uses: ./.github/workflows/tests-web.yml
+    with:
+      coverage-floor: 53
 
   mobile:
-    name: Mobile (v2) Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend-v2/package-lock.json
-      - name: Install dependencies
-        working-directory: frontend-v2
-        run: |
-          npm config set fetch-retries 5
-          npm config set fetch-retry-mintimeout 20000
-          npm config set fetch-retry-maxtimeout 120000
-          for i in 1 2 3; do
-            if npm ci; then exit 0; fi
-            echo "npm ci attempt $i failed; retrying..."; sleep 10
-          done
-          exit 1
-      - name: npm audit (high/critical only)
-        # Same high/critical bar as before, but advisories with no published fix
-        # can be accepted individually in frontend-v2/audit-allowlist.json, with
-        # a reason and an expiry date, instead of the whole gate being lowered.
-        # See scripts/audit-gate.mjs.
-        run: node scripts/audit-gate.mjs --dir frontend-v2
-      - name: TypeScript check (informational)
-        working-directory: frontend-v2
-        continue-on-error: true
-        run: npm run typecheck
-      - name: Run tests
-        working-directory: frontend-v2
-        run: npm run test:run
+    uses: ./.github/workflows/tests-mobile.yml
+
+  # Enforcing. Deliberately NOT in the `deploy` job's needs: yet -- give the
+  # local-stack harness one green cycle on main first, then add `integration`
+  # there so a red integration run also holds the deploy.
+  integration:
+    uses: ./.github/workflows/tests-integration.yml
 
   # Prod web + backend — deploys fire as soon as THEIR tests pass, without
   # waiting for the mobile tests or the OTA publish. Pinned to this exact commit

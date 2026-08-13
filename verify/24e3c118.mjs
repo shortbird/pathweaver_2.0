@@ -2,7 +2,7 @@ export const meta = {
   client: 'optio',
   title: 'Families can request an age exception for a class',
   detail: 'The Schedule Builder now offers a low-key "ask the school for an age exception" link for classes hidden by age limits; requests are timestamped and staff approve (enrolls immediately) or decline them on the SIS Registration page.',
-  url: 'www.optioeducation.com',
+  url: 'https://www.optioeducation.com',
   steps: [
     '1. Sign in as a parent of an iCreate family and open the Schedule Builder.',
     '2. Click a time slot where a class exists outside your student\'s age range (e.g. an 8-year-old and a 9+ class).',

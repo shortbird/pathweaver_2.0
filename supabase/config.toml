@@ -1,0 +1,88 @@
+# Local Supabase stack config -- used by `supabase start` for the integration
+# test harness (.github/workflows/tests-integration.yml) and for local dev.
+#
+# This does NOT configure production. Production settings live in the Supabase
+# dashboard for project vvfgxcykxjybtvpfzwyx.
+#
+# WHY A LOCAL STACK AND NOT A PREVIEW BRANCH
+# ------------------------------------------
+# The integration suite used to want a hand-created Supabase preview branch
+# whose URL and service-role key were pasted into repo secrets. That cost real
+# money (see supabase-branch-reaper.yml -- abandoned branches were 38% of the
+# Aug 2026 invoice) and it put a service-role key for a database cloned from
+# production into CI, guarded only by a string check that the URL did not
+# contain the prod project ref.
+#
+# A local stack is free, is destroyed with the runner, holds no production data,
+# and cannot be pointed at production by a mistyped secret because there is no
+# secret. It boots in ~60-90s on a GitHub runner.
+
+project_id = "optio"
+
+[api]
+enabled = true
+port = 54321
+# The app talks to PostgREST against `public` only. Nothing in the test suite
+# should reach for another schema -- the old `test_schema` isolation attempt set
+# an X-Supabase-Schema header, which PostgREST does not read (it reads
+# Accept-Profile / Content-Profile), so every write landed in public anyway.
+# With a disposable local database, schema isolation buys nothing: the whole
+# database is the fixture.
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# MUST match production (confirmations ON). This is not a preference.
+#
+# With confirmations OFF, GoTrue returns a live session from sign_up. supabase-py
+# stores that session on the client it was called from -- and registration calls
+# sign_up on the client from get_supabase_admin_client(), which is cached per
+# request and shared. Every subsequent write on that client then went out as the
+# newly-created `authenticated` user instead of `service_role`, RLS came back on,
+# and registration died with "new row violates row-level security policy for
+# table diplomas" (the users insert trigger writes a diploma row).
+#
+# Production never hits this because confirmations are on there, so sign_up
+# returns no session and the client keeps its service_role identity. Turning
+# confirmations off locally would mean testing a code path production never runs,
+# and hiding one it does.
+#
+# Tests that need a usable account create it through db.auth.admin.create_user
+# with email_confirm=True (see the make_user fixture), which is unaffected.
+enable_confirmations = true
+double_confirm_changes = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = false

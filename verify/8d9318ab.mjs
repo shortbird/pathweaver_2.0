@@ -39,11 +39,18 @@ export default async function run(page) {
     },
   }
 
+  // Echo the caller's origin. A wildcard cannot be combined with
+  // allow-credentials — the browser discards the response — and the API is a
+  // separate origin in production, so the stubbed /api/auth/me was thrown away
+  // and every run bounced to /login before reaching Settings. Same-origin on
+  // the preview this was first proved against, which is why it only broke once
+  // it started re-running against production.
   const json = (obj) => (route) => {
+    const origin = route.request().headers()['origin'] || BASE
     return route.fulfill({
       status: 200,
       headers: {
-        'access-control-allow-origin': '*',
+        'access-control-allow-origin': origin,
         'access-control-allow-credentials': 'true',
         'content-type': 'application/json',
       },

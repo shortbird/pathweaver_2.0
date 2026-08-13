@@ -1,0 +1,146 @@
+name: Supabase Branch Reaper
+
+# Deletes abandoned Supabase preview branches.
+#
+# WHY THIS EXISTS
+# ---------------
+# The Aug 2026 invoice was $134.83, of which $50.79 was branching compute. Six
+# branches accounted for $45.19 of that (89%) -- every one of them a preview
+# database created and then forgotten:
+#
+#   claude/bracket-leaderboard-champ-icon-kbzqhh  PR #8   727h  $9.77
+#   perch-widget                                  PR #11  727h  $9.77
+#   ticket-ef1e9001                               no PR   549h  $7.38
+#   ticket-448dc9cc                               no PR   549h  $7.38
+#   ticket-d7e76f6f                               no PR   549h  $7.38
+#   (one more, deleted mid-month)                         261h  $3.51
+#
+# 727 hours is the entire billing period. They were billing for a month.
+#
+# THIS IS THE PRIMARY CONTROL, NOT A BACKSTOP.
+#
+# Confirmed 2026-08-13: neither Optio nor dub has the Supabase GitHub
+# integration installed (only cron, data api, and vault). So there is no
+# per-PR branching to switch off, and nothing that reaps a branch when its PR
+# closes. Every preview branch on the Aug invoice was created through the
+# Management API -- i.e. by agent sessions calling create_branch, three of them
+# (`ticket-*`) without any PR at all.
+#
+# That means no repository or dashboard setting can prevent these; the only
+# thing standing between a create_branch call and a month of compute is
+# time-based expiry. Which is this file.
+#
+# SAFETY: only non-default, non-persistent PREVIEW branches are eligible, and
+# only past MAX_AGE_DAYS. The default branch of a project points at the parent
+# project ref -- deleting that would mean deleting production -- so `is_default`
+# and `persistent` are hard exclusions, not heuristics.
+
+on:
+  schedule:
+    - cron: '30 13 * * *'   # 13:30 UTC daily, just after the DB exposure audit
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Delete preview branches older than this many days'
+        required: false
+        default: '3'
+      dry_run:
+        description: 'Report what would be deleted without deleting it'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  contents: read
+
+env:
+  # Every Supabase project in the org is swept, not just Optio: the branches
+  # that ran up the Aug bill were on `dub`, a different project entirely. A
+  # per-project reaper would have missed all of them.
+  # Optio, dub, Perch, chamberlin. (praxis / qsnbrspowgvcehkcxekm was deleted
+  # 2026-08-13.) A project that 404s here is skipped, not fatal, so a stale
+  # entry is harmless -- but keep this current so the sweep stays honest about
+  # what it covers.
+  ORG_PROJECTS: >-
+    vvfgxcykxjybtvpfzwyx
+    onwnezxvxyczjrospnaj
+    ewdgdrhvdwantdgqkpvd
+    cpuvzobtymgjdoqfalfg
+
+jobs:
+  reap:
+    name: Delete abandoned preview branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reap
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '3' }}
+          # Scheduled runs delete. Manual runs default to a dry run so the
+          # blast radius can be read before anything is destroyed.
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not set. Create a Management API token"
+            echo "::error::(https://supabase.com/dashboard/account/tokens) and add it as a repo secret."
+            exit 1
+          fi
+
+          cutoff=$(date -u -d "$MAX_AGE_DAYS days ago" +%s)
+          echo "Cutoff: branches created before $(date -u -d "@$cutoff" '+%Y-%m-%d %H:%M UTC') (${MAX_AGE_DAYS}d)"
+          echo "Dry run: $DRY_RUN"
+          echo
+
+          total=0
+          reaped=0
+          for project in $ORG_PROJECTS; do
+            echo "=== project $project"
+            resp=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              "https://api.supabase.com/v1/projects/$project/branches" || echo '[]')
+
+            # A project with branching disabled 404s; that is success, not failure.
+            if ! echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+              echo "  no branches (branching disabled or not accessible)"
+              continue
+            fi
+
+            echo "$resp" | jq -c '.[]' | while read -r branch; do
+              id=$(echo "$branch" | jq -r '.id')
+              name=$(echo "$branch" | jq -r '.name')
+              ref=$(echo "$branch" | jq -r '.project_ref')
+              created=$(echo "$branch" | jq -r '.created_at')
+              is_default=$(echo "$branch" | jq -r '.is_default')
+              persistent=$(echo "$branch" | jq -r '.persistent')
+
+              if [ "$is_default" = "true" ] || [ "$persistent" = "true" ]; then
+                echo "  KEEP  $name ($ref) -- default/persistent"
+                continue
+              fi
+
+              created_ts=$(date -u -d "$created" +%s 2>/dev/null || echo 0)
+              age_days=$(( ($(date -u +%s) - created_ts) / 86400 ))
+
+              if [ "$created_ts" -ge "$cutoff" ]; then
+                echo "  KEEP  $name ($ref) -- ${age_days}d old, under threshold"
+                continue
+              fi
+
+              echo "  REAP  $name ($ref) -- ${age_days}d old"
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "        (dry run, not deleted)"
+              else
+                if curl -sS -X DELETE \
+                     -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                     "https://api.supabase.com/v1/branches/$id" >/dev/null; then
+                  echo "        deleted"
+                else
+                  echo "::warning::failed to delete branch $name ($id)"
+                fi
+              fi
+            done
+          done
+          echo
+          echo "Reaper finished."

@@ -1,279 +1,318 @@
-"""
-Integration tests for authentication flow.
+"""Integration tests for the authentication flow.
 
-Tests the complete authentication system including:
-- Login with httpOnly cookies
-- Registration with strong password policy
-- Account lockout after failed attempts
-- CSRF protection
-- Token refresh mechanism
+Drives the real app against a real database: login goes through GoTrue, tokens
+are minted and verified by session_manager, and profile reads go through
+PostgREST. Nothing here is mocked.
+
+Ported 2026-08-13. The previous version of this file could not run -- it seeded
+through an `execute_sql` RPC that has never existed, wrote to a `test_schema`
+the app never reads, and authenticated by setting `session['user_id']`, which
+require_auth does not look at. It also asserted almost nothing:
+`assert response.status_code in [200, 401]` passes whichever happens, and eight
+of the thirteen tests were that shape. Assertions here are single-valued.
+See backend/tests/integration/README.md.
 """
+
+import uuid
+from unittest.mock import patch
 
 import pytest
-import json
-from datetime import datetime, timedelta
 
-from utils.logger import get_logger
-
-# Every test here drives the real app end-to-end: /api/health pings the
-# database, login and profile reads go through PostgREST. They need a live
-# stack, not mocks.
+# Every test drives the app end to end and needs a live stack.
 pytestmark = pytest.mark.requires_db
 
-logger = get_logger(__name__)
+
+@pytest.fixture
+def no_brevo_sync():
+    """Stop registration reaching the live Brevo account.
+
+    Registering a user calls brevo_service.sync_new_account, which POSTs to
+    api.brevo.com. The suite's _no_outbound_email guard catches that and fails
+    the test -- correctly: a test run must not write contacts into the real
+    marketing account. Registration swallows Brevo errors, so patching it out
+    changes nothing else about the flow under test.
+    """
+    with patch('services.brevo_service.sync_new_account') as sync, \
+         patch('services.brevo_service.mark_converted') as converted:
+        yield sync, converted
 
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_login_success_returns_cookies(client, test_user):
-    """Test successful login returns httpOnly cookies with JWT tokens"""
-    # Note: In real test, would need to create user with password via Supabase auth
-    # For now, this is a template showing the test structure
-
-    response = client.post('/api/auth/login', json={
-        'email': test_user['email'],
-        'password': 'ValidPassword123!'
-    })
-
-    # Should return 200 with user data
-    assert response.status_code in [200, 401]  # 401 if auth not mocked
-
-    # Would check for httpOnly cookies in real implementation
-    # assert 'access_token' in response.cookies
-    # assert response.cookies['access_token'].httponly is True
+def _set_cookie_headers(response):
+    """All Set-Cookie headers on a response, lowercased."""
+    return [h.lower() for h in response.headers.getlist('Set-Cookie')]
 
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_login_fails_with_invalid_credentials(client, test_user):
-    """Test login with wrong password fails appropriately"""
-    response = client.post('/api/auth/login', json={
-        'email': test_user['email'],
-        'password': 'WrongPassword123!'
-    })
-
-    assert response.status_code == 401
-    assert 'error' in response.json or 'message' in response.json
+def _cookie_named(response, name):
+    """The Set-Cookie header for `name`, or None."""
+    for header in _set_cookie_headers(response):
+        if header.startswith(f'{name.lower()}='):
+            return header
+    return None
 
 
-@pytest.mark.integration
-@pytest.mark.critical
-def test_account_lockout_after_failed_attempts(client, test_user, test_supabase):
-    """Test account locks after 5 failed login attempts"""
-    email = test_user['email']
-
-    # Clear any existing login attempts
-    test_supabase.rpc('execute_sql', {
-        'query': f"DELETE FROM test_schema.login_attempts WHERE email = '{email}'"
-    })
-
-    # Attempt 5 failed logins
-    for i in range(5):
-        response = client.post('/api/auth/login', json={
-            'email': email,
-            'password': f'WrongPassword{i}!'
-        })
-        assert response.status_code in [401, 429]
-
-    # 6th attempt should be blocked due to lockout
-    response = client.post('/api/auth/login', json={
-        'email': email,
-        'password': 'WrongPassword5!'
-    })
-
-    assert response.status_code == 429  # Too Many Requests
-    assert 'locked' in str(response.json).lower() or 'try again' in str(response.json).lower()
-
-
-@pytest.mark.integration
-def test_registration_enforces_strong_password(client):
-    """Test registration enforces strong password policy (12+ chars, mixed case, number, special)"""
-    weak_passwords = [
-        'short',  # Too short
-        'alllowercase123!',  # No uppercase
-        'ALLUPPERCASE123!',  # No lowercase
-        'NoNumbers!!!',  # No numbers
-        'NoSpecial123',  # No special chars
-        'Common123!',  # On blacklist (if implemented)
-    ]
-
-    for weak_password in weak_passwords:
-        response = client.post('/api/auth/register', json={
-            'email': f'test_{weak_password}@example.com',
-            'password': weak_password,
-            'display_name': 'Test User',
-            'first_name': 'Test',
-            'last_name': 'User',
-        })
-
-        # Should reject weak password
-        assert response.status_code in [400, 422], f"Weak password '{weak_password}' was not rejected"
-
-
-@pytest.mark.integration
-def test_registration_success_with_strong_password(client):
-    """Test successful registration with strong password"""
-    import uuid
-
-    strong_password = 'StrongP@ssw0rd123!'
-    unique_email = f'test_{uuid.uuid4().hex[:8]}@example.com'
-
-    response = client.post('/api/auth/register', json={
-        'email': unique_email,
-        'password': strong_password,
-        'display_name': 'Test User',
+def _valid_registration(**overrides):
+    payload = {
+        'email': f'reg_{uuid.uuid4().hex[:10]}@example.com',
+        'password': 'StrongP@ssw0rd123!',
         'first_name': 'Test',
         'last_name': 'User',
+        # The route accepts either acceptedLegalTerms, or acceptedTerms AND
+        # acceptedPrivacy together (routes/auth/registration.py:125).
+        'acceptedLegalTerms': True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+# Login
+
+
+@pytest.mark.integration
+@pytest.mark.critical
+def test_login_succeeds_and_sets_httponly_cookies(client, student):
+    response = client.post('/api/auth/login', json={
+        'email': student['email'],
+        'password': student['password'],
     })
 
-    # Should succeed or return existing user error
-    assert response.status_code in [200, 201, 409]
+    assert response.status_code == 200
+
+    access = _cookie_named(response, 'access_token')
+    refresh = _cookie_named(response, 'refresh_token')
+    assert access is not None, 'login did not set an access_token cookie'
+    assert refresh is not None, 'login did not set a refresh_token cookie'
+
+    # ADR-001: tokens live in httpOnly cookies precisely so document.cookie
+    # cannot read them. If this attribute ever goes missing, XSS gets the
+    # session.
+    assert 'httponly' in access
+    assert 'httponly' in refresh
 
 
 @pytest.mark.integration
-def test_csrf_protection_blocks_missing_token(client):
-    """Test CSRF middleware blocks POST requests without CSRF token"""
-    # First get CSRF token
-    csrf_response = client.get('/api/auth/csrf-token')
-    assert csrf_response.status_code == 200
-    csrf_token = csrf_response.json.get('csrf_token')
+@pytest.mark.critical
+def test_login_rejects_wrong_password(client, student):
+    response = client.post('/api/auth/login', json={
+        'email': student['email'],
+        'password': 'DefinitelyNotTheP@ssw0rd!',
+    })
 
-    # Try POST without CSRF token
-    response = client.post('/api/auth/login',
-        json={'email': 'test@example.com', 'password': 'Test123!'},
-        headers={'Content-Type': 'application/json'}
-    )
-
-    # Should either require CSRF or pass (depending on config)
-    # In production, should require CSRF for all state-changing requests
-    assert response.status_code in [200, 400, 403, 401]
+    assert response.status_code == 401
+    assert _cookie_named(response, 'access_token') is None
 
 
 @pytest.mark.integration
-def test_csrf_protection_accepts_valid_token(client):
-    """Test CSRF middleware accepts requests with valid CSRF token"""
-    # Get CSRF token
-    csrf_response = client.get('/api/auth/csrf-token')
-    assert csrf_response.status_code == 200
-    csrf_token = csrf_response.json.get('csrf_token')
+@pytest.mark.security
+def test_login_does_not_reveal_whether_an_email_exists(client, student):
+    """A wrong password and an unknown address must be indistinguishable.
 
-    # Make POST request with CSRF token
-    response = client.post('/api/auth/login',
-        json={'email': 'test@example.com', 'password': 'Test123!'},
-        headers={
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrf_token
-        }
-    )
+    Anything that separates them turns the login form into an account
+    enumeration oracle.
+    """
+    known = client.post('/api/auth/login', json={
+        'email': student['email'],
+        'password': 'DefinitelyNotTheP@ssw0rd!',
+    })
+    unknown = client.post('/api/auth/login', json={
+        'email': f'nobody_{uuid.uuid4().hex[:10]}@example.com',
+        'password': 'DefinitelyNotTheP@ssw0rd!',
+    })
 
-    # Should not be blocked by CSRF (may still fail auth)
-    assert response.status_code in [200, 401], "Request with valid CSRF token was blocked"
+    assert known.status_code == unknown.status_code == 401
+
+    def message(resp):
+        body = resp.get_json() or {}
+        error = body.get('error')
+        if isinstance(error, dict):
+            return error.get('message')
+        return error or body.get('message')
+
+    assert message(known) == message(unknown)
 
 
-@pytest.mark.integration
-def test_logout_clears_cookies(client, test_user):
-    """Test logout clears httpOnly cookies"""
-    # Simulate logged-in state
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    response = client.post('/api/auth/logout')
-
-    # Should succeed
-    assert response.status_code in [200, 204]
-
-    # Cookies should be cleared
-    # In real implementation, would check:
-    # assert 'access_token' not in response.cookies or response.cookies['access_token'] == ''
+# Registration
 
 
 @pytest.mark.integration
-def test_token_refresh_extends_session(client, test_user):
-    """Test token refresh mechanism extends user session"""
-    # Simulate logged-in state
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
+@pytest.mark.critical
+def test_registration_creates_the_user(client, db, no_brevo_sync):
+    payload = _valid_registration()
 
-    response = client.post('/api/auth/refresh')
+    response = client.post('/api/auth/register', json=payload)
 
-    # Should succeed or return 401 if not implemented
-    assert response.status_code in [200, 401, 404]
+    assert response.status_code in (200, 201), response.get_data(as_text=True)
 
-    if response.status_code == 200:
-        # New tokens should be issued
-        assert 'access_token' in response.json or 'access_token' in response.cookies
+    rows = db.table('users').select('id, email, role').eq(
+        'email', payload['email']
+    ).execute().data
+    assert len(rows) == 1
+    # Self-registration must never mint a privileged account.
+    assert rows[0]['role'] == 'student'
 
 
 @pytest.mark.integration
+@pytest.mark.security
+def test_registration_requires_accepting_the_legal_terms(client, db):
+    payload = _valid_registration()
+    del payload['acceptedLegalTerms']
+
+    response = client.post('/api/auth/register', json=payload)
+
+    assert response.status_code == 400
+    assert 'terms of service' in response.get_data(as_text=True).lower()
+    # And crucially, no account was created.
+    assert db.table('users').select('id').eq('email', payload['email']).execute().data == []
+
+
+@pytest.mark.integration
+@pytest.mark.security
+@pytest.mark.parametrize('weak_password, why', [
+    ('Sh0rt!', 'too short'),
+    ('alllowercase123!', 'no uppercase'),
+    ('ALLUPPERCASE123!', 'no lowercase'),
+    ('NoNumbersHere!!!', 'no digits'),
+    ('NoSpecialChars123', 'no special characters'),
+])
+def test_registration_rejects_weak_passwords(client, db, weak_password, why):
+    payload = _valid_registration(password=weak_password)
+
+    response = client.post('/api/auth/register', json=payload)
+
+    assert response.status_code == 400, f'accepted a password with {why}'
+    assert db.table('users').select('id').eq('email', payload['email']).execute().data == []
+
+
+@pytest.mark.integration
+def test_registration_rejects_a_duplicate_email(client, student, no_brevo_sync):
+    payload = _valid_registration(email=student['email'])
+
+    response = client.post('/api/auth/register', json=payload)
+
+    assert response.status_code in (400, 409), response.get_data(as_text=True)
+
+
+# CSRF
+
+
+@pytest.mark.integration
+def test_csrf_token_endpoint_serves_a_token(client):
+    response = client.get('/api/auth/csrf-token')
+
+    assert response.status_code == 200
+    assert (response.get_json() or {}).get('csrf_token')
+
+
+@pytest.mark.integration
+@pytest.mark.security
+def test_bearer_authenticated_requests_do_not_need_a_csrf_token(client, student, auth_headers_for):
+    """Bearer auth is exempt from CSRF by design.
+
+    An attacker cannot set an Authorization header cross-site, so the token adds
+    nothing there -- and requiring it would break the mobile app, which has no
+    cookie to pair it with (middleware/csrf_protection.py).
+    """
+    response = client.get('/api/auth/me', headers=auth_headers_for(student['id']))
+
+    assert response.status_code == 200
+    assert 'csrf' not in response.get_data(as_text=True).lower()
+
+
+# Authorization boundaries
+
+
+@pytest.mark.integration
+@pytest.mark.critical
 def test_protected_route_requires_authentication(client):
-    """Test that protected routes require authentication"""
-    # Try to access protected route without auth
-    response = client.get('/api/users/me')
+    response = client.get('/api/auth/me')
 
-    # Should return 401 Unauthorized
     assert response.status_code == 401
 
 
 @pytest.mark.integration
-def test_protected_route_allows_authenticated_user(client, test_user):
-    """Test that protected routes allow authenticated users"""
-    # Simulate authenticated user
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
+@pytest.mark.critical
+def test_protected_route_accepts_a_valid_bearer_token(client, student, auth_headers_for):
+    response = client.get('/api/auth/me', headers=auth_headers_for(student['id']))
 
-    response = client.get(f'/api/users/{test_user["id"]}/profile')
-
-    # Should succeed or return 404 if route doesn't exist
-    assert response.status_code in [200, 404]
+    assert response.status_code == 200
+    body = response.get_json() or {}
+    # The response must describe the caller, not somebody else.
+    assert student['id'] in response.get_data(as_text=True), body
 
 
 @pytest.mark.integration
-def test_admin_route_requires_admin_role(client, test_user):
-    """Test that admin routes require admin role"""
-    # Test user is student, not admin
-    assert test_user['role'] == 'student'
+@pytest.mark.security
+def test_protected_route_rejects_a_forged_bearer_token(client, student):
+    """A token this app did not sign must not authenticate anyone."""
+    forged = (
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
+        'eyJ1c2VyX2lkIjoiZm9yZ2VkIiwidHlwZSI6ImFjY2VzcyJ9.'
+        'not-a-real-signature'
+    )
+    response = client.get('/api/auth/me', headers={'Authorization': f'Bearer {forged}'})
 
-    # Simulate authenticated as student
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
-
-    # Try to access admin route
-    response = client.get('/api/admin/users')
-
-    # Should return 403 Forbidden
-    assert response.status_code in [403, 401]
+    assert response.status_code == 401
 
 
 @pytest.mark.integration
-def test_admin_route_allows_admin_user(client, test_supabase):
-    """Test that admin routes allow admin users"""
-    import uuid
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_admin_route_is_forbidden_for_a_student(client, student, auth_headers_for):
+    response = client.get('/api/admin/users', headers=auth_headers_for(student['id']))
 
-    # Create admin user
-    admin_id = str(uuid.uuid4())
-    admin_data = {
-        'id': admin_id,
-        'email': f'admin_{uuid.uuid4().hex[:8]}@example.com',
-        'display_name': 'Admin User',
-        'first_name': 'Admin',
-        'last_name': 'User',
-        'role': 'admin',
-    }
+    assert response.status_code == 403
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, first_name, last_name, role)
-            VALUES ('{admin_data['id']}', '{admin_data['email']}', '{admin_data['display_name']}',
-                    '{admin_data['first_name']}', '{admin_data['last_name']}', '{admin_data['role']}')
-        """
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_admin_route_allows_a_superadmin(client, make_user, auth_headers_for):
+    superadmin = make_user(role='superadmin')
+
+    response = client.get('/api/admin/users', headers=auth_headers_for(superadmin['id']))
+
+    assert response.status_code == 200
+
+
+# Session lifecycle
+
+
+@pytest.mark.integration
+def test_logout_clears_the_auth_cookies(client, student, auth_headers_for):
+    response = client.post(
+        '/api/auth/logout',
+        headers=auth_headers_for(student['id']),
+        json={},
+    )
+
+    assert response.status_code == 200
+
+    # Clearing a cookie means re-sending it empty and/or already expired.
+    access = _cookie_named(response, 'access_token')
+    assert access is not None, 'logout did not send a clearing access_token cookie'
+    assert 'access_token=;' in access or 'expires=thu, 01 jan 1970' in access
+
+
+@pytest.mark.integration
+@pytest.mark.critical
+def test_refresh_issues_a_new_access_token(client, student):
+    login = client.post('/api/auth/login', json={
+        'email': student['email'],
+        'password': student['password'],
     })
+    assert login.status_code == 200
 
-    # Simulate authenticated as admin
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
+    # The test client keeps the login cookies, so this is the same thing a
+    # browser does when its access token expires.
+    response = client.post('/api/auth/refresh', json={})
 
-    # Try to access admin route
-    response = client.get('/api/admin/users')
+    assert response.status_code == 200
+    assert _cookie_named(response, 'access_token') is not None
 
-    # Should succeed or return 404 if implementation differs
-    assert response.status_code in [200, 404, 500]
+
+@pytest.mark.integration
+@pytest.mark.security
+def test_refresh_rejects_a_garbage_refresh_cookie(client):
+    client.set_cookie('refresh_token', 'not-a-real-token', domain='localhost')
+
+    response = client.post('/api/auth/refresh', json={})
+
+    assert response.status_code == 401

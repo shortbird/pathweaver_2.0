@@ -1,0 +1,61 @@
+name: Mobile (v2) Tests (reusable)
+
+# See tests-backend.yml for why the test jobs are reusable workflows rather
+# than copies: one definition, called by both the pre-merge gate (ci.yml) and
+# the release gate (release.yml).
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile:
+    name: Mobile (v2) Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend-v2/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend-v2
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."; sleep 10
+          done
+          exit 1
+      - name: npm audit (high/critical only)
+        # Same high/critical bar as before, but advisories with no published fix
+        # can be accepted individually in frontend-v2/audit-allowlist.json, with
+        # a reason and an expiry date, instead of the whole gate being lowered.
+        # See scripts/audit-gate.mjs.
+        run: node scripts/audit-gate.mjs --dir frontend-v2
+      - name: TypeScript check (informational)
+        working-directory: frontend-v2
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Run tests + coverage gate
+        working-directory: frontend-v2
+        # Was `npm run test:run`, which is `jest` WITHOUT --coverage. jest.config.js
+        # has carried a coverageThreshold since it was written, but because CI
+        # never collected coverage the threshold never evaluated -- and the real
+        # numbers had drifted to roughly half of it (31% statements against a
+        # declared 50%). A threshold that never runs is not a gate, it is a
+        # comment.
+        #
+        # test:coverage now runs in CI and the thresholds in jest.config.js are
+        # set to the MEASURED numbers, so coverage can no longer silently fall.
+        # Raise them as tests are added; the 50/40/50/50 aspiration is recorded
+        # in jest.config.js.
+        run: npm run test:coverage

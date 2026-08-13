@@ -34,7 +34,9 @@ def pytest_collection_modifyitems(config, items):
     skip_db = pytest.mark.skip(
         reason='Needs a live database. Set RUN_DB_INTEGRATION_TESTS=1 with '
                'SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY pointing at a real stack '
-               '(see .github/workflows/integration-tests.yml).'
+               '(see .github/workflows/tests-integration.yml). NOTE: these tests '
+               'do not currently pass against any database -- read '
+               'backend/tests/integration/README.md first.'
     )
     for item in items:
         if 'requires_db' in item.keywords:
@@ -229,145 +231,225 @@ def admin_user():
     }
 
 # Real Database Fixtures for Integration Tests
+#
+# These target a THROWAWAY LOCAL SUPABASE STACK (`supabase start`), never a
+# hosted project. See backend/tests/integration/README.md for the full story;
+# the short version is that the previous fixtures could not work anywhere:
+#
+#   1. they seeded through `client.rpc('execute_sql', ...)`, and no such
+#      function exists in any Optio database;
+#   2. they wrote to `test_schema` and tried to redirect reads with an
+#      `X-Supabase-Schema` header, which PostgREST ignores (it reads
+#      Accept-Profile / Content-Profile), so the app kept reading `public`;
+#   3. they authenticated with `session['user_id'] = ...`, but require_auth
+#      resolves callers through session_manager, which reads Bearer tokens and
+#      httpOnly cookies and never looks at Flask's session.
+#
+# All three are fixed here by doing the real thing instead of simulating it:
+# seed through the ordinary PostgREST client, write to `public`, and mint a
+# genuine access token so requests go through the actual verification path.
+#
+# Isolation comes from the stack being disposable, not from a schema trick. The
+# `_reset_db` fixture truncates between tests so ordering never matters.
+
+LOCAL_DB_HOSTS = ('127.0.0.1', 'localhost', 'host.docker.internal', 'kong')
+
+
+def _assert_local(url: str) -> None:
+    """Refuse to run destructive fixtures against anything but a local stack.
+
+    The old integration workflow guarded production with a string check that the
+    URL did not contain the prod project ref -- one typo away from a suite that
+    inserts users and truncates tables running against real data. This inverts
+    it: only an explicitly local host is allowed, so a wrong value fails closed.
+    """
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or '').lower()
+    if host not in LOCAL_DB_HOSTS:
+        pytest.exit(
+            f"REFUSING TO RUN: integration fixtures truncate tables, and "
+            f"SUPABASE_URL points at '{host}', which is not a local stack "
+            f"({', '.join(LOCAL_DB_HOSTS)}). Start one with `supabase start`.",
+            returncode=1,
+        )
+
+
+# Tables the integration suite writes to, in reverse dependency order. Truncated
+# between tests. `users` is last because almost everything references it.
+_RESET_TABLES = (
+    'quest_task_completions',
+    'user_quest_tasks',
+    'user_quests',
+    'user_skill_xp',
+    'parent_student_links',
+    'parent_invitations',
+    'observer_student_links',
+    'observer_invitations',
+    'login_attempts',
+    'parental_consent_log',
+    'announcements',
+    'quest_invitations',
+    'curriculum_lesson_tasks',
+    'curriculum_lessons',
+    'quests',
+    'users',
+)
+
 
 @pytest.fixture(scope='session')
-def test_supabase():
-    """Get Supabase client configured for test schema.
+def db():
+    """Service-role client against the local stack.
 
-    These are true integration tests: they need a live Supabase project holding
-    a `test_schema`. Two things were wrong here.
-
-    First, get_supabase_admin_client() caches on Flask's `g`, so it needs an
-    application context -- which this session-scoped fixture never created, and
-    cannot get from the function-scoped `app` fixture. It now pushes its own.
-
-    Second, with no database configured the fixture raised, which pytest reports
-    as an ERROR. CI has no Supabase credentials, so that was 158 permanent
-    errors -- exactly the noise that let real breakage hide (and that the
-    `|| true` in release.yml was papering over). It now SKIPs, which is the
-    truthful result: not run, as opposed to broken.
-
-    The gate is an explicit opt-in rather than "are credentials set", because
-    unit tests need placeholder credentials just to construct a client against
-    mocks. Only RUN_DB_INTEGRATION_TESTS=1 means "there is a real database here
-    and I mean to write to it".
+    Session-scoped: booting the stack is expensive, truncating is not.
     """
-    from database import get_supabase_admin_client
-    from app_config import Config
-
     if os.getenv('RUN_DB_INTEGRATION_TESTS', '').lower() not in ('1', 'true', 'yes'):
         pytest.skip(
-            'Set RUN_DB_INTEGRATION_TESTS=1 (with SUPABASE_URL, '
-            'SUPABASE_SERVICE_ROLE_KEY and a test_schema) to run tests that '
-            'read and write a real database.'
+            'Set RUN_DB_INTEGRATION_TESTS=1 with a local stack running '
+            '(`supabase start`). See backend/tests/integration/README.md.'
         )
 
+    from app_config import Config
     if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
-        pytest.skip(
-            'RUN_DB_INTEGRATION_TESTS is set but SUPABASE_URL / '
-            'SUPABASE_SERVICE_ROLE_KEY are missing.'
+        pytest.skip('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set.')
+
+    _assert_local(Config.SUPABASE_URL)
+
+    from supabase import create_client
+    client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+    return client
+
+
+@pytest.fixture(autouse=True)
+def _reset_db(request):
+    """Truncate integration tables before each test that uses the database.
+
+    Autouse, but a no-op for the ~2300 unit tests: it only does work when the
+    test actually asked for `db`, so mocked tests pay nothing.
+    """
+    if 'db' not in request.fixturenames:
+        yield
+        return
+
+    client = request.getfixturevalue('db')
+    _truncate(client)
+    yield
+
+
+def _truncate(client):
+    """Empty the integration tables and the auth users they hang off.
+
+    Calls public.test_truncate_all(), installed on the local stack by
+    supabase/ci/test_helpers.sql. One round trip, no FK ordering to maintain,
+    and no Postgres driver in requirements.txt just for tests.
+    """
+    try:
+        client.rpc('test_truncate_all').execute()
+    except Exception as exc:
+        pytest.exit(
+            "public.test_truncate_all() is missing or failed: "
+            f"{exc}\n"
+            "Apply supabase/ci/grants.sql and supabase/ci/test_helpers.sql to "
+            "the local stack -- see backend/tests/integration/README.md.",
+            returncode=1,
         )
 
-    from app import app as flask_app
-
-    with flask_app.app_context():
-        client = get_supabase_admin_client()
-
-        # Set search path to test schema for this session
-        test_schema = os.getenv('TEST_SCHEMA', 'test_schema')
-        client.postgrest.session.headers['X-Supabase-Schema'] = test_schema
-
-        yield client
-
-        # Cleanup: Clear all test data after session
-        try:
-            # Delete test data from all tables (in reverse dependency order)
-            tables = [
-                'quest_task_completions', 'user_quest_tasks', 'user_quests',
-                'user_skill_xp',
-                'parent_student_links', 'parent_invitations', 'login_attempts',
-                'tutor_messages', 'tutor_conversations', 'badges', 'quests', 'users'
-            ]
-            for table in tables:
-                client.rpc('execute_sql', {
-                    'query': f'DELETE FROM test_schema.{table}'
-                })
-        except Exception as e:
-            logger.warning(f"Cleanup warning: {e}")
 
 @pytest.fixture
-def test_user(test_supabase):
-    """Create real test user in test schema"""
-    user_id = str(uuid.uuid4())
-    user_data = {
-        'id': user_id,
-        'email': f'test_{uuid.uuid4().hex[:8]}@example.com',
-        'display_name': 'Test User',
-        'first_name': 'Test',
-        'last_name': 'User',
-        'role': 'student',
-    }
+def make_user(db):
+    """Factory creating a real, logged-in-able user.
 
-    # Insert into test schema
-    result = test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, first_name, last_name, role)
-            VALUES ('{user_data['id']}', '{user_data['email']}', '{user_data['display_name']}',
-                    '{user_data['first_name']}', '{user_data['last_name']}', '{user_data['role']}')
-            RETURNING *;
-        """
-    })
+    `public.users.id` is FK'd to `auth.users(id)`, so a bare insert into
+    `public.users` violates the constraint. This creates the GoTrue user first
+    (which is also what makes password login testable) and then the profile row.
 
-    yield user_data
+    Returns a dict with at least id / email / password / role.
+    """
+    created = []
 
-    # Cleanup handled by session fixture
+    def _make(role='student', email=None, password='TestPassword123!', **fields):
+        email = email or f'test_{uuid.uuid4().hex[:12]}@example.com'
 
-@pytest.fixture
-def test_quest(test_supabase):
-    """Create real test quest with tasks in test schema"""
-    quest_id = str(uuid.uuid4())
-    quest_data = {
-        'id': quest_id,
-        'title': 'Test Quest',
-        'description': 'A test quest for integration testing',
-        'source': 'optio',
-        'is_active': True,
-    }
+        auth_user = db.auth.admin.create_user({
+            'email': email,
+            'password': password,
+            'email_confirm': True,
+        })
+        user_id = auth_user.user.id
 
-    # Insert quest
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.quests (id, title, description, source, is_active)
-            VALUES ('{quest_data['id']}', '{quest_data['title']}', '{quest_data['description']}',
-                    '{quest_data['source']}', {quest_data['is_active']})
-            RETURNING *;
-        """
-    })
+        row = {
+            'id': user_id,
+            'email': email,
+            'first_name': 'Test',
+            'last_name': 'User',
+            'display_name': 'Test User',
+            'role': role,
+        }
+        row.update(fields)
+        db.table('users').insert(row).execute()
 
-    # Create sample task data (will be inserted per-user in tests)
-    task_template = {
-        'id': str(uuid.uuid4()),
-        'quest_id': quest_id,
-        'title': 'Test Task',
-        'description': 'A test task',
-        'pillar': 'stem',
-        'xp_value': 100,
-        'order_index': 1,
-        'is_required': False,
-    }
+        created.append(user_id)
+        return {**row, 'password': password}
 
-    yield quest_data, task_template
+    yield _make
 
-    # Cleanup handled by session fixture
 
 @pytest.fixture
-def authenticated_client(client, test_user):
-    """Flask test client with authentication cookies set"""
-    # Simulate login to set session
-    with client.session_transaction() as session:
-        session['user_id'] = test_user['id']
+def auth_headers_for(app):
+    """Bearer headers that authenticate as `user_id`, for real.
 
-    return client
+    session_manager.get_effective_user_id() accepts an Authorization: Bearer
+    token and verifies it properly, so this is the genuine auth path rather
+    than a patched-out one -- a token this helper mints wrong will fail the
+    test, which is the point.
+
+    Bearer also sidesteps CSRF by design (middleware/csrf_protection.py: an
+    attacker cannot set the Authorization header cross-site), so ported tests
+    do not need to juggle CSRF tokens.
+    """
+    from utils.session_manager import session_manager
+
+    def _headers(user_id, **extra):
+        # generate_access_token reads the request context for a device
+        # fingerprint; a test request context supplies one.
+        with app.test_request_context():
+            token = session_manager.generate_access_token(str(user_id))
+        return {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json',
+            **extra,
+        }
+
+    return _headers
+
+
+@pytest.fixture
+def student(make_user):
+    """A plain platform student."""
+    return make_user(role='student')
+
+
+@pytest.fixture
+def parent(make_user):
+    """A plain platform parent."""
+    return make_user(role='parent')
+
+
+@pytest.fixture
+def make_quest(db):
+    """Factory for an active quest."""
+    def _make(**fields):
+        row = {
+            'id': str(uuid.uuid4()),
+            'title': 'Test Quest',
+            'description': 'A quest for integration testing',
+            'is_active': True,
+        }
+        row.update(fields)
+        db.table('quests').insert(row).execute()
+        return row
+
+    return _make
+
 
 # Additional Fixtures for Optio Platform
 

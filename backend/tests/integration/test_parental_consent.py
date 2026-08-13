@@ -1,686 +1,319 @@
-"""
-Integration tests for Parental Consent API.
+"""Integration tests for the COPPA parental-consent flow.
 
-Tests the complete COPPA compliance system including:
-- Parental consent email verification
-- Token generation and validation
-- Document submission for parent identity verification
-- Admin review workflow (approve/reject)
-- Consent status checking
-- Rate limiting on sensitive operations
+Runs against a real database. Consent state is a regulatory record, so these
+assert on what actually landed in `users` and `parental_consent_log`, not just
+on status codes.
+
+Ported 2026-08-13 -- the previous version seeded through an `execute_sql` RPC
+that has never existed and authenticated via `session['user_id']`, which
+require_auth ignores. See backend/tests/integration/README.md.
 """
+
+import uuid
+from unittest.mock import patch
 
 import pytest
-import json
-import uuid
-from datetime import datetime, timedelta
-from unittest.mock import patch, Mock
-from io import BytesIO
 
-from utils.logger import get_logger
+pytestmark = pytest.mark.requires_db
 
-logger = get_logger(__name__)
+
+@pytest.fixture(autouse=True)
+def no_consent_email():
+    """Never send a real consent email.
+
+    Every send/resend path calls send_parental_consent_email. The suite-wide
+    _no_outbound_email guard would fail the test on the outbound POST; this
+    patches the send itself so the flow under test still runs end to end.
+    Returns True so the route takes its `email_sent` branch.
+    """
+    with patch(
+        'services.email_service.email_service.send_parental_consent_email',
+        return_value=True,
+    ) as send:
+        yield send
+
+
+@pytest.fixture
+def minor(make_user):
+    """A student who requires parental consent."""
+    return make_user(role='student', requires_parental_consent=True)
+
+
+def _consent_row(db, user_id, *columns):
+    fields = ', '.join(('id',) + columns)
+    rows = db.table('users').select(fields).eq('id', user_id).execute().data
+    assert rows, f'user {user_id} vanished'
+    return rows[0]
+
+
+def _send(client, user, parent_email='parent@example.com'):
+    return client.post('/api/parental-consent/send', json={
+        'user_id': user['id'],
+        'parent_email': parent_email,
+        'child_email': user['email'],
+    })
+
+
+# Sending the request
 
 
 @pytest.mark.integration
 @pytest.mark.critical
-def test_send_parental_consent_success(client, test_supabase):
-    """Test sending parental consent email for under-13 user"""
-    # Create user requiring parental consent
-    user_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, last_name, role, requires_parental_consent)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'User', 'student', true)
-        """
-    })
+def test_send_consent_stores_only_a_hashed_token(client, db, minor):
+    """The raw token goes in the email; only its hash may touch the database.
 
-    # Mock email service
-    with patch('services.email_service.email_service.send_parental_consent_email') as mock_email:
-        mock_email.return_value = True
+    A readable token in `users` would let anyone with database access grant
+    themselves consent on a minor's account.
+    """
+    response = _send(client, minor)
 
-        response = client.post('/api/parental-consent/send', json={
-            'user_id': user_id,
-            'parent_email': 'parent@example.com',
-            'child_email': 'child@example.com'
-        })
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['parent_email'] == 'parent@example.com'
 
-        assert response.status_code == 200
-        assert response.json['email_sent'] is True
-        assert response.json['parent_email'] == 'parent@example.com'
-        mock_email.assert_called_once()
+    row = _consent_row(
+        db, minor['id'],
+        'parental_consent_token', 'parental_consent_email', 'parental_consent_verified',
+    )
+    stored = row['parental_consent_token']
+    assert stored, 'no consent token was stored'
+    assert row['parental_consent_email'] == 'parent@example.com'
+    assert row['parental_consent_verified'] is False
+
+    # A sha256 hex digest, not a raw token.
+    assert len(stored) == 64
+    assert all(c in '0123456789abcdef' for c in stored.lower())
 
 
 @pytest.mark.integration
-def test_send_parental_consent_missing_fields(client):
-    """Test sending consent without required fields fails"""
-    # Missing user_id
-    response = client.post('/api/parental-consent/send', json={
+def test_send_consent_writes_an_audit_log_row(client, db, minor):
+    """COPPA consent needs a record of who asked, for whom, and from where."""
+    _send(client, minor)
+
+    logs = db.table('parental_consent_log').select(
+        'user_id, child_email, parent_email, consent_token'
+    ).eq('user_id', minor['id']).execute().data
+
+    assert len(logs) == 1
+    assert logs[0]['child_email'] == minor['email']
+    assert logs[0]['parent_email'] == 'parent@example.com'
+    # The log stores the hash too, never the raw token.
+    assert len(logs[0]['consent_token']) == 64
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize('missing', ['user_id', 'parent_email', 'child_email'])
+def test_send_consent_requires_every_field(client, minor, missing):
+    payload = {
+        'user_id': minor['id'],
         'parent_email': 'parent@example.com',
-        'child_email': 'child@example.com'
-    })
-    assert response.status_code == 400
+        'child_email': minor['email'],
+    }
+    del payload[missing]
 
-    # Missing parent_email
-    response = client.post('/api/parental-consent/send', json={
-        'user_id': str(uuid.uuid4()),
-        'child_email': 'child@example.com'
-    })
-    assert response.status_code == 400
+    response = client.post('/api/parental-consent/send', json=payload)
 
-    # Missing child_email
-    response = client.post('/api/parental-consent/send', json={
-        'user_id': str(uuid.uuid4()),
-        'parent_email': 'parent@example.com'
-    })
     assert response.status_code == 400
 
 
 @pytest.mark.integration
-@pytest.mark.requires_db
-def test_send_parental_consent_user_not_found(client):
-    """Test sending consent for non-existent user fails"""
-    fake_id = str(uuid.uuid4())
-
+def test_send_consent_404s_for_an_unknown_user(client, minor):
     response = client.post('/api/parental-consent/send', json={
-        'user_id': fake_id,
+        'user_id': str(uuid.uuid4()),
         'parent_email': 'parent@example.com',
-        'child_email': 'child@example.com'
+        'child_email': minor['email'],
     })
 
     assert response.status_code == 404
 
 
 @pytest.mark.integration
-def test_send_parental_consent_not_required(client, test_supabase):
-    """Test sending consent for user who doesn't require it fails"""
-    # Create adult user (doesn't require consent)
-    user_id = str(uuid.uuid4())
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent)
-            VALUES ('{user_id}', 'adult@example.com', 'Adult', 'student', false)
-        """
-    })
-
-    response = client.post('/api/parental-consent/send', json={
-        'user_id': user_id,
-        'parent_email': 'parent@example.com',
-        'child_email': 'adult@example.com'
-    })
+def test_send_consent_refuses_a_user_who_does_not_need_it(client, db, student):
+    """Only accounts flagged as requiring consent may start the flow."""
+    response = _send(client, student)
 
     assert response.status_code == 400
-    assert 'does not require' in response.json.get('error', '').lower()
+    assert response.get_json()['requires_consent'] is False
+    # No token was minted for a user who never needed one.
+    assert _consent_row(db, student['id'], 'parental_consent_token')['parental_consent_token'] is None
+
+
+# Verifying
 
 
 @pytest.mark.integration
-def test_verify_parental_consent_success(client, test_supabase):
-    """Test verifying parental consent with valid token"""
-    user_id = str(uuid.uuid4())
+@pytest.mark.critical
+def test_verify_marks_consent_and_burns_the_token(client, db, minor, no_consent_email):
+    _send(client, minor)
+    # The raw token only ever exists in the emailed link.
+    link = no_consent_email.call_args.kwargs['verification_link']
+    raw_token = link.split('token=')[1]
 
-    # Import hash function to create test token
-    import hashlib
-    test_token = 'test_token_12345'
-    hashed_token = hashlib.sha256(test_token.encode()).hexdigest()
-
-    # Create user with consent token
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent,
-             parental_consent_token, parental_consent_verified)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student', true,
-                    '{hashed_token}', false)
-        """
-    })
-
-    response = client.post('/api/parental-consent/verify', json={
-        'token': test_token
-    })
+    response = client.post('/api/parental-consent/verify', json={'token': raw_token})
 
     assert response.status_code == 200
-    assert response.json['verified'] is True
+    assert response.get_json()['verified'] is True
+
+    row = _consent_row(
+        db, minor['id'],
+        'parental_consent_verified', 'parental_consent_verified_at', 'parental_consent_token',
+    )
+    assert row['parental_consent_verified'] is True
+    assert row['parental_consent_verified_at'] is not None
+    # Single use: the token must not survive to be replayed.
+    assert row['parental_consent_token'] is None
 
 
 @pytest.mark.integration
-@pytest.mark.requires_db
-def test_verify_parental_consent_invalid_token(client):
-    """Test verifying with invalid token fails"""
-    response = client.post('/api/parental-consent/verify', json={
-        'token': 'invalid_token_xyz'
-    })
+@pytest.mark.security
+def test_verify_rejects_an_invalid_token(client, db, minor):
+    _send(client, minor)
+
+    response = client.post('/api/parental-consent/verify', json={'token': 'not-the-token'})
 
     assert response.status_code == 400
-    assert 'invalid' in response.json.get('error', '').lower()
+    assert _consent_row(db, minor['id'], 'parental_consent_verified')['parental_consent_verified'] is False
 
 
 @pytest.mark.integration
-def test_verify_parental_consent_missing_token(client):
-    """Test verifying without token fails"""
+def test_verify_requires_a_token(client):
     response = client.post('/api/parental-consent/verify', json={})
 
     assert response.status_code == 400
 
 
 @pytest.mark.integration
-def test_verify_parental_consent_already_verified(client, test_supabase):
-    """Test verifying already-verified consent returns success"""
-    user_id = str(uuid.uuid4())
+@pytest.mark.security
+def test_a_verified_token_cannot_be_replayed(client, db, minor, no_consent_email):
+    """Consent is granted once. A captured link must not re-grant it."""
+    _send(client, minor)
+    raw_token = no_consent_email.call_args.kwargs['verification_link'].split('token=')[1]
 
-    import hashlib
-    test_token = 'test_token_12345'
-    hashed_token = hashlib.sha256(test_token.encode()).hexdigest()
+    first = client.post('/api/parental-consent/verify', json={'token': raw_token})
+    assert first.status_code == 200
 
-    # Create user with already-verified consent
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, parental_consent_token, parental_consent_verified)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student', '{hashed_token}', true)
-        """
-    })
+    replay = client.post('/api/parental-consent/verify', json={'token': raw_token})
+    # The token was cleared on use, so the replay finds nothing.
+    assert replay.status_code == 400
 
-    response = client.post('/api/parental-consent/verify', json={
-        'token': test_token
-    })
 
-    assert response.status_code == 200
-    assert response.json.get('already_verified') is True
+# Status
 
 
 @pytest.mark.integration
-def test_check_consent_status_success(client, test_supabase):
-    """Test checking consent status for user"""
-    user_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent,
-             parental_consent_verified, parental_consent_email)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student',
-                    true, false, 'parent@example.com')
-        """
-    })
-
-    response = client.get(f'/parental-consent/status/{user_id}')
+def test_status_reports_an_unverified_minor(client, minor):
+    response = client.get(f'/api/parental-consent/status/{minor["id"]}')
 
     assert response.status_code == 200
-    assert response.json['requires_consent'] is True
-    assert response.json['consent_verified'] is False
-    assert response.json['parent_email'] == 'parent@example.com'
+    body = response.get_json()
+    assert body.get('requires_consent') is True
+    assert body.get('consent_verified') is False
 
 
 @pytest.mark.integration
-def test_check_consent_status_not_found(client):
-    """Test checking status for non-existent user fails"""
-    fake_id = str(uuid.uuid4())
-
-    response = client.get(f'/parental-consent/status/{fake_id}')
+def test_status_404s_for_an_unknown_user(client):
+    response = client.get(f'/api/parental-consent/status/{uuid.uuid4()}')
 
     assert response.status_code == 404
 
 
-@pytest.mark.integration
-def test_resend_parental_consent_success(client, test_supabase):
-    """Test resending parental consent email"""
-    user_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent,
-             parental_consent_verified, parental_consent_email)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student',
-                    true, false, 'parent@example.com')
-        """
-    })
-
-    with patch('services.email_service.email_service.send_parental_consent_email') as mock_email:
-        mock_email.return_value = True
-
-        response = client.post('/api/parental-consent/resend', json={
-            'user_id': user_id
-        })
-
-        assert response.status_code == 200
-        assert response.json['email_sent'] is True
-        mock_email.assert_called_once()
+# Resending
 
 
 @pytest.mark.integration
-def test_resend_parental_consent_already_verified(client, test_supabase):
-    """Test resending when already verified fails"""
-    user_id = str(uuid.uuid4())
+def test_resend_issues_a_different_token(client, db, minor, no_consent_email):
+    _send(client, minor)
+    first_hash = _consent_row(db, minor['id'], 'parental_consent_token')['parental_consent_token']
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent,
-             parental_consent_verified, parental_consent_email)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student',
-                    true, true, 'parent@example.com')
-        """
-    })
-
-    response = client.post('/api/parental-consent/resend', json={
-        'user_id': user_id
-    })
-
-    assert response.status_code == 400
-    assert 'already verified' in response.json.get('error', '').lower()
-
-
-@pytest.mark.integration
-def test_resend_parental_consent_not_required(client, test_supabase):
-    """Test resending when consent not required fails"""
-    user_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent)
-            VALUES ('{user_id}', 'adult@example.com', 'Adult', 'student', false)
-        """
-    })
-
-    response = client.post('/api/parental-consent/resend', json={
-        'user_id': user_id
-    })
-
-    assert response.status_code == 400
-    assert 'does not require' in response.json.get('error', '').lower()
-
-
-@pytest.mark.integration
-def test_resend_parental_consent_no_email_on_file(client, test_supabase):
-    """Test resending when no parent email on file fails"""
-    user_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, first_name, role, requires_parental_consent,
-             parental_consent_verified)
-            VALUES ('{user_id}', 'child@example.com', 'Child', 'student', true, false)
-        """
-    })
-
-    response = client.post('/api/parental-consent/resend', json={
-        'user_id': user_id
-    })
-
-    assert response.status_code == 400
-    assert 'no parent email' in response.json.get('error', '').lower()
-
-
-@pytest.mark.integration
-def test_submit_consent_documents_success(client, test_supabase):
-    """Test parent submitting identity verification documents"""
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, display_name, role, parental_consent_verified, parental_consent_status)
-            VALUES ('{parent_id}', 'parent@example.com', 'Parent User', 'parent', false, null)
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    # Create mock file uploads
-    id_file = (BytesIO(b'fake_id_content'), 'id_card.jpg')
-    consent_file = (BytesIO(b'fake_consent_content'), 'consent_form.pdf')
-
-    # Mock Supabase storage
-    with patch('database.get_supabase_admin_client') as mock_client:
-        mock_storage = Mock()
-        mock_storage.from_.return_value.upload.return_value = None
-        mock_storage.from_.return_value.get_public_url.return_value = 'https://example.com/file.jpg'
-        mock_client.return_value.storage = mock_storage
-
-        # Mock table updates
-        mock_table = Mock()
-        mock_table.update.return_value.eq.return_value.execute.return_value = None
-        mock_table.insert.return_value.execute.return_value = None
-        mock_table.select.return_value.eq.return_value.execute.return_value.data = []
-        mock_client.return_value.table.return_value = mock_table
-
-        # Mock email service
-        with patch('services.email_service.email_service.send_templated_email'):
-            response = client.post('/api/parental-consent/submit-documents',
-                data={
-                    'id_document': id_file,
-                    'signed_consent_form': consent_file
-                },
-                content_type='multipart/form-data'
-            )
-
-            # May succeed or fail depending on implementation
-            assert response.status_code in [200, 400, 500]
-
-
-@pytest.mark.integration
-def test_submit_consent_documents_non_parent_fails(client, test_supabase):
-    """Test non-parent cannot submit identity documents"""
-    student_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Student User', 'student')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    id_file = (BytesIO(b'fake_id_content'), 'id_card.jpg')
-    consent_file = (BytesIO(b'fake_consent_content'), 'consent_form.pdf')
-
-    response = client.post('/api/parental-consent/submit-documents',
-        data={
-            'id_document': id_file,
-            'signed_consent_form': consent_file
-        },
-        content_type='multipart/form-data'
-    )
-
-    assert response.status_code == 400
-    assert 'only parent' in response.json.get('error', '').lower()
-
-
-@pytest.mark.integration
-def test_submit_consent_documents_missing_files(client, test_supabase):
-    """Test submitting documents without required files fails"""
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users
-            (id, email, display_name, role)
-            VALUES ('{parent_id}', 'parent@example.com', 'Parent User', 'parent')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = parent_id
-
-    # Missing id_document
-    response = client.post('/api/parental-consent/submit-documents',
-        data={'signed_consent_form': (BytesIO(b'content'), 'form.pdf')},
-        content_type='multipart/form-data'
-    )
-    assert response.status_code == 400
-
-    # Missing signed_consent_form
-    response = client.post('/api/parental-consent/submit-documents',
-        data={'id_document': (BytesIO(b'content'), 'id.jpg')},
-        content_type='multipart/form-data'
-    )
-    assert response.status_code == 400
-
-
-@pytest.mark.integration
-def test_get_pending_consent_reviews_admin(client, test_supabase):
-    """Test admin can view pending consent reviews"""
-    # Create admin user
-    admin_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{admin_id}', 'admin@example.com', 'Admin', 'admin'),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent')
-        """
-    })
-
-    # Update parent to have pending status
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            UPDATE test_schema.users
-            SET parental_consent_status = 'pending_review'
-            WHERE id = '{parent_id}'
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
-
-    response = client.get('/api/admin/parental-consent/pending')
+    response = client.post('/api/parental-consent/resend', json={'user_id': minor['id']})
 
     assert response.status_code == 200
-    assert 'pending_reviews' in response.json
+    second_hash = _consent_row(db, minor['id'], 'parental_consent_token')['parental_consent_token']
+    assert second_hash != first_hash, 'resend reused the previous token'
 
 
 @pytest.mark.integration
-def test_get_pending_consent_reviews_non_admin_fails(client, test_supabase):
-    """Test non-admin cannot view pending consent reviews"""
-    student_id = str(uuid.uuid4())
+def test_resend_refuses_once_consent_is_verified(client, db, minor, no_consent_email):
+    _send(client, minor)
+    raw_token = no_consent_email.call_args.kwargs['verification_link'].split('token=')[1]
+    client.post('/api/parental-consent/verify', json={'token': raw_token})
 
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES ('{student_id}', 'student@example.com', 'Student', 'student')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.get('/api/admin/parental-consent/pending')
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-def test_approve_parental_consent_admin(client, test_supabase):
-    """Test admin can approve parent identity verification"""
-    admin_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{admin_id}', 'admin@example.com', 'Admin', 'admin'),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent')
-        """
-    })
-
-    # Set parent status to pending_review
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            UPDATE test_schema.users
-            SET parental_consent_status = 'pending_review'
-            WHERE id = '{parent_id}'
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
-
-    with patch('services.email_service.email_service.send_templated_email'):
-        response = client.post(f'/admin/parental-consent/approve/{parent_id}', json={
-            'notes': 'Documents verified successfully'
-        })
-
-        assert response.status_code == 200
-        assert response.json['status'] == 'approved'
-
-
-@pytest.mark.integration
-def test_approve_parental_consent_non_admin_fails(client, test_supabase):
-    """Test non-admin cannot approve parent identity"""
-    student_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{student_id}', 'student@example.com', 'Student', 'student'),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = student_id
-
-    response = client.post(f'/admin/parental-consent/approve/{parent_id}')
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-def test_reject_parental_consent_admin(client, test_supabase):
-    """Test admin can reject parent identity verification"""
-    admin_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{admin_id}', 'admin@example.com', 'Admin', 'admin'),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent')
-        """
-    })
-
-    # Set parent status to pending_review
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            UPDATE test_schema.users
-            SET parental_consent_status = 'pending_review'
-            WHERE id = '{parent_id}'
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
-
-    with patch('services.email_service.email_service.send_templated_email'):
-        response = client.post(f'/admin/parental-consent/reject/{parent_id}', json={
-            'reason': 'Documents are not clear enough'
-        })
-
-        assert response.status_code == 200
-        assert response.json['status'] == 'rejected'
-
-
-@pytest.mark.integration
-def test_reject_parental_consent_missing_reason(client, test_supabase):
-    """Test rejecting without reason fails"""
-    admin_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role)
-            VALUES
-            ('{admin_id}', 'admin@example.com', 'Admin', 'admin'),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent')
-        """
-    })
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            UPDATE test_schema.users
-            SET parental_consent_status = 'pending_review'
-            WHERE id = '{parent_id}'
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
-
-    response = client.post(f'/admin/parental-consent/reject/{parent_id}', json={
-        'reason': ''  # Empty reason
-    })
+    response = client.post('/api/parental-consent/resend', json={'user_id': minor['id']})
 
     assert response.status_code == 400
 
 
 @pytest.mark.integration
-def test_approve_consent_not_pending_fails(client, test_supabase):
-    """Test approving consent that's not pending fails"""
-    admin_id = str(uuid.uuid4())
-    parent_id = str(uuid.uuid4())
-
-    test_supabase.rpc('execute_sql', {
-        'query': f"""
-            INSERT INTO test_schema.users (id, email, display_name, role, parental_consent_status)
-            VALUES
-            ('{admin_id}', 'admin@example.com', 'Admin', 'admin', null),
-            ('{parent_id}', 'parent@example.com', 'Parent', 'parent', 'approved')
-        """
-    })
-
-    with client.session_transaction() as session:
-        session['user_id'] = admin_id
-
-    response = client.post(f'/admin/parental-consent/approve/{parent_id}')
+def test_resend_refuses_a_user_who_does_not_need_consent(client, student):
+    response = client.post('/api/parental-consent/resend', json={'user_id': student['id']})
 
     assert response.status_code == 400
-    assert 'not pending' in response.json.get('error', '').lower()
+
+
+# Admin review
 
 
 @pytest.mark.integration
-def test_consent_token_hashing(client):
-    """Test that consent tokens are properly hashed"""
-    import hashlib
-
-    # Generate token
-    from routes.parental_consent import generate_consent_token, hash_token
-
-    token1 = generate_consent_token()
-    token2 = generate_consent_token()
-
-    # Tokens should be different
-    assert token1 != token2
-
-    # Hashing should be consistent
-    hashed1 = hash_token(token1)
-    hashed2 = hash_token(token1)
-    assert hashed1 == hashed2
-
-    # Different tokens should have different hashes
-    hashed3 = hash_token(token2)
-    assert hashed1 != hashed3
-
-
-@pytest.mark.integration
-@pytest.mark.requires_db
-def test_unauthenticated_requests_to_protected_endpoints(client):
-    """Test protected endpoints require authentication"""
-    fake_id = str(uuid.uuid4())
-
-    id_file = (BytesIO(b'fake_id'), 'id.jpg')
-    consent_file = (BytesIO(b'fake_consent'), 'form.pdf')
-
-    # Submit documents requires auth
-    response = client.post('/api/parental-consent/submit-documents',
-        data={
-            'id_document': id_file,
-            'signed_consent_form': consent_file
-        },
-        content_type='multipart/form-data'
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_pending_review_queue_is_closed_to_students(client, student, auth_headers_for):
+    response = client.get(
+        '/api/admin/parental-consent/pending',
+        headers=auth_headers_for(student['id']),
     )
-    assert response.status_code == 401
 
-    # Admin endpoints require auth
-    response = client.get('/api/admin/parental-consent/pending')
-    assert response.status_code == 401
+    assert response.status_code == 403
 
-    response = client.post(f'/admin/parental-consent/approve/{fake_id}')
-    assert response.status_code == 401
 
-    response = client.post(f'/admin/parental-consent/reject/{fake_id}')
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_pending_review_queue_is_open_to_a_superadmin(client, make_user, auth_headers_for):
+    superadmin = make_user(role='superadmin')
+
+    response = client.get(
+        '/api/admin/parental-consent/pending',
+        headers=auth_headers_for(superadmin['id']),
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_student_cannot_approve_consent(client, student, parent, auth_headers_for):
+    """Approving consent for oneself would defeat the entire control."""
+    response = client.post(
+        f'/api/admin/parental-consent/approve/{parent["id"]}',
+        headers=auth_headers_for(student['id']),
+        json={},
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_a_student_cannot_reject_consent(client, student, parent, auth_headers_for):
+    response = client.post(
+        f'/api/admin/parental-consent/reject/{parent["id"]}',
+        headers=auth_headers_for(student['id']),
+        json={'reason': 'nope'},
+    )
+
+    assert response.status_code == 403
+
+
+# Unauthenticated access
+
+
+@pytest.mark.integration
+@pytest.mark.security
+@pytest.mark.parametrize('method, path', [
+    ('get', '/api/admin/parental-consent/pending'),
+    ('post', '/api/parental-consent/submit-documents'),
+])
+def test_protected_consent_endpoints_reject_anonymous_callers(client, method, path):
+    response = getattr(client, method)(path, json={})
+
     assert response.status_code == 401

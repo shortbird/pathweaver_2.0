@@ -11,7 +11,7 @@
 3. **No emojis** - Professional tone
 4. **Verify DB schema first** - Use Supabase MCP before ANY query (table names change)
 5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
-6. **Run tests before production** - `release.yml` runs them on push to `main`; Render deploys + the production OTA publishes only if they pass. Don't push known-failing code to `main`.
+6. **Run tests before production** - `ci.yml` gates pull requests; `release.yml` runs the same suites on push to `main`, and Render deploys + the production OTA publish only if they pass. Don't push known-failing code to `main`.
 7. **Scope test runs** - While iterating, run only the affected test files (`npx vitest run <files>`). Run the full suite (`npm run test:run`) once, before commit/push — not after every change.
 8. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
 9. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
@@ -373,6 +373,29 @@ task = task_repo.get_task_with_relations(task_id, user_id)
 # Existing code may use direct DB (acceptable for complex queries)
 ```
 
+### One route, one owner
+
+**Flask does not warn when two blueprints register the same rule.** It dispatches
+to whichever registered first; the other view becomes unreachable dead code. Both
+files still look correct in review, so what silently ships is the
+**first-registered module's auth decorator**.
+
+Four production bugs so far, all `admin_core.py` shadowing `admin/*`: advisors
+403'd off `/api/admin/quests`; "Failed to load users" from a copy querying a
+nonexistent column; and org admins told **"Superadmin access required"** when
+saving a user, which blocked them from promoting anyone to `org_admin`.
+
+- `tests/unit/test_no_duplicate_routes.py` fails on any duplicate. Don't
+  suppress it — delete the loser or merge the two views.
+- Rules collide by **path shape**, not text: `/users/<user_id>` and
+  `/users/<target_user_id>` are the same rule. The name only changes the kwarg.
+- Adding a route to an existing path? `grep` the rule across `routes/` first.
+- Symptom to recognize: an endpoint enforces a **stricter role than its code
+  says**. Resolve the real handler before debugging the decorator:
+  ```python
+  app.url_map.bind('localhost').match('/api/admin/users/x', method='PUT')
+  ```
+
 ---
 
 ## Testing
@@ -385,10 +408,41 @@ cd frontend && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
-**CI gates** ([.github/workflows/](.github/workflows/) + Render):
-- `Web (v1) Tests` — 95%+ pass + 40%+ line coverage. Ratchet the floor up, never down.
-- `Mobile (v2) Tests` — 95%+ pass rate.
-- `Backend Tests`.
+### CI structure
+
+Each test suite is defined ONCE, in a reusable workflow, and called by both
+gates — so what gates the merge is identical to what gates the deploy. Edit the
+`tests-*.yml` file, never a copy.
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| [ci.yml](.github/workflows/ci.yml) | `pull_request` → main/develop, push develop | **Pre-merge gate** |
+| [release.yml](.github/workflows/release.yml) | push `main` | Release gate + deploy + OTA |
+| [tests-backend.yml](.github/workflows/tests-backend.yml) | called | pytest + coverage + pip-audit |
+| [tests-web.yml](.github/workflows/tests-web.yml) | called | vitest + coverage |
+| [tests-mobile.yml](.github/workflows/tests-mobile.yml) | called | jest + coverage + audit gate |
+| [tests-integration.yml](.github/workflows/tests-integration.yml) | called | `requires_db` on a free local Supabase stack |
+| [supabase-branch-reaper.yml](.github/workflows/supabase-branch-reaper.yml) | daily | Deletes preview branches >3d old |
+
+**Coverage floors** — ratchet up, never down. Set just under measured so a
+regression fails and normal churn doesn't:
+
+| Suite | Floor | Measured (2026-08-13) |
+|---|---|---|
+| Backend | 41% | 42.08% |
+| Web (v1) | 53% | 54.44% |
+| Mobile (v2) | 31/24/32/23 (stmt/br/line/fn), in `jest.config.js` | 31.37/24.42/32.63/23.75 |
+
+**Integration tests are advisory and red on purpose.** The harness is real; the
+143 tests it runs were written against an architecture the app doesn't have and
+cannot pass yet. Read
+[backend/tests/integration/README.md](backend/tests/integration/README.md)
+before touching them.
+
+**Never point a test suite at a Supabase preview branch.** They cost real money
+(abandoned ones were 38% of the Aug 2026 invoice) and it puts a service-role key
+for a production clone in CI. Use the local stack.
+
 - The mobile job's `npm audit` runs through [scripts/audit-gate.mjs](scripts/audit-gate.mjs):
   advisories with no published fix can be accepted in
   [frontend-v2/audit-allowlist.json](frontend-v2/audit-allowlist.json) with a reason
