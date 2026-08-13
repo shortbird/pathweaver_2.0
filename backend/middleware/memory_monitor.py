@@ -160,11 +160,32 @@ class MemoryMonitor:
     # is hit. This is the only way a near-OOM shows up in Sentry instead of just
     # a Render email. See memory: project_prod_backend_oom_history.
 
-    def _read_cgroup_memory(self):
-        """Container memory (usage_bytes, limit_bytes) from cgroup, else (None, None).
+    @staticmethod
+    def _read_cgroup_stat_field(path, field):
+        """One `key value` field out of a cgroup memory.stat file, else None."""
+        try:
+            with open(path) as f:
+                for line in f:
+                    key, _, value = line.partition(' ')
+                    if key == field:
+                        return int(value.strip())
+        except Exception:
+            pass
+        return None
 
-        cgroup is the right signal — it's the total the OOM killer watches
-        (all workers + master), not a single process's RSS.
+    def _read_cgroup_memory(self):
+        """Container memory (working_set_bytes, limit_bytes, raw_usage_bytes).
+
+        (None, None, None) when cgroup isn't readable.
+
+        cgroup is the right signal — it's the total the OOM killer watches (all
+        workers + master), not a single process's RSS. But `memory.current`
+        also counts the page cache, and inactive file pages are reclaimed
+        before anything gets OOM-killed. Alerting on raw usage meant a busy
+        container that had merely *read* a lot of bytes looked like it was
+        about to die: the reported number climbed to 90%+ and then fell again
+        on its own. Subtract inactive_file, which is the same working-set
+        definition cgroup-aware tools use.
         """
         # cgroup v2
         try:
@@ -177,7 +198,8 @@ class MemoryMonitor:
                     limit = None if raw == 'max' else int(raw)
             except Exception:
                 pass
-            return usage, limit
+            inactive = self._read_cgroup_stat_field('/sys/fs/cgroup/memory.stat', 'inactive_file') or 0
+            return max(usage - inactive, 0), limit, usage
         except Exception:
             pass
         # cgroup v1
@@ -192,9 +214,11 @@ class MemoryMonitor:
                         limit = None
             except Exception:
                 pass
-            return usage, limit
+            inactive = self._read_cgroup_stat_field(
+                '/sys/fs/cgroup/memory/memory.stat', 'total_inactive_file') or 0
+            return max(usage - inactive, 0), limit, usage
         except Exception:
-            return None, None
+            return None, None, None
 
     def start_watchdog(self):
         """Start the background memory watchdog (idempotent, daemon thread).
@@ -222,10 +246,11 @@ class MemoryMonitor:
         while True:
             try:
                 time.sleep(interval)
-                cg_usage, cg_limit = self._read_cgroup_memory()
+                cg_usage, cg_limit, cg_raw = self._read_cgroup_memory()
                 rss = self.get_memory_usage().get('rss', 0)
-                # Prefer the container total (what the OOM killer watches); fall
-                # back to this process's RSS when cgroup isn't readable (e.g. dev).
+                # Prefer the container working set (what the OOM killer acts on
+                # once reclaim is done); fall back to this process's RSS when
+                # cgroup isn't readable (e.g. dev).
                 usage = cg_usage if cg_usage else rss
                 cap = cg_limit if cg_limit else fallback_cap
                 pct = (usage / cap) if cap else 0.0
@@ -234,7 +259,7 @@ class MemoryMonitor:
                     if not over or (now - last_alert) >= cooldown:
                         over = True
                         last_alert = now
-                        self._alert_high_memory(usage, cap, pct, rss)
+                        self._alert_high_memory(usage, cap, pct, rss, cg_raw)
                     # Try to relieve pressure regardless of alert cooldown.
                     self.force_cleanup()
                 else:
@@ -242,7 +267,7 @@ class MemoryMonitor:
             except Exception as e:
                 logger.error(f"Memory watchdog error: {e}")
 
-    def _alert_high_memory(self, usage, cap, pct, rss):
+    def _alert_high_memory(self, usage, cap, pct, rss, raw_usage=None):
         msg = (f"Memory at {usage / 1024 / 1024:.0f}MB / {cap / 1024 / 1024:.0f}MB "
                f"({pct * 100:.0f}%) — nearing OOM")
         logger.warning(f"[memory-watchdog] {msg}")
@@ -254,7 +279,11 @@ class MemoryMonitor:
                 # One issue for all near-OOM events, not one per MB value.
                 scope.fingerprint = ['memory-watchdog-near-oom']
                 scope.set_context('memory', {
-                    'container_usage_mb': round(usage / 1024 / 1024, 1),
+                    'container_working_set_mb': round(usage / 1024 / 1024, 1),
+                    # Raw cgroup usage including reclaimable page cache. A big
+                    # gap from the working set means cache, not a leak.
+                    'container_usage_mb': (round(raw_usage / 1024 / 1024, 1)
+                                           if raw_usage else None),
                     'cap_mb': round(cap / 1024 / 1024, 1),
                     'percent': round(pct * 100, 1),
                     'process_rss_mb': round(rss / 1024 / 1024, 1),
