@@ -96,6 +96,10 @@ def list_classes(org_id: str, include_archived: bool = False,
     classes = repo.list_for_org(org_id, include_archived=include_archived)
     if not classes:
         return []
+    if audience != 'staff':
+        classes = [c for c in classes if c.get('is_visible_to_parents') is not False]
+        if not classes:
+            return []
     class_ids = [c['id'] for c in classes]
     enrollment_counts = repo.enrollment_counts_for_classes(class_ids)
     waitlist_breakdown = repo.waitlist_breakdown_for_classes(class_ids)
@@ -135,6 +139,8 @@ def get_class_detail(org_id: str, class_id: str,
     repo = _classes_repo()
     cls = repo.find_by_id(class_id)
     if not cls or cls.get('organization_id') != org_id:
+        return None
+    if audience != 'staff' and cls.get('is_visible_to_parents') is False:
         return None
     enrolled = repo.active_enrollment_count(class_id)
     cap = cls.get('capacity')

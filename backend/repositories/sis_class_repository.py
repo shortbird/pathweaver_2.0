@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 SIS_CLASS_FIELDS = (
     'capacity', 'primary_instructor_id', 'assistant_instructor_ids',
     # Whether families see the assistant's name. Staff views ignore it.
-    'show_assistants', 'price_cents',
+    'show_assistants', 'is_visible_to_parents', 'price_cents',
     'billing_type', 'billing_cadence', 'min_age', 'max_age', 'location',
     'waitlist_enabled', 'registration_status', 'requires_full_day',
     # iCreate catalog extras (display-only): a class image + an optional supply fee.

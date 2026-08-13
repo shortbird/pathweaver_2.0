@@ -135,9 +135,18 @@ describe('the draft round trip', () => {
       name: 'Pottery', capacity: 10, price_cents: 12000, supply_fee: 15,
       supply_budget_per_student: 40, min_age: 8, max_age: 12,
       assistant_instructor_ids: ['s2'], show_assistants: true,
+      is_visible_to_parents: true,
       days_of_week: [2], start_time: '14:00', duration_minutes: 60,
       internal_notes: 'Kiln needs 30 min warm-up',
     })
+  })
+
+  it('allows toggling parent visibility on schedule', () => {
+    const onChange = setup()
+    const checkbox = screen.getByLabelText('Show class to parents')
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ is_visible_to_parents: false }))
   })
 
   it('sends a blank materials allowance as null, not zero', () => {
