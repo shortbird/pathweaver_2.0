@@ -68,3 +68,27 @@ describe('a family signing their paperwork', () => {
     ))
   })
 })
+
+describe('signing a document from the office on family portal', () => {
+  it('withholds the sign box until the office uploads the document', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/parent/context')) {
+        return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
+      }
+      if (url.includes('/parent/onboarding')) {
+        return Promise.resolve({ data: { assignments: [{
+          id: 'fa1', template_name: 'Back to school paperwork',
+          done_count: 0, total_count: 1, signature_statement: STATEMENT, items: [{
+            ...ITEM, sign_docs: []
+          }],
+        }] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+
+    render(<FamilyPortalPage />)
+    await screen.findByText('Photo and media release')
+    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.getByText(/Your document is not here yet/)).toBeInTheDocument()
+  })
+})

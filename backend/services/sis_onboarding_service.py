@@ -275,13 +275,13 @@ def office_documents(org_id: str, user_id: str) -> List[Dict[str, Any]]:
 
 
 def _attach_sign_docs(org_id: str, user_id: str, rows: List[Dict[str, Any]]) -> None:
-    """On a person's own staff checklist, a signature item with no template link
-    signs a document the office uploads to their portal ("Your contract will be
-    uploaded to your teacher portal"). Those items carry `sign_docs` — the
-    office-shared documents — so the UI can offer them to read and withhold the
-    sign box while the list is empty. Without this, teachers signed "Review &
-    Sign Your Contract" before any contract existed (iCreate, 2026-08-12)."""
-    wants = [i for r in rows if _clean_audience(r.get('audience')) == 'staff'
+    """On a person's own checklist (staff or family), a signature item with no
+    template link signs a document the office uploads to their portal ("Your
+    contract will be uploaded to your portal"). Those items carry `sign_docs` —
+    the office-shared documents — so the UI can offer them to read and withhold
+    the sign box while the list is empty. Without this, teachers and parents
+    signed "Review & Sign Your Contract" before any contract existed (iCreate, 2026-08-12)."""
+    wants = [i for r in rows if _clean_audience(r.get('audience')) in AUDIENCES
              for i in (r.get('items') or [])
              if i.get('needs_signature') and not i.get('link') and not i.get('signature')]
     if not wants:
@@ -362,7 +362,7 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
     signable while the office hasn't provided one. Pass the person's office
     documents to enforce that; an empty list refuses the signature, a non-empty
     one is recorded on it as what the signer had in front of them. None means
-    the item doesn't sign a portal document (it has a link, or is a family item).
+    the item doesn't sign a portal document (it has a link).
     """
     if not target.get('needs_signature'):
         return 'This item is not signed here'
@@ -429,12 +429,12 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     if signing:
         if is_admin and assignment.get('user_id') != actor_id:
             return {'error': 'Only the person themselves can sign this'}
-        # A staff signature item with no link signs a document from the office's
+        # A signature item with no link signs a document from the office's
         # portal uploads; look those up so a signature can't outrun the document
         # (and so the signature records which documents were there).
         documents = None
         if (target.get('needs_signature') and not target.get('link')
-                and _clean_audience(assignment.get('audience')) == 'staff'):
+                and _clean_audience(assignment.get('audience')) in AUDIENCES):
             documents = office_documents(org_id, assignment['user_id'])
         problem = _apply_signature(target, fields, actor_id, documents=documents)
         if problem:

@@ -182,12 +182,11 @@ class TestSigningNeedsTheDocument:
         assert result.get('error') is None
         assert 'documents' not in items[0]['signature']
 
-    def test_family_items_are_not_gated_on_the_staff_portal(self):
-        """Family checklists have no My Documents; their signature items keep
-        signing the statement/link they always did."""
+    def test_family_items_are_gated_on_office_documents(self):
+        """Family checklists are gated on office documents too when there's no template link."""
         fam = _assignment(audience='family')
         result, _ = _run(SIGN, assignment=fam, office_docs=[])
-        assert result.get('error') is None
+        assert "office hasn't uploaded" in result['error']
 
     def test_the_signature_records_what_they_had_in_front_of_them(self):
         _, items = _run(SIGN)
@@ -196,7 +195,7 @@ class TestSigningNeedsTheDocument:
     def test_the_checklist_carries_the_documents_to_sign(self):
         """list_assignments hands the UI `sign_docs` on unsigned document-
         signature items, so the sign box can be withheld while it is empty."""
-        rows = [{'id': ASSIGNMENT_ID, 'user_id': SIGNER, 'audience': 'staff',
+        rows = [{'id': ASSIGNMENT_ID, 'user_id': SIGNER, 'audience': 'family',
                  'items': [_item()]}]
         client = Mock()
         table = Mock()
