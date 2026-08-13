@@ -8,7 +8,12 @@ vi.mock('./api', () => {
     getAccessToken: vi.fn().mockReturnValue(null),
     getRefreshToken: vi.fn().mockReturnValue(null)
   }
-  const csrfStoreMock = { get: vi.fn(), set: vi.fn(), clear: vi.fn() }
+  const csrfStoreMock = {
+    get: vi.fn(),
+    ensure: vi.fn().mockResolvedValue('csrf-1'),
+    set: vi.fn(),
+    clear: vi.fn()
+  }
   return {
     default: { get: vi.fn(), post: vi.fn() },
     tokenStore: tokenStoreMock,

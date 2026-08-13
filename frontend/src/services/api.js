@@ -79,7 +79,7 @@ export const getAuthHeaders = () => {
  * - CSRF token added for state-changing requests
  */
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // ✅ HYBRID AUTH: Use Authorization header if tokens available (SSO flow)
     // Otherwise rely on httpOnly cookies (regular login)
     const token = tokenStore.getAccessToken()
@@ -89,7 +89,16 @@ api.interceptors.request.use(
 
     // Add CSRF token for state-changing requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
-      const csrfToken = getCsrfToken()
+      // The bootstrap fetch is kicked off unawaited when authService loads, so
+      // any mutating request firing early in page load — the acting-as token
+      // re-mint on mount, most of all — used to race it and go out with no
+      // header at all. The backend rejected those and reported every one to
+      // Sentry (OPTIO-BACKEND-3); the response interceptor's retry then
+      // recovered them, so it cost a round trip and a warning rather than a
+      // user-visible failure. Awaiting the same in-flight fetch closes the
+      // race for every call site at once. Bearer-authenticated requests skip
+      // it: the backend exempts them from CSRF entirely.
+      const csrfToken = token ? getCsrfToken() : await ensureCsrfToken()
       if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken
       }
@@ -124,9 +133,30 @@ function setCsrfToken(token) {
   csrfToken = token
 }
 
+// One shared bootstrap fetch, so a burst of early mutating requests costs a
+// single /csrf-token round trip instead of one each.
+let csrfBootstrap = null
+
+function ensureCsrfToken() {
+  if (csrfToken) return Promise.resolve(csrfToken)
+  if (!csrfBootstrap) {
+    csrfBootstrap = api.get('/api/auth/csrf-token')
+      .then(({ data }) => {
+        if (data?.csrf_token) {
+          setCsrfToken(data.csrf_token)
+        }
+        return csrfToken
+      })
+      .catch(() => null)
+      .finally(() => { csrfBootstrap = null })
+  }
+  return csrfBootstrap
+}
+
 // Export CSRF token management
 export const csrfTokenStore = {
   get: getCsrfToken,
+  ensure: ensureCsrfToken,
   set: setCsrfToken,
   clear: () => { csrfToken = null }
 }

@@ -156,7 +156,6 @@ def create_bug_report(user_id):
 
     logger.info(f"[BugReport] created {created.get('id')} from user {user_id} route={record.get('current_route')}")
 
-    _capture_to_sentry(record, created, user_id, message)
     _notify_admin_email(record, created, user_id)
     return jsonify({'success': True, 'report_id': created.get('id')}), 201
 
@@ -203,7 +202,15 @@ def _capture_to_sentry(record, created, user_id, message):
     """Forward the report to Sentry (optio-backend) so beta feedback lands next to
     crashes with full context. Best-effort: never fails the report, no-op if Sentry
     isn't initialized (local dev). Distinguishes bug / idea / confusion via a tag so
-    feature ideas and "I don't get this" don't read as errors."""
+    feature ideas and "I don't get this" don't read as errors.
+
+    NO LONGER CALLED (2026-08-13). Every submission opened its own Sentry issue
+    — 99 of them, against 1 real error — so the issue stream stopped being a
+    list of things that are broken. Feedback still lands in the bug_reports
+    table (queried directly) and in the admin email below, which is where it
+    gets triaged from. Kept for the tags/context if a feedback-to-Sentry route
+    is ever wanted again; wire it behind a filter, not on every submission.
+    """
     try:
         import sentry_sdk
 

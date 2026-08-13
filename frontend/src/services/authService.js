@@ -62,13 +62,14 @@ class AuthService {
    * - Flask-WTF validates against httpOnly session cookie
    */
   async initializeCSRF() {
-    try {
-      const response = await api.get('/api/auth/csrf-token')
-      const token = response.data.csrf_token
-      csrfTokenStore.set(token)
+    // Shared with the request interceptor's ensure(): a mutating request that
+    // fires while this is still in flight joins this fetch instead of racing
+    // past it without a header.
+    const token = await csrfTokenStore.ensure()
+    if (token) {
       logger.debug('[AuthService] CSRF token initialized (stored in memory)')
-    } catch (error) {
-      console.warn('[AuthService] Failed to initialize CSRF token:', error)
+    } else {
+      console.warn('[AuthService] Failed to initialize CSRF token')
     }
   }
 

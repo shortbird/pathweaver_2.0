@@ -103,6 +103,7 @@ describe('CSRF auto-recovery', () => {
   })
 
   it('does not intercept ordinary 400s', async () => {
+    csrfTokenStore.set('token')
     api.defaults.adapter = vi.fn(async (config) =>
       reject(config, 400, { error: 'validation failed' })
     )
@@ -112,5 +113,57 @@ describe('CSRF auto-recovery', () => {
     })
     expect(api.defaults.adapter).toHaveBeenCalledTimes(1)
     expect(captureException).not.toHaveBeenCalled()
+  })
+
+  // The recovery above costs a rejected round trip and a Sentry warning from
+  // the backend every time (OPTIO-BACKEND-3, dominated by requests firing on
+  // page load before the unawaited bootstrap fetch resolved). Mutating
+  // requests must wait for the token rather than race it.
+  it('waits for the bootstrap fetch instead of sending a mutating request without a token', async () => {
+    const calls = []
+    api.defaults.adapter = vi.fn(async (config) => {
+      calls.push(config)
+      if (config.url === '/api/auth/csrf-token') {
+        return respond(config, 200, { csrf_token: 'fresh-token' })
+      }
+      return respond(config, 200, { ok: true })
+    })
+
+    await api.post('/api/things', {})
+
+    expect(calls.map(c => c.url)).toEqual(['/api/auth/csrf-token', '/api/things'])
+    expect(calls[1].headers['X-CSRF-Token']).toBe('fresh-token')
+  })
+
+  it('shares one bootstrap fetch across concurrent mutating requests', async () => {
+    const calls = []
+    api.defaults.adapter = vi.fn(async (config) => {
+      calls.push(config)
+      if (config.url === '/api/auth/csrf-token') {
+        return respond(config, 200, { csrf_token: 'fresh-token' })
+      }
+      return respond(config, 200, { ok: true })
+    })
+
+    await Promise.all([
+      api.post('/api/things', {}),
+      api.post('/api/other', {}),
+      api.post('/api/third', {})
+    ])
+
+    expect(calls.filter(c => c.url === '/api/auth/csrf-token')).toHaveLength(1)
+    expect(calls.filter(c => c.headers['X-CSRF-Token'] === 'fresh-token')).toHaveLength(3)
+  })
+
+  it('does not fetch a CSRF token for GETs', async () => {
+    const calls = []
+    api.defaults.adapter = vi.fn(async (config) => {
+      calls.push(config)
+      return respond(config, 200, { ok: true })
+    })
+
+    await api.get('/api/things')
+
+    expect(calls.map(c => c.url)).toEqual(['/api/things'])
   })
 })
