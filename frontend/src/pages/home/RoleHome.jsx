@@ -19,6 +19,24 @@ import SuperadminHome from './SuperadminHome'
  * working set -> discovery/ambient. Keep the skeletons aligned so the app
  * feels like one product.
  */
+/**
+ * Which home a campus coordinator gets on the learning app.
+ *
+ * Their own role has no learning-app surface — every tile on the admin home
+ * and the teacher home reads from an endpoint a coordinator is refused
+ * (/api/admin/organizations, /api/advisor/*), so sending them to either would
+ * trade a redirect loop for a page of empty boxes. Their second role is the
+ * one with something to show.
+ */
+function CoordinatorOffDutyHome({ user }) {
+  const roles = Array.isArray(user?.org_roles) ? user.org_roles : []
+  if (roles.includes('parent')) return <FamilyHome />
+  if (roles.includes('advisor')) return <TeacherHome />
+  // Staff and nothing else: the ordinary dashboard, the same as any user with
+  // no special home. Not much, but it is theirs and it does not bounce.
+  return <DashboardPage />
+}
+
 export default function RoleHome() {
   const { user, effectiveRole, loading } = useAuth()
 
@@ -36,7 +54,17 @@ export default function RoleHome() {
     case 'observer':
       return <Navigate to="/observer/feed" replace />
     case 'campus_coordinator':
-      return <Navigate to="/sis-launch" replace />
+      // NOT a redirect to /sis-launch. That made the SIS sidebar's "Switch to
+      // Learning app" button a loop: it lands on /dashboard, which bounced the
+      // coordinator straight back to the console they were trying to leave.
+      // Coordinators are the only staff role this happened to — advisors and
+      // org admins both render a home here.
+      //
+      // A coordinator's learning-app home is whatever they are when they are
+      // not on duty. They usually hold a second org role (iCreate's
+      // coordinators are parents of enrolled students), and the staff role
+      // wins the effectiveRole coin-toss only because it sorts first.
+      return <CoordinatorOffDutyHome user={user} />
     case 'student':
     default:
       return <DashboardPage />
