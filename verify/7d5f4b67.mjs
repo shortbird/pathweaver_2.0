@@ -85,19 +85,20 @@ export default async function run(page) {
     status: 200, contentType: 'application/json', body: JSON.stringify(obj)
   })
 
-  // Stubs for offline / preview verification
-  await page.route('**/api/**', json({}))
-  await page.route('**/api/auth/me**', json(staffUser))
-  await page.route('**/api/sis/tuition/queue**', json({ students: studentsQueue, count: 3 }))
-  await page.route('**/api/sis/tuition/students/*/preview**', json(invoicePreview))
-
-  // Strip CSP meta tag if needed so stubs pass seamlessly
+  // Strip CSP meta tag if needed so stubs pass seamlessly (registered first so API stubs take precedence)
   await page.route(`${BASE}/**`, async (route) => {
     if (route.request().resourceType() !== 'document') return route.fallback()
     const resp = await route.fetch()
     const html = (await resp.text()).replace(/<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?>/i, '')
     await route.fulfill({ response: resp, body: html })
   })
+
+  // Stubs for offline / preview verification (registered after document handler so they win)
+  await page.route('**/api/**', json({}))
+  await page.route('**/api/auth/me**', json(staffUser))
+  await page.route('**/api/sis/organizations/*/sis-settings**', json({ feature_flags: {} }))
+  await page.route('**/api/sis/tuition/queue**', json({ students: studentsQueue, count: 3 }))
+  await page.route('**/api/sis/tuition/students/*/preview**', json(invoicePreview))
 
   // Open the Tuition page in SIS
   await page.goto(`${BASE}/tuition?app=sis`, { waitUntil: 'domcontentloaded' })
@@ -109,7 +110,7 @@ export default async function run(page) {
   await page.getByText('Alex Adams').waitFor({ timeout: 10000 })
 
   // Verify Search functionality
-  const searchInput = page.getByPlaceholderText(/Search name or family/i)
+  const searchInput = page.getByPlaceholder(/Search name or family/i)
   await searchInput.fill('Ford')
   await page.getByText('Uma Ford').waitFor({ timeout: 5000 })
   const robinVisibleAfterFilter = await page.getByText('Robin Bowman').count()
@@ -118,15 +119,15 @@ export default async function run(page) {
   }
 
   // Clear search
-  const clearBtn = page.getByRole('button', { name: 'Clear search' })
+  const clearBtn = page.getByRole('button', { name: 'Clear search' }).first()
   await clearBtn.click()
   await page.getByText('Robin Bowman').waitFor({ timeout: 5000 })
 
   // Verify Sort functionality
-  const sortSelect = page.getByLabelText('Sort queue')
+  const sortSelect = page.getByLabel('Sort queue')
   await sortSelect.selectOption('name_asc')
 
   // Verify invoice preview opens when a student is selected
-  await page.getByText('Robin Bowman').click()
-  await page.getByText('Piano Class').waitFor({ timeout: 10000 })
+  await page.getByText('Robin Bowman').first().click()
+  await page.locator('input[value="Piano Class"]').waitFor({ timeout: 10000 })
 }
