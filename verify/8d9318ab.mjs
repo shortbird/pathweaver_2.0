@@ -39,18 +39,19 @@ export default async function run(page) {
     },
   }
 
-  const json = (obj) => (route) =>
-    route.fulfill({
+  const json = (obj) => (route) => {
+    return route.fulfill({
       status: 200,
-      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': '*',
+        'access-control-allow-credentials': 'true',
+        'content-type': 'application/json',
+      },
       body: JSON.stringify(obj),
     })
+  }
 
-  await page.route('**/api/**', json({}))
-  await page.route('**/api/auth/me**', json(staffUser))
-  await page.route(`**/api/admin/organizations/${ORG}`, json({ organization: staffUser.organization }))
-  await page.route('**/api/kiosk/devices**', json({ devices: [] }))
-
+  // Strip CSP meta tag if needed so stubs pass seamlessly
   await page.route(`${BASE}/**`, async (route) => {
     if (route.request().resourceType() !== 'document') return route.fallback()
     const resp = await route.fetch()
@@ -58,8 +59,22 @@ export default async function run(page) {
     await route.fulfill({ response: resp, body: html })
   })
 
+  // Target backend API calls across ports or origins
+  await page.route((u) => u.toString().includes('/api/'), (route) => {
+    const url = route.request().url()
+    if (url.includes('/src/')) return route.fallback()
+
+    if (url.includes('/api/auth/me')) return json(staffUser)(route)
+    if (url.includes('/api/kiosk/devices')) return json({ devices: [] })(route)
+    if (url.includes('/api/admin/organizations')) return json({ organization: staffUser.organization })(route)
+
+    return json({})(route)
+  })
+
   // Open Settings page
-  await page.goto(`${BASE}/settings?app=sis`, { waitUntil: 'domcontentloaded' })
+  const targetUrl = BASE.includes('sis.') ? `${BASE}/settings` : `${BASE}/settings?app=sis`
+  await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+
   const heading = page.getByText('Classrooms & Rooms', { exact: true })
   await heading.waitFor({ timeout: 20000 })
 
@@ -76,8 +91,6 @@ export default async function run(page) {
 
   // Verify scroll position did not jump to 0 (top of page)
   const afterSaveScrollY = await page.evaluate(() => window.scrollY)
-
-  // If initial scroll was > 0, ensure we didn't reset to 0
   if (initialScrollY > 0 && afterSaveScrollY === 0) {
     throw new Error(`Scroll position jumped to top after saving rooms (was ${initialScrollY}, became ${afterSaveScrollY})`)
   }
