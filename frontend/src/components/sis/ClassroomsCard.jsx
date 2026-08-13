@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -10,7 +10,7 @@ const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline
  * The class editor offers them as a dropdown picker when assigning class locations.
  */
 const ClassroomsCard = ({ orgId, org, onUpdate }) => {
-  const settings = org.feature_flags?.sis_settings || {}
+  const settings = org?.feature_flags?.sis_settings || {}
   const rawRooms = settings.rooms || []
   // Coerce existing string items or objects to {name, description}
   const initialRooms = rawRooms.map((r) =>
@@ -19,6 +19,15 @@ const ClassroomsCard = ({ orgId, org, onUpdate }) => {
 
   const [rooms, setRooms] = useState(initialRooms)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const s = org?.feature_flags?.sis_settings || {}
+    const raw = s.rooms || []
+    const latest = raw.map((r) =>
+      typeof r === 'string' ? { name: r, description: '' } : { name: r.name || '', description: r.description || '' }
+    )
+    setRooms(latest)
+  }, [org])
 
   const setRoom = (i, patch) => setRooms((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
@@ -50,6 +59,7 @@ const ClassroomsCard = ({ orgId, org, onUpdate }) => {
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-neutral-900">Classrooms &amp; Rooms</h2>
         <button
+          type="button"
           onClick={() => setRooms((rs) => [...rs, { name: '', description: '' }])}
           className="text-sm font-medium text-optio-purple hover:underline"
         >
@@ -80,6 +90,7 @@ const ClassroomsCard = ({ orgId, org, onUpdate }) => {
               aria-label="Room description"
             />
             <button
+              type="button"
               onClick={() => setRooms((rs) => rs.filter((_, j) => j !== i))}
               className="text-red-500 text-sm px-2 hover:underline"
               aria-label="Remove room"
@@ -91,6 +102,7 @@ const ClassroomsCard = ({ orgId, org, onUpdate }) => {
       </div>
 
       <button
+        type="button"
         onClick={save}
         disabled={saving}
         className="px-5 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90 disabled:opacity-50"
