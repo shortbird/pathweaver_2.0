@@ -250,3 +250,42 @@ class TestFormsService:
                                                   'title': 'Broken sink'})
         assert result['submission']['id'] == 'f1'
         assert notify.call_count == 2
+
+
+@pytest.mark.unit
+class TestTeacherSchedule:
+    """Schedule meetings carry the class name, room (with class fallback), and
+    age range — added for the schedule page's Time/Class/Room/Ages columns."""
+
+    def _schedule(self, classes, meetings):
+        from services import sis_staff_service as staff
+        with patch('services.sis_service.advisor_class_ids', return_value=[c['id'] for c in classes]), \
+             patch('services.sis_staff_service._classes_by_ids', return_value=classes), \
+             patch('services.sis_staff_service._meetings_for_classes', return_value=meetings), \
+             patch('services.sis_staff_service.list_assignments', return_value=[]):
+            return staff.teacher_schedule('u1', 'org-1')
+
+    def test_meetings_enriched_with_class_fields(self):
+        out = self._schedule(
+            classes=[{'id': 'c1', 'name': 'Art Expeditions 8-12', 'location': 'Elem 3',
+                      'min_age': 8, 'max_age': 12}],
+            meetings=[
+                {'class_id': 'c1', 'day_of_week': 2, 'start_time': '09:00',
+                 'end_time': '10:00', 'location': None},
+                {'class_id': 'c1', 'day_of_week': 4, 'start_time': '09:00',
+                 'end_time': '10:00', 'location': 'Gym'},
+            ])
+        m1, m2 = out['meetings']
+        assert m1['class_name'] == 'Art Expeditions 8-12'
+        assert m1['location'] == 'Elem 3'   # meeting has no room: class room wins
+        assert (m1['min_age'], m1['max_age']) == (8, 12)
+        assert m2['location'] == 'Gym'      # meeting's own room kept
+
+    def test_meeting_without_class_row_survives(self):
+        out = self._schedule(
+            classes=[],
+            meetings=[{'class_id': 'ghost', 'day_of_week': 1, 'start_time': '09:00',
+                       'end_time': '10:00', 'location': None}])
+        m = out['meetings'][0]
+        assert m['class_name'] is None
+        assert m['min_age'] is None and m['max_age'] is None
