@@ -3,7 +3,7 @@ Class messaging groups: keep one group chat per class, mirroring the roster.
 
 Members are the class's ACTIVE students (role: member) plus its teachers
 (role: admin — teachers administer their class group). "Teacher" means any of
-the three sources class_membership_service knows about: the primary
+the three sources utils.class_membership knows about: the primary
 instructor, assistant instructors, and active class_advisors rows. Linked via
 group_conversations.source_class_id; idempotent, so every enrollment write path
 calls sync_class_group() best-effort after changing class_enrollments:
@@ -19,7 +19,7 @@ The group is created lazily on the first sync that finds any members.
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
-from services import class_membership_service as membership
+from utils import class_membership as membership
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -8,8 +8,10 @@ active classes — saw "No classes yet" on /dashboard and was locked out of
 /org-classes/:id, because can_user_access_class routes through
 is_class_advisor.
 
-Both now go through class_membership_service, the module that already owns the
-"a teacher lives in three places" rule.
+Both now go through utils.class_membership, the module that already owns the
+"a teacher lives in three places" rule. It lives in utils/ rather than
+services/ because the layered-import contract forbids a repository from
+importing services (tests/unit/test_import_layers.py).
 """
 
 from unittest.mock import PropertyMock, patch
@@ -70,26 +72,26 @@ def repo():
 @pytest.mark.unit
 class TestSisInstructorSeesTheirClasses:
     def test_primary_instructor_classes_are_returned(self, repo):
-        with patch('services.class_membership_service.teacher_class_ids',
+        with patch('utils.class_membership.teacher_class_ids',
                    return_value={'c1', 'c2'}):
             names = [c['name'] for c in repo.get_advisor_classes('lisa', status='active')]
         assert names == ['TLP: Summit']
 
     def test_status_none_returns_every_class(self, repo):
-        with patch('services.class_membership_service.teacher_class_ids',
+        with patch('utils.class_membership.teacher_class_ids',
                    return_value={'c1', 'c2'}):
             got = repo.get_advisor_classes('lisa', status=None)
         assert {c['id'] for c in got} == {'c1', 'c2'}
 
     def test_a_teacher_with_no_classes_short_circuits(self, repo):
-        with patch('services.class_membership_service.teacher_class_ids',
+        with patch('utils.class_membership.teacher_class_ids',
                    return_value=set()) as spy:
             assert repo.get_advisor_classes('nobody') == []
         assert spy.called
 
     def test_sis_assigned_class_carries_no_legacy_assignment_block(self, repo):
         """The `assignment` key only exists when a class_advisors row does."""
-        with patch('services.class_membership_service.teacher_class_ids',
+        with patch('utils.class_membership.teacher_class_ids',
                    return_value={'c1'}):
             got = repo.get_advisor_classes('lisa', status='active')
         assert 'assignment' not in got[0]
@@ -98,11 +100,11 @@ class TestSisInstructorSeesTheirClasses:
 @pytest.mark.unit
 class TestClassAccessFollowsTheSameRule:
     def test_primary_instructor_is_a_class_advisor(self, repo):
-        with patch('services.class_membership_service.class_teacher_ids',
+        with patch('utils.class_membership.class_teacher_ids',
                    return_value={'lisa'}):
             assert repo.is_class_advisor('c1', 'lisa') is True
 
     def test_an_unrelated_user_is_not(self, repo):
-        with patch('services.class_membership_service.class_teacher_ids',
+        with patch('utils.class_membership.class_teacher_ids',
                    return_value={'lisa'}):
             assert repo.is_class_advisor('c1', 'someone-else') is False

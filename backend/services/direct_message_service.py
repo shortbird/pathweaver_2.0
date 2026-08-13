@@ -106,7 +106,7 @@ class DirectMessageService(BaseService):
             # the class (primary/assistant instructor or class_advisors), not
             # through advisor_student_assignments, so this is the check that makes
             # teacher-student DMs work from the class Messages tab.
-            from services import class_membership_service as class_membership
+            from utils import class_membership
             if class_membership.shares_class(user_id, target_id) or \
                class_membership.shares_class(target_id, user_id):
                 print(f"[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)

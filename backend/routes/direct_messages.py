@@ -17,7 +17,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from utils.auth.decorators import require_auth
-from services import class_membership_service as class_membership
+from utils import class_membership
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_required_fields, validate_string_length

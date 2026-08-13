@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from services import class_membership_service as membership
+from utils import class_membership as membership
 from services import sis_service
 from services import sis_staff_service as staff
 from services import sis_forms_service as forms

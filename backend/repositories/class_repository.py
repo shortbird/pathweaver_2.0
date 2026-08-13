@@ -146,13 +146,13 @@ class ClassRepository(BaseRepository):
         """Get all classes an advisor teaches.
 
         A teacher reaches a class through any of the three sources
-        `class_membership_service` documents — primary_instructor_id,
+        `utils.class_membership` documents — primary_instructor_id,
         assistant_instructor_ids, or an active class_advisors row. The SIS
         assigns instructors via the org_classes columns and never writes
         class_advisors, so reading the link table alone showed SIS teachers
         an empty class list on /dashboard.
         """
-        from services.class_membership_service import teacher_class_ids
+        from utils.class_membership import teacher_class_ids
 
         class_ids = list(teacher_class_ids(advisor_id))
         if not class_ids:
@@ -188,7 +188,7 @@ class ClassRepository(BaseRepository):
     def is_class_advisor(self, class_id: str, user_id: str) -> bool:
         """Check if a user teaches a class — as primary instructor, assistant
         instructor, or an active class_advisors row (see get_advisor_classes)."""
-        from services.class_membership_service import class_teacher_ids
+        from utils.class_membership import class_teacher_ids
 
         return user_id in class_teacher_ids(class_id)
 

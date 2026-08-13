@@ -133,32 +133,32 @@ def _rows(**over):
 
 
 def _membership(admin):
-    from services import class_membership_service as m
+    from utils import class_membership as m
     return patch.object(m, '_admin', return_value=admin)
 
 
 @pytest.mark.unit
 class TestClassTeachers:
     def test_counts_primary_assistant_and_active_advisors(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert m.class_teacher_ids(CLASS) == {TEACHER, ASSISTANT, ADVISOR}
 
     def test_ignores_inactive_advisor_rows(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert 'former-1' not in m.class_teacher_ids(CLASS)
 
     def test_students_are_the_active_enrollments(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert m.class_student_ids(CLASS) == {STUDENT}
 
     def test_teacher_class_ids_covers_every_assignment_style(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert m.teacher_class_ids(TEACHER) == {CLASS}
@@ -166,7 +166,7 @@ class TestClassTeachers:
             assert m.teacher_class_ids(ADVISOR) == {CLASS}
 
     def test_shares_class_both_directions_and_not_for_outsiders(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert m.shares_class(TEACHER, STUDENT) is True
@@ -177,14 +177,14 @@ class TestClassTeachers:
             assert m.shares_class(TEACHER, OUTSIDER) is False
 
     def test_rosters_resolve_from_either_end(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = _FakeAdmin(_rows())
         with _membership(admin):
             assert m.students_taught_by(TEACHER) == {STUDENT}
             assert m.teachers_of_student(STUDENT) == {TEACHER, ASSISTANT, ADVISOR}
 
     def test_a_lookup_failure_is_never_fatal(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
 
         class _Boom:
             def table(self, *a, **k):
@@ -198,7 +198,7 @@ class TestClassTeachers:
 @pytest.mark.unit
 class TestClassGroupSync:
     def test_primary_instructor_joins_the_class_chat_as_admin(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         admin = _FakeAdmin(_rows())
@@ -214,7 +214,7 @@ class TestClassGroupSync:
         assert 'dropped-1' not in members
 
     def test_existing_group_gains_the_missing_teachers(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         rows = _rows(
@@ -327,7 +327,7 @@ class TestDirectMessagePermission:
         return _FakeAdmin(rows)
 
     def test_a_shared_class_lets_teacher_and_student_message_each_other(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = self._blank_admin()
         svc, client_patch = self._service(admin)
         with client_patch, patch.object(m, '_admin', return_value=admin):
@@ -335,7 +335,7 @@ class TestDirectMessagePermission:
             assert svc.can_message_user(STUDENT, TEACHER) is True
 
     def test_no_shared_class_is_still_denied(self):
-        from services import class_membership_service as m
+        from utils import class_membership as m
         admin = self._blank_admin()
         svc, client_patch = self._service(admin)
         with client_patch, patch.object(m, '_admin', return_value=admin):

@@ -15,6 +15,12 @@ at a time: the class-chat sync only looked at class_advisors, which meant the
 teacher in them. Anything that needs "the people in this class" should call
 here rather than re-deriving it.
 
+It lives in utils/ because repositories need it too (the advisor-classes read),
+and the layered-import contract — routes -> services -> repositories -> utils,
+enforced by tests/unit/test_import_layers.py — forbids a repository from
+reaching up into services. It was `services.class_membership_service` until
+2026-08-13; utils/ is the one layer every caller above may depend on.
+
 Every helper is best-effort — a lookup failure returns an empty set (or False)
 and logs, so a messaging query can never break the caller.
 """
