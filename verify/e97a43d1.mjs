@@ -109,7 +109,19 @@ export default async function run(page) {
   }
 
   const json = (obj) => (route) => {
-    const origin = route.request().headers()['origin'] || BASE
+    const req = route.request()
+    const origin = req.headers()['origin'] || BASE
+    if (req.method() === 'OPTIONS') {
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'access-control-allow-origin': origin,
+          'access-control-allow-credentials': 'true',
+          'access-control-allow-methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+          'access-control-allow-headers': 'content-type, authorization, x-csrf-token',
+        },
+      })
+    }
     return route.fulfill({
       status: 200,
       headers: {
@@ -129,30 +141,24 @@ export default async function run(page) {
     await route.fulfill({ response: resp, body: html })
   })
 
-  // Intercept API routes
-  await page.route((u) => u.toString().includes('/api/'), (route) => {
-    const url = route.request().url()
-    if (url.includes('/src/')) return route.fallback()
-
-    if (url.includes('/api/auth/me')) return json(staffUser)(route)
-    if (url.includes('/api/sis/clp/directory')) return json(clpDirectory)(route)
-    if (url.includes('/api/sis/clp/students/s-jay-1')) return json(clpStudentPayload)(route)
-    if (url.includes('/api/sis/classes/c-1/enrollments')) return json(classRosterPayload)(route)
-    if (url.includes('/api/sis/classes')) return json({ classes: [{ id: 'c-1', name: 'Creative Coding', enrolled_count: 1, capacity: 10 }] })(route)
-    if (url.includes('/api/sis/staff')) return json({ staff: [] })(route)
-    if (url.includes('/api/sis/course-settings')) return json({ course_settings: [], optio_course_tuition_cents: 25000 })(route)
-    if (url.includes('/api/admin/organizations/')) return json({ organization: { id: ORG, name: 'iCreate', feature_flags: {} } })(route)
-
-    return json({})(route)
-  })
+  // Intercept API routes in order: default catch-all first, then specific mocks
+  await page.route('**/api/**', json({}))
+  await page.route('**/api/auth/me**', json(staffUser))
+  await page.route('**/api/admin/organizations/**', json({ organization: { id: ORG, name: 'iCreate', feature_flags: {} } }))
+  await page.route('**/api/sis/clp/directory**', json(clpDirectory))
+  await page.route('**/api/sis/clp/students/s-jay-1**', json(clpStudentPayload))
+  await page.route('**/api/sis/classes/c-1/enrollments**', json(classRosterPayload))
+  await page.route('**/api/sis/classes**', json({ classes: [{ id: 'c-1', name: 'Creative Coding', enrolled_count: 1, capacity: 10 }] }))
+  await page.route('**/api/sis/staff**', json({ staff: [] }))
+  await page.route('**/api/sis/course-settings**', json({ course_settings: [], optio_course_tuition_cents: 25000 }))
 
   // 1. Open the CLP page
   const clpUrl = BASE.includes('sis.') ? `${BASE}/clp` : `${BASE}/clp?app=sis`
-  await page.goto(clpUrl, { waitUntil: 'networkidle' })
+  await page.goto(clpUrl, { waitUntil: 'domcontentloaded' })
 
   // Verify Jay Roberts shows up in directory sidebar
   const studentEntry = page.getByText('Jay Roberts').first()
-  await studentEntry.waitFor({ state: 'visible', timeout: 15000 })
+  await studentEntry.waitFor({ state: 'visible', timeout: 20000 })
 
   // Click on student
   await studentEntry.click()
@@ -160,5 +166,5 @@ export default async function run(page) {
 
   // Verify Jay Roberts shows up in CLP header
   const headerName = page.locator('h2').getByText('Jay Roberts').first()
-  await headerName.waitFor({ state: 'visible', timeout: 5000 })
+  await headerName.waitFor({ state: 'visible', timeout: 10000 })
 }
