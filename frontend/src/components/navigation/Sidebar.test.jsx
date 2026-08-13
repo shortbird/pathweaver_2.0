@@ -31,6 +31,7 @@ vi.mock('../parent/ActingAsBanner', () => ({ default: () => null }))
 vi.mock('../admin/MasqueradeBanner', () => ({ default: () => null }))
 
 import Sidebar from './Sidebar'
+import { OPTIO_ACADEMY_ORG_ID } from '../../config/optioAcademy'
 
 function renderSidebar() {
   const client = new QueryClient({
@@ -326,5 +327,56 @@ describe('Sidebar — the two feeds have distinct names', () => {
     renderSidebar()
     expect(screen.getByRole('link', { name: /^student feed$/i })).toHaveAttribute('href', '/observer/feed')
     expect(screen.queryByRole('link', { name: /^feed$/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('Sidebar — Optio Academy parents: the Family tab is the home tab', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  const academyParent = {
+    id: 'p1',
+    role: 'org_managed',
+    org_role: 'parent',
+    organization_id: OPTIO_ACADEMY_ORG_ID,
+    has_dependents: true,
+    email: 'p@example.com',
+  }
+
+  it('puts Family in the home slot and drops the separate Home item', () => {
+    authState.user = academyParent
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
+      'href', '/parent/dashboard')
+    expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
+  })
+
+  it('still lists the family dashboard exactly once', () => {
+    authState.user = academyParent
+    renderSidebar()
+    const links = screen.getAllByRole('link').filter(
+      (l) => l.getAttribute('href') === '/parent/dashboard'
+    )
+    expect(links).toHaveLength(1)
+  })
+
+  it('leaves Academy students on the ordinary Home', () => {
+    authState.user = {
+      id: 's1', role: 'org_managed', org_role: 'student',
+      organization_id: OPTIO_ACADEMY_ORG_ID, email: 's@example.com',
+    }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
+  })
+
+  it('leaves parents at other schools on the ordinary Home', () => {
+    authState.user = { ...academyParent, organization_id: 'some-other-org' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
+      'href', '/parent/dashboard')
   })
 })

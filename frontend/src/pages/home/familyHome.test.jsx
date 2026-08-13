@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import FamilyHome from './FamilyHome'
+import { OPTIO_ACADEMY_ORG_ID } from '../../config/optioAcademy'
 
 let authState = {}
 let actingAsState = {}
@@ -270,6 +271,20 @@ describe('FamilyHome', () => {
 
     it('is hidden entirely when the user has no school', async () => {
       orgState = { school: null, loading: false }
+      renderFamilyHome()
+      await screen.findByText('Welcome back, Dana')
+      expect(screen.queryByText(/^From /)).not.toBeInTheDocument()
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/school/context')
+    })
+
+    // Optio Academy runs none of the modules the cards link to, so the section
+    // is skipped there — and skipped means not fetched, not just not rendered.
+    it('is hidden entirely for Optio Academy', async () => {
+      orgState = {
+        school: { id: OPTIO_ACADEMY_ORG_ID, name: 'Optio Academy', homepage: false },
+        loading: false,
+      }
+      mockApiRoutes(schoolRoutes)
       renderFamilyHome()
       await screen.findByText('Welcome back, Dana')
       expect(screen.queryByText(/^From /)).not.toBeInTheDocument()

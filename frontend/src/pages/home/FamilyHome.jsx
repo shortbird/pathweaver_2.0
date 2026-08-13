@@ -10,6 +10,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { PageLoader } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
 import { htmlToText } from '../../utils/richText'
+import { inOptioAcademy } from '../../config/optioAcademy'
 import { cardsFor } from '../SchoolPage'
 import {
   useFamilyChildren, useChildActivity, useFamilyAttention, useSchoolSection, weekXpFrom,
@@ -204,7 +205,11 @@ export default function FamilyHome() {
   const { school } = useOrganization()
   const childrenQuery = useFamilyChildren()
   const { items: attentionItems } = useFamilyAttention()
-  const inSchool = Boolean(school)
+  // Optio Academy runs none of the school surfaces the section links to
+  // (calendar, resources, directory are all in its hidden_modules), so the
+  // section is skipped there rather than offering doors onto empty rooms.
+  // Skipping it also skips its fetches — see useSchoolSection(false).
+  const inSchool = Boolean(school) && !inOptioAcademy({ user, school })
   const { schoolOrg, announcements } = useSchoolSection(inSchool)
 
   const firstName = user?.first_name || 'there'

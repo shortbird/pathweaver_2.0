@@ -1,4 +1,5 @@
 import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
+import { inOptioAcademy } from '../config/optioAcademy'
 
 /**
  * Effective role for landing decisions (resolves org_managed to org role).
@@ -18,6 +19,18 @@ function effectiveRole(user) {
 }
 
 /**
+ * A parent's home. Normally /dashboard (FamilyHome, the digest); for Optio
+ * Academy it's the family dashboard itself, so the Family tab IS the home tab.
+ * Shared by getPostLoginPath and the Sidebar so the nav item and the landing
+ * page can never disagree.
+ */
+export function parentHomePath(user, school = null) {
+  return inOptioAcademy({ user, school: school || user?.school })
+    ? '/parent/dashboard'
+    : '/dashboard'
+}
+
+/**
  * Where a user lands after logging in (rewritten 2026-08-10 for role homes):
  *
  * Every in-app role now lands on /dashboard, which renders that role's own
@@ -32,11 +45,17 @@ function effectiveRole(user) {
  * The only remaining forks hop SURFACES, not pages:
  * - staff of SIS-enabled orgs (org_admin, advisor, campus_coordinator) work
  *   in the SIS console, so they front-door through /sis-launch;
- * - simplified partner orgs keep their dedicated /onfire dashboard.
+ * - simplified partner orgs keep their dedicated /onfire dashboard;
+ * - Optio Academy parents land on the family dashboard, which is their home
+ *   (see config/optioAcademy.js).
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
   const sisEnabled = Boolean(user?.organization?.feature_flags?.sis_enabled)
+
+  if (role === 'parent' && inOptioAcademy({ user, school: user?.school })) {
+    return parentHomePath(user)
+  }
 
   if (role === 'org_admin') {
     if (isSimplifiedPartnerOrg(user.organization_id)) return '/onfire'
