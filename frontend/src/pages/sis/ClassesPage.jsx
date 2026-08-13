@@ -393,20 +393,99 @@ const ClassesPage = () => {
     load()
   }
 
+  // Map staff by ID for quick teacher name resolution during search and rendering
+  const staffMap = useMemo(() => {
+    const map = {}
+    for (const s of staff || []) {
+      if (s.id) map[s.id] = s
+    }
+    return map
+  }, [staff])
+
+  const classMatchesSearch = useCallback((c, query) => {
+    if (!query) return true
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+
+    // Check class name
+    if ((c.name || '').toLowerCase().includes(q)) return true
+
+    // Check primary instructor
+    const primaryName = c.primary_instructor?.name || c.primary_instructor?.display_name
+    if (primaryName && primaryName.toLowerCase().includes(q)) return true
+
+    if (c.primary_instructor_id && staffMap[c.primary_instructor_id]) {
+      const s = staffMap[c.primary_instructor_id]
+      const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+      if (sName.toLowerCase().includes(q)) return true
+    }
+
+    // Check assistant instructors
+    if (Array.isArray(c.assistant_instructors)) {
+      for (const a of c.assistant_instructors) {
+        const aName = a.name || a.display_name
+        if (aName && aName.toLowerCase().includes(q)) return true
+      }
+    }
+
+    if (Array.isArray(c.assistant_instructor_ids)) {
+      for (const aid of c.assistant_instructor_ids) {
+        const s = staffMap[aid]
+        if (s) {
+          const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+          if (sName.toLowerCase().includes(q)) return true
+        }
+      }
+    }
+
+    return false
+  }, [staffMap])
+
+  const courseMatchesSearch = useCallback((c, query) => {
+    if (!query) return true
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+
+    // Check course title
+    if ((c.title || '').toLowerCase().includes(q)) return true
+
+    // Check course teacher setting
+    const cs = courseSettings[c.id]
+    if (cs) {
+      const teacherName = cs.teacher?.name || cs.teacher?.display_name || cs.teacher_name
+      if (teacherName && teacherName.toLowerCase().includes(q)) return true
+
+      const tid = cs.teacher?.id || cs.teacher_id
+      if (tid && staffMap[tid]) {
+        const s = staffMap[tid]
+        const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+        if (sName.toLowerCase().includes(q)) return true
+      }
+    }
+
+    // Direct instructor/teacher on course object
+    const directTeacher = c.primary_instructor?.name || c.primary_instructor?.display_name || c.teacher?.name
+    if (directTeacher && directTeacher.toLowerCase().includes(q)) return true
+
+    return false
+  }, [courseSettings, staffMap])
+
   // ── Tab-scoped, searched catalog ─────────────────────────────────────────────
   const items = useMemo(() => {
-    const source = tab === 'courses'
-      ? courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
-      : classes.map((c) => ({ kind: 'class', _name: c.name, ...c }))
-    const q = search.trim().toLowerCase()
-    return q ? source.filter((i) => (i._name || '').toLowerCase().includes(q)) : source
-  }, [classes, courses, tab, search])
+    if (tab === 'courses') {
+      return courses
+        .filter((c) => courseMatchesSearch(c, search))
+        .map((c) => ({ kind: 'course', _name: c.title, ...c }))
+    }
+    return classes
+      .filter((c) => classMatchesSearch(c, search))
+      .map((c) => ({ kind: 'class', _name: c.name, ...c }))
+  }, [classes, courses, tab, search, classMatchesSearch, courseMatchesSearch])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return q ? classes.filter((c) => (c.name || '').toLowerCase().includes(q)) : classes
-  }, [classes, search])
+    return classes.filter((c) => classMatchesSearch(c, search))
+  }, [classes, search, classMatchesSearch])
 
   const TABS = [
     { key: 'classes', label: `${orgName} classes`, count: classes.length },
