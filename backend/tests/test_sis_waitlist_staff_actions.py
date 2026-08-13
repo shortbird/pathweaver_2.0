@@ -515,3 +515,36 @@ class TestStaffRoutes:
             resp = client.post('/api/sis/waitlist/w1/enroll', headers=auth_headers,
                                json={'organization_id': 'org-1'})
         assert resp.status_code == 403
+
+
+@pytest.mark.unit
+class TestListForClass:
+    def test_excludes_promoted_and_attaches_age_and_preferred_name(self):
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'neq', 'order', 'in_'):
+            getattr(table, chained).return_value = table
+
+        waitlist_data = [
+            {'id': 'w1', 'student_user_id': 's1', 'status': 'waiting', 'position': 1},
+        ]
+        user_data = [
+            {'id': 's1', 'first_name': 'Jenner', 'last_name': 'Roberts', 'preferred_name': 'Jen', 'date_of_birth': '2015-04-10'},
+        ]
+
+        # Execute mock returns waitlist data on first call, user data on second
+        table.execute.side_effect = [
+            Mock(data=waitlist_data),
+            Mock(data=user_data),
+        ]
+
+        with patch('services.sis_waitlist_service._admin', return_value=client):
+            res = wl.list_for_class('org-1', 'c1')
+
+        assert len(res) == 1
+        assert res[0]['student_name'] == 'Jen Roberts'
+        assert res[0]['preferred_name'] == 'Jen'
+        assert res[0]['student_age'] is not None
+        assert res[0]['age'] == res[0]['student_age']
+

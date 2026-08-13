@@ -1070,9 +1070,11 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     } catch { toast.error('Could not offer seat') }
   }
 
+  const activeEntries = entries.filter((e) => e.status !== 'promoted')
+
   // Nobody to offer to when every live entry already has an offer out — the
   // per-entry Offer again / Enroll now buttons are the way forward there.
-  const waitingCount = entries.filter((e) => e.status === 'waiting').length
+  const waitingCount = activeEntries.filter((e) => e.status === 'waiting').length
 
   // Admit the student now. The school already decided — this doesn't wait for
   // the family to click Claim, and it isn't blocked by a full class.
@@ -1156,14 +1158,14 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     } catch { toast.error('Could not remove the entry') } finally { setBusy(null) }
   }
 
-  if (loaded && !entries.length) {
+  if (loaded && !activeEntries.length) {
     return <div className="border-t border-gray-100 mt-3 pt-3 text-sm text-neutral-400">No one on the waitlist.</div>
   }
 
   return (
     <div className="border-t border-gray-100 mt-3 pt-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-neutral-700">Waitlist ({entries.length})</span>
+        <span className="text-sm font-medium text-neutral-700">Waitlist ({activeEntries.length})</span>
         <Button size="sm" variant="secondary" onClick={offerNext} disabled={isFull || !waitingCount}
           title={isFull
             ? 'The class is full — free a seat or raise the capacity to offer one'
@@ -1179,15 +1181,16 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
         </p>
       )}
       <div className="space-y-1">
-        {entries.map((e) => {
+        {activeEntries.map((e) => {
           const meta = WAITLIST_STATUS[e.status] || { label: e.status, tone: 'text-neutral-400' }
           const expiry = offerExpiryText(e)
           const done = e.status === 'promoted'
+          const age = e.student_age ?? e.age
           return (
             <div key={e.id} className="flex items-center justify-between gap-3 text-sm py-0.5">
               <span className="text-neutral-700 min-w-0 truncate">
                 #{e.position} · {e.student_name}
-                {e.student_age != null && <span className="ml-1.5 text-xs text-neutral-400">age {e.student_age}</span>}
+                {age != null && <span className="ml-1.5 text-xs text-neutral-400">age {age}</span>}
                 <span className={`ml-2 text-xs ${meta.tone}`}>{meta.label}</span>
                 {expiry && <span className="ml-1.5 text-xs text-neutral-400">({expiry})</span>}
               </span>

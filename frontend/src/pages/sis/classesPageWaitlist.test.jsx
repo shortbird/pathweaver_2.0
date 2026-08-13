@@ -233,4 +233,27 @@ describe('class waitlist — staff actions', () => {
     await openWaitlistTab()
     expect(screen.queryByRole('button', { name: 'Other section ▾' })).not.toBeInTheDocument()
   })
+
+  it('filters out promoted entries from waitlist count and displays student age', async () => {
+    const waitlistWithPromoted = [
+      ...WAITLIST,
+      { id: 'w4', position: 4, student_name: 'Already Enrolled', age: 11, status: 'promoted' },
+    ]
+    api.get.mockImplementation((url) => {
+      if (url.includes('/sibling-sections')) return Promise.resolve({ data: { sections: [] } })
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: waitlistWithPromoted } })
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Lego Robotics', enrolled_count: 15, capacity: 15, is_full: true,
+            waitlist_count: 3, meetings: [], registration_status: 'closed' },
+        ] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    await openWaitlistTab()
+    // Waitlist (3) because promoted entry w4 is excluded from waitlist count and list
+    expect(screen.getByText('Waitlist (3)')).toBeInTheDocument()
+    expect(screen.queryByText('Already Enrolled')).not.toBeInTheDocument()
+    expect(screen.getByText('age 9')).toBeInTheDocument()
+  })
 })

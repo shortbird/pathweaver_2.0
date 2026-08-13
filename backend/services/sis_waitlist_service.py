@@ -74,6 +74,7 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     rows = (
         _admin().table('sis_waitlist_entries')
         .select('*').eq('organization_id', org_id).eq('class_id', class_id)
+        .neq('status', 'promoted')
         .order('position').execute()
     ).data or []
     if not rows:
@@ -82,16 +83,29 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     users = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, preferred_name, username, email, date_of_birth')
             .in_('id', student_ids).execute()
         ).data or []
     }
     for r in rows:
         u = users.get(r['student_user_id'], {})
-        r['student_name'] = (u.get('display_name')
-                             or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
-                             or u.get('username') or u.get('email') or 'Unnamed')
-        r['student_age'] = _age_from_dob(u.get('date_of_birth'))
+        pref = (u.get('preferred_name') or '').strip()
+        first = (u.get('first_name') or '').strip()
+        last = (u.get('last_name') or '').strip()
+        if pref:
+            if last and not pref.lower().endswith(last.lower()):
+                name = f"{pref} {last}"
+            else:
+                name = pref
+        else:
+            name = (u.get('display_name')
+                    or f"{first} {last}".strip()
+                    or u.get('username') or u.get('email') or 'Unnamed')
+        r['student_name'] = name
+        age = _age_from_dob(u.get('date_of_birth'))
+        r['student_age'] = age
+        r['age'] = age
+        r['preferred_name'] = u.get('preferred_name')
     return rows
 
 
