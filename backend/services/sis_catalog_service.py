@@ -48,7 +48,16 @@ def is_full(capacity: Optional[int], enrolled: int) -> bool:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+    if not u:
+        return 'Unknown'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    name = f"{first} {last}".strip()
     return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
 
 
@@ -59,7 +68,7 @@ def _instructors_by_id(instructor_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         return {}
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, username, email, avatar_url')
+        .select('id, first_name, last_name, display_name, preferred_name, username, email, avatar_url')
         .in_('id', ids).execute()
     ).data or []
     return {u['id']: {'id': u['id'], 'name': _full_name(u), 'avatar_url': u.get('avatar_url')}

@@ -159,9 +159,17 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    name = (u.get('display_name') or
-            f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()
-    return name or (u.get('username') or u.get('email') or 'Unnamed')
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    name = (u.get('display_name') or f"{first} {last}".strip()).strip()
+    return name or u.get('username') or u.get('email') or 'Unnamed'
 
 
 # ── Duplicate-student detection ──────────────────────────────────────────────

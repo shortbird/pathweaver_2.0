@@ -39,8 +39,17 @@ def _classes_repo():
 
 
 def _student_name(u: Dict[str, Any]) -> str:
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
     name = (u.get('display_name') or
-            f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()
+            f"{first} {last}").strip()
     return name or (u.get('username') or u.get('email') or 'Unnamed')
 
 

@@ -50,7 +50,16 @@ def _admin():
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+    if not u:
+        return 'Unknown'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    name = f"{first} {last}".strip()
     return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
 
 

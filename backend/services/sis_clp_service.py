@@ -52,7 +52,16 @@ def _org_private_school_name(org_id: str) -> Optional[str]:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+    if not u:
+        return 'Unknown'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
+    name = f"{first} {last}".strip()
     return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
 
 
@@ -107,6 +116,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'name': r['name'],
         'first_name': r.get('first_name'),
         'last_name': r.get('last_name'),
+        'preferred_name': r.get('preferred_name'),
         'date_of_birth': r.get('date_of_birth'),
         'age': _age(r.get('date_of_birth')),
         'household_id': r.get('household_id'),
@@ -206,7 +216,7 @@ def _family_and_siblings(org_id: str, student_id: str):
     if sib_ids:
         rows = (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email, date_of_birth')
+            .select('id, first_name, last_name, display_name, username, email, date_of_birth, preferred_name')
             .in_('id', sib_ids).execute()
         ).data or []
         siblings = [{'student_id': r['id'], 'name': _full_name(r),

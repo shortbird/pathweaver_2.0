@@ -419,16 +419,26 @@ def class_roster(user_id, class_id):
     users = {}
     if ids:
         rows = (supabase.table('users')
-                .select('id, first_name, last_name, display_name, email, username, date_of_birth')
+                .select('id, first_name, last_name, display_name, preferred_name, email, username, date_of_birth')
                 .in_('id', ids).execute()).data or []
         users = {u['id']: u for u in rows}
     roster = []
     for e in enrollments:
         u = users.get(e['student_id']) or {}
-        name = (u.get('display_name')
-                or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
-                or u.get('username') or u.get('email') or 'Unknown')
+        pref = (u.get('preferred_name') or '').strip()
+        first = (u.get('first_name') or '').strip()
+        last = (u.get('last_name') or '').strip()
+        if pref:
+            if last and not pref.lower().endswith(last.lower()):
+                name = f"{pref} {last}"
+            else:
+                name = pref
+        else:
+            name = (u.get('display_name')
+                    or f"{first} {last}".strip()
+                    or u.get('username') or u.get('email') or 'Unknown')
         roster.append({'student_id': e['student_id'], 'name': name,
+                       'preferred_name': u.get('preferred_name'),
                        'last_name': u.get('last_name'),
                        'age': _age_from_dob(u.get('date_of_birth')),
                        'email': u.get('email'), 'username': u.get('username'),

@@ -26,8 +26,17 @@ def _now():
 
 
 def _student_name(u: Dict[str, Any]) -> str:
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
     return (u.get('display_name')
-            or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+            or f"{first} {last}".strip()
             or u.get('username') or u.get('email') or 'Unnamed')
 
 
@@ -59,7 +68,7 @@ def _enrolled_students(class_id: str) -> List[Dict[str, Any]]:
         return []
     users = (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+        .select('id, display_name, first_name, last_name, preferred_name, username, email, date_of_birth')
         .in_('id', ids).execute()
     ).data or []
     out = [{'student_user_id': u['id'], 'name': _student_name(u), 'age': _age(u.get('date_of_birth'))}
@@ -233,7 +242,7 @@ def open_alerts(org_id: str, on_date: Optional[str] = None) -> List[Dict[str, An
         return []
     students = {u['id']: _student_name(u) for u in (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, preferred_name, username, email')
         .in_('id', list({r['student_user_id'] for r in rows})).execute()
     ).data or []}
     class_ids = list({r['class_id'] for r in rows if r.get('class_id')})
@@ -307,7 +316,7 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
 
     users = (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, preferred_name, username, email')
         .in_('id', student_ids).execute()
     ).data or []
     names = [_student_name(u) for u in users] or ['A student']
@@ -362,7 +371,7 @@ def daily_report(org_id: str, on_date: str) -> List[Dict[str, Any]]:
     if student_ids:
         users = {u['id']: _student_name(u) for u in (
             admin.table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, preferred_name, username, email')
             .in_('id', list(student_ids)).execute()
         ).data or []}
 

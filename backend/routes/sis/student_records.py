@@ -91,8 +91,17 @@ def _student_in_org(org_id, student_id):
 
 
 def _student_name(u):
+    if not u:
+        return 'Unnamed'
+    pref = (u.get('preferred_name') or '').strip()
+    first = (u.get('first_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        if last and not pref.lower().endswith(last.lower()):
+            return f"{pref} {last}"
+        return pref
     return (u.get('display_name')
-            or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+            or f"{first} {last}".strip()
             or u.get('username') or u.get('email') or 'Unnamed')
 
 
