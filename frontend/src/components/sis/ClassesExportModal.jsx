@@ -65,21 +65,21 @@ const teacherOf = (c) => c.primary_instructor?.name || c.primary_instructor?.dis
 
 // `on` marks the default set — the old fixed export, unchanged.
 export const LIST_COLUMNS = [
-  { id: 'name', label: 'Class name', on: true, value: (c) => c.name || '' },
-  { id: 'teacher', label: 'Teacher', on: true, value: teacherOf },
-  { id: 'days', label: 'Days', on: true, value: (c) => daysOf(c.meetings) },
-  { id: 'time', label: 'Time', on: true, value: (c) => timeOf(c.meetings) },
-  { id: 'start_time', label: 'Start time', on: false, value: (c) => startOf(c.meetings) },
-  { id: 'length', label: 'Length', on: false, value: (c) => lengthOf(c.meetings) },
-  { id: 'ages', label: 'Ages', on: true, value: agesOf },
-  { id: 'description', label: 'Description', on: true, value: (c) => c.description || '' },
-  { id: 'supply_fee', label: 'Supply fee', on: true, value: (c) => c.supply_fee != null ? `$${c.supply_fee}` : '' },
-  { id: 'tuition', label: 'Tuition', on: true, value: (c) => c.price_cents != null ? `$${(c.price_cents / 100).toFixed(2)}` : '' },
-  { id: 'classroom', label: 'Classroom', on: true, value: (c) => c.location || '' },
-  { id: 'enrolled', label: 'Enrolled', on: true, value: (c) => c.enrolled_count ?? 0 },
-  { id: 'capacity', label: 'Capacity', on: true, value: (c) => c.capacity ?? '' },
-  { id: 'waitlist', label: 'Waitlist', on: true, value: (c) => c.waitlist_count ?? 0 },
-  { id: 'registration', label: 'Registration', on: false,
+  { id: 'name', label: 'Class name', hint: 'Title of class', on: true, value: (c) => c.name || '' },
+  { id: 'teacher', label: 'Teacher', hint: 'Primary instructor', on: true, value: teacherOf },
+  { id: 'days', label: 'Days', hint: 'Meeting days (e.g. Mon Wed)', on: true, value: (c) => daysOf(c.meetings) },
+  { id: 'time', label: 'Time', hint: 'Full time range (e.g. 9:00am–10:00am)', on: true, value: (c) => timeOf(c.meetings) },
+  { id: 'start_time', label: 'Start time', hint: 'Start time only (e.g. 9:00am)', on: false, value: (c) => startOf(c.meetings) },
+  { id: 'length', label: 'Length', hint: 'Class duration (e.g. 55 min)', on: false, value: (c) => lengthOf(c.meetings) },
+  { id: 'ages', label: 'Ages', hint: 'Age range (e.g. 8–12)', on: true, value: agesOf },
+  { id: 'description', label: 'Description', hint: 'Class description text', on: true, value: (c) => c.description || '' },
+  { id: 'supply_fee', label: 'Supply fee', hint: 'Materials fee', on: true, value: (c) => c.supply_fee != null ? `$${c.supply_fee}` : '' },
+  { id: 'tuition', label: 'Tuition', hint: 'Tuition price', on: true, value: (c) => c.price_cents != null ? `$${(c.price_cents / 100).toFixed(2)}` : '' },
+  { id: 'classroom', label: 'Classroom', hint: 'Room location', on: true, value: (c) => c.location || '' },
+  { id: 'enrolled', label: 'Enrolled', hint: 'Enrolled student count', on: true, value: (c) => c.enrolled_count ?? 0 },
+  { id: 'capacity', label: 'Capacity', hint: 'Max student limit', on: true, value: (c) => c.capacity ?? '' },
+  { id: 'waitlist', label: 'Waitlist', hint: 'Waitlisted student count', on: true, value: (c) => c.waitlist_count ?? 0 },
+  { id: 'registration', label: 'Registration', hint: 'Status: Open, Closed, or Archived', on: false,
     value: (c) => c.status === 'archived' ? 'Archived' : c.registration_status === 'open' ? 'Open' : 'Closed' },
 ]
 
@@ -96,7 +96,7 @@ export const buildListRows = (classes, colIds) => {
  * the same three-line blocks the hand-made sheet uses. Archived classes are
  * excluded: a schedule grid is what's actually running.
  */
-export const buildGridRows = (classes, axis) => {
+export const buildGridRows = (classes, axis, dayFilter = 'all') => {
   const keyOf = axis === 'teacher'
     ? (c) => teacherOf(c) || 'No teacher'
     : (c) => c.location || 'No room'
@@ -109,6 +109,7 @@ export const buildGridRows = (classes, axis) => {
     if (c.status === 'archived') continue
     for (const m of c.meetings || []) {
       if (m.day_of_week == null || !m.start_time) continue
+      if (dayFilter !== 'all' && Number(dayFilter) !== m.day_of_week) continue
       occs.push({ day: m.day_of_week, start: hhmm(m.start_time), c })
     }
   }
@@ -154,6 +155,17 @@ const FORMATS = [
   { key: 'room', label: 'Schedule grid by room', hint: 'Days and times down the side, a column per room' },
 ]
 
+const DAY_OPTIONS = [
+  { value: 'all', label: 'All days' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+  { value: '0', label: 'Sunday' },
+]
+
 const loadPrefs = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY))
@@ -166,9 +178,42 @@ const loadPrefs = () => {
   } catch { return { format: 'list', cols: DEFAULT_COLS } }
 }
 
-const ClassesExportModal = ({ classes, orgName, onClose }) => {
+const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
   const [prefs, setPrefs] = useState(loadPrefs)
   const { format, cols } = prefs
+  const [selectedTeacher, setSelectedTeacher] = useState('all')
+  const [selectedDay, setSelectedDay] = useState('all')
+
+  const allTeachers = React.useMemo(() => {
+    const set = new Set()
+    for (const c of classes) {
+      const primary = teacherOf(c)
+      if (primary) set.add(primary)
+      for (const a of (c.assistant_instructors || [])) {
+        const name = a.name || a.display_name
+        if (name) set.add(name)
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [classes])
+
+  const filteredClasses = React.useMemo(() => {
+    return classes.filter((c) => {
+      if (selectedTeacher !== 'all') {
+        const primary = teacherOf(c)
+        const assts = (c.assistant_instructors || []).map((a) => a.name || a.display_name).filter(Boolean)
+        if (primary !== selectedTeacher && !assts.includes(selectedTeacher)) {
+          return false
+        }
+      }
+      if (selectedDay !== 'all') {
+        const dayNum = Number(selectedDay)
+        const meetsOnDay = (c.meetings || []).some((m) => m.day_of_week === dayNum)
+        if (!meetsOnDay) return false
+      }
+      return true
+    })
+  }, [classes, selectedTeacher, selectedDay])
 
   const save = (next) => {
     setPrefs(next)
@@ -183,8 +228,8 @@ const ClassesExportModal = ({ classes, orgName, onClose }) => {
 
   const exportNow = () => {
     const slug = orgName.replace(/\s+/g, '-').toLowerCase()
-    if (format === 'list') downloadCsv(buildListRows(classes, cols), `${slug}-classes.csv`)
-    else downloadCsv(buildGridRows(classes, format), `${slug}-schedule-by-${format}.csv`)
+    if (format === 'list') downloadCsv(buildListRows(filteredClasses, cols), `${slug}-classes.csv`)
+    else downloadCsv(buildGridRows(filteredClasses, format, selectedDay), `${slug}-schedule-by-${format}.csv`)
     onClose()
   }
 
@@ -215,6 +260,48 @@ const ClassesExportModal = ({ classes, orgName, onClose }) => {
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend className="text-sm font-medium text-gray-700 mb-2">Filter export (optional)</legend>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="export-filter-teacher" className="block text-xs font-medium text-neutral-600 mb-1">Filter by teacher</label>
+                <select
+                  id="export-filter-teacher"
+                  aria-label="Filter by teacher"
+                  value={selectedTeacher}
+                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                  className="w-full text-xs rounded-lg border border-neutral-300 px-2.5 py-1.5 text-neutral-800 bg-white focus:outline-none focus:ring-1 focus:ring-optio-purple"
+                >
+                  <option value="all">All teachers</option>
+                  {allTeachers.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="export-filter-day" className="block text-xs font-medium text-neutral-600 mb-1">Filter by day</label>
+                <select
+                  id="export-filter-day"
+                  aria-label="Filter by day"
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value)}
+                  className="w-full text-xs rounded-lg border border-neutral-300 px-2.5 py-1.5 text-neutral-800 bg-white focus:outline-none focus:ring-1 focus:ring-optio-purple"
+                >
+                  {DAY_OPTIONS.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(selectedTeacher !== 'all' || selectedDay !== 'all') && (
+              <p className="mt-1.5 text-xs text-neutral-500 font-medium">
+                {filteredClasses.length === 0
+                  ? 'No classes match the selected filter.'
+                  : `Exporting ${filteredClasses.length} of ${classes.length} class${classes.length === 1 ? '' : 'es'}`}
+              </p>
+            )}
+          </fieldset>
+
           {format === 'list' && (
             <fieldset>
               <legend className="text-sm font-medium text-gray-700 mb-2">
@@ -224,12 +311,15 @@ const ClassesExportModal = ({ classes, orgName, onClose }) => {
                   Reset to default
                 </button>
               </legend>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 {LIST_COLUMNS.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
-                    <input type="checkbox" className="accent-optio-purple"
+                  <label key={c.id} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
+                    <input type="checkbox" aria-label={c.label} className="mt-0.5 accent-optio-purple shrink-0"
                       checked={cols.includes(c.id)} onChange={() => toggleCol(c.id)} />
-                    {c.label}
+                    <span className="leading-tight">
+                      <span className="block font-medium text-neutral-800">{c.label}</span>
+                      {c.hint && <span className="block text-[11px] text-neutral-500 font-normal">{c.hint}</span>}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -241,7 +331,7 @@ const ClassesExportModal = ({ classes, orgName, onClose }) => {
           <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm">
             Cancel
           </button>
-          <Button size="sm" onClick={exportNow} disabled={format === 'list' && !cols.length}>
+          <Button size="sm" onClick={exportNow} disabled={(format === 'list' && !cols.length) || filteredClasses.length === 0}>
             Export
           </Button>
         </div>

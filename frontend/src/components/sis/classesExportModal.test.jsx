@@ -165,6 +165,37 @@ describe('ClassesExportModal — schedule grids', () => {
   })
 })
 
+describe('ClassesExportModal — filtering', () => {
+  it('displays hints for columns like start time, time, and registration', () => {
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByText('Full time range (e.g. 9:00am–10:00am)')).toBeInTheDocument()
+    expect(screen.getByText('Start time only (e.g. 9:00am)')).toBeInTheDocument()
+    expect(screen.getByText('Status: Open, Closed, or Archived')).toBeInTheDocument()
+  })
+
+  it('filters export by selected teacher', () => {
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Filter by teacher'), { target: { value: 'Jane Doe' } })
+    expect(screen.getByText('Exporting 2 of 3 classes')).toBeInTheDocument()
+    openAndExport()
+    const lines = downloaded.replace('﻿', '').split('\n')
+    expect(lines).toHaveLength(3) // header + 2 classes (Pottery, Old Thing)
+    expect(downloaded).toContain('Pottery')
+    expect(downloaded).not.toContain('Guitar Jam')
+  })
+
+  it('filters export by selected day', () => {
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Filter by day'), { target: { value: '4' } }) // Thursday
+    expect(screen.getByText('Exporting 1 of 3 classes')).toBeInTheDocument()
+    openAndExport()
+    const lines = downloaded.replace('﻿', '').split('\n')
+    expect(lines).toHaveLength(2) // header + 1 class (Guitar Jam)
+    expect(downloaded).toContain('Guitar Jam')
+    expect(downloaded).not.toContain('Pottery')
+  })
+})
+
 describe('grid builder edge cases', () => {
   it('groups unassigned classes under No teacher / No room columns', () => {
     const orphan = [{ id: 'x', name: 'Open Play', meetings: [{ day_of_week: 1, start_time: '10:00:00', end_time: '11:00:00' }] }]
