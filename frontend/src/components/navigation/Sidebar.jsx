@@ -155,6 +155,20 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   ]
 
+  // Dashboard: superadmin only. Their Home is the platform cockpit, so this is
+  // the one way to look at the student dashboard from their own account.
+  if (user?.role === 'superadmin') {
+    primaryItems.push({
+      name: 'Dashboard',
+      path: '/student-dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h4l3 8 4-16 3 8h4" />
+        </svg>
+      )
+    })
+  }
+
   // Quests: the quest browser is a learning surface parents and org admins
   // don't work in (same rule the old top-navbar toggle used).
   if (role !== 'parent' && role !== 'org_admin') {

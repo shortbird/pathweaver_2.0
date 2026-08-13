@@ -59,6 +59,9 @@ const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage')
 // RoleHome renders each role's own home at /dashboard (it bundles the student
 // DashboardPage internally) — see pages/home/RoleHome.jsx.
 const RoleHome = lazy(() => import('./pages/home/RoleHome'))
+// The student dashboard on its own path, so roles whose /dashboard is a
+// different home (superadmin) can still look at what a student sees.
+const StudentDashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
@@ -525,6 +528,10 @@ function App() {
                 {/* Every role's home. RoleHome switches on effective role
                     (student dashboard, family home, teacher home, ...). */}
                 <Route path="dashboard" element={<RoleHome />} />
+                {/* The student dashboard itself. Same component RoleHome renders
+                    for students; reachable by role directly so a superadmin can
+                    see the student view without leaving their own home. */}
+                <Route path="student-dashboard" element={<StudentDashboardPage />} />
                 {/* Student-only surfaces: parents/observers are bounced to their
                     own home. Students, advisors, org_admins, superadmin unaffected. */}
                 <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
