@@ -207,6 +207,19 @@ const PasswordStrengthMeter = ({ password }) => {
         ))}
       </div>
 
+      {/* The meter scores how the password is BUILT — length, character
+          classes, variety. It cannot know whether this exact password has
+          turned up in a breach, which is a separate check made on submit. A
+          full green bar was reading as "this will be accepted", and people who
+          were refused went looking for a broken link instead of retyping. */}
+      {score >= 76 && (
+        <p className="text-sm text-gray-600">
+          Passwords are also checked against known data breaches when you submit.
+          A memorable password can still be refused, so a password manager or
+          several unrelated words is the surest thing.
+        </p>
+      )}
+
       {/* Show errors if password doesn't meet requirements */}
       {errors.length > 0 && score < 100 && (
         <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm">

@@ -11,7 +11,11 @@ Handles:
 from flask import Blueprint, request, jsonify
 from app_config import Config
 from database import get_supabase_client, get_supabase_admin_client
-from utils.validation import sanitize_input, validate_password
+from utils.validation import (
+    sanitize_input,
+    validate_password,
+    validate_password_not_breached
+)
 from utils.auth.decorators import require_auth
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, mask_user_id, should_log_sensitive_data
@@ -507,6 +511,13 @@ def reset_password():
         if not is_valid:
             return jsonify({'error': error_message}), 400
 
+        # Before the token is claimed, so a breached password costs her nothing
+        # but a retype. The _is_weak_password_error path below stays as the
+        # backstop for whatever HIBP knows and this lookup missed.
+        is_valid, error_message = validate_password_not_breached(new_password)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+
         # admin client justified: token-gated password reset; updates auth.users via Admin API, no user session yet
         admin_client = get_supabase_admin_client()
 
@@ -676,6 +687,10 @@ def change_password(user_id):
             return jsonify({'error': 'Your new password must be different from your current one'}), 400
 
         is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+
+        is_valid, error_message = validate_password_not_breached(new_password)
         if not is_valid:
             return jsonify({'error': error_message}), 400
 

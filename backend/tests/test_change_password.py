@@ -16,6 +16,20 @@ import pytest
 GOOD_PASSWORD = 'Str0ng!NewPassword'
 
 
+@pytest.fixture(autouse=True)
+def _no_hibp_lookups():
+    """Keep these tests off the network.
+
+    change-password now checks the password against HaveIBeenPwned, which is a
+    live HTTP call. Unpatched it makes this suite depend on an external service
+    (and on GOOD_PASSWORD never appearing in a future corpus). The check itself
+    is covered in test_breached_password.py.
+    """
+    with patch('routes.auth.password.validate_password_not_breached',
+               return_value=(True, None)):
+        yield
+
+
 def _admin_mock(email='student@example.com'):
     admin = Mock()
     admin.auth.admin.get_user_by_id.return_value = Mock(

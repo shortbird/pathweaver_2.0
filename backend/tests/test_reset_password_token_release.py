@@ -52,7 +52,11 @@ def _admin_mock(expires_at='2099-01-01T00:00:00+00:00'):
 
 
 def _post(client, admin):
-    with patch('routes.auth.password.get_supabase_admin_client', return_value=admin):
+    # The HIBP pre-check is exercised in test_breached_password.py; stub it here
+    # so these tests never touch the network and stay about the token lifecycle.
+    with patch('routes.auth.password.get_supabase_admin_client', return_value=admin), \
+         patch('routes.auth.password.validate_password_not_breached',
+               return_value=(True, None)):
         return client.post('/api/auth/reset-password',
                            json={'token': TOKEN, 'new_password': GOOD_PASSWORD})
 

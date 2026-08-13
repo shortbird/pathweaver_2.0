@@ -487,7 +487,15 @@ def register_routes(bp):
                 logger.info(f"Login attempt with unconfirmed email: {mask_email(email)}")
                 return error_response(
                     code='INVALID_CREDENTIALS',
-                    message='Incorrect email or password. If you recently registered, check your inbox for a verification email. You can also use "Forgot Password?" to resend it.',
+                    # Deliberately the same opening as a wrong password: this
+                    # error only happens when the password was RIGHT, so saying
+                    # so would confirm both the account and the password.
+                    # "Forgot Password?" is the way out — completing a reset
+                    # confirms the address as well as setting the password —
+                    # so point at it without explaining why it would help.
+                    message='Incorrect email or password. If your account was set up for you, '
+                            'or you never finished verifying your email address, use '
+                            '"Forgot Password?" below — that will get you signed in.',
                     status=401
                 )
             elif "user not found" in error_lower:

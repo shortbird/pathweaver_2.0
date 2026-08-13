@@ -7,6 +7,11 @@ from .input_validation import (
     validate_quest_data,
     validate_submission_data
 )
+from .breached_password import (
+    BREACHED_PASSWORD_MESSAGE,
+    is_breached_password,
+    validate_password_not_breached
+)
 from .sanitization import sanitize_input, sanitize_html, sanitize_text
 from .validators import (
     RequiredField,

@@ -455,6 +455,20 @@ def admin_reset_password(user_id, target_user_id):
                 'new_password': new_password
             }).execute()
 
+            # Confirm the email too, or this route can't fix the case it exists
+            # for. An invited user who never completed their first reset has
+            # email_confirmed_at NULL; setting a password alone leaves them
+            # bouncing off "Incorrect email or password" with a password that is
+            # actually correct, and the admin with no way to tell. An admin
+            # setting someone's password by hand has already established who
+            # they are. (Cost us a locked-out iCreate teacher on 2026-08-13.)
+            try:
+                supabase.auth.admin.update_user_by_id(
+                    target_user_id, {'email_confirm': True})
+            except Exception as confirm_error:  # noqa: BLE001
+                logger.warning(
+                    f"Could not confirm email for {target_user_id}: {confirm_error}")
+
             # Clear any account lockouts for this user
             try:
                 from routes.auth.login.security import reset_login_attempts

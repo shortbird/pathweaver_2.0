@@ -10,7 +10,11 @@ Handles:
 
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_client, get_supabase_admin_client
-from utils.validation import validate_registration_data, sanitize_input
+from utils.validation import (
+    validate_registration_data,
+    sanitize_input,
+    validate_password_not_breached
+)
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, should_log_sensitive_data
@@ -119,6 +123,12 @@ def register():
         is_valid, error_message = validate_registration_data(data)
         if not is_valid:
             logger.error(f"[REGISTRATION] Validation failed: {error_message}")
+            raise ValidationError(error_message)
+
+        # Catch breached passwords at signup rather than letting Supabase refuse
+        # the account with an error we'd have to translate back.
+        is_valid, error_message = validate_password_not_breached(data.get('password'))
+        if not is_valid:
             raise ValidationError(error_message)
 
         # Check for Terms of Service and Privacy Policy acceptance
