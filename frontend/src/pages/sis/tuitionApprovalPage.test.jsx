@@ -36,7 +36,9 @@ const { api } = vi.hoisted(() => {
           class_count: 2, estimated_total_cents: 15000, pay_through_ufa: false },
         { student_id: 's2', name: 'Uma Ford', household_name: 'Ford Family',
           class_count: 1, estimated_total_cents: 475000, pay_through_ufa: true },
-      ], count: 2 } }
+        { student_id: 's3', name: 'Alex Adams', household_name: 'Adams Family',
+          class_count: 3, estimated_total_cents: 25000, pay_through_ufa: false },
+      ], count: 3 } }
     }
     if (url.includes('/preview')) return { data: preview(url) }
     return { data: {} }
@@ -66,6 +68,44 @@ describe('TuitionApprovalPage', () => {
     expect(screen.getByText('$150.00')).toBeInTheDocument()
     expect(screen.getByText('UFA')).toBeInTheDocument() // Uma's UFA badge
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/tuition/queue'))
+  })
+
+  it('filters students by search query and allows clearing search', async () => {
+    render(<TuitionApprovalPage />)
+    expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
+    expect(screen.getByText('Uma Ford')).toBeInTheDocument()
+
+    const searchInput = screen.getByPlaceholderText(/Search name or family/i)
+    fireEvent.change(searchInput, { target: { value: 'Ford' } })
+
+    expect(screen.queryByText('Robin Bowman')).not.toBeInTheDocument()
+    expect(screen.getByText('Uma Ford')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Clear search'))
+    expect(screen.getByText('Robin Bowman')).toBeInTheDocument()
+    expect(screen.getByText('Uma Ford')).toBeInTheDocument()
+  })
+
+  it('sorts students by name (A-Z) and amount (High-Low)', async () => {
+    render(<TuitionApprovalPage />)
+    expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
+
+    const sortSelect = screen.getByLabelText('Sort queue')
+
+    // Sort Name (A-Z) -> Alex Adams first, then Robin Bowman, then Uma Ford
+    fireEvent.change(sortSelect, { target: { value: 'name_asc' } })
+    let buttons = screen.getAllByRole('button').filter(b => b.textContent.includes('classes') || b.textContent.includes('class'))
+    expect(buttons[0]).toHaveTextContent('Alex Adams')
+    expect(buttons[1]).toHaveTextContent('Robin Bowman')
+    expect(buttons[2]).toHaveTextContent('Uma Ford')
+
+    // Sort Amount (High-Low) -> Uma Ford ($4750.00) first, then Alex Adams ($250.00), then Robin Bowman ($150.00)
+    fireEvent.change(sortSelect, { target: { value: 'amount_desc' } })
+    buttons = screen.getAllByRole('button').filter(b => b.textContent.includes('classes') || b.textContent.includes('class'))
+    expect(buttons[0]).toHaveTextContent('Uma Ford')
+    expect(buttons[1]).toHaveTextContent('Alex Adams')
+    expect(buttons[2]).toHaveTextContent('Robin Bowman')
   })
 
   it('loads the invoice preview with editable line items when a student is picked', async () => {
