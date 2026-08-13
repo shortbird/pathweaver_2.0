@@ -454,4 +454,42 @@ describe('ClassesPage', () => {
       expect.objectContaining({ icon: '⚠️' }),
     ))
   })
+
+  it('filters classes when typing a teacher or assistant teacher name in search', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({
+          data: {
+            classes: [
+              {
+                id: 'c1', name: 'Pottery', primary_instructor: { id: 's1', name: 'Jane Doe' },
+                assistant_instructors: [], meetings: []
+              },
+              {
+                id: 'c2', name: 'Woodworking', primary_instructor: { id: 's2', name: 'Sam Lee' },
+                assistant_instructors: [{ id: 's3', name: 'Alex Assistant' }], meetings: []
+              }
+            ]
+          }
+        })
+      }
+      return Promise.resolve(apiData(url))
+    })
+
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    expect(screen.getByText('Woodworking')).toBeInTheDocument()
+
+    const searchInput = screen.getByPlaceholderText('Search…')
+
+    // Search for primary instructor "Jane"
+    fireEvent.change(searchInput, { target: { value: 'Jane' } })
+    expect(screen.getByText('Pottery')).toBeInTheDocument()
+    expect(screen.queryByText('Woodworking')).not.toBeInTheDocument()
+
+    // Search for assistant instructor "Alex"
+    fireEvent.change(searchInput, { target: { value: 'Alex' } })
+    expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
+    expect(screen.getByText('Woodworking')).toBeInTheDocument()
+  })
 })
