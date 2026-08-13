@@ -15,6 +15,7 @@ import ParentClassPreview from '../../components/schedule/ClassDetailsModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
+import ClassesExportModal from '../../components/sis/ClassesExportModal'
 import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
 
@@ -280,54 +281,10 @@ const ClassesPage = () => {
   const openRoster = (c) => { setEditTab('roster'); setEditing(c) }
   const openEditor = (c) => { setEditTab('details'); setEditing(c) }
 
-  // Client-side CSV of the org's classes (the columns staff asked to sort in a
-  // spreadsheet). Built from the already-loaded rows — no extra request.
-  const exportCsv = () => {
-    const DOW = { 0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat' }
-    const t12 = (t) => {
-      if (!t) return ''
-      const [h, m] = String(t).slice(0, 5).split(':').map(Number)
-      const ampm = h >= 12 ? 'pm' : 'am'
-      const h12 = h % 12 === 0 ? 12 : h % 12
-      return `${h12}:${String(m).padStart(2, '0')}${ampm}`
-    }
-    const daysOf = (mts = []) => [...new Set(mts.map((m) => m.day_of_week).filter((d) => d != null))].sort()
-      .map((d) => DOW[d]).join(' ')
-    const timeOf = (mts = []) => {
-      const f = (mts || []).find((m) => m.start_time && m.end_time)
-      return f ? `${t12(f.start_time)}-${t12(f.end_time)}` : ''
-    }
-    const ages = (c) => c.min_age != null && c.max_age != null ? `${c.min_age}-${c.max_age}`
-      : c.min_age != null ? `${c.min_age}+` : c.max_age != null ? `up to ${c.max_age}` : ''
-    const headers = ['Class name', 'Teacher', 'Days', 'Time', 'Ages', 'Description',
-      'Supply fee', 'Tuition', 'Classroom', 'Enrolled', 'Capacity', 'Waitlist']
-    const rows = classes.map((c) => [
-      c.name || '',
-      c.primary_instructor?.name || c.primary_instructor?.display_name || '',
-      daysOf(c.meetings),
-      timeOf(c.meetings),
-      ages(c),
-      c.description || '',
-      c.supply_fee != null ? `$${c.supply_fee}` : '',
-      c.price_cents != null ? `$${(c.price_cents / 100).toFixed(2)}` : '',
-      c.location || '',
-      c.enrolled_count ?? 0,
-      c.capacity ?? '',
-      c.waitlist_count ?? 0,
-    ])
-    const esc = (v) => {
-      const s = String(v ?? '')
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }
-    const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n')
-    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${orgName.replace(/\s+/g, '-').toLowerCase()}-classes.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  // CSV export moved to ClassesExportModal: same client-side build from the
+  // already-loaded rows, but with a column picker and schedule-grid formats
+  // (iCreate asked to choose what the spreadsheet looks like).
+  const [exporting, setExporting] = useState(false)
 
   const archiveClass = async (c) => {
     if (!window.confirm(`Archive "${c.name}"? It will no longer accept registrations.`)) return
@@ -558,7 +515,7 @@ const ClassesPage = () => {
           </button>
         )}
         {tab === 'classes' && orgId && classes.length > 0 && (
-          <button onClick={exportCsv}
+          <button onClick={() => setExporting(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-neutral-50 transition-colors">
             <ArrowDownTrayIcon className="w-4 h-4" />
             Export CSV
@@ -599,6 +556,10 @@ const ClassesPage = () => {
 
       {showSync && orgId && (
         <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
+      )}
+
+      {exporting && (
+        <ClassesExportModal classes={classes} orgName={orgName} onClose={() => setExporting(false)} />
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}

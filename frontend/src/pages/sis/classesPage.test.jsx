@@ -77,8 +77,11 @@ import ClassesPage from './ClassesPage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
-  // the card/table choice persists to localStorage — clear any stored choice
-  try { window.localStorage.removeItem('sis_classes_view') } catch { /* jsdom quirk */ }
+  // view + export choices persist to localStorage — clear any stored choice
+  try {
+    window.localStorage.removeItem('sis_classes_view')
+    window.localStorage.removeItem('sis_classes_export')
+  } catch { /* jsdom quirk */ }
   conflictRows.length = 0
   vi.clearAllMocks()
   // A few specs replace api.get's implementation wholesale; clearAllMocks
@@ -315,6 +318,34 @@ describe('ClassesPage', () => {
     fireEvent.click(screen.getByTitle('Table view'))
     expect(await screen.findByText('Waitlist')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  // iCreate, 2026-08-12: "I would love it more if I could select what I want
+  // that spreadsheet to look like!" Export CSV now opens a chooser (formats +
+  // columns) instead of downloading a fixed file. The chooser itself is covered
+  // by classesExportModal.test.jsx; here we prove the toolbar wires it up.
+  it('opens the export chooser and downloads the default CSV from it', async () => {
+    let downloaded = ''
+    const originalCreate = URL.createObjectURL
+    URL.createObjectURL = vi.fn((blob) => { downloaded = blob._text || ''; return 'blob:mock' })
+    URL.revokeObjectURL = vi.fn()
+    const OriginalBlob = global.Blob
+    global.Blob = class extends OriginalBlob {
+      constructor(parts, opts) { super(parts, opts); this._text = (parts || []).join('') }
+    }
+    try {
+      render(<ClassesPage />)
+      await screen.findByText('Pottery')
+      fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+      // The chooser is open — pick nothing, keep the defaults, export.
+      fireEvent.click(await screen.findByRole('button', { name: 'Export' }))
+      const [header, row] = downloaded.replace('﻿', '').split('\n')
+      expect(header).toBe('Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist')
+      expect(row).toBe('Pottery,Jane Doe,,,8-12,Clay,$15,$120.00,,2,10,3')
+    } finally {
+      URL.createObjectURL = originalCreate
+      global.Blob = OriginalBlob
+    }
   })
 
   it('offers the next seat straight from a class row when a seat is open and someone is waiting', async () => {
