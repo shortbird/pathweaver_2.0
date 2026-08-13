@@ -159,6 +159,25 @@ class TestStaleEntryCleanup:
         assert payload['status'] == 'promoted'
         assert sorted(table.in_.call_args[0][1]) == ['w1', 'w2']
 
+    def test_clears_sibling_sections_waitlist(self):
+        """When enrolled in section A, waitlist entries for sibling section B are also promoted."""
+        with patch('services.sis_waitlist_service._sibling_class_ids', return_value=['c1', 'c2']), \
+             patch('services.sis_waitlist_service._admin') as admin_mock:
+            client = Mock()
+            table = Mock()
+            admin_mock.return_value = client
+            client.table.return_value = table
+            for chained in ('select', 'eq', 'in_', 'update'):
+                getattr(table, chained).return_value = table
+            table.execute.return_value = Mock(data=[
+                {'id': 'w1', 'class_id': 'c1', 'status': 'waiting'},
+                {'id': 'w2', 'class_id': 'c2', 'status': 'waiting'},
+            ])
+            wl.clear_entry_for_enrollment('org-1', 'c1', 's1')
+            payload = table.update.call_args[0][0]
+            assert payload['status'] == 'promoted'
+            assert sorted(table.in_.call_args[0][1]) == ['w1', 'w2']
+
     def test_nothing_live_is_a_no_op(self):
         client, table = self._client_with_entries([{'id': 'w1', 'status': 'expired'}])
         with patch('services.sis_waitlist_service._admin', return_value=client):

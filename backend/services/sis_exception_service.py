@@ -237,11 +237,11 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         }, on_conflict='class_id,student_id').execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(req['class_id'], actor_id=resolved_by)
-        # A now-enrolled student shouldn't linger on the class's waitlist.
-        _admin().table('sis_waitlist_entries').delete() \
-            .eq('organization_id', org_id).eq('class_id', req['class_id']) \
-            .eq('student_user_id', req['student_user_id']) \
-            .in_('status', ['waiting', 'offered']).execute()
+        # A now-enrolled student shouldn't linger on this or sibling class waitlists.
+        from services import sis_waitlist_service
+        sis_waitlist_service.clear_entry_for_enrollment(
+            org_id, req['class_id'], req['student_user_id']
+        )
 
     updated = (
         _admin().table(TABLE).update({
