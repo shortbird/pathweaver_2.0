@@ -1444,6 +1444,7 @@ class EmailService(BaseService):
         already has an account.
         """
         course_word = 'course' if course_count == 1 else 'courses'
+        new_course_phrase = 'a new course' if course_count == 1 else 'new courses'
         return self.send_templated_email(
             to_email=to_email,
             subject=f"New {course_word} added to your Optio account",
@@ -1454,6 +1455,7 @@ class EmailService(BaseService):
                 'courses_sentence': courses_sentence,
                 'course_count': course_count,
                 'course_word': course_word,
+                'new_course_phrase': new_course_phrase,
                 'login_url': login_url
             }
         )

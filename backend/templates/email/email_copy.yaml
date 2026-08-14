@@ -704,7 +704,7 @@ emails:
     title: "New {{ course_word }} ready for you"
     greeting: "Hi {{ student_name }},"
     paragraphs:
-      - "{{ org_name }} added a new {{ course_word }} to your Optio account: <strong>{{ courses_sentence }}</strong>."
+      - "{{ org_name }} added {{ new_course_phrase }} to your Optio account: <strong>{{ courses_sentence }}</strong>."
       - "Log in with your usual email and password to get started. If you've forgotten your password, use the \"Forgot password\" link on the login page."
     cta:
       text: "Log in to Optio"
