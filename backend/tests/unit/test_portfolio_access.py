@@ -287,6 +287,7 @@ def test_stranger_may_not_view_a_private_portfolio():
          patch.object(portfolio_access, 'is_parent_of', return_value=False), \
          patch.object(portfolio_access, 'is_advisor_of', return_value=False), \
          patch.object(portfolio_access, 'is_observer_of', return_value=False), \
+         patch.object(portfolio_access, 'is_peer_of', return_value=False), \
          patch.object(portfolio_access, 'teaches_student', return_value=False):
         fetch.side_effect = lambda uid, cols: {
             'x1': {'id': 'x1', 'role': 'student', 'organization_id': None},
@@ -294,6 +295,46 @@ def test_stranger_may_not_view_a_private_portfolio():
         }.get(uid)
 
         assert portfolio_access.can_view_portfolio('x1', 's1') is False
+
+
+def test_a_connected_peer_may_view_the_portfolio():
+    """The grant peer connections exist for: two students whose families both
+    approved can see each other's work."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user') as fetch, \
+         patch.object(portfolio_access, 'is_parent_of', return_value=False), \
+         patch.object(portfolio_access, 'is_advisor_of', return_value=False), \
+         patch.object(portfolio_access, 'is_observer_of', return_value=False), \
+         patch.object(portfolio_access, 'is_peer_of', return_value=True), \
+         patch.object(portfolio_access, 'teaches_student', return_value=False):
+        fetch.side_effect = lambda uid, cols: {
+            'p1': {'id': 'p1', 'role': 'student', 'organization_id': None},
+            's1': {'id': 's1', 'organization_id': 'org-A'},
+        }.get(uid)
+
+        assert portfolio_access.can_view_portfolio('p1', 's1') is True
+
+
+def test_allow_peers_false_shuts_the_peer_grant_off():
+    """xp_goal_service passes allow_peers=False: a connection is consent to
+    show your work, not to publish your private weekly target."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user') as fetch, \
+         patch.object(portfolio_access, 'is_parent_of', return_value=False), \
+         patch.object(portfolio_access, 'is_advisor_of', return_value=False), \
+         patch.object(portfolio_access, 'is_observer_of', return_value=False), \
+         patch.object(portfolio_access, 'is_peer_of', return_value=True) as peer, \
+         patch.object(portfolio_access, 'teaches_student', return_value=False):
+        fetch.side_effect = lambda uid, cols: {
+            'p1': {'id': 'p1', 'role': 'student', 'organization_id': None},
+            's1': {'id': 's1', 'organization_id': 'org-A'},
+        }.get(uid)
+
+        assert portfolio_access.can_view_portfolio('p1', 's1', allow_peers=False) is False
+
+    peer.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

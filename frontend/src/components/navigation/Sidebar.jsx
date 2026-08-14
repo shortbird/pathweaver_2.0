@@ -216,6 +216,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Connections: peer-to-peer, so students only. The item is shown without
+  // checking age, because the age screen lives on the page — deciding here
+  // would mean the sidebar needed the student's date of birth, and a student
+  // whose age we don't know yet (the largest group) would silently lose the
+  // one entry point that can resolve it.
+  if (role === 'student') {
+    learningItems.push({
+      name: 'Connections',
+      path: '/connections',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
+    })
+  }
+
   // Journal: a student learning surface. Hidden from parents (they capture for
   // a child from the Family dashboard) and org admins (they manage their org,
   // not a personal journal).
@@ -260,11 +277,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // The student's own evidence feed (invite observers, see reactions).
-  // Named "My Feed" to distinguish it from the observer-side "Student Feed".
+  // The student's evidence feed (invite observers, see reactions) — and, once
+  // they have peer connections, their connected friends' work too. It was "My
+  // Feed" while it only ever showed your own items; that name stopped being
+  // true when the feed gained a second source. Still unambiguous against the
+  // observer-side "Student Feed" below, which is a different surface.
   if (isStudent) {
     learningItems.push({
-      name: 'My Feed',
+      name: 'Feed',
       path: '/feedback',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -347,6 +367,20 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       name: 'Family',
       path: '/parent/dashboard',
       icon: FAMILY_ICON
+    })
+
+    // Peer connections the adult approves and manages. Reachable on its own
+    // rather than only from a notification: a parent who wants to end a
+    // connection weeks later has no notification left to click, and "find the
+    // email we sent you in March" is not a way to withdraw consent.
+    primaryItems.push({
+      name: 'Student connections',
+      path: '/connections/approvals',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
     })
   }
 

@@ -113,6 +113,41 @@ def is_minor_by_id(user_id: str) -> bool:
     return is_minor(_fetch_user(user_id, 'id, is_dependent, date_of_birth'))
 
 
+def is_under_13(user_row: Optional[Dict[str, Any]]) -> bool:
+    """True unless we have positive evidence the user is 13 or older.
+
+    Deliberately NOT the same question as is_minor(), which draws its line at
+    18 for portfolio publishing. COPPA's line is 13, and conflating the two
+    would either lock every 15-year-old out of peer connections or hand
+    under-13s a feature they may not have.
+
+    Fails closed for the same reason is_minor does: no date of birth is
+    missing information, not evidence of age. A student in that state sees the
+    age screen (peer_connection_service.age_check) rather than the feature.
+    """
+    if not user_row:
+        return True
+
+    dob = user_row.get('date_of_birth')
+    if not dob:
+        return True  # unknown age -> assume under 13 until they tell us
+
+    try:
+        if isinstance(dob, str):
+            dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
+        elif hasattr(dob, 'date'):
+            dob = dob.date()
+        return (date.today() - dob).days / 365.25 < 13
+    except Exception:
+        logger.warning("Unparseable date_of_birth for user %s; treating as under 13",
+                       str(user_row.get('id'))[:8])
+        return True
+
+
+def is_under_13_by_id(user_id: str) -> bool:
+    return is_under_13(_fetch_user(user_id, 'id, date_of_birth'))
+
+
 def minor_reason(user_row: Optional[Dict[str, Any]]) -> Optional[str]:
     """Why is this user treated as a minor? None if they are not.
 
@@ -199,6 +234,45 @@ def teaches_student(caller_id: str, student_id: str) -> bool:
     return bool(co_taught)
 
 
+def is_blocked_between(a_id: str, b_id: str) -> bool:
+    """True if either user has blocked the other.
+
+    Blocking is bidirectional and beats every other grant: a student who blocks
+    a peer stops being visible to them immediately, without having to unwind
+    the connection and ask two parents to approve it again. Mirrors the check
+    at the top of direct_message_service.can_message_user.
+    """
+    if not a_id or not b_id:
+        return False
+    rows = _admin().table('user_blocks').select('id').or_(
+        f'and(blocker_id.eq.{a_id},blocked_id.eq.{b_id}),'
+        f'and(blocker_id.eq.{b_id},blocked_id.eq.{a_id})'
+    ).limit(1).execute().data or []
+    return bool(rows)
+
+
+def is_peer_of(caller_id: str, student_id: str) -> bool:
+    """True if an active, fully-approved peer connection joins these students.
+
+    'Active' means both students said yes AND both sides' approvers said yes;
+    the service never writes that status otherwise. This function does not
+    re-derive consent, it reads the decision -- which is why revocation works:
+    a parent flipping the connection to 'revoked' cuts off access on the next
+    request with no cache to invalidate.
+    """
+    if not caller_id or not student_id or caller_id == student_id:
+        return False
+
+    rows = _admin().table('peer_connections').select('id').eq('status', 'active').or_(
+        f'and(requester_id.eq.{caller_id},addressee_id.eq.{student_id}),'
+        f'and(requester_id.eq.{student_id},addressee_id.eq.{caller_id})'
+    ).limit(1).execute().data or []
+    if not rows:
+        return False
+
+    return not is_blocked_between(caller_id, student_id)
+
+
 def is_org_admin_over(caller: Dict[str, Any], student: Dict[str, Any]) -> bool:
     if not caller or not student:
         return False
@@ -214,7 +288,8 @@ def is_org_admin_over(caller: Dict[str, Any], student: Dict[str, Any]) -> bool:
 # The two questions callers actually ask
 # ---------------------------------------------------------------------------
 
-def can_view_portfolio(caller_id: Optional[str], student_id: str) -> bool:
+def can_view_portfolio(caller_id: Optional[str], student_id: str,
+                       allow_peers: bool = True) -> bool:
     """May this caller read the student's portfolio, public or not?
 
     Grants, in full:
@@ -226,6 +301,14 @@ def can_view_portfolio(caller_id: Optional[str], student_id: str) -> bool:
         co-teachers
       * a linked observer
       * an org admin of the student's organization
+      * a connected peer -- another student, where both families approved
+
+    ``allow_peers=False`` drops that last grant. Peer connections were sold to
+    families as "see each other's work", and a personal weekly XP target is not
+    work -- it is a private goal that happens to live behind the same helper.
+    The flag exists so that the one caller with a narrower question
+    (xp_goal_service) can ask it here instead of growing a second copy of the
+    other seven rules, which is the divergence this module was written to end.
 
     This is what makes private-by-default survivable. Without it, flipping
     portfolios private would leave parents and teachers with no way to see
@@ -258,6 +341,8 @@ def can_view_portfolio(caller_id: Optional[str], student_id: str) -> bool:
     if is_observer_of(caller_id, student_id):
         return True
     if teaches_student(caller_id, student_id):
+        return True
+    if allow_peers and is_peer_of(caller_id, student_id):
         return True
 
     student = _fetch_user(student_id, 'id, organization_id')

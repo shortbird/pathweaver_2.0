@@ -684,6 +684,57 @@ emails:
     signature: "support"
     footer_extra: "If you have concerns about this access, contact us at support@optioeducation.com."
 
+  # Peer connections. This email is a consent request, not an announcement, so
+  # it states the disclosure in full rather than teasing it behind the link --
+  # a parent who reads only the email and never clicks should still know exactly
+  # what they would be agreeing to. Mirrors the card at /connections/approvals.
+  peer_connection_approval_request:
+    subject: "{{ child_name }} wants to connect with another student on Optio"
+    title: "A Connection Needs Your Approval"
+    salutation: "Hi {{ approver_name }},"
+    paragraphs:
+      - "<strong>{{ child_name }}</strong> and <strong>{{ peer_name }}</strong> have both asked to connect on Optio. Before that can happen, each student's parent or guardian has to approve it separately — so this is about {{ child_name }} only, and the other family is being asked the same question on their side."
+    highlight_box:
+      title: "What you're approving"
+      bullet_points:
+        - "They would each be able to see the other's portfolio and work"
+        - "They would each be able to leave comments on that work"
+        - "They would not see each other's email address or date of birth"
+        - "You can end the connection at any time, without asking the other family"
+    cta:
+      text: "Review This Request"
+      url: "{{ approvals_url }}"
+    closing_paragraphs:
+      - "Nothing is shared until both families approve. If you'd rather they didn't connect, you can decline — one 'no' from either side ends the request, and neither student is told which side declined."
+    signature: "support"
+    footer_extra: "You're receiving this because you're listed as {{ child_name }}'s parent or guardian on Optio. Questions? Reply to this email or contact support@optioeducation.com."
+
+  # Same request, but the school is standing in because no parent or guardian
+  # account is linked to the student. Only valid when both students are at that
+  # school, so the copy says so -- an administrator should be able to tell from
+  # the email alone why they are the one being asked.
+  peer_connection_approval_request_school:
+    subject: "{{ child_name }} wants to connect with another student on Optio"
+    title: "A Connection Needs Your Approval"
+    salutation: "Hi {{ approver_name }},"
+    paragraphs:
+      - "<strong>{{ child_name }}</strong> and <strong>{{ peer_name }}</strong> have both asked to connect on Optio."
+      - "You're being asked as {{ child_name }}'s school administrator, because no parent or guardian account is linked to them. Both students are at your school."
+    highlight_box:
+      title: "What you're approving"
+      bullet_points:
+        - "They would each be able to see the other's portfolio and work"
+        - "They would each be able to leave comments on that work"
+        - "They would not see each other's email address or date of birth"
+        - "You can end the connection at any time"
+    cta:
+      text: "Review This Request"
+      url: "{{ approvals_url }}"
+    closing_paragraphs:
+      - "Nothing is shared until both students' approvals are in. If a parent or guardian account is later linked to {{ child_name }}, future requests will go to them instead."
+    signature: "support"
+    footer_extra: "Questions? Reply to this email or contact support@optioeducation.com."
+
   course_enrollment:
     subject: "Welcome to '{{ course_title }}' on Optio!"
     title: "Welcome to Your New Course!"

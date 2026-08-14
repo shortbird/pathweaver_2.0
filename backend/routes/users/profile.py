@@ -68,6 +68,26 @@ def update_profile(user_id):
 
     if 'date_of_birth' in update_data:
         dob_raw = (update_data['date_of_birth'] or '').strip() if isinstance(update_data['date_of_birth'], str) else update_data['date_of_birth']
+
+        # The lock is checked before the set/clear branch, not inside it.
+        # Clearing used to skip validation entirely, which made "" the way
+        # around every rule below: an under-13 student could blank the field
+        # and land back in the unknown-age state the age screen exists to
+        # resolve. Locked means locked in both directions.
+        # admin client justified: reads the caller's own dependency and lock
+        # flags to decide whether they may edit their own date of birth.
+        _admin = get_supabase_admin_client()
+        _rows = _admin.table('users').select(
+            'is_dependent, date_of_birth, date_of_birth_locked_at'
+        ).eq('id', user_id).limit(1).execute().data or []
+        _current = _rows[0] if _rows else {}
+
+        if _current.get('date_of_birth_locked_at'):
+            raise ValidationError(
+                'Your date of birth is already on file. Ask a parent, '
+                'guardian, or your school to correct it if it is wrong.'
+            )
+
         if not dob_raw:
             # Empty value clears the field
             update_data['date_of_birth'] = None
@@ -94,14 +114,6 @@ def update_profile(user_id):
             # approval to publish its work, which makes it worth more than a
             # profile field. A parent-managed account must not be able to
             # rewrite its own age out of that requirement.
-            # admin client justified: reads the caller's own dependency flag to
-            # decide whether they may edit their own date of birth.
-            _admin = get_supabase_admin_client()
-            _rows = _admin.table('users').select(
-                'is_dependent, date_of_birth'
-            ).eq('id', user_id).limit(1).execute().data or []
-            _current = _rows[0] if _rows else {}
-
             if _current.get('is_dependent'):
                 raise ValidationError(
                     'Your parent or guardian manages your date of birth. '

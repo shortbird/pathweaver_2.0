@@ -1400,6 +1400,49 @@ class EmailService(BaseService):
             }
         )
 
+    def send_peer_connection_approval_email(
+        self,
+        approver_email: str,
+        approver_name: str,
+        child_name: str,
+        peer_name: str,
+        approver_kind: str = 'parent'
+    ) -> bool:
+        """Ask a parent (or standing-in school admin) to approve a connection.
+
+        This is the out-of-band half of the consent. The in-app notification
+        only reaches a parent who signs in, and plenty of parents of Optio
+        students never do -- their child's account is the one in daily use. A
+        consent request that only appears behind a login the approver doesn't
+        use is a consent request that quietly auto-fails.
+
+        Args:
+            approver_email: where to send it
+            approver_name: how to address them
+            child_name: the student this approver is answering for
+            peer_name: the other student
+            approver_kind: 'parent' or 'org_admin'; selects the template, since
+                a school administrator needs telling why they are being asked
+
+        Returns:
+            True if sent.
+        """
+        template = ('peer_connection_approval_request_school'
+                    if approver_kind == 'org_admin'
+                    else 'peer_connection_approval_request')
+
+        return self.send_templated_email(
+            to_email=approver_email,
+            subject=f"{child_name} wants to connect with another student on Optio",
+            template_name=template,
+            context={
+                'approver_name': approver_name,
+                'child_name': child_name,
+                'peer_name': peer_name,
+                'approvals_url': f"{Config.FRONTEND_URL}/connections/approvals",
+            }
+        )
+
     def send_course_enrollment_email(
         self,
         user_email: str,

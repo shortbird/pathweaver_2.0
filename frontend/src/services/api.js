@@ -523,8 +523,10 @@ export const observerAPI = {
   toggleFeedItemVisibility: ({ completion_id, learning_event_id, hidden }) =>
     api.post('/api/observers/feed-item/toggle-visibility', { completion_id, learning_event_id, hidden }),
 
-  // Student-facing: get my activity feed (same format as observer feed)
-  getMyActivityFeed: (studentId, params = {}) => {
+  // One student's activity feed. The student's own Feed page moved to
+  // /api/connections/feed (own work + connected peers'); this stays for the
+  // parent/observer case, where the question really is "show me THIS child".
+  getStudentActivityFeed: (studentId, params = {}) => {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.append('limit', params.limit);
     if (params.cursor) queryParams.append('cursor', params.cursor);

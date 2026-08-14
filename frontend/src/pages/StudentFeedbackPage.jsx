@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { observerAPI } from '../services/api';
+import api, { observerAPI } from '../services/api';
 import FeedCard from '../components/observer/FeedCard';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
@@ -23,6 +23,7 @@ import {
 export default function StudentFeedbackPage() {
   const { user } = useAuth();
   const [feedItems, setFeedItems] = useState([]);
+  const [peerCount, setPeerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -42,12 +43,23 @@ export default function StudentFeedbackPage() {
     }
   }, [user?.id]);
 
+  // Own work + connected peers', interleaved by time. The peer half is why
+  // this page and its nav item dropped the "My": /api/connections/feed returns
+  // the student's own items when they have no connections, so the call is the
+  // same either way and there is no empty state to special-case.
+  //
+  // The backend drops peers' `is_confidential` items before assembly, so
+  // nothing here has to remember to filter them. Your own hidden items still
+  // arrive (FeedCard greys them and offers unhide), which is the behaviour this
+  // page has always had.
   const fetchActivityFeed = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await observerAPI.getMyActivityFeed(user.id);
-      setFeedItems(response.data.items || []);
+      const response = await api.get('/api/connections/feed');
+      const data = response.data?.data || response.data;
+      setFeedItems(data.items || []);
+      setPeerCount(data.peer_count || 0);
     } catch (err) {
       console.error('Failed to fetch activity feed:', err);
       setError('Failed to load your activity. Please try again.');
@@ -274,10 +286,21 @@ export default function StudentFeedbackPage() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Activity Feed</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Feed</h1>
         <p className="text-gray-600">
-          See your completed work and feedback from your observers.
+          {peerCount > 0
+            ? "Your work, your connected friends' work, and feedback from your observers."
+            : 'See your completed work and feedback from your observers.'}
         </p>
+        {peerCount === 0 && (
+          <Link
+            to="/connections"
+            className="inline-flex items-center gap-1 mt-2 text-sm text-optio-purple hover:text-optio-pink font-medium"
+          >
+            Connect with another student
+            <ArrowRightIcon className="w-4 h-4" />
+          </Link>
+        )}
       </div>
 
       {/* Mobile: Observer panel on top */}

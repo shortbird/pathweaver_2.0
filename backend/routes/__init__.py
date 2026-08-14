@@ -277,6 +277,10 @@ def register_all(app):
     register_parent_blueprints(app)
     app.register_blueprint(dependents.bp)
 
+    # ── Peer connections (student <-> student, both families approving) ───────
+    from routes.connections import bp as connections_bp
+    app.register_blueprint(connections_bp)
+
     # ── Custom program blueprints (OEA, Treehouse, POE) via the program seam ───
     from programs.blueprints import register_program_blueprints
     register_program_blueprints(app)

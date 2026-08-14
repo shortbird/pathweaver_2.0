@@ -115,6 +115,8 @@ const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
+const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
+const ConnectionApprovalsPage = lazy(() => import('./pages/ConnectionApprovalsPage'))
 const FamilyFormsPage = lazy(() => import('./pages/FamilyFormsPage'))
 const FamilyPortalPage = lazy(() => import('./pages/FamilyPortalPage'))
 const FamilyPriorLearningPage = lazy(() => import('./pages/FamilyPriorLearningPage'))
@@ -541,7 +543,17 @@ function App() {
                   <Route path="quests/:id" element={<QuestDetail />} />
                   <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                   <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
+                  {/* Peer connections. Student-only surface: a parent reaches
+                      the approval side below, not this one. Shown to 13+ and to
+                      students whose age we don't know yet — the page itself
+                      handles the age screen and the under-13 dead end. */}
+                  <Route path="connections" element={<ConnectionsPage />} />
                 </Route>
+                {/* The grown-up's side of a peer connection. Open to any signed-in
+                    user because the approver may be a parent OR (same-org only) a
+                    school admin; the endpoint returns only rows naming the caller
+                    as approver, so it is empty for everyone else. */}
+                <Route path="connections/approvals" element={<ConnectionApprovalsPage />} />
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
                 <Route path="courses/:courseId" element={<CourseHomepage />} />

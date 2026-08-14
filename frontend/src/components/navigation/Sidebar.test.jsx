@@ -315,18 +315,22 @@ describe('Sidebar — the two feeds have distinct names', () => {
     orgState = { organization: null }
   })
 
-  it("names the student's own evidence feed My Feed", () => {
+  it("names the student's evidence feed Feed", () => {
+    // Was "My Feed" until peer connections gave it a second source. It shows
+    // connected friends' work now, so the possessive stopped being true.
     authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^my feed$/i })).toHaveAttribute('href', '/feedback')
-    expect(screen.queryByRole('link', { name: /^feed$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^feed$/i })).toHaveAttribute('href', '/feedback')
+    expect(screen.queryByRole('link', { name: /^my feed$/i })).not.toBeInTheDocument()
   })
 
   it('names the observer-side feed Student Feed (superadmin sees both, unambiguously)', () => {
+    // The pair still has to be distinguishable: a superadmin sees the student
+    // surface and the observer surface in one sidebar.
     authState.user = { id: 'u1', role: 'superadmin', email: 't@example.com' }
     renderSidebar()
     expect(screen.getByRole('link', { name: /^student feed$/i })).toHaveAttribute('href', '/observer/feed')
-    expect(screen.queryByRole('link', { name: /^feed$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^my feed$/i })).not.toBeInTheDocument()
   })
 })
 

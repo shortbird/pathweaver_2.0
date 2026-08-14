@@ -158,9 +158,14 @@ def can_view_goal(caller_id: str, student_id: str) -> bool:
     module is that the divergent copies disagreed. The set is: the student, a
     parent, an assigned advisor, a teacher of a class they're enrolled in, a
     linked observer, an org admin of their org, and Optio staff.
+
+    Connected peers are excluded (``allow_peers=False``). A peer connection is
+    consent to show another student your *work*; a weekly XP target is a private
+    goal, and quietly turning it into a number your friends can see would be a
+    disclosure no parent approved.
     """
     from utils.portfolio_access import can_view_portfolio
-    return can_view_portfolio(caller_id, student_id)
+    return can_view_portfolio(caller_id, student_id, allow_peers=False)
 
 
 def setter_role(caller_id: str, student_id: str) -> Optional[str]:
