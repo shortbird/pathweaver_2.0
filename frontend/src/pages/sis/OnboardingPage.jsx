@@ -200,6 +200,17 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 
   const setItem = (i, patch) => setItems((prev) => prev.map((it, j) => (j === i ? { ...it, ...patch } : it)))
 
+  const moveItem = (i, direction) => {
+    const newIndex = i + direction
+    if (newIndex < 0 || newIndex >= items.length) return
+    setItems((prev) => {
+      const updated = [...prev]
+      const [moved] = updated.splice(i, 1)
+      updated.splice(newIndex, 0, moved)
+      return updated
+    })
+  }
+
   const save = async () => {
     if (!name.trim()) { toast.error('Template name is required'); return }
     const cleaned = items.filter((it) => it.title.trim())
@@ -233,8 +244,20 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           <div className="flex items-center gap-2">
             <input value={it.title} onChange={(e) => setItem(i, { title: e.target.value })}
               placeholder={`Item ${i + 1} title`} className={inputClass} />
-            <button onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
-              className="text-sm text-red-600 hover:underline shrink-0">Remove</button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0}
+                className="px-2 py-1 text-xs font-medium rounded border border-gray-200 text-neutral-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent"
+                title="Move section up">
+                ↑ Up
+              </button>
+              <button type="button" onClick={() => moveItem(i, 1)} disabled={i === items.length - 1}
+                className="px-2 py-1 text-xs font-medium rounded border border-gray-200 text-neutral-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent"
+                title="Move section down">
+                ↓ Down
+              </button>
+              <button onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
+                className="text-sm text-red-600 hover:underline ml-1">Remove</button>
+            </div>
           </div>
           <input value={it.description || ''} onChange={(e) => setItem(i, { description: e.target.value })}
             placeholder="Instructions (optional — link out for sensitive documents)" className={inputClass} />
@@ -348,6 +371,23 @@ const AdminOnboarding = ({ orgId }) => {
     }
   }
 
+  const duplicateTemplate = async (t) => {
+    try {
+      const body = {
+        organization_id: orgId,
+        name: `${t.name} (Copy)`,
+        role_type: t.role_type || '',
+        audience: t.audience || 'staff',
+        items: (t.items || []).map((it) => ({ ...it })),
+      }
+      await api.post('/api/sis/staff-admin/onboarding/templates', body)
+      toast.success('Template duplicated')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not duplicate the template')
+    }
+  }
+
   const deleteTemplate = async (t, { force = false } = {}) => {
     if (!force && !window.confirm(`Delete the "${t.name}" template? This can't be undone.`)) return
     try {
@@ -431,6 +471,7 @@ const AdminOnboarding = ({ orgId }) => {
               <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
               <div className="ml-auto flex items-center gap-3">
                 <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
+                <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
                 <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
               </div>
             </li>
