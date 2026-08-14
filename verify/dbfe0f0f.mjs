@@ -20,12 +20,88 @@ export default async function run(page) {
   const parentUser = {
     id: '00000000-0000-0000-0000-00000007d5f6',
     email: 'verify-parent@example.com',
-    role: 'parent',
+    role: 'org_managed',
+    org_role: 'parent',
+    org_roles: ['parent'],
     organization_id: ORG,
     first_name: 'Verify',
     last_name: 'Parent',
     display_name: 'Verify Parent',
     organization: { id: ORG, name: 'iCreate', feature_flags: {} },
+    has_dependents: true,
+  }
+
+  const contextState = {
+    my_avatar_url: null,
+    orgs: [
+      {
+        organization_id: ORG,
+        organization_name: 'iCreate',
+        scheduling_url: null,
+        students: [
+          {
+            student_id: 's-1',
+            name: 'Alex Student',
+            first_name: 'Alex',
+            last_name: 'Student',
+            date_of_birth: '2015-05-10',
+            avatar_url: null,
+          },
+        ],
+      },
+    ],
+  }
+
+  const scheduleState = {
+    classes: [
+      {
+        id: 'c-1',
+        name: 'Ukelele Jam (Tue 10:30)',
+        description: 'Music class',
+        meetings: [
+          {
+            day_of_week: 2,
+            start_time: '10:30:00',
+            end_time: '11:30:00',
+          },
+        ],
+        price_cents: 15000,
+      },
+    ],
+    waitlist: [], // empty because enrollment in c-1 auto-cleared c-2 waitlist entry
+    courses: [],
+    time_blocks: [],
+    first_day_of_school: null,
+    changes_locked: false,
+  }
+
+  const catalogState = {
+    classes: [
+      {
+        id: 'c-1',
+        name: 'Ukelele Jam (Tue 10:30)',
+        description: 'Music class',
+        meetings: [
+          {
+            day_of_week: 2,
+            start_time: '10:30:00',
+            end_time: '11:30:00',
+          },
+        ],
+      },
+      {
+        id: 'c-2',
+        name: 'Ukelele Jam (Thu 13:00)',
+        description: 'Music class',
+        meetings: [
+          {
+            day_of_week: 4,
+            start_time: '13:00:00',
+            end_time: '14:00:00',
+          },
+        ],
+      },
+    ],
   }
 
   const json = (obj) => (route) => {
@@ -64,27 +140,13 @@ export default async function run(page) {
   // Intercept API routes
   await page.route('**/api/**', json({}))
   await page.route('**/api/auth/me**', json(parentUser))
-  await page.route('**/api/dependents/my-dependents**', json({
-    dependents: [
-      { id: 's-1', first_name: 'Alex', last_name: 'Student', display_name: 'Alex Student' }
-    ]
-  }))
-
-  const scheduleState = {
-    classes: [
-      { id: 'c-1', name: 'Ukelele Jam (Tue 10:30)', description: 'Music class', meetings: [] }
-    ],
-    waitlist: [], // empty because enrollment in c-1 cleared c-2 waitlist
-    courses: [],
-    time_blocks: [],
-    first_day_of_school: null,
-    changes_locked: false,
-  }
-
+  await page.route('**/api/icreate/my-registration**', json({ registration: null }))
+  await page.route('**/api/sis/parent/context**', json(contextState))
   await page.route('**/api/sis/parent/students/s-1/schedule**', json(scheduleState))
+  await page.route('**/api/sis/parent/classes**', json(catalogState))
 
   // Open Schedule Builder page
-  const pageUrl = `${BASE}/parent/schedule?student_id=s-1`
+  const pageUrl = `${BASE}/schedule-builder`
   await page.goto(pageUrl, { waitUntil: 'domcontentloaded' })
 
   // Verify enrolled class is visible
