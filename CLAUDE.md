@@ -16,6 +16,34 @@
 8. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
 9. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
 10. **Never count rows in Python** - PostgREST silently truncates every response at 1000 rows (`Config.POSTGREST_MAX_ROWS`), so fetching rows to tally them returns a number that is quietly wrong once an org gets big enough. Use `count='exact'` for one number, or `utils.db_fetch.fetch_all_rows()` when you genuinely need every row. See [Row Limits](#row-limits-postgrests-silent-truncation).
+11. **You are not the only agent in this repo** - see [Working alongside other agents](#working-alongside-other-agents). Never run `git checkout -- <tracked file>`, `git reset --hard`, `git stash`, or `git clean` to tidy up: another agent's uncommitted work is in the same tree and those commands destroy it with no undo. Never kill or restart the dev servers unless the user asks.
+12. **"Commit" means commit YOUR work** - stage the files you changed this session and commit them. Do not sweep in unrelated modified files, and do not "clean up" changes you don't recognize — they belong to somebody else. Overrides the "stage ALL outstanding changes" instruction under Git Configuration, which predates parallel agents.
+
+### Working alongside other agents
+
+Several agents (and the user) work in this repo at the same time, in the same
+working tree. So at any moment there are uncommitted changes that are not yours,
+in files you did not touch — and sometimes in files you did.
+
+**What this costs when ignored:** on 2026-08-14 a parallel session committed two
+unrelated features and reset the tree in the process. Every uncommitted change to
+a *tracked* file vanished — a half-finished feature and a security fix, from two
+different sessions. Untracked new files survived; edits to existing files did not.
+
+Rules:
+
+- **Destructive git is off the table.** No `reset --hard`, `checkout --` on tracked
+  files, `stash`, or `clean`. If you need to discard your own edit, revert it with
+  Edit, not with git.
+- **Commit only your own files.** `git add <the files you touched>`, never
+  `git add -A` / `git commit -a`. Check `git status` first and leave the rest alone.
+- **Don't touch the dev servers** unless asked. Another agent may be mid-verification
+  on :3000 / :5001. (`killall node` remains banned outright — it kills Claude Code.)
+- **Expect your files to change under you.** A "file modified since you read it"
+  notice usually means a real edit by someone else, not a linter. Re-read before
+  editing around it, and keep their change unless the user says otherwise.
+- **If your work disappears, say so plainly** and re-apply it. Don't quietly rebuild
+  and don't blame the user's tooling.
 
 ### Role System (Platform vs Organization Users)
 
