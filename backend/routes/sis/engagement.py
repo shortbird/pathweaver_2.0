@@ -164,12 +164,30 @@ def adjust_completion_xp(user_id, completion_id):
 @bp.route('/engagement-alerts', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_engagement_alerts(user_id):
-    """Open engagement alerts with student/class/quest names. Advisors only see
-    alerts for their own classes (class_scope); admins see the whole org."""
+    """Open engagement alerts with student/class/quest names.
+
+    Advisors only see alerts for their own classes (advisor_class_ids).
+    Admins see alerts for their own classes for teacher-scoped views (default,
+    mine=true, scope=mine); or all org alerts when scope=all.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
+
+    req_scope = (request.args.get('scope') or '').lower()
+    class_id_param = request.args.get('class_id')
+
+    if class_id_param:
+        allowed = sis_service.class_scope(user_id, org_id)
+        if allowed is not None and class_id_param not in allowed:
+            return jsonify({'success': True, 'alerts': []})
+        scope = [class_id_param]
+    elif req_scope == 'all' and sis_service.caller_is_admin(user_id):
+        scope = None  # Unrestricted: all open alerts across the org
+    else:
+        # Teacher view: filter to classes this user actually teaches
+        scope = sis_service.advisor_class_ids(user_id, org_id)
+
     return jsonify({'success': True, 'alerts': engagement.list_open_alerts(org_id, class_ids=scope)})
 
 

@@ -64,7 +64,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       .catch(() => toast.error('Failed to load your home'))
       .finally(() => setLoading(false))
     // Engagement alerts are non-critical — the card simply hides on failure.
-    api.get(withOrg('/api/sis/engagement-alerts', orgId))
+    api.get(withOrg('/api/sis/engagement-alerts?mine=true', orgId))
       .then((r) => setAlerts(r.data?.alerts || []))
       .catch(() => setAlerts([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect
