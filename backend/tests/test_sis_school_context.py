@@ -144,9 +144,11 @@ class TestIsGuardianFlag:
 
 @pytest.mark.unit
 class TestMembershipCheck:
-    def _member(self, guardian=False, member_org=None, sis_enabled=True):
+    def _member(self, guardian=False, member_org=None, sis_enabled=True, role='parent'):
         with patch.object(parent, '_has_org_access', return_value=guardian), \
              patch('services.sis_service.member_org_id', return_value=member_org), \
+             patch('services.sis_service.get_user_org_context',
+                   return_value={'role': role, 'organization_id': member_org}), \
              patch.object(parent, 'org_has_feature', return_value=sis_enabled):
             return parent._is_org_member('user-1', 'org-1')
 
@@ -164,6 +166,11 @@ class TestMembershipCheck:
 
     def test_a_stranger_is_not(self):
         assert self._member() is False
+
+    def test_a_superadmin_is_a_member_of_every_school(self):
+        # They belong to no school, so membership answers nothing for them —
+        # without this the school-page preview links all 403 (the calendar did).
+        assert self._member(role='superadmin') is True
 
 
 @pytest.mark.unit

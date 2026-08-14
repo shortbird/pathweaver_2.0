@@ -272,11 +272,19 @@ def _is_org_member(user_id: str, org_id: str) -> bool:
     directory). Deliberately weaker than _has_org_access, and deliberately NOT
     used by anything that acts on a family: being a member of the school is not
     grounds to open a household's billing or change its directory listing.
+
+    A superadmin counts as a member of every school. They belong to none, so
+    membership answers nothing for them — /api/sis/school/context already hands
+    them the org list to preview a school page, and without this every page that
+    list links to (calendar, resources, directory) 403s the moment they open it.
     """
     if _has_org_access(user_id, org_id):
         return True
-    return (sis_service.member_org_id(user_id) == org_id
-            and org_has_feature(org_id, 'sis_enabled'))
+    if (sis_service.member_org_id(user_id) == org_id
+            and org_has_feature(org_id, 'sis_enabled')):
+        return True
+    # Last, so a real member never pays for this lookup.
+    return sis_service.get_user_org_context(user_id).get('role') == 'superadmin'
 
 
 def _can_register(user_id: str, org_id: str, student_user_id: str) -> bool:
