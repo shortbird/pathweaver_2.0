@@ -3,6 +3,7 @@ Secure session management using httpOnly cookies
 """
 import jwt
 import hashlib
+import re
 from datetime import datetime, timedelta, timezone
 from flask import make_response, request
 from functools import wraps
@@ -32,6 +33,20 @@ class SessionManager:
         self.refresh_token_expiry = timedelta(days=Config.REFRESH_TOKEN_EXPIRY_DAYS)
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
         self.acting_as_token_expiry = timedelta(hours=24)  # Acting as dependent sessions (longer for parents)
+
+        # Absolute ceilings on an impersonation session, measured from the
+        # ORIGINAL grant (`iat0`) rather than the current token's `iat`. The
+        # per-token expiries above cap one token; these cap the chain. Without
+        # them a refresh re-stamps `iat` and slides the deadline forward on every
+        # call, so a one-hour masquerade renews itself forever.
+        #
+        # The two differ because the grants differ. A superadmin masquerading is
+        # a support action inside one sitting, so it gets a working day and then
+        # has to be re-granted through @require_admin. A parent acting as their
+        # own dependent is an ongoing custodial relationship, and expiring it
+        # every few hours would just train families to re-authenticate reflexively.
+        self.masquerade_max_lifetime = timedelta(hours=8)
+        self.acting_as_max_lifetime = timedelta(days=30)
 
         # Session timeout configuration (independent of token expiry)
         # This provides an additional layer of security by enforcing absolute session timeouts
@@ -118,49 +133,77 @@ class SessionManager:
                 logger.warning(f"[SessionManager] Failed to extract cookie domain: {e}")
                 self.cookie_domain = None
 
+    # Every run of digits in a User-Agent is a version number: the browser's,
+    # the engine's, the OS build's. Hashing them made the fingerprint change on
+    # every Chrome release, so it could only ever be logged, never enforced --
+    # enforcing it would have signed out every Chrome user roughly monthly.
+    # Stripping them leaves the part that actually identifies the device class
+    # (platform, browser family, engine), which is the thing worth binding to.
+    _UA_VERSION_DIGITS = re.compile(r'\d+')
+
     def _get_device_fingerprint(self) -> str:
         """
-        Generate a device fingerprint based on User-Agent header.
-        Used to detect if tokens are being used from different devices.
+        Version-insensitive device fingerprint from the User-Agent header.
 
         Returns:
-            str: First 16 characters of SHA-256 hash of User-Agent
+            str: First 16 characters of SHA-256 hash of the normalized UA
         """
         ua = request.headers.get('User-Agent', '')
-        return hashlib.sha256(ua.encode()).hexdigest()[:16]
+        normalized = self._UA_VERSION_DIGITS.sub('', ua)
+        return hashlib.sha256(normalized.encode()).hexdigest()[:16]
 
-    def _check_device_fingerprint(self, payload: Dict[str, Any], token_type: str) -> bool:
+    def _check_device_fingerprint(self, payload: Dict[str, Any], token_type: str,
+                                  enforce: bool = False) -> bool:
         """
-        Check if the device fingerprint in the token matches the current request.
-        Phase 1: Log warnings on mismatch but don't reject.
+        Check the token's device fingerprint against the current request.
 
         Args:
             payload: Decoded JWT payload
-            token_type: Type of token (access, refresh, etc.)
+            token_type: Type of token (access, refresh, etc.) — for logging
+            enforce: whether a mismatch should reject. Refresh enforces; access
+                observes. A stolen access token dies in 15 minutes on its own,
+                while a refresh token is the one worth binding to a device, and
+                keeping access permissive means a fingerprint bug degrades to
+                noisy logs rather than a platform-wide sign-out.
 
         Returns:
-            bool: True if fingerprint matches or check is skipped
+            bool: True if the token may be used on this device.
+
+        Two claims exist on purpose:
+
+          `dfp2` — the version-insensitive fingerprint above. Enforceable.
+          `dfp`  — the old raw-UA hash. Tokens carrying it are already in the
+                   wild and their value changes on the user's next browser
+                   update, so it is observed and NEVER rejected. Enforcing it
+                   at deploy would sign out everyone holding a live session.
+
+        Legacy tokens age out on their own; once every live token carries
+        `dfp2`, the `dfp` branch can go.
         """
-        stored_dfp = payload.get('dfp')
-        if not stored_dfp:
-            # Token was issued before device fingerprinting was added
+        stored = payload.get('dfp2')
+        if not stored:
+            if payload.get('dfp'):
+                logger.debug(
+                    f"[SessionManager] Legacy dfp-only {token_type} token; "
+                    f"fingerprint not enforced"
+                )
+            # Either a legacy token or one predating fingerprinting entirely.
             return True
 
-        current_dfp = self._get_device_fingerprint()
-        if stored_dfp != current_dfp:
-            user_id = payload.get('user_id', 'unknown')
-            # Phase 1: Log warning but don't reject (will reject in Phase 2)
-            logger.warning(
-                f"[SessionManager] Device fingerprint mismatch for {token_type} token | "
-                f"User: {user_id[:8]}... | "
-                f"Token DFP: {stored_dfp} | "
-                f"Request DFP: {current_dfp} | "
-                f"UA: {request.headers.get('User-Agent', 'unknown')[:50]}..."
-            )
-            # Phase 1: Return True (allow) - Change to False in Phase 2 to reject
+        current = self._get_device_fingerprint()
+        if stored == current:
             return True
 
-        return True
+        user_id = str(payload.get('user_id', 'unknown'))
+        logger.warning(
+            f"[SessionManager] Device fingerprint mismatch for {token_type} token | "
+            f"User: {user_id[:8]}... | "
+            f"Token DFP: {stored} | "
+            f"Request DFP: {current} | "
+            f"Enforcing: {enforce} | "
+            f"UA: {request.headers.get('User-Agent', 'unknown')[:50]}..."
+        )
+        return not enforce
 
     def is_session_expired(self, session_data: Dict[str, Any]) -> bool:
         """Check if session has exceeded timeout period
@@ -202,7 +245,7 @@ class SessionManager:
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'access',
             'version': self.token_version,  # Add version for rotation tracking
-            'dfp': self._get_device_fingerprint(),  # Device fingerprint for token binding
+            'dfp2': self._get_device_fingerprint(),  # Version-insensitive device binding
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -215,7 +258,7 @@ class SessionManager:
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'refresh',
             'version': self.token_version,  # Add version for rotation tracking
-            'dfp': self._get_device_fingerprint(),  # Device fingerprint for token binding
+            'dfp2': self._get_device_fingerprint(),  # Version-insensitive device binding
             'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -247,7 +290,8 @@ class SessionManager:
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
 
-    def generate_masquerade_refresh_token(self, admin_id: str, target_user_id: str) -> str:
+    def generate_masquerade_refresh_token(self, admin_id: str, target_user_id: str,
+                                          origin_iat: Optional[int] = None) -> str:
         """Generate a refresh token for a masquerade session.
 
         Native clients have no httpOnly cookie to anchor the masquerade identity,
@@ -255,32 +299,45 @@ class SessionManager:
         regular admin access token and silently drop the admin back into their own
         identity. This refresh token lets /api/auth/refresh re-mint a masquerade
         access token instead, preserving the target user across refreshes.
+
+        `origin_iat` carries the moment the masquerade was FIRST granted, and is
+        passed through unchanged by every subsequent refresh. `iat` re-stamps on
+        each renewal, so it cannot answer "how long has this been going on" --
+        which is the only question an absolute cap can be built on. Omit it when
+        the grant is being made for the first time.
         """
+        now = datetime.now(timezone.utc)
         payload = {
             'sub': target_user_id,
             'user_id': admin_id,  # admin identity, mirrors generate_masquerade_token
             'masquerade_as': target_user_id,
             'type': 'masquerade_refresh',
             'version': self.token_version,
-            'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
-            'iat': datetime.now(timezone.utc)
+            'exp': now + self.refresh_token_expiry,
+            'iat': now,
+            'iat0': origin_iat if origin_iat is not None else int(now.timestamp()),
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
 
-    def generate_acting_as_refresh_token(self, parent_id: str, dependent_id: str) -> str:
+    def generate_acting_as_refresh_token(self, parent_id: str, dependent_id: str,
+                                         origin_iat: Optional[int] = None) -> str:
         """Generate a refresh token for a parent acting-as-dependent session.
 
         Same rationale as generate_masquerade_refresh_token: keeps the dependent
-        identity stable across token refreshes on native (no cookie anchor).
+        identity stable across token refreshes on native (no cookie anchor), and
+        `origin_iat` pins the original grant so refreshing cannot extend it
+        indefinitely.
         """
+        now = datetime.now(timezone.utc)
         payload = {
             'sub': dependent_id,
             'user_id': parent_id,  # parent identity, mirrors generate_acting_as_token
             'acting_as': dependent_id,
             'type': 'acting_as_refresh',
             'version': self.token_version,
-            'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
-            'iat': datetime.now(timezone.utc)
+            'exp': now + self.refresh_token_expiry,
+            'iat': now,
+            'iat0': origin_iat if origin_iat is not None else int(now.timestamp()),
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
@@ -294,8 +351,10 @@ class SessionManager:
                 if self.is_session_expired(payload):
                     logger.info(f"[SessionManager] Access token rejected: session timeout exceeded")
                     return None
-                # Check device fingerprint (Phase 1: log only)
-                self._check_device_fingerprint(payload, 'access')
+                # Observed, not enforced: a stolen access token dies in
+                # minutes on its own, and rejecting here would turn any
+                # fingerprint bug into a platform-wide sign-out.
+                self._check_device_fingerprint(payload, 'access', enforce=False)
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             logger.debug("intentional swallow", exc_info=True)
@@ -309,8 +368,7 @@ class SessionManager:
                     if self.is_session_expired(payload):
                         logger.info(f"[SessionManager] Access token (old key) rejected: session timeout exceeded")
                         return None
-                    # Check device fingerprint (Phase 1: log only)
-                    self._check_device_fingerprint(payload, 'access')
+                    self._check_device_fingerprint(payload, 'access', enforce=False)
                     logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -328,8 +386,12 @@ class SessionManager:
                 if self.is_session_expired(payload):
                     logger.info(f"[SessionManager] Refresh token rejected: session timeout exceeded")
                     return None
-                # Check device fingerprint (Phase 1: log only)
-                self._check_device_fingerprint(payload, 'refresh')
+                # A refresh token is the long-lived one, so it is the one worth
+                # binding to a device. Legacy `dfp`-only tokens are exempt
+                # inside the check, so this does not sign out live sessions.
+                if not self._check_device_fingerprint(payload, 'refresh', enforce=True):
+                    logger.warning("[SessionManager] Refresh token rejected: device fingerprint mismatch")
+                    return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             logger.debug("intentional swallow", exc_info=True)
@@ -343,8 +405,9 @@ class SessionManager:
                     if self.is_session_expired(payload):
                         logger.info(f"[SessionManager] Refresh token (old key) rejected: session timeout exceeded")
                         return None
-                    # Check device fingerprint (Phase 1: log only)
-                    self._check_device_fingerprint(payload, 'refresh')
+                    if not self._check_device_fingerprint(payload, 'refresh', enforce=True):
+                        logger.warning("[SessionManager] Refresh token (old key) rejected: device fingerprint mismatch")
+                        return None
                     logger.info(f"[SessionManager] Refresh token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -779,10 +842,34 @@ class SessionManager:
             target_id = mq.get('masquerade_as')
             if not admin_id or not target_id:
                 return None
+
+            origin_iat, issued_at = self._impersonation_timestamps(mq)
+            if self._impersonation_grant_expired(origin_iat, self.masquerade_max_lifetime):
+                logger.info(
+                    f"[SessionManager] Masquerade refresh refused: grant older than "
+                    f"{self.masquerade_max_lifetime} (admin {admin_id[:8]}...)")
+                return None
+
+            # Imported as a module, not by name, so the call resolves through
+            # utils.token_authority at call time -- these are the two checks a
+            # test needs to be able to stand in for.
+            from utils import token_authority
+            if not token_authority.is_masquerade_still_authorized(admin_id):
+                logger.warning(
+                    f"[SessionManager] Masquerade refresh refused: {admin_id[:8]}... "
+                    f"is no longer a superadmin")
+                return None
+            if token_authority.session_revoked_since(admin_id, issued_at):
+                logger.info(
+                    f"[SessionManager] Masquerade refresh refused: sessions revoked "
+                    f"for admin {admin_id[:8]}...")
+                return None
+
             new_access = self.generate_masquerade_token(admin_id, target_id)
-            new_refresh = self.generate_masquerade_refresh_token(admin_id, target_id)
+            new_refresh = self.generate_masquerade_refresh_token(
+                admin_id, target_id, origin_iat=origin_iat)
             logger.debug(f"[SessionManager] Re-minted masquerade tokens for admin {admin_id[:8]}... as {target_id[:8]}...")
-            return new_access, new_refresh, target_id, datetime.now(timezone.utc)
+            return new_access, new_refresh, target_id, issued_at
 
         aa = self.verify_acting_as_refresh_token(refresh_token)
         if aa:
@@ -790,12 +877,60 @@ class SessionManager:
             dependent_id = aa.get('acting_as')
             if not parent_id or not dependent_id:
                 return None
+
+            origin_iat, issued_at = self._impersonation_timestamps(aa)
+            if self._impersonation_grant_expired(origin_iat, self.acting_as_max_lifetime):
+                logger.info(
+                    f"[SessionManager] Acting-as refresh refused: grant older than "
+                    f"{self.acting_as_max_lifetime} (parent {parent_id[:8]}...)")
+                return None
+
+            from utils import token_authority
+            if not token_authority.is_acting_as_still_authorized(parent_id, dependent_id):
+                logger.warning(
+                    f"[SessionManager] Acting-as refresh refused: {dependent_id[:8]}... "
+                    f"is no longer a dependent of {parent_id[:8]}...")
+                return None
+            if token_authority.session_revoked_since(parent_id, issued_at):
+                logger.info(
+                    f"[SessionManager] Acting-as refresh refused: sessions revoked "
+                    f"for parent {parent_id[:8]}...")
+                return None
+
             new_access = self.generate_acting_as_token(parent_id, dependent_id)
-            new_refresh = self.generate_acting_as_refresh_token(parent_id, dependent_id)
+            new_refresh = self.generate_acting_as_refresh_token(
+                parent_id, dependent_id, origin_iat=origin_iat)
             logger.debug(f"[SessionManager] Re-minted acting-as tokens for parent {parent_id[:8]}... as {dependent_id[:8]}...")
-            return new_access, new_refresh, dependent_id, datetime.now(timezone.utc)
+            return new_access, new_refresh, dependent_id, issued_at
 
         return None
+
+    @staticmethod
+    def _impersonation_timestamps(payload: Dict[str, Any]):
+        """(origin_iat, issued_at) for an impersonation refresh token.
+
+        `iat0` is absent on tokens minted before the absolute cap existed; those
+        fall back to `iat`, which starts their clock at the first refresh after
+        deploy rather than at the original grant. That is the generous reading,
+        and it is deliberate: the alternative is signing out every live
+        impersonation session the moment this ships.
+        """
+        raw_iat = payload.get('iat')
+        origin_iat = payload.get('iat0') or raw_iat
+        issued_at = (datetime.fromtimestamp(raw_iat, tz=timezone.utc)
+                     if raw_iat else None)
+        return origin_iat, issued_at
+
+    @staticmethod
+    def _impersonation_grant_expired(origin_iat, max_lifetime: timedelta) -> bool:
+        """Has the original grant outlived the cap? Unknown origin => no."""
+        if not origin_iat:
+            return False
+        try:
+            granted = datetime.fromtimestamp(int(origin_iat), tz=timezone.utc)
+        except (TypeError, ValueError, OSError):
+            return False
+        return datetime.now(timezone.utc) - granted > max_lifetime
 
     def refresh_session(self, refresh_token_override: Optional[str] = None) -> Optional[tuple]:
         """Refresh the session using refresh token from cookie or request body"""

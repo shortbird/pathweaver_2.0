@@ -222,15 +222,25 @@ def verify_state(state: str, registration: LtiRegistration) -> Dict[str, Any]:
 # Canvas course — so it only ever lands in that course's gradebook.
 
 
+# How long a SpeedGrader evidence link stays live. Long enough for genuinely
+# late grading — a teacher opening a gradebook at the end of a term — and short
+# enough that a link forwarded out of Canvas, or sitting in a mailbox, stops
+# working. The previous value was "never", which made every link ever minted a
+# permanent unauthenticated read of one student's diploma.
+EVIDENCE_TOKEN_TTL = timedelta(days=180)
+
+
 def issue_evidence_token(user_id: str, quest_id: str) -> str:
     """Sign a token authorizing unauthenticated view of `user_id`'s diploma
-    in the Canvas SpeedGrader context. No expiry: gradebook links must keep
-    working for late grading; scope is read-only single-student."""
+    in the Canvas SpeedGrader context. Scope is read-only single-student, and
+    the link expires after EVIDENCE_TOKEN_TTL."""
+    now = int(time.time())
     payload = {
         "purpose": "lti_evidence",
         "uid": user_id,
         "qid": quest_id,
-        "iat": int(time.time()),
+        "iat": now,
+        "exp": now + int(EVIDENCE_TOKEN_TTL.total_seconds()),
     }
     return jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm="HS256")
 
@@ -240,11 +250,21 @@ def decode_evidence_token(token: str) -> Optional[Dict[str, Any]]:
 
     The (user, quest) pair is read from the signed token itself — callers
     must not trust a separately-supplied id/quest. Used by the LTI evidence
-    endpoint (which has no other auth) and by verify_evidence_token."""
+    endpoint (which has no other auth) and by verify_evidence_token.
+
+    A token with no `exp` is REFUSED. Perpetual tokens were already handed out
+    before this expiry existed, and they are exactly the ones worth retiring:
+    each is an unauthenticated read of a student's work that never lapses. PyJWT
+    only enforces `exp` when the claim is present, so absence has to be rejected
+    explicitly or the old tokens keep validating forever.
+    """
     if not token:
         return None
     try:
-        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(
+            token, Config.JWT_SECRET_KEY, algorithms=["HS256"],
+            options={"require": ["exp"]},
+        )
     except jwt.PyJWTError:
         return None
     if payload.get("purpose") != "lti_evidence":
