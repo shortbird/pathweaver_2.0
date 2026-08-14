@@ -79,6 +79,10 @@ STORAGE_PATH_TEMPLATES = {
     'moment': 'learning_moments/{context_id}/{file_uuid}.{ext}',
     'moment_block': 'learning_moments/{context_id}/{sub_id}/{file_uuid}.{ext}',
     'task_evidence': 'task-evidence/{user_id}/{context_id}_{timestamp}_{filename}',
+    # Prior-learning evidence a GUARDIAN files about their child, so {user_id}
+    # here is the parent and {context_id} is the record — same bucket and same
+    # pipeline as task evidence, because it ends up in the same portfolio.
+    'prior_learning': 'prior-learning/{user_id}/{context_id}_{timestamp}_{filename}',
 }
 
 # Thumbnail path templates
@@ -98,6 +102,7 @@ DEFAULT_BUCKETS = {
     'moment': 'user-uploads',
     'moment_block': 'user-uploads',
     'task_evidence': 'quest-evidence',
+    'prior_learning': 'quest-evidence',
 }
 
 

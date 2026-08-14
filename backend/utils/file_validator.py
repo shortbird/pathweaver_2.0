@@ -46,6 +46,9 @@ ALLOWED_MIME_TYPES = {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'text/plain',
+    # libmagic reports a comma-separated file as text/csv, not text/plain, so
+    # the extension allowlist alone would still refuse it at the MIME gate.
+    'text/csv',
     # Videos
     'video/mp4', 'video/webm', 'video/quicktime',
     # Audio

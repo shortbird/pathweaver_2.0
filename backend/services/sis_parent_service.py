@@ -210,6 +210,9 @@ def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str
         'organization_name': row.get('name'),
         'is_guardian': is_guardian,
         'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
+        # Opt-in, so the Prior Learning card is absent for every school that
+        # hasn't turned it on rather than present-and-403ing.
+        'prior_learning_enabled': settings.get('prior_learning_enabled') is True,
         # The school's own mark, for the hub's header. Often a data: URI
         # (that's how SisOrgSettings stores uploads), so it can be large —
         # this endpoint is one page's one call.

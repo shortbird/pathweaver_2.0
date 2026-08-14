@@ -117,6 +117,7 @@ const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const FamilyFormsPage = lazy(() => import('./pages/FamilyFormsPage'))
 const FamilyPortalPage = lazy(() => import('./pages/FamilyPortalPage'))
+const FamilyPriorLearningPage = lazy(() => import('./pages/FamilyPriorLearningPage'))
 const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
@@ -563,6 +564,9 @@ function App() {
                 <Route path="family/forms" element={<FamilyFormsPage />} />
                 {/* Family portal: checklists the school assigns to the guardian */}
                 <Route path="family/portal" element={<FamilyPortalPage />} />
+                {/* Prior learning: a guardian files evidence of learning done
+                    before/outside Optio, for the school to award credit for. */}
+                <Route path="family/prior-learning" element={<FamilyPriorLearningPage />} />
                 {/* School document library + opt-in family directory (SIS orgs) */}
                 <Route path="resources" element={<FamilyResourcesPage />} />
                 <Route path="school-calendar" element={<FamilyCalendarPage />} />

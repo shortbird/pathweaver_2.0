@@ -58,3 +58,12 @@ export function isPathHidden(path, organization) {
 export function isCommunityEnabled(organization) {
   return organization?.feature_flags?.sis_settings?.community_enabled === true
 }
+
+/**
+ * Prior Learning is OPT-IN for the same reason: it's Optio Academy's only, for
+ * now. The backend gates on the same flag, so a school can never end up with a
+ * review queue nobody can file into (or a family form with nowhere to land).
+ */
+export function isPriorLearningEnabled(organization) {
+  return organization?.feature_flags?.sis_settings?.prior_learning_enabled === true
+}

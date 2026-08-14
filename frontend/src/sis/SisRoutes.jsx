@@ -2,7 +2,7 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
-import { isPathHidden, isCommunityEnabled } from '../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
@@ -25,6 +25,13 @@ const ModuleRoute = ({ path, children }) => {
 const CommunityRoute = ({ children }) => {
   const { activeOrg } = useSisOrg()
   if (!isCommunityEnabled(activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
+// Prior Learning is opt-in per org too — same bounce, same reason as Community.
+const PriorLearningRoute = ({ children }) => {
+  const { activeOrg } = useSisOrg()
+  if (!isPriorLearningEnabled(activeOrg)) return <Navigate to="/" replace />
   return children
 }
 
@@ -74,6 +81,7 @@ const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const SecureDocumentsPage = lazy(() => import('../pages/sis/SecureDocumentsPage'))
+const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
 const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
 
@@ -129,6 +137,7 @@ const SisRoutes = () => (
       <Route path="attendance" element={<ModuleRoute path="/attendance"><AttendancePage /></ModuleRoute>} />
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
+      <Route path="prior-learning" element={<PriorLearningRoute><PriorLearningPage /></PriorLearningRoute>} />
       <Route path="reports" element={<ModuleRoute path="/reports"><ReportsPage /></ModuleRoute>} />
       <Route path="secure-documents" element={<HrRoute><ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute></HrRoute>} />
       <Route path="messaging" element={<FamilyMessagingPage />} />

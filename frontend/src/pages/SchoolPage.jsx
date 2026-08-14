@@ -4,12 +4,14 @@ import {
   BuildingLibraryIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
   BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
   DocumentTextIcon, CheckCircleIcon, CalendarIcon, TableCellsIcon, EnvelopeIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
 import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
+import { isOptioAcademyOrg } from '../config/optioAcademy'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
@@ -106,9 +108,26 @@ const flowCard = (postRegistrationFlow) => (
     }
 )
 
+/** Opt-in per org (feature_flags.sis_settings.prior_learning_enabled), so a
+ *  school that doesn't take prior-learning submissions never shows the door. */
+const priorLearningCard = {
+  name: 'Prior Learning', path: '/family/prior-learning', Icon: AcademicCapIcon,
+  description: 'Submit learning done before Optio for high-school credit.',
+  guardianOnly: true,
+}
+
 export function cardsFor(org) {
   if (!org) return []
+  // Optio Academy runs almost none of the school-community surfaces (its
+  // hidden_modules turns off calendar, resources, classes, attendance and the
+  // rest), so the full card grid was a row of doors onto empty rooms — which is
+  // why its parents had this page taken out of the nav entirely. It's back for
+  // Prior Learning, and that is ALL it carries for this school.
+  if (isOptioAcademyOrg(org.organization_id)) {
+    return org.is_guardian && org.prior_learning_enabled ? [priorLearningCard] : []
+  }
   const cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
+  if (org.prior_learning_enabled) cards.push(priorLearningCard)
   return org.is_guardian ? cards : cards.filter((c) => !c.guardianOnly)
 }
 
@@ -240,6 +259,11 @@ export default function SchoolPage() {
   const hasMore = announcements.length < total
   const schoolName = school?.name || orgName
   const cards = cardsFor(schoolOrg)
+  // Optio Academy gets the cards and nothing under them. The board and the
+  // Messages archive are the page for a school that talks to its families
+  // here; this school doesn't, so rendering them would put an empty
+  // announcements shell under the one card the page exists to carry.
+  const cardsOnly = isOptioAcademyOrg(schoolOrg?.organization_id)
 
   // The Messages section renders unless the school has literally never sent
   // one AND the board has content (then the board is the page and an empty
@@ -424,14 +448,16 @@ export default function SchoolPage() {
           extracted from this page's inline version, 2026-08-10). Sticks just
           below the fixed navbar; tapping a tab swaps the panel below to that
           section; hidden when there's only one section to choose from. */}
-      <GlassTabBar
-        tabs={tabs}
-        active={showing}
-        onSelect={selectTab}
-        sticky
-        className="mt-6"
-        aria-label="Sections on this page"
-      />
+      {!cardsOnly && (
+        <GlassTabBar
+          tabs={tabs}
+          active={showing}
+          onSelect={selectTab}
+          sticky
+          className="mt-6"
+          aria-label="Sections on this page"
+        />
+      )}
 
       {/* One feed, no tabs (2026-08-06). The community sections lead — they
           are short and timely — and each renders only when the school has used
@@ -441,11 +467,11 @@ export default function SchoolPage() {
       <div className="mt-8" ref={panelRef}>
         {/* A section that is the whole panel shows every item; the stacked
             no-bar layout keeps sections capped. */}
-        <SchoolCommunity feed={shownFeed} expanded={showing !== 'all'} />
+        {!cardsOnly && <SchoolCommunity feed={shownFeed} expanded={showing !== 'all'} />}
         {/* Carpool renders even when empty (someone has to post first) — but
             only once the feed has loaded, and never a bare board to students,
             who cannot post (feed === null means no board for this user). */}
-        {feed !== null && (showing === 'all' || showing === 'board-carpool') && (
+        {!cardsOnly && feed !== null && (showing === 'all' || showing === 'board-carpool') && (
           <CarpoolBoard
             posts={feed?.carpool || []}
             canPost={carpoolPerms.canPost}
@@ -464,7 +490,7 @@ export default function SchoolPage() {
           "didn't appear on the announcements tab" (iCreate, 2026-08-06). A
           school that has never sent one shows nothing here at all — unless the
           whole feed is empty, in which case the empty state explains itself. */}
-      {showMessages && (showing === 'all' || showing === 'school-messages') && (
+      {!cardsOnly && showMessages && (showing === 'all' || showing === 'school-messages') && (
       <FeedSection
         id="school-messages"
         title={schoolName ? `Messages from ${schoolName}` : 'Messages'}

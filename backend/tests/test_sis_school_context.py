@@ -66,6 +66,7 @@ class TestWhichSchoolAmIIn:
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
                                 'post_registration_flow': 'schedule',
+                                'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
                                 'logo_subtitle': None}]
 
@@ -78,6 +79,7 @@ class TestWhichSchoolAmIIn:
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
                                 'post_registration_flow': 'schedule',
+                                'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
                                 'logo_subtitle': None}]
 
@@ -116,6 +118,23 @@ class TestWhichPostRegistrationFlow:
     def test_a_school_with_no_setting_gets_the_schedule_builder(self):
         ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[ICREATE_ROW])
         assert ctx['orgs'][0]['post_registration_flow'] == 'schedule'
+
+    def test_prior_learning_is_carried_through_when_a_school_opts_in(self):
+        """Same reason as the flow above: the hub can't read feature_flags for a
+        platform parent, so the Prior Learning card has to arrive with the org."""
+        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
+            {**ICREATE_ROW, 'feature_flags': {'sis_settings': {
+                'prior_learning_enabled': True}}}])
+        assert ctx['orgs'][0]['prior_learning_enabled'] is True
+
+    def test_prior_learning_is_off_for_a_school_that_never_set_it(self):
+        """Fails closed — a truthy-ish value is not an opt-in either."""
+        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[ICREATE_ROW])
+        assert ctx['orgs'][0]['prior_learning_enabled'] is False
+        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
+            {**ICREATE_ROW, 'feature_flags': {'sis_settings': {
+                'prior_learning_enabled': 'yes'}}}])
+        assert ctx['orgs'][0]['prior_learning_enabled'] is False
 
     def test_a_school_that_is_not_on_the_sis_gets_no_hub(self):
         ctx = _school_context('student-2', member_org='org-9', sis_enabled=False)
@@ -244,6 +263,7 @@ class TestSuperadminPreviewListing:
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
                                   'post_registration_flow': 'schedule',
+                                  'prior_learning_enabled': False,
                                   'logo_url': 'data:image/png;base64,x',
                                   'logo_subtitle': None}
         assert out['is_guardian'] is False

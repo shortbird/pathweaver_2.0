@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden, isCommunityEnabled } from '../../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 
 /**
@@ -68,6 +68,8 @@ const NAV_SECTIONS = [
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
       { name: 'Submissions', path: '/submissions', d: ICONS.clipboard },
+      // Prior Learning — opt-in per org (Optio Academy today).
+      { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, priorLearningMode: true, d: ICONS.doc },
       { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc },
     ],
   },
@@ -163,6 +165,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.goalsMode && !isGoalsMode) return false
             // Community Hub is opt-in per org.
             if (it.communityMode && !isCommunityEnabled(activeOrg)) return false
+            // Prior Learning is opt-in per org.
+            if (it.priorLearningMode && !isPriorLearningEnabled(activeOrg)) return false
             return true
           })
           if (!items.length) return null

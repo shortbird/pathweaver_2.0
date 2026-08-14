@@ -39,12 +39,18 @@ MAX_VIDEO_COMPRESSION_THRESHOLD = MAX_VIDEO_SIZE_SIGNED + 1
 MAX_VIDEO_INLINE_PROCESSING_BYTES = 50 * 1024 * 1024  # 50MB
 
 # Allowed File Extensions (by type)
-ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif', '.jfif'}
+ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.csv', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif', '.jfif'}
 # SVG is deliberately excluded: it can embed scripts, and evidence files are
 # served from auth.optioeducation.com (same registrable domain as the app), so
 # a direct-navigation to a student-uploaded SVG would be a stored-XSS vector.
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif'}
-ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
+# csv is here because the paperwork a family brings from another school is often
+# an export, not a scan (2026-08-14: a parent's first prior-learning upload was
+# two Skill Struck CSVs and both were refused). It is plain text to the magic-byte
+# check and is only ever stored and downloaded, never rendered by the app.
+# Spreadsheets proper (xls/xlsx) are still refused: xlsx is a zip to magic, so
+# accepting it would mean accepting application/zip for everything.
+ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'csv'}
 # Any standard consumer video format. Browsers can't play all of these inline
 # (avi/mkv/wmv render as a download), but they're still valid evidence.
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'mpg', 'mpeg', '3gp', 'wmv', 'ogv'}
@@ -86,7 +92,7 @@ EVIDENCE_ALLOWED_EXTENSIONS = {
 
 # Human-readable format labels for error messages
 IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF, TIFF, BMP, AVIF'
-DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, TXT'
+DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, TXT, CSV'
 VIDEO_FORMAT_LABEL = 'MP4, MOV, WebM, M4V, AVI, MKV, MPG, MPEG, 3GP, WMV, OGV'
 AUDIO_FORMAT_LABEL = 'M4A, MP3, WAV, AAC, OGG'
 

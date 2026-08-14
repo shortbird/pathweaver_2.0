@@ -1001,6 +1001,12 @@ def register_sis_routes(app):
     app.register_blueprint(secure_documents_bp)
     from routes.sis.parent_forms import bp as parent_forms_bp
     app.register_blueprint(parent_forms_bp)
+    from routes.sis.tasks import bp as sis_tasks_bp
+    app.register_blueprint(sis_tasks_bp)
+    from routes.sis.parent_prior_learning import bp as parent_prior_learning_bp
+    app.register_blueprint(parent_prior_learning_bp)
+    from routes.sis.prior_learning import bp as prior_learning_bp
+    app.register_blueprint(prior_learning_bp)
     from routes.sis.gradebook import bp as gradebook_bp
     app.register_blueprint(gradebook_bp)
     from routes.sis.engagement import bp as engagement_bp
