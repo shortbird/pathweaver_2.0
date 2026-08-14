@@ -7,6 +7,7 @@ import HeroSection from '../overview/HeroSection';
 import OverviewLoadingSkeleton from '../overview/OverviewLoadingSkeleton';
 import OverviewErrorState from '../overview/OverviewErrorState';
 import StudentOverviewSections from '../overview/StudentOverviewSections';
+import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard';
 import EditUserModal from '../organization/people/EditUserModal';
 
 /**
@@ -62,6 +63,14 @@ const AdvisorStudentOverviewContent = ({ studentId, canEdit = false, orgId }) =>
           View Full Portfolio
         </Link>
       </div>
+
+      {/* Weekly XP goal (schools that enabled it; renders nothing otherwise).
+          Teachers of this student may set it — the server decides, not canEdit,
+          which is about editing the user record. */}
+      <WeeklyXpGoalCard
+        studentId={studentId}
+        studentFirstName={data.user?.first_name}
+      />
 
       <StudentOverviewSections
         data={data}

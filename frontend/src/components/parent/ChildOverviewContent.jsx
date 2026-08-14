@@ -8,6 +8,7 @@ import CollapsibleSection from '../overview/CollapsibleSection';
 import OverviewLoadingSkeleton from '../overview/OverviewLoadingSkeleton';
 import OverviewErrorState from '../overview/OverviewErrorState';
 import StudentOverviewSections from '../overview/StudentOverviewSections';
+import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard';
 import ParentConversationsViewer from './ParentConversationsViewer';
 import StudentSchedulePreview from './StudentSchedulePreview';
 
@@ -83,6 +84,14 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
           </>
         )}
       </div>
+
+      {/* Weekly XP goal (schools that enabled it; renders nothing otherwise).
+          Shown to observers too — they read the progress, and the server
+          withholds the editor from them via can_edit. */}
+      <WeeklyXpGoalCard
+        studentId={studentId}
+        studentFirstName={data.user?.first_name}
+      />
 
       {/* Class schedule (SIS families only; renders nothing otherwise) */}
       {!isObserver && <StudentSchedulePreview studentId={studentId} />}

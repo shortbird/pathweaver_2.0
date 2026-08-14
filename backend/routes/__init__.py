@@ -47,6 +47,11 @@ def register_all(app):
     from routes.settings import settings_bp
     app.register_blueprint(settings_bp, url_prefix='/api')
 
+    # Weekly XP goals. url_prefix lives on the blueprint; opt-in per org via
+    # feature_flags.xp_goals, enforced in the routes themselves.
+    from routes.xp_goals import bp as xp_goals_bp
+    app.register_blueprint(xp_goals_bp)
+
     # ── Public / marketing ────────────────────────────────────────────────────
     from routes.contact import bp as contact_bp
     app.register_blueprint(contact_bp, url_prefix='/api')

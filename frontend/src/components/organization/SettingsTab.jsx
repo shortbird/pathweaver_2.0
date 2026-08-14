@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon, PrinterIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon, PrinterIcon, FlagIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
 import SchoolLoginLinkCard from './SchoolLoginLinkCard'
@@ -126,6 +126,30 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
       alert(error.response?.data?.error || 'Failed to update XP setting')
     } finally {
       setSavingXpLock(false)
+    }
+  }
+
+  // Weekly XP goals. Off by default -- a target is a commitment a school makes
+  // to its families, not something to switch on for them. Enforced server-side
+  // in backend/services/xp_goal_service.py.
+  const [xpGoals, setXpGoals] = useState(
+    orgData?.organization?.feature_flags?.xp_goals ?? false
+  )
+  const [savingXpGoals, setSavingXpGoals] = useState(false)
+
+  const handleToggleXpGoals = async () => {
+    const newValue = !xpGoals
+    setSavingXpGoals(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: { ...(orgData?.organization?.feature_flags || {}), xp_goals: newValue },
+      })
+      setXpGoals(newValue)
+      onUpdate()
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update XP goals setting')
+    } finally {
+      setSavingXpGoals(false)
     }
   }
 
@@ -564,6 +588,14 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
           enabled={lockXpEditing}
           onToggle={handleToggleLockXpEditing}
           disabled={savingXpLock}
+        />
+        <FeatureToggle
+          label="Weekly XP goals"
+          description="Lets students, parents, and teachers set a weekly XP target that shows on the student's profile with live progress. Off by default; the goal is a target, not a grade."
+          icon={FlagIcon}
+          enabled={xpGoals}
+          onToggle={handleToggleXpGoals}
+          disabled={savingXpGoals}
         />
       </div>
 

@@ -11,6 +11,7 @@ import EngagementCalendar from '../components/quest/EngagementCalendar'
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton'
 import DiplomaCreditTracker from '../components/diploma/DiplomaCreditTracker'
+import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard'
 import { PageLoader } from '../components/ui/Spinner'
 import {
   RocketLaunchIcon,
@@ -390,6 +391,18 @@ const DashboardPage = () => {
 
       {/* Dashboard Overview - Two Column Layout */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Weekly XP goal — first cell, so it sits directly below the quests it
+            is the target for, at the same half width as the cards beside it.
+            Three half-width cards leave one cell empty; putting the goal first
+            pushes that gap to the bottom-right, where it reads as the end of
+            the section rather than a hole in it. Renders nothing for schools
+            without the feature, and the grid closes back up to two cards. */}
+        <WeeklyXpGoalCard
+          studentId={effectiveUserId}
+          viewerIsStudent
+          studentFirstName={displayName}
+        />
+
         {/* Left: Learning Rhythm */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 overflow-visible">
           <div className="flex items-center gap-3 mb-4">
