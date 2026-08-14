@@ -19,6 +19,12 @@ export const SIS_MODULE_BY_PATH = {
   '/clp': 'clp',
   '/billing': 'billing',
   '/tuition': 'billing',
+  // The unified task surfaces. 'tasks' is the module an org hides to turn the
+  // whole thing off; '/forms' and '/onboarding' keep their own keys because an
+  // org that hid one of them before this merge must stay hidden — the config is
+  // a promise already made, not a name we get to reuse.
+  '/my-tasks': 'tasks',
+  '/tasks': 'tasks',
   '/forms': 'forms',
   '/onboarding': 'onboarding',
   '/secure-documents': 'secure_documents',

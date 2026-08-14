@@ -12,13 +12,12 @@ signed URLs. Org scoping is enforced on every route via
 sis_service.resolve_org_id, mirroring routes/sis/reports.py.
 """
 
-import uuid as _uuid
-
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from services import sis_service
+from services import sis_secure_docs_service, sis_service
+from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import HR_ROLES as STAFF_ROLES
 
@@ -27,25 +26,25 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 
 # Sensitive-document store is HR paperwork, not campus operations — a campus
-# coordinator never reaches it (see utils/sis_roles.HR_ROLES).
+# coordinator never reaches it (see utils/sis_roles.HR_ROLES). Ordinary campus
+# paperwork a coordinator DOES run is the same store with sensitivity='general',
+# reached through the ADMIN_ROLES endpoints in routes/sis/staff_admin.py.
 
-_SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE bucket
-_DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
-_MAX_DOC_BYTES = 15 * 1024 * 1024
-_MAX_TITLE_LEN = 200  # matches routes/sis/class_materials.py
-
-# One upload can be filed against several people at once (a handbook, a policy
-# every teacher signs). Each person gets their OWN row and their OWN blob
-# rather than sharing one — because everything downstream of a document is
-# per-person: shared_with_owner is toggled for one teacher at a time, and
-# DELETE removes the blob. Sharing a blob between rows would mean deleting one
-# person's copy blanks the file for everyone else still holding it.
-_MAX_ATTACH_PEOPLE = 50
+# Storage mechanics (bucket, limits, per-person rows) live in the service so the
+# signature sender shares them: services/sis_secure_docs_service.py.
+_SECURE_DOCS_BUCKET = sis_secure_docs_service.BUCKET
+_MAX_ATTACH_PEOPLE = sis_secure_docs_service.MAX_ATTACH_PEOPLE
+_MAX_TITLE_LEN = sis_secure_docs_service.MAX_TITLE_LEN
 
 
 def _org_or_error(user_id):
     body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
+    # request.form matters for multipart (uploads): get_json returns nothing
+    # there, so a superadmin -- who has no org to fall back to -- could not
+    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
+    requested = (request.args.get('organization_id')
+                 or body.get('organization_id')
+                 or request.form.get('organization_id'))
     org_id = sis_service.resolve_org_id(user_id, requested)
     if not org_id:
         return None, (jsonify({
@@ -91,22 +90,11 @@ def _field_list(key):
 
 def _clean_title(value, fallback):
     """A document's display name: trimmed, capped, never empty."""
-    title = (value or '').strip() or (fallback or '').strip() or 'Untitled document'
-    return title[:_MAX_TITLE_LEN]
+    return sis_secure_docs_service.clean_title(value, fallback)
 
 
 def _title_from_form(fallback):
     return _clean_title(request.form.get('title') or request.args.get('title'), fallback)
-
-
-def _remove_blobs(supabase, paths):
-    """Best-effort cleanup so a failed upload leaves no orphans behind."""
-    if not paths:
-        return
-    try:
-        supabase.storage.from_(_SECURE_DOCS_BUCKET).remove(paths)
-    except Exception:
-        logger.debug('Secure document blob cleanup failed (non-fatal)', exc_info=True)
 
 
 def _attach_targets():
@@ -158,74 +146,76 @@ def upload_secure_document(user_id):
     if 'file' not in request.files:
         return jsonify({'success': False, 'error': 'No file provided'}), 400
     file = request.files['file']
-    if not file.filename:
-        return jsonify({'success': False, 'error': 'No file selected'}), 400
-    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-    if ext not in _DOC_EXTENSIONS:
-        return jsonify({'success': False, 'error': 'Allowed types: pdf, doc, docx, png, jpg, jpeg, webp'}), 400
     file.seek(0, 2)
     size_bytes = file.tell()
-    if size_bytes > _MAX_DOC_BYTES:
-        return jsonify({'success': False, 'error': 'File size exceeds 15MB limit'}), 400
     file.seek(0)
+    ext, problem = sis_secure_docs_service.validate_upload(file.filename, size_bytes)
+    if problem:
+        return jsonify({'success': False, 'error': problem}), 400
 
-    # admin client justified: upload to the PRIVATE sis-secure-documents bucket + insert into its service-role-only table; gated by @require_role(HR_ROLES), row pinned to resolved org
-    supabase = get_supabase_admin_client()
-    try:
-        supabase.storage.get_bucket(_SECURE_DOCS_BUCKET)
-    except Exception:
-        try:
-            supabase.storage.create_bucket(_SECURE_DOCS_BUCKET, options={'public': False})
-        except Exception:
-            pass
-
-    # Read once, write once per person — each row owns its blob (see
-    # _MAX_ATTACH_PEOPLE).
     blob = file.read()
-    paths = []
-    try:
-        for _ in targets:
-            path = f"{org_id}/{_uuid.uuid4().hex}.{ext}"
-            supabase.storage.from_(_SECURE_DOCS_BUCKET).upload(
-                path=path, file=blob,
-                file_options={'content-type': file.content_type or 'application/octet-stream'},
-            )
-            paths.append(path)
-    except Exception as e:
-        logger.error(f'Secure document upload failed: {e}')
-        _remove_blobs(supabase, paths)
-        return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
+    # From the bytes, not from file.content_type — the uploader's header was
+    # stored and served back verbatim by the signed URL, so a .pdf sent as
+    # text/html became an executable page on the storage origin.
+    content_type, problem = sis_secure_docs_service.resolve_content_type(blob, ext)
+    if problem:
+        return jsonify({'success': False, 'error': problem}), 400
 
-    common = {
-        'organization_id': org_id,
-        'uploaded_by': user_id,
-        'filename': file.filename,
-        'title': _title_from_form(file.filename),
-        'content_type': file.content_type,
-        'size_bytes': size_bytes,
-        'category': _field('category'),
-        'note': _field('note'),
-        # Opt-in, and off unless the admin says otherwise. This store holds
-        # background checks; a document must never become visible to the person
-        # it is about just because it was filed against them.
-        'shared_with_owner': (request.form.get('shared_with_owner')
-                              or request.args.get('shared_with_owner')
-                              or '').strip().lower() in ('1', 'true', 'yes'),
-    }
-    rows = [{**common, **t, 'storage_path': p} for t, p in zip(targets, paths)]
-    try:
-        inserted = (supabase.table('sis_secure_documents').insert(rows).execute()).data
-    except Exception as e:
-        logger.error(f'Secure document insert failed: {e}')
-        # Don't leave orphan blobs if the metadata rows failed.
-        _remove_blobs(supabase, paths)
-        return jsonify({'success': False, 'error': 'Failed to save document'}), 500
+    result = sis_secure_docs_service.store_document(
+        org_id, user_id, blob, file.filename, ext, content_type,
+        size_bytes, targets,
+        title=_title_from_form(file.filename),
+        category=_field('category'), note=_field('note'),
+        shared_with_owner=(request.form.get('shared_with_owner')
+                           or request.args.get('shared_with_owner')
+                           or '').strip().lower() in ('1', 'true', 'yes'),
+        # This blueprint is the HR store; the coordinator-reachable endpoints
+        # pass 'general' explicitly (routes/sis/staff_admin.py).
+        sensitivity=sis_secure_docs_service.clean_sensitivity(_field('sensitivity'), 'hr'),
+    )
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 500)
 
-    documents = inserted or rows
+    documents = result['documents']
     # `document` kept alongside `documents` for the single-person callers that
     # predate multi-attach.
     return jsonify({'success': True, 'documents': documents,
                     'document': documents[0]}), 201
+
+
+@bp.route('/secure-documents/signature-requests', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def send_hr_signature_request(user_id):
+    """Send a document for signature, HR paperwork included (HR_ROLES).
+
+    The coordinator-reachable twin lives at /api/sis/staff-admin/signature-requests
+    and differs only in refusing sensitivity='hr'.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.send_signature_request(user_id, org_id, allow_hr=True)
+
+
+@bp.route('/secure-documents/signature-requests', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_hr_signature_requests(user_id):
+    """Every send in the org, HR paperwork included."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.list_signature_requests(org_id, include_hr=True)
+
+
+@bp.route('/secure-documents/signature-requests/<assignment_id>/remind', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def remind_hr_signature_request(user_id, assignment_id):
+    """Chase one person who has not signed, employment paperwork included."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.remind_signature_request(
+        org_id, assignment_id, include_hr=True)
 
 
 @bp.route('/secure-documents', methods=['GET'])
@@ -314,13 +304,8 @@ def secure_document_url(user_id, doc_id):
     doc, _org_id, err = _doc_or_error(user_id, doc_id)
     if err:
         return err
-    try:
-        # admin client justified: signed URL on the private sis-secure-documents bucket; gated by @require_role(HR_ROLES) + _doc_or_error org check above
-        signed = get_supabase_admin_client().storage.from_(_SECURE_DOCS_BUCKET) \
-            .create_signed_url(doc['storage_path'], 3600)
-        url = signed.get('signedURL') or signed.get('signedUrl')
-    except Exception as e:
-        logger.error(f"Signed URL failed for {doc.get('storage_path')}: {e}")
+    url = sis_secure_docs_service.signed_url(doc['storage_path'])
+    if not url:
         return jsonify({'success': False, 'error': 'Could not open the document'}), 500
     return jsonify({'success': True, 'url': url})
 

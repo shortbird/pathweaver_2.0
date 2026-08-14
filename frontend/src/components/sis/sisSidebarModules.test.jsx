@@ -52,7 +52,10 @@ describe('SisSidebar module gating for the active org', () => {
     activeOrg = withHidden([])
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.getByText('CLP')).toBeInTheDocument()
-    expect(screen.getByText('Forms')).toBeInTheDocument()
+    // Forms and Onboarding are reached through the unified task surfaces now;
+    // their own paths still work, they are just not separate nav items.
+    expect(screen.getByText('My Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Task Center')).toBeInTheDocument()
     expect(screen.getByText('Billing')).toBeInTheDocument()
   })
 })

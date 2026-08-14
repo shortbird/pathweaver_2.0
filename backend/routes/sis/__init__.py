@@ -39,11 +39,21 @@ bp = Blueprint('sis', __name__, url_prefix='/api/sis')
 def _org_or_error(user_id):
     """Resolve the org for this request or return (None, error_response).
 
-    Accepts organization_id from the query string OR a JSON body (get_json(silent)
-    so a DELETE/GET with no JSON body never raises UnsupportedMediaType).
+    Accepts organization_id from the query string, a JSON body (get_json(silent)
+    so a DELETE/GET with no JSON body never raises UnsupportedMediaType), OR a
+    multipart form field.
+
+    The form field is not optional polish: a file upload is multipart, so
+    get_json returns nothing and the org the SIS org picker sent arrives only in
+    request.form. Every org-scoped caller was insulated from that because
+    resolve_org_id falls back to their own organization_id — but a superadmin has
+    none, so every upload endpoint answered "No organization in context" no
+    matter which school they were viewing.
     """
     body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
+    requested = (request.args.get('organization_id')
+                 or body.get('organization_id')
+                 or request.form.get('organization_id'))
     org_id = sis_service.resolve_org_id(user_id, requested)
     if not org_id:
         return None, (jsonify({

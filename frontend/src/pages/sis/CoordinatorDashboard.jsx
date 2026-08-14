@@ -225,8 +225,8 @@ const CoordinatorDashboard = ({ userName }) => {
               </li>
             ))}
           </ul>
-          <Link to="/forms" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
-            Open the queue →
+          <Link to="/my-tasks" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
+            Open my tasks →
           </Link>
         </Card>
 

@@ -259,6 +259,7 @@ class TestTheTemplateFlag:
         table.insert.side_effect = _insert
 
         with patch.object(onboarding, '_admin', return_value=client), \
+             patch.object(onboarding, 'assert_recipients_in_org'), \
              patch('services.sis_notifications.notify'):
             onboarding.assign(ORG, 't1', SIGNER, assigned_by='molly')
 

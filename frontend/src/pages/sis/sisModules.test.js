@@ -62,6 +62,31 @@ describe('sisModules', () => {
     }
   })
 
+  describe('the unified task surfaces', () => {
+    it('hides both task pages under one module key', () => {
+      const org = orgWith(['tasks'])
+      expect(isPathHidden('/my-tasks', org)).toBe(true)
+      expect(isPathHidden('/tasks', org)).toBe(true)
+    })
+
+    it('leaves the task pages alone for an org that hid only forms', () => {
+      /* An org that turned Forms off did not ask to lose the inbox where their
+         signatures and checklists now live. */
+      const org = orgWith(['forms'])
+      expect(isPathHidden('/my-tasks', org)).toBe(false)
+      expect(isPathHidden('/tasks', org)).toBe(false)
+      expect(isPathHidden('/forms', org)).toBe(true)
+    })
+
+    it('keeps the promise already made to orgs that hid forms or onboarding', () => {
+      /* Those keys stay meaningful rather than being folded into 'tasks': a
+         saved config is a promise, and reusing its name silently breaks it. */
+      const org = orgWith(['forms', 'onboarding'])
+      expect(isPathHidden('/forms', org)).toBe(true)
+      expect(isPathHidden('/onboarding', org)).toBe(true)
+    })
+  })
+
   describe('isCommunityEnabled (opt-in)', () => {
     it('is false by default (no flag, no org)', () => {
       expect(isCommunityEnabled(null)).toBe(false)

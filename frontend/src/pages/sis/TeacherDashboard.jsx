@@ -121,7 +121,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
       {/* Setup / action banners — kept up top because they gate the teacher's readiness. */}
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
-        <Link to="/onboarding" className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <Link to="/my-tasks" className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
             Onboarding: {onboarding.done} of {onboarding.total} items complete
           </p>

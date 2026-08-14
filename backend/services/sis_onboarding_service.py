@@ -20,11 +20,13 @@ name they typed, that they affirmed it, when, and from which address. See
 `_apply_signature`.
 """
 
+import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from services import sis_notifications
+from services import sis_secure_docs_service
 from services import sis_service
 from utils.logger import get_logger
 
@@ -64,6 +66,11 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
             # Optional external link surfaced next to the item (e.g. a form to
             # fill on another site). Families/staff open it to complete the step.
             'link': (item.get('link') or '').strip() or None,
+            # A signature item can name the ONE document it signs (see
+            # office_documents). Without it the item signs against whatever the
+            # office has shared with that person — the original behaviour, kept
+            # for templates that say "your contract will be uploaded".
+            'document_id': (item.get('document_id') or None),
         })
     return cleaned
 
@@ -146,11 +153,58 @@ def delete_template(org_id: str, template_id: str,
 
 # ── Assignments ──────────────────────────────────────────────────────────────
 
+class RecipientNotInOrg(Exception):
+    """A recipient does not belong to the assigning organization."""
+
+
+def assert_recipients_in_org(org_id: str, user_ids: List[str]) -> None:
+    """Refuse to assign or send to anyone outside this org.
+
+    An assignment row carries the CALLER's organization_id but a user_id taken
+    from the request. Without this check, an org admin could file a checklist —
+    or a document to sign — into any account on the platform, in any other
+    tenant, and have the product notify them about it.
+
+    Checks membership, not existence: a real user id from another school is
+    exactly the input this exists to reject. All-or-nothing, because a partial
+    send is harder to reason about than a refused one.
+    """
+    ids = [u for u in dict.fromkeys(user_ids) if u]
+    if not ids:
+        return
+    if not org_id:
+        raise RecipientNotInOrg('No organization in context')
+    try:
+        rows = (_admin().table('users').select('id, organization_id')
+                .in_('id', ids).execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        # Fail CLOSED. This is an authorization check, and a lookup we could not
+        # complete is not permission to skip it.
+        logger.error(f'[Onboarding] Recipient org check failed for org {org_id}: {e}')
+        raise RecipientNotInOrg('Could not verify recipients') from e
+
+    in_org = {r['id'] for r in rows if r.get('organization_id') == org_id}
+    rejected = [u for u in ids if u not in in_org]
+    if rejected:
+        logger.warning(
+            f'[Onboarding] Refused {len(rejected)} recipient(s) outside org {org_id}: '
+            f'{", ".join(str(r)[:8] + "..." for r in rejected[:5])}')
+        raise RecipientNotInOrg(
+            'Some recipients are not part of this organization' if len(rejected) > 1
+            else 'That person is not part of this organization')
+
+
 def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dict[str, Any]:
     rows = (_admin().table('sis_onboarding_templates').select('*')
             .eq('id', template_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
         return {'error': 'Template not found'}
+    # The template is confirmed to be this org's; the recipient is not, until
+    # here. Both halves have to be checked, or the row lands in another tenant.
+    try:
+        assert_recipients_in_org(org_id, [user_id])
+    except RecipientNotInOrg as e:
+        return {'error': str(e)}
     template = rows[0]
     # Family checklists live in the learning-app family portal; staff ones in the
     # SIS console — point the notification at the right place.
@@ -223,7 +277,8 @@ def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]
 
 
 def list_assignments(org_id: str, user_id: Optional[str] = None,
-                     audience: Optional[str] = None) -> List[Dict[str, Any]]:
+                     audience: Optional[str] = None,
+                     kind: Optional[str] = None) -> List[Dict[str, Any]]:
     """Checklists in this org, optionally for one person and one portal.
 
     `audience` matters because one person can hold both kinds: an org admin who
@@ -231,6 +286,11 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     portal. Without the filter their teacher checklist showed up in the family
     portal (reported 2026-08-05). The admin roll-up passes None on purpose — it
     is the one view that should see everything it assigned.
+
+    `kind` separates assigned templates from one-off documents sent for
+    signature. The checklist admin view passes 'checklist' so a handbook sent to
+    40 people doesn't bury the onboarding roll-up in 40 rows; a person's own
+    inbox passes None, because from where they stand both are just things to do.
     """
     q = (_admin().table('sis_onboarding_assignments').select('*')
          .eq('organization_id', org_id).order('created_at', desc=True))
@@ -238,6 +298,8 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
         q = q.eq('user_id', user_id)
     if audience:
         q = q.eq('audience', _clean_audience(audience))
+    if kind:
+        q = q.eq('kind', kind)
     rows = q.execute().data or []
     ids = list({r['user_id'] for r in rows})
     names = {}
@@ -261,15 +323,24 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     return rows
 
 
-def office_documents(org_id: str, user_id: str) -> List[Dict[str, Any]]:
+def office_documents(org_id: str, user_id: str,
+                     document_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Documents the office has put in this person's portal — shared with them,
     not uploaded by them. This is the pool a document-signature item signs
-    against (see _attach_sign_docs)."""
-    rows = (_admin().table('sis_secure_documents')
-            .select('id, title, filename')
-            .eq('organization_id', org_id).eq('owner_user_id', user_id)
-            .eq('shared_with_owner', True).eq('uploaded_by_owner', False)
-            .order('created_at', desc=True).execute()).data or []
+    against (see _attach_sign_docs).
+
+    `document_id` narrows the pool to one document: a send-for-signature item
+    names the exact document it was sent for, so signing it doesn't record every
+    other paper in their portal as "what they had in front of them" — and so a
+    second send can't be satisfied by a document from the first.
+    """
+    q = (_admin().table('sis_secure_documents')
+         .select('id, title, filename')
+         .eq('organization_id', org_id).eq('owner_user_id', user_id)
+         .eq('shared_with_owner', True).eq('uploaded_by_owner', False))
+    if document_id:
+        q = q.eq('id', document_id)
+    rows = (q.order('created_at', desc=True).execute()).data or []
     return [{'id': r['id'], 'title': r.get('title') or r.get('filename') or 'Document'}
             for r in rows]
 
@@ -286,9 +357,252 @@ def _attach_sign_docs(org_id: str, user_id: str, rows: List[Dict[str, Any]]) -> 
              if i.get('needs_signature') and not i.get('link') and not i.get('signature')]
     if not wants:
         return
-    docs = office_documents(org_id, user_id)
+    # An item naming its own document gets just that one; the shared pool is
+    # fetched once, and only when some item still needs it.
+    pool = None
     for i in wants:
-        i['sign_docs'] = docs
+        if i.get('document_id'):
+            i['sign_docs'] = office_documents(org_id, user_id, i['document_id'])
+            continue
+        if pool is None:
+            pool = office_documents(org_id, user_id)
+        i['sign_docs'] = pool
+
+
+# ── Send a document out for signature ────────────────────────────────────────
+#
+# The office uploads one document, picks the people who must sign it, and gets
+# back one trackable send. Mechanically this is a one-item checklist per person
+# whose single item signs that person's copy of the document — which is why it
+# lives here and not in a new service: the signing, the evidence recorded, the
+# "you can't sign what the office hasn't uploaded" guard and the admin's ability
+# to clear a signature all already exist below, and a second implementation of
+# any of them would be a second thing to get wrong.
+
+def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
+                       ext: str, content_type: Optional[str], size_bytes: int,
+                       recipients: List[Dict[str, Any]], *,
+                       title: Optional[str] = None, message: Optional[str] = None,
+                       due_date: Optional[str] = None,
+                       sensitivity: str = 'general') -> Dict[str, Any]:
+    """Upload a document, file a copy to each recipient, and assign each of them
+    a task to sign it.
+
+    `recipients` is [{'id': user_id, 'audience': 'staff'|'family'}] — audience
+    decides which portal the notification points at, exactly as a template's
+    audience does.
+    """
+    recipients = [r for r in recipients if r.get('id')]
+    # De-dupe by user, keeping order: sending the same document to one person
+    # twice in one action would give them two identical things to sign.
+    seen, unique = set(), []
+    for r in recipients:
+        if r['id'] in seen:
+            continue
+        seen.add(r['id'])
+        unique.append(r)
+    if not unique:
+        return {'error': 'Select at least one person to send this to'}
+
+    # Before anything is uploaded: everyone on the list is in this school.
+    try:
+        assert_recipients_in_org(org_id, [r['id'] for r in unique])
+    except RecipientNotInOrg as e:
+        return {'error': str(e), 'status': 403}
+
+    doc_title = sis_secure_docs_service.clean_title(title, filename)
+    stored = sis_secure_docs_service.store_document(
+        org_id, sent_by, blob, filename, ext, content_type, size_bytes,
+        targets=[{'owner_user_id': r['id'], 'student_user_id': None} for r in unique],
+        title=doc_title, category='Sent for signature',
+        # Shared on purpose: the whole point is that they open and sign it.
+        shared_with_owner=True, sensitivity=sensitivity,
+    )
+    if stored.get('error'):
+        return stored
+
+    documents = stored['documents']
+    batch_id = str(_uuid.uuid4())
+    rows = []
+    for recipient, doc in zip(unique, documents):
+        is_family = _clean_audience(recipient.get('audience')) == 'family'
+        rows.append({
+            'organization_id': org_id,
+            'user_id': recipient['id'],
+            'template_id': None,
+            'template_name': doc_title,
+            'audience': 'family' if is_family else 'staff',
+            'kind': 'signature_request',
+            'batch_id': batch_id,
+            'assigned_by': sent_by,
+            'items': [{
+                'key': 'sign',
+                'title': f'Sign: {doc_title}',
+                'description': (message or '').strip() or None,
+                'required': True,
+                'needs_document': False,
+                'needs_signature': True,
+                'needs_approval': False,
+                'due_date': due_date or None,
+                'link': None,
+                # Their own copy — not the pool. See office_documents.
+                'document_id': doc.get('id'),
+                'status': 'pending',
+                'document_url': None,
+                'submitted_at': None,
+                'approved_by': None,
+                'approved_at': None,
+                'admin_notes': None,
+                'signature': None,
+            }],
+        })
+
+    try:
+        inserted = (_admin().table('sis_onboarding_assignments')
+                    .insert(rows).execute()).data or []
+    except Exception as e:
+        logger.error(f'Send for signature failed to create assignments: {e}')
+        # The documents landed but nobody was asked to sign them; take the
+        # copies back out rather than leaving files in portals with no task.
+        sis_secure_docs_service.remove_blobs(
+            [d['storage_path'] for d in documents if d.get('storage_path')])
+        ids = [d['id'] for d in documents if d.get('id')]
+        if ids:
+            try:
+                _admin().table('sis_secure_documents').delete().in_('id', ids).execute()
+            except Exception:
+                logger.debug('Secure document row cleanup failed (non-fatal)', exc_info=True)
+        return {'error': 'Could not send the document for signature', 'status': 500}
+
+    for row in rows:
+        link = '/family/portal' if row['audience'] == 'family' else '/my-tasks'
+        sis_notifications.notify(
+            row['user_id'], 'Document to sign',
+            f'"{doc_title}" is waiting for your signature.',
+            link=link, organization_id=org_id)
+
+    return {'batch_id': batch_id, 'sent': len(inserted or rows),
+            'document_title': doc_title}
+
+
+def list_signature_batches(org_id: str, include_hr: bool = False) -> List[Dict[str, Any]]:
+    """Documents sent for signature, one entry per send, newest first.
+
+    A campus coordinator sees campus paperwork and not employment paperwork, so
+    the HR filter is applied to the DOCUMENTS the batch was built from rather
+    than to the assignments — the assignment rows themselves carry no
+    sensitivity, and inferring it from the title is exactly the kind of guess
+    that leaks a contract.
+    """
+    rows = (_admin().table('sis_onboarding_assignments').select('*')
+            .eq('organization_id', org_id).eq('kind', 'signature_request')
+            .not_.is_('batch_id', 'null')
+            .order('created_at', desc=True).execute()).data or []
+    if not rows:
+        return []
+
+    doc_ids = [i.get('document_id') for r in rows for i in (r.get('items') or [])
+               if i.get('document_id')]
+    allowed_docs: Dict[str, Dict[str, Any]] = {}
+    if doc_ids:
+        q = (_admin().table('sis_secure_documents')
+             .select('id, sensitivity, title, storage_path')
+             .in_('id', list(set(doc_ids))))
+        if not include_hr:
+            q = q.eq('sensitivity', 'general')
+        allowed_docs = {d['id']: d for d in (q.execute().data or [])}
+
+    user_ids = list({r['user_id'] for r in rows})
+    names = {}
+    if user_ids:
+        urows = (_admin().table('users')
+                 .select('id, first_name, last_name, display_name, email')
+                 .in_('id', user_ids).execute()).data or []
+        names = {u['id']: (u.get('display_name')
+                           or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                           or u.get('email')) for u in urows}
+
+    batches: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        item = (r.get('items') or [{}])[0]
+        doc_id = item.get('document_id')
+        # A row whose document the caller may not see doesn't just get its
+        # document hidden — the whole send stays invisible to them.
+        if doc_id and doc_id not in allowed_docs:
+            continue
+        if not doc_id and not include_hr:
+            continue
+        batch = batches.setdefault(r['batch_id'], {
+            'batch_id': r['batch_id'],
+            'title': r.get('template_name') or 'Document',
+            'sent_at': r.get('created_at'),
+            'sent_by': r.get('assigned_by'),
+            'sensitivity': (allowed_docs.get(doc_id) or {}).get('sensitivity', 'hr'),
+            'due_date': item.get('due_date'),
+            'recipients': [],
+        })
+        signature = item.get('signature') or None
+        batch['recipients'].append({
+            'assignment_id': r['id'],
+            'user_id': r['user_id'],
+            'name': names.get(r['user_id']),
+            'audience': r.get('audience'),
+            'document_id': doc_id,
+            'signed': bool(signature),
+            'signed_at': (signature or {}).get('signed_at'),
+            'signed_name': (signature or {}).get('name'),
+        })
+
+    out = list(batches.values())
+    for b in out:
+        b['recipients'].sort(key=lambda p: (p.get('name') or '').lower())
+        b['signed_count'] = len([p for p in b['recipients'] if p['signed']])
+        b['total_count'] = len(b['recipients'])
+    out.sort(key=lambda b: b.get('sent_at') or '', reverse=True)
+    return out
+
+
+def remind_signature_recipient(org_id: str, assignment_id: str, *,
+                               include_hr: bool = False) -> Dict[str, Any]:
+    """Nudge one person who still has not signed something sent to them.
+
+    The natural next click after reading "3 of 12 signed" is to chase the other
+    nine, and before this the only way to do it was outside the product.
+
+    Whether the caller may see this send at all is decided by the DOCUMENT's
+    sensitivity, exactly as in list_signature_batches — a coordinator must not be
+    able to reach an employment contract by guessing an assignment id, and an
+    "already signed"/"not found" split would confirm the row exists.
+    """
+    rows = (_admin().table('sis_onboarding_assignments')
+            .select('id, organization_id, user_id, audience, template_name, items')
+            .eq('id', assignment_id).eq('kind', 'signature_request')
+            .limit(1).execute()).data or []
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Not found', 'status': 404}
+
+    row = rows[0]
+    item = (row.get('items') or [{}])[0]
+    doc_id = item.get('document_id')
+    sensitivity = 'hr'
+    if doc_id:
+        docs = (_admin().table('sis_secure_documents').select('id, sensitivity')
+                .eq('id', doc_id).limit(1).execute()).data or []
+        sensitivity = (docs[0].get('sensitivity') if docs else 'hr') or 'hr'
+    if sensitivity == 'hr' and not include_hr:
+        return {'error': 'Not found', 'status': 404}
+
+    if item.get('signature'):
+        return {'error': 'They have already signed this', 'status': 400}
+
+    title = row.get('template_name') or 'Document'
+    is_family = _clean_audience(row.get('audience')) == 'family'
+    sis_notifications.notify(
+        row['user_id'], 'Reminder: document to sign',
+        f'"{title}" is still waiting for your signature.',
+        link='/family/portal' if is_family else '/my-tasks',
+        organization_id=org_id)
+    return {'reminded': row['user_id']}
 
 
 def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
@@ -435,7 +749,8 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
         documents = None
         if (target.get('needs_signature') and not target.get('link')
                 and _clean_audience(assignment.get('audience')) in AUDIENCES):
-            documents = office_documents(org_id, assignment['user_id'])
+            documents = office_documents(org_id, assignment['user_id'],
+                                         target.get('document_id'))
         problem = _apply_signature(target, fields, actor_id, documents=documents)
         if problem:
             return {'error': problem}

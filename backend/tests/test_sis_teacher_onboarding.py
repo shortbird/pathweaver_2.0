@@ -227,7 +227,11 @@ class TestChecklistAudience:
         from services import sis_onboarding_service as onboarding
         template = {'id': 't1', 'organization_id': ORG, 'name': 'Family paperwork',
                     'audience': 'family', 'items': [{'key': 'i1', 'title': 'Sign'}]}
-        client, table = _admin_with([[template], [{'id': 'a1'}]])
+        # Reads in order: the template, then the recipient's org membership
+        # (assign refuses to file a checklist into another tenant), then the insert.
+        client, table = _admin_with([[template],
+                                     [{'id': 'u-9', 'organization_id': ORG}],
+                                     [{'id': 'a1'}]])
         with patch('services.sis_onboarding_service.get_supabase_admin_client',
                    return_value=client), \
              patch('services.sis_notifications.notify'):

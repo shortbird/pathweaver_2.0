@@ -15,6 +15,8 @@ from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services import sis_parent_service as parent
 from services import sis_onboarding_service as onboarding
+from services import sis_secure_docs_service
+from services import sis_tasks_service
 
 logger = get_logger(__name__)
 
@@ -472,6 +474,55 @@ def my_family_checklists(user_id):
     return jsonify({'success': True,
                     'assignments': onboarding.list_assignments(
                         org_id, user_id=user_id, audience='family')})
+
+
+@bp.route('/my-tasks', methods=['GET'])
+@require_auth
+def my_family_tasks(user_id):
+    """The guardian's side of the unified inbox: their checklists and any
+    document the school has sent them to sign, in one list.
+
+    Same aggregator as the staff inbox with audience='family', so a guardian who
+    also works at the school gets their family items here and their staff items
+    in the console — never both in either place (2026-08-05).
+    """
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    include_done = str(request.args.get('include_done', '')).lower() in ('1', 'true', 'yes')
+    result = sis_tasks_service.list_my_tasks(org_id, user_id, audience='family',
+                                             include_done=include_done)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/my-documents/<doc_id>/url', methods=['GET'])
+@require_auth
+def family_office_document_url(user_id, doc_id):
+    """Open a document the office put in this guardian's portal.
+
+    The staff side of this has existed since secure documents shipped; the
+    family side did not, so a document sent to a parent for signature showed
+    them a "review before signing" link that went nowhere. A guardian may open a
+    document only when it is filed against them, shared with them, and belongs
+    to the org in context — the same three conditions the staff endpoint checks.
+    """
+    from database import get_supabase_admin_client
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    # admin client justified: sis_secure_documents is service-role-only; ownership + sharing + org are all verified below before any URL is signed
+    rows = (get_supabase_admin_client().table('sis_secure_documents')
+            .select('id, organization_id, owner_user_id, shared_with_owner, storage_path')
+            .eq('id', doc_id).limit(1).execute()).data or []
+    doc = rows[0] if rows else None
+    if (not doc or doc.get('organization_id') != org_id
+            or doc.get('owner_user_id') != user_id
+            or not doc.get('shared_with_owner')):
+        return jsonify({'success': False, 'error': 'Document not found'}), 404
+    url = sis_secure_docs_service.signed_url(doc['storage_path'])
+    if not url:
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
+    return jsonify({'success': True, 'url': url})
 
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])

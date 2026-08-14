@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -8,6 +9,8 @@ import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
+import ModalOverlay from '../../components/ui/ModalOverlay'
+import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
 
 /**
  * OnboardingPage — role-switched.
@@ -37,7 +40,7 @@ const ItemBadge = ({ status }) => (
 
 // hideWhenEmpty: on the admin view this renders above the template manager, and
 // an admin with no checklist of their own shouldn't see an empty-state for it.
-const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = null }) => {
+export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = null, openItemKey = null }) => {
   const [assignments, setAssignments] = useState([])
   const [busyKey, setBusyKey] = useState(null)
 
@@ -120,8 +123,12 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
             {(a.items || []).map((item) => {
               const busy = busyKey === `${a.id}:${item.key}`
               const done = ['complete', 'approved'].includes(item.status)
+              // Opened from the task inbox: mark the item they clicked so it is
+              // findable in a checklist of fifteen.
+              const highlighted = openItemKey && item.key === openItemKey
               return (
-                <li key={item.key} className="py-3 flex items-start gap-3">
+                <li key={item.key}
+                  className={`py-3 flex items-start gap-3 ${highlighted ? 'ring-2 ring-optio-purple rounded-lg px-2' : ''}`}>
                   {/* A signature item is completed by signing it, not by ticking
                       it — the backend refuses a tick with nothing signed, so a
                       live checkbox here would only ever produce an error. */}
@@ -291,14 +298,20 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
   )
 }
 
-const AdminOnboarding = ({ orgId }) => {
+// Exported: the Task Center's Checklists tab is this component.
+//
+// Ordered by how often an admin does each thing, which is the reverse of how it
+// used to read. Reviewing is daily and was buried inside collapsed rows — the
+// only way to learn that somebody was waiting on approval was to open every
+// person's checklist in turn — so it leads. Assigning is weekly and is a dialog.
+// Authoring templates is rare, so it sits at the bottom, collapsed, and its
+// editor opens over the page instead of pushing everything else off screen.
+export const AdminOnboarding = ({ orgId, onCount = null }) => {
   const [templates, setTemplates] = useState([])
   const [assignments, setAssignments] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
-  const [assignTemplate, setAssignTemplate] = useState('')
-  const [recipients, setRecipients] = useState([])
-  const [assignUserIds, setAssignUserIds] = useState([])
-  const [assigning, setAssigning] = useState(false)
+  const [assigningOpen, setAssigningOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
 
   const load = useCallback(() => {
     Promise.all([
@@ -312,41 +325,12 @@ const AdminOnboarding = ({ orgId }) => {
 
   useEffect(() => { if (orgId) load() }, [load, orgId])
 
-  // Recipients depend on the selected template's audience: staff get staff,
-  // family templates get the org's guardians.
-  const selectedTemplate = templates.find((t) => t.id === assignTemplate)
-  const audience = selectedTemplate?.audience === 'family' ? 'family' : 'staff'
-  useEffect(() => {
-    setAssignUserIds([])
-    if (!orgId || !assignTemplate) { setRecipients([]); return }
-    api.get(withOrg(`/api/sis/staff-admin/onboarding/recipients?audience=${audience}`, orgId))
-      .then((r) => setRecipients(r.data?.recipients || []))
-      .catch(() => setRecipients([]))
-  }, [orgId, assignTemplate, audience])
+  // Everything somebody has finished and is now waiting on the office for.
+  const awaitingReview = assignments.flatMap((a) => (a.items || [])
+    .filter((item) => item.needs_approval && item.status === 'complete')
+    .map((item) => ({ assignment: a, item })))
 
-  const toggleRecipient = (id) => setAssignUserIds((prev) => (
-    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-  ))
-  const allSelected = recipients.length > 0 && assignUserIds.length === recipients.length
-  const toggleAll = () => setAssignUserIds(allSelected ? [] : recipients.map((r) => r.id))
-
-  const assign = async () => {
-    if (!assignTemplate || !assignUserIds.length) { toast.error('Pick a template and at least one recipient'); return }
-    setAssigning(true)
-    try {
-      const r = await api.post('/api/sis/staff-admin/onboarding/assignments', {
-        organization_id: orgId, template_id: assignTemplate, user_ids: assignUserIds,
-      })
-      const n = r.data?.assigned ?? assignUserIds.length
-      toast.success(`Assigned to ${n} ${audience === 'family' ? 'famil' + (n === 1 ? 'y' : 'ies') : 'staff'}`)
-      setAssignUserIds([])
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not assign')
-    } finally {
-      setAssigning(false)
-    }
-  }
+  useEffect(() => { onCount?.(awaitingReview.length) }, [awaitingReview.length, onCount])
 
   const deleteTemplate = async (t, { force = false } = {}) => {
     if (!force && !window.confirm(`Delete the "${t.name}" template? This can't be undone.`)) return
@@ -407,83 +391,82 @@ const AdminOnboarding = ({ orgId }) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-neutral-900">Templates</h2>
-          {!editing && (
-            <button onClick={() => setEditing('new')} className="text-sm text-optio-purple font-medium hover:underline">
-              + New template
-            </button>
-          )}
-        </div>
-        {editing && (
-          <TemplateEditor orgId={orgId} template={editing === 'new' ? null : editing}
-            onSaved={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />
-        )}
-        <ul className="divide-y divide-gray-100 mt-2">
-          {templates.map((t) => (
-            <li key={t.id} className="py-2.5 flex items-center gap-2">
-              <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
-                {t.audience === 'family' ? 'Family' : 'Staff'}
-              </span>
-              {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
-              <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
-              <div className="ml-auto flex items-center gap-3">
-                <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
-                <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
-          <select value={assignTemplate} onChange={(e) => setAssignTemplate(e.target.value)} className={inputClass}>
-            <option value="">Assign a checklist…</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.audience === 'family' ? 'family' : 'staff'})</option>)}
-          </select>
-          {assignTemplate && (
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  {audience === 'family' ? 'Assign to families' : 'Assign to staff'}
+      {/* Waiting on you. Lifted out of the collapsed rows below, because an
+          approval nobody can see is an approval that does not happen. */}
+      {awaitingReview.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-200 p-4">
+          <h2 className="font-semibold text-neutral-900 mb-3">
+            Needs your review ({awaitingReview.length})
+          </h2>
+          <ul className="divide-y divide-gray-100">
+            {awaitingReview.map(({ assignment: a, item }) => (
+              <li key={`${a.id}:${item.key}`} className="py-2.5 flex items-center gap-2 text-sm flex-wrap">
+                <span className="font-medium text-neutral-900">{a.user_name}</span>
+                <span className="text-neutral-600">{item.title}</span>
+                <span className="text-xs text-neutral-400">{a.template_name}</span>
+                <span className="ml-auto flex items-center gap-2">
+                  <button onClick={() => reviewItem(a.id, item.key, 'approved')}
+                    className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+                  <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
+                    className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
                 </span>
-                {recipients.length > 0 && (
-                  <button onClick={toggleAll} className="text-xs text-optio-purple hover:underline">
-                    {allSelected ? 'Clear all' : 'Select all'}
-                  </button>
-                )}
-              </div>
-              {recipients.length === 0 ? (
-                <p className="text-sm text-neutral-400">No {audience === 'family' ? 'families' : 'staff'} to assign to yet.</p>
-              ) : (
-                <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
-                  {recipients.map((r) => (
-                    <label key={r.id} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
-                      <input type="checkbox" checked={assignUserIds.includes(r.id)} onChange={() => toggleRecipient(r.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                      <span className="text-neutral-800">{r.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-neutral-400">{assignUserIds.length} selected</span>
-                <button onClick={assign} disabled={assigning || !assignUserIds.length}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-                  {assigning ? 'Assigning…' : 'Assign checklist'}
-                </button>
-              </div>
-            </div>
-          )}
+              </li>
+            ))}
+          </ul>
         </div>
+      )}
+
+      {/* Collapsed until asked for, so sitting above the progress list costs it
+          a single row rather than a screenful. */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={() => setTemplatesOpen((v) => !v)}
+            aria-expanded={templatesOpen}
+            className="flex items-center gap-2 font-semibold text-neutral-900">
+            <span className={`text-neutral-400 text-xs transition-transform ${templatesOpen ? 'rotate-90' : ''}`}
+              aria-hidden="true">▶</span>
+            Checklist templates
+            <span className="text-xs font-normal text-neutral-400">({templates.length})</span>
+          </button>
+          <button onClick={() => setEditing('new')} className="text-sm text-optio-purple font-medium hover:underline">
+            + New template
+          </button>
+        </div>
+        {templatesOpen && (
+          <ul className="divide-y divide-gray-100 mt-3">
+            {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
+            {templates.map((t) => (
+              <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
+                  {t.audience === 'family' ? 'Family' : 'Staff'}
+                </span>
+                {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
+                <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
+                <div className="ml-auto flex items-center gap-3">
+                  <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
+                  <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h2 className="font-semibold text-neutral-900 mb-3">Staff progress</h2>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-semibold text-neutral-900">Checklist progress</h2>
+          <button onClick={() => setAssigningOpen(true)}
+            className="text-sm text-optio-purple font-medium hover:underline">
+            Assign a checklist
+          </button>
+        </div>
         {!assignments.length && <p className="text-sm text-neutral-500">No checklists assigned yet.</p>}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {assignments.map((a) => (
             <details key={a.id} className="border border-gray-200 rounded-lg">
+              {/* Unassign is NOT in here: a destructive action one pixel from
+                  the expand target is a mis-click waiting to happen. */}
               <summary className="px-3 py-2.5 cursor-pointer flex items-center gap-2 text-sm">
                 <span className="font-medium text-neutral-900">{a.user_name}</span>
                 <span className="text-neutral-500">{a.template_name}</span>
@@ -491,15 +474,8 @@ const AdminOnboarding = ({ orgId }) => {
                   a.status === 'complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
                   {a.done_count}/{a.total_count}
                 </span>
-                <button
-                  onClick={(e) => { e.preventDefault(); unassign(a) }}
-                  className="text-xs text-red-600 hover:underline shrink-0"
-                  title="Remove this checklist — their uploaded documents are kept"
-                >
-                  Unassign
-                </button>
               </summary>
-              <ul className="px-3 pb-3 divide-y divide-gray-100">
+              <ul className="px-3 divide-y divide-gray-100">
                 {(a.items || []).map((item) => (
                   <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-neutral-800">{item.title}</span>
@@ -529,10 +505,38 @@ const AdminOnboarding = ({ orgId }) => {
                   </li>
                 ))}
               </ul>
+              <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                <button onClick={() => unassign(a)}
+                  className="text-xs text-red-600 hover:underline"
+                  title="Remove this checklist — their uploaded documents are kept">
+                  Unassign this checklist
+                </button>
+              </div>
             </details>
           ))}
         </div>
       </div>
+
+      {editing && (
+        <ModalOverlay onClose={() => setEditing(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 space-y-4"
+            role="dialog" aria-modal="true" aria-label="Checklist template">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-neutral-900">
+                {editing === 'new' ? 'New checklist template' : `Edit "${editing.name}"`}
+              </h2>
+              <button onClick={() => setEditing(null)} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
+            </div>
+            <TemplateEditor orgId={orgId} template={editing === 'new' ? null : editing}
+              onSaved={() => { setEditing(null); setTemplatesOpen(true); load() }}
+              onCancel={() => setEditing(null)} />
+          </div>
+        </ModalOverlay>
+      )}
+
+      {assigningOpen && (
+        <AssignChecklistModal orgId={orgId} onClose={() => setAssigningOpen(false)} onAssigned={load} />
+      )}
     </div>
   )
 }
@@ -540,6 +544,8 @@ const AdminOnboarding = ({ orgId }) => {
 const OnboardingPage = () => {
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const [searchParams] = useSearchParams()
+  const openItemKey = searchParams.get('item')
   const admin = isSisAdmin(user)
   const [preview] = useState(() => (isSisAdmin(user) ? getPreviewTeacher() : null))
 
@@ -557,11 +563,11 @@ const OnboardingPage = () => {
           {/* An admin assigned a checklist of their own could only ever see the
               template manager here, so they had no Upload button and no way to
               complete their own items (reported 2026-08-05). */}
-          <MyChecklists orgId={orgId} hideWhenEmpty heading="Your checklist" />
+          <MyChecklists orgId={orgId} hideWhenEmpty heading="Your checklist" openItemKey={openItemKey} />
           <AdminOnboarding orgId={orgId} />
         </>
       ) : (
-        <MyChecklists orgId={orgId} preview={preview} />
+        <MyChecklists orgId={orgId} preview={preview} openItemKey={openItemKey} />
       )}
     </div>
   )

@@ -35,7 +35,12 @@ _MAX_DOC_BYTES = 10 * 1024 * 1024
 
 def _org_or_error(user_id):
     body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
+    # request.form matters for multipart (uploads): get_json returns nothing
+    # there, so a superadmin -- who has no org to fall back to -- could not
+    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
+    requested = (request.args.get('organization_id')
+                 or body.get('organization_id')
+                 or request.form.get('organization_id'))
     org_id = sis_service.resolve_org_id(user_id, requested)
     if not org_id:
         return None, (jsonify({

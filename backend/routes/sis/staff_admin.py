@@ -23,6 +23,7 @@ from services import sis_service
 from services import sis_staff_service as staff
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
+from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import ADMIN_ROLES, FINANCE_ROLES
 
@@ -33,7 +34,12 @@ bp = Blueprint('sis_staff_admin', __name__, url_prefix='/api/sis/staff-admin')
 
 def _org_or_error(user_id):
     body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
+    # request.form matters for multipart (uploads): get_json returns nothing
+    # there, so a superadmin -- who has no org to fall back to -- could not
+    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
+    requested = (request.args.get('organization_id')
+                 or body.get('organization_id')
+                 or request.form.get('organization_id'))
     org_id = sis_service.resolve_org_id(user_id, requested)
     if not org_id:
         return None, (jsonify({
@@ -113,6 +119,7 @@ def list_forms(user_id):
         return err
     return jsonify({'success': True,
                     'submissions': forms.list_all(org_id, request.args.get('status')),
+                    'counts': forms.status_counts(org_id),
                     'form_types': forms.FORM_TYPES})
 
 
@@ -225,7 +232,11 @@ def list_onboarding_assignments(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'assignments': onboarding.list_assignments(org_id)})
+    # 'checklist' only: a document sent to 40 people for signature is 40
+    # assignment rows, and burying the onboarding roll-up under them is exactly
+    # what the Sent-paperwork view exists to avoid.
+    return jsonify({'success': True,
+                    'assignments': onboarding.list_assignments(org_id, kind='checklist')})
 
 
 @bp.route('/onboarding/assignments', methods=['POST'])
@@ -274,6 +285,45 @@ def onboarding_recipients(user_id):
         return err
     audience = (request.args.get('audience') or 'staff').strip().lower()
     return jsonify({'success': True, 'recipients': onboarding.list_recipients(org_id, audience)})
+
+
+# ── Documents sent for signature ─────────────────────────────────────────────
+#
+# The front office sends campus paperwork (handbooks, permission slips, policy
+# acknowledgements) and tracks who has signed. Employment paperwork is the same
+# machinery with sensitivity='hr' and lives on the HR-gated blueprint
+# (routes/sis/secure_documents.py) — a campus coordinator reaches this pair and
+# not that one, which is the whole of the difference between them.
+
+@bp.route('/signature-requests', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def send_signature_request(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.send_signature_request(user_id, org_id, allow_hr=False)
+
+
+@bp.route('/signature-requests', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_signature_requests(user_id):
+    """Campus paperwork sends only — HR sends stay invisible here even to an
+    org_admin, who has the HR view for those."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.list_signature_requests(org_id, include_hr=False)
+
+
+@bp.route('/signature-requests/<assignment_id>/remind', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def remind_signature_request(user_id, assignment_id):
+    """Chase one person who has not signed. HR sends 404 here."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.remind_signature_request(
+        org_id, assignment_id, include_hr=False)
 
 
 # ── Timesheets & payroll export ──────────────────────────────────────────────

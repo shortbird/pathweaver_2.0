@@ -108,6 +108,17 @@ const FamilyPortalPage = () => {
     }
   }
 
+  // A document the school put in this family's portal to sign (item.sign_docs) —
+  // a different store from the family's own uploads above, so a different door.
+  const openSignDoc = async (doc) => {
+    try {
+      const r = await api.get(`/api/sis/parent/my-documents/${doc.id}/url?organization_id=${orgId}`)
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
   if (loading) return <div className="max-w-3xl mx-auto px-4 py-8"><p className="text-gray-500">Loading…</p></div>
 
   return (
@@ -202,6 +213,7 @@ const FamilyPortalPage = () => {
                             statement={a.signature_statement}
                             busy={busy}
                             onSign={(fields) => patchItem(a.id, item.key, fields)}
+                            onOpenDoc={openSignDoc}
                           />
                         )}
                         <div className="mt-1.5 flex items-center gap-3 flex-wrap">

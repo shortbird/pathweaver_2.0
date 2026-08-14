@@ -93,6 +93,8 @@ const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
 const OnboardingPage = lazy(() => import('../pages/sis/OnboardingPage'))
+const MyTasksPage = lazy(() => import('../pages/sis/MyTasksPage'))
+const TaskCenterPage = lazy(() => import('../pages/sis/TaskCenterPage'))
 const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
 const MyTimePage = lazy(() => import('../pages/sis/MyTimePage'))
 const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
@@ -155,6 +157,12 @@ const SisRoutes = () => (
       <Route path="my-schedule" element={<ModuleRoute path="/my-schedule"><MySchedulePage /></ModuleRoute>} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
+      {/* The unified surfaces. /forms and /onboarding stay mounted rather than
+          redirecting: they own the deep-linked completion flows the task inbox
+          links into (?submission=, ?assignment=&item=), and every notification
+          sent before this shipped points at them. They are simply off the nav. */}
+      <Route path="my-tasks" element={<ModuleRoute path="/my-tasks"><MyTasksPage /></ModuleRoute>} />
+      <Route path="tasks" element={<ModuleRoute path="/tasks"><TaskCenterPage /></ModuleRoute>} />
       <Route path="forms" element={<ModuleRoute path="/forms"><StaffFormsPage /></ModuleRoute>} />
       <Route path="onboarding" element={<ModuleRoute path="/onboarding"><OnboardingPage /></ModuleRoute>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />

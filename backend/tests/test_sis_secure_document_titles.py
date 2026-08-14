@@ -81,12 +81,22 @@ def _hr_admin(store, org='org-1'):
                return_value=_admin_client_for_role('org_admin')), \
          patch('routes.sis.secure_documents.get_supabase_admin_client',
                return_value=store), \
+         patch('services.sis_secure_docs_service.get_supabase_admin_client',
+               return_value=store), \
          patch('services.sis_service.resolve_org_id', return_value=org):
         yield
 
 
+# A minimal but genuine PDF. The upload path identifies files by their magic
+# bytes rather than trusting the extension, so a placeholder like b'pdf-bytes'
+# named .pdf is correctly refused — see
+# sis_secure_docs_service.resolve_content_type. These tests are about titles, so
+# they need a file that gets past that gate.
+MINIMAL_PDF = b'%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n'
+
+
 def _upload(client, auth_headers, store, **fields):
-    data = {'file': (BytesIO(b'pdf-bytes'), 'IMG_4021.pdf'), 'organization_id': 'org-1'}
+    data = {'file': (BytesIO(MINIMAL_PDF), 'IMG_4021.pdf'), 'organization_id': 'org-1'}
     data.update(fields)
     with _hr_admin(store):
         return client.post('/api/sis/secure-documents/upload',

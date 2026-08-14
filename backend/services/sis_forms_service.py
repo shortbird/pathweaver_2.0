@@ -39,6 +39,11 @@ FORM_TYPES = {
 # Maps to iCreate's task vocabulary: submitted=New, under_review(+assignee)=
 # Assigned, in_progress=In Progress, waiting=Waiting, resolved=Completed.
 STATUSES = ('submitted', 'under_review', 'in_progress', 'waiting', 'resolved')
+# Everything that is still somebody's problem. The queue defaults to these:
+# listing all statuses meant resolved history crowded out live work, and with
+# list_all capped at 300 rows a busy term would eventually push the open items
+# off the end of the list entirely.
+OPEN_STATUSES = tuple(s for s in STATUSES if s != 'resolved')
 PRIORITIES = ('low', 'normal', 'high', 'urgent')
 
 # Form types a parent/guardian may file from the family Learning app. These land
@@ -155,9 +160,32 @@ def list_mine(org_id: str, user_id: str) -> List[Dict[str, Any]]:
 def list_all(org_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
     q = (_admin().table('sis_form_submissions').select('*')
          .eq('organization_id', org_id).order('created_at', desc=True).limit(300))
-    if status in STATUSES:
+    if status == 'open':
+        q = q.neq('status', 'resolved')
+    elif status in STATUSES:
         q = q.eq('status', status)
     return _decorate(q.execute().data or [])
+
+
+def status_counts(org_id: str) -> Dict[str, int]:
+    """How many submissions sit in each status, counted by Postgres.
+
+    The queue's filter chips show these. Counting rows fetched into Python would
+    be wrong twice over: list_all caps at 300, and PostgREST would silently cap
+    an uncapped read at 1000 (see CLAUDE.md, Row Limits).
+    """
+    counts: Dict[str, int] = {}
+    for status in STATUSES:
+        try:
+            counts[status] = (_admin().table('sis_form_submissions')
+                              .select('id', count='exact')
+                              .eq('organization_id', org_id).eq('status', status)
+                              .limit(1).execute()).count or 0
+        except Exception:
+            logger.debug('Form status count failed for %s', status, exc_info=True)
+            counts[status] = 0
+    counts['open'] = sum(counts.get(s, 0) for s in OPEN_STATUSES)
+    return counts
 
 
 def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],

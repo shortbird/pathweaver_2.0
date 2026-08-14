@@ -72,10 +72,19 @@ beforeEach(() => {
 
 const renderPage = () => render(<MemoryRouter><StaffFormsPage /></MemoryRouter>)
 
+// A queue row is a scan line until it is opened — every control below lives in
+// the expanded body. See the AdminQueue comment for why editing is a state of
+// the row rather than its resting shape.
+const openRow = async (title) => {
+  const label = await screen.findByText(title)
+  fireEvent.click(label)
+  return label.closest('li')
+}
+
 describe('the task queue', () => {
   it('assigns a submission to a staff member', async () => {
     renderPage()
-    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const row = await openRow('Printer in Room 3')
     const assignee = within(row).getByLabelText(/assign/i)
     fireEvent.change(assignee, { target: { value: 'cc-1' } })
     await waitFor(() => expect(api.patch).toHaveBeenCalled())
@@ -86,7 +95,7 @@ describe('the task queue', () => {
 
   it('offers the working statuses', async () => {
     renderPage()
-    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const row = await openRow('Printer in Room 3')
     const status = within(row).getByLabelText(/status/i)
     const options = [...status.querySelectorAll('option')].map((o) => o.value)
     for (const s of ['submitted', 'under_review', 'in_progress', 'waiting', 'resolved']) {
@@ -99,7 +108,7 @@ describe('the task queue', () => {
 
   it('sets priority and due date', async () => {
     renderPage()
-    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const row = await openRow('Printer in Room 3')
     fireEvent.change(within(row).getByLabelText(/priority/i), { target: { value: 'high' } })
     await waitFor(() => expect(api.patch).toHaveBeenCalled())
     expect(api.patch.mock.calls[0][1].priority).toBe('high')
@@ -111,7 +120,7 @@ describe('the task queue', () => {
 
   it('shows and posts comments on the thread', async () => {
     renderPage()
-    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    const row = await openRow('Printer in Room 3')
     fireEvent.click(within(row).getByRole('button', { name: /comments/i }))
     await screen.findByText('On it')
     const input = within(row).getByPlaceholderText(/add a comment/i)
@@ -124,6 +133,93 @@ describe('the task queue', () => {
   })
 
   it('lets an admin create a task assigned to someone', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    // The admin submit form carries assignment fields; posting goes through
+    // the staff-admin create door, which may assign.
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
+    fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Replace supplies in Room 4' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const [url, body] = api.post.mock.calls.find(([u]) => u.includes('/staff-admin/forms'))
+    expect(url).toContain('/api/sis/staff-admin/forms')
+    expect(body.assigned_to).toBe('cc-1')
+  })
+})
+
+/**
+ * The queue is a scanning surface first. Before this it rendered every
+ * submission fully expanded — four selects, a resolution box and a comment
+ * toggle each — and loaded every status, so resolved history was interleaved
+ * with live work and the page could only grow.
+ */
+describe('reading the queue at a glance', () => {
+  it("opens on the work that is still somebody's problem", async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    const queueCalls = api.get.mock.calls.map(([u]) => u)
+      .filter((u) => u.includes('/api/sis/staff-admin/forms') && !u.includes('/comments'))
+    expect(queueCalls[0]).toContain('status=open')
+  })
+
+  it('keeps a row collapsed until it is opened', async () => {
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    // The scan line shows what you triage on...
+    expect(within(row).getByText('Maintenance request')).toBeInTheDocument()
+    // ...and none of what you edit with.
+    expect(within(row).queryByLabelText(/^status$/i)).not.toBeInTheDocument()
+    expect(within(row).queryByLabelText(/assigned to/i)).not.toBeInTheDocument()
+    expect(within(row).queryByText('It is jammed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Printer in Room 3'))
+    expect(within(row).getByLabelText(/^status$/i)).toBeInTheDocument()
+    expect(within(row).getByText('It is jammed')).toBeInTheDocument()
+  })
+
+  it('shows who a request is assigned to without opening it', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/comments')) return Promise.resolve({ data: { comments: [] } })
+      if (url.includes('/api/sis/staff-admin/forms')) {
+        return Promise.resolve({ data: {
+          submissions: [{ ...SUBMISSION, assigned_to: 'cc-1', assigned_to_name: 'Kate Coordinator' }],
+          counts: { open: 4, resolved: 9 },
+        } })
+      }
+      if (url.includes('/api/sis/teacher/forms')) return Promise.resolve({ data: { submissions: [], form_types: {} } })
+      if (url.includes('/api/sis/staff')) return Promise.resolve({ data: { staff: STAFF } })
+      return Promise.resolve({ data: {} })
+    })
+    renderPage()
+    const row = (await screen.findByText('Printer in Room 3')).closest('li')
+    expect(within(row).getByText(/Kate Coordinator/)).toBeInTheDocument()
+  })
+
+  it('counts the queue on its filter chips', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/comments')) return Promise.resolve({ data: { comments: [] } })
+      if (url.includes('/api/sis/staff-admin/forms')) {
+        return Promise.resolve({ data: { submissions: [SUBMISSION], counts: { open: 4, resolved: 9 } } })
+      }
+      if (url.includes('/api/sis/teacher/forms')) return Promise.resolve({ data: { submissions: [], form_types: {} } })
+      if (url.includes('/api/sis/staff')) return Promise.resolve({ data: { staff: STAFF } })
+      return Promise.resolve({ data: {} })
+    })
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Open (4)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Completed (9)' })).toBeInTheDocument()
+  })
+
+  it('asks the server for completed work rather than filtering in the page', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /^Completed/ }))
+    await waitFor(() => expect(api.get.mock.calls.some(
+      ([u]) => u.includes('/api/sis/staff-admin/forms') && u.includes('status=resolved'))).toBe(true))
+  })
+})
+
+describe('the admin submit form', () => {
+  it('still files a task from the forms page itself', async () => {
     renderPage()
     await screen.findByText('Printer in Room 3')
     // The admin submit form carries assignment fields; posting goes through

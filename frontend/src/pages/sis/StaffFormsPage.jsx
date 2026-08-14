@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -46,7 +47,9 @@ const StatusPill = ({ status }) => (
   </span>
 )
 
-const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, admin = false, staff = [] }) => {
+// Exported: the Task Center opens this in a dialog from its "Assign or send"
+// menu, so filing a task no longer means leaving the page you track tasks on.
+export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, admin = false, staff = [], embedded = false }) => {
   const [formType, setFormType] = useState('incident')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -90,8 +93,12 @@ const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, admin = f
   }
 
   return (
-    <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-      <h2 className="font-semibold text-neutral-900">{admin ? 'Submit a form or task' : 'Submit a form'}</h2>
+    <form onSubmit={submit}
+      className={embedded ? 'space-y-3' : 'bg-white rounded-xl border border-gray-200 p-4 space-y-3'}>
+      {/* In a dialog the heading is the dialog's, not the form's. */}
+      {!embedded && (
+        <h2 className="font-semibold text-neutral-900">{admin ? 'Submit a form or task' : 'Submit a form'}</h2>
+      )}
       {/* Teachers see this page too, so the description is written to them.
           Admins get the third-person version, which is what they're here for. */}
       <p className="text-sm text-neutral-500">
@@ -189,19 +196,57 @@ const CommentThread = ({ orgId, submissionId }) => {
   )
 }
 
-const AdminQueue = ({ orgId, staff }) => {
+// The queue's three views. "Open" is everything not yet resolved — the office's
+// actual working set, and the default, because loading every status meant
+// resolved history was interleaved with live work forever and the queue could
+// only grow. Completed is somewhere you go, not something you scroll past.
+const QUEUE_VIEWS = [
+  ['open', 'Open'],
+  ['resolved', 'Completed'],
+  ['', 'All'],
+]
+
+// Exported: the Task Center's Requests tab is this queue, unchanged. It stays
+// here rather than moving to its own file so the page and the tab can never
+// drift into two versions of the same queue.
+//
+// One row is one line until you open it. Rendering every submission's four
+// controls, resolution box and comment toggle at once turned a queue of twenty
+// into twenty open mini-forms — around 120 live controls on a page whose job is
+// to answer "what needs attention?". Scanning and editing are different
+// activities, so they are now different states of the row.
+export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = null }) => {
   const [rows, setRows] = useState([])
-  const [filter, setFilter] = useState('')
+  const [counts, setCounts] = useState({})
+  const [view, setView] = useState('open')
   const [notes, setNotes] = useState({})
-  const [commentsOpen, setCommentsOpen] = useState({})
+  // A request opened from the task inbox arrives with its id in the URL: expand
+  // that row, so the person lands on the row they clicked rather than at the
+  // top of a queue and a hunt.
+  const [openRow, setOpenRow] = useState(() => openSubmissionId || null)
+  const [commentsOpen, setCommentsOpen] = useState(
+    () => (openSubmissionId ? { [openSubmissionId]: true } : {}))
 
   const load = useCallback(() => {
-    api.get(withOrg(`/api/sis/staff-admin/forms${filter ? `?status=${filter}` : ''}`, orgId))
-      .then((r) => setRows(r.data?.submissions || []))
+    api.get(withOrg(`/api/sis/staff-admin/forms${view ? `?status=${view}` : ''}`, orgId))
+      .then((r) => {
+        setRows(r.data?.submissions || [])
+        setCounts(r.data?.counts || {})
+      })
       .catch(() => toast.error('Failed to load submissions'))
-  }, [orgId, filter])
+  }, [orgId, view])
 
   useEffect(() => { if (orgId) load() }, [load, orgId])
+  useEffect(() => { if (counts.open !== undefined) onCount?.(counts.open) }, [counts.open, onCount])
+
+  // A deep-linked request may be resolved, in which case the default Open view
+  // would not contain it. Widen once rather than showing an empty queue.
+  useEffect(() => {
+    if (openSubmissionId && rows.length && !rows.some((r) => r.id === openSubmissionId)) {
+      setView('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSubmissionId, rows])
 
   const update = async (id, fields) => {
     try {
@@ -216,96 +261,128 @@ const AdminQueue = ({ orgId, staff }) => {
   }
 
   const controlClass = 'px-2 py-1.5 border border-gray-300 rounded-lg text-sm'
+  const viewCount = (value) => (
+    value === 'open' ? counts.open : value === 'resolved' ? counts.resolved : undefined
+  )
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <h2 className="font-semibold text-neutral-900">Requests and tasks</h2>
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} className={controlClass}>
-          <option value="">All statuses</option>
-          {STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </div>
-      {!rows.length && <p className="text-sm text-neutral-500">No submissions.</p>}
-      <ul className="divide-y divide-gray-100">
-        {rows.map((f) => (
-          <li key={f.id} className="py-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{f.form_type_label}</span>
-              {f.submitter_role === 'parent' && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple font-medium">Parent</span>
-              )}
-              <span className="font-medium text-neutral-900">{f.title}</span>
-              <StatusPill status={f.status} />
-              {PRIORITY_STYLES[f.priority] && (
-                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[f.priority]}`}>{f.priority}</span>
-              )}
-              {f.due_date && (
-                <span className="text-xs text-neutral-500">Due {f.due_date}</span>
-              )}
-              <span className="text-xs text-neutral-400 ml-auto">
-                {f.submitted_by_name} · {new Date(f.created_at).toLocaleDateString()}
-              </span>
-            </div>
-            <p className="text-sm text-neutral-600 mt-1 whitespace-pre-wrap">{f.payload?.body}</p>
-            {f.payload?.location && <p className="text-xs text-neutral-400">Location: {f.payload.location}</p>}
-            {f.resolution_notes && (
-              <p className="text-sm text-green-700 mt-1">Resolution: {f.resolution_notes}</p>
-            )}
-
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <label className="text-xs text-neutral-500 flex items-center gap-1">
-                Status
-                <select aria-label="Status" value={f.status}
-                  onChange={(e) => update(f.id, { status: e.target.value, resolution_notes: notes[f.id] || undefined })}
-                  className={controlClass}>
-                  {STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label className="text-xs text-neutral-500 flex items-center gap-1">
-                Assigned to
-                <select aria-label="Assigned to" value={f.assigned_to || ''}
-                  onChange={(e) => update(f.id, { assigned_to: e.target.value || null })}
-                  className={controlClass}>
-                  <option value="">Nobody</option>
-                  {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </label>
-              <label className="text-xs text-neutral-500 flex items-center gap-1">
-                Priority
-                <select aria-label="Priority" value={f.priority || 'normal'}
-                  onChange={(e) => update(f.id, { priority: e.target.value })}
-                  className={`${controlClass} capitalize`}>
-                  {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </label>
-              <label className="text-xs text-neutral-500 flex items-center gap-1">
-                Due
-                <input type="date" aria-label="Due date" value={f.due_date || ''}
-                  onChange={(e) => update(f.id, { due_date: e.target.value || null })}
-                  className={controlClass} />
-              </label>
-              <button onClick={() => setCommentsOpen((p) => ({ ...p, [f.id]: !p[f.id] }))}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
-                Comments
+        <div className="flex items-center gap-1" role="group" aria-label="Filter requests">
+          {QUEUE_VIEWS.map(([value, label]) => {
+            const n = viewCount(value)
+            return (
+              <button key={value || 'all'} onClick={() => setView(value)}
+                aria-pressed={view === value}
+                className={`px-3 py-1.5 rounded-lg text-sm ${view === value
+                  ? 'bg-optio-purple/10 text-optio-purple font-semibold'
+                  : 'text-neutral-600 hover:bg-gray-100'}`}>
+                {label}{n !== undefined ? ` (${n})` : ''}
               </button>
-            </div>
+            )
+          })}
+        </div>
+      </div>
+      {!rows.length && (
+        <p className="text-sm text-neutral-500">
+          {view === 'open' ? 'Nothing open — the queue is clear.' : 'No submissions.'}
+        </p>
+      )}
+      <ul className="divide-y divide-gray-100">
+        {rows.map((f) => {
+          const expanded = openRow === f.id
+          return (
+            <li key={f.id}
+              className={f.id === openSubmissionId ? 'ring-2 ring-optio-purple rounded-lg px-2 -mx-2' : ''}>
+              {/* The scan line. Everything needed to triage, nothing needed to edit. */}
+              <button type="button" aria-expanded={expanded}
+                onClick={() => setOpenRow(expanded ? null : f.id)}
+                className="w-full text-left py-3 flex items-center gap-2 flex-wrap hover:bg-gray-50 rounded-lg px-2 -mx-2">
+                <span className={`text-neutral-400 text-xs shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                  aria-hidden="true">▶</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{f.form_type_label}</span>
+                {f.submitter_role === 'parent' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple font-medium">Parent</span>
+                )}
+                <span className="font-medium text-neutral-900">{f.title}</span>
+                <StatusPill status={f.status} />
+                {PRIORITY_STYLES[f.priority] && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[f.priority]}`}>{f.priority}</span>
+                )}
+                {f.due_date && (
+                  <span className="text-xs text-neutral-500">Due {f.due_date}</span>
+                )}
+                <span className="text-xs text-neutral-400 ml-auto text-right">
+                  {f.assigned_to_name ? `${f.assigned_to_name} · ` : ''}
+                  {f.submitted_by_name} · {new Date(f.created_at).toLocaleDateString()}
+                </span>
+              </button>
 
-            {f.status !== 'resolved' && (
-              <div className="flex items-center gap-2 mt-2">
-                <input value={notes[f.id] || ''} onChange={(e) => setNotes((p) => ({ ...p, [f.id]: e.target.value }))}
-                  placeholder="Resolution notes (optional)"
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                <button onClick={() => update(f.id, { status: 'resolved', resolution_notes: notes[f.id] || undefined })}
-                  className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-sm">
-                  Resolve
-                </button>
-              </div>
-            )}
+              {expanded && (
+                <div className="pb-3 px-2">
+                  <p className="text-sm text-neutral-600 whitespace-pre-wrap">{f.payload?.body}</p>
+                  {f.payload?.location && <p className="text-xs text-neutral-400 mt-0.5">Location: {f.payload.location}</p>}
+                  {f.resolution_notes && (
+                    <p className="text-sm text-green-700 mt-1">Resolution: {f.resolution_notes}</p>
+                  )}
 
-            {commentsOpen[f.id] && <CommentThread orgId={orgId} submissionId={f.id} />}
-          </li>
-        ))}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <label className="text-xs text-neutral-500 flex items-center gap-1">
+                      Status
+                      <select aria-label="Status" value={f.status}
+                        onChange={(e) => update(f.id, { status: e.target.value, resolution_notes: notes[f.id] || undefined })}
+                        className={controlClass}>
+                        {STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-500 flex items-center gap-1">
+                      Assigned to
+                      <select aria-label="Assigned to" value={f.assigned_to || ''}
+                        onChange={(e) => update(f.id, { assigned_to: e.target.value || null })}
+                        className={controlClass}>
+                        <option value="">Nobody</option>
+                        {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-500 flex items-center gap-1">
+                      Priority
+                      <select aria-label="Priority" value={f.priority || 'normal'}
+                        onChange={(e) => update(f.id, { priority: e.target.value })}
+                        className={`${controlClass} capitalize`}>
+                        {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-500 flex items-center gap-1">
+                      Due
+                      <input type="date" aria-label="Due date" value={f.due_date || ''}
+                        onChange={(e) => update(f.id, { due_date: e.target.value || null })}
+                        className={controlClass} />
+                    </label>
+                    <button onClick={() => setCommentsOpen((p) => ({ ...p, [f.id]: !p[f.id] }))}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+                      Comments
+                    </button>
+                  </div>
+
+                  {f.status !== 'resolved' && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input value={notes[f.id] || ''} onChange={(e) => setNotes((p) => ({ ...p, [f.id]: e.target.value }))}
+                        placeholder="Resolution notes (optional)"
+                        className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                      <button onClick={() => update(f.id, { status: 'resolved', resolution_notes: notes[f.id] || undefined })}
+                        className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-sm">
+                        Resolve
+                      </button>
+                    </div>
+                  )}
+
+                  {commentsOpen[f.id] && <CommentThread orgId={orgId} submissionId={f.id} />}
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
@@ -314,6 +391,8 @@ const AdminQueue = ({ orgId, staff }) => {
 const StaffFormsPage = () => {
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const [searchParams] = useSearchParams()
+  const openSubmissionId = searchParams.get('submission')
   const admin = isSisAdmin(user)
   const [preview] = useState(() => (isSisAdmin(user) ? getPreviewTeacher() : null))
   const [mine, setMine] = useState([])
@@ -371,7 +450,9 @@ const StaffFormsPage = () => {
         </ul>
       </div>
 
-      {admin && !preview && <AdminQueue orgId={orgId} staff={staff} />}
+      {admin && !preview && (
+        <AdminQueue orgId={orgId} staff={staff} openSubmissionId={openSubmissionId} />
+      )}
     </div>
   )
 }

@@ -74,6 +74,19 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    // Things people owe, and the paperwork behind them. Forms and Onboarding
+    // used to sit here as separate entries; both are now reached through My
+    // Tasks (what I owe) and Task Center (what the office is asking of people).
+    // Their own paths still work for deep links and old notifications.
+    label: 'Tasks & Documents',
+    items: [
+      { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
+      { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
+      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
+      { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
+    ],
+  },
+  {
     label: 'Operations',
     items: [
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard },
@@ -81,15 +94,20 @@ const NAV_SECTIONS = [
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
       { name: 'Training', path: '/training', d: ICONS.check },
-      { name: 'Forms', path: '/forms', d: ICONS.clipboard },
-      { name: 'Onboarding', path: '/onboarding', d: ICONS.check },
-      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
-      { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
+      { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
+    ],
+  },
+  {
+    // The money, plus the clock that feeds it. Grouped because it maps exactly
+    // onto the finance tier (utils/sis_roles.FINANCE_ROLES): a teacher sees only
+    // My Time here, and for a campus coordinator the whole section disappears
+    // rather than leaving money links scattered through Operations.
+    label: 'Time & Money',
+    items: [
       { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
       { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
       { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check },
       { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card },
-      { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
     ],
   },
   {
