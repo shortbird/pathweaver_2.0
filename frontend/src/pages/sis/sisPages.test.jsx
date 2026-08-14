@@ -30,8 +30,10 @@ const { api, apiData } = vi.hoisted(() => {
   const apiData = (url) => {
     if (url.includes('/api/sis/dashboard')) {
       return { data: { data: {
-        organization: { name: 'Org' }, total_students: 3, active_last_7_days: 1,
-        households: 2, enrollment_status: { enrolled: 2, applicant: 1 },
+        organization: { name: 'Org' },
+        snapshot: { total_students: 3, active_last_7_days: 1, households: 2,
+                    enrollment_status: { enrolled: 2, applicant: 1 } },
+        attention: {}, today: {}, events: [], settings: { hidden_modules: [] },
       } } }
     }
     if (url.includes('/api/sis/roster')) {

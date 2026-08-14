@@ -56,10 +56,18 @@ def _org_or_error(user_id):
 @bp.route('/dashboard', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def dashboard(user_id):
+    """The School Dashboard: the census, plus every queue waiting on the office.
+
+    ADMIN_ROLES includes campus coordinators, so the service decides per caller
+    what goes in the payload — finance is omitted for them rather than hidden by
+    the frontend. See services/sis_dashboard_service.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'data': sis_service.get_dashboard(org_id)})
+    from services import sis_dashboard_service
+    return jsonify({'success': True,
+                    'data': sis_dashboard_service.get_admin_dashboard(org_id, user_id)})
 
 
 @bp.route('/roster', methods=['GET'])

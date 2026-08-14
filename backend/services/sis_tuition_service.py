@@ -164,6 +164,22 @@ def _existing_invoice(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
             'status': r.get('status'), 'total_cents': r.get('total_cents')}
 
 
+def pending_count(org_id: str) -> int:
+    """How many students are waiting to be invoiced — the number without the queue.
+
+    tuition_queue() answers the same question, but to do it it prices every
+    student's schedule: the catalog, their enrollments, their household and its
+    funding source. That is the right work for the page and 8x the work for a
+    dashboard tile, which needs one integer.
+    """
+    from services import sis_clp_service as clp
+    finished = clp.finished_student_ids(org_id)
+    if not finished:
+        return 0
+    invoiced = _invoiced_student_ids(org_id)
+    return len([sid for sid in finished if sid not in invoiced])
+
+
 def tuition_queue(org_id: str) -> Dict[str, Any]:
     """The tuition-approver queue: every CLP-finished student who has NOT yet been
     invoiced, each with a total seeded from their finalized schedule."""
