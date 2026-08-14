@@ -18,6 +18,7 @@ const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
+const RosterImportPage = lazy(() => import('./admin/RosterImportPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -56,6 +57,7 @@ const AdminPage = () => {
 
   const superadminTabs = [
     { path: 'moderation', label: 'Moderation' },
+    { path: 'roster-import', label: 'Roster Import' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
     { path: 'docs', label: 'Docs' }
   ]
@@ -135,6 +137,7 @@ const AdminPage = () => {
           <Route path="bulk-generate" element={<BulkCourseGeneration />} />
           <Route path="docs" element={<DocsManager />} />
           <Route path="moderation" element={<ModerationQueue />} />
+          <Route path="roster-import" element={<RosterImportPage />} />
         </Routes>
       </Suspense>
     </div>

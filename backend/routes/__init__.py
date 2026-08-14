@@ -215,6 +215,9 @@ def register_all(app):
     from routes.admin import lti_registrations as admin_lti_registrations
     app.register_blueprint(admin_lti_registrations.bp)
 
+    from routes.admin import roster_import as admin_roster_import
+    app.register_blueprint(admin_roster_import.bp)
+
     from routes import observer
     app.register_blueprint(observer.bp)
 

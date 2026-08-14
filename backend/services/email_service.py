@@ -1016,6 +1016,34 @@ class EmailService(BaseService):
             }
         )
 
+    def send_roster_invite_email(
+        self,
+        user_email: str,
+        user_name: str,
+        org_name: str,
+        invite_link: str,
+        is_parent: bool = False,
+        expiry_days: int = 14
+    ) -> bool:
+        """Account-setup invite for someone the school enrolled from a roster.
+
+        Unlike student_account_invite there is no parent in the story to name --
+        the school created the account, and the parent is getting one of these
+        too. The link sets the password and confirms the email in one step.
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Welcome to Optio -- set your password",
+            template_name='roster_parent_invite' if is_parent else 'roster_student_invite',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'org_name': org_name,
+                'invite_link': invite_link,
+                'expiry_days': expiry_days,
+            }
+        )
+
     def send_staff_access_added_email(
         self,
         user_email: str,
