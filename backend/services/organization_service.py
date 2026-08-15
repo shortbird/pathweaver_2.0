@@ -17,9 +17,13 @@ class OrganizationService(BaseService):
         """Get organization by slug"""
         return self.org_repo.get_by_slug(slug)
 
-    def list_all_organizations(self) -> List[Dict[str, Any]]:
-        """List all active organizations (superadmin only)"""
-        return self.org_repo.get_all_active()
+    def list_all_organizations(self, include_archived: bool = False) -> List[Dict[str, Any]]:
+        """List organizations (superadmin only).
+
+        Active only by default; the superadmin dashboard opts in to archived
+        ones so they can be restored or deleted.
+        """
+        return self.org_repo.get_all(include_archived=include_archived)
 
     def create_organization(
         self,

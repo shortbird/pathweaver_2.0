@@ -137,10 +137,17 @@ bp = Blueprint('organization_management', __name__)
 @bp.route('', methods=['GET'])
 @require_superadmin
 def list_organizations(superadmin_user_id):
-    """List all organizations (superadmin only)"""
+    """List all organizations (superadmin only).
+
+    ?include_archived=true also returns archived orgs, so the dashboard can
+    offer Restore / Delete on them. Every other caller keeps the active-only
+    default.
+    """
     try:
+        include_archived = request.args.get('include_archived', '').lower() in ('1', 'true', 'yes')
+
         service = OrganizationService()
-        organizations = service.list_all_organizations()
+        organizations = service.list_all_organizations(include_archived=include_archived)
 
         return jsonify({
             'organizations': organizations,
@@ -341,6 +348,103 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error updating organization {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/archive', methods=['POST'])
+@require_superadmin
+def archive_organization(superadmin_user_id, org_id):
+    """Archive an organization (superadmin only).
+
+    Reversible. Detaches every member to a standalone platform account -- they
+    keep all of their own data -- and hides the org from every list. See
+    services/organization_lifecycle.py for why this is separate from delete.
+    """
+    from services import organization_lifecycle as lifecycle
+
+    try:
+        # admin client justified: admin-only route (@require_superadmin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+        result = lifecycle.archive_organization(client, org_id, superadmin_user_id)
+        return jsonify(result), 200
+    except lifecycle.OrganizationNotFound as e:
+        return jsonify({'error': str(e)}), 404
+    except lifecycle.OrganizationLifecycleError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error archiving organization {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/restore', methods=['POST'])
+@require_superadmin
+def restore_organization(superadmin_user_id, org_id):
+    """Un-archive an organization (superadmin only).
+
+    Brings the org back everywhere. Former members stay platform users; re-add
+    them from the People tab.
+    """
+    from services import organization_lifecycle as lifecycle
+
+    try:
+        # admin client justified: admin-only route (@require_superadmin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+        result = lifecycle.restore_organization(client, org_id, superadmin_user_id)
+        return jsonify(result), 200
+    except lifecycle.OrganizationNotFound as e:
+        return jsonify({'error': str(e)}), 404
+    except lifecycle.OrganizationLifecycleError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error restoring organization {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/deletion-preview', methods=['GET'])
+@require_superadmin
+def preview_organization_deletion(superadmin_user_id, org_id):
+    """What still points at this org, and whether it can be deleted."""
+    from services import organization_lifecycle as lifecycle
+
+    try:
+        # admin client justified: admin-only route (@require_superadmin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+        return jsonify(lifecycle.deletion_preview(client, org_id)), 200
+    except lifecycle.OrganizationNotFound as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error building deletion preview for {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>', methods=['DELETE'])
+@require_superadmin
+def delete_organization(superadmin_user_id, org_id):
+    """Permanently delete an archived, empty organization (superadmin only).
+
+    Refuses unless the org is archived, nothing references it, and the caller
+    retyped its name. 409 carries the blocking table counts so the UI can say
+    what is in the way instead of just "no".
+    """
+    from services import organization_lifecycle as lifecycle
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        # admin client justified: admin-only route (@require_superadmin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+        result = lifecycle.delete_organization(
+            client, org_id, superadmin_user_id, data.get('confirm_name')
+        )
+        return jsonify(result), 200
+    except lifecycle.OrganizationNotFound as e:
+        return jsonify({'error': str(e)}), 404
+    except lifecycle.OrganizationNotEmpty as e:
+        return jsonify({'error': str(e), 'blockers': e.blockers}), 409
+    except lifecycle.OrganizationLifecycleError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error deleting organization {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 

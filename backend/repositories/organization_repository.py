@@ -43,6 +43,24 @@ class OrganizationRepository(BaseRepository):
             .execute()
         return response.data if response.data else []
 
+    def get_all(self, include_archived: bool = False) -> List[Dict[str, Any]]:
+        """Get all organizations, archived ones only when asked for.
+
+        Archiving sets is_active = false, and get_all_active is what every
+        picker and list reads -- so an archived org correctly disappears
+        everywhere. The superadmin dashboard is the one caller that needs to see
+        them anyway, otherwise there is nothing left to press Restore on.
+        """
+        if not include_archived:
+            return self.get_all_active()
+
+        response = self.client.table(self.table_name)\
+            .select('*')\
+            .order('is_active', desc=True)\
+            .order('name')\
+            .execute()
+        return response.data if response.data else []
+
     def create_organization(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create new organization (superadmin only)"""
         from utils.logger import get_logger
