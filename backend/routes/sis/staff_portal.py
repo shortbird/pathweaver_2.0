@@ -238,7 +238,7 @@ def my_profile(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    profile = staff.get_staff_profile(org_id, _read_target(user_id, org_id))
+    profile = staff.get_staff_profile_with_contact(org_id, _read_target(user_id, org_id))
     # Employment/pay details are finance-facing; the teacher-portal profile hides
     # ALL of them (hourly_rate_cents AND pay_type/payroll_id). Popping only the
     # rate previously leaked pay_type and payroll_id — and _read_target lets an

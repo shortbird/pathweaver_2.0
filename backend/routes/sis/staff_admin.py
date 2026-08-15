@@ -58,7 +58,7 @@ def get_profile(user_id, staff_id):
     if err:
         return err
     return jsonify({'success': True,
-                    'profile': staff.redact_pay(staff.get_staff_profile(org_id, staff_id),
+                    'profile': staff.redact_pay(staff.get_staff_profile_with_contact(org_id, staff_id),
                                                 not sis_service.caller_sees_pay(user_id)),
                     'assignments': staff.list_assignments(org_id, staff_id)})
 

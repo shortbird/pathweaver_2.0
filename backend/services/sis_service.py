@@ -781,7 +781,7 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
     archived = set() if include_archived else _archived_staff_ids(org_id)
     resp = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, username, '
+        .select('id, first_name, last_name, display_name, email, username, phone_number, '
                 'role, org_role, org_roles, last_active, created_at, bio, avatar_url')
         .eq('organization_id', org_id)
         .execute()
@@ -804,6 +804,10 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
             'first_name': u.get('first_name'),
             'last_name': u.get('last_name'),
             'email': u.get('email'),
+            # The office rings teachers; an emergency contact is not the same
+            # number (iCreate, 2026-08-14: "We really need to have the teacher's
+            # phone numbers in here").
+            'phone_number': u.get('phone_number'),
             'roles': staff_roles,
             'role_labels': [_STAFF_ROLE_LABEL.get(r, r) for r in staff_roles],
             'last_active': u.get('last_active'),

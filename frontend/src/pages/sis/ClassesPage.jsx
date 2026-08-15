@@ -1073,18 +1073,33 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   // Nobody to offer to when every live entry already has an offer out — the
   // per-entry Offer again / Enroll now buttons are the way forward there.
   const waitingCount = entries.filter((e) => e.status === 'waiting').length
+  // Still queued for a seat — the number the office reads as "the waitlist".
+  const liveCount = entries.filter((e) => e.status === 'waiting' || e.status === 'offered').length
 
   // Admit the student now. The school already decided — this doesn't wait for
   // the family to click Claim, and it isn't blocked by a full class.
-  const enroll = async (e) => {
-    if (!window.confirm(`Enroll ${e.student_name} in ${cls?.name || 'this class'} now?`)) return
+  // A clash with something they already attend comes back as a 409 and is
+  // confirmed before forcing — admitting off the waitlist is how a student
+  // ended up in two Wednesday microschool sections at once.
+  const enroll = async (e, force = false) => {
+    if (!force && !window.confirm(`Enroll ${e.student_name} in ${cls?.name || 'this class'} now?`)) return
     setBusy(e.id)
     try {
-      await api.post(`/api/sis/waitlist/${e.id}/enroll`, { organization_id: orgId })
+      await api.post(`/api/sis/waitlist/${e.id}/enroll`, { organization_id: orgId, force })
       toast.success(`${e.student_name} enrolled`)
       reload()
       onChanged?.()
     } catch (err) {
+      const clash = err?.response?.status === 409 && err.response.data?.conflicts
+      if (clash?.length) {
+        const names = clash.map((c) => c.class_name || c.name).filter(Boolean).join(', ')
+        if (window.confirm(
+          `${e.student_name} already has ${names} at that time.\n\n`
+          + `Enroll in ${cls?.name || 'this class'} anyway? They'll be in both.`)) {
+          return enroll(e, true)
+        }
+        return
+      }
       toast.error(err?.response?.data?.error || 'Could not enroll the student')
     } finally { setBusy(null) }
   }
@@ -1163,7 +1178,12 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   return (
     <div className="border-t border-gray-100 mt-3 pt-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-neutral-700">Waitlist ({entries.length})</span>
+        {/* The count is the LIVE queue. Promoted/declined/expired rows stay in
+            the list as history, but counting them meant the number never moved
+            when a student was enrolled (iCreate, 2026-08-13: "If someone is
+            enrolled, then the waitlist number should go down"). Matches
+            waitlist_count everywhere else: waiting + offered. */}
+        <span className="text-sm font-medium text-neutral-700">Waitlist ({liveCount})</span>
         <Button size="sm" variant="secondary" onClick={offerNext} disabled={isFull || !waitingCount}
           title={isFull
             ? 'The class is full — free a seat or raise the capacity to offer one'
@@ -1185,11 +1205,15 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
           const done = e.status === 'promoted'
           return (
             <div key={e.id} className="flex items-center justify-between gap-3 text-sm py-0.5">
-              <span className="text-neutral-700 min-w-0 truncate">
-                #{e.position} · {e.student_name}
-                {e.student_age != null && <span className="ml-1.5 text-xs text-neutral-400">age {e.student_age}</span>}
-                <span className={`ml-2 text-xs ${meta.tone}`}>{meta.label}</span>
-                {expiry && <span className="ml-1.5 text-xs text-neutral-400">({expiry})</span>}
+              {/* Only the NAME may truncate. Age and status used to share the
+                  truncating span, so on a long name they were the first thing
+                  clipped — which is why the age looked missing rather than
+                  absent (iCreate, 2026-08-13: "I also can't see the age here"). */}
+              <span className="text-neutral-700 min-w-0 flex items-baseline gap-1.5">
+                <span className="min-w-0 truncate">#{e.position} · {e.student_name}</span>
+                {e.student_age != null && <span className="shrink-0 text-xs text-neutral-400">age {e.student_age}</span>}
+                <span className={`shrink-0 text-xs ${meta.tone}`}>{meta.label}</span>
+                {expiry && <span className="shrink-0 text-xs text-neutral-400">({expiry})</span>}
               </span>
               {!done && (
                 <span className="flex items-center gap-2 shrink-0 text-xs">

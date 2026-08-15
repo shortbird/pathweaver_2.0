@@ -258,6 +258,9 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
                   <td className="px-4 py-2 font-medium text-neutral-900 whitespace-nowrap">{s.name}</td>
                   <td className="px-4 py-2 text-neutral-500">
                     {s.is_placeholder ? <span className="text-neutral-400">—</span> : s.email}
+                    {s.phone_number && (
+                      <span className="block text-xs text-neutral-400">{s.phone_number}</span>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">

@@ -80,6 +80,45 @@ class TestWaitlistRoutes:
             resp = client.post('/api/sis/classes/c1/waitlist', headers=auth_headers, json={})
         assert resp.status_code == 400
 
+    def test_add_warns_when_still_on_the_enrollment_waitlist(
+            self, client, auth_headers, mock_verify_token):
+        """iCreate, 2026-08-13: "I should not be able to put someone onto a class
+        waitlist if they are on the enrollment waitlist." They have no place at
+        the school yet, so they can't hold a place in its classes."""
+        with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry',
+                   return_value={'id': 'e1', 'position': 4}), \
+             patch('routes.sis.waitlist.waitlist.add_to_waitlist') as add:
+            resp = client.post('/api/sis/classes/c1/waitlist', headers=auth_headers,
+                               json={'student_user_id': 's1', 'organization_id': 'org-1'})
+        assert resp.status_code == 409
+        assert json.loads(resp.data)['enrollment_waitlisted'] is True
+        add.assert_not_called()
+
+    def test_add_honours_force_past_the_warning(self, client, auth_headers, mock_verify_token):
+        """A warning, not a wall — the office can queue a class ahead of an
+        admission it knows is coming."""
+        with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry',
+                   return_value={'id': 'e1', 'position': 4}), \
+             patch('routes.sis.waitlist.waitlist.add_to_waitlist',
+                   return_value={'id': 'w1', 'position': 1}) as add:
+            resp = client.post('/api/sis/classes/c1/waitlist', headers=auth_headers,
+                               json={'student_user_id': 's1', 'organization_id': 'org-1',
+                                     'force': True})
+        assert resp.status_code == 201
+        add.assert_called_once()
+
+    def test_add_is_unaffected_for_an_enrolled_student(
+            self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value=None), \
+             patch('routes.sis.waitlist.waitlist.add_to_waitlist',
+                   return_value={'id': 'w1', 'position': 1}):
+            resp = client.post('/api/sis/classes/c1/waitlist', headers=auth_headers,
+                               json={'student_user_id': 's1', 'organization_id': 'org-1'})
+        assert resp.status_code == 201
+
     def test_offer_next_when_empty(self, client, auth_headers, mock_verify_token):
         # The response also explains WHY nobody could be offered (see
         # TestNobodyWaitingReason in test_sis_waitlist_staff_actions.py).
@@ -106,7 +145,7 @@ class TestWaitlistRoutes:
     def test_respond_accept_enrolls(self, client, auth_headers, mock_verify_token):
         captured = {}
 
-        def fake_respond(org_id, entry_id, accept, enrolled_by):
+        def fake_respond(org_id, entry_id, accept, enrolled_by, force=False):
             captured.update(accept=accept, by=enrolled_by)
             return {'entry': {'id': entry_id, 'status': 'promoted'}, 'enrolled': True}
 

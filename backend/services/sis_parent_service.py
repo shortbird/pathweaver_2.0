@@ -937,6 +937,12 @@ def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
     result = sis_waitlist_service.respond_to_offer(org_id, entry['id'], True, enrolled_by=user_id)
     if result.get('error'):
         return {'error': result['error']}
+    # A family can't override a clash — only the office can, from the class's
+    # Waitlist tab. Name what it collides with so they know what to drop.
+    if result.get('conflicts'):
+        names = ', '.join(c.get('class_name', 'another class') for c in result['conflicts'])
+        return {'error': f'That class meets at the same time as {names}. '
+                         'Drop the other class first, or contact the school.'}
     return {'enrolled': True, 'class_name': klass.get('name')}
 
 

@@ -117,7 +117,7 @@ class TestEnrollEntry:
                    return_value={'entry': {'id': 'w1', 'status': 'promoted'}, 'enrolled': True}) as respond:
             result = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1')
         assert result['enrolled'] is True
-        respond.assert_called_once_with('org-1', 'w1', True, 'admin-1')
+        respond.assert_called_once_with('org-1', 'w1', True, 'admin-1', force=False)
 
     def test_expired_entry_still_enrolls(self):
         """The whole point: the offer lapsing must not strand the admission."""
@@ -343,6 +343,51 @@ class TestEnrollInAnotherSection:
                    return_value={'enrolled': True}) as respond:
             assert wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1')['enrolled'] is True
         respond.assert_called_once()
+
+
+@pytest.mark.unit
+class TestAdmitIntoTheOriginalClassChecksTheClock:
+    """iCreate, 2026-08-14: "We shouldn't be able to allow students to double
+    book for classes... I think it's because I added her to one from a
+    waitlist." Charlotte Myers held two Elementary Microschool sections that
+    both met Wednesday 09:30-15:00. The sibling-section move and the age
+    exception both checked for a clash; admitting into the class the student
+    actually queued for did not, so it was the one way left to do it."""
+
+    ENTRY = {'id': 'w1', 'class_id': 'c1', 'status': 'offered', 'student_user_id': 's1'}
+    CLASH = [{'class_id': 'c9', 'class_name': 'Elementary Microschool (Wednesday)'}]
+
+    def test_clash_refuses_and_names_the_class(self):
+        with patch('services.sis_waitlist_service._admin') as admin, \
+             patch('services.sis_waitlist_service.schedule_conflicts', return_value=self.CLASH):
+            admin.return_value.table.return_value.select.return_value.eq.return_value \
+                .eq.return_value.limit.return_value.execute.return_value = Mock(data=[self.ENTRY])
+            result = wl.respond_to_offer('org-1', 'w1', True, 'admin-1')
+        assert result['conflicts'] == self.CLASH
+        assert not result.get('enrolled')
+        # Nothing was written: the upsert would be a second call on the client.
+        assert not admin.return_value.table.return_value.upsert.called
+
+    def test_force_admits_anyway(self):
+        """The office overrides — they can see the family's week; we can't."""
+        with patch('services.sis_waitlist_service._admin') as admin, \
+             patch('services.sis_waitlist_service.schedule_conflicts', return_value=self.CLASH), \
+             patch('services.sis_waitlist_service.sync_class_group', create=True), \
+             patch('services.class_group_sync_service.sync_class_group'):
+            admin.return_value.table.return_value.select.return_value.eq.return_value \
+                .eq.return_value.limit.return_value.execute.return_value = Mock(data=[self.ENTRY])
+            result = wl.respond_to_offer('org-1', 'w1', True, 'admin-1', force=True)
+        assert result['enrolled'] is True
+
+    def test_a_clear_week_enrolls_without_a_prompt(self):
+        with patch('services.sis_waitlist_service._admin') as admin, \
+             patch('services.sis_waitlist_service.schedule_conflicts', return_value=[]), \
+             patch('services.class_group_sync_service.sync_class_group'):
+            admin.return_value.table.return_value.select.return_value.eq.return_value \
+                .eq.return_value.limit.return_value.execute.return_value = Mock(data=[self.ENTRY])
+            result = wl.respond_to_offer('org-1', 'w1', True, 'admin-1')
+        assert result['enrolled'] is True
+        assert 'conflicts' not in result
 
 
 @pytest.mark.unit

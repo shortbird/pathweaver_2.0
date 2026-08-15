@@ -210,7 +210,7 @@ def enroll_entry(org_id: str, entry_id: str, enrolled_by: str,
         return {'entry': entry, 'already_enrolled': True}
     if class_id and class_id != entry['class_id']:
         return _enroll_in_other_section(org_id, entry, class_id, enrolled_by, force=force)
-    return respond_to_offer(org_id, entry_id, True, enrolled_by)
+    return respond_to_offer(org_id, entry_id, True, enrolled_by, force=force)
 
 
 def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
@@ -447,8 +447,18 @@ def expire_stale_offers() -> Dict[str, Any]:
 
 
 def respond_to_offer(org_id: str, entry_id: str, accept: bool,
-                     enrolled_by: str) -> Dict[str, Any]:
-    """Accept (→ enroll + promoted) or decline an offer."""
+                     enrolled_by: str, force: bool = False) -> Dict[str, Any]:
+    """Accept (→ enroll + promoted) or decline an offer.
+
+    Admitting someone off the waitlist is an enrollment like any other, so it
+    gets the same clash check the sibling-section move and the age exception
+    already run (iCreate, 2026-08-14: a student was admitted from the waitlist
+    into a second Elementary Microschool section meeting the very same Wednesday
+    09:30-15:00 block). Parents were already blocked from doing this to
+    themselves; only the staff path could still do it silently. Refuse the first
+    attempt and hand back the clashing classes; the caller re-sends with force
+    once a human has looked.
+    """
     entry = (
         _admin().table('sis_waitlist_entries')
         .select('*').eq('id', entry_id).eq('organization_id', org_id).limit(1).execute()
@@ -463,6 +473,9 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
             .eq('id', entry_id).execute()
         )
         return {'entry': resp.data[0] if resp.data else None}
+    conflicts = schedule_conflicts(entry['student_user_id'], entry['class_id'])
+    if conflicts and not force:
+        return {'conflicts': conflicts}
     # accept → create the LMS enrollment, mark promoted
     _admin().table('class_enrollments').upsert({
         'class_id': entry['class_id'],

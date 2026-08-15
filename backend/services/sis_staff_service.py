@@ -30,9 +30,10 @@ DEFAULT_TZ = 'America/Denver'
 PROFILE_FIELDS = ('position', 'staff_type', 'pay_type', 'payroll_id',
                   'hourly_rate_cents', 'emergency_contact_name',
                   'emergency_contact_phone', 'work_schedule', 'start_date',
-                  'end_date', 'is_active', 'uses_time_clock')
+                  'end_date', 'is_active', 'uses_time_clock', 'phone_number')
 # The subset a teacher may edit on their own profile.
-SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone')
+SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone',
+                       'phone_number')
 
 # What someone is paid. A campus coordinator runs the campus but is not trusted
 # with the school's money (iCreate, 2026-08-01), and these three fields are the
@@ -109,11 +110,46 @@ def get_staff_profile(org_id: str, user_id: str) -> Dict[str, Any]:
                                  'is_active': True, 'uses_time_clock': False}
 
 
+def get_staff_profile_with_contact(org_id: str, user_id: str) -> Dict[str, Any]:
+    """The profile plus the staff member's own phone, which lives on `users`.
+
+    Separate from get_staff_profile on purpose: that one is on the clock-in path
+    and runs for every punch, and the phone is only wanted by the profile screen.
+    """
+    profile = get_staff_profile(org_id, user_id)
+    profile['phone_number'] = _user_phone(user_id)
+    return profile
+
+
+def _user_phone(user_id: str) -> Optional[str]:
+    """The staff member's own number, which lives on `users`, not the staff
+    profile — so Employment showed an emergency contact and no way to reach the
+    teacher (iCreate, 2026-08-14)."""
+    try:
+        rows = (_admin().table('users').select('phone_number')
+                .eq('id', user_id).limit(1).execute()).data or []
+    except Exception:  # noqa: BLE001 — a missing number must not break the profile
+        return None
+    return rows[0].get('phone_number') if rows else None
+
+
 def upsert_staff_profile(org_id: str, user_id: str, fields: Dict[str, Any],
                          allowed: tuple = PROFILE_FIELDS) -> Dict[str, Any]:
+    # phone_number is the one editable field that lives on `users`, not on the
+    # staff profile row. Handled here so Employment can save it in the same form
+    # as everything else.
+    if 'phone_number' in fields and 'phone_number' in allowed:
+        phone = fields['phone_number']
+        if isinstance(phone, str):
+            phone = phone.strip() or None
+        try:
+            _admin().table('users').update({'phone_number': phone}).eq('id', user_id).execute()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not save phone number for staff {user_id[:8]}: {e}")
+
     payload: Dict[str, Any] = {}
     for k in allowed:
-        if k not in fields:
+        if k not in fields or k == 'phone_number':  # already written to `users`
             continue
         v = fields[k]
         if isinstance(v, str):
@@ -127,12 +163,15 @@ def upsert_staff_profile(org_id: str, user_id: str, fields: Dict[str, Any],
     if rate is not None and (not isinstance(rate, int) or rate < 0):
         return {'error': 'hourly_rate_cents must be a non-negative integer'}
     if not payload:
-        return {'profile': get_staff_profile(org_id, user_id)}
+        return {'profile': get_staff_profile_with_contact(org_id, user_id)}
     payload.update({'user_id': user_id, 'organization_id': org_id,
                     'updated_at': datetime.now(timezone.utc).isoformat()})
     row = (_admin().table('sis_staff_profiles')
            .upsert(payload, on_conflict='user_id').execute()).data
-    return {'profile': row[0] if row else payload}
+    saved = row[0] if row else payload
+    # Comes from `users`, so it isn't in the upsert's returning row.
+    saved['phone_number'] = _user_phone(user_id)
+    return {'profile': saved}
 
 
 # ── Duties / non-class assignments ───────────────────────────────────────────

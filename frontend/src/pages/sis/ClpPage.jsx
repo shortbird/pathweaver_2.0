@@ -296,13 +296,16 @@ const ClpPage = () => {
   }
 
   // ── Enrollment actions ─────────────────────────────────────────────────────
-  const runAction = async (key, fn, successMsg) => {
+  // `rethrow` lets a caller handle a specific failure itself (a 409 it wants to
+  // confirm and retry) instead of it dying in the generic toast.
+  const runAction = async (key, fn, successMsg, { rethrow = false } = {}) => {
     setBusyId(key)
     try {
       await fn()
       if (successMsg) toast.success(successMsg)
       loadStudent(selectedId)
     } catch (e) {
+      if (rethrow) throw e
       toast.error(e.response?.data?.error || 'Something went wrong')
     } finally {
       setBusyId(null)
@@ -321,11 +324,28 @@ const ClpPage = () => {
     `Dropped ${cls.name}`,
   )
 
-  const joinWaitlist = (cls) => runAction(
-    cls.class_id,
-    () => api.post(`/api/sis/classes/${cls.class_id}/waitlist`, { student_user_id: selectedId, organization_id: orgId }),
-    `Added to the waitlist for ${cls.name}`,
-  )
+  // Queuing someone for a class while they're still waiting on a place at the
+  // school comes back as a 409 and is confirmed before forcing.
+  const joinWaitlist = async (cls, force = false) => {
+    try {
+      await runAction(
+        cls.class_id,
+        () => api.post(`/api/sis/classes/${cls.class_id}/waitlist`,
+          { student_user_id: selectedId, organization_id: orgId, force }),
+        `Added to the waitlist for ${cls.name}`,
+        { rethrow: true },
+      )
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
+        if (window.confirm(
+          `${e.response.data.error}\n\nAdd them to the ${cls.name} waitlist anyway?`)) {
+          return joinWaitlist(cls, true)
+        }
+        return
+      }
+      toast.error(e.response?.data?.error || 'Something went wrong')
+    }
+  }
 
   const leaveWaitlist = (cls) => runAction(
     cls.class_id,

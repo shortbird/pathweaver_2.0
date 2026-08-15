@@ -64,6 +64,24 @@ def add_waitlist(user_id, class_id):
         return jsonify({'success': False, 'error': 'student_user_id is required'}), 400
     if not _class_in_org(org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
+    # A student still waiting for a seat AT THE SCHOOL can't hold a seat in one
+    # of its classes yet (iCreate, 2026-08-13: "I should not be able to put
+    # someone onto a class waitlist if they are on the enrollment waitlist").
+    # A warning, not a wall — the office sometimes queues a class ahead of an
+    # admission it knows is coming — so it asks once, then honours force.
+    if not data.get('force'):
+        from services import sis_enrollment_waitlist_service as enrollment_waitlist
+        try:
+            pending = enrollment_waitlist.waiting_entry(org_id, student_user_id)
+        except Exception:  # noqa: BLE001 — never block staff over the check itself
+            pending = None
+        if pending:
+            return jsonify({
+                'success': False,
+                'enrollment_waitlisted': True,
+                'error': 'This student is still on the enrollment waitlist for the '
+                         'school, so they do not have a place yet.',
+            }), 409
     entry = waitlist.add_to_waitlist(org_id, class_id, student_user_id)
     return jsonify({'success': True, 'entry': entry}), 201
 
@@ -172,9 +190,14 @@ def respond(user_id, entry_id):
         return err
     data = request.json or {}
     accept = bool(data.get('accept'))
-    result = waitlist.respond_to_offer(org_id, entry_id, accept, enrolled_by=user_id)
+    result = waitlist.respond_to_offer(org_id, entry_id, accept, enrolled_by=user_id,
+                                       force=bool(data.get('force')))
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
+    # Accepting into a class that clashes with something they already attend
+    # comes back as `conflicts` (409) until the caller re-sends with force.
+    if result.get('conflicts'):
+        return jsonify({'success': False, 'conflicts': result['conflicts']}), 409
     return jsonify({'success': True, **result})
 
 

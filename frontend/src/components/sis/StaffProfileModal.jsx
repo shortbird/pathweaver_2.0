@@ -48,6 +48,7 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
           work_schedule: p.work_schedule || '',
           emergency_contact_name: p.emergency_contact_name || '',
           emergency_contact_phone: p.emergency_contact_phone || '',
+          phone_number: p.phone_number || '',
         })
         setAssignments(r.data?.assignments || [])
       })
@@ -82,6 +83,7 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
         start_date: form.start_date || null, end_date: form.end_date || null,
         is_active: form.is_active, uses_time_clock: form.uses_time_clock,
         work_schedule: form.work_schedule,
+        phone_number: form.phone_number,
         emergency_contact_name: form.emergency_contact_name,
         emergency_contact_phone: form.emergency_contact_phone,
       })
@@ -191,6 +193,15 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
                   <input type="checkbox" checked={form.uses_time_clock} onChange={set('uses_time_clock')} /> Uses time clock
                 </label>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Their own number — the one the office rings. Distinct from the
+                  emergency contact below, which is someone else entirely. */}
+              <Field label="Phone number">
+                <input type="tel" value={form.phone_number} onChange={set('phone_number')} className={inputClass} />
+              </Field>
+              <div />
             </div>
 
             <div className="grid grid-cols-2 gap-3">

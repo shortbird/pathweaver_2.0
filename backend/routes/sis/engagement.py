@@ -165,11 +165,18 @@ def adjust_completion_xp(user_id, completion_id):
 @require_role(*STAFF_ROLES)
 def list_engagement_alerts(user_id):
     """Open engagement alerts with student/class/quest names. Advisors only see
-    alerts for their own classes (class_scope); admins see the whole org."""
+    alerts for their own classes (class_scope); admins see the whole org.
+
+    Honours the same ?teacher_id= preview the rest of the teacher portal uses.
+    Without it, an admin on "View portal" got their OWN unrestricted scope while
+    every other card on the page was scoped to the teacher — so Ana Rogers'
+    portal listed an Algebra 1 student she doesn't teach (iCreate, 2026-08-14).
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
+    from routes.sis.staff_portal import _read_target
+    scope = sis_service.class_scope(_read_target(user_id, org_id), org_id)
     return jsonify({'success': True, 'alerts': engagement.list_open_alerts(org_id, class_ids=scope)})
 
 

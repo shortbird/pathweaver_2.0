@@ -97,8 +97,27 @@ describe('class waitlist — staff actions', () => {
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/waitlist/w1/enroll', { organization_id: 'org-1' }),
+      expect(api.post).toHaveBeenCalledWith('/api/sis/waitlist/w1/enroll',
+        { organization_id: 'org-1', force: false }),
     )
+  })
+
+  it('names the clash before admitting into the class they queued for', async () => {
+    // The gap that double-booked Charlotte Myers into two Wednesday sections:
+    // the sibling-section move asked first, admitting into the original didn't.
+    api.post.mockImplementation((url, body) => (
+      url.includes('/enroll') && !body.force
+        ? Promise.reject({ response: { status: 409, data: {
+            conflicts: [{ class_id: 'cX', class_name: 'Elementary Microschool (Wednesday)' }] } } })
+        : Promise.resolve({ data: { success: true } })
+    ))
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
+    await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2))
+    expect(window.confirm.mock.calls[1][0]).toMatch(/already has Elementary Microschool/)
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/waitlist/w1/enroll',
+      { organization_id: 'org-1', force: true }))
   })
 
   it('enrolls even when the class is full — an admin doing this by hand is the override', async () => {
