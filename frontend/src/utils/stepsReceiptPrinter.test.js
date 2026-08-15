@@ -38,6 +38,24 @@ describe('buildStepsReceiptHtml', () => {
     expect((html.match(/box done/g) || []).length).toBe(1)
   })
 
+  it('lays out inside the printable width of 62mm tape, not the full tape', () => {
+    const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
+    expect(html).toContain('@page { size: 62mm auto; margin: 0; }')
+    expect(html).toContain('width: 59mm;')
+  })
+
+  it('honors a different tape width', () => {
+    const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps, tapeWidthMm: 29 })
+    expect(html).toContain('@page { size: 29mm auto; margin: 0; }')
+    expect(html).toContain('width: 26mm;')
+  })
+
+  it('pins the page height to the rendered content instead of leaving it auto', () => {
+    const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
+    expect(html).toContain('document.body.scrollHeight')
+    expect(html).toContain("'@page { size: 62mm ' + heightMm + 'mm; margin: 0; }'")
+  })
+
   it('escapes HTML in AI-generated text', () => {
     const html = buildStepsReceiptHtml({
       taskTitle: '<script>alert(1)</script>',
