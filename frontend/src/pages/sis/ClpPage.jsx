@@ -312,11 +312,27 @@ const ClpPage = () => {
     }
   }
 
-  const enroll = (cls) => runAction(
-    cls.class_id,
-    () => api.post(`/api/sis/classes/${cls.class_id}/enrollments`, { student_user_id: selectedId, organization_id: orgId }),
-    `Enrolled in ${cls.name}`,
-  )
+  // Same 409-then-confirm as joinWaitlist: enrolling a student who has no place
+  // at the school yet is the stronger version of queuing them for a class.
+  const enroll = async (cls, force = false) => {
+    try {
+      await runAction(
+        cls.class_id,
+        () => api.post(`/api/sis/classes/${cls.class_id}/enrollments`,
+          { student_user_id: selectedId, organization_id: orgId, force }),
+        `Enrolled in ${cls.name}`,
+        { rethrow: true },
+      )
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
+        if (window.confirm(`${e.response.data.error}\n\nEnroll them in ${cls.name} anyway?`)) {
+          return enroll(cls, true)
+        }
+        return
+      }
+      toast.error(e.response?.data?.error || 'Something went wrong')
+    }
+  }
 
   const drop = (cls) => runAction(
     cls.class_id,

@@ -474,6 +474,24 @@ def enroll_student(user_id, class_id):
     if not stu or stu[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Student not in this organization'}), 404
 
+    # Same rule as the class waitlist: someone still waiting for a place AT THE
+    # SCHOOL has no place in its classes yet. Enrolling them outright is the
+    # stronger version of the thing iCreate asked us to warn about on
+    # 2026-08-13, so it asks here too, and honours force the same way.
+    if not data.get('force'):
+        from services import sis_enrollment_waitlist_service as enrollment_waitlist
+        try:
+            pending = enrollment_waitlist.waiting_entry(org_id, student_id)
+        except Exception:  # noqa: BLE001 — never block staff over the check itself
+            pending = None
+        if pending:
+            return jsonify({
+                'success': False,
+                'enrollment_waitlisted': True,
+                'error': 'This student is still on the enrollment waitlist for the '
+                         'school, so they do not have a place yet.',
+            }), 409
+
     existing = (
         supabase.table('class_enrollments').select('id, status')
         .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()

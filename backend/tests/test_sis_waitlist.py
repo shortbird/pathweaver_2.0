@@ -119,6 +119,29 @@ class TestWaitlistRoutes:
                                json={'student_user_id': 's1', 'organization_id': 'org-1'})
         assert resp.status_code == 201
 
+    def test_direct_enrollment_warns_when_still_on_the_enrollment_waitlist(
+            self, client, auth_headers, mock_verify_token):
+        """The class waitlist is not the only door. Enrolling an
+        enrollment-waitlisted student outright is the stronger version of the
+        same mistake, so /classes/<id>/enrollments asks too."""
+        # catalog.py binds get_supabase_admin_client at import, so the staff()
+        # fixture's patch of database.* never reaches it — patch it by name here.
+        cat_client = Mock()
+        cat_table = Mock()
+        cat_client.table.return_value = cat_table
+        for chained in ('select', 'eq', 'limit'):
+            getattr(cat_table, chained).return_value = cat_table
+        cat_table.execute.return_value = Mock(data=[{'id': 's1', 'organization_id': 'org-1'}])
+        with staff(), patch('routes.sis.catalog.get_supabase_admin_client', return_value=cat_client), \
+             patch('routes.sis.catalog._org_or_error', return_value=('org-1', None)), \
+             patch('routes.sis.catalog._load_class', return_value={'id': 'c1'}), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry',
+                   return_value={'id': 'e1', 'position': 2}):
+            resp = client.post('/api/sis/classes/c1/enrollments', headers=auth_headers,
+                               json={'student_user_id': 's1', 'organization_id': 'org-1'})
+        assert resp.status_code == 409
+        assert json.loads(resp.data)['enrollment_waitlisted'] is True
+
     def test_offer_next_when_empty(self, client, auth_headers, mock_verify_token):
         # The response also explains WHY nobody could be offered (see
         # TestNobodyWaitingReason in test_sis_waitlist_staff_actions.py).
