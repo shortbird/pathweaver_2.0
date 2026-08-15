@@ -7,9 +7,11 @@ cover route wiring, validation, and the cron auth gate.
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from services import sis_billing_service as billing
 
 
 @pytest.mark.unit
@@ -75,6 +77,51 @@ class TestAutopaySetup:
             resp = client.post('/api/sis/parent/billing/invoices/inv9/autopay-setup',
                                headers=auth_headers, json={'return_url': 'https://app/x'})
         assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestAutopaySetupStripeParams:
+    """The setup-mode Checkout call itself, which the route-level tests mock out.
+
+    Stripe rejected every autopay setup in production on 2026-08-15 with
+    "Missing required param: currency" — setup mode has no line items to infer a
+    currency from, so the parameter has to be passed explicitly.
+    """
+
+    INVOICE = {'id': 'inv1', 'organization_id': 'org1', 'household_id': 'hh1',
+               'total_cents': 120000, 'amount_paid_cents': 0, 'status': 'open',
+               'stripe_session_ids': []}
+
+    def _run(self, existing_customer=None):
+        session = MagicMock(id='cs_test_1', url='https://checkout.stripe.com/c/pay/cs_test_1')
+        with patch.object(billing, '_guardian_invoice', return_value=dict(self.INVOICE)), \
+             patch.object(billing, '_org_stripe_secret', return_value='sk_test_x'), \
+             patch.object(billing, '_users_map',
+                          return_value={'g1': {'id': 'g1', 'email': 'grace@example.com'}}), \
+             patch.object(billing, '_existing_stripe_customer', return_value=existing_customer), \
+             patch.object(billing, '_admin', return_value=MagicMock()), \
+             patch('stripe.Customer.create', return_value=MagicMock(id='cus_new')) as cust, \
+             patch('stripe.checkout.Session.create', return_value=session) as create:
+            result = billing.create_autopay_setup_checkout('g1', 'inv1', 'https://app/billing')
+        return result, create, cust
+
+    def test_setup_session_sends_a_currency(self):
+        result, create, _ = self._run()
+        assert create.call_args.kwargs['currency'] == 'usd'
+        assert create.call_args.kwargs['mode'] == 'setup'
+        assert result['checkout_url'] == 'https://checkout.stripe.com/c/pay/cs_test_1'
+
+    def test_reuses_an_existing_customer_instead_of_orphaning_one(self):
+        # Each failed attempt used to leave a new Customer on the school's
+        # account, and a family that hits an error retries.
+        _, create, cust = self._run(existing_customer='cus_known')
+        assert cust.called is False
+        assert create.call_args.kwargs['customer'] == 'cus_known'
+
+    def test_creates_a_customer_on_first_setup(self):
+        _, create, cust = self._run(existing_customer=None)
+        assert cust.called is True
+        assert create.call_args.kwargs['customer'] == 'cus_new'
 
 
 @pytest.mark.unit

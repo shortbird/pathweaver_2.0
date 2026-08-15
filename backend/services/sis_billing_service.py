@@ -1423,6 +1423,15 @@ def _upsert_saved_pm(org_id: str, guardian_user_id: str, household_id: Optional[
     }, on_conflict='organization_id,guardian_user_id').execute()).data[0]
 
 
+def _existing_stripe_customer(org_id: str, guardian_user_id: str) -> Optional[str]:
+    """The guardian's Stripe Customer id on this school's account, if a card was
+    ever saved for them here."""
+    rows = (_admin().table('sis_saved_payment_methods').select('stripe_customer_id')
+            .eq('organization_id', org_id).eq('guardian_user_id', guardian_user_id)
+            .limit(1).execute()).data
+    return (rows[0].get('stripe_customer_id') if rows else None) or None
+
+
 def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str,
                                   installment_count: int = 10) -> Dict[str, Any]:
     """Start a Stripe Checkout in SETUP mode to save the family's card on the
@@ -1444,11 +1453,19 @@ def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str
     try:
         import stripe
         sep = '&' if '?' in return_url else '?'
-        customer = stripe.Customer.create(
-            api_key=secret, email=guardian.get('email') or None,
-            metadata={'guardian_user_id': user_id, 'organization_id': org_id})
+        # Reuse the guardian's Customer on this school's account if they already
+        # have one. Creating it per attempt orphans a Customer record on every
+        # retry (and a retry is exactly what a family does when setup fails).
+        customer_id = _existing_stripe_customer(org_id, user_id)
+        if not customer_id:
+            customer_id = stripe.Customer.create(
+                api_key=secret, email=guardian.get('email') or None,
+                metadata={'guardian_user_id': user_id, 'organization_id': org_id}).id
         session = stripe.checkout.Session.create(
-            api_key=secret, mode='setup', customer=customer.id,
+            # currency is REQUIRED in setup mode (no line items to infer it from)
+            # unless payment_method_types is pinned; Stripe needs it to decide
+            # which automatic payment methods are eligible.
+            api_key=secret, mode='setup', customer=customer_id, currency='usd',
             metadata={'kind': 'autopay_setup', 'invoice_id': invoice_id,
                       'guardian_user_id': user_id, 'installment_count': count},
             success_url=f'{return_url}{sep}autopay=return',
