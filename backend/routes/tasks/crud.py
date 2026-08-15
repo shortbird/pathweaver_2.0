@@ -16,6 +16,56 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _mark_enrollment_emptied_if_last_task(user_quest_id, user_id: str) -> bool:
+    """
+    After a task is dropped, record that the student meant to empty the quest.
+
+    Returns True when the enrollment now has no approved tasks left. In that
+    case ``personalization_completed`` is set so the empty list reads as a
+    deliberate state rather than an enrollment that was never seeded — the
+    distinction the old quest-detail self-heal could not make, which is why a
+    deleted last task used to reappear on the next page load.
+
+    Never raises: dropping the task already succeeded, so a bookkeeping failure
+    must not turn into a 500 for the caller.
+    """
+    if not user_quest_id:
+        return False
+
+    try:
+        # admin client justified: bookkeeping write to user_quests for the
+        # caller (self), already ownership-checked by drop_task, under @require_auth
+        admin = get_supabase_admin_client()
+
+        remaining = admin.table('user_quest_tasks')\
+            .select('id', count='exact')\
+            .eq('user_quest_id', user_quest_id)\
+            .eq('approval_status', 'approved')\
+            .limit(1)\
+            .execute()
+
+        if (remaining.count or 0) > 0:
+            return False
+
+        admin.table('user_quests')\
+            .update({'personalization_completed': True})\
+            .eq('id', user_quest_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        logger.info(
+            f"Enrollment {user_quest_id} emptied by user {user_id}; "
+            f"marked personalization_completed so tasks are not re-seeded"
+        )
+        return True
+    except Exception as e:
+        logger.error(
+            f"Failed to mark enrollment {user_quest_id} as emptied: {e}",
+            exc_info=True,
+        )
+        return False
+
+
 @bp.route('/<task_id>', methods=['PUT'])
 @require_auth
 def update_task(user_id: str, task_id: str):
@@ -305,7 +355,14 @@ def update_task(user_id: str, task_id: str):
 def drop_task(user_id: str, task_id: str):
     """
     Drop/remove a task from user's active quest.
-    Allows users to deactivate tasks and re-add them later from the task library.
+
+    This is a hard delete of the user_quest_tasks row; the task can be added
+    back later from the task library or the personalization wizard.
+
+    When it removes the *last* remaining task, the enrollment is marked
+    personalization_completed so nothing treats the empty task list as an
+    enrollment that never got seeded. The response says so via
+    `quest_now_empty` and the client opens the quest-completion flow.
     """
     try:
         from repositories.task_repository import TaskRepository, TaskCompletionRepository
@@ -341,9 +398,14 @@ def drop_task(user_id: str, task_id: str):
 
         logger.info(f"User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
 
+        quest_now_empty = _mark_enrollment_emptied_if_last_task(
+            task_data.get('user_quest_id'), user_id
+        )
+
         return jsonify({
             'success': True,
-            'message': f"Task '{task_data['title']}' removed from your quest"
+            'message': f"Task '{task_data['title']}' removed from your quest",
+            'quest_now_empty': quest_now_empty
         }), 200
 
     except Exception as e:

@@ -210,15 +210,17 @@ const QuestDetail = () => {
     }
 
     try {
-      await api.delete(`/api/tasks/${taskId}`);
+      const { data: dropResult } = await api.delete(`/api/tasks/${taskId}`);
       queryClient.invalidateQueries(queryKeys.quests.detail(id));
       await refetchQuest();
       toast.success('Task removed from your quest');
 
-      // After refetch, check if quest now has 0 tasks - show add/finish prompt
+      // That was the last task, so removing it is the student saying they're
+      // done - open the completion flow (add more tasks, or finish the quest).
+      // The backend decides this, not the refetched cache: it counted the
+      // remaining rows in the same request that did the delete.
       const updatedData = queryClient.getQueryData(queryKeys.quests.detail(id));
-      const remainingTasks = updatedData?.quest_tasks || [];
-      if (remainingTasks.length === 0 && updatedData?.user_enrollment) {
+      if (dropResult?.quest_now_empty && updatedData?.user_enrollment) {
         setShowQuestCompletionCelebration(true);
       }
     } catch (err) {
