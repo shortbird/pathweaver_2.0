@@ -286,33 +286,55 @@ $$;
 -- policies keep working. This probe proves it before the transaction commits --
 -- if it raises, the whole migration rolls back and nothing is left half-applied.
 
--- The role switch is confined to an inner block that ALWAYS aborts, because a
--- PL/pgSQL exception handler rolls its subtransaction back -- and that rollback
--- includes the set_config. Restoring the role by setting it to a name we guessed
--- (an earlier draft assumed 'service_role') silently leaves the session as the
--- wrong role for whatever runs next in the same transaction; here, the migration
--- runner's own bookkeeping INSERT, which then fails on permissions and takes the
--- whole migration down with it. Letting the abort undo it needs no guess.
+-- Check the catalog, not a live query.
+--
+-- Two earlier drafts of this probe did `set_config('role','authenticated')` and
+-- then read public.users, treating any insufficient_privilege as proof that the
+-- repoint had broken RLS. Both were wrong, in different ways, and each failure
+-- is worth keeping:
+--
+--   1. The first restored the role by guessing a name ('service_role'), leaving
+--      the session as the wrong role for the migration runner's own bookkeeping
+--      INSERT, which then failed on permissions and took the migration with it.
+--
+--   2. The second aborted correctly but still asked the wrong question. `SELECT
+--      ... FROM public.users` as `authenticated` also needs the TABLE grant, and
+--      a freshly-replayed local stack does not hand out the same table grants as
+--      production. So it raised insufficient_privilege in CI over something this
+--      migration never touched, blamed itself, and rolled back -- turning a
+--      correct migration into a red build.
+--
+-- What actually needs to hold is narrow: the API roles must still be able to
+-- EXECUTE the helpers the twelve policies now call. has_function_privilege
+-- answers exactly that, from the catalog, with no role switching, no table
+-- dependency, and nothing to restore afterwards.
 
 do $$
 declare
-  probe int;
+  missing text;
 begin
-  begin
-    perform set_config('role', 'authenticated', true);
-    select count(*) into probe from (select 1 from public.users limit 1) s;
-    raise exception using errcode = 'P0001', message = '__probe_ok__';
-  exception
-    when insufficient_privilege then
-      raise exception
-        'RLS probe FAILED: `authenticated` lost the ability to evaluate a policy '
-        'on public.users. Rolling back -- do not apply this migration as written.';
-    when sqlstate 'P0001' then
-      if sqlerrm <> '__probe_ok__' then
-        raise;
-      end if;
-  end;
-  raise notice 'RLS probe passed: authenticated can still evaluate policies on public.users';
+  select string_agg(format('%s (%s)', v.fn, v.role_name), ', ')
+    into missing
+  from (
+    select fn, role_name
+    from unnest(array[
+      'private.get_user_org_id(uuid)',
+      'private.is_superadmin(uuid)',
+      'private.is_advisor_user(uuid)',
+      'private.is_org_admin_user(uuid)',
+      'private.is_minor_for_publication(uuid)'
+    ]) fn
+    cross join unnest(array['anon', 'authenticated']) role_name
+    where not has_function_privilege(role_name, fn, 'EXECUTE')
+  ) v;
+
+  if missing is not null then
+    raise exception
+      'RLS helpers are not executable by the API roles, so every policy that '
+      'calls them would fail: %. Rolling back.', missing;
+  end if;
+
+  raise notice 'RLS helper grants verified for anon and authenticated';
 end;
 $$;
 
