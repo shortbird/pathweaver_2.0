@@ -99,58 +99,33 @@ VALUES (
 )
 ON CONFLICT (id) DO UPDATE SET public = false;
 
--- ── 2. RLS on storage.objects ────────────────────────────────────────────────
+-- ── 2. RLS on storage.objects: nothing to do here, and nothing we CAN do ─────
 --
--- The backend reaches Storage with the service-role key, which bypasses RLS
--- entirely — it needs no policy and gets none. What matters here is that the
--- `anon` and `authenticated` roles get NOTHING on these buckets: every read is
--- a signed URL minted by the backend after it has checked who is asking.
+-- An earlier draft of this migration enabled RLS on storage.objects and added a
+-- RESTRICTIVE deny for anon/authenticated across these buckets. Both halves were
+-- wrong, and the failure was instructive rather than cosmetic:
 --
--- Signed URLs are validated by the storage API against the object's JWT, not
--- by RLS, so they keep working with no policy at all. That is the whole point:
--- authorization moves from "the bucket is open" to "the backend decided you
--- may see this, for the next hour".
-
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
--- Drop any permissive policy a previous ad-hoc change may have left behind.
--- Named explicitly rather than swept, so this migration cannot quietly remove
--- a policy some other bucket depends on.
-DROP POLICY IF EXISTS "Public read access for private media buckets" ON storage.objects;
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
-DROP POLICY IF EXISTS "Public read quest-evidence" ON storage.objects;
-DROP POLICY IF EXISTS "Public read user-uploads" ON storage.objects;
-
--- Belt and braces: an explicit deny for the anonymous role on these buckets, so
--- that a future blanket "allow authenticated read on storage.objects" policy
--- cannot silently re-open them. RESTRICTIVE policies AND together with the
--- permissive ones, so this cannot be overridden by adding another policy.
+--   1. It is not permitted. storage.objects and storage.buckets are owned by
+--      `supabase_storage_admin`, not by the migration role, so ALTER TABLE and
+--      CREATE POLICY both fail with "must be owner of table objects" -- and
+--      because the whole migration runs in one transaction, that took the bucket
+--      flip down with it. A privacy fix that cannot apply protects nobody.
 --
--- `quest-evidence` IS in this list even though its bucket stays public for now.
--- That is deliberate and is not a contradiction: while `public = true`, the
--- storage API serves /object/public/ without consulting RLS at all, so this
--- line changes nothing today. It is here so that the moment the sibling
--- migration flips the bucket, the deny is already in place rather than being a
--- second thing someone has to remember.
-DROP POLICY IF EXISTS "private_media_no_anon_direct_read" ON storage.objects;
-CREATE POLICY "private_media_no_anon_direct_read"
-    AS RESTRICTIVE
-    ON storage.objects
-    FOR SELECT
-    TO anon, authenticated
-    USING (
-        bucket_id NOT IN (
-            'quest-evidence',
-            'user-uploads',
-            'user-photos',
-            'family-images',
-            'staff-photos',
-            'org-documents',
-            'curriculum',
-            'class-images',
-            'community-images',
-            'identity-documents'
-        )
-    );
+--   2. It was redundant. Verified against production 2026-08-15: RLS is ALREADY
+--      enabled on both storage.objects and storage.buckets, and the only three
+--      policies on objects concern `site-assets` writes (insert/update/delete).
+--      There is no permissive SELECT policy at all, so `anon` and `authenticated`
+--      already get nothing through RLS. The table is fail-closed today.
+--
+-- So the bucket flip below is the whole fix, and it is sufficient. Once a bucket
+-- has public = false, the storage API stops serving /object/public/ for it
+-- entirely; reads must present a signed URL, which is validated against the
+-- object's JWT rather than through RLS. Authorization moves from "the bucket is
+-- open" to "the backend decided you may see this, for the next hour".
+--
+-- If the extra RESTRICTIVE deny is ever wanted as defence against someone later
+-- adding a broad "allow authenticated read" policy, it has to be created through
+-- the Supabase dashboard's storage policy editor, which runs as the storage
+-- admin. It cannot live in this file.
 
 COMMIT;

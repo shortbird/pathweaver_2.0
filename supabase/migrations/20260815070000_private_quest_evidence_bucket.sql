@@ -94,10 +94,14 @@
 -- sign_stored_url resolves the bucket from the stored URL, so an object left in
 -- quest-evidence signs against quest-evidence.
 --
--- The RESTRICTIVE deny policy for `quest-evidence` already exists — the sibling
--- migration created it covering all ten buckets. It is inert while the bucket
--- is public (the /object/public/ path does not consult RLS) and becomes live
--- the moment the UPDATE below runs, so nothing else is needed here.
+-- No RLS policy is created here, and the sibling migration does not create one
+-- either — an earlier draft of it claimed to, but that section had to be removed
+-- because storage.objects is owned by `supabase_storage_admin` and this role may
+-- not add policies to it. None is needed: RLS is already enabled on
+-- storage.objects with no permissive SELECT policy, so anon and authenticated
+-- reach nothing through it. Flipping public = false is the entire change — the
+-- storage API then stops serving /object/public/ for this bucket and requires a
+-- signed URL, which is validated against the object's JWT rather than by RLS.
 
 BEGIN;
 
