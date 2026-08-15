@@ -82,6 +82,37 @@ const shapeReport = (type, data, questionLabel) => {
   }
 }
 
+// The class report's column choice, remembered per browser like the Classes
+// page export chooser. Field definitions come from the API with the report, so
+// the picker can never list a column the CSV doesn't know how to write.
+const CLASS_COLS_KEY = 'sis_class_report_cols'
+
+const loadClassCols = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CLASS_COLS_KEY))
+    return Array.isArray(saved) && saved.length ? saved : null
+  } catch { return null }
+}
+
+const saveClassCols = (cols) => {
+  try { localStorage.setItem(CLASS_COLS_KEY, JSON.stringify(cols)) } catch { /* ignore */ }
+}
+
+// Shape the class report for the shared table, using the caller's column choice.
+export const shapeClassReport = (data, selected) => {
+  const report = data?.report || {}
+  const fields = report.fields || []
+  const keys = fields.map((f) => f.key).filter((k) => (selected || report.selected || []).includes(k))
+  return {
+    title: 'Class report',
+    columns: keys.map((k) => fields.find((f) => f.key === k)?.label || k),
+    rows: (report.rows || []).map((r) => keys.map((k) => r[k])),
+    fields,
+    selected: keys,
+    raw: report.rows || [],
+  }
+}
+
 const ReportCard = ({ title, description, children }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col">
     <div className="font-semibold text-neutral-900">{title}</div>
@@ -90,11 +121,12 @@ const ReportCard = ({ title, description, children }) => (
   </div>
 )
 
-const RunButton = ({ onClick, disabled, children = 'View report' }) => (
+const RunButton = ({ onClick, disabled, ariaLabel, children = 'View report' }) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
+    aria-label={ariaLabel}
     className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50"
   >
     {children}
@@ -113,6 +145,8 @@ const ReportsPage = () => {
   const [reportLoading, setReportLoading] = useState(false)
   const [sort, setSort] = useState({ col: 0, dir: 'asc' })  // report table sort
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [classCols, setClassCols] = useState(loadClassCols)      // null until first run
+  const [includeArchived, setIncludeArchived] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -155,13 +189,27 @@ const ReportsPage = () => {
     })
   }, [report, sort])
 
+  // The class report's CSV must download exactly the columns on screen.
+  const classPath = useCallback((cols) => (
+    `/api/sis/reports/classes?include_archived=${includeArchived}`
+    + (cols?.length ? `&fields=${cols.join(',')}` : '')
+  ), [includeArchived])
+
   const runReport = useCallback(async (type, key) => {
     let path = `/api/sis/reports/${type}`
     if (type === 'question') path = `/api/sis/reports/registration-answers?question_key=${encodeURIComponent(key)}`
     else if (type === 'daily-attendance') path = `/api/sis/reports/daily-attendance?date=${attendanceDate}`
+    else if (type === 'classes') path = classPath(classCols)
     setReportLoading(true)
     try {
       const res = await api.get(withOrg(path, orgId))
+      if (type === 'classes') {
+        // No saved choice yet: adopt whatever the API says the defaults are.
+        const shaped = shapeClassReport(res.data, classCols)
+        setClassCols(shaped.selected)
+        setReport({ ...shaped, csvPath: classPath(shaped.selected), csvName: 'classes.csv' })
+        return
+      }
       const label = questions.find((q) => q.key === key)?.label
       const shaped = shapeReport(type, res.data, label)
       setReport({
@@ -175,7 +223,27 @@ const ReportsPage = () => {
     } finally {
       setReportLoading(false)
     }
-  }, [orgId, questions, attendanceDate])
+  }, [orgId, questions, attendanceDate, classCols, classPath])
+
+  // Toggling a column re-shapes the rows already loaded — every field comes
+  // back with the report, so changing the view never refetches.
+  const toggleClassCol = useCallback((fieldKey) => {
+    if (!report?.fields) return
+    // Keep the API's field order regardless of the order columns were ticked.
+    const next = report.fields.map((f) => f.key)
+      .filter((k) => (k === fieldKey ? !report.selected.includes(k) : report.selected.includes(k)))
+    if (!next.length) return   // never leave the table with no columns
+    setClassCols(next)
+    saveClassCols(next)
+    setSort({ col: 0, dir: 'asc' })
+    setReport({
+      ...report,
+      columns: next.map((k) => report.fields.find((f) => f.key === k)?.label || k),
+      rows: report.raw.map((r) => next.map((k) => r[k])),
+      selected: next,
+      csvPath: classPath(next),
+    })
+  }, [report, classPath])
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
@@ -237,6 +305,25 @@ const ReportsPage = () => {
                 <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('media-release')} />
               </ReportCard>
               <ReportCard
+                title="Class report"
+                description="One row per class — teacher, days and time, room, tuition, supply fee, curriculum, and more. Pick the columns after you run it."
+              >
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                    <input
+                      type="checkbox"
+                      aria-label="Include archived classes"
+                      className="accent-optio-purple"
+                      checked={includeArchived}
+                      onChange={(e) => setIncludeArchived(e.target.checked)}
+                    />
+                    Include archived
+                  </label>
+                  <RunButton ariaLabel="View class report" disabled={reportLoading || !orgId}
+                    onClick={() => runReport('classes')} />
+                </div>
+              </ReportCard>
+              <ReportCard
                 title="Question report"
                 description="Every family's (or student's) answer to one registration question."
               >
@@ -290,6 +377,29 @@ const ReportsPage = () => {
                     </button>
                   </div>
                 </div>
+                {report.fields && (
+                  <fieldset className="no-print mb-4 border-t border-gray-100 pt-3">
+                    <legend className="sr-only">Columns</legend>
+                    <div className="text-sm font-medium text-neutral-700 mb-2">Columns</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+                      {report.fields.map((f) => (
+                        <label key={f.key} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            aria-label={f.label}
+                            className="mt-0.5 accent-optio-purple shrink-0"
+                            checked={report.selected.includes(f.key)}
+                            onChange={() => toggleClassCol(f.key)}
+                          />
+                          <span className="leading-tight">
+                            <span className="block font-medium text-neutral-800">{f.label}</span>
+                            {f.hint && <span className="block text-[11px] text-neutral-500">{f.hint}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
                 {displayRows.length === 0 ? (
                   <p className="text-neutral-500">No matching records.</p>
                 ) : (
