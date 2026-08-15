@@ -69,6 +69,39 @@ def attendance(user_id):
     return jsonify({'success': True, 'report': reports.attendance_report(org_id)})
 
 
+@bp.route('/reports/classes', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def classes_report(user_id):
+    """One row per class, with the caller choosing the columns.
+
+    ?fields=teacher,time,tuition — a comma-separated subset of
+    sis_reports_service.CLASS_REPORT_FIELDS (unknown keys ignored; empty or
+    absent means the default set). ?include_archived=true adds archived classes,
+    ?format=csv downloads the same selection as a spreadsheet.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    requested = [f.strip() for f in (request.args.get('fields') or '').split(',') if f.strip()]
+    # Keep the canonical field order regardless of the order they were asked for.
+    keys = [k for k in reports.CLASS_REPORT_KEYS if k in requested] or reports.CLASS_REPORT_DEFAULTS
+    include_archived = request.args.get('include_archived') in ('1', 'true', 'True')
+
+    report = reports.class_report(org_id, include_archived=include_archived)
+    labels = {f['key']: f['label'] for f in report['fields']}
+
+    if request.args.get('format') == 'csv':
+        return _csv_response(
+            'classes.csv',
+            [labels[k] for k in keys],
+            [[r.get(k, '') for k in keys] for r in report['rows']])
+    return jsonify({'success': True, 'report': {
+        'fields': report['fields'],
+        'selected': keys,
+        'rows': report['rows'],
+    }})
+
+
 # ── Information reports (registration data) ──────────────────────────────────
 
 def _admin():

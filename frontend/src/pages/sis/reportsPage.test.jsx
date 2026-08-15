@@ -37,6 +37,17 @@ const { api } = vi.hoisted(() => {
         rows: [{ student: 'Kid Example', family: 'Example Family', answers: { media_release: 'Not answered' }, parent: '' }],
       } } }
     }
+    if (url.includes('/reports/classes')) {
+      return { data: { report: {
+        fields: [
+          { key: 'name', label: 'Class', hint: 'Class name', default: true },
+          { key: 'teacher', label: 'Teacher', hint: 'Primary instructor', default: true },
+          { key: 'description', label: 'Description', hint: 'Class description text', default: false },
+        ],
+        selected: ['name', 'teacher'],
+        rows: [{ name: 'Pottery', teacher: 'Ruth Stewart', description: 'Hand building and the wheel' }],
+      } } }
+    }
     if (url.includes('/reports/registration-answers')) {
       return { data: { report: {
         question: { key: 'special_needs', label: 'Special needs', per_student: true },
@@ -89,6 +100,41 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Print')).toBeInTheDocument()
     expect(screen.getByText('Download CSV')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/reports/medications'))
+  })
+
+  it('runs the class report and lets the office pick which columns to show', async () => {
+    localStorage.removeItem('sis_class_report_cols')
+    render(<ReportsPage />)
+    await screen.findByText('Information reports')
+    fireEvent.click(screen.getByRole('button', { name: 'View class report' }))
+
+    expect(await screen.findByText('Pottery')).toBeInTheDocument()
+    expect(screen.getByText('Ruth Stewart')).toBeInTheDocument()
+    // Unselected column is offered in the picker but not in the table.
+    expect(screen.queryByText('Hand building and the wheel')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Description'))
+    expect(await screen.findByText('Hand building and the wheel')).toBeInTheDocument()
+    // Turning a column off can't empty the table.
+    fireEvent.click(screen.getByLabelText('Class'))
+    fireEvent.click(screen.getByLabelText('Teacher'))
+    fireEvent.click(screen.getByLabelText('Description'))
+    expect(screen.getByText('Hand building and the wheel')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('sis_class_report_cols'))).toEqual(['description'])
+  })
+
+  it('downloads the class report CSV with the columns currently on screen', async () => {
+    localStorage.setItem('sis_class_report_cols', JSON.stringify(['name', 'teacher']))
+    render(<ReportsPage />)
+    await screen.findByText('Information reports')
+    fireEvent.click(screen.getByRole('button', { name: 'View class report' }))
+    await screen.findByText('Pottery')
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('fields=name,teacher'))
+
+    fireEvent.click(screen.getByLabelText('Description'))
+    fireEvent.click(screen.getByText('Download CSV'))
+    expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('fields=name,teacher,description'), expect.objectContaining({ responseType: 'blob' }))
   })
 
   it('runs a question report for the selected registration question', async () => {
