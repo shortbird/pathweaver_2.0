@@ -59,6 +59,11 @@ def _valid_registration(**overrides):
         # The route accepts either acceptedLegalTerms, or acceptedTerms AND
         # acceptedPrivacy together (routes/auth/registration.py:125).
         'acceptedLegalTerms': True,
+        # Required as of 2026-08-15. It used to be optional, which meant the
+        # under-13 COPPA block could be skipped by simply omitting the field
+        # rather than by lying about it. An adult date, so these tests exercise
+        # ordinary signup; the age gate has its own tests below.
+        'date_of_birth': '1990-01-01',
     }
     payload.update(overrides)
     return payload
@@ -179,6 +184,44 @@ def test_registration_rejects_weak_passwords(client, db, weak_password, why):
     response = client.post('/api/auth/register', json=payload)
 
     assert response.status_code == 400, f'accepted a password with {why}'
+    assert db.table('users').select('id').eq('email', payload['email']).execute().data == []
+
+
+@pytest.mark.integration
+@pytest.mark.security
+def test_registration_requires_a_date_of_birth(client, db):
+    """The age gate must not be skippable by omission.
+
+    date_of_birth was optional until 2026-08-15, so a child could register as an
+    adult simply by leaving the field out -- no lying required. Missing is now a
+    400, which is what makes the under-13 check below meaningful.
+    """
+    payload = _valid_registration()
+    del payload['date_of_birth']
+
+    response = client.post('/api/auth/register', json=payload)
+
+    assert response.status_code == 400, response.get_data(as_text=True)
+    assert 'date of birth' in response.get_data(as_text=True).lower()
+    assert db.table('users').select('id').eq('email', payload['email']).execute().data == []
+
+
+@pytest.mark.integration
+@pytest.mark.security
+def test_registration_blocks_children_under_thirteen(client, db):
+    """COPPA: an under-13 cannot open an account for themselves.
+
+    They go through the parent-created dependent flow instead, which collects no
+    email address and no password from the child.
+    """
+    payload = _valid_registration(date_of_birth='2020-01-01')
+
+    response = client.post('/api/auth/register', json=payload)
+
+    # 403, not 400: the request is well-formed, we are refusing to serve it.
+    assert response.status_code == 403, response.get_data(as_text=True)
+    assert response.get_json()['error'] == 'under_13_registration_blocked'
+    # And no auth user was minted before the age check ran.
     assert db.table('users').select('id').eq('email', payload['email']).execute().data == []
 
 
