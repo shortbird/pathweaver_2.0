@@ -29,6 +29,7 @@ from utils.validation import sanitize_input
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -177,7 +178,7 @@ def _sanitize_assessments(raw):
 
 
 def _student_payload(org_id, u):
-    return {
+    payload = {
         'id': u['id'],
         'name': _student_name(u),
         'preferred_name': u.get('preferred_name'),
@@ -185,6 +186,9 @@ def _student_payload(org_id, u):
         'grade_level': _grade_level(org_id, u['id']),
         'avatar_url': u.get('avatar_url'),
     }
+    # The photo lives in a private bucket; hand out the signed twin.
+    sign_in_place([payload], ['avatar_url'])
+    return payload
 
 
 # ── Staff: record read/write ──────────────────────────────────────────────────

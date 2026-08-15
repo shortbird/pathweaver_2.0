@@ -32,6 +32,7 @@ from services import sis_service
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -354,6 +355,8 @@ def class_gradebook(user_id, class_id):
             'assignments': assignments,
         })
     students.sort(key=lambda s: s['name'].lower())
+    # Private-bucket photos: one batch for the class, not one per student.
+    sign_in_place(students, ['avatar_url'])
     return jsonify({'success': True, 'students': students})
 
 

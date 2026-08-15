@@ -10,6 +10,7 @@ from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
+from utils.storage_urls import sign_stored_url
 import logging
 
 logger = get_logger(__name__)
@@ -309,7 +310,7 @@ def get_parent_dashboard(user_id, student_id):
                 'id': student['id'],
                 'first_name': student.get('first_name'),
                 'last_name': student.get('last_name'),
-                'avatar_url': student.get('avatar_url'),
+                'avatar_url': sign_stored_url(student.get('avatar_url')),
                 'level': student.get('level', 0),
                 'total_xp': student.get('total_xp', 0),
                 'streak_days': student.get('streak_days', 0)

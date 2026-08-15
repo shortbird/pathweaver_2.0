@@ -19,14 +19,12 @@ logger = get_logger(__name__)
 # Redis client (lazy-loaded)
 _redis_client: Optional[any] = None
 
-# Trusted proxy IPs (Render's infrastructure)
-# CVE-OPTIO-2025-012 FIX: Only trust X-Forwarded-For from known proxies
-TRUSTED_PROXIES = {
-    '127.0.0.1',  # Localhost
-    '::1',        # IPv6 localhost
-    # Render.com proxy IPs would go here
-    # For now, we trust Render's infrastructure by checking if we're behind a proxy
-}
+# NOTE: a TRUSTED_PROXIES set used to live here. It was never read by anything —
+# get_real_ip() counts hops from the RIGHT of X-Forwarded-For (ProxyFix
+# semantics, see below) rather than matching peer addresses against an allowlist,
+# and Render does not publish stable egress IPs to put in one. Removed 2026-08-15
+# so the module does not advertise a control it never applied. The hop count is
+# the knob: Config.TRUSTED_PROXY_HOPS.
 
 def get_real_ip() -> str:
     """

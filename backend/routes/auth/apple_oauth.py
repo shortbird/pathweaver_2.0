@@ -23,6 +23,7 @@ from utils.api_response_v1 import error_response
 from datetime import datetime
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 from routes.auth.google_oauth import (
     ensure_user_diploma_and_skills,
     generate_tos_acceptance_token,
@@ -234,6 +235,8 @@ def apple_oauth_callback():
         # Attach parent/advisor relationship flags so parent detection works
         # immediately after Apple sign-in (matches email login + /me).
         attach_relationship_flags(admin_client, user_data)
+        # avatar_url points into a private bucket; hand back the signed twin.
+        sign_in_place([user_data] if isinstance(user_data, dict) else [], ['avatar_url'])
 
         # New users: return TOS acceptance token (reuse google endpoint for acceptance)
         if requires_tos_acceptance:
@@ -249,11 +252,11 @@ def apple_oauth_callback():
         app_access_token = session_manager.generate_access_token(user_id)
         app_refresh_token = session_manager.generate_refresh_token(user_id)
 
+        from . import token_delivery
         response = make_response(jsonify({
             'user': user_data,
-            'app_access_token': app_access_token,
-            'app_refresh_token': app_refresh_token,
             'is_new_user': is_new_user,
+            **token_delivery.body_tokens(app_access_token, app_refresh_token),
         }), 200)
 
         session_manager.set_auth_cookies(response, user_id, app_access_token, app_refresh_token)

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from repositories.base_repository import BaseRepository
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_timestamp
 
 logger = get_logger(__name__)
 
@@ -307,7 +308,9 @@ class ClassRepository(BaseRepository):
 
         if only_published:
             now_iso = datetime.now(timezone.utc).isoformat()
-            query = query.or_(f'publish_at.is.null,publish_at.lte.{now_iso}')
+            query = query.or_(
+                f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}'
+            )
 
         response = query.order('sequence_order').execute()
         return response.data if response.data else []
@@ -357,7 +360,7 @@ class ClassRepository(BaseRepository):
             .select('class_id, quest_id, due_date, publish_at, quests(id, title, description, header_image_url)')\
             .in_('class_id', class_ids)\
             .not_.is_('due_date', 'null')\
-            .or_(f'publish_at.is.null,publish_at.lte.{now_iso}')\
+            .or_(f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}')\
             .order('due_date')\
             .execute()
 

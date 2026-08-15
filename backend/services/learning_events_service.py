@@ -21,6 +21,19 @@ class LearningEventsService(BaseService):
     """Service for managing learning events and their evidence"""
 
     @staticmethod
+    def _sign_event_media(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Mint short-lived URLs for the media on a list of learning events.
+
+        `user-uploads` and `quest-evidence` are private buckets, so a block's
+        stored URL is a durable pointer a browser cannot fetch. Sign at render
+        time, one batched call per bucket for the whole journal page. A signing
+        failure yields None — a broken image, never a public URL.
+        """
+        from services.portfolio_service import PortfolioService
+
+        return PortfolioService().sign_evidence_blocks_on(events)
+
+    @staticmethod
     def create_learning_event(
         user_id: str,
         description: str,
@@ -370,6 +383,8 @@ class LearningEventsService(BaseService):
             events = LearningEventsService._enrich_events_with_attached_task(supabase, events)
             events = LearningEventsService._enrich_events_with_promoted_task(supabase, events)
 
+            LearningEventsService._sign_event_media(events)
+
             return {
                 'success': True,
                 'events': events
@@ -418,6 +433,8 @@ class LearningEventsService(BaseService):
             LearningEventsService._enrich_events_with_topics(supabase, [event_data])
             LearningEventsService._enrich_events_with_attached_task(supabase, [event_data])
             LearningEventsService._enrich_events_with_promoted_task(supabase, [event_data])
+
+            LearningEventsService._sign_event_media([event_data])
 
             return {
                 'success': True,
@@ -575,18 +592,22 @@ class LearningEventsService(BaseService):
                     .eq('learning_event_id', event_id) \
                     .execute()
 
+                from utils.storage_urls import parse_object_ref
+
                 for block in (blocks_response.data or []):
                     file_url = block.get('file_url') or (block.get('content') or {}).get('url')
-                    if file_url and 'supabase.co' in file_url:
-                        try:
-                            for bucket in ['user-uploads', 'quest-evidence']:
-                                marker = f'/{bucket}/'
-                                if marker in file_url:
-                                    file_path = file_url.split(marker, 1)[1].split('?')[0]
-                                    supabase.storage.from_(bucket).remove([file_path])
-                                    break
-                        except Exception as e:
-                            logger.warning(f"Failed to delete storage file during event deletion: {e}")
+                    # parse_object_ref resolves public, signed and legacy shapes
+                    # alike. The old substring match understood only the public
+                    # one, so any row that had picked up a signed URL left its
+                    # object behind in storage forever.
+                    ref = parse_object_ref(file_url)
+                    if not ref:
+                        continue
+                    bucket, file_path = ref
+                    try:
+                        supabase.storage.from_(bucket).remove([file_path])
+                    except Exception as e:
+                        logger.warning(f"Failed to delete storage file during event deletion: {e}")
             except Exception as e:
                 logger.warning(f"Failed to fetch evidence blocks for storage cleanup: {e}")
 
@@ -640,17 +661,28 @@ class LearningEventsService(BaseService):
                 .eq('learning_event_id', event_id) \
                 .execute()
 
+            from services.portfolio_service import PortfolioService
+            from utils.storage_urls import canonical_stored_url
+
             saved_blocks = []
             for block in blocks:
                 block_data = {
                     'learning_event_id': event_id,
                     'block_type': block.get('block_type') or block.get('type'),
-                    'content': block.get('content', {}),
+                    # The round trip that makes this necessary: the client read
+                    # these blocks back from get_learning_event_with_evidence,
+                    # which now SIGNS them, and posts the whole array here on
+                    # save. Without the reduction, the row would persist a URL
+                    # that expires — and interest_tracks_service would then copy
+                    # the dying URL on into evidence_document_blocks.
+                    'content': PortfolioService.canonical_block_content(
+                        block.get('content', {})
+                    ),
                     'order_index': block.get('order_index', block.get('order', 0))
                 }
 
                 if block.get('file_url'):
-                    block_data['file_url'] = block['file_url']
+                    block_data['file_url'] = canonical_stored_url(block['file_url'])
                 if block.get('file_name'):
                     block_data['file_name'] = block['file_name']
 
@@ -663,7 +695,9 @@ class LearningEventsService(BaseService):
 
             return {
                 'success': True,
-                'blocks': saved_blocks
+                # Rows keep the pointer; the caller gets the signed twin back so
+                # the editor keeps rendering after a save.
+                'blocks': PortfolioService().sign_evidence_blocks(saved_blocks)
             }
 
         except Exception as e:
@@ -708,6 +742,10 @@ class LearningEventsService(BaseService):
                 event['evidence_blocks'] = blocks_response.data or []
 
             events = LearningEventsService._enrich_events_with_topics(supabase, events)
+
+            # A public portfolio is a real, consented feature; it is not a
+            # reason for the underlying objects to be world-readable. Sign.
+            LearningEventsService._sign_event_media(events)
 
             return {
                 'success': True,

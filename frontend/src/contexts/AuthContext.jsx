@@ -193,8 +193,14 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/api/auth/login', { email, password })
       const { user: loginUser, session: loginSession, app_access_token, app_refresh_token } = response.data
 
-      // ✅ P0 SECURITY FIX: Store app tokens in encrypted IndexedDB for Authorization headers
-      // This is the CRITICAL piece that was missing!
+      // Tokens for Authorization-header auth, held in memory for this tab only.
+      //
+      // Usually absent, and that is the point: the backend now returns them only
+      // to clients that cannot use the httpOnly cookies it set on this same
+      // response — Safari/iOS/Firefox, and the mobile app (see
+      // backend/routes/auth/token_delivery.py). On Chrome and Edge there is
+      // nothing here to store, so a 30-day refresh token never enters the JS
+      // heap and an XSS payload has no durable credential to steal.
       if (app_access_token && app_refresh_token) {
         await tokenStore.setTokens(app_access_token, app_refresh_token)
       }

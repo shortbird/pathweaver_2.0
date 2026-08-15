@@ -87,6 +87,21 @@ def test_post_without_cookies_passes(client):
     assert res.status_code == 200
 
 
+def test_masquerade_cookie_alone_is_csrf_enforced(client):
+    """A masquerade cookie is ambient authority, so it has to trip the gate.
+
+    session_manager.get_current_user_id() checks `masquerade_token` BEFORE
+    `access_token` and authenticates from it on its own, but the gate only looked
+    for access_token/refresh_token. An admin part-way through a masquerade —
+    superadmin rights, acting as somebody else — was therefore the one session on
+    the platform whose mutating requests were CSRF-forgeable.
+    """
+    _set_cookies(client, {'masquerade_token': 'a-masquerade-jwt'})
+    res = client.post('/api/protected-example', json={})
+    assert res.status_code == 400
+    assert res.get_json()['csrf_required'] is True
+
+
 def test_bearer_auth_post_passes(client):
     """Bearer-authenticated requests are immune to CSRF — no check."""
     res = client.post('/api/protected-example', json={},

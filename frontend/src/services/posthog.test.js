@@ -17,15 +17,34 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const register = vi.fn()
 const unregister = vi.fn()
+const init = vi.fn()
+const identify = vi.fn()
+const reset = vi.fn()
+const optOut = vi.fn()
+const optIn = vi.fn()
 
 vi.mock('posthog-js', () => ({
-  default: { register, unregister, init: vi.fn(), identify: vi.fn(), reset: vi.fn(), capture: vi.fn() },
+  default: {
+    register,
+    unregister,
+    init,
+    identify,
+    reset,
+    capture: vi.fn(),
+    opt_out_capturing: optOut,
+    opt_in_capturing: optIn,
+  },
 }))
 
 async function loadModuleWithKey(key) {
   vi.resetModules()
   register.mockReset()
   unregister.mockReset()
+  init.mockReset()
+  identify.mockReset()
+  reset.mockReset()
+  optOut.mockReset()
+  optIn.mockReset()
   if (key === null) {
     vi.stubEnv('VITE_POSTHOG_KEY', '')
   } else {
@@ -94,5 +113,119 @@ describe('posthog masquerade super-properties', () => {
 
     expect(register).not.toHaveBeenCalled()
     expect(unregister).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * COPPA guards on what reaches PostHog.
+ *
+ * identifyUser is handed the whole /auth/me user object by AuthContext, and it
+ * used to forward the email and the assembled display name — for students and
+ * for parent-created child profiles alike, despite the file's "COPPA-safe"
+ * comments. The stripping has to happen HERE rather than at the call sites:
+ * there are five of them, they are owned elsewhere, and a guarantee that
+ * depends on every future caller remembering to pre-strip is not a guarantee.
+ */
+describe('posthog identify does not leak PII', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  const adult = {
+    id: 'user-uuid-1',
+    role: 'parent',
+    org_role: null,
+    organization_id: 'org-1',
+    subscription_tier: 'supported',
+    email: 'parent@example.com',
+    first_name: 'Ada',
+    last_name: 'Byron',
+    display_name: 'Ada Byron',
+  }
+
+  it('identifies by opaque id and non-identifying enums only', async () => {
+    const { identifyUser } = await loadModuleWithKey('phc_test_key')
+
+    identifyUser(adult)
+
+    expect(identify).toHaveBeenCalledWith('user-uuid-1', {
+      role: 'parent',
+      org_role: null,
+      organization_id: 'org-1',
+      subscription_tier: 'supported',
+    })
+  })
+
+  it('sends no property that could name or contact the user', async () => {
+    const { identifyUser } = await loadModuleWithKey('phc_test_key')
+
+    identifyUser(adult)
+
+    const properties = identify.mock.calls[0][1]
+    const serialized = JSON.stringify(properties)
+    for (const key of ['email', 'display_name', 'first_name', 'last_name', 'name', 'username']) {
+      expect(properties).not.toHaveProperty(key)
+    }
+    expect(serialized).not.toContain('parent@example.com')
+    expect(serialized).not.toContain('Ada')
+    expect(serialized).not.toContain('Byron')
+  })
+
+  it('turns capture off entirely for a dependent (child) account', async () => {
+    const { identifyUser } = await loadModuleWithKey('phc_test_key')
+
+    identifyUser({ ...adult, is_dependent: true })
+
+    expect(identify).not.toHaveBeenCalled()
+    expect(optOut).toHaveBeenCalled()
+    expect(reset).toHaveBeenCalled()
+  })
+
+  it('turns capture off for an under-13 account', async () => {
+    const { identifyUser } = await loadModuleWithKey('phc_test_key')
+
+    identifyUser({ ...adult, requires_parental_consent: true })
+
+    expect(identify).not.toHaveBeenCalled()
+    expect(optOut).toHaveBeenCalled()
+  })
+
+  it('re-enables capture when an adult signs in after a child on the same browser', async () => {
+    const { identifyUser } = await loadModuleWithKey('phc_test_key')
+
+    identifyUser({ ...adult, is_dependent: true })
+    identifyUser(adult)
+
+    expect(optIn).toHaveBeenCalled()
+    expect(identify).toHaveBeenCalledTimes(1)
+  })
+
+  it('is a no-op in local dev (no VITE_POSTHOG_KEY)', async () => {
+    const { identifyUser } = await loadModuleWithKey(null)
+
+    identifyUser(adult)
+    identifyUser({ ...adult, is_dependent: true })
+
+    expect(identify).not.toHaveBeenCalled()
+    expect(optOut).not.toHaveBeenCalled()
+  })
+})
+
+describe('posthog session replay settings', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('masks rendered text as well as inputs, and honors Do Not Track', async () => {
+    const { initPostHog } = await loadModuleWithKey('phc_test_key')
+
+    initPostHog()
+
+    const [, options] = init.mock.calls[0]
+    // maskAllInputs alone left the replay showing everything the page RENDERED:
+    // student names, journal entries, evidence write-ups.
+    expect(options.session_recording.maskAllInputs).toBe(true)
+    expect(options.session_recording.maskAllText).toBe(true)
+    expect(options.respect_dnt).toBe(true)
   })
 })

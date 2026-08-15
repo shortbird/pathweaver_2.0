@@ -8,6 +8,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from repositories.base_repository import BaseRepository, NotFoundError, PermissionError
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,10 @@ class ParentRepository(BaseRepository):
                 .order('approved_at', desc=True)\
                 .execute()
 
-            return result.data or []
+            rows = result.data or []
+            sign_in_place([r['student'] for r in rows if isinstance(r.get('student'), dict)],
+                          ['avatar_url'])
+            return rows
         except Exception as e:
             logger.error(f"Error fetching children for parent {parent_id}: {e}")
             return []
@@ -74,7 +78,10 @@ class ParentRepository(BaseRepository):
                 .order('created_at', desc=True)\
                 .execute()
 
-            return result.data or []
+            rows = result.data or []
+            sign_in_place([r['parent'] for r in rows if isinstance(r.get('parent'), dict)],
+                          ['avatar_url'])
+            return rows
         except Exception as e:
             logger.error(f"Error fetching parents for student {student_id}: {e}")
             return []
@@ -181,7 +188,10 @@ class ParentRepository(BaseRepository):
                 .order('created_at', desc=True)\
                 .execute()
 
-            return result.data or []
+            rows = result.data or []
+            sign_in_place([r['student'] for r in rows if isinstance(r.get('student'), dict)],
+                          ['avatar_url'])
+            return rows
         except Exception as e:
             logger.error(f"Error fetching pending invitations for {parent_email}: {e}")
             return []

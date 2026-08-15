@@ -37,6 +37,7 @@ from utils.auth.decorators import require_role, validate_uuid_param
 from utils.org_features import org_has_feature
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -271,6 +272,12 @@ def kiosk_roster():
         (_student_payload(u) for u in _device_scope_students(admin, device)),
         key=lambda s: (s['name'] or '').lower(),
     )
+    # Pre-auth by design — the device token IS the credential, and it has just
+    # been checked. So the picker photos are minted as short-lived signed URLs
+    # rather than the permanent public ones this used to hand a classroom iPad:
+    # the kiosk needs faces for a six-year-old to find their own name, but the
+    # link it renders must die with the TTL, not outlive the school year.
+    sign_in_place(students, ['avatar_url'])
 
     org_res = admin.table('organizations').select('name, branding_config')\
         .eq('id', device['organization_id']).limit(1).execute()

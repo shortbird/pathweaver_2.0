@@ -2,10 +2,17 @@
 Observer Module - Acceptance Endpoints
 
 Observer accepting invitations and viewing linked students.
+
+Invitation codes are SINGLE-USE and expire after 7 days (2026-08-15). Before
+that, acceptance deliberately left the code redeemable -- the comment in this
+file read "codes are reusable ... Multiple observers can use the same
+invitation link" -- so a link forwarded once was a permanent, evidence-level
+grant over a child's education record for everybody who ever saw it. The
+redemption is now claimed atomically; see _claim_invitation.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from database import get_supabase_admin_client, get_user_client
@@ -13,8 +20,105 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
 from services.notification_service import NotificationService
+from utils.storage_urls import sign_in_place, sign_stored_url
 
 logger = logging.getLogger(__name__)
+
+
+# One vocabulary for "this code will not let you in", used by both the preview
+# and the accept endpoint so the two can never disagree about a given code.
+#
+# The three states are reported distinctly because the person holding a dead
+# link needs to know what to ask for: a used link means "ask for your own
+# link", an expired one means "ask them to resend". None of them disclose
+# anything about the invitation -- no student name, no inviter, no indication
+# of which family it belonged to. That disclosure is what a preview of a VALID
+# code carries, and it is gated behind the code being valid.
+#
+# Enumeration is not the exposure here: codes are secrets.token_urlsafe(32),
+# 256 bits, so a caller who has one already has it, and one who does not cannot
+# reach any of these branches by guessing. The preview endpoint is additionally
+# rate limited.
+INVITE_INVALID = ('invalid', 404,
+                  'This invitation link is not valid. '
+                  'Ask for a new one to be sent to you.')
+INVITE_REVOKED = ('revoked', 410,
+                  'This invitation has been revoked. '
+                  'Ask for a new one to be sent to you.')
+INVITE_EXPIRED = ('expired', 410,
+                  'This invitation link has expired. Links are good for 7 days '
+                  '-- ask for a new one to be sent to you.')
+INVITE_USED = ('already_used', 410,
+               'This invitation link has already been used. Each link works '
+               'once, for one person -- ask for your own link.')
+
+
+def _invite_error(state):
+    """Render one of the INVITE_* tuples as a JSON response."""
+    reason, status, message = state
+    return jsonify({
+        'error': message,
+        'reason': reason,
+        'valid': False,
+    }), status
+
+
+def _parse_ts(value):
+    """Parse a PostgREST timestamptz into an aware datetime, or None."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _invitation_block_reason(inv):
+    """Why can this invitation not be redeemed? None if it can.
+
+    A missing expires_at is treated as expired rather than as no expiry. The
+    column is NOT NULL and every creation path sets it, so a NULL here would
+    mean something wrote a row outside the normal flow -- which is exactly the
+    case that must not become an unbounded grant.
+    """
+    if inv.get('consumed_at'):
+        return INVITE_USED
+    status = inv.get('status')
+    if status == 'accepted':
+        # Pre-migration accepted rows may predate consumed_at backfill.
+        return INVITE_USED
+    if status in ('expired', 'declined'):
+        return INVITE_REVOKED
+    expires_at = _parse_ts(inv.get('expires_at'))
+    if not expires_at or datetime.now(timezone.utc) > expires_at:
+        return INVITE_EXPIRED
+    return None
+
+
+def _claim_invitation(supabase, invitation_id, observer_id):
+    """Atomically consume the invitation. True if THIS caller claimed it.
+
+    The conditional UPDATE is the whole point: Postgres evaluates
+    `status = 'pending' AND consumed_at IS NULL` under the row lock it takes to
+    write, so of two observers redeeming the same code simultaneously exactly
+    one gets rows back. Checking-then-writing in Python would let both through.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    claimed = supabase.table('observer_invitations') \
+        .update({
+            'status': 'accepted',
+            'accepted_at': now,
+            'consumed_at': now,
+            'consumed_by_user_id': observer_id,
+        }) \
+        .eq('id', invitation_id) \
+        .eq('status', 'pending') \
+        .is_('consumed_at', 'null') \
+        .execute()
+    return bool(claimed.data)
 
 
 def register_routes(bp):
@@ -33,8 +137,8 @@ def register_routes(bp):
 
         Returns:
             200: Invitation details (student name, valid status)
-            404: Invitation not found
-            410: Invitation expired
+            404: Invitation not valid
+            410: Invitation expired, revoked, or already used
         """
         try:
             # admin client justified: observer-invite flow needs cross-user access (parent->child relationship checks, observer_student_links + observer_invitations writes, organization-scoped notifications)
@@ -42,23 +146,22 @@ def register_routes(bp):
 
             # Find invitation
             invitation = supabase.table('observer_invitations') \
-                .select('id, student_id, expires_at, status, invited_by_user_id') \
+                .select('id, student_id, expires_at, status, invited_by_user_id, '
+                        'consumed_at') \
                 .eq('invitation_code', invitation_code) \
                 .execute()
 
             if not invitation.data:
-                return jsonify({'error': 'Invitation not found', 'valid': False}), 404
+                return _invite_error(INVITE_INVALID)
 
             inv = invitation.data[0]
 
-            # Check if invitation was explicitly expired/revoked
-            if inv.get('status') == 'expired':
-                return jsonify({'error': 'Invitation has been revoked', 'valid': False}), 410
-
-            # Check expiration
-            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
-            if datetime.utcnow() > expires_at.replace(tzinfo=None):
-                return jsonify({'error': 'Invitation expired', 'valid': False}), 410
+            # Expired, revoked, or already redeemed -- all answered before a
+            # single field of the student's identity is read, so a dead code
+            # tells its holder nothing about the child it once pointed at.
+            blocked = _invitation_block_reason(inv)
+            if blocked:
+                return _invite_error(blocked)
 
             # Get student names for personalization
             # Check for multi-child invitation first
@@ -88,7 +191,10 @@ def register_routes(bp):
 
                 # For single-student invitations, include the avatar
                 if len(students.data) == 1:
-                    student_avatar = students.data[0].get('avatar_url')
+                    # Pre-auth (the invitation code is the capability), so the
+                    # avatar must be a short-lived signed URL, not a permanent
+                    # public one that outlives the invitation.
+                    student_avatar = sign_stored_url(students.data[0].get('avatar_url'))
 
             # Format display text
             if len(student_names) == 0:
@@ -105,7 +211,9 @@ def register_routes(bp):
                 'student_name': student_display,
                 'student_avatar': student_avatar,
                 'student_count': len(student_names),
-                'is_family_invitation': len(student_names) > 1
+                'is_family_invitation': len(student_names) > 1,
+                'single_use': True,
+                'expires_at': inv.get('expires_at'),
             }), 200
 
         except Exception as e:
@@ -131,44 +239,48 @@ def register_routes(bp):
 
         Returns:
             200: Invitation accepted, observer linked
-            400: Invitation expired or invalid
-            404: Invitation not found
+            404: Invitation not valid
+            410: Invitation expired, revoked, or already used
         """
         try:
             # admin client justified: observer-invite flow needs cross-user access (parent->child relationship checks, observer_student_links + observer_invitations writes, organization-scoped notifications)
             supabase = get_supabase_admin_client()
 
-            # Find invitation (codes are reusable, so don't filter by status)
             invitation = supabase.table('observer_invitations') \
                 .select('*') \
                 .eq('invitation_code', invitation_code) \
                 .execute()
 
             if not invitation.data:
-                return jsonify({'error': 'Invitation not found'}), 404
+                return _invite_error(INVITE_INVALID)
 
             inv = invitation.data[0]
 
-            # Check if invitation was explicitly expired/revoked
-            if inv.get('status') == 'expired':
-                return jsonify({'error': 'Invitation has been revoked'}), 400
-
-            # Check expiration
-            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
-            if datetime.utcnow() > expires_at.replace(tzinfo=None):
-                # Mark as expired
-                supabase.table('observer_invitations') \
-                    .update({'status': 'expired'}) \
-                    .eq('id', inv['id']) \
-                    .execute()
-
-                return jsonify({'error': 'Invitation expired'}), 400
+            blocked = _invitation_block_reason(inv)
+            if blocked:
+                # An expired code is left in whatever status it holds; the
+                # expiry is the timestamp, and rewriting status on a read path
+                # only adds a write that a rate-limited stranger can trigger.
+                return _invite_error(blocked)
 
             data = request.json or {}
 
             # Use the logged-in user as the observer
             observer_id = user_id
-            logger.info(f"Using logged-in user as observer: {observer_id}")
+
+            # Consume the code BEFORE granting anything. If the claim fails,
+            # somebody else redeemed it between the read above and here, and
+            # this caller gets nothing -- one code, one observer, even under a
+            # race. Doing the grant first and the claim after would hand access
+            # to both racers.
+            if not _claim_invitation(supabase, inv['id'], observer_id):
+                logger.info(
+                    f"Observer invite claim lost/already consumed: "
+                    f"invitation={inv['id']}, observer={observer_id}"
+                )
+                return _invite_error(INVITE_USED)
+
+            logger.info(f"Observer invitation claimed by user: {observer_id}")
 
             # Get user's current role and created_at to determine if they're a new user
             user_result = supabase.table('users').select('role, created_at').eq('id', observer_id).single().execute()
@@ -220,7 +332,10 @@ def register_routes(bp):
                 logger.info(f"Single-student invitation detected")
             else:
                 logger.error(f"Invitation {inv['id']} has no associated students")
-                return jsonify({'error': 'Invalid invitation - no students linked'}), 400
+                # The code is already consumed at this point. Releasing it
+                # would be wrong -- a code that points at nothing is broken,
+                # not reusable -- so the caller is told to ask for a new one.
+                return _invite_error(INVITE_INVALID)
 
             # Get the parent ID who created this invitation (for tracking)
             invited_by_parent_id = inv.get('invited_by_user_id') if inv.get('invited_by_role') == 'parent' else None
@@ -252,10 +367,7 @@ def register_routes(bp):
                     supabase.table('observer_student_links').insert(link_data).execute()
                     linked_student_ids.append(student_id)
 
-            # Note: We don't mark the invitation as 'accepted' because codes are reusable
-            # Multiple observers can use the same invitation link
-
-            logger.info(f"Observer invitation accepted: observer={observer_id}, students={student_ids}, newly_linked={linked_student_ids}")
+            logger.info(f"Observer invitation accepted and consumed: observer={observer_id}, students={student_ids}, newly_linked={linked_student_ids}")
 
             # Send notifications for newly linked students
             if linked_student_ids:
@@ -508,7 +620,8 @@ def register_routes(bp):
                     .in_('id', all_student_ids) \
                     .execute()
 
-                # Create lookup map
+                # Create lookup map. Avatars signed once for the whole list.
+                sign_in_place(students.data, ['avatar_url'])
                 student_map = {student['id']: student for student in students.data}
 
                 # Per-student last-activity timestamp — max(created_at) from

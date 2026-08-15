@@ -212,6 +212,10 @@ class AdvisorService(BaseService):
             # Sort by display name (handle null values)
             students.sort(key=lambda x: x.get('display_name') or '')
 
+            # Private-bucket photos: one batch for the caseload.
+            from utils.storage_urls import sign_in_place
+            sign_in_place(students, ['avatar_url'])
+
             return students
 
         except Exception as e:

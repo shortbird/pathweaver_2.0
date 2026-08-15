@@ -34,6 +34,7 @@ import secrets
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 from utils import portfolio_access as pa
 
 logger = get_logger(__name__)
@@ -333,8 +334,10 @@ def request_by_code(requester_id: str, code: str) -> Dict[str, Any]:
 
     admin = _admin()
     existing = admin.table('peer_connections').select('id, status').or_(
-        f'and(requester_id.eq.{requester_id},addressee_id.eq.{addressee_id}),'
-        f'and(requester_id.eq.{addressee_id},addressee_id.eq.{requester_id})'
+        f'and(requester_id.eq.{pgrst_uuid(requester_id, "requester_id")},'
+        f'addressee_id.eq.{pgrst_uuid(addressee_id, "addressee_id")}),'
+        f'and(requester_id.eq.{pgrst_uuid(addressee_id, "addressee_id")},'
+        f'addressee_id.eq.{pgrst_uuid(requester_id, "requester_id")})'
     ).limit(1).execute().data or []
     if existing:
         status = existing[0]['status']
@@ -598,11 +601,15 @@ def _peer_profile(user_id: str) -> Dict[str, Any]:
     if not rows:
         return {'id': user_id, 'display_name': 'A student', 'avatar_url': None}
     u = rows[0]
-    return {
+    profile = {
         'id': u['id'],
         'display_name': u.get('display_name') or u.get('first_name') or 'A student',
         'avatar_url': u.get('avatar_url'),
     }
+    # The avatar lives in a private bucket; a peer gets the expiring twin.
+    from utils.storage_urls import sign_in_place
+    sign_in_place([profile], ['avatar_url'])
+    return profile
 
 
 def _display_name(user_id: str) -> str:
@@ -613,7 +620,8 @@ def list_connections(user_id: str) -> Dict[str, Any]:
     """Everything this student needs to render the connections page."""
     admin = _admin()
     rows = admin.table('peer_connections').select('*').or_(
-        f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+        f'requester_id.eq.{pgrst_uuid(user_id, "user_id")},'
+        f'addressee_id.eq.{pgrst_uuid(user_id, "user_id")}'
     ).execute().data or []
 
     active, incoming, outgoing, awaiting = [], [], [], []
@@ -646,7 +654,8 @@ def active_peer_ids(user_id: str) -> List[str]:
     rows = _admin().table('peer_connections').select(
         'requester_id, addressee_id'
     ).eq('status', 'active').or_(
-        f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+        f'requester_id.eq.{pgrst_uuid(user_id, "user_id")},'
+        f'addressee_id.eq.{pgrst_uuid(user_id, "user_id")}'
     ).execute().data or []
 
     peers = [

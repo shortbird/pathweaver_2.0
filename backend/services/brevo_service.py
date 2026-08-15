@@ -46,9 +46,18 @@ LIST_NEW_ACCOUNTS = 13
 # Trigger list for the Course Student Onboarding automation (templates 45-48):
 # brand-new students an org admin registers for purchased courses. They never
 # chose Optio and have no idea how it works, so the sequence teaches the
-# philosophy (low instruction, do real things) and how courses run. The org
-# enrollment is the email permission, so under-13 students are deliberately
-# included (Tanner, 2026-08-10). Only sync_course_student adds here.
+# philosophy (low instruction, do real things) and how courses run.
+#
+# Under-13 students are EXCLUDED (Aug 2026 privacy remediation), reversing the
+# 2026-08-10 decision to include them. The org enrollment is a fine email
+# permission for a teenager, but it is not the verifiable parental consent
+# COPPA wants before a child's name and address are handed to a marketing
+# platform — and the org admin who registers the child cannot give it. The
+# self-signup paths already gate this way (routes/auth/registration.py,
+# routes/auth/google_oauth.py); this closes the org path to match. Under-13
+# students still get the transactional welcome/invite email, which is what
+# actually gets them into the course.
+# Only sync_course_student adds here.
 LIST_COURSE_STUDENTS = 14
 
 # Which list a contact_submissions.contact_type lands in. Adding a contact to
@@ -279,19 +288,69 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
     return None
 
 
+def _is_under_13(email):
+    """True when this address belongs to an account we know to be under 13.
+
+    Reads the same two markers the registration paths write:
+    `requires_parental_consent` (set at signup when the DOB is under 13) and
+    `date_of_birth` itself, so an account created before the flag existed, or
+    by a path that only stored the DOB, is still caught.
+
+    Fails CLOSED — an unknown address or a failed lookup returns True. A
+    marketing sync is not worth a coin flip: the cost of being wrong the safe
+    way is a missed onboarding sequence, and the cost of being wrong the other
+    way is a ten-year-old's name and email sitting in a marketing platform.
+    """
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: marketing-sync age gate resolves the
+        # RECIPIENT's own user row by email; runs in service context.
+        db = get_supabase_admin_client()
+        rows = (db.table('users')
+                .select('requires_parental_consent, date_of_birth')
+                .ilike('email', email).limit(1).execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Brevo age gate: user lookup failed, skipping sync: {e}')
+        return True
+
+    if not rows:
+        logger.warning('Brevo age gate: no account for this address, skipping sync')
+        return True
+
+    row = rows[0] or {}
+    if row.get('requires_parental_consent'):
+        return True
+
+    dob = row.get('date_of_birth')
+    if dob:
+        try:
+            born = date.fromisoformat(str(dob)[:10])
+        except ValueError:
+            logger.warning('Brevo age gate: unparseable date_of_birth, skipping sync')
+            return True
+        return (date.today() - born).days / 365.25 < 13
+    # No DOB on file at all: nothing says this is a child, and blocking every
+    # DOB-less account would silence onboarding for most org rosters.
+    return False
+
+
 def sync_course_student(email, first_name=None, last_name=None):
     """Sync a brand-new org-registered course student into Brevo: Customers
     (#8, exits/suppresses any lead nurture) plus Course Student Onboarding
     (#14), which starts the onboarding automation once it's live in the
     dashboard.
 
-    No age or role gate on purpose: these students are taking a purchased
-    course from us, which is the email permission, and the sequence is
-    onboarding for that course rather than marketing outreach.
+    Under-13 students are skipped entirely (see LIST_COURSE_STUDENTS): an org
+    admin's enrollment is not verifiable parental consent, and the self-signup
+    paths already refuse to sync children. They keep receiving the
+    transactional welcome/invite email, which is the one that matters.
 
     Returns the automation this starts, or None (automation not live yet,
-    Brevo disabled, or the call failed)."""
+    Brevo disabled, student under 13, or the call failed)."""
     if not _enabled():
+        return None
+    if _is_under_13(email):
+        logger.info('Brevo course-student sync skipped: under-13 or unverifiable age')
         return None
     attributes = {
         'CONVERTED': True,

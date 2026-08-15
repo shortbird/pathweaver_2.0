@@ -42,9 +42,12 @@ def mint_invite_token(user_id: str, admin=None,
     now = datetime.now(timezone.utc)
     token = secrets.token_urlsafe(32)
     try:
+        # The HASH is stored, never the token — the row is a bearer credential
+        # that sets a password. See utils/reset_tokens.py.
+        from utils.reset_tokens import hash_reset_token
         admin.table('password_reset_tokens').insert({
             'user_id': user_id,
-            'token': token,
+            'token': hash_reset_token(token),
             'expires_at': (now + timedelta(days=expiry_days)).isoformat(),
             'used': False,
             'created_at': now.isoformat(),

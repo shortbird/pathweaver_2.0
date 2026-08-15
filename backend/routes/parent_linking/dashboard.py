@@ -34,6 +34,7 @@ from middleware.error_handler import ValidationError, NotFoundError, Authorizati
 import logging
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -100,6 +101,8 @@ def get_linked_children(user_id):
                     'linked_since': link['created_at']
                 })
 
+        # Private-bucket child photos: one batch for the family.
+        sign_in_place(children, ['student_avatar_url'])
         return jsonify({'children': children}), 200
 
     except Exception as e:
@@ -147,6 +150,7 @@ def get_parent_links(user_id):
                         'linked_since': link['created_at']
                     })
 
+        sign_in_place(linked_parents, ['parent_avatar_url'])
         return jsonify({
             'linked_parents': linked_parents
         }), 200
@@ -216,6 +220,7 @@ def get_family_parents(user_id):
                     'status': 'active'
                 })
 
+        sign_in_place(parents, ['avatar_url'])
         return jsonify({'parents': parents}), 200
 
     except Exception as e:

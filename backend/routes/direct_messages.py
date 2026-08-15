@@ -22,6 +22,7 @@ from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_required_fields, validate_string_length
 from utils.api_response import success_response, error_response
+from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
 
 bp = Blueprint('direct_messages', __name__, url_prefix='/api/messages')
 
@@ -360,6 +361,9 @@ def get_contacts(user_id: str):
                         'organization_id': org_id  # Include for superadmin context
                     })
 
+            # Avatars live in private buckets; the whole list is signed in one
+            # batch per bucket, not one round trip per contact.
+            sign_in_place(contacts, ['avatar_url'])
             return success_response({
                 'contacts': contacts,
                 'total': len(contacts)
@@ -520,6 +524,7 @@ def get_contacts(user_id: str):
         # Always include the "Optio Support" contact (dedupes by id too).
         contacts = _append_support_contact(supabase, contacts, user_id)
 
+        sign_in_place(contacts, ['avatar_url'])
         return success_response({
             'contacts': contacts,
             'total': len(contacts)
@@ -582,6 +587,7 @@ def get_messageable_children(user_id: str):
                     'id, display_name, first_name, last_name, avatar_url, role'
                 ).in_('id', child_ids).execute()
                 children = res.data or []
+                sign_in_place(children, ['avatar_url'])
 
         return success_response({
             'children': children,
@@ -757,7 +763,11 @@ def upload_attachment(user_id: str):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or 'application/octet-stream'},
         )
-        url = supabase.storage.from_(bucket).get_public_url(path)
+        # `user-uploads` is private. `url` is the durable pointer the send call
+        # posts back to be stored on the message; `display_url` is the signed,
+        # expiring twin the composer renders as a preview. Never store the twin
+        # — every reader is handed a fresh one when they open the thread.
+        url = public_object_url(bucket, path)
     except Exception as e:
         logger.error(f"Message attachment upload failed: {e}")
         return error_response('Failed to upload the file', status_code=500, error_code="internal_error")
@@ -766,5 +776,6 @@ def upload_attachment(user_id: str):
         else 'video' if ext in ('mp4', 'mov', 'webm') \
         else 'audio' if ext in ('m4a', 'mp3', 'wav') else 'file'
     return success_response({'attachment': {
-        'url': url, 'type': kind, 'name': file.filename[:255], 'size': size,
+        'url': url, 'display_url': sign_stored_url(url, bucket),
+        'type': kind, 'name': file.filename[:255], 'size': size,
     }})

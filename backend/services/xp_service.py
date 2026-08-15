@@ -270,9 +270,17 @@ class XPService(BaseService):
                                 'users': user_info
                             })
 
+                    from utils.storage_urls import sign_in_place
+                    sign_in_place([r['users'] for r in leaderboard_data], ['avatar_url'])
                     return leaderboard_data
-            
-            return leaderboard.data if leaderboard.data else []
+
+            # `leaderboard` only exists on the per-pillar branch; the overall
+            # branch returns above unless it found no XP rows at all.
+            rows = (leaderboard.data or []) if pillar else []
+            from utils.storage_urls import sign_in_place
+            sign_in_place([r['users'] for r in rows if isinstance(r.get('users'), dict)],
+                          ['avatar_url'])
+            return rows
             
         except Exception as e:
             logger.error(f"Error getting leaderboard: {str(e)}")

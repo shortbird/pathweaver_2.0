@@ -19,6 +19,7 @@ from utils.auth.decorators import require_admin
 from utils.api_response_v1 import success_response, error_response
 from utils.school_subjects import get_display_name
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -77,6 +78,8 @@ def list_class_reviews(user_id: str):
                 'student_avatar': student.get('avatar_url'),
             })
 
+        # Private-bucket photos: one batch for the whole review queue.
+        sign_in_place(items, ['student_avatar'])
         return success_response(data={'items': items, 'total': len(items)})
 
     except Exception as e:
@@ -109,6 +112,7 @@ def get_class_review_detail(user_id: str, quest_id: str):
             s = supabase.table('users').select('id, display_name, first_name, last_name, email, avatar_url, total_xp').eq('id', student_id).single().execute()
             student_data = s.data or {}
             student_data['display_name'] = _student_display_name(student_data)
+            sign_in_place([student_data], ['avatar_url'])
 
         # All completed tasks on this class quest. Per-task credit review is
         # skipped inside a class (completions keep diploma_status='none'), so we

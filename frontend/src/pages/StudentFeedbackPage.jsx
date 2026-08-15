@@ -171,12 +171,13 @@ export default function StudentFeedbackPage() {
               className="btn-primary w-full"
             >
               <LinkIcon className="w-4 h-4" />
-              {linkGenerating ? 'Generating...' : 'Generate Invite Link'}
+              {linkGenerating ? 'Generating...' : 'Create an invite link'}
             </button>
           ) : (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
               <p className="text-xs font-medium text-green-800">
-                Share this link or scan the QR code to connect.
+                Send this link to one person, or have them scan the code while you're together.
+                It works once and then stops.
               </p>
 
               {/* Link + Copy */}
@@ -210,7 +211,7 @@ export default function StudentFeedbackPage() {
                   />
                 </div>
                 <p className="text-[10px] text-green-600">
-                  Expires {formatDate(generatedLink.expiresAt)}
+                  One person only. Expires {formatDate(generatedLink.expiresAt)}.
                 </p>
               </div>
 
@@ -218,7 +219,7 @@ export default function StudentFeedbackPage() {
                 onClick={() => { setGeneratedLink(null); setCopied(false); }}
                 className="text-xs text-green-700 hover:text-green-800 underline"
               >
-                Generate a new link
+                Create another link for someone else
               </button>
             </div>
           )}

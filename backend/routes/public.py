@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
 from utils.accreditation import resolve_transcript_accreditation
+from utils.storage_urls import sign_stored_url
 
 logger = get_logger(__name__)
 
@@ -300,12 +301,9 @@ def get_public_transcript(user_id):
                     'credits': round(xp / XP_PER_CREDIT, 2),
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subj, subj)
                 }
-            transcript_url = tc.get('transcript_url')
-            if transcript_url:
-                transcript_url = transcript_url.replace(
-                    'vvfgxcykxjybtvpfzwyx.supabase.co',
-                    'auth.optioeducation.com'
-                )
+            # Private bucket: mint a short-lived signed URL per render rather
+            # than handing out a permanent public link to an education record.
+            transcript_url = sign_stored_url(tc.get('transcript_url'))
             transfer_credits.append({
                 'id': tc['id'],
                 'school_name': tc.get('school_name'),

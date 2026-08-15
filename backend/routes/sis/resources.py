@@ -18,8 +18,29 @@ from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 from utils.registration_config import get_registration_config, with_registration_config
 from utils.storage_url import fix_storage_url
+from utils.storage_urls import (
+    parse_object_ref,
+    public_object_url,
+    sign_in_place,
+    sign_stored_url,
+)
 
 logger = get_logger(__name__)
+
+
+def _stored_resource_url(value):
+    """Reduce a submitted resource URL to what we persist.
+
+    `org-documents` is private, so the client only ever holds a SIGNED link to
+    an uploaded document; saving the row would otherwise write that expiring
+    capability into the column. External links (a Google Doc, a video) fall
+    through to the existing branded-domain normalization untouched.
+    """
+    text = (value or '').strip()
+    if not text:
+        return None
+    ref = parse_object_ref(text)
+    return public_object_url(*ref) if ref else fix_storage_url(text)
 
 bp = Blueprint('sis_resources', __name__, url_prefix='/api/sis')
 
@@ -134,8 +155,11 @@ def list_resources(user_id):
         mine = acks.get(r['id'])
         current = bool(mine) and ((r.get('version_date') or '') <= (mine.get('version_date') or ''))
         r['my_ack'] = {'acknowledged_at': mine.get('acknowledged_at'), 'current': current} if mine else None
-        # Documents open on the branded domain, never the raw supabase.co host.
-        r['url'] = fix_storage_url(r.get('url'))
+    # Uploaded documents live in the private `org-documents` bucket: sign the
+    # whole library in one batched call. External links pass through untouched.
+    # No bucket hint: every stored value is a full URL, and the bucket is read
+    # out of it, so a plain external link can never be mistaken for a path.
+    sign_in_place(rows, ['url'])
     payload = {'success': True, 'resources': rows}
     if is_admin:
         payload['paperwork'] = _org_paperwork(supabase, org_id)
@@ -241,8 +265,8 @@ def create_resource(user_id):
         return err
     data = request.json or {}
     title = (data.get('title') or '').strip()
-    # Store the branded domain, not the raw supabase.co host the uploader returns.
-    url = fix_storage_url((data.get('url') or '').strip())
+    # Store the canonical pointer for an uploaded doc; the branded domain for a link.
+    url = _stored_resource_url(data.get('url'))
     if not title:
         return jsonify({'success': False, 'error': 'Title is required'}), 400
     if not url:
@@ -317,7 +341,7 @@ def update_resource(user_id, resource_id):
         if k in data:
             fields[k] = (data.get(k) or '').strip() or None
     if fields.get('url'):
-        fields['url'] = fix_storage_url(fields['url'])
+        fields['url'] = _stored_resource_url(fields['url'])
     if 'sort_order' in data:
         fields['sort_order'] = int(data.get('sort_order') or 0)
     if 'audience' in data:
@@ -380,8 +404,9 @@ def delete_resource(user_id, resource_id):
 @bp.route('/resources/upload', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def upload_resource_file(user_id):
-    """Upload a document to the org-documents bucket; returns its public URL
-    (mirrors the paperwork-doc upload in catalog.py)."""
+    """Upload a document to the PRIVATE org-documents bucket. Returns the
+    canonical pointer to persist (`url`) and a short-lived signed twin for the
+    preview (`display_url`). Mirrors the paperwork-doc upload in catalog.py."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -402,10 +427,10 @@ def upload_resource_file(user_id):
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_ORG_DOCS_BUCKET):
-            supabase.storage.create_bucket(_ORG_DOCS_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_ORG_DOCS_BUCKET)
     except Exception:
         try:
-            supabase.storage.create_bucket(_ORG_DOCS_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_ORG_DOCS_BUCKET)
         except Exception:
             pass
 
@@ -415,8 +440,12 @@ def upload_resource_file(user_id):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or 'application/octet-stream'},
         )
-        url = supabase.storage.from_(_ORG_DOCS_BUCKET).get_public_url(path)
+        url = public_object_url(_ORG_DOCS_BUCKET, path)
     except Exception as e:
         logger.error(f'Resource upload failed: {e}')
         return jsonify({'success': False, 'error': 'Failed to upload file'}), 500
-    return jsonify({'success': True, 'url': url})
+    return jsonify({
+        'success': True,
+        'url': url,
+        'display_url': sign_stored_url(url, _ORG_DOCS_BUCKET),
+    })

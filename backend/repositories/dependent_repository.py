@@ -309,7 +309,15 @@ class DependentRepository(BaseRepository):
 
     def delete_dependent(self, dependent_id: str, parent_id: str) -> bool:
         """
-        Delete a dependent profile.
+        Delete a dependent profile: rows, storage objects, and auth account.
+
+        A dependent is a child under 13. This used to hard-delete only the
+        `public.users` row, leaving the child's Supabase **auth** account and
+        every uploaded file (avatar, evidence media) in place indefinitely —
+        a parent exercising erasure on their child's behalf got a partial
+        deletion. It now runs the same full erasure as every other deletion
+        path (services/account_deletion_service.py), which fails loudly rather
+        than reporting a deletion that didn't happen.
 
         Args:
             dependent_id: Dependent user ID
@@ -321,25 +329,30 @@ class DependentRepository(BaseRepository):
         Raises:
             NotFoundError: If dependent not found
             PermissionError: If parent doesn't own this dependent
+            ValidationError: If any part of the erasure failed (nothing is
+                reported as deleted; the record stays retryable)
         """
-        # Verify ownership
+        # Verify ownership BEFORE anything is deleted — get_dependent enforces
+        # managed_by_parent_id, which the purge itself does not re-check.
         self.get_dependent(dependent_id, parent_id)
 
+        from repositories.user_erasure_repository import AccountDeletionError, purge_user
+
         try:
-            result = self.client.table('users')\
-                .delete()\
-                .eq('id', dependent_id)\
-                .eq('managed_by_parent_id', parent_id)\
-                .execute()
-
-            if not result.data:
-                raise NotFoundError(f"Failed to delete dependent {dependent_id}")
-
+            purge_user(dependent_id, admin=self.client,
+                       reason='Parent-initiated dependent deletion',
+                       deletion_type='dependent')
             logger.info(f"Deleted dependent {dependent_id} for parent {parent_id}")
             return True
 
+        except AccountDeletionError as e:
+            logger.error(f"Dependent {dependent_id} deletion incomplete: {e.errors}")
+            raise ValidationError(
+                "Failed to delete dependent: the deletion did not complete and has been "
+                "left for retry"
+            )
         except Exception as e:
-            if isinstance(e, NotFoundError):
+            if isinstance(e, (NotFoundError, PermissionError)):
                 raise
             logger.error(f"Error deleting dependent {dependent_id}: {e}")
             raise ValidationError(f"Failed to delete dependent: {str(e)}")

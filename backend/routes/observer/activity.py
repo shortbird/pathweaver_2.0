@@ -13,6 +13,7 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
 from services.activity_feed_service import build_activity_feed
+from utils.access_logger import AccessLogger
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,20 @@ def register_routes(bp):
                 cursor=cursor,
                 confidential_ok_for={student_id},
             )
+
+            # FERPA disclosure. Only somebody else's read is a disclosure --
+            # a student opening their own feed is not, and logging it would
+            # bury the rows that matter under the ones that don't.
+            # AccessLogger swallows its own failures; the feed still returns.
+            if user_id != student_id:
+                AccessLogger.log_student_data_access(
+                    student_id=student_id,
+                    accessor_id=user_id,
+                    data_type='activity',
+                    purpose='legitimate_educational_interest',
+                    fields=['task_completions', 'learning_events', 'evidence'],
+                )
+
             return jsonify(result), 200
 
         except Exception as e:

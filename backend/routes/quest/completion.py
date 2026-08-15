@@ -13,6 +13,7 @@ from utils.auth.decorators import require_auth
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.quest_status import is_enrollment_complete, enrollment_completed_at
+from utils.storage_urls import sign_in_place
 from services.webhook_service import WebhookService
 from services.course_progress_service import CourseProgressService
 
@@ -415,6 +416,23 @@ def get_user_completed_quests(user_id: str):
         # Guard against None (e.g. a credit-awarded class with no review-submission
         # timestamp) so comparing across str/None can't raise.
         achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at') or '', reverse=True)
+
+        # Serve signed, never public. `quest-evidence` is private, so both the
+        # block media and the legacy `evidence_url` that `evidence_content`
+        # falls back to are pointers until signed. Flatten every task on every
+        # achievement first: this is a whole diploma's worth of evidence, and it
+        # must cost one signing call per bucket, not one per task.
+        from services.portfolio_service import PortfolioService
+        entries = [
+            entry
+            for achievement in achievements
+            for entry in (achievement.get('task_evidence') or {}).values()
+            if isinstance(entry, dict)
+        ]
+        # Plain evidence_text and external links parse to nothing and pass
+        # through untouched; only storage URLs are rewritten.
+        sign_in_place(entries, ['evidence_content'])
+        PortfolioService().sign_evidence_blocks_on(entries)
 
         return jsonify({
             'success': True,

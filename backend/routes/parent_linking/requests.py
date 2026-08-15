@@ -34,6 +34,7 @@ from middleware.error_handler import ValidationError, NotFoundError, Authorizati
 import logging
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -224,6 +225,7 @@ def get_pending_requests(user_id):
                         'requested_at': link['created_at']
                     })
 
+        sign_in_place(pending_requests, ['parent_avatar_url'])
         return jsonify({
             'success': True,
             'pending_requests': pending_requests,

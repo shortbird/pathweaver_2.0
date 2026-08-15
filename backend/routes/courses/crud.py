@@ -15,6 +15,7 @@ from services.course_progress_service import CourseProgressService
 from services.file_upload_service import FileUploadService
 from services.course_service import CourseService
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 from utils.roles import get_effective_role
 from utils.slug_utils import generate_slug, ensure_unique_slug
 from routes.courses import can_manage_course, can_create_course
@@ -75,7 +76,8 @@ def register_routes(bp):
                 # 2. All published courses from other orgs (for toggling availability)
                 if org_id:
                     query = client.table('courses').select('*').or_(
-                        f"organization_id.eq.{org_id},status.eq.published"
+                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'status.eq.published'
                     )
                 else:
                     # Superadmin with no org - show all courses
@@ -85,7 +87,9 @@ def register_routes(bp):
                 if org_id:
                     # Include: org courses, Optio global courses (null org_id), and public published from other orgs
                     query = client.table('courses').select('*').or_(
-                        f"organization_id.eq.{org_id},organization_id.is.null,and(visibility.eq.public,status.eq.published)"
+                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'organization_id.is.null,'
+                        f'and(visibility.eq.public,status.eq.published)'
                     )
                 else:
                     # User has no org - show Optio global courses + public published courses

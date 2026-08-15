@@ -10,7 +10,11 @@ from database import get_supabase_client, get_supabase_admin_client
 from repositories.quest_repository import QuestRepository
 from utils.source_utils import get_quest_header_image
 from services.quest_optimization import quest_optimization_service
-from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
+from utils.validation.sanitizers import (
+    sanitize_search_input,
+    sanitize_integer,
+    pgrst_pattern,
+)
 from utils.logger import get_logger
 from utils.api_response_v1 import paginated_response, error_response, success_response
 from utils.pagination import get_cursor_params, paginate_cursor, build_cursor_meta
@@ -206,7 +210,10 @@ def list_quests():
                 q = q.in_('id', quest_ids_list)
             if search:
                 # Search title and big_idea using OR filter
-                q = q.or_(f"title.ilike.%{search}%,big_idea.ilike.%{search}%")
+                q = q.or_(
+                    f'title.ilike.%{pgrst_pattern(search)}%,'
+                    f'big_idea.ilike.%{pgrst_pattern(search)}%'
+                )
             if topic_filter:
                 q = q.eq('topic_primary', topic_filter)
             if subtopic_filter:

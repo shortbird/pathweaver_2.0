@@ -37,6 +37,10 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `ENABLE_VIRUS_SCAN` | Toggle ClamAV virus scanning on uploads (M5) | `Config.ENABLE_VIRUS_SCAN` | Default `false`; set `true` only when ClamAV is on the host |
 | `SENTRY_DSN` | Backend error tracking (Sentry project `shortbird/optio-backend`) | `Config.SENTRY_DSN` | Sentry > Project Settings > Client Keys; unset = Sentry disabled (local dev) |
 | `SENTRY_ENVIRONMENT` | Sentry environment tag (`production` / `development`) | `Config.SENTRY_ENVIRONMENT` | Set per Render service; falls back to `FLASK_ENV` |
+| `ACCOUNT_DELETION_SWEEP_BATCH` | Accounts erased per daily deletion sweep | `Config.ACCOUNT_DELETION_SWEEP_BATCH` | Default `50`; a backlog drains over successive runs |
+| `TUTOR_RETENTION_ENABLED` | Enable the AI tutor conversation retention purge | `Config.TUTOR_RETENTION_ENABLED` | Default `false`. **Leave unset unless the purge is genuinely wanted** — `true` deletes real customer data on a timer |
+| `TUTOR_RETENTION_MONTHS` | Retention window for AI tutor chat history | `Config.TUTOR_RETENTION_MONTHS` | Default `12` |
+| `TUTOR_RETENTION_BATCH` | Conversations purged per retention run | `Config.TUTOR_RETENTION_BATCH` | Default `200` |
 
 ### Email Configuration
 

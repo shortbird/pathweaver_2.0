@@ -22,6 +22,7 @@ import secrets
 
 from app_config import Config
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -371,6 +372,8 @@ def google_oauth_callback():
         # Attach parent/advisor relationship flags so the app's parent detection
         # works immediately after Google sign-in (email login + /me already do this).
         attach_relationship_flags(admin_client, user_data)
+        # avatar_url points into a private bucket; hand back the signed twin.
+        sign_in_place([user_data] if isinstance(user_data, dict) else [], ['avatar_url'])
 
         # For new users requiring TOS, return early with TOS acceptance token
         if requires_tos_acceptance:
@@ -388,12 +391,13 @@ def google_oauth_callback():
         app_access_token = session_manager.generate_access_token(user_id)
         app_refresh_token = session_manager.generate_refresh_token(user_id)
 
-        # Prepare response data
+        # Prepare response data. Tokens in the body only for clients that cannot
+        # use the httpOnly cookies (see routes/auth/token_delivery.py).
+        from . import token_delivery
         response_data = {
             'user': user_data,
-            'app_access_token': app_access_token,
-            'app_refresh_token': app_refresh_token,
-            'is_new_user': is_new_user
+            'is_new_user': is_new_user,
+            **token_delivery.body_tokens(app_access_token, app_refresh_token),
         }
 
         response = make_response(jsonify(response_data), 200)
@@ -619,16 +623,17 @@ def accept_tos():
         updated_user = admin_client.table('users').select('*').eq('id', user_id).single().execute()
         user_data = updated_user.data if updated_user.data else user_data
         attach_relationship_flags(admin_client, user_data)
+        sign_in_place([user_data] if isinstance(user_data, dict) else [], ['avatar_url'])
 
         # Now issue full session tokens
         app_access_token = session_manager.generate_access_token(user_id)
         app_refresh_token = session_manager.generate_refresh_token(user_id)
 
+        from . import token_delivery
         response_data = {
             'user': user_data,
-            'app_access_token': app_access_token,
-            'app_refresh_token': app_refresh_token,
-            'is_new_user': True
+            'is_new_user': True,
+            **token_delivery.body_tokens(app_access_token, app_refresh_token),
         }
 
         response = make_response(jsonify(response_data), 200)

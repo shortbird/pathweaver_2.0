@@ -18,7 +18,7 @@ from werkzeug.utils import secure_filename
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from utils.storage_url import fix_storage_url
+from utils.storage_urls import public_object_url, sign_stored_url
 from config.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_DOCUMENT_EXTENSIONS,
@@ -110,12 +110,18 @@ DEFAULT_BUCKETS = {
 class MediaUploadResult:
     """Result of a media upload operation."""
     success: bool
+    # The DURABLE pointer written to the database: a canonical
+    # /object/public/<bucket>/<path> string. The buckets it names are private,
+    # so it is an identifier, not something a browser can fetch — see
+    # utils/storage_urls.py. `display_url` is the fetchable, expiring twin.
     file_url: Optional[str] = None
+    display_url: Optional[str] = None
     filename: Optional[str] = None
     file_size: int = 0
     content_type: Optional[str] = None
     media_type: Optional[str] = None
     thumbnail_url: Optional[str] = None
+    thumbnail_display_url: Optional[str] = None
     duration_seconds: Optional[float] = None
     width: Optional[int] = None
     height: Optional[int] = None
@@ -136,7 +142,10 @@ class UploadSession:
     token: Optional[str] = None
     storage_path: Optional[str] = None
     bucket: Optional[str] = None
+    # Canonical identifier to persist once the client's PUT completes.
     final_url: Optional[str] = None
+    # Fetchable, expiring twin of final_url — for an optimistic preview.
+    final_display_url: Optional[str] = None
     media_type: Optional[str] = None
     max_size: Optional[int] = None
     expires_in: int = 7200
@@ -334,7 +343,8 @@ class MediaUploadService:
                         file=thumb_bytes,
                         file_options={"content-type": "image/jpeg"}
                     )
-                    return fix_storage_url(supabase.storage.from_(bucket).get_public_url(thumb_path))
+                    # Canonical pointer — this is what gets persisted.
+                    return public_object_url(bucket, thumb_path)
 
                 meta = video_processing_service.process_video_from_path(tmp_path, storage_upload_fn=upload_thumbnail)
                 video_metadata = {
@@ -367,9 +377,7 @@ class MediaUploadService:
                         file=f,
                         file_options={"content-type": content_type},
                     )
-                public_url = fix_storage_url(
-                    supabase.storage.from_(bucket).get_public_url(storage_path)
-                )
+                public_url = public_object_url(bucket, storage_path)
             except Exception as e:
                 logger.error(f"[MediaUpload] Storage upload failed: {e}")
                 return MediaUploadResult(
@@ -385,8 +393,11 @@ class MediaUploadService:
             if is_video and video_probe is not None and video_probe.needs_processing:
                 from services.video_processing_service import video_processing_service
                 try:
+                    # The worker may have to re-download the object, and the
+                    # bucket is private — hand it a signed URL, not the
+                    # canonical pointer.
                     video_processing_service.process_video_background(
-                        public_url=public_url,
+                        public_url=sign_stored_url(public_url, bucket) or public_url,
                         storage_path=storage_path,
                         bucket_name=bucket,
                         user_id=notify_user_id,
@@ -405,6 +416,8 @@ class MediaUploadService:
         return MediaUploadResult(
             success=True,
             file_url=public_url,
+            display_url=sign_stored_url(public_url, bucket),
+            thumbnail_display_url=sign_stored_url(video_metadata.get('thumbnail_url'), bucket),
             filename=filename,
             file_size=file_size,
             content_type=content_type,
@@ -504,11 +517,9 @@ class MediaUploadService:
             )
 
         try:
-            final_url = fix_storage_url(
-                supabase.storage.from_(bucket).get_public_url(storage_path)
-            )
+            final_url = public_object_url(bucket, storage_path)
         except Exception as e:
-            logger.error(f"[MediaUpload] Failed to compute public URL for {bucket}/{storage_path}: {e}")
+            logger.error(f"[MediaUpload] Failed to compute storage pointer for {bucket}/{storage_path}: {e}")
             final_url = None
 
         return UploadSession(
@@ -518,6 +529,7 @@ class MediaUploadService:
             storage_path=storage_path,
             bucket=bucket,
             final_url=final_url,
+            final_display_url=sign_stored_url(final_url, bucket) if final_url else None,
             media_type=block_type,
             max_size=max_size,
         )
@@ -674,14 +686,14 @@ class MediaUploadService:
                 logger.error(f"[MediaUpload] HEIC finalize conversion failed for {bucket}/{storage_path}: {e}")
 
         content_type = actual_content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-        public_url = fix_storage_url(
-            supabase.storage.from_(bucket).get_public_url(storage_path)
-        )
+        public_url = public_object_url(bucket, storage_path)
 
         video_metadata = {}
         if block_type == 'video':
             video_metadata = self._process_finalized_video(
-                public_url=public_url,
+                # Post-processing downloads the object back; the bucket is
+                # private, so it needs a signed URL.
+                public_url=sign_stored_url(public_url, bucket) or public_url,
                 storage_path=storage_path,
                 bucket=bucket,
                 ext=ext,
@@ -698,6 +710,8 @@ class MediaUploadService:
         return MediaUploadResult(
             success=True,
             file_url=public_url,
+            display_url=sign_stored_url(public_url, bucket),
+            thumbnail_display_url=sign_stored_url(video_metadata.get('thumbnail_url'), bucket),
             filename=filename,
             file_size=file_size,
             content_type=content_type,
@@ -723,6 +737,10 @@ class MediaUploadService:
         Video post-processing for a finalized signed upload. Streams the video
         to a temp file (no Python-heap buffering), generates a thumbnail, and
         kicks off background transcoding.
+
+        ``public_url`` is a misnomer kept for the downstream signature: the
+        evidence buckets are private, so callers pass a short-lived SIGNED
+        fetch URL. It is used only to download the object, never persisted.
 
         Above MAX_VIDEO_INLINE_PROCESSING_BYTES, this becomes a no-op: even
         though the download streams to disk, pulling a 500MB object back to
@@ -788,7 +806,8 @@ class MediaUploadService:
                     file=thumb_bytes,
                     file_options={"content-type": "image/jpeg"},
                 )
-                return fix_storage_url(supabase.storage.from_(bucket).get_public_url(thumb_path))
+                # Canonical pointer — this is what gets persisted.
+                return public_object_url(bucket, thumb_path)
 
             meta = video_processing_service.process_video_from_path(
                 tmp_path, storage_upload_fn=upload_thumbnail
@@ -862,14 +881,21 @@ class MediaUploadService:
         return MediaUploadResult(success=True)
 
     def delete_storage_file(self, file_url: str, bucket: str = 'quest-evidence') -> bool:
-        """Delete a file from Supabase storage given its public URL."""
+        """Delete a file from Supabase storage given its stored URL or path.
+
+        Accepts the canonical pointer, a bare object path, or an already-signed
+        URL — see utils.storage_urls.parse_object_ref.
+        """
         try:
-            # Extract storage path from public URL
-            marker = f'/storage/v1/object/public/{bucket}/'
-            if marker in file_url:
-                path = file_url.split(marker)[1].split('?')[0]
+            from utils.storage_urls import parse_object_ref
+            # No `bucket` fallback on purpose: callers pass a stored URL, and
+            # guessing that an unparseable string is a bare object path would
+            # make this report success for a delete that never happened.
+            ref = parse_object_ref(file_url)
+            if ref:
+                found_bucket, path = ref
                 supabase = self._get_client()
-                supabase.storage.from_(bucket).remove([path])
+                supabase.storage.from_(found_bucket).remove([path])
                 return True
         except Exception as e:
             logger.warning(f"[MediaUpload] Failed to delete file: {e}")

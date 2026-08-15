@@ -30,6 +30,7 @@ import csv
 import io
 
 from utils.logger import get_logger
+from utils.storage_urls import parse_object_ref, public_object_url, sign_in_place
 
 logger = get_logger(__name__)
 
@@ -103,6 +104,8 @@ def get_my_dependents(user_id):
         dependent_repo = DependentRepository(client=supabase)
 
         dependents = dependent_repo.get_parent_dependents(user_id)
+        # Child avatars are private-bucket objects; one batch for the family.
+        sign_in_place(dependents, ['avatar_url'])
 
         return jsonify({
             'success': True,
@@ -145,7 +148,11 @@ def create_dependent(user_id):
 
         display_name = data.get('display_name', '').strip()
         date_of_birth_str = data.get('date_of_birth', '').strip()
+        # Canonicalize: the client holds the signed twin and posts it back.
         avatar_url = data.get('avatar_url')
+        _ref = parse_object_ref(avatar_url) if avatar_url else None
+        if _ref:
+            avatar_url = public_object_url(*_ref)
 
         # Validate required fields
         if not display_name:
@@ -369,6 +376,7 @@ def get_dependent(user_id, dependent_id):
         dependent_repo = DependentRepository(client=supabase)
 
         dependent = dependent_repo.get_dependent(dependent_id, user_id)
+        sign_in_place([dependent], ['avatar_url'])
 
         return jsonify({
             'success': True,
@@ -420,6 +428,14 @@ def update_dependent(user_id, dependent_id):
         if not sanitized_updates:
             raise ValidationError(f"At least one valid field must be provided. Allowed fields: {', '.join(ALLOWED_FIELDS)}")
 
+        # The client only ever holds the SIGNED twin of an avatar and posts it
+        # straight back on save. Reduce it to the canonical pointer, or an
+        # expiring URL lands in the column and dies an hour later.
+        if sanitized_updates.get('avatar_url'):
+            ref = parse_object_ref(sanitized_updates['avatar_url'])
+            if ref:
+                sanitized_updates['avatar_url'] = public_object_url(*ref)
+
         # Parse date_of_birth if provided
         if 'date_of_birth' in sanitized_updates:
             try:
@@ -439,6 +455,7 @@ def update_dependent(user_id, dependent_id):
 
         logger.info(f"Parent {user_id} updated dependent {dependent_id}")
 
+        sign_in_place([updated_dependent], ['avatar_url'])
         return jsonify({
             'success': True,
             'dependent': updated_dependent,
@@ -518,8 +535,12 @@ def upload_dependent_avatar(user_id, dependent_id):
             file_options={"content-type": file.content_type}
         )
 
-        # Get public URL
-        avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
+        # `user-uploads` is a PRIVATE bucket: this is a photograph of somebody
+        # else's child. What goes in the database is the durable pointer; what
+        # goes back to the browser is a short-lived signed URL.
+        # See utils/storage_urls.py.
+        from utils.storage_urls import public_object_url, sign_stored_url
+        avatar_url = public_object_url('user-uploads', filename)
 
         # Update dependent's avatar_url
         supabase.table('users')\
@@ -531,7 +552,7 @@ def upload_dependent_avatar(user_id, dependent_id):
 
         return jsonify({
             'success': True,
-            'avatar_url': avatar_url,
+            'avatar_url': sign_stored_url(avatar_url, 'user-uploads'),
             'message': 'Avatar uploaded successfully'
         }), 200
 

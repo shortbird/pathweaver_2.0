@@ -172,7 +172,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
         {/* Explanation */}
         <Alert variant="info">
           <p>
-            Share a link with family members so they can follow your children's learning journeys.
+            Create a link for one person so they can follow your children's learning. Each link works once and expires after 7 days.
             Observers can view completed work, leave encouraging comments, and celebrate achievements.
           </p>
         </Alert>
@@ -287,7 +287,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
               onClick={() => setGeneratedLink(null)}
               className="text-sm text-green-700 hover:text-green-800 underline"
             >
-              Generate a new link
+              Create another link for someone else
             </button>
           </div>
         )}
@@ -376,7 +376,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
           <div className="text-center py-6 text-gray-500">
             <UserPlusIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p>No family observers yet</p>
-            <p className="text-sm">Generate a link above to invite family members</p>
+            <p className="text-sm">Create a link above to invite one family member</p>
           </div>
         )}
 

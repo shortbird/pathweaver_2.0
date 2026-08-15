@@ -36,6 +36,7 @@ import json
 import uuid
 
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -99,7 +100,9 @@ def get_admin_quests(user_id):
         # superadmin branch and saw every org's quests.
         elif effective_role == 'org_admin' and user_org_id:
             query = query.or_(
-                f'organization_id.eq.{user_org_id},created_by.eq.{user_id},is_public.eq.true'
+                f'organization_id.eq.{pgrst_uuid(user_org_id, "organization_id")},'
+                f'created_by.eq.{pgrst_uuid(user_id, "user_id")},'
+                f'is_public.eq.true'
             )
 
         # Apply filters

@@ -16,6 +16,7 @@ from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -73,7 +74,7 @@ def for_class_date(org_id: str, class_id: str, on_date: str) -> Dict[str, Dict[s
     rows = (
         _admin().table('student_planned_absences').select('*')
         .eq('organization_id', org_id).eq('absence_date', on_date).eq('status', 'active')
-        .or_(f'class_id.eq.{class_id},class_id.is.null')
+        .or_(f'class_id.eq.{pgrst_uuid(class_id, "class_id")},class_id.is.null')
         .execute()
     ).data or []
     out: Dict[str, Dict[str, Any]] = {}

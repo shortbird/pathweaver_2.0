@@ -381,6 +381,15 @@ class GroupMessageService(BaseService):
                         'sender': self._get_user_info(pin_row.data[0]['sender_id']),
                     }
 
+            # Private-bucket avatars: one batch for the whole member list plus
+            # the pinned sender, not a signing round trip per member.
+            from utils.storage_urls import sign_in_place
+            sign_in_place(
+                [m['user'] for m in member_list if isinstance(m.get('user'), dict)]
+                + ([pinned['sender']] if isinstance((pinned or {}).get('sender'), dict) else []),
+                ['avatar_url'],
+            )
+
             return {
                 **group.data,
                 'members': member_list,
@@ -699,6 +708,8 @@ class GroupMessageService(BaseService):
             row = result.data[0] if result.data else {}
             enriched = extras.enrich_messages('group', [row], user_id)[0] if row else {}
             enriched['sender'] = self._get_user_info(user_id)
+            from utils.storage_urls import sign_in_place
+            sign_in_place([enriched['sender']], ['avatar_url'])
             # Instant delivery to members with the group open.
             extras.broadcast_group(group_id, 'message', enriched)
             return enriched
@@ -751,6 +762,12 @@ class GroupMessageService(BaseService):
                     **msg,
                     'sender': sender_info
                 })
+
+            from utils.storage_urls import sign_in_place
+            sign_in_place(
+                [m['sender'] for m in result if isinstance(m.get('sender'), dict)],
+                ['avatar_url'],
+            )
 
             # Update last_read_at for user
             supabase.table('group_members').update({
@@ -918,6 +935,8 @@ class GroupMessageService(BaseService):
                     rows.extend(supabase.table('users').select(
                         'id, display_name, first_name, last_name, avatar_url, role'
                     ).in_('id', ids[i:i + 100]).execute().data or [])
+                from utils.storage_urls import sign_in_place
+                sign_in_place(rows, ['avatar_url'])
                 return rows
 
             # Get available users from same org
@@ -933,6 +952,8 @@ class GroupMessageService(BaseService):
                 if u['id'] not in current_member_ids
             ]
 
+            from utils.storage_urls import sign_in_place
+            sign_in_place(available, ['avatar_url'])
             return available
 
         except Exception as e:

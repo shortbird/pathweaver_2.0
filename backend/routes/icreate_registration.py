@@ -184,6 +184,24 @@ def _public_config(org, cfg, paperwork_urls=None):
     """The subset of config safe to expose to the (unauthenticated) registration page."""
     paperwork_urls = paperwork_urls or {}
     sis_settings = (org.get('feature_flags') or {}).get('sis_settings') or {}
+
+    # Registration paperwork (guidebook, contract) lives in the private
+    # `org-documents` bucket. The registration page is unauthenticated, so the
+    # family gets a link that expires rather than one that never does — signed
+    # in one batched call for the whole paperwork list.
+    from utils.storage_urls import sign_stored_urls
+    _paperwork = [
+        {'key': p.get('key'), 'label': p.get('label'),
+         'doc_url': paperwork_urls.get(p.get('key')) or p.get('doc_url') or '',
+         'body': p.get('body') or ''}
+        for p in (cfg.get('paperwork') or [])
+        if p.get('key') and p.get('label')
+    ]
+    _signed_docs = sign_stored_urls([p['doc_url'] for p in _paperwork if p['doc_url']])
+    for _p in _paperwork:
+        if _p['doc_url']:
+            _p['doc_url'] = _signed_docs.get(_p['doc_url']) or ''
+
     return {
         # Age bands currently on an enrollment waitlist, so the family step can
         # tell parents a kid will be waitlisted the moment their DOB is entered.
@@ -221,13 +239,7 @@ def _public_config(org, cfg, paperwork_urls=None):
         # The key itself lives in organization_secrets and is never exposed --
         # only this boolean, which discloses configuration, not a credential.
         'stripe_enabled': _org_stripe_enabled(org.get('id')),
-        'paperwork': [
-            {'key': p.get('key'), 'label': p.get('label'),
-             'doc_url': paperwork_urls.get(p.get('key')) or p.get('doc_url') or '',
-             'body': p.get('body') or ''}
-            for p in (cfg.get('paperwork') or [])
-            if p.get('key') and p.get('label')
-        ],
+        'paperwork': _paperwork,
         'questions': [
             {'key': q.get('key'), 'label': q.get('label'), 'help': q.get('help') or '',
              'type': q.get('type') or 'select', 'options': q.get('options') or [],
@@ -782,6 +794,14 @@ def my_registration(user_id):
         rows = (admin.table('users').select('id, avatar_url')
                 .in_('id', member_ids).execute()).data or []
         avatar_by_id = {r['id']: r.get('avatar_url') for r in rows}
+        # Family photos live in a private bucket. Sign the whole set in one
+        # batched call rather than once per household member.
+        from utils.storage_urls import sign_stored_urls
+        signed = sign_stored_urls(avatar_by_id.values())
+        avatar_by_id = {
+            uid: (signed.get(url) if url else None)
+            for uid, url in avatar_by_id.items()
+        }
     except Exception as e:  # noqa: BLE001
         logger.warning(f'iCreate resume: avatar lookup failed: {e}')
 
@@ -1192,6 +1212,14 @@ def submit_family(reg_id):
         # 'staged' branch of upload_photo). Only URLs from THIS registration's
         # staged folder are trusted; anything else is dropped.
         photo_url = (k.get('photo_url') or '').strip()
+        # The client is handed BOTH a canonical photo_url and its signed twin
+        # (display_url); reduce whatever comes back to the canonical pointer so
+        # an expiring URL can never land in users.avatar_url.
+        if photo_url:
+            from utils.storage_urls import parse_object_ref, public_object_url
+            _ref = parse_object_ref(photo_url)
+            if _ref:
+                photo_url = public_object_url(*_ref)
         if photo_url and f'/user-photos/staged/{reg_id}/' not in photo_url:
             photo_url = ''
         kids.append({'first': kf, 'last': kl, 'dob': kdob, 'email': kemail,
@@ -2104,7 +2132,11 @@ def upload_photo(reg_id):
     file.seek(0)
 
     admin = _admin()
-    from services.user_photo_service import upload_staged_photo, upload_user_photo
+    from services.user_photo_service import (
+        photo_display_url,
+        upload_staged_photo,
+        upload_user_photo,
+    )
     try:
         if staged:
             photo_url = upload_staged_photo(admin, reg_id, file, ext)
@@ -2114,6 +2146,18 @@ def upload_photo(reg_id):
         who = 'staged' if staged else target[:8]
         logger.error(f'iCreate photo: upload failed for {who}: {e}')
         return jsonify({'error': 'Could not upload the photo. Please try again.'}), 500
+    # `user-photos` is private. `photo_url` stays canonical because the family
+    # step posts it straight back to be persisted; `display_url` is what the
+    # funnel renders as the just-uploaded preview.
     if staged:
-        return jsonify({'success': True, 'staged': True, 'photo_url': photo_url}), 200
-    return jsonify({'success': True, 'user_id': target, 'avatar_url': avatar_url}), 200
+        return jsonify({
+            'success': True,
+            'staged': True,
+            'photo_url': photo_url,
+            'display_url': photo_display_url(photo_url),
+        }), 200
+    return jsonify({
+        'success': True,
+        'user_id': target,
+        'avatar_url': photo_display_url(avatar_url),
+    }), 200

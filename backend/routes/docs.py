@@ -22,7 +22,7 @@ Admin endpoints (superadmin only):
 
 from flask import Blueprint, request, jsonify
 import re
-from database import get_supabase_admin_client
+from utils.validation.sanitizers import pgrst_pattern
 from utils.auth.decorators import require_superadmin
 from utils.logger import get_logger
 
@@ -178,7 +178,9 @@ def search_docs():
             result = client.table('docs_articles').select(
                 'id, title, slug, summary, category_id'
             ).eq('is_published', True).or_(
-                f"title.ilike.%{q}%,summary.ilike.%{q}%,content.ilike.%{q}%"
+                f'title.ilike.%{pgrst_pattern(q)}%,'
+                f'summary.ilike.%{pgrst_pattern(q)}%,'
+                f'content.ilike.%{pgrst_pattern(q)}%'
             ).limit(20).execute()
 
         results = result.data or []
@@ -216,7 +218,8 @@ def search_docs():
             result = client.table('docs_articles').select(
                 'id, title, slug, summary, category_id'
             ).eq('is_published', True).or_(
-                f"title.ilike.%{q}%,summary.ilike.%{q}%"
+                f'title.ilike.%{pgrst_pattern(q)}%,'
+                f'summary.ilike.%{pgrst_pattern(q)}%'
             ).limit(20).execute()
             return jsonify({'success': True, 'results': result.data or []}), 200
         except Exception as e2:

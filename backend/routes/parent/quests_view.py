@@ -10,6 +10,7 @@ from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 from .dashboard_overview import verify_parent_access
 import logging
 import re
@@ -48,6 +49,12 @@ def fetch_evidence_blocks_by_document_id(
     """
     Fetch evidence blocks directly by document ID.
     Used as fallback when task_id matching fails.
+
+    The blocks come back holding the CANONICAL storage pointer, not a fetchable
+    URL — `quest-evidence` is a private bucket. Callers serialize these into a
+    response that may carry blocks from several documents, so signing is done
+    once at the serialization boundary (see `sign_blocks_for_response` below)
+    rather than here, where it would cost one storage round trip per document.
 
     Args:
         supabase: Supabase client
@@ -89,6 +96,18 @@ def fetch_evidence_blocks_by_document_id(
     except Exception as e:
         logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
         return [], False, None
+
+
+def sign_blocks_for_response(items: List[Dict[str, Any]], key: str = 'evidence_blocks') -> None:
+    """Sign every evidence block hanging off a list of response items, in one go.
+
+    `quest-evidence` and `user-uploads` are private buckets, so a block's stored
+    URL is a pointer a browser cannot fetch. A parent's completions feed can
+    carry blocks from dozens of documents; flatten them into a single batched
+    signing call rather than one per document. Mutates ``items``.
+    """
+    from services.portfolio_service import PortfolioService
+    PortfolioService().sign_evidence_blocks_on(items, key)
 
 
 @bp.route('/calendar/<student_id>', methods=['GET'])
@@ -439,6 +458,12 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 'evidence_blocks': evidence_blocks,
                 'is_confidential': is_confidential
             })
+
+        # Serve signed, never public: the evidence buckets are private, so both
+        # the legacy `evidence_url` column and the block media are pointers
+        # until they are signed. One batched call each, for the whole quest.
+        sign_in_place(tasks, ['evidence_url'])
+        sign_blocks_for_response(tasks)
 
         # Calculate progress
         completed_count = len([t for t in tasks if t['is_completed']])

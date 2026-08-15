@@ -8,6 +8,13 @@ cron service instead of one-per-job:
                                  time-of-day sensitive; each org's school-hours
                                  window + per-day dedupe are enforced server-side,
                                  so off-hours runs no-op cheaply).
+  - Account deletion sweep    -> once/day (09:00 UTC).
+  - Data retention sweep      -> once/day (10:00 UTC), no-op unless enabled.
+
+Core jobs are dispatched directly below; only PROGRAM-specific jobs come from
+programs/registry.py, which is the seam that keeps core from naming a program.
+Account deletion and retention are platform-wide obligations, not a program's,
+so they belong here.
 
 (The daily advisor summary was dispatched here until 2026-08-05, when it was
 disabled at the owner's request — see the note by the SIS billing reminders.)
@@ -97,6 +104,22 @@ def main():
     # partial unique index server-side, so re-runs are idempotent).
     if now.hour == 13 and now.minute < 10:
         _run("sis-engagement-sweep", f"{base}/api/sis/internal/engagement-sweep", cron_secret, failures)
+
+    # Once/day: account deletion executor (09:00 UTC). Erases accounts whose
+    # 30-day grace period has expired — the thing that makes "your account is
+    # scheduled for deletion" true. Idempotent: it only picks up accounts still
+    # marked pending and past their date, re-checks each one immediately before
+    # erasing it (so a cancellation wins), and leaves failures pending so the
+    # next day retries rather than parking them as done.
+    if now.hour == 9 and now.minute < 10:
+        _run("account-deletion-sweep", f"{base}/api/users/internal/deletion-sweep", cron_secret, failures)
+
+    # Once/day: data retention sweep (10:00 UTC). AI tutor conversation history
+    # only. DISABLED by default (Config.TUTOR_RETENTION_ENABLED) — with it off
+    # the endpoint reports how many conversations would be purged and deletes
+    # nothing, so this is safe to dispatch before anyone opts in.
+    if now.hour == 10 and now.minute < 10:
+        _run("data-retention-sweep", f"{base}/api/users/internal/retention-sweep", cron_secret, failures)
 
     # Once/day: program-specific daily jobs (e.g. OEA compliance sweep), declared
     # in the program registry so core cron carries no program-specific endpoints.

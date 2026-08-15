@@ -18,6 +18,7 @@ from services import sis_attendance_service as attendance
 from services import sis_forms_service as forms
 from services.sis_staff_service import _org_now, list_assignments
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -164,6 +165,9 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
             .order('title').limit(8).execute()
         ).data or [])
     ]
+    # Uploaded docs live in the private `org-documents` bucket — one batched
+    # signing call for the list; external links pass through.
+    sign_in_place(staff_resources, ['url'])
 
     return {
         'organization': {'id': org_id,

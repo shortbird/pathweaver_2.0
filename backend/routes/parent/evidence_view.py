@@ -10,8 +10,14 @@ from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
+from utils.access_logger import AccessLogger
+from utils.storage_urls import sign_in_place, sign_stored_url
 from .dashboard_overview import verify_parent_access
-from .quests_view import parse_document_id_from_evidence_text, fetch_evidence_blocks_by_document_id
+from .quests_view import (
+    fetch_evidence_blocks_by_document_id,
+    parse_document_id_from_evidence_text,
+    sign_blocks_for_response,
+)
 import logging
 
 logger = get_logger(__name__)
@@ -32,6 +38,17 @@ def get_task_details(user_id, student_id, task_id):
         # admin client justified: parent reads child task evidence + completions; cross-user read gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
+
+        # FERPA disclosure log -- evidence is the most sensitive thing a parent
+        # can open, so this read in particular needs to be on the record.
+        # Never raises; a logging failure must not block the view.
+        AccessLogger.log_student_data_access(
+            student_id=student_id,
+            accessor_id=user_id,
+            data_type='evidence',
+            purpose='parent_request',
+            fields=['task', 'completion', 'evidence_text', 'evidence_url'],
+        )
 
         # Get task details from user_quest_tasks
         task_response = supabase.table('user_quest_tasks').select('''
@@ -100,7 +117,9 @@ def get_task_details(user_id, student_id, task_id):
             'completion': {
                 'completed_at': completion['completed_at'] if completion else None,
                 'evidence_text': completion['evidence_text'] if completion else None,
-                'evidence_url': completion['evidence_url'] if completion else None,
+                # `quest-evidence` is private: sign at render time. A signing
+                # failure yields None (a broken link) — never a public URL.
+                'evidence_url': sign_stored_url(completion['evidence_url']) if completion else None,
                 'xp_awarded': task.get('xp_value', 0)  # XP comes from task, not completion
             } if completion else None
         }), 200
@@ -215,6 +234,12 @@ def get_recent_completions(user_id, student_id):
                 'is_confidential': is_confidential,
                 'owner_user_id': owner_user_id
             })
+
+        # 30 days of a child's evidence in one response. Sign it in two batched
+        # calls (legacy `evidence_url`, then every block across every document)
+        # rather than one storage round trip per completion.
+        sign_in_place(completions, ['evidence_url'])
+        sign_blocks_for_response(completions)
 
         return jsonify({
             'completions': completions,

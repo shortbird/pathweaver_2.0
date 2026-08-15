@@ -447,6 +447,12 @@ def get_credit_history(user_id: str, task_id: str):
             if r.get('reviewer_id'):
                 r['reviewer_name'] = reviewers_map.get(r['reviewer_id'], 'Unknown')
 
+        # `evidence_snapshot` is a verbatim copy of the student's evidence
+        # blocks taken at submission time, so it holds `quest-evidence` pointers
+        # like any other block. Sign every round's snapshot in one batched call.
+        from services.portfolio_service import PortfolioService
+        PortfolioService().sign_evidence_blocks_on(rounds.data, 'evidence_snapshot')
+
         return success_response(data={
             'completion_id': completion_data['id'],
             'diploma_status': completion_data['diploma_status'],

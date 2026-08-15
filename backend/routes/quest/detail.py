@@ -11,6 +11,7 @@ from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
 from utils.pillar_utils import normalize_pillar_name
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -362,6 +363,18 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         except Exception as moment_err:
             logger.warning(f"[QUEST DETAIL] Error fetching quest moments as tasks: {moment_err}")
+
+        # ── serve signed, never public ──────────────────────────────────────
+        # This is the student's own quest page, and `quest-evidence` /
+        # `user-uploads` are private buckets: what the rows hold is a durable
+        # pointer, not something a browser can fetch. Sign at render time, in
+        # ONE batched call per bucket — a 40-task quest must not cost 40
+        # storage round trips inside a single request.
+        # The virtual moment-tasks carry `evidence_blocks`, and those arrive
+        # already signed from InterestTracksService.get_quest_moments — signing
+        # them again here would be a second storage round trip per page load for
+        # no gain.
+        sign_in_place(quest_data.get('quest_tasks') or [], ['evidence_url'])
 
         return jsonify({
             'success': True,

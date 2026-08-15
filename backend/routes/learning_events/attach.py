@@ -203,7 +203,12 @@ def get_task_attached_moment(user_id, task_id):
             .eq('learning_event_id', moment.data['id']) \
             .order('order_index') \
             .execute()
-        moment.data['evidence_blocks'] = blocks.data or []
+        # The buckets behind these blocks are private, so what the rows hold is
+        # a durable pointer. Sign for this render only.
+        from services.portfolio_service import PortfolioService
+        moment.data['evidence_blocks'] = PortfolioService().sign_evidence_blocks(
+            blocks.data or []
+        )
 
         return jsonify({'moment': moment.data}), 200
 

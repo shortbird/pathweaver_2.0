@@ -4,6 +4,33 @@ AI Access Control Utilities
 Provides functions to check if a user has access to AI features.
 Checks both user-level toggle (for dependents) and organization-level toggle.
 Supports granular feature-level checks for chatbot, lesson helper, and task generation.
+
+WHERE THIS HAS TO BE CALLED
+---------------------------
+The toggles are a parent's answer to "may my child's work be sent to an AI
+vendor". So the check belongs at every point where a child's content leaves the
+platform for a model, not only at the endpoints a child triggers. In particular
+it applies when STAFF start the call about a student (credit-review feedback
+drafting is one — see services/credit_feedback_ai_service.py): the consent being
+honored is the student's, so the check takes the STUDENT's user id, never the
+caller's.
+
+THE SAFETY CARVE-OUT
+--------------------
+Content moderation and child-safety checks are deliberately NOT gated on these
+toggles. A parent turning off "AI features" is declining a homework helper; it
+is not an instruction to stop screening their child's messages for grooming,
+self-harm, or abuse, and reading it that way would make the toggle a switch that
+removes a child's protection. Optio's answer is: safety screening always runs,
+and parents are told so where the toggles are presented, rather than the
+screening being quietly exempt.
+
+Today that carve-out costs nothing in third-party exposure: the only safety
+screening in the codebase is services/safety_service.py, which is regex and
+keyword matching executed in-process — no child content is sent anywhere. If a
+model-backed classifier is ever introduced, it inherits this carve-out, and the
+disclosure to parents becomes load-bearing rather than merely accurate: say
+plainly which vendor sees the text, and keep it to the safety decision.
 """
 
 from flask import jsonify

@@ -14,6 +14,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from services.learning_events_service import LearningEventsService
 from services.observer_audit_service import ObserverAuditService
+from utils.access_logger import AccessLogger
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,13 @@ def register_routes(bp):
             moments = LearningEventsService._enrich_events_with_topics(supabase, moments)
             moments = LearningEventsService._enrich_events_with_promoted_task(supabase, moments)
 
+            # An observer is a non-family third party. The media in these blocks
+            # lives in private buckets; sign it for this render, in one batched
+            # call, so what they hold is a capability that expires rather than a
+            # permanent link to a child's work.
+            from services.portfolio_service import PortfolioService
+            PortfolioService().sign_evidence_blocks_on(moments)
+
             try:
                 ObserverAuditService(user_id=observer_id).log_observer_access(
                     observer_id=observer_id,
@@ -111,6 +119,19 @@ def register_routes(bp):
                 )
             except Exception as audit_error:
                 logger.error(f"Failed to log observer access: {audit_error}")
+
+            # Also record it as a FERPA disclosure. observer_access_audit
+            # feeds the observer-activity views; student_access_logs is what
+            # routes/admin/ferpa_compliance.py builds disclosure reports from,
+            # and a read that appears in only one of them is invisible to
+            # whichever question is asked of the other.
+            AccessLogger.log_student_data_access(
+                student_id=student_id,
+                accessor_id=observer_id,
+                data_type='learning_journal',
+                purpose='observer_view',
+                fields=['learning_events', 'evidence_blocks'],
+            )
 
             return jsonify({
                 'success': True,

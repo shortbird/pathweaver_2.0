@@ -19,6 +19,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.roles import get_effective_role
+from utils.validation.sanitizers import pgrst_pattern
 from database import get_supabase_admin_client
 from services import announcement_service, sis_service
 from utils import rich_text
@@ -173,15 +174,20 @@ def announcements_archive(user_id):
                                                  request.args.get('view_as'))
         if audience_token:
             query = query.or_(
-                f"target_audience.eq.everyone,target_audience.ilike.%{audience_token}%"
+                f'target_audience.eq.everyone,'
+                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%'
             )
 
         q = (request.args.get('q') or '').strip()
         if q:
-            # Strip PostgREST or= syntax characters so the filter can't break.
-            safe = re.sub(r'[,()]', ' ', q)[:100].strip()
+            # pgrst_pattern strips the PostgREST filter metacharacters, so the
+            # value cannot end the ilike clause and start another one.
+            safe = pgrst_pattern(q)
             if safe:
-                query = query.or_(f"title.ilike.%{safe}%,message.ilike.%{safe}%")
+                query = query.or_(
+                    f'title.ilike.%{pgrst_pattern(safe)}%,'
+                    f'message.ilike.%{pgrst_pattern(safe)}%'
+                )
 
         result = query.order('created_at', desc=True)\
             .range(offset, offset + limit - 1).execute()

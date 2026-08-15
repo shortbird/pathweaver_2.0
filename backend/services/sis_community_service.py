@@ -20,6 +20,12 @@ from typing import Any, Dict, List, Optional
 from database import get_supabase_admin_client
 from utils import rich_text
 from utils.logger import get_logger
+from utils.storage_urls import (
+    parse_object_ref,
+    public_object_url,
+    sign_in_place,
+    sign_stored_url,
+)
 from utils.validation import sanitize_text
 
 logger = get_logger(__name__)
@@ -29,6 +35,11 @@ DONATION_WINDOW_DAYS = 14
 
 ANNOUNCEMENT_PRIORITIES = ('normal', 'urgent')
 LOST_FOUND_STATUSES = ('unclaimed', 'claimed', 'donated')
+
+# Lost & Found photos are taken inside the school and routinely have children in
+# them, so `community-images` is private. The column holds the canonical pointer;
+# every read signs it for the length of one render.
+LOST_FOUND_BUCKET = 'community-images'
 RECOGNITION_TYPES = ('shout_out', 'student_spotlight', 'volunteer', 'weekly_win', 'thank_you')
 
 
@@ -183,12 +194,38 @@ def _decorate_lost_found(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
+def _signed_item(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Decorate one row and swap its stored image pointer for a signed URL."""
+    if not row:
+        return None
+    item = _decorate_lost_found(row)
+    if item.get('image_url'):
+        item['image_url'] = sign_stored_url(item['image_url'], LOST_FOUND_BUCKET)
+    return item
+
+
+def _stored_image_url(value: Any) -> Optional[str]:
+    """Reduce whatever the client sent to the canonical pointer we persist.
+
+    The client only ever receives a SIGNED image URL, so an edit that resubmits
+    the row would otherwise write an expiring capability into the column.
+    """
+    text = (str(value).strip() or None) if value else None
+    if not text:
+        return None
+    ref = parse_object_ref(text)
+    return public_object_url(*ref) if ref else text
+
+
 def list_lost_found(org_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
     q = (_admin().table('sis_lost_found').select('*').eq('organization_id', org_id))
     if status and status in LOST_FOUND_STATUSES:
         q = q.eq('status', status)
     rows = (q.order('created_at', desc=True).execute()).data or []
-    return [_decorate_lost_found(r) for r in rows]
+    items = [_decorate_lost_found(r) for r in rows]
+    # One batched signing call for the whole board, not one per item.
+    sign_in_place(items, ['image_url'], LOST_FOUND_BUCKET)
+    return items
 
 
 def create_lost_found(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -201,7 +238,7 @@ def create_lost_found(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[s
     fields = {
         'organization_id': org_id,
         'description': description,
-        'image_url': (str(data['image_url']).strip() or None) if data.get('image_url') else None,
+        'image_url': _stored_image_url(data.get('image_url')),
         'category': _text(data.get('category')),
         'date_found': (str(data['date_found']).strip() or None) if data.get('date_found') else date.today().isoformat(),
         'location_found': _text(data.get('location_found')),
@@ -210,7 +247,7 @@ def create_lost_found(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[s
         'created_by': user_id,
     }
     row = (_admin().table('sis_lost_found').insert(fields).execute()).data
-    return {'item': _decorate_lost_found(row[0]) if row else None}
+    return {'item': _signed_item(row[0]) if row else None}
 
 
 def update_lost_found(org_id: str, item_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -226,14 +263,14 @@ def update_lost_found(org_id: str, item_id: str, data: Dict[str, Any]) -> Option
         if k in data:
             fields[k] = _text(data.get(k))
     if 'image_url' in data:
-        fields['image_url'] = (str(data['image_url']).strip() or None) if data.get('image_url') else None
+        fields['image_url'] = _stored_image_url(data.get('image_url'))
     if 'date_found' in data:
         fields['date_found'] = (str(data['date_found']).strip() or None) if data.get('date_found') else None
     if 'status' in data:
         fields['status'] = data['status'] if data['status'] in LOST_FOUND_STATUSES else 'unclaimed'
     fields['updated_at'] = _now_iso()
     row = (_admin().table('sis_lost_found').update(fields).eq('id', item_id).execute()).data
-    return {'item': _decorate_lost_found(row[0]) if row else None}
+    return {'item': _signed_item(row[0]) if row else None}
 
 
 def mark_expired_for_donation(org_id: str) -> Dict[str, Any]:

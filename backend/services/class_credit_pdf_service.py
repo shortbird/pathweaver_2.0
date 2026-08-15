@@ -164,6 +164,20 @@ def collect_class_credit_data(quest_id: str) -> Optional[Dict[str, Any]]:
                 if tid:
                     evidence_by_task.setdefault(tid, []).append(b)
 
+            # `quest-evidence` is private, so the URL on a block is a pointer
+            # that _fetch_bytes cannot GET. Sign the whole class's evidence in
+            # one batched call BEFORE the builder starts pulling bytes —
+            # otherwise every student photo silently drops out of the portfolio
+            # and is replaced by a reference line.
+            #
+            # These signed URLs are used server-side only: _printed_url_suffix
+            # keeps them out of the PDF text, because the PDF is emailed.
+            from services.portfolio_service import PortfolioService
+            PortfolioService().sign_evidence_blocks(
+                [b for blocks_for_task in evidence_by_task.values()
+                 for b in blocks_for_task]
+            )
+
     from routes.tasks.xp_helpers import get_subject_xp_distribution
     subject = q.get('transcript_subject')
     approved_xp = 0
@@ -394,6 +408,25 @@ def _image_fragment(item: Dict[str, Any], archive: fitz.Archive,
     return html
 
 
+def _printed_url_suffix(url: str) -> str:
+    """The " (https://...)" a reference line should carry, or '' for our own
+    storage objects.
+
+    An external link a student cited (a YouTube video, a published article) is
+    worth printing: it is the evidence. A `quest-evidence` URL is not. The
+    canonical form is not fetchable at all now the bucket is private, and the
+    signed form is a live capability that would sit in a parent's inbox long
+    after it stopped granting anything — this PDF is emailed. The file itself is
+    embedded a few lines above; the filename is the reference that keeps working.
+    """
+    from utils.storage_urls import parse_object_ref
+
+    url = (url or '').strip()
+    if not url or parse_object_ref(url):
+        return ''
+    return f' ({_esc(url)})'
+
+
 def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
                      budget: '_Budget', include_documents: bool
                      ) -> Tuple[str, List[bytes]]:
@@ -422,7 +455,10 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
 
         if btype == 'image' or (btype == 'document' and ext in IMAGE_EXTENSIONS):
             fragment = _image_fragment(item, archive, budget)
-            fragments.append(fragment or f'<p class="ref">Image: {_esc(filename)} ({_esc(url)})</p>')
+            fragments.append(
+                fragment
+                or f'<p class="ref">Image: {_esc(filename)}{_printed_url_suffix(url)}</p>'
+            )
             continue
 
         if btype == 'document':
@@ -445,7 +481,9 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
                         fragments.append(f'<p class="muted">From uploaded document {_esc(filename)}:</p>'
                                          f'<p class="evidence-text">{_text_to_html(text)}</p>')
                         continue
-            fragments.append(f'<p class="ref">Document: {_esc(filename)} ({_esc(url)})</p>')
+            fragments.append(
+                f'<p class="ref">Document: {_esc(filename)}{_printed_url_suffix(url)}</p>'
+            )
             continue
 
         if btype in ('video', 'audio'):
@@ -454,11 +492,16 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
             if duration:
                 length = f' ({int(duration // 60)}:{int(duration % 60):02d})'
             label = 'Video' if btype == 'video' else 'Audio'
-            fragments.append(f'<p class="ref">{label} evidence: {_esc(filename)}{length} ({_esc(url)})</p>')
+            fragments.append(
+                f'<p class="ref">{label} evidence: {_esc(filename)}{length}'
+                f'{_printed_url_suffix(url)}</p>'
+            )
             continue
 
         title = item.get('title') or item.get('text') or url
-        fragments.append(f'<p class="ref">Link: {_esc(title)} ({_esc(url)})</p>')
+        fragments.append(
+            f'<p class="ref">Link: {_esc(title)}{_printed_url_suffix(url)}</p>'
+        )
 
     if not fragments:
         url = (content.get('url') or '').strip()
@@ -467,7 +510,10 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
             return f'<p class="evidence-text">{_text_to_html(text)}</p>', []
         if url or btype == 'link':
             title = content.get('title') or content.get('text') or url
-            return f'<p class="ref">Link: {_esc(title)} ({_esc(url)})</p>', []
+            return (
+                f'<p class="ref">Link: {_esc(title)}{_printed_url_suffix(url)}</p>',
+                [],
+            )
         return '', []
 
     return ''.join(fragments), pdf_docs

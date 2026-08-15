@@ -221,6 +221,7 @@ class InterestTracksService(BaseService):
                 from services.learning_events_service import LearningEventsService
                 LearningEventsService._enrich_events_with_topics(supabase, moments)
                 LearningEventsService._enrich_events_with_promoted_task(supabase, moments)
+                LearningEventsService._sign_event_media(moments)
 
             track['moments'] = moments
 
@@ -464,6 +465,7 @@ class InterestTracksService(BaseService):
                     moment['topics'] = []  # Unassigned = no topics
                 from services.learning_events_service import LearningEventsService
                 LearningEventsService._enrich_events_with_promoted_task(supabase, moments)
+                LearningEventsService._sign_event_media(moments)
 
             return {
                 'success': True,
@@ -1672,6 +1674,16 @@ class InterestTracksService(BaseService):
             # Combine and sort by created_at/completed_at
             all_items = moments + completed_tasks
             all_items.sort(key=lambda x: x.get('created_at') or '', reverse=True)
+
+            # Serve signed, never public. Both halves of this list carry media
+            # from private buckets: the moments' own blocks (`user-uploads`) and
+            # the completed tasks' evidence document blocks + legacy
+            # `evidence_url` (`quest-evidence`). Sign the combined list once so
+            # a quest with 50 items still costs one call per bucket.
+            from services.learning_events_service import LearningEventsService
+            from utils.storage_urls import sign_in_place
+            sign_in_place(all_items, ['evidence_url'])
+            LearningEventsService._sign_event_media(all_items)
 
             logger.info(f"Returning {len(all_items)} total items ({len(moments)} moments, {len(completed_tasks)} completed tasks)")
 

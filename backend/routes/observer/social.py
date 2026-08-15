@@ -13,6 +13,7 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.platform_staff import is_optio_platform_user
 from middleware.rate_limiter import rate_limit
 from services.notification_service import NotificationService
+from utils.storage_urls import sign_in_place
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,9 @@ def _attach_comment_authors(supabase, comments_data):
         .select('id, first_name, last_name, display_name, avatar_url, role, email') \
         .in_('id', observer_ids) \
         .execute()
+    # Avatars are private-bucket objects; sign the author set once for the
+    # whole comment thread rather than per comment.
+    sign_in_place(observers.data or [], ['avatar_url'])
     observer_map = {obs['id']: obs for obs in (observers.data or [])}
 
     for comment in comments_data:
@@ -203,6 +207,7 @@ def register_routes(bp):
                     'viewed_at': v['viewed_at'],
                 })
 
+            sign_in_place(viewers, ['avatar_url'])
             return jsonify({
                 'success': True,
                 'viewers': viewers,

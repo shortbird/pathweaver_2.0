@@ -31,6 +31,7 @@ arbitrary callers from these endpoints.
 from flask import Blueprint, request, jsonify
 from app_config import Config
 from database import get_supabase_admin_client
+from utils.storage_urls import sign_stored_url
 from repositories import (
     UserRepository,
     QuestRepository,
@@ -95,8 +96,17 @@ def get_pending_consent_reviews(user_id: str):
                 'parent_name': parent.get('display_name', 'Unknown'),
                 'parent_email': parent.get('email'),
                 'submitted_at': parent.get('parental_consent_submitted_at'),
-                'id_document_url': parent.get('parental_consent_id_document_url'),
-                'consent_form_url': parent.get('parental_consent_signed_form_url'),
+                # Government ID + signed consent form. The stored value is a
+                # durable pointer into a PRIVATE bucket; sign it here so the
+                # reviewer gets a link that works for one TTL and then dies.
+                # Legacy rows pointing at the old public quest-evidence bucket
+                # are re-signed by the same call. See utils/storage_urls.py.
+                'id_document_url': sign_stored_url(
+                    parent.get('parental_consent_id_document_url')
+                ),
+                'consent_form_url': sign_stored_url(
+                    parent.get('parental_consent_signed_form_url')
+                ),
                 'parent_age': age,
                 'status': parent.get('parental_consent_status')
             })

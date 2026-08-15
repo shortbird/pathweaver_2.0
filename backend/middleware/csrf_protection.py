@@ -171,7 +171,15 @@ def init_csrf(app):
         if request.headers.get('Authorization', '').startswith('Bearer '):
             return None
         # Only cookie-authenticated sessions are at risk.
-        if not (request.cookies.get('access_token') or request.cookies.get('refresh_token')):
+        #
+        # `masquerade_token` belongs in this set: get_current_user_id() checks it
+        # BEFORE access_token and authenticates from it alone
+        # (session_manager.py, "Cookie fallback"), so an admin part-way through a
+        # masquerade — the highest-privilege session on the platform, acting as
+        # someone else — was carrying ambient authority that this gate did not
+        # see, and every mutating request they made was CSRF-forgeable.
+        _AUTH_COOKIES = ('access_token', 'refresh_token', 'masquerade_token')
+        if not any(request.cookies.get(name) for name in _AUTH_COOKIES):
             return None
         path = request.path or ''
         if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):

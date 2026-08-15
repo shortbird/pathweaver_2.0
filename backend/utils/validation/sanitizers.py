@@ -205,3 +205,150 @@ def sanitize_json_key(key: str) -> str:
     
     # Allow only alphanumeric and underscore
     return re.sub(r'[^\w]', '_', str(key))[:100]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PostgREST filter-string safety
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `.or_()` (and `.and_()`, `.not_.or_()`, `.filter()`) take a RAW FILTER STRING,
+# not bound parameters. supabase-py hands the string to PostgREST verbatim:
+#
+#     .or_(f"title.ilike.%{search}%,big_idea.ilike.%{search}%")
+#
+# The grammar is `column.operator.value`, with `,` separating top-level
+# conditions and `and(...)` / `or(...)` grouping them. So a value carrying a
+# comma does not get escaped — it ENDS the current condition and starts a new
+# one. A search for `x,is_public.eq.true` silently ORs in a clause the query
+# never asked for, which on a listing endpoint means reading rows the caller is
+# not entitled to. Nothing raises; the query just quietly answers a different
+# question.
+#
+# Every user-facing callsite happened to sanitize correctly, but the safety was
+# per-callsite rather than by construction: the next `.or_(f"...")` anyone writes
+# is unprotected by default, and nothing fails when it is. These helpers make the
+# escaping the only way to build the string, and
+# backend/tests/test_postgrest_filter_injection.py fails the build on any raw
+# interpolation that skips them.
+#
+# Pick by what the value IS:
+#   pgrst_uuid       - an id. Validates; raises rather than guessing.
+#   pgrst_timestamp  - an ISO-8601 date/datetime bound.
+#   pgrst_int        - a numeric bound.
+#   pgrst_enum       - one of a known set (a role, a status).
+#   pgrst_pattern    - free text going inside an ilike/like pattern.
+#
+# The first four VALIDATE and pass the value through unchanged, so they cannot
+# alter the behaviour of a correct call. Only pgrst_pattern rewrites its input,
+# and only by removing characters that could not have been meaningful inside a
+# pattern anyway.
+
+# Characters that terminate a value or open a group in PostgREST's filter
+# grammar. Inside a value they are structural, never literal.
+_PGRST_STRUCTURAL = re.compile(r'[,()"\\]')
+
+# PostgREST maps `*` to `%` for like/ilike. Callers supply their own wildcards
+# around the value, so any the user typed are theirs to widen the match with --
+# strip them so a search cannot turn into an unbounded scan.
+_PGRST_WILDCARDS = re.compile(r'[%*]')
+
+_PGRST_UUID_RE = re.compile(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+)
+
+# YYYY-MM-DD, optionally with a time, fractional seconds and a UTC/offset suffix.
+_PGRST_TIMESTAMP_RE = re.compile(
+    r'^\d{4}-\d{2}-\d{2}'
+    r'(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?'
+    r'(?:Z|[+-]\d{2}:?\d{2})?)?$'
+)
+
+
+class PostgrestFilterError(ValueError):
+    """A value could not be safely placed into a PostgREST filter string.
+
+    Raised rather than returned so a bad value fails the request loudly instead
+    of silently degrading into a filter that matches the wrong rows.
+    """
+
+
+def pgrst_uuid(value: Any, field: str = 'id') -> str:
+    """Validate a UUID for interpolation into a PostgREST filter string.
+
+    Returns the UUID unchanged. Raises PostgrestFilterError if it is not a UUID,
+    which is the point: a UUID that survives this cannot contain `,`, `.`, `(`
+    or `)`, so it cannot alter the shape of the filter.
+    """
+    text = str(value).strip() if value is not None else ''
+    if not _PGRST_UUID_RE.match(text):
+        raise PostgrestFilterError(f"{field} must be a UUID for a PostgREST filter")
+    return text
+
+
+def pgrst_timestamp(value: Any, field: str = 'timestamp') -> str:
+    """Validate an ISO-8601 date/datetime for a PostgREST filter string.
+
+    Accepts a `date`/`datetime` (rendered with .isoformat()) or an ISO string.
+    """
+    if hasattr(value, 'isoformat'):
+        text = value.isoformat()
+    else:
+        text = str(value).strip() if value is not None else ''
+    if not _PGRST_TIMESTAMP_RE.match(text):
+        raise PostgrestFilterError(
+            f"{field} must be an ISO-8601 date or timestamp for a PostgREST filter"
+        )
+    return text
+
+
+def pgrst_int(value: Any, field: str = 'value') -> str:
+    """Validate an integer bound for a PostgREST filter string."""
+    try:
+        return str(int(value))
+    except (TypeError, ValueError):
+        raise PostgrestFilterError(f"{field} must be an integer for a PostgREST filter")
+
+
+def pgrst_enum(value: Any, allowed, field: str = 'value') -> str:
+    """Validate that a value is one of a known set before interpolating it.
+
+    For things like roles and statuses, where the safe set is small and known.
+    Membership is the escape: nothing outside `allowed` reaches the filter.
+    """
+    text = str(value).strip() if value is not None else ''
+    if text not in set(allowed):
+        raise PostgrestFilterError(
+            f"{field} must be one of {sorted(set(allowed))} for a PostgREST filter"
+        )
+    return text
+
+
+def pgrst_pattern(value: Optional[str], max_length: int = 100) -> str:
+    """Escape free text for use INSIDE a PostgREST like/ilike pattern value.
+
+    Use for the `X` in `.or_(f"title.ilike.%{X}%")`. Removes the characters that
+    are structural in the filter grammar (`,` `(` `)` `"` `\\`) and the pattern
+    wildcards (`%` `*`), then collapses the resulting whitespace so a stripped
+    value does not glue two words together.
+
+    Note the empty string is a legitimate result (a caller whose input was
+    entirely structural characters). `%%` matches everything, so a caller that
+    treats an empty search as "no filter" must check for it BEFORE building the
+    filter -- which is what the migrated callsites do.
+    """
+    if not value:
+        return ''
+    text = str(value).strip()[:max_length]
+    text = _PGRST_STRUCTURAL.sub(' ', text)
+    text = _PGRST_WILDCARDS.sub(' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def pgrst_uuid_list(values, field: str = 'id') -> str:
+    """Validate a list of UUIDs and join them for a PostgREST `in.(...)` filter.
+
+    Returns `"<uuid>,<uuid>,..."`. The commas are structural HERE -- they are the
+    `in` list separator -- which is exactly why each element has to be proven a
+    UUID first: one non-UUID element and the list stops being a list.
+    """
+    return ','.join(pgrst_uuid(v, field) for v in (values or []))

@@ -24,6 +24,7 @@ from datetime import datetime
 from services.base_service import BaseService
 from services.course_progress_service import CourseProgressService
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_pattern
 
 logger = get_logger(__name__)
 
@@ -653,10 +654,10 @@ class CourseEnrollmentService(BaseService):
             if search:
                 # Use ilike for case-insensitive search on email
                 query = query.or_(
-                    f"email.ilike.%{search}%,"
-                    f"display_name.ilike.%{search}%,"
-                    f"first_name.ilike.%{search}%,"
-                    f"last_name.ilike.%{search}%"
+                    f'email.ilike.%{pgrst_pattern(search)}%,'
+                    f'display_name.ilike.%{pgrst_pattern(search)}%,'
+                    f'first_name.ilike.%{pgrst_pattern(search)}%,'
+                    f'last_name.ilike.%{pgrst_pattern(search)}%'
                 )
 
             # Get paginated results

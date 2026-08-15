@@ -8,7 +8,9 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, ValidationError
 from routes.advisor.student_overview import verify_advisor_access
+from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
+from utils.storage_urls import canonical_stored_url
 
 logger = get_logger(__name__)
 
@@ -76,6 +78,14 @@ def create_student_learning_moment(user_id, student_id):
         for idx, media_item in enumerate(media):
             media_type = media_item.get('type', 'image')
 
+            # The upload endpoints hand the client a SIGNED, expiring twin
+            # alongside the durable pointer, and the capture form posts back
+            # whichever it happens to be holding. Reduce it before it reaches a
+            # row, or the moment renders for one TTL and is broken forever
+            # after. Non-storage links (the `link` media type) pass through.
+            if isinstance(media_item.get('file_url'), str):
+                media_item['file_url'] = canonical_stored_url(media_item['file_url'])
+
             if media_type == 'link':
                 block_data = {
                     'learning_event_id': event_id,
@@ -135,7 +145,9 @@ def create_student_learning_moment(user_id, student_id):
             if block_response.data:
                 evidence_blocks.append(block_response.data[0])
 
-        event['evidence_blocks'] = evidence_blocks
+        # The rows keep the pointer; the advisor gets the signed twin so the
+        # moment they just captured renders immediately.
+        event['evidence_blocks'] = PortfolioService().sign_evidence_blocks(evidence_blocks)
 
         logger.info(f"Advisor {user_id} captured learning moment for student {student_id}")
 
@@ -183,7 +195,11 @@ def upload_moment_media(user_id, student_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'file_name': result.filename,
             'file_size': result.file_size,
             'media_type': result.media_type,
@@ -268,12 +284,18 @@ def finalize_moment_signed_upload(user_id, student_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'file_name': result.filename,
             'filename': result.filename,
             'file_size': result.file_size,
             'media_type': result.media_type,
             **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'thumbnail_display_url': result.thumbnail_display_url}
+               if result.thumbnail_display_url else {}),
             **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
             **({'width': result.width} if result.width is not None else {}),
             **({'height': result.height} if result.height is not None else {}),
@@ -347,6 +369,16 @@ def get_student_learning_moments(user_id, student_id):
             captured_by_id = moment.get('captured_by_user_id')
             if captured_by_id:
                 moment['captured_by_name'] = captured_by_names.get(captured_by_id, 'Unknown')
+
+        # Learning-moment media lives in private buckets (`user-uploads`, and
+        # `quest-evidence` for task evidence mirrored into the journal). Sign
+        # every block on the page in one batched call per bucket.
+        PortfolioService().sign_evidence_blocks([
+            block
+            for moment in moments
+            for block in (moment.get('evidence_blocks') or [])
+            if isinstance(block, dict)
+        ])
 
         return jsonify({
             'success': True,

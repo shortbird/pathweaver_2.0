@@ -81,21 +81,47 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Meta Pixel Code (production host only: keeps localhost/dev/preview
-         traffic out of the prod pixel so audiences + event counts stay clean) -->
+         traffic out of the prod pixel so audiences + event counts stay clean).
+
+         DEFERRED ON PURPOSE (privacy, Aug 2026). This snippet only DEFINES the
+         loader; it loads nothing and fires nothing on its own. The pixel is a
+         marketing tool and this platform's signed-in users are largely minors,
+         so the SPA trackers only ever fire for unauthenticated browsing
+         (components/MetaPixelTracker.jsx, components/GaTracker.jsx). The base
+         pixel used to run here on every hard page load, which meant a logged-in
+         student's page load still pinged facebook.com carrying their cookie and
+         IP before the app had any idea who they were - exactly the thing the
+         SPA policy exists to prevent.
+
+         MetaPixelTracker calls window.__optioLoadMetaPixel() once auth state is
+         settled AND the visitor is confirmed signed out; that call loads the
+         script, inits, and fires the initial PageView. It returns true when it
+         actually did the load so the caller knows the PageView is accounted for
+         (and false on every later call, and on non-production hosts where this
+         is a no-op). Nothing else in the app may call it. -->
     <script>
     (function(){
       var h = window.location.hostname;
-      if (h !== 'www.optioeducation.com' && h !== 'optioeducation.com') return;
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '621857460806836');
-      fbq('track', 'PageView');
+      if (h !== 'www.optioeducation.com' && h !== 'optioeducation.com') {
+        window.__optioLoadMetaPixel = function(){ return false; };
+        return;
+      }
+      var loaded = false;
+      window.__optioLoadMetaPixel = function(){
+        if (loaded) return false;
+        loaded = true;
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '621857460806836');
+        fbq('track', 'PageView');
+        return true;
+      };
     })();
     </script>
     <!-- End Meta Pixel Code -->
@@ -103,11 +129,13 @@
     <title>Optio</title>
   </head>
   <body>
-    <!-- Meta Pixel noscript fallback -->
-    <noscript><img height="1" width="1" style="display:none"
-    src="https://www.facebook.com/tr?id=621857460806836&ev=PageView&noscript=1"
-    /></noscript>
-    
+    <!-- The Meta Pixel <noscript> fallback img was removed (Aug 2026). It
+         cannot be gated: without JavaScript there is no auth state to check, so
+         it fired a facebook.com PageView with the visitor's cookie and IP for
+         every page load including signed-in students'. This is an SPA that
+         renders nothing without JavaScript, so the fallback measured almost
+         nothing while being the one pixel call no policy could hold back. -->
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

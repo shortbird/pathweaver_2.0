@@ -17,6 +17,12 @@ from utils.auth.decorators import require_school_admin
 from utils.auth.org_scope import caller_can_access_user
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
+from utils.storage_urls import (
+    parse_object_ref,
+    public_object_url,
+    sign_stored_url,
+    sign_stored_urls,
+)
 from werkzeug.utils import secure_filename
 import uuid
 import magic
@@ -117,6 +123,16 @@ def get_transfer_credits(admin_user_id, user_id):
                 'total_credits': total_credits
             })
 
+        # Transcripts live in the private `quest-evidence` bucket. Sign the whole
+        # list in one batched call rather than once per record.
+        signed = sign_stored_urls(
+            [r.get('transcript_url') for r in transfer_credits_list],
+            'quest-evidence',
+        )
+        for record in transfer_credits_list:
+            if record.get('transcript_url'):
+                record['transcript_url'] = signed.get(record['transcript_url'])
+
         return success_response({
             'transfer_credits': transfer_credits_list,
             'user': user_result.data[0]
@@ -153,6 +169,14 @@ def save_transfer_credits(admin_user_id, user_id):
         school_name = (data.get('school_name') or '').strip()
         notes = (data.get('notes') or '').strip() or None
         transcript_url = data.get('transcript_url') or None
+
+        # The client only ever sees a signed (expiring) transcript URL, and it
+        # posts that value straight back on save. Reduce it to the canonical
+        # pointer so the column never holds a capability that expires.
+        if transcript_url:
+            ref = parse_object_ref(transcript_url)
+            if ref:
+                transcript_url = public_object_url(*ref)
 
         if not school_name:
             return error_response('School name is required', status_code=400, error_code='validation_error')
@@ -368,8 +392,11 @@ def upload_transcript(admin_user_id, user_id):
             file_options={"content-type": mime_type}
         )
 
-        # Get public URL
-        transcript_url = supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+        # A student's transcript is private. Build the canonical pointer locally
+        # and hand the admin's browser a short-lived signed URL; the save handler
+        # reduces whatever comes back to the pointer again.
+        transcript_url = public_object_url('quest-evidence', unique_filename)
+        display_url = sign_stored_url(transcript_url, 'quest-evidence')
 
         # NOTE: We no longer update the database here. The transcript URL will be included
         # when the user saves the transfer credits form, which provides a more reliable flow
@@ -378,7 +405,8 @@ def upload_transcript(admin_user_id, user_id):
 
         return success_response({
             'message': 'Transcript uploaded successfully',
-            'transcript_url': transcript_url
+            'transcript_url': display_url,
+            'display_url': display_url
         })
 
     except Exception as e:

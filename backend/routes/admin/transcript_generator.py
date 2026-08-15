@@ -24,6 +24,7 @@ from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from services.portfolio_service import PortfolioService
 from utils.accreditation import resolve_transcript_accreditation
+from utils.storage_urls import sign_stored_url
 from app_config import Config
 
 logger = get_logger(__name__)
@@ -141,12 +142,11 @@ def get_transcript_data(admin_user_id, user_id):
                     'credits': round(xp / XP_PER_CREDIT, 2),
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subj, subj)
                 }
-            transcript_url = tc.get('transcript_url')
-            if transcript_url:
-                transcript_url = transcript_url.replace(
-                    'vvfgxcykxjybtvpfzwyx.supabase.co',
-                    'auth.optioeducation.com'
-                )
+            # Transcripts live in the private `quest-evidence` bucket, so the
+            # stored pointer is not fetchable; sign it for this render. (This
+            # also subsumes the old raw-domain rewrite, which fix_storage_url
+            # inside the signer now handles.)
+            transcript_url = sign_stored_url(tc.get('transcript_url'), 'quest-evidence')
             transfer_credits.append({
                 'id': tc['id'],
                 'school_name': tc.get('school_name'),

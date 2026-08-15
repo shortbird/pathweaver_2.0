@@ -26,6 +26,7 @@ from utils.validation import sanitize_input
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -217,6 +218,8 @@ def my_goals(user_id):
             'config': cfg,
         })
     out.sort(key=lambda s: s['name'])
+    # Child photos are private-bucket objects: one batch for the whole list.
+    sign_in_place(out, ['avatar_url'])
     return jsonify({'success': True, 'students': out})
 
 
@@ -348,6 +351,7 @@ def list_goals(user_id):
         r['student_name'] = _full_name(student) if student else 'Unknown student'
         r['student_avatar_url'] = student.get('avatar_url')
         r['parent_name'] = _full_name(parent) if parent else None
+    sign_in_place(rows, ['student_avatar_url'])
 
     # Newest first within each status group (stable sort keeps the date order).
     rows.sort(key=lambda r: (r.get('submitted_at') or r.get('updated_at') or ''), reverse=True)

@@ -496,6 +496,54 @@ class BountyService(BaseService):
             return []
         return self._enrich_bounties_with_claims(bounties)
 
+    # ── bounty evidence lives in `quest-evidence`, same as task evidence ─────
+    #
+    # It just hangs off a different shape: claim.evidence.deliverable_evidence
+    # is {deliverable_id: [{type, content}, ...]}, and each of those entries is
+    # block-shaped, so PortfolioService's block helpers apply once the entries
+    # are flattened out of the nested dict.
+
+    @staticmethod
+    def _claim_evidence_items(claims) -> List[Dict[str, Any]]:
+        """Every ``{type, content}`` evidence entry across one or more claims."""
+        if isinstance(claims, dict):
+            claims = [claims]
+        items: List[Dict[str, Any]] = []
+        for claim in (claims or []):
+            if not isinstance(claim, dict):
+                continue
+            evidence = claim.get('evidence') or {}
+            for entries in (evidence.get('deliverable_evidence') or {}).values():
+                items.extend(e for e in (entries or []) if isinstance(e, dict))
+        return items
+
+    @classmethod
+    def _sign_claim_evidence(cls, claims):
+        """Serve signed, never public: the media behind a claim is a minor's
+        work in a private bucket. One batched call for the whole list."""
+        from services.portfolio_service import PortfolioService
+
+        items = cls._claim_evidence_items(claims)
+        if items:
+            PortfolioService().sign_evidence_blocks(items)
+        return claims
+
+    @classmethod
+    def _canonicalize_evidence_entries(cls, entries) -> List[Dict[str, Any]]:
+        """Reduce client-supplied evidence entries to canonical pointers.
+
+        The upload endpoints hand the client a signed twin for its preview and
+        the claim form posts it straight back. Persisting that would store a URL
+        that dies with the TTL — and `_create_bounty_learning_event` would then
+        copy the dying URL on into learning_event_evidence_blocks.
+        """
+        from services.portfolio_service import PortfolioService
+
+        for entry in (entries or []):
+            if isinstance(entry, dict) and isinstance(entry.get('content'), dict):
+                PortfolioService.canonical_block_content(entry['content'])
+        return entries or []
+
     def _enrich_bounties_with_claims(self, bounties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Enrich a list of bounties with claims and student info."""
         all_student_ids: set = set()
@@ -518,11 +566,15 @@ class BountyService(BaseService):
         for bounty in bounties:
             for claim in bounty['claims']:
                 claim['student'] = student_map.get(claim.get('student_id'), {})
+        # One signing call for every claim on the page, not one per claim.
+        self._sign_claim_evidence(
+            [claim for bounty in bounties for claim in bounty['claims']]
+        )
         return bounties
 
     def get_my_claims(self, student_id: str) -> List[Dict[str, Any]]:
         """Get claims by student."""
-        return self.repository.get_student_claims(student_id)
+        return self._sign_claim_evidence(self.repository.get_student_claims(student_id))
 
     def get_my_claims_with_bounties(self, student_id: str) -> List[Dict[str, Any]]:
         """Get claims by student, each enriched with its bounty data."""
@@ -530,7 +582,7 @@ class BountyService(BaseService):
         for claim in claims:
             bounty = self.repository.get_bounty_by_id(claim['bounty_id'])
             claim['bounty'] = bounty
-        return claims
+        return self._sign_claim_evidence(claims)
 
     def _student_can_access_bounty(self, student_id: str, bounty: Dict[str, Any]) -> bool:
         """Whether a student may see/claim a bounty under its visibility rules.
@@ -704,9 +756,12 @@ class BountyService(BaseService):
         if completed:
             if deliverable_id not in completed_ids:
                 completed_ids.append(deliverable_id)
-            # Append new evidence to existing evidence for this deliverable
+            # Append new evidence to existing evidence for this deliverable.
+            # Reduce the incoming entries to canonical pointers first: the
+            # client posts back whatever it was handed, and after the read paths
+            # above it is holding the SIGNED twin.
             existing = list(all_evidence.get(deliverable_id, []))
-            existing.extend(deliverable_evidence)
+            existing.extend(self._canonicalize_evidence_entries(deliverable_evidence))
             all_evidence[deliverable_id] = existing
         elif not completed and deliverable_id in completed_ids:
             completed_ids.remove(deliverable_id)
@@ -717,7 +772,7 @@ class BountyService(BaseService):
 
         # Just update evidence -- student must explicitly "Turn in" to submit
         updated = self.repository.update_claim_evidence(claim_id, evidence)
-        return updated
+        return self._sign_claim_evidence(updated)
 
     def abandon_claim(self, claim_id: str, student_id: str, bounty_id: str) -> None:
         """Student drops a bounty they claimed, before turning it in. Removes the
@@ -794,7 +849,7 @@ class BountyService(BaseService):
         except Exception as e:
             logger.warning(f"Failed to start notification thread: {e}")
 
-        return updated
+        return self._sign_claim_evidence(updated)
 
     def delete_evidence_item(self, claim_id: str, student_id: str,
                              deliverable_id: str, evidence_index: int) -> Dict[str, Any]:
@@ -855,21 +910,20 @@ class BountyService(BaseService):
                 try:
                     # Direct storage deletion via supabase client
                     storage = self.repository.client.storage
+                    from utils.storage_urls import parse_object_ref
                     for url in urls_to_delete:
-                        # Extract bucket and path from URL
-                        # URL format: https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<path>
-                        parts = url.split('/storage/v1/object/public/')
-                        if len(parts) == 2:
-                            bucket_path = parts[1]
-                            slash_idx = bucket_path.index('/')
-                            bucket = bucket_path[:slash_idx]
-                            path = bucket_path[slash_idx + 1:]
-                            storage.from_(bucket).remove([path])
+                        # parse_object_ref resolves the public, signed and
+                        # legacy shapes alike. The old split() understood only
+                        # the public one, so a row that had picked up a signed
+                        # URL left its object orphaned in storage forever.
+                        ref = parse_object_ref(url)
+                        if ref:
+                            storage.from_(ref[0]).remove([ref[1]])
                 except Exception as e2:
                     logger.warning(f"Failed to delete storage files: {e2}")
 
         logger.info(f"Deleted evidence item {evidence_index} from deliverable {deliverable_id[:8]} on claim {claim_id[:8]}")
-        return updated
+        return self._sign_claim_evidence(updated)
 
     def submit_evidence(self, claim_id: str, student_id: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
         """Student submits evidence for a claimed bounty."""
@@ -883,7 +937,12 @@ class BountyService(BaseService):
         if claim['status'] not in ('claimed', 'revision_requested'):
             raise ValidationError(f"Cannot submit evidence for claim with status '{claim['status']}'")
 
-        return self.repository.submit_evidence(claim_id, evidence)
+        # Client-supplied evidence: reduce to canonical pointers before it is
+        # persisted, then hand back the signed twin for the render.
+        for entries in ((evidence or {}).get('deliverable_evidence') or {}).values():
+            self._canonicalize_evidence_entries(entries)
+
+        return self._sign_claim_evidence(self.repository.submit_evidence(claim_id, evidence))
 
     def review_submission(self, claim_id: str, reviewer_id: str, decision: str, feedback: Optional[str] = None) -> Dict[str, Any]:
         """Poster reviews a submission."""
@@ -962,7 +1021,7 @@ class BountyService(BaseService):
                 logger.warning(f"Failed to start notification thread: {e}")
 
         logger.info(f"Claim {claim_id[:8]} reviewed: {decision}")
-        return updated_claim
+        return self._sign_claim_evidence(updated_claim)
 
     def moderate_bounty(self, bounty_id: str, moderation_status: str, notes: Optional[str] = None) -> Dict[str, Any]:
         """Admin moderates a bounty (approve/reject)."""

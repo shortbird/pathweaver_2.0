@@ -24,6 +24,12 @@ from services import sis_staff_service
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES, ROLE_GRANT_ROLES
+from utils.storage_urls import (
+    parse_object_ref,
+    public_object_url,
+    sign_in_place,
+    sign_stored_url,
+)
 
 logger = get_logger(__name__)
 
@@ -143,7 +149,10 @@ def org_staff(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'staff': sis_service.list_org_staff(org_id)})
+    staff = sis_service.list_org_staff(org_id)
+    # `staff-photos` is private; sign the avatars for this page load only.
+    sign_in_place(staff, ['avatar_url'], 'staff-photos')
+    return jsonify({'success': True, 'staff': staff})
 
 
 @bp.route('/staff', methods=['POST'])
@@ -332,20 +341,23 @@ def upload_staff_photo(user_id, staff_id):
         return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
     file.seek(0)
 
+    # PRIVATE: a staff headshot is a photograph of an identifiable person.
+    # This bucket is created lazily by this very request, so `public: False`
+    # here is what actually decides whether it is world-readable.
     bucket = 'staff-photos'
     try:
         if not supabase.storage.get_bucket(bucket):
-            supabase.storage.create_bucket(bucket, options={'public': True})
+            supabase.storage.create_bucket(bucket, options={'public': False})
     except Exception:
         try:
-            supabase.storage.create_bucket(bucket, options={'public': True})
+            supabase.storage.create_bucket(bucket, options={'public': False})
         except Exception:
             pass
     path = f"{staff_id}/{_uuid.uuid4().hex}.{ext}"
-    old = row[0].get('avatar_url')
-    if old and f'{bucket}/' in old:
+    old_ref = parse_object_ref(row[0].get('avatar_url'), bucket)
+    if old_ref and old_ref[0] == bucket:
         try:
-            supabase.storage.from_(bucket).remove([old.split(f'{bucket}/')[-1]])
+            supabase.storage.from_(bucket).remove([old_ref[1]])
         except Exception:
             pass
     try:
@@ -353,13 +365,14 @@ def upload_staff_photo(user_id, staff_id):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or f'image/{ext}'},
         )
-        avatar_url = supabase.storage.from_(bucket).get_public_url(path)
+        # Durable pointer in the DB; short-lived signed URL to the browser.
+        avatar_url = public_object_url(bucket, path)
     except Exception as e:
         logger.error(f"Error uploading staff photo: {e}")
         return jsonify({'success': False, 'error': 'Failed to upload photo'}), 500
 
     supabase.table('users').update({'avatar_url': avatar_url}).eq('id', staff_id).execute()
-    return jsonify({'success': True, 'avatar_url': avatar_url})
+    return jsonify({'success': True, 'avatar_url': sign_stored_url(avatar_url, bucket)})
 
 
 # ── Households ───────────────────────────────────────────────────────────────
@@ -369,7 +382,11 @@ def list_households(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'households': sis_service.households_with_members(org_id)})
+    households = sis_service.households_with_members(org_id)
+    # `family-images` is private; the stored image_url is a pointer, not a
+    # fetchable link. Sign the whole page in one batched call.
+    sign_in_place(households, ['image_url'], 'family-images')
+    return jsonify({'success': True, 'households': households})
 
 
 @bp.route('/unassigned-students', methods=['GET'])
@@ -499,20 +516,21 @@ def upload_household_image(user_id, household_id):
         return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
     file.seek(0)
 
+    # PRIVATE: family photos are pictures of somebody's children.
     bucket = 'family-images'
     try:
         if not supabase.storage.get_bucket(bucket):
-            supabase.storage.create_bucket(bucket, options={'public': True})
+            supabase.storage.create_bucket(bucket, options={'public': False})
     except Exception:
         try:
-            supabase.storage.create_bucket(bucket, options={'public': True})
+            supabase.storage.create_bucket(bucket, options={'public': False})
         except Exception:
             pass
     path = f"{household_id}/{_uuid.uuid4().hex}.{ext}"
-    old = existing.get('image_url')
-    if old and f'{bucket}/' in old:
+    old_ref = parse_object_ref(existing.get('image_url'), bucket)
+    if old_ref and old_ref[0] == bucket:
         try:
-            supabase.storage.from_(bucket).remove([old.split(f'{bucket}/')[-1]])
+            supabase.storage.from_(bucket).remove([old_ref[1]])
         except Exception:
             pass
     try:
@@ -520,13 +538,17 @@ def upload_household_image(user_id, household_id):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or f'image/{ext}'},
         )
-        image_url = supabase.storage.from_(bucket).get_public_url(path)
+        # Durable pointer in the DB; short-lived signed URL to the browser.
+        image_url = public_object_url(bucket, path)
     except Exception as e:
         logger.error(f"Error uploading family image: {e}")
         return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
 
     updated = repo.update(household_id, {'image_url': image_url})
-    return jsonify({'success': True, 'image_url': image_url, 'household': updated})
+    signed = sign_stored_url(image_url, bucket)
+    if isinstance(updated, dict):
+        updated = {**updated, 'image_url': signed}
+    return jsonify({'success': True, 'image_url': signed, 'household': updated})
 
 
 @bp.route('/households/<household_id>/members', methods=['POST'])

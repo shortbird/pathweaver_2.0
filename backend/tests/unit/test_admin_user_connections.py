@@ -20,7 +20,14 @@ import pytest
 from flask import Flask
 
 ADMIN_ID = 'admin-1'
-USER_ID = 'user-1'
+# A real UUID, because this id is the one that reaches a PostgREST filter
+# string: the view ORs it across advisor_student_assignments,
+# parent_student_links and observer_student_links, whose *_id columns are all
+# `uuid` in Postgres. utils.validation.sanitizers.pgrst_uuid proves the value is
+# a UUID before interpolating it, so a comma in it can never end the clause and
+# start another one. The other ids below stay readable shorthand -- they are row
+# data and `in_()` arguments, and never reach a filter string.
+USER_ID = '33333333-3333-4333-8333-333333333333'
 
 
 @pytest.fixture

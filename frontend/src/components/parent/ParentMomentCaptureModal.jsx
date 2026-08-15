@@ -94,7 +94,10 @@ const ParentMomentCaptureModal = ({
         blockType: attachment.type,
       });
 
-      media.markUploaded(attachment.id, result.file_url, {
+      // The preview needs a URL a browser can actually fetch: the bucket is
+      // private, so that is the signed `display_url`. `file_url` (below) is the
+      // durable pointer that goes into the payload we save.
+      media.markUploaded(attachment.id, result.display_url || result.file_url, {
         file_name: result.file_name || attachment.file.name,
         file_size: result.file_size || attachment.file.size,
       });

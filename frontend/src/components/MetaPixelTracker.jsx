@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { trackPageView, trackEvent } from '../utils/metaPixel'
@@ -23,24 +23,28 @@ const VIEW_CONTENT_ROUTES = {
  *     (landing -> signup) is pre-login, and this platform serves K-12 students
  *     (minors). Per our privacy policy we never feed children's/students'
  *     in-app activity to advertising tools.
- *  3. index.html fires the initial PageView for the hard page load, so we skip
- *     the first event here to avoid double-counting it. ViewContent is NOT
- *     fired by index.html, so it fires even on that first event.
+ *  3. The base pixel in index.html is DEFERRED: it defines
+ *     window.__optioLoadMetaPixel() and loads nothing until called. This
+ *     component is its only caller, which is what extends constraints 1 and 2
+ *     to the hard page load — previously index.html fired a PageView before
+ *     auth was known, so a signed-in student's page load still reached
+ *     facebook.com. The loader fires the initial PageView itself and returns
+ *     true on the load that did it, so we only fire our own PageView after that.
  */
 export default function MetaPixelTracker() {
   const { pathname } = useLocation()
   const { isAuthenticated, loading } = useAuth()
-  const isFirstEvent = useRef(true)
 
   useEffect(() => {
     if (loading) return
-
-    const firstEvent = isFirstEvent.current
-    isFirstEvent.current = false
-
     if (isAuthenticated) return
 
-    if (!firstEvent) trackPageView()
+    const justLoadedPixel =
+      typeof window.__optioLoadMetaPixel === 'function'
+        ? window.__optioLoadMetaPixel()
+        : false
+
+    if (!justLoadedPixel) trackPageView()
 
     const contentName = VIEW_CONTENT_ROUTES[pathname]
     if (contentName) trackEvent('ViewContent', { content_name: contentName })

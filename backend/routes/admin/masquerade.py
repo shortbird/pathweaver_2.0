@@ -13,6 +13,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin, require_superadmin
 from utils.session_manager import session_manager
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place, sign_stored_url
 from middleware.rate_limiter import get_real_ip
 from datetime import datetime, timezone
 
@@ -97,7 +98,7 @@ def start_masquerade(admin_id, target_user_id):
                 'display_name': target_user_data.get('display_name'),
                 'email': target_user_data.get('email'),
                 'role': target_user_data.get('role'),
-                'avatar_url': target_user_data.get('avatar_url')
+                'avatar_url': sign_stored_url(target_user_data.get('avatar_url'))
             },
             'expires_in': 3600
         }), 200)
@@ -167,7 +168,7 @@ def exit_masquerade():
                 'display_name': admin_data.get('display_name'),
                 'email': admin_data.get('email'),
                 'role': admin_data.get('role'),
-                'avatar_url': admin_data.get('avatar_url')
+                'avatar_url': sign_stored_url(admin_data.get('avatar_url'))
             }
         }), 200)
         # Refresh admin auth cookies and clear masquerade cookie
@@ -258,7 +259,9 @@ def list_demo_accounts(user_id):
             .like('email', '%@optio-demo.example') \
             .order('first_name') \
             .execute()
-        return jsonify({'accounts': res.data or []}), 200
+        accounts = res.data or []
+        sign_in_place(accounts, ['avatar_url'])
+        return jsonify({'accounts': accounts}), 200
     except Exception as e:
         logger.error(f"[Masquerade] Error listing demo accounts: {str(e)}")
         return jsonify({'error': 'Failed to list demo accounts'}), 500
@@ -285,6 +288,7 @@ def get_masquerade_status():
                 .execute()
 
             target_data = target_user.data[0] if target_user.data else {}
+            sign_in_place([target_data], ['avatar_url'])
 
             return jsonify({
                 'is_masquerading': True,

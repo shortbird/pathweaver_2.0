@@ -153,7 +153,14 @@ def complete_task(user_id: str, task_id: str):
             evidence_content = evidence_data['content']
 
         elif evidence_type == 'link' or evidence_type == 'video':
-            evidence_data['url'] = request.form.get('text_content', '')
+            # Client-supplied. Usually an external link (untouched), but the
+            # student may be pasting back a URL an upload endpoint gave them —
+            # and what those hand out for rendering is the SIGNED twin. Reduce
+            # it, or the row stores a URL that dies with the TTL.
+            from utils.storage_urls import canonical_stored_url
+            evidence_data['url'] = canonical_stored_url(
+                request.form.get('text_content', '')
+            ) or ''
             evidence_data['title'] = request.form.get('link_title', '')
             evidence_content = evidence_data['url']
 
@@ -342,13 +349,23 @@ def complete_task(user_id: str, task_id: str):
         except Exception as notify_error:
             logger.warning(f"Treehouse completion notify failed: {notify_error}")
 
+        # `quest-evidence` is private, so the stored evidence_url is a pointer,
+        # not something the client can render. Hand back the signed twin for the
+        # just-completed confirmation; the row keeps the pointer.
+        completion_payload = dict(completion_data or {})
+        if completion_payload.get('evidence_url'):
+            from utils.storage_urls import sign_stored_url
+            completion_payload['evidence_display_url'] = sign_stored_url(
+                completion_payload['evidence_url'], 'quest-evidence'
+            )
+
         return success_response(
             data={
                 'message': f'Task completed! Earned {final_xp} XP',
                 'xp_awarded': final_xp,
                 'xp_award_pending': xp_award_pending,
                 'quest_completed': quest_completed,
-                'completion': completion_data
+                'completion': completion_payload
             }
         )
 

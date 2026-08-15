@@ -109,7 +109,11 @@ def upload_event_file(user_id, event_id):
         response_data = {
             'success': True,
             'message': 'File uploaded successfully',
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,
@@ -221,7 +225,11 @@ def finalize_event_signed_upload(user_id, event_id):
         response_data = {
             'success': True,
             'message': 'File uploaded successfully',
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,

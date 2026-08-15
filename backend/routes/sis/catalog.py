@@ -16,6 +16,7 @@ from services import sis_catalog_service as catalog
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
 
 logger = get_logger(__name__)
 
@@ -585,17 +586,22 @@ _CLASS_IMAGE_BUCKET = 'class-images'
 
 
 def _ensure_bucket(supabase, bucket_name):
-    """Ensure a public storage bucket exists (create if missing). Best-effort."""
+    """Ensure a storage bucket exists (create if missing). Best-effort.
+
+    No `public` flag: both buckets this creates (`class-images`, `org-documents`)
+    are on utils.storage_urls.PRIVATE_MEDIA_BUCKETS, and Supabase creates buckets
+    private by default. Class images are photographs of children.
+    """
     try:
         if supabase.storage.get_bucket(bucket_name):
             return
     except Exception:
         pass  # not found → create below
     try:
-        supabase.storage.create_bucket(bucket_name, options={'public': True})
+        supabase.storage.create_bucket(bucket_name)
     except Exception as e:
         if not any(s in str(e).lower() for s in ('already exists', 'duplicate')):
-            logger.warning(f"class-images bucket create note: {e}")
+            logger.warning(f"{bucket_name} bucket create note: {e}")
 
 
 @bp.route('/classes/<class_id>/image', methods=['POST'])
@@ -648,19 +654,24 @@ def upload_class_image(user_id, class_id):
             file=content,
             file_options={'content-type': file.content_type or f'image/{ext}'},
         )
-        image_url = supabase.storage.from_(_CLASS_IMAGE_BUCKET).get_public_url(unique_path)
+        image_url = public_object_url(_CLASS_IMAGE_BUCKET, unique_path)
     except Exception as e:
         logger.error(f"Error uploading class image: {e}")
         return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
 
+    # Persist the canonical pointer; the browser gets the signed, expiring twin.
     updated = repo.update_sis_fields(class_id, {'image_url': image_url})
-    return jsonify({'success': True, 'image_url': image_url, 'class': updated})
+    display_url = sign_stored_url(image_url, _CLASS_IMAGE_BUCKET)
+    if isinstance(updated, dict) and updated.get('image_url'):
+        updated['image_url'] = display_url
+    return jsonify({'success': True, 'image_url': display_url, 'class': updated})
 
 
 # ── Registration paperwork document upload ───────────────────────────────────
 # Waiver/acknowledgment documents for the iCreate registration funnel. Admins
-# upload the file here and the returned public URL is stored as the paperwork
-# item's doc_url in feature_flags.icreate_registration.
+# upload the file here and the returned canonical pointer (`url`) is stored as
+# the paperwork item's doc_url in feature_flags.icreate_registration; the funnel
+# signs it per render. `display_url` is the signed twin for the admin's preview.
 
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 10 * 1024 * 1024  # 10MB
@@ -670,7 +681,8 @@ _ORG_DOCS_BUCKET = 'org-documents'
 @bp.route('/registration/paperwork-doc', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def upload_paperwork_doc(user_id):
-    """Upload a paperwork document; returns its public URL for doc_url."""
+    """Upload a paperwork document. Returns the canonical pointer to store as
+    doc_url, plus a short-lived signed twin for the preview."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -702,9 +714,13 @@ def upload_paperwork_doc(user_id):
             file=file.read(),
             file_options={'content-type': file.content_type or 'application/octet-stream'},
         )
-        url = supabase.storage.from_(_ORG_DOCS_BUCKET).get_public_url(unique_path)
+        url = public_object_url(_ORG_DOCS_BUCKET, unique_path)
     except Exception as e:
         logger.error(f"Error uploading paperwork document: {e}")
         return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
 
-    return jsonify({'success': True, 'url': url})
+    return jsonify({
+        'success': True,
+        'url': url,
+        'display_url': sign_stored_url(url, _ORG_DOCS_BUCKET),
+    })

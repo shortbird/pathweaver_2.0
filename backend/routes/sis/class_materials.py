@@ -31,12 +31,16 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_class_materials', __name__, url_prefix='/api/sis')
 
-_MATERIALS_BUCKET = 'org-documents'  # public bucket, shared with staff resources
+# Private bucket, shared with the staff resource library. Uploaded materials are
+# org-owned curriculum: the row stores the canonical pointer and every read signs
+# it for the requester. See utils/storage_urls.py.
+_MATERIALS_BUCKET = 'org-documents'
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
                    'png', 'jpg', 'jpeg', 'webp', 'gif', 'txt', 'csv'}
 _MAX_DOC_BYTES = 25 * 1024 * 1024
@@ -163,6 +167,17 @@ def _list_materials(admin, class_id):
     ).data or []
 
 
+def _serialize_many(rows, can_manage, is_admin=False, user_id=None):
+    """Serialize a material list and sign every uploaded file's URL in ONE
+    batched call. A class can carry dozens of handouts; signing per row would be
+    one HTTP round trip each. Plain links are left alone by the signer."""
+    out = [_serialize(m, can_manage, is_admin, user_id) for m in rows]
+    # No bucket hint: stored values are full URLs, so the bucket is read out of
+    # each one and an external link can never be mistaken for an object path.
+    sign_in_place(out, ['url'])
+    return out
+
+
 # ── class-id endpoints (teacher portal) ───────────────────────────────────────
 
 @bp.route('/classes/<class_id>/materials', methods=['GET'])
@@ -177,7 +192,7 @@ def list_materials(user_id, class_id):
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': [_serialize(m, is_moderator, is_admin, user_id) for m in rows]})
+                    'materials': _serialize_many(rows, is_moderator, is_admin, user_id)})
 
 
 @bp.route('/classes/<class_id>/materials', methods=['POST'])
@@ -246,10 +261,10 @@ def upload_material(user_id, class_id):
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_MATERIALS_BUCKET):
-            supabase.storage.create_bucket(_MATERIALS_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_MATERIALS_BUCKET)
     except Exception:
         try:
-            supabase.storage.create_bucket(_MATERIALS_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_MATERIALS_BUCKET)
         except Exception:
             pass
 
@@ -259,7 +274,7 @@ def upload_material(user_id, class_id):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or 'application/octet-stream'},
         )
-        url = supabase.storage.from_(_MATERIALS_BUCKET).get_public_url(path)
+        url = public_object_url(_MATERIALS_BUCKET, path)
     except Exception as e:
         logger.error(f'Class material upload failed: {e}')
         return jsonify({'success': False, 'error': 'Failed to upload file'}), 500
@@ -274,8 +289,13 @@ def upload_material(user_id, class_id):
         'created_by': user_id,
         'created_at': _now_iso(),
     }).execute().data
-    return jsonify({'success': True, 'material': _serialize(row[0], True, user_id=user_id)}) if row \
-        else (jsonify({'success': False, 'error': 'Uploaded, but could not save the material.'}), 500)
+    if not row:
+        return jsonify({'success': False, 'error': 'Uploaded, but could not save the material.'}), 500
+    material = _serialize(row[0], True, user_id=user_id)
+    # The stored `url` is the canonical pointer; the client needs the signed twin
+    # to render the just-uploaded file.
+    material['url'] = sign_stored_url(material.get('url'), _MATERIALS_BUCKET)
+    return jsonify({'success': True, 'material': material})
 
 
 @bp.route('/classes/<class_id>/materials/<material_id>', methods=['DELETE'])
@@ -324,4 +344,4 @@ def list_materials_by_quest(user_id, quest_id):
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': [_serialize(m, is_moderator, is_admin, user_id) for m in rows]})
+                    'materials': _serialize_many(rows, is_moderator, is_admin, user_id)})

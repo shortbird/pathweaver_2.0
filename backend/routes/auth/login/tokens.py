@@ -27,6 +27,7 @@ from .security import (
     reset_login_attempts,
     ensure_user_diploma_and_skills
 )
+from .. import token_delivery
 
 logger = get_logger(__name__)
 
@@ -110,10 +111,16 @@ def register_routes(bp):
 
         # Return new tokens in response body (legacy format for frontend compatibility)
         # TODO: Migrate to standardized format after updating frontend
+        #
+        # Gated: this endpoint authenticates from the refresh COOKIE, so returning
+        # the new refresh token in readable JSON handed any XSS payload a fresh
+        # 30-day credential for a session it had no password for -- it only had to
+        # POST here. Clients that can use cookies now get the cookies and nothing
+        # else; the mobile app and cookie-blocked browsers still get the pair
+        # because the header is the only auth they have.
         response = make_response(jsonify({
             'message': 'Tokens refreshed successfully',
-            'access_token': new_access_token,
-            'refresh_token': new_refresh_token,
+            **token_delivery.refresh_body_tokens(new_access_token, new_refresh_token),
         }), 200)
 
         # Set httpOnly cookies for authentication

@@ -10,6 +10,8 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.error_handler import AuthorizationError, NotFoundError, ValidationError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
+from utils.access_logger import AccessLogger
+from utils.storage_urls import public_object_url, sign_stored_url
 from .dashboard_overview import verify_parent_access
 from routes.users.helpers import calculate_subject_xp_from_tasks
 from services.portfolio_service import PortfolioService
@@ -60,6 +62,18 @@ def get_child_overview(user_id, student_id):
         # admin client justified: parent child-overview consolidated endpoint; reads cross-user child profile + quests + tasks + xp after parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
+
+        # FERPA disclosure log. Records that this parent opened this child's
+        # record, not what was in it. Never raises -- AccessLogger swallows its
+        # own failures and returns False, so a logging outage cannot lock a
+        # parent out of their own child's overview.
+        AccessLogger.log_student_data_access(
+            student_id=student_id,
+            accessor_id=user_id,
+            data_type='child_overview',
+            purpose='parent_request',
+            fields=['profile', 'quests', 'tasks', 'xp', 'engagement'],
+        )
 
         # Parallel data fetching for efficiency
         # 1. Get student profile
@@ -725,7 +739,8 @@ def get_child_overview(user_id, student_id):
                 'id': student['id'],
                 'first_name': student.get('first_name'),
                 'last_name': student.get('last_name'),
-                'avatar_url': student.get('avatar_url'),
+                # Private bucket: sign at render time, never hand out the pointer.
+                'avatar_url': sign_stored_url(student.get('avatar_url'), 'user-uploads'),
                 'created_at': student.get('created_at'),
                 'date_of_birth': student.get('date_of_birth')
             },
@@ -818,9 +833,10 @@ def upload_child_avatar(user_id, child_id):
             logger.error(f"Storage upload failed: {storage_err}")
             raise ValidationError(f"Failed to upload file to storage: {str(storage_err)}")
 
-        # Get public URL
-        avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
-        logger.info(f"Avatar URL generated: {avatar_url}")
+        # A child's photo lives in a PRIVATE bucket. Persist the canonical
+        # pointer (stable, not fetchable) and hand the parent's browser a
+        # short-lived signed URL — see utils/storage_urls.py.
+        avatar_url = public_object_url('user-uploads', filename)
 
         # Update child's avatar_url using a fresh client to avoid storage client URL corruption
         try:
@@ -840,7 +856,7 @@ def upload_child_avatar(user_id, child_id):
 
         return jsonify({
             'success': True,
-            'avatar_url': avatar_url,
+            'avatar_url': sign_stored_url(avatar_url, 'user-uploads'),
             'message': 'Avatar uploaded successfully'
         }), 200
 

@@ -6,6 +6,23 @@ const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.
 let initialized = false
 
 /**
+ * True when this account belongs to a child whose data must never reach a
+ * third-party analytics vendor at all (COPPA). Dependents are, by definition,
+ * accounts a parent created for a minor; `requires_parental_consent` is the
+ * backend's under-13 marker set at registration.
+ *
+ * Deliberately conservative about shape: the /auth/me payload has grown fields
+ * over time and a missing flag must never be read as "adult".
+ */
+const isMinorAccount = (user) =>
+  Boolean(user?.is_dependent || user?.requires_parental_consent)
+
+/** Call a posthog-js method only if this SDK build actually has it. */
+const call = (method, ...args) => {
+  if (typeof posthog?.[method] === 'function') posthog[method](...args)
+}
+
+/**
  * Initialize PostHog SDK for session replay.
  * No-ops if VITE_POSTHOG_KEY is not set (local dev excluded automatically).
  */
@@ -13,10 +30,15 @@ export const initPostHog = () => {
   if (!POSTHOG_KEY || initialized) return
 
   posthog.init(POSTHOG_KEY, {
-    api_host: POSTHOG_HOST,
-    // Session replay with COPPA-safe defaults
+    // Session replay, COPPA defaults. maskAllText matters as much as
+    // maskAllInputs on this platform: the replay-worthy content here is
+    // RENDERED text -- student names on a roster, journal entries, evidence
+    // write-ups -- not just what someone typed into a box. Without it a replay
+    // is a verbatim copy of a child's schoolwork sitting in a vendor's
+    // database.
     session_recording: {
       maskAllInputs: true,
+      maskAllText: true,
     },
     // Disable autocapture -- we track specific business events manually
     autocapture: false,
@@ -24,8 +46,9 @@ export const initPostHog = () => {
     capture_pageview: true,
     // Capture page leave for replay timeline
     capture_pageleave: true,
-    // DNT disabled -- beta platform with consented users, not public website
-    respect_dnt: false,
+    // Honor Do Not Track. A K-12 platform has no business overriding an
+    // explicit browser-level opt-out to watch session replays.
+    respect_dnt: true,
   })
 
   initialized = true
@@ -34,17 +57,39 @@ export const initPostHog = () => {
 /**
  * Identify user in PostHog so sessions are searchable by user.
  * Call on login, register, and session restore.
+ *
+ * COPPA: this function deliberately DISCARDS the identifying fields on the
+ * user object it is handed. Call sites pass the whole /auth/me user; only an
+ * opaque id plus non-identifying role/org enums leave the browser. Do not add
+ * email, names, usernames, avatars, or free text to the property bag -- and
+ * do not "fix" a call site by pre-stripping it, because the guarantee has to
+ * hold for every current and future caller.
+ *
+ * Minor accounts (dependents / under-13) are not identified at all: capture is
+ * turned off for the session instead, so no replay, pageview, or custom event
+ * is attributed to a child. Every other export here degrades to a no-op in
+ * that state because posthog itself drops the calls.
  */
 export const identifyUser = (user) => {
   if (!POSTHOG_KEY || !user?.id) return
+
+  if (isMinorAccount(user)) {
+    // Stop capture for this browser session and drop anything already queued
+    // under the anonymous id that led here.
+    call('opt_out_capturing')
+    call('reset')
+    return
+  }
+
+  // Undo a prior minor opt-out on a shared device (a parent signing in after
+  // their child on the same browser).
+  call('opt_in_capturing')
 
   posthog.identify(user.id, {
     role: user.role,
     org_role: user.org_role || null,
     organization_id: user.organization_id || null,
     subscription_tier: user.subscription_tier || null,
-    display_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || null,
-    email: user.email || null,
   })
 }
 

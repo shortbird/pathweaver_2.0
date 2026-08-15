@@ -70,6 +70,27 @@ class CreditFeedbackAIService(BaseService):
                 "error": "Completion not found or missing required data.",
             }
 
+        # The parent/org AI toggles belong to the STUDENT whose work is about to
+        # be pasted into a Gemini prompt, not to the reviewer who clicked the
+        # button. A parent who switched AI off for their child did not consent
+        # to that child's evidence text leaving the platform because a staff
+        # member wanted a drafting shortcut. The reviewer keeps the form and
+        # writes the note themselves — nothing else about the review changes.
+        student_id = context.get("student_id")
+        if student_id:
+            from utils.ai_access import check_ai_access
+            has_access, denial, _ = check_ai_access(student_id)
+            if not has_access:
+                logger.info(
+                    f"Grow-this AI draft blocked for completion {completion_id[:8]}: "
+                    f"student AI access denied ({(denial or {}).get('code')})"
+                )
+                return {
+                    "success": False,
+                    "error": "AI features are turned off for this student. "
+                             "Write the feedback yourself.",
+                }
+
         prompt = self._build_prompt(context)
 
         try:
@@ -156,6 +177,9 @@ class CreditFeedbackAIService(BaseService):
             prior_feedback = (rounds.data[0] or {}).get("reviewer_feedback")
 
         return {
+            # Whose work this is. Carried so the caller can check that
+            # student's AI toggles before their evidence goes to Gemini.
+            "student_id": student_id,
             "quest": quest,
             "task": task,
             "evidence_blocks": evidence_blocks,
@@ -265,7 +289,13 @@ RETURN JSON ONLY (no prose before/after):
             return self._truncate(str(item))
         # Common fields across image/link/video/file blocks.
         title = item.get("title") or item.get("caption") or item.get("alt")
-        url = item.get("url") or item.get("filename")
+        # A storage URL must NOT go into the prompt. This text is sent to
+        # Gemini, so a `quest-evidence` link here handed a third party a
+        # permanent, unauthenticated pointer to a minor's schoolwork. Signing it
+        # would be strictly worse — that is a live capability leaving the
+        # platform. The model only needs to know a file is attached and what it
+        # is called, so fall back to the filename and drop the URL entirely.
+        url = self._describable_ref(item)
         text = item.get("text")
         if text:
             return self._truncate(text)
@@ -275,7 +305,30 @@ RETURN JSON ONLY (no prose before/after):
             return self._truncate(title, 400)
         if url:
             return str(url)
-        return self._truncate(json.dumps(item))
+        return self._truncate(json.dumps({
+            k: v for k, v in item.items() if k not in ("url", "thumbnail_url", "poster_url", "src")
+        }))
+
+    @staticmethod
+    def _describable_ref(item: dict) -> str:
+        """A human label for an attachment — never a storage URL.
+
+        External links (a YouTube video a student cited) are content and stay;
+        anything resolvable to one of our buckets is reduced to its filename.
+        """
+        from utils.storage_urls import parse_object_ref
+
+        filename = item.get("filename")
+        url = item.get("url")
+        if url and not parse_object_ref(url):
+            return str(url)
+        if filename:
+            return str(filename)
+        if url:
+            # Ours, with no filename recorded: name the object, not the link.
+            ref = parse_object_ref(url)
+            return ref[1].rsplit("/", 1)[-1] if ref else ""
+        return ""
 
     def _truncate(self, s: str, limit: Optional[int] = None) -> str:
         limit = limit or self.MAX_TEXT_BLOCK_CHARS

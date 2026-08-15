@@ -1,0 +1,108 @@
+-- Take student evidence out of public storage.
+--
+-- `quest-evidence` is the bucket that holds student work: photographs, video,
+-- documents, prior-school transcripts, and (until 20260815 moved the write path
+-- to `identity-documents`) scans of parents' government ID under
+-- parent_identity/. It is flagged `public = true`, which in Supabase means every
+-- object in it is served with no authentication at all from a URL that never
+-- expires. Marking a portfolio private never took the files down — the object
+-- stayed world-readable, so a link that leaked once was permanent.
+--
+-- Why this is a separate migration
+-- --------------------------------
+-- It was originally part of 20260815020000_private_storage_buckets.sql. It was
+-- split out on 2026-08-15 because the other nine buckets were ready and this one
+-- was not, and bundling them would have forced a choice between holding back
+-- nine finished fixes and shipping a breakage. The files stay separate now that
+-- both are ready: the first has already been applied, and rewriting an applied
+-- migration is how a migration history stops matching the database.
+--
+-- What had to be true first, and now is
+-- ------------------------------------
+-- The read side was the whole problem. Flipping this bucket private breaks every
+-- /object/public/ URL for it the instant it lands, so every path that hands one
+-- to a browser had to start signing at render time first
+-- (utils/storage_urls.py: sign_stored_url / sign_stored_urls / sign_in_place,
+-- and services/portfolio_service.py: sign_evidence_blocks for block structures).
+--
+-- Converted for this migration:
+--
+--   routes/quest/detail.py                a student's own quest page
+--   routes/quest/completion.py            completed + in-progress achievements
+--   routes/parent/evidence_view.py        parent viewing a child's evidence
+--   routes/parent/quests_view.py
+--   routes/parent/learning_moments.py
+--   routes/advisor/learning_moments.py
+--   routes/observer/learning_moments.py
+--   routes/admin/student_task_management.py
+--   routes/teacher_verification.py        the advisor verification queue
+--   routes/learning_events/attach.py
+--   routes/lti/evidence.py                the LMS grader's SpeedGrader iframe
+--   routes/tasks/credit.py                diploma_review_rounds.evidence_snapshot
+--   services/learning_events_service.py   journal + public portfolio
+--   services/interest_tracks_service.py   topics, unassigned moments, quest moments
+--   services/evidence_report_service.py   the public share-token report
+--   services/bounty_service.py            bounty claim evidence
+--   services/class_credit_pdf_service.py  signs so the PDF can embed the files
+--
+-- Converted earlier, in the first wave:
+--   routes/evidence_documents.py          the evidence editor itself
+--   routes/helper_evidence.py             parent/advisor uploads onto a task
+--   routes/observer/feed.py, routes/observer/sharing.py
+--   routes/sis/submissions.py, routes/tasks/completion.py
+--   services/activity_feed_service.py, services/portfolio_service.py
+--
+-- Verified NOT a blocker: routes/curriculum/attachments.py uploads to the
+-- `curriculum` bucket, not this one, and already signs.
+--
+-- The other half of the contract — the write paths — reduce any client-supplied
+-- URL back to the canonical pointer before storing it, because after the change
+-- above the client only ever holds the short-lived SIGNED twin and posts it
+-- straight back on save (utils/storage_urls.py: canonical_stored_url;
+-- services/portfolio_service.py: canonical_block_content). Without that, a save
+-- persists a URL that works for one TTL and is a broken image forever after.
+-- Reduced on write:
+--
+--   routes/evidence_documents.py          the editor's auto-save
+--   routes/helper_evidence.py             single + batch helper uploads
+--   routes/parent/learning_moments.py     capture form + evidence save
+--   routes/advisor/learning_moments.py    capture form
+--   routes/tasks/completion.py            the link/video evidence field
+--   services/learning_events_service.py   save_evidence_blocks (the round trip)
+--   services/bounty_service.py            toggle_deliverable + submit_evidence
+--
+-- Two storage-cleanup paths were widened at the same time
+-- (services/learning_events_service.py, services/bounty_service.py): they
+-- matched the /object/public/ shape by substring, so any row that had already
+-- picked up a signed URL orphaned its object on delete. They use
+-- parse_object_ref now, which resolves all three shapes.
+--
+-- backend/tests/test_private_storage_urls.py holds the guards: the evidence read
+-- paths must sign (TestEvidenceReadPathsSign), lists must batch
+-- (TestEvidenceListPathsSignInOneBatch), a signing failure must yield None
+-- rather than a public URL (TestEvidenceSigningFailureYieldsNone), and the write
+-- paths must canonicalize (TestSignedUrlsAreNeverPersisted).
+--
+-- Not a precondition, still worth doing
+-- -------------------------------------
+-- Two legacy objects remain under parent_identity/ in this bucket; new uploads
+-- go to `identity-documents`. scripts/migrate_parent_identity_docs.py moves
+-- them. That move does NOT gate this migration, and waiting for it would have
+-- the priority backwards: those two files are the worst thing in the bucket and
+-- this statement is what stops them being world-readable. They keep rendering
+-- either way — routes/parental_consent/admin_review.py signs them, and
+-- sign_stored_url resolves the bucket from the stored URL, so an object left in
+-- quest-evidence signs against quest-evidence.
+--
+-- The RESTRICTIVE deny policy for `quest-evidence` already exists — the sibling
+-- migration created it covering all ten buckets. It is inert while the bucket
+-- is public (the /object/public/ path does not consult RLS) and becomes live
+-- the moment the UPDATE below runs, so nothing else is needed here.
+
+BEGIN;
+
+UPDATE storage.buckets
+   SET public = false
+ WHERE id = 'quest-evidence';
+
+COMMIT;

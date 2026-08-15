@@ -11,6 +11,7 @@ from middleware.error_handler import ValidationError, NotFoundError
 from datetime import datetime
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -103,6 +104,10 @@ def get_pending_verifications(user_id):
                 'evidence_url': completion.get('evidence_url'),
                 'evidence_text': completion.get('evidence_text')
             })
+
+        # `quest-evidence` is private: the stored evidence_url is a pointer, not
+        # a link. Sign the whole verification queue in one batched call.
+        sign_in_place(pending_tasks, ['evidence_url'])
 
         return jsonify({
             'success': True,

@@ -17,6 +17,7 @@ from services.advisor_service import AdvisorService
 from services.quest_invitation_service import QuestInvitationService
 
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -237,7 +238,10 @@ def get_invitable_quests(user_id):
             # Filter by organization visibility for regular advisors
             if org_id:
                 # Global quests (no org) + organization's quests
-                library_query = library_query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                library_query = library_query.or_(
+                    f'organization_id.is.null,'
+                    f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")}'
+                )
             else:
                 # No organization - only global quests
                 library_query = library_query.is_('organization_id', 'null')
@@ -435,7 +439,10 @@ def get_enrollable_courses(user_id):
             pass
         elif org_id:
             # Org advisor: org courses + public courses + global courses (null org_id)
-            query = query.or_(f'organization_id.eq.{org_id},visibility.eq.public,organization_id.is.null')
+            query = query.or_(
+                f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                f'visibility.eq.public,organization_id.is.null'
+            )
         else:
             # No org: only global and public courses
             query = query.or_('organization_id.is.null,visibility.eq.public')

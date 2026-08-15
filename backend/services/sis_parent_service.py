@@ -23,6 +23,7 @@ from services import sis_service
 from utils.db_fetch import fetch_all_rows
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_timestamp
 
 logger = get_logger(__name__)
 
@@ -130,6 +131,12 @@ def context(user_id: str) -> Dict[str, Any]:
         rows = (_admin().table('users').select('id, avatar_url')
                 .in_('id', ids).execute()).data or []
         avatar_by_id = {r['id']: r.get('avatar_url') for r in rows}
+        # Family photos live in a private bucket. Sign the whole household in
+        # one batched call rather than once per person.
+        from utils.storage_urls import sign_stored_urls
+        signed = sign_stored_urls(avatar_by_id.values())
+        avatar_by_id = {uid: (signed.get(url) if url else None)
+                        for uid, url in avatar_by_id.items()}
     except Exception:  # noqa: BLE001
         pass
     orgs: Dict[str, Dict[str, Any]] = {}
@@ -1068,7 +1075,7 @@ def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     Staff-only knowledge-base entries (audience='staff') never reach families."""
     if not _is_org_member(user_id, org_id):
         return None
-    from utils.storage_url import fix_storage_url
+    from utils.storage_urls import sign_in_place
     rows = (
         _admin().table('org_resources')
         .select('id, title, description, url, category, sort_order')
@@ -1076,9 +1083,9 @@ def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
         .in_('audience', ['families', 'all'])
         .order('sort_order').order('title').execute()
     ).data or []
-    for r in rows:
-        # Documents open on the branded domain, never the raw supabase.co host.
-        r['url'] = fix_storage_url(r.get('url'))
+    # `org-documents` is private: sign the whole library in one batched call.
+    # External links (a Google Doc, a video) pass through untouched.
+    sign_in_place(rows, ['url'])
     return rows
 
 
@@ -1095,7 +1102,8 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
         .eq('audience', 'school')  # families only ever see school-wide events
     )
     if from_iso:
-        q = q.or_(f'start_at.gte.{from_iso},end_at.gte.{from_iso}')
+        _from = pgrst_timestamp(from_iso, 'from')
+        q = q.or_(f'start_at.gte.{_from},end_at.gte.{_from}')
     if to_iso:
         q = q.lt('start_at', to_iso)
     return q.order('start_at').execute().data or []

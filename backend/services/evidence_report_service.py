@@ -384,6 +384,18 @@ class EvidenceReportService(BaseService):
         if report.get('include_learning_events', False):
             report_data['learning_events'] = self._get_learning_events(user_id)
 
+        # Serve signed, never public. A shared report is reachable by anyone
+        # holding the link — which is precisely why the objects behind it must
+        # NOT be world-readable. `quest-evidence` is private; mint a URL that
+        # expires with the render, in one batched call for the whole report.
+        from services.portfolio_service import PortfolioService
+        PortfolioService().sign_evidence_blocks_on([
+            entry
+            for achievement in (report_data.get('achievements') or [])
+            for entry in (achievement.get('task_evidence') or {}).values()
+            if isinstance(entry, dict)
+        ])
+
         return report_data
 
     def _fetch_quest_evidence(

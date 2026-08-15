@@ -43,6 +43,7 @@ from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth, require_role
 from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
+from utils.storage_urls import public_object_url
 from services.email_service import email_service
 from werkzeug.utils import secure_filename
 import secrets
@@ -60,6 +61,28 @@ logger = logging.getLogger(__name__)
 
 
 from routes.parental_consent import bp
+
+# Private bucket for parent identity verification. Named separately from the
+# SIS store because these documents belong to the PLATFORM's COPPA workflow,
+# not to any organization — `sis-secure-documents` paths are org-scoped and its
+# metadata table requires an organization_id these parents do not have.
+IDENTITY_BUCKET = 'identity-documents'
+
+
+def _ensure_identity_bucket(supabase) -> None:
+    """Create the identity bucket if it isn't there yet, PRIVATE.
+
+    Buckets in this codebase are created lazily by whichever request arrives
+    first (see supabase/migrations/20260815020000_private_storage_buckets.sql),
+    so the `public: False` here is load-bearing, not decorative.
+    """
+    try:
+        supabase.storage.get_bucket(IDENTITY_BUCKET)
+    except Exception:
+        try:
+            supabase.storage.create_bucket(IDENTITY_BUCKET, options={'public': False})
+        except Exception:
+            logger.debug('identity bucket create failed (likely already exists)', exc_info=True)
 
 
 @bp.route('/parental-consent/submit-documents', methods=['POST'])
@@ -115,6 +138,17 @@ def submit_consent_documents(user_id: str):
         if id_ext not in allowed_extensions or form_ext not in allowed_extensions:
             raise ValidationError("Only JPG, PNG, or PDF files are allowed")
 
+        # These two files are a parent's government ID and a signed legal form.
+        # They used to go into `quest-evidence` — a PUBLIC bucket — under
+        # permanent, unauthenticated URLs, which meant a scan of somebody's
+        # driver's licence was one guessed path away from the open internet.
+        # They now go to the private `identity-documents` bucket, and are only
+        # ever handed out as short-lived signed URLs (utils/storage_urls.py).
+        # The two objects already sitting under parent_identity/ in
+        # quest-evidence are moved by scripts/migrate_parent_identity_docs.py,
+        # which must be run by hand against prod.
+        _ensure_identity_bucket(supabase)
+
         # Upload ID document to storage
         try:
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
@@ -123,13 +157,13 @@ def submit_consent_documents(user_id: str):
             id_content = id_document.read()
             id_content_type = id_document.content_type or mimetypes.guess_type(id_filename)[0] or 'application/octet-stream'
 
-            supabase.storage.from_('quest-evidence').upload(
+            supabase.storage.from_(IDENTITY_BUCKET).upload(
                 path=id_storage_path,
                 file=id_content,
                 file_options={"content-type": id_content_type}
             )
 
-            id_document_url = supabase.storage.from_('quest-evidence').get_public_url(id_storage_path)
+            id_document_url = public_object_url(IDENTITY_BUCKET, id_storage_path)
         except Exception as e:
             logger.error(f"Error uploading ID document: {str(e)}")
             raise ValidationError("Failed to upload ID document")
@@ -141,13 +175,13 @@ def submit_consent_documents(user_id: str):
             form_content = consent_form.read()
             form_content_type = consent_form.content_type or mimetypes.guess_type(form_filename)[0] or 'application/octet-stream'
 
-            supabase.storage.from_('quest-evidence').upload(
+            supabase.storage.from_(IDENTITY_BUCKET).upload(
                 path=form_storage_path,
                 file=form_content,
                 file_options={"content-type": form_content_type}
             )
 
-            consent_form_url = supabase.storage.from_('quest-evidence').get_public_url(form_storage_path)
+            consent_form_url = public_object_url(IDENTITY_BUCKET, form_storage_path)
         except Exception as e:
             logger.error(f"Error uploading consent form: {str(e)}")
             raise ValidationError("Failed to upload consent form")

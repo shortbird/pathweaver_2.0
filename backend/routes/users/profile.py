@@ -16,6 +16,7 @@ from repositories import UserRepository
 from services.dashboard_service import DashboardService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.storage_urls import parse_object_ref, public_object_url, sign_stored_url
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,11 @@ def get_profile(user_id):
 
         # Get completed quests count
         completed_count = dashboard_service.get_completed_quests_count(user_id)
+
+        # `user-uploads` is private: the stored pointer is not fetchable, so
+        # mint a short-lived signed URL for the browser.
+        if isinstance(user, dict) and user.get('avatar_url'):
+            user['avatar_url'] = sign_stored_url(user['avatar_url'], 'user-uploads')
 
         return jsonify({
             'user': user,
@@ -140,6 +146,14 @@ def update_profile(user_id):
         if derived:
             update_data['display_name'] = derived
 
+    # The client only ever sees a SIGNED avatar URL, so a round-trip through the
+    # profile editor would otherwise persist an expiring capability into the
+    # column. Normalize back to the canonical pointer before writing.
+    if update_data.get('avatar_url'):
+        ref = parse_object_ref(update_data['avatar_url'])
+        if ref:
+            update_data['avatar_url'] = public_object_url(*ref)
+
     if not update_data:
         raise ValidationError('No valid fields to update')
 
@@ -148,6 +162,11 @@ def update_profile(user_id):
 
         # Update profile - UserRepository.update() handles the actual update
         updated_user = user_repo.update(user_id, update_data)
+
+        if isinstance(updated_user, dict) and updated_user.get('avatar_url'):
+            updated_user['avatar_url'] = sign_stored_url(
+                updated_user['avatar_url'], 'user-uploads'
+            )
 
         return jsonify(updated_user), 200
 
@@ -198,13 +217,14 @@ def upload_avatar(user_id):
             {'content-type': file.content_type}
         )
 
-        # Get public URL
-        avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
+        # Store the canonical pointer; hand the browser a short-lived signed
+        # URL. `user-uploads` is private — see utils/storage_urls.py.
+        avatar_url = public_object_url('user-uploads', filename)
 
         # Update user's avatar_url
         user_repo.update(user_id, {'avatar_url': avatar_url})
 
-        return jsonify({'avatar_url': avatar_url}), 200
+        return jsonify({'avatar_url': sign_stored_url(avatar_url, 'user-uploads')}), 200
 
     except Exception as e:
         logger.error(f"Error uploading avatar: {str(e)}")

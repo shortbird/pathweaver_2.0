@@ -19,6 +19,7 @@ from utils.logger import get_logger
 from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
 from utils.api_response_v1 import success_response, error_response
 from utils.retry_handler import with_connection_retry
+from utils.storage_urls import sign_in_place
 
 from .security import (
     constant_time_delay,
@@ -27,6 +28,7 @@ from .security import (
     reset_login_attempts,
     ensure_user_diploma_and_skills
 )
+from .. import token_delivery
 
 logger = get_logger(__name__)
 
@@ -246,6 +248,11 @@ def register_routes(bp):
                         logger.warning(f"Could not check advisor assignments for user {mask_user_id(user_id)}: {advisor_check_error}")
                         response_data['has_advisor_assignments'] = False
 
+                    # avatar_url is a pointer into a private bucket, not a
+                    # fetchable link. /me is where nearly every surface reads the
+                    # signed-in user's own avatar from, so sign it here.
+                    sign_in_place([response_data], ['avatar_url'])
+
                     # Return user data (legacy format for frontend compatibility)
                     # TODO: Migrate to standardized format after updating frontend
                     return jsonify(response_data), 200
@@ -395,6 +402,8 @@ def register_routes(bp):
 
                 # The landing decision runs on this payload, not on /me.
                 _attach_school(admin_client, user_response_data)
+                sign_in_place([user_response_data] if user_response_data else [],
+                              ['avatar_url'])
 
                 # Reset login attempts after successful login
                 reset_login_attempts(email)
@@ -419,10 +428,14 @@ def register_routes(bp):
 
                 # Return user data and tokens (legacy format for frontend compatibility)
                 # TODO: Migrate to standardized format after updating frontend
+                #
+                # The tokens go in the body only for clients that cannot use the
+                # cookies set below -- the mobile app and the browsers that block
+                # cross-site cookies. A cookie-capable browser gets an empty dict
+                # here, so its 30-day refresh token never enters the JS heap.
                 response_data = {
                     'user': user_response_data,
-                    'app_access_token': app_access_token,
-                    'app_refresh_token': app_refresh_token,
+                    **token_delivery.body_tokens(app_access_token, app_refresh_token),
                 }
                 response = make_response(jsonify(response_data), 200)
 
@@ -582,6 +595,14 @@ def register_routes(bp):
             404: Organization not found
             429: Too many attempts / account locked
         """
+        # Same constant-time delay /login applies, and for a sharper reason: this
+        # endpoint answers on USERNAMES inside one named school, so the search
+        # space is small and guessable. Without the delay, "no such username"
+        # returns after two quick lookups while a real username runs a bcrypt
+        # verify through GoTrue -- a difference big enough to enumerate a
+        # school's entire roster from the outside, one timing sample at a time.
+        constant_time_delay()
+
         data = request.json
 
         # Validate input
@@ -760,17 +781,19 @@ def register_routes(bp):
                 # The landing decision runs on this payload too (username
                 # students at /login/<slug> are exactly a school's own users).
                 _attach_school(admin_client, user_response_data)
+                sign_in_place([user_response_data] if user_response_data else [],
+                              ['avatar_url'])
 
-                # Return user data and tokens
+                # Return user data and tokens. Body tokens are gated the same way
+                # as /login -- see token_delivery.
                 response_data = {
                     'user': user_response_data,
-                    'app_access_token': app_access_token,
-                    'app_refresh_token': app_refresh_token,
                     'organization': {
                         'id': org_id,
                         'name': org_name,
                         'slug': org_slug
-                    }
+                    },
+                    **token_delivery.body_tokens(app_access_token, app_refresh_token),
                 }
                 response = make_response(jsonify(response_data), 200)
 
@@ -855,6 +878,17 @@ def register_routes(bp):
                     'last_logout_at': datetime.utcnow().isoformat()
                 }).eq('id', user_id).execute()
                 logger.info(f"[LOGOUT] Invalidated all tokens for user {mask_user_id(user_id)} via last_logout_at timestamp")
+
+                # Close the same door on the rotation side. last_logout_at stays
+                # the platform's revocation stamp -- this is not a second
+                # mechanism, it is the same decision written where the refresh
+                # path can act on it without a users lookup, and it means a
+                # revoked family can never be quietly re-adopted later.
+                from utils import refresh_families
+                revoked = refresh_families.revoke_user_families(user_id, 'logout')
+                if revoked:
+                    logger.info(f"[LOGOUT] Revoked {revoked} refresh token families "
+                                f"for {mask_user_id(user_id)}")
 
             # Attempt to sign out from Supabase if token exists
             if token:

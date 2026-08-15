@@ -98,6 +98,39 @@ services:
         value: https://optio-dev-frontend-r3v8.onrender.com
 
   # Production Frontend
+  #
+  # !! DASHBOARD-MANAGED, like the two backends above. Verified 2026-08-15 via
+  # the Render API: the LIVE service has rootDir "", buildCommand
+  # "cd frontend && npm install && npm run build", publishPath "frontend/dist"
+  # — none of which match the values below. This file is therefore NOT in
+  # effect for this service, and editing the headers here does NOT ship them.
+  # They must also be entered under Settings -> Headers in the Render dashboard
+  # (or the Blueprint must be synced). Kept truthful here so a future sync
+  # produces the intended config rather than reverting it.
+  #
+  # SECURITY HEADERS (added 2026-08-15). The Flask API sets a full header suite
+  # in backend/middleware/security.py, but that only ever covered JSON responses
+  # on api.optioeducation.com. The HTML document users actually load is served by
+  # THIS static site, which until now sent nothing but Cache-Control — so the app
+  # shell had no HSTS, no framing protection, and no header-level CSP.
+  #
+  # Two CSP headers on purpose:
+  #   * Content-Security-Policy (ENFORCING) carries `frame-ancestors` only. That
+  #     directive is ignored in a <meta> tag, so it is the one part of the policy
+  #     frontend/index.html physically cannot deliver, and it is the actual
+  #     clickjacking fix. A single-directive policy constrains nothing else, so
+  #     it cannot break the SPA.
+  #   * Content-Security-Policy-Report-Only carries the FULL policy, mirroring
+  #     the <meta> policy in frontend/index.html plus frame-ancestors. It is
+  #     report-only because the document already enforces the same rules via the
+  #     meta tag; shipping a second enforcing copy would mean any drift between
+  #     the two silently breaks the app (the browser intersects them). Watch the
+  #     browser console for violations, reconcile with index.html, and only then
+  #     consider promoting this to the enforcing header and deleting the meta tag.
+  #
+  # NOTE: script-src keeps 'unsafe-inline'. index.html has inline bootstrap
+  # scripts (Meta Pixel) and a static host cannot mint a per-response nonce.
+  # The value here is the ORIGIN ALLOWLIST, not inline-script suppression.
   - type: static
     name: optio-prod-frontend
     branch: main
@@ -108,6 +141,35 @@ services:
       - path: /*
         name: Cache-Control
         value: public, max-age=0, must-revalidate
+      # Matches the API's HSTS exactly (security.py) so the whole
+      # optioeducation.com tree makes one consistent preload claim.
+      - path: /*
+        name: Strict-Transport-Security
+        value: "max-age=31536000; includeSubDomains; preload"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      # camera=(self): the document scanner and Treehouse capture use
+      # getUserMedia. No Stripe.js is loaded in the web bundle (checkout is a
+      # redirect), so payment=() is safe.
+      - path: /*
+        name: Permissions-Policy
+        value: "geolocation=(), microphone=(), camera=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+      - path: /*
+        name: X-Permitted-Cross-Domain-Policies
+        value: none
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://saltire.lti.app https://lti.tools https://*.instructure.com https://sso.canvaslms.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com; connect-src 'self' https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com https://www.google-analytics.com https://www.google.com https://us.i.posthog.com https://us-assets.i.posthog.com https://www.facebook.com https://connect.facebook.net; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com https://drive.google.com https://docs.google.com https://www.slideshare.net https://www.loom.com https://loom.com https://www.googletagmanager.com https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com; upgrade-insecure-requests"
     routes:
       - type: rewrite
         source: /*
@@ -123,6 +185,16 @@ services:
         sync: false
 
   # Development Frontend
+  #
+  # !! DASHBOARD-MANAGED too (verified 2026-08-15, same divergence as prod).
+  # The headers below must also be entered in the Render dashboard to take effect.
+  #
+  # Same header suite as prod (see the prod comment above for the rationale and
+  # for why the full CSP is report-only), with two deliberate differences:
+  #   * HSTS is 1 day and carries NEITHER includeSubDomains NOR preload. This
+  #     host is a *.onrender.com subdomain we do not own; asserting either one
+  #     from it would be a claim about somebody else's namespace.
+  #   * connect-src points at the DEV API + preview hosts instead of prod.
   - type: static
     name: optio-dev-frontend
     branch: develop
@@ -133,6 +205,30 @@ services:
       - path: /*
         name: Cache-Control
         value: public, max-age=0, must-revalidate
+      - path: /*
+        name: Strict-Transport-Security
+        value: "max-age=86400"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: "geolocation=(), microphone=(), camera=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+      - path: /*
+        name: X-Permitted-Cross-Domain-Policies
+        value: none
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://saltire.lti.app https://lti.tools https://*.instructure.com https://sso.canvaslms.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com; connect-src 'self' https://optio-dev-backend-5flj.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com https://www.google-analytics.com https://www.google.com https://us.i.posthog.com https://us-assets.i.posthog.com https://www.facebook.com https://connect.facebook.net; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com https://drive.google.com https://docs.google.com https://www.slideshare.net https://www.loom.com https://loom.com https://www.googletagmanager.com https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com; upgrade-insecure-requests"
     routes:
       - type: rewrite
         source: /*

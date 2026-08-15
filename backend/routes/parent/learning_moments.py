@@ -11,7 +11,9 @@ from routes.parent.dashboard_overview import verify_parent_access
 from services.file_upload_service import FileUploadService
 from services.interest_tracks_service import InterestTracksService
 from services.learning_events_service import LearningEventsService
+from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
+from utils.storage_urls import canonical_stored_url
 
 logger = get_logger(__name__)
 
@@ -89,6 +91,14 @@ def create_child_learning_moment(user_id, child_id):
         for idx, media_item in enumerate(media):
             media_type = media_item.get('type', 'image')
 
+            # The upload endpoints hand the client a SIGNED, expiring twin
+            # alongside the durable pointer, and the capture form posts back
+            # whichever it happens to be holding. Reduce it before it reaches a
+            # row, or the moment renders for one TTL and is broken forever
+            # after. Non-storage links (the `link` media type) pass through.
+            if isinstance(media_item.get('file_url'), str):
+                media_item['file_url'] = canonical_stored_url(media_item['file_url'])
+
             # Determine block_type based on media type
             if media_type == 'link':
                 block_type = 'link'
@@ -154,7 +164,9 @@ def create_child_learning_moment(user_id, child_id):
             if block_response.data:
                 evidence_blocks.append(block_response.data[0])
 
-        event['evidence_blocks'] = evidence_blocks
+        # The row keeps the pointer; the parent gets the signed twin so the
+        # moment they just captured renders immediately.
+        event['evidence_blocks'] = PortfolioService().sign_evidence_blocks(evidence_blocks)
 
         logger.info(f"Parent {user_id} captured learning moment for child {child_id}")
 
@@ -207,7 +219,11 @@ def upload_moment_media(user_id, child_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'file_name': result.filename,
             'file_size': result.file_size,
             'media_type': result.media_type,
@@ -292,12 +308,18 @@ def finalize_moment_signed_upload(user_id, child_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'file_name': result.filename,
             'filename': result.filename,
             'file_size': result.file_size,
             'media_type': result.media_type,
             **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'thumbnail_display_url': result.thumbnail_display_url}
+               if result.thumbnail_display_url else {}),
             **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
             **({'width': result.width} if result.width is not None else {}),
             **({'height': result.height} if result.height is not None else {}),
@@ -381,6 +403,16 @@ def get_child_learning_moments(user_id, child_id):
         # Enrich moments with topics from junction table + any promoted task.
         moments = LearningEventsService._enrich_events_with_topics(supabase, moments)
         moments = LearningEventsService._enrich_events_with_promoted_task(supabase, moments)
+
+        # Learning-moment media lives in private buckets (`user-uploads`, and
+        # `quest-evidence` for task evidence mirrored into the journal). Sign
+        # every block on the page in one batched call per bucket.
+        PortfolioService().sign_evidence_blocks([
+            block
+            for moment in moments
+            for block in (moment.get('evidence_blocks') or [])
+            if isinstance(block, dict)
+        ])
 
         return jsonify({
             'success': True,
@@ -1011,7 +1043,12 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
             block_data = {
                 'learning_event_id': moment_id,
                 'block_type': block_type,
-                'content': block.get('content', {}),
+                # Reads hand this editor SIGNED media URLs and it posts the
+                # whole tree back on save; reduce to the durable pointer so a
+                # row never persists a capability that expires.
+                'content': PortfolioService.canonical_block_content(
+                    block.get('content', {})
+                ),
                 'order_index': block.get('order_index', idx)
             }
 
@@ -1019,7 +1056,7 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
             # actually render. Without these the parent-captured moment came
             # through empty even though the file uploaded to storage.
             if block.get('file_url'):
-                block_data['file_url'] = block['file_url']
+                block_data['file_url'] = canonical_stored_url(block['file_url'])
             if block.get('file_name'):
                 block_data['file_name'] = block['file_name']
             if isinstance(block.get('file_size'), int):
@@ -1036,7 +1073,8 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
 
         return jsonify({
             'success': True,
-            'blocks': created_blocks,
+            # Rows keep the pointer; the response carries the signed twin.
+            'blocks': PortfolioService().sign_evidence_blocks(created_blocks),
             'message': f'Saved {len(created_blocks)} evidence blocks'
         }), 200
 
@@ -1108,7 +1146,11 @@ def upload_child_moment_file(user_id, child_id, moment_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_name': result.filename,
             'file_size': result.file_size,
@@ -1218,13 +1260,19 @@ def finalize_moment_block_signed_upload(user_id, child_id, moment_id):
 
         return jsonify({
             'success': True,
+            # `file_url` is the durable pointer the client posts back to be
+            # stored; `display_url` is the signed, expiring twin it renders
+            # immediately. The bucket is private — never persist the twin.
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_name': result.filename,
             'file_size': result.file_size,
             'media_type': result.media_type,
             'message': 'File uploaded successfully',
             **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'thumbnail_display_url': result.thumbnail_display_url}
+               if result.thumbnail_display_url else {}),
             **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
             **({'width': result.width} if result.width is not None else {}),
             **({'height': result.height} if result.height is not None else {}),

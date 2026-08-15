@@ -22,6 +22,7 @@ from services import sis_notifications
 from utils import blank_values
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -396,6 +397,9 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
             .order('title').limit(8).execute()
         ).data or [])
     ]
+    # Uploaded docs live in the private `org-documents` bucket — one batched
+    # signing call for the list; external links pass through.
+    sign_in_place(staff_resources, ['url'])
 
     return {
         # Before the first day of school the daily schedule stays empty — weekly
@@ -526,6 +530,8 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'enrolled_at': e.get('enrolled_at'),
         })
     students.sort(key=lambda s: (s.get('last_name') or s['name']).lower())
+    # Student photos are private-bucket objects; one batch for the roster.
+    sign_in_place(students, ['avatar_url'])
 
     # Access log: one row per student viewed (health data is included).
     try:

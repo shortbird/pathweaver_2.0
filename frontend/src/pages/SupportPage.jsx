@@ -56,6 +56,12 @@ const SupportPage = () => {
               Observers see student activity in a read-only feed and can leave kind
               comments. They never see admin or account-management tools.
             </p>
+            <p className="mb-4">
+              Each invite link works <strong>once, for one person</strong>, and expires after
+              7 days. Create a separate link for each person you want to invite, and send it to
+              them directly rather than posting it in a group chat &mdash; whoever opens it first
+              is the one who gets access.
+            </p>
 
             <h3 className="text-lg font-semibold mt-6 mb-2">
               How do I delete my account or my child&apos;s account?

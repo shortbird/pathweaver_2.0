@@ -12,8 +12,13 @@ from typing import Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from repositories.sis_class_repository import SisClassRepository
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place, sign_stored_url
 
 logger = get_logger(__name__)
+
+# Class catalog photos. Private: they are photographs of children, so the column
+# holds the canonical pointer and every read signs it. See utils/storage_urls.py.
+CLASS_IMAGE_BUCKET = 'class-images'
 
 BILLING_TYPES = ('flat', 'per_class', 'recurring')
 BILLING_CADENCES = ('monthly', 'semester', 'full')
@@ -71,8 +76,12 @@ def _instructors_by_id(instructor_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         .select('id, first_name, last_name, display_name, preferred_name, username, email, avatar_url')
         .in_('id', ids).execute()
     ).data or []
-    return {u['id']: {'id': u['id'], 'name': _full_name(u), 'avatar_url': u.get('avatar_url')}
-            for u in rows}
+    people = {u['id']: {'id': u['id'], 'name': _full_name(u), 'avatar_url': u.get('avatar_url')}
+              for u in rows}
+    # Staff photos are private-bucket objects. Sign the whole instructor set in
+    # one batch here, so a catalog listing costs one call, not one per class.
+    sign_in_place(list(people.values()), ['avatar_url'])
+    return people
 
 
 def _for_audience(cls: Dict[str, Any], audience: str) -> Dict[str, Any]:
@@ -140,6 +149,10 @@ def list_classes(org_id: str, include_archived: bool = False,
             'primary_instructor': instructors.get(c.get('primary_instructor_id')),
             'assistant_instructors': _visible_assistants(c, instructors, audience),
         }, audience))
+    # `class-images` is private (these are photographs of children): the stored
+    # image_url is a pointer, not a fetchable link. One batched signing call for
+    # the whole catalog rather than one per class.
+    sign_in_place(out, ['image_url'], CLASS_IMAGE_BUCKET)
     return out
 
 
@@ -162,7 +175,10 @@ def get_class_detail(org_id: str, class_id: str,
     people = _instructors_by_id(all_ids)
     cls['primary_instructor'] = people.get(cls.get('primary_instructor_id'))
     cls['assistant_instructors'] = _visible_assistants(cls, people, audience)
-    return _for_audience(cls, audience)
+    detail = _for_audience(cls, audience)
+    if isinstance(detail, dict) and detail.get('image_url'):
+        detail['image_url'] = sign_stored_url(detail['image_url'], CLASS_IMAGE_BUCKET)
+    return detail
 
 
 # ── Optio-course settings (org_course_settings) ──────────────────────────────

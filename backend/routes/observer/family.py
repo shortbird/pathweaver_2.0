@@ -16,6 +16,7 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
+from utils.storage_urls import sign_in_place
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,9 @@ def register_routes(bp):
                 linked_students = linked_students_result.data
 
             all_children = dependents.data + linked_students
+            # Child avatars are private-bucket objects. Sign once here, on the
+            # shared row dicts, so every derived list below inherits it.
+            sign_in_place(all_children, ['avatar_url'])
             child_ids = [c['id'] for c in all_children]
             children_map = {c['id']: c for c in all_children}
 
@@ -344,6 +348,7 @@ def register_routes(bp):
                     .in_('id', observer_ids) \
                     .execute()
 
+                sign_in_place(observers.data, ['avatar_url'])
                 observer_map = {obs['id']: obs for obs in observers.data}
 
                 # Build observer data with children toggles
@@ -659,6 +664,7 @@ def register_routes(bp):
                 .select('id, display_name, first_name, last_name, avatar_url') \
                 .in_('id', student_ids) \
                 .execute() if student_ids else type('R', (), {'data': []})()
+            sign_in_place(students.data or [], ['avatar_url'])
             student_map = {s['id']: s for s in (students.data or [])}
 
             frontend_url = get_frontend_url()

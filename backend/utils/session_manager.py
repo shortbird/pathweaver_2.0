@@ -251,14 +251,32 @@ class SessionManager:
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
-    def generate_refresh_token(self, user_id: str) -> str:
-        """Generate a JWT refresh token"""
+    def generate_refresh_token(self, user_id: str,
+                               family_id: Optional[str] = None,
+                               jti: Optional[str] = None) -> str:
+        """Generate a JWT refresh token.
+
+        `fam` names the rotation chain this token belongs to and `jti` names this
+        single token within it. Together they are what makes a refresh token
+        one-time: /api/auth/refresh checks the presented `jti` against the one
+        the family says is live, and treats any other member of the family as a
+        replay of a token that was already spent
+        (utils/refresh_families.py).
+
+        Both are minted here as plain UUIDs and NOT written to the database --
+        this method is on the login path and stays pure crypto. The family row is
+        created on the chain's first refresh, which is the first moment the
+        distinction between "current" and "spent" can matter.
+        """
+        from utils import refresh_families
         payload = {
             'sub': user_id,  # CRITICAL: Supabase RLS expects 'sub' claim for auth.uid()
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'refresh',
             'version': self.token_version,  # Add version for rotation tracking
             'dfp2': self._get_device_fingerprint(),  # Version-insensitive device binding
+            'fam': family_id or refresh_families.new_family_id(),
+            'jti': jti or refresh_families.new_jti(),
             'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -966,9 +984,25 @@ class SessionManager:
             # If no iat, use current time (should never happen)
             token_issued_at = datetime.now(timezone.utc)
 
+        # Rotation: this refresh token is single-use from here. The presented
+        # `jti` must be the one its family says is live; anything else is a
+        # replay of a token that was already spent, which kills the family.
+        # Imported as a module so a test can stand in for the database layer.
+        from utils import refresh_families
+        outcome, family_id, next_jti = refresh_families.rotate(
+            user_id, payload.get('fam'), payload.get('jti'),
+            self.refresh_token_expiry)
+        if outcome in refresh_families.DENY:
+            logger.warning(
+                f"[SessionManager] Refresh refused ({outcome}) for user "
+                f"{str(user_id)[:8]}...")
+            return None
+        refresh_families.maybe_cleanup()
+
         # Generate new tokens
         new_access_token = self.generate_access_token(user_id)
-        new_refresh_token = self.generate_refresh_token(user_id)
+        new_refresh_token = self.generate_refresh_token(
+            user_id, family_id=family_id, jti=next_jti)
 
         return new_access_token, new_refresh_token, user_id, token_issued_at
 

@@ -119,7 +119,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
         {/* Explanation */}
         <Alert variant="info">
           <p>
-            Share a link with family and friends so they can follow {studentName}'s learning journey.
+            Create a link for one person so they can follow {studentName}'s learning. Each link works once and expires after 7 days.
             Observers can view completed work, leave encouraging comments, and celebrate achievements.
           </p>
         </Alert>
@@ -147,7 +147,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
           /* Generated Link Display */
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
             <p className="text-sm font-medium text-green-800">
-              Link created! Share it with your invitee:
+              Link created. Send it to one person:
             </p>
             <div className="flex gap-2">
               <input
@@ -182,7 +182,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
               onClick={() => setGeneratedLink(null)}
               className="text-sm text-green-700 hover:text-green-800 underline"
             >
-              Generate a new link
+              Create another link for someone else
             </button>
           </div>
         )}

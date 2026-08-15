@@ -20,14 +20,21 @@ from repositories import (
     TutorRepository,
     AnalyticsRepository
 )
+from services.account_deletion_service import (
+    AccountDeletionError,
+    purge_user,
+    run_pending_deletion_sweep,
+)
+from services.data_retention_service import run_tutor_retention_sweep
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from app_config import Config
 from utils.logger import get_logger
+from utils.storage_urls import default_ttl, sign_in_place, sign_stored_url
 
 logger = get_logger(__name__)
 
@@ -48,8 +55,12 @@ def request_account_deletion(user_id):
         # admin client justified: GDPR delete-request schedules deletion + writes account_deletion_log (audit trail must succeed even if user RLS policies block); @require_auth ensures self-only deletion (user_id from token)
         supabase = get_supabase_admin_client()
 
-        # Get user data for logging
-        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        # Explicit columns, not select('*'): the users row also carries phone,
+        # postal address, DOB, allergies and medications, and a deletion request
+        # has no business loading a student's health data to write a log line.
+        user_response = supabase.table('users').select(
+            'id, email, first_name, last_name, total_xp, created_at, deletion_status, deletion_scheduled_for'
+        ).eq('id', user_id).execute()
 
         if not user_response.data:
             raise NotFoundError("User not found")
@@ -146,11 +157,16 @@ def cancel_account_deletion(user_id):
                 'error': 'Grace period has expired, account deletion cannot be cancelled'
             }), 400
 
-        # Cancel deletion
+        # Cancel deletion. The executor re-reads this status immediately before
+        # erasing an account, so a cancellation that lands during a sweep wins.
+        # Attempt bookkeeping is cleared too, so a later re-request starts clean.
         supabase.table('users').update({
             'deletion_requested_at': None,
             'deletion_status': 'none',
-            'deletion_scheduled_for': None
+            'deletion_scheduled_for': None,
+            'deletion_attempts': 0,
+            'deletion_last_attempt_at': None,
+            'deletion_last_error': None
         }).eq('id', user_id).execute()
 
         return jsonify({
@@ -221,6 +237,9 @@ def export_user_data(user_id):
         supabase = get_supabase_admin_client()
         logger.info(f"[EXPORT] Got supabase client")
 
+        # Lifetime of every download link in this export (see file_references).
+        signed_ttl = default_ttl()
+
         export_data = {
             'export_date': datetime.utcnow().isoformat(),
             'user_id': user_id
@@ -268,23 +287,30 @@ def export_user_data(user_id):
             logger.error(f"Error fetching completed tasks: {str(e)}")
             export_data['completed_tasks'] = []
 
-        # Get evidence documents
+        # Get evidence documents.
+        # evidence_document_blocks has NO user_id column — it hangs off
+        # user_task_evidence_documents.document_id. The old `.eq('user_id', ...)`
+        # here always errored into the empty fallback, so every export silently
+        # shipped an empty portfolio.
         try:
-            evidence_response = supabase.table('evidence_document_blocks').select('*').eq('user_id', user_id).execute()
-            export_data['evidence_documents'] = evidence_response.data if evidence_response.data else []
+            docs_response = supabase.table('user_task_evidence_documents').select('*').eq('user_id', user_id).execute()
+            documents = docs_response.data or []
+            export_data['evidence_document_records'] = documents
+            if documents:
+                block_response = supabase.table('evidence_document_blocks').select('*').in_(
+                    'document_id', [doc['id'] for doc in documents]
+                ).execute()
+                export_data['evidence_documents'] = block_response.data or []
+            else:
+                export_data['evidence_documents'] = []
         except Exception as e:
             logger.error(f"Error fetching evidence documents: {str(e)}")
             export_data['evidence_documents'] = []
+            export_data['evidence_document_records'] = []
 
-        # Get friendships
-        try:
-            friendships_response = supabase.table('friendships').select('*').or_(
-                f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
-            ).execute()
-            export_data['friendships'] = friendships_response.data if friendships_response.data else []
-        except Exception as e:
-            logger.error(f"Error fetching friendships: {str(e)}")
-            export_data['friendships'] = []
+        # Friendships were dropped in the March 2026 audit; the key is kept
+        # empty for export shape stability (same as badges below).
+        export_data['friendships'] = []
 
         # Get tutor conversations (if exists)
         try:
@@ -324,17 +350,20 @@ def export_user_data(user_id):
             logger.error(f"Error fetching student access logs: {str(e)}")
             export_data['student_access_logs'] = []
 
-        # Get observer access logs (if user is a student with observers)
+        # Get observer access logs (if user is a student with observers).
+        # Table is observer_access_audit; the old 'observer_audit_log' name does
+        # not exist, so this section always fell into the empty fallback.
         try:
-            observer_logs_response = supabase.table('observer_audit_log').select('*').eq('student_id', user_id).execute()
+            observer_logs_response = supabase.table('observer_access_audit').select('*').eq('student_id', user_id).execute()
             export_data['observer_access_logs'] = observer_logs_response.data if observer_logs_response.data else []
         except Exception as e:
             logger.error(f"Error fetching observer access logs: {str(e)}")
             export_data['observer_access_logs'] = []
 
-        # Get advisor notes (if any)
+        # Get advisor notes (if any). Table is advisor_notes, keyed by
+        # subject_id — 'advisor_student_notes' never existed either.
         try:
-            advisor_notes_response = supabase.table('advisor_student_notes').select('*').eq('student_id', user_id).execute()
+            advisor_notes_response = supabase.table('advisor_notes').select('*').eq('subject_id', user_id).execute()
             export_data['advisor_notes'] = advisor_notes_response.data if advisor_notes_response.data else []
         except Exception as e:
             logger.error(f"Error fetching advisor notes: {str(e)}")
@@ -372,9 +401,32 @@ def export_user_data(user_id):
         # Get file URLs for evidence and profile images
         # Note: Actual file download would require separate endpoints due to size
         # This provides metadata and URLs for user to download files separately
+        #
+        # Media buckets are private (utils/storage_urls.PRIVATE_MEDIA_BUCKETS),
+        # so the links below are SIGNED and therefore EXPIRING. That is a real
+        # tension with an export the user downloads and keeps: an hour later the
+        # JSON's links are dead. The alternatives are worse. A permanent public
+        # URL is the disclosure this whole change exists to close -- it would be
+        # a never-expiring, unauthenticated link to a minor's work sitting in a
+        # file the user may forward or back up. And silently emitting the
+        # canonical pointer would ship links that 404 with no explanation.
+        #
+        # So: sign them, say plainly that they expire, say how long, and tell
+        # the user to re-export for fresh links. The download works at export
+        # time (which is when people actually use it), and nothing durable
+        # leaks. `expires_in_seconds` and the note are part of the contract --
+        # a client that caches the export can show when the links went stale.
         export_data['file_references'] = {
             'evidence_files': [],
-            'profile_image': None
+            'profile_image': None,
+            'note': (
+                'Download links below are temporary and expire '
+                f'{signed_ttl} seconds after this export was generated. They point at '
+                'private storage, so they cannot be shared or bookmarked. '
+                'Re-run the export to get fresh links.'
+            ),
+            'expires_in_seconds': signed_ttl,
+            'generated_at': datetime.now(timezone.utc).isoformat(),
         }
 
         # Get evidence file URLs from Supabase Storage
@@ -392,6 +444,11 @@ def export_user_data(user_id):
                             'url': content_data.get('url'),
                             'uploaded_at': block.get('created_at')
                         })
+            # One batch per bucket for the whole export, not one call per file.
+            sign_in_place(
+                export_data['file_references']['evidence_files'], ['url'],
+                expires_in=signed_ttl,
+            )
         except Exception as e:
             logger.error(f"Error fetching evidence file references: {str(e)}")
 
@@ -400,8 +457,11 @@ def export_user_data(user_id):
             user_profile = export_data.get('profile', {})
             if user_profile and user_profile.get('avatar_url'):
                 export_data['file_references']['profile_image'] = {
-                    'url': user_profile.get('avatar_url'),
-                    'note': 'Download this URL to save your profile image'
+                    'url': sign_stored_url(
+                        user_profile.get('avatar_url'), expires_in=signed_ttl
+                    ),
+                    'note': ('Download this URL to save your profile image. The '
+                             'link expires -- see file_references.note.'),
                 }
         except Exception as e:
             logger.error(f"Error fetching profile image reference: {str(e)}")
@@ -427,164 +487,48 @@ def delete_user_account_permanent(user_id):
     This is an IRREVERSIBLE operation that immediately deletes all user data.
     For a safer option with a grace period, use POST /users/delete-account instead.
 
+    The erasure itself lives in services/account_deletion_service.py so this
+    endpoint, the 30-day executor, and parent-initiated dependent deletion all
+    delete the SAME things — storage objects and the Supabase auth user
+    included, neither of which this route used to touch.
+
     GDPR Compliance: Article 17 - Right to Erasure
     """
     try:
-
-        # admin client justified: GDPR Article 17 hard-delete cascades across ~15 tables; bypassing RLS is required because deleting users row revokes the caller's own access mid-transaction; user_id from @require_auth scopes every delete to self
+        # admin client justified: GDPR Article 17 erasure spans every table holding the user's rows plus storage and auth.admin; RLS cannot be used because deleting the users row revokes the caller's own access mid-operation; user_id comes from @require_auth so every delete is scoped to self
         supabase = get_supabase_admin_client()
 
         # Verify user exists before attempting deletion
-        user_response = supabase.table('users').select('id, email, first_name, last_name').eq('id', user_id).execute()
+        user_response = supabase.table('users').select('id, email').eq('id', user_id).execute()
 
         if not user_response.data:
             raise NotFoundError("User not found")
 
-        user = user_response.data[0]
         logger.info(f"[GDPR_DELETE] Starting permanent deletion for user {user_id}")
 
-        # Log deletion for compliance audit trail (before deleting user data)
-        try:
-            supabase.table('account_deletion_log').insert({
-                'user_id': user_id,
-                'email': user.get('email'),
-                'first_name': user.get('first_name'),
-                'last_name': user.get('last_name'),
-                'deletion_requested_at': datetime.utcnow().isoformat(),
-                'deletion_completed_at': datetime.utcnow().isoformat(),
-                'reason': 'GDPR permanent deletion',
-                'user_data': json.dumps({'deletion_type': 'permanent', 'gdpr_request': True})
-            }).execute()
-        except Exception as log_error:
-            logger.error(f"Failed to log deletion (continuing anyway): {str(log_error)}")
-
-        # Delete in reverse dependency order to avoid foreign key violations
-        deletion_tables = [
-            # Evidence and task completion data
-            'evidence_document_blocks',
-            'quest_task_completions',
-            'user_quest_tasks',
-            'user_quests',
-
-            # Social features (friendships removed March 2026)
-            'direct_messages',  # Both sent and received
-
-            # Skills and achievements
-            'user_skill_xp',
-
-            # AI Tutor data
-            'tutor_messages',  # Delete messages before conversations
-            'tutor_conversations',
-
-            # Compliance and access logs
-            'parental_consent_log',
-            'student_access_logs',
-            'observer_audit_log',
-            'advisor_student_notes',
-
-            # Observer relationships
-            'observer_student_links',
-
-            # Diploma/Portfolio
-            'diplomas',
-
-            # User profile (must be last)
-            'users'
-        ]
-
-        deleted_counts = {}
-
-        for table in deletion_tables:
-            try:
-                # Handle direct_messages (user can be sender or recipient)
-                if table == 'direct_messages':
-                    # Delete messages sent by user
-                    sent_result = supabase.table(table).delete().eq('sender_id', user_id).execute()
-                    sent_count = len(sent_result.data) if sent_result.data else 0
-
-                    # Delete messages received by user
-                    received_result = supabase.table(table).delete().eq('recipient_id', user_id).execute()
-                    received_count = len(received_result.data) if received_result.data else 0
-
-                    deleted_counts[table] = sent_count + received_count
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Handle tutor_messages (must join through conversations)
-                elif table == 'tutor_messages':
-                    # First get conversation IDs for this user
-                    conversations = supabase.table('tutor_conversations').select('id').eq('user_id', user_id).execute()
-                    if conversations.data:
-                        conversation_ids = [conv['id'] for conv in conversations.data]
-                        result = supabase.table(table).delete().in_('conversation_id', conversation_ids).execute()
-                        deleted_counts[table] = len(result.data) if result.data else 0
-                    else:
-                        deleted_counts[table] = 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Handle advisor notes (user is student)
-                elif table == 'advisor_student_notes':
-                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
-                    deleted_counts[table] = len(result.data) if result.data else 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Handle student access logs
-                elif table == 'student_access_logs':
-                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
-                    deleted_counts[table] = len(result.data) if result.data else 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Handle observer audit log
-                elif table == 'observer_audit_log':
-                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
-                    deleted_counts[table] = len(result.data) if result.data else 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Handle observer relationships (user could be observer or student)
-                elif table == 'observer_student_links':
-                    # Delete where user is observer
-                    observer_result = supabase.table(table).delete().eq('observer_id', user_id).execute()
-                    observer_count = len(observer_result.data) if observer_result.data else 0
-
-                    # Delete where user is student
-                    student_result = supabase.table(table).delete().eq('student_id', user_id).execute()
-                    student_count = len(student_result.data) if student_result.data else 0
-
-                    deleted_counts[table] = observer_count + student_count
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-                # Standard deletion for all other tables
-                else:
-                    result = supabase.table(table).delete().eq('user_id', user_id).execute()
-                    deleted_counts[table] = len(result.data) if result.data else 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
-
-            except Exception as table_error:
-                error_str = str(table_error).lower()
-                table_name = table if isinstance(table, str) else table[0]
-
-                # Log error but continue (table might not exist or have no data)
-                if 'does not exist' in error_str or 'relation' in error_str:
-                    logger.warning(f"[GDPR_DELETE] Table {table_name} does not exist, skipping")
-                    deleted_counts[table_name] = 0
-                elif 'no rows' in error_str or 'not found' in error_str:
-                    logger.info(f"[GDPR_DELETE] No data found in {table_name}")
-                    deleted_counts[table_name] = 0
-                else:
-                    logger.error(f"[GDPR_DELETE] Error deleting from {table_name}: {str(table_error)}")
-                    # Don't fail the entire operation if one table fails
-                    deleted_counts[table_name] = 'error'
-
-        logger.info(f"[GDPR_DELETE] Deletion completed for user {user_id}")
+        result = purge_user(user_id, admin=supabase,
+                            reason='GDPR permanent deletion',
+                            deletion_type='permanent')
 
         return jsonify({
             'message': 'Account and all associated data permanently deleted',
             'user_id': user_id,
-            'deletion_summary': deleted_counts,
+            'deletion_summary': result['counts'],
             'gdpr_compliance': 'Article 17 - Right to Erasure'
         }), 200
 
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
+    except AccountDeletionError as e:
+        # Loud, not swallowed: some part of the erasure did not happen, so the
+        # account must NOT be reported as deleted. The record is left intact and
+        # retryable rather than half-deleted.
+        logger.error(f"[GDPR_DELETE] Permanent deletion incomplete for {user_id}: {e.errors}")
+        return jsonify({
+            'error': 'Account deletion did not complete. No data was reported as deleted; '
+                     'please retry or contact support.',
+            'failed_steps': e.errors if Config.FLASK_ENV == 'development' else None
+        }), 500
     except Exception as e:
         logger.error(f"Error during permanent account deletion: {str(e)}")
         import traceback
@@ -593,3 +537,62 @@ def delete_user_account_permanent(user_id):
             'error': 'Failed to permanently delete account',
             'details': str(e) if Config.FLASK_ENV == 'development' else None
         }), 500
+
+
+# ── Internal cron entrypoints ────────────────────────────────────────────────
+
+def _cron_or_superadmin():
+    """True when the caller is the cron service or a signed-in superadmin.
+
+    Same shape as the SIS attendance sweep and the OEA compliance sweep, so all
+    internal jobs authenticate identically.
+    """
+    from utils.cron_auth import is_valid_cron_secret
+    if is_valid_cron_secret(request.headers.get('X-Cron-Secret')):
+        return True
+    from utils.session_manager import session_manager
+    uid = session_manager.get_effective_user_id()
+    if not uid:
+        return False
+    # admin client justified: cron-endpoint auth fallback — reads users.role to
+    # verify the signed-in caller is superadmin (the auth check itself)
+    row = get_supabase_admin_client().table('users').select('role') \
+        .eq('id', uid).limit(1).execute().data
+    return bool(row and row[0].get('role') == 'superadmin')
+
+
+@bp.route('/users/internal/deletion-sweep', methods=['POST'])
+def deletion_sweep():
+    """Cron entrypoint: erase accounts whose 30-day grace period has expired.
+
+    This is the executor for `POST /users/delete-account`. Without it the
+    scheduled-deletion promise was never kept: `deletion_status='pending'` was
+    written and never read again.
+
+    Idempotent — it only picks up accounts still marked pending and past their
+    date, re-checks each one immediately before erasing it (so a cancellation
+    wins), and leaves failures pending-with-an-error for the next run.
+    """
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    try:
+        return jsonify({'success': True, **run_pending_deletion_sweep()}), 200
+    except Exception as e:
+        logger.error(f"[DELETION_SWEEP] sweep failed: {e}")
+        return jsonify({'success': False, 'error': 'Deletion sweep failed'}), 500
+
+
+@bp.route('/users/internal/retention-sweep', methods=['POST'])
+def retention_sweep():
+    """Cron entrypoint: AI tutor conversation retention.
+
+    Disabled by default (`Config.TUTOR_RETENTION_ENABLED`); with it off this
+    reports how many conversations WOULD be purged and deletes nothing.
+    """
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    try:
+        return jsonify({'success': True, **run_tutor_retention_sweep()}), 200
+    except Exception as e:
+        logger.error(f"[RETENTION] sweep failed: {e}")
+        return jsonify({'success': False, 'error': 'Retention sweep failed'}), 500

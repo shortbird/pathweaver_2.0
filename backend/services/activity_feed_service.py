@@ -23,6 +23,7 @@ this person's hidden work"; the default is to see nobody's.
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -60,6 +61,9 @@ def build_activity_feed(
         .in_('id', student_ids) \
         .execute()
     students_map = {u['id']: u for u in (profiles.data or [])}
+    # Avatars live in private buckets. One batch for the whole author set, so a
+    # 50-item feed costs one signing call rather than one per row.
+    sign_in_place(list(students_map.values()), ['avatar_url'])
 
     query = supabase.table('quest_task_completions') \
         .select('id, user_id, quest_id, user_quest_task_id, completed_at, '
@@ -462,6 +466,16 @@ def build_activity_feed(
                 'comments_count': comments_count.get(item.get('completion_id'), 0),
                 'is_confidential': item.get('is_confidential', False)
             })
+
+    # Evidence media is student work in `quest-evidence`, which is private too.
+    # Sign the evidence block and every media item across the page in one batch.
+    _to_sign = [i['evidence'] for i in feed_items if isinstance(i.get('evidence'), dict)]
+    for item in feed_items:
+        _to_sign.extend(m for m in (item.get('media') or []) if isinstance(m, dict))
+    # Same key set the evidence-block signer uses, so a media item that grows a
+    # poster_url or src doesn't silently ship unsigned.
+    from services.portfolio_service import _BLOCK_URL_KEYS
+    sign_in_place(_to_sign, _BLOCK_URL_KEYS)
 
     next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
     return {'items': feed_items, 'has_more': has_more, 'next_cursor': next_cursor}

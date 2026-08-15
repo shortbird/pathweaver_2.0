@@ -774,13 +774,33 @@ def _display_name(u: Dict[str, Any]) -> str:
     return name or (u.get('username') or u.get('email') or 'Unnamed')
 
 
+def _student_payment_reference(u: Dict[str, Any]) -> str:
+    """How a student is named on data that leaves Optio for Stripe.
+
+    FIRST NAME ONLY. Full names used to ride along in Checkout line items, which
+    put a minor's full identity into a payment processor's records — attached to
+    a card, a household, and an amount — for no reason Stripe needs.
+
+    An opaque id would leak nothing, and was rejected: this string is what the
+    parent reads on the Checkout page and on the card statement descriptor when
+    paying for three kids at once, and "tuition · 8f3c1a…" is a bill nobody can
+    check. A first name is what a parent needs to tell one child's line from
+    another's, and on its own it identifies no one.
+    """
+    first = (u.get('first_name') or '').strip()
+    if first:
+        return first
+    display = (u.get('display_name') or '').strip()
+    return display.split()[0] if display else 'Student'
+
+
 def _users_map(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
     ids = [i for i in set(user_ids) if i]
     if not ids:
         return {}
     return {u['id']: u for u in (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, username, email, is_dependent')
         .in_('id', ids).execute()
     ).data or []}
 
@@ -1295,6 +1315,12 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
+    if guardian.get('is_dependent'):
+        # A dependent account is a child's. Their email must not become the
+        # Stripe customer_email on a Checkout — that is how a minor ends up as a
+        # billing contact at a payment processor.
+        logger.warning(f'[SIS billing] refusing family checkout started by dependent {user_id[:8]}')
+        return {'error': 'Only a parent or guardian can pay a family balance'}
     students = _users_map([i.get('student_user_id') for i in invoices])
     try:
         import stripe
@@ -1305,7 +1331,8 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
             if bal <= 0:
                 continue
             s = students.get(inv.get('student_user_id'))
-            who = _display_name(s) if s else (inv.get('invoice_number') or 'Tuition')
+            # First name only — see _student_payment_reference.
+            who = _student_payment_reference(s) if s else (inv.get('invoice_number') or 'Tuition')
             line_items.append({
                 'price_data': {'currency': 'usd',
                                'product_data': {'name': f"{org_name} tuition · {who}"},
@@ -1450,6 +1477,13 @@ def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str
         return {'error': 'Invalid return URL'}
     count = max(2, min(int(installment_count or 10), 24))
     guardian = _users_map([user_id]).get(user_id) or {}
+    if guardian.get('is_dependent'):
+        # Never create a Stripe Customer for a child. A Customer record is
+        # durable, holds an email and a saved card, and is the one Stripe object
+        # that turns "a payment happened" into "this person banks here".
+        # Guardians are legitimate Stripe customers; minors are not.
+        logger.warning(f'[SIS billing] refusing autopay setup for dependent account {user_id[:8]}')
+        return {'error': 'Only a parent or guardian can set up automatic payments'}
     try:
         import stripe
         sep = '&' if '?' in return_url else '?'

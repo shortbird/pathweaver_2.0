@@ -187,7 +187,10 @@ def add_evidence(user_id, record_id):
             return jsonify({'success': False,
                             'error': result.error_message or 'Upload failed'}), 400
         evidence.update({
+            # Canonical pointer to persist, plus the signed twin for the
+            # immediate preview (the bucket is private).
             'url': result.file_url,
+            'display_url': result.display_url,
             'title': body.get('title') or result.filename,
             'file_name': result.filename,
             'file_size': result.file_size,

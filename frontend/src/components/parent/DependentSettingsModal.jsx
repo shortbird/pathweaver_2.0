@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import { Modal } from '../ui'
 import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateDependent } from '../../services/dependentAPI'
 import { observerAPI } from '../../services/api'
@@ -53,6 +53,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   const [observers, setObservers] = useState([])
   const [observersLoading, setObserversLoading] = useState(false)
   const [activeInvite, setActiveInvite] = useState(null)
+  const [outstandingInviteCount, setOutstandingInviteCount] = useState(0)
   const [creatingInvite, setCreatingInvite] = useState(false)
 
   // Default org limits if not provided
@@ -97,15 +98,15 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
         observerAPI.getParentInvitations(childId)
       ])
       setObservers(observersRes.data.observers || [])
-      // Get the most recent pending invitation (if any)
+      // Outstanding (unredeemed, unexpired) invitations. Codes are single-use,
+      // so several may be live at once -- one per person invited. We surface
+      // the count rather than re-displaying an old link as "the" link: the
+      // parent cannot tell by looking whether the one on screen is the one
+      // they already sent, and sending it twice means the second person is
+      // locked out.
       const invites = invitesRes.data.invitations || []
-      if (invites.length > 0) {
-        const invite = invites[0]
-        const inviteUrl = invite.invite_url || `${window.location.origin}/observer/accept/${invite.invitation_code}`
-        setActiveInvite({ ...invite, url: inviteUrl })
-      } else {
-        setActiveInvite(null)
-      }
+      setOutstandingInviteCount(invites.length)
+      setActiveInvite(null)
     } catch (error) {
       console.error('Error loading observers:', error)
       toast.error('Failed to load observers')
@@ -282,8 +283,10 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
     }
   }
 
-  // Observer handlers
-  const handleCreateOrRefreshInvite = async () => {
+  // Observer handlers.
+  // Always mints a NEW single-use link -- there is no "refresh" any more,
+  // because one link is one observer.
+  const handleCreateInvite = async () => {
     setCreatingInvite(true)
     try {
       const response = await observerAPI.parentCreateInvite(childId, 'family')
@@ -293,9 +296,11 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
         id: data.invitation_id,
         invitation_code: data.invitation_code,
         url: inviteUrl,
+        expires_at: data.expires_at,
         created_at: new Date().toISOString()
       })
-      toast.success(activeInvite ? 'Invite link refreshed!' : 'Invite link created!')
+      setOutstandingInviteCount(count => count + 1)
+      toast.success('Invite link created')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to create invite')
     } finally {
@@ -676,56 +681,55 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                 <>
                   {/* Invite Link Section */}
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-medium text-gray-700">Invite Link</h4>
-                      {activeInvite && (
-                        <button
-                          onClick={handleCreateOrRefreshInvite}
-                          disabled={creatingInvite}
-                          className="flex items-center gap-1 text-xs text-optio-purple hover:text-optio-pink transition-colors disabled:opacity-50"
-                          title="Generate new link"
-                        >
-                          <ArrowPathIcon className={`w-3.5 h-3.5 ${creatingInvite ? 'animate-spin' : ''}`} />
-                          Refresh
-                        </button>
-                      )}
-                    </div>
-                    {activeInvite ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={activeInvite.url}
-                          readOnly
-                          className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-600 truncate"
-                        />
-                        <button
-                          onClick={handleCopyInviteLink}
-                          className="flex-shrink-0 px-3 py-2 bg-gradient-primary text-white rounded-lg text-sm font-medium hover:opacity-90"
-                        >
-                          Copy
-                        </button>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Invite an observer</h4>
+
+                    {activeInvite && (
+                      <div className="mb-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={activeInvite.url}
+                            readOnly
+                            className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-600 truncate"
+                          />
+                          <button
+                            onClick={handleCopyInviteLink}
+                            className="flex-shrink-0 px-3 py-2 bg-gradient-primary text-white rounded-lg text-sm font-medium hover:opacity-90"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Send this to one person. It stops working once they use it, and expires after 7 days.
+                        </p>
                       </div>
-                    ) : (
-                      <button
-                        onClick={handleCreateOrRefreshInvite}
-                        disabled={creatingInvite}
-                        className="btn-primary w-full"
-                      >
-                        {creatingInvite ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                            Creating...
-                          </>
-                        ) : (
-                          <>
-                            <LinkIcon className="w-4 h-4" />
-                            Create Invite Link
-                          </>
-                        )}
-                      </button>
                     )}
+
+                    <button
+                      onClick={handleCreateInvite}
+                      disabled={creatingInvite}
+                      className="btn-primary w-full"
+                    >
+                      {creatingInvite ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="w-4 h-4" />
+                          {activeInvite ? 'Create another link' : 'Create invite link'}
+                        </>
+                      )}
+                    </button>
+
                     <p className="mt-2 text-xs text-gray-500">
-                      Share this link with family members to let them observe {firstName}'s learning journey.
+                      Each link lets one person follow {firstName}'s learning. Create a separate link for
+                      each person you invite &mdash; grandparents, a tutor, a coach.
+                      {outstandingInviteCount > 0 && (
+                        <> {outstandingInviteCount} link{outstandingInviteCount === 1 ? '' : 's'} you
+                        created {outstandingInviteCount === 1 ? 'has' : 'have'} not been used yet.</>
+                      )}
                     </p>
                   </div>
 

@@ -27,6 +27,7 @@ from utils.auth.org_scope import caller_can_access_user
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_utils import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects
+from utils.storage_urls import sign_in_place
 from services.subject_classification_service import SubjectClassificationService
 from datetime import datetime
 import json
@@ -490,6 +491,10 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
                 'evidence_text': completion.get('evidence_text') if completion else None,
                 'evidence_url': completion.get('evidence_url') if completion else None
             })
+
+        # `quest-evidence` is private, so the stored evidence_url is a pointer.
+        # Sign the whole quest's worth in one batched call.
+        sign_in_place(enriched_tasks, ['evidence_url'])
 
         return jsonify({
             'success': True,

@@ -38,12 +38,16 @@ def _status_for(error_code: str) -> int:
 
 
 def _result_to_upload_entry(result, original_name: str) -> dict:
-    """Shape a MediaUploadResult into the legacy /evidence response entry."""
-    from utils.storage_url import fix_storage_url  # noqa: F401 (already applied in service)
+    """Shape a MediaUploadResult into the legacy /evidence response entry.
+
+    `url` stays the durable pointer (it is what callers persist); `display_url`
+    is the signed, expiring URL a browser can actually load.
+    """
     return {
         'original_name': original_name,
         'stored_name': result.filename,
         'url': result.file_url,
+        'display_url': result.display_url,
         'size': result.file_size,
         'content_type': result.content_type,
         'sha256_hash': result.sha256_hash,
@@ -239,11 +243,13 @@ def finalize_signed_upload(user_id):
             'success': True,
             'url': result.file_url,
             'file_url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,
             'media_type': result.media_type,
             **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'thumbnail_display_url': result.thumbnail_display_url} if result.thumbnail_display_url else {}),
             **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
             **({'width': result.width} if result.width is not None else {}),
             **({'height': result.height} if result.height is not None else {}),
@@ -347,19 +353,20 @@ def process_uploaded_file(user_id):
         if not storage_path:
             return jsonify({'error': 'storage_path required'}), 400
 
-        # admin client justified: file upload endpoints write to Supabase Storage scoped to caller (self) under @require_auth
-        supabase = get_supabase_admin_client()
-
-        # Get public URL
-        from utils.storage_url import fix_storage_url
-        public_url = fix_storage_url(supabase.storage.from_(bucket).get_public_url(storage_path))
+        # Two URLs, deliberately: `storage_url` is the durable pointer to
+        # persist, `display_url` is a short-lived signed URL the browser can
+        # actually fetch (these buckets are private). See utils/storage_urls.py.
+        from utils.storage_urls import public_object_url, sign_stored_url
+        storage_url = public_object_url(bucket, storage_path)
+        display_url = sign_stored_url(storage_url, bucket)
 
         # Kick off background video processing
         ext = storage_path.rsplit('.', 1)[1].lower() if '.' in storage_path else ''
         if ext in ('mp4', 'mov'):
             from services.video_processing_service import video_processing_service
             video_processing_service.process_video_background(
-                public_url=public_url,
+                # The worker downloads the object; it needs the signed URL.
+                public_url=display_url or storage_url,
                 storage_path=storage_path,
                 bucket_name=bucket,
                 user_id=user_id,
@@ -369,7 +376,8 @@ def process_uploaded_file(user_id):
 
         return jsonify({
             'success': True,
-            'file_url': public_url,
+            'file_url': storage_url,
+            'display_url': display_url,
         }), 200
 
     except Exception as e:

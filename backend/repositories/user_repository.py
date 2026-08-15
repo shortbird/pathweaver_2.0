@@ -10,6 +10,8 @@ from repositories.base_repository import BaseRepository, DatabaseError, NotFound
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_pattern, pgrst_timestamp
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -247,7 +249,10 @@ class UserRepository(BaseRepository):
                 .execute()
             )
 
-            return response.data or []
+            rows = response.data or []
+            # Private-bucket avatars, one batch for the result page.
+            sign_in_place(rows, ['avatar_url'])
+            return rows
 
         except APIError as e:
             logger.error(f"Error searching users by display name: {e}")
@@ -337,10 +342,13 @@ class UserRepository(BaseRepository):
         Raises:
             DatabaseError: If query fails
         """
-        return self.find_by_ids(
+        profiles = self.find_by_ids(
             user_ids,
             select_fields='id, first_name, last_name, display_name, avatar_url, bio, portfolio_slug, role'
         )
+        sign_in_place(list(profiles.values()) if isinstance(profiles, dict) else profiles,
+                      ['avatar_url'])
+        return profiles
 
     def update_last_active(self, user_id: str) -> bool:
         """
@@ -434,13 +442,20 @@ class UserRepository(BaseRepository):
                     if filters['activity'] == 'active':
                         query = query.gte('last_login_at', cutoff_date)
                     elif filters['activity'] == 'inactive':
-                        query = query.or_(f'last_login_at.lt.{cutoff_date},last_login_at.is.null')
+                        query = query.or_(
+                            f'last_login_at.lt.{pgrst_timestamp(cutoff_date, "last_login_at")},'
+                            f'last_login_at.is.null'
+                        )
 
                 # Search filter
                 if filters.get('search'):
-                    search_term = filters['search']
-                    search_query = f'first_name.ilike.%{search_term}%,last_name.ilike.%{search_term}%,email.ilike.%{search_term}%'
-                    query = query.or_(search_query)
+                    search_term = pgrst_pattern(filters['search'])
+                    if search_term:
+                        query = query.or_(
+                            f'first_name.ilike.%{pgrst_pattern(search_term)}%,'
+                            f'last_name.ilike.%{pgrst_pattern(search_term)}%,'
+                            f'email.ilike.%{pgrst_pattern(search_term)}%'
+                        )
 
             # Sorting
             ascending = sort_order == 'asc'
@@ -464,6 +479,9 @@ class UserRepository(BaseRepository):
                         org_names = {o['id']: o['name'] for o in orgs_response.data}
                         for user in users:
                             user['organization_name'] = org_names.get(user.get('organization_id'))
+
+            # Avatars are private-bucket objects; one batch per page of users.
+            sign_in_place(users, ['avatar_url'])
 
             return {
                 'users': users,

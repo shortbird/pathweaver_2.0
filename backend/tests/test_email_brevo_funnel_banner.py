@@ -8,12 +8,18 @@ Also covers the sync_lead return value that drives it: the banner must claim a
 funnel only when the automation actually started for that recipient (a repeat
 submission from someone already on the trigger list starts nothing, because
 Brevo automations exclude existing list members).
+
+The [COPY] mechanism itself is OFF by default since Aug 2026 (see
+test_email_support_copy_gate.py), so these tests force it on: they are about
+what a copy SAYS once someone has deliberately enabled it, not about whether
+one gets sent.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app_config import Config
 from services import brevo_service
 from services.email_service import EmailService
 
@@ -31,7 +37,8 @@ def _send(brevo_funnel, text_body='Plain text body'):
     """Run send_email and return the [COPY] payload sent to the support inbox."""
     service = _service()
     sent = []
-    with patch.object(EmailService, '_recipient_org', return_value=None), \
+    with patch.object(Config, 'SUPPORT_COPY_EMAILS_ENABLED', True), \
+         patch.object(EmailService, '_recipient_org', return_value=None), \
          patch.object(EmailService, '_send_via_brevo', side_effect=lambda p: sent.append(p) or True):
         service.send_email(
             to_email='lead@example.com',
@@ -75,7 +82,8 @@ class TestFunnelBanner:
     def test_recipient_email_never_carries_the_banner(self):
         service = _service()
         sent = []
-        with patch.object(EmailService, '_recipient_org', return_value=None), \
+        with patch.object(Config, 'SUPPORT_COPY_EMAILS_ENABLED', True), \
+             patch.object(EmailService, '_recipient_org', return_value=None), \
              patch.object(EmailService, '_send_via_brevo', side_effect=lambda p: sent.append(p) or True):
             service.send_email(
                 to_email='lead@example.com',

@@ -22,6 +22,7 @@ from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -225,6 +226,9 @@ def get_dashboard_items(user_id: str):
                 'is_org_student': bool(student.get('organization_id'))
             })
 
+        # Private-bucket photos: one batch for the whole review queue.
+        sign_in_place(items, ['student_avatar'])
+
         return success_response(data={
             'items': items,
             'total': completions.count or len(items),
@@ -339,6 +343,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         # Inject resolved display_name into student data
         student_data = student.data or {}
         student_data['display_name'] = resolve_user_name(student_data)
+        sign_in_place([student_data], ['avatar_url'])
 
         return success_response(data={
             'completion': completion_data,
@@ -534,6 +539,7 @@ def get_student_context(user_id: str, student_id: str):
         except Exception:
             logger.debug("intentional swallow", exc_info=True)
 
+        sign_in_place([student.data], ['avatar_url'])
         return success_response(data={
             'student': student.data,
             'subject_xp': subject_xp.data or [],

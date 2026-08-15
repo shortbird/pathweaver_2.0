@@ -134,6 +134,16 @@ class Config:
         os.getenv('SUPABASE_SERVICE_KEY')  # Legacy fallback
     )
 
+    # How long a signed Storage URL stays valid, in seconds.
+    #
+    # Student evidence, child avatars, family photos and parent identity
+    # documents live in PRIVATE buckets and are only ever handed out as
+    # short-lived signed URLs (utils/storage_urls.py). The TTL is the window in
+    # which a leaked URL still works, so keep it short; it also has to be long
+    # enough that a page someone opened and left sitting still renders its
+    # images. One hour is the same default the SIS secure-document store uses.
+    STORAGE_SIGNED_URL_TTL = int(os.getenv('STORAGE_SIGNED_URL_TTL', '3600'))
+
     # Database Configuration - CONFIGURABLE
     SUPABASE_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', '10'))
     SUPABASE_POOL_TIMEOUT = int(os.getenv('DB_POOL_TIMEOUT', '30'))
@@ -147,6 +157,27 @@ class Config:
     # PostgREST gives no other signal. See utils/db_fetch.py.
     POSTGREST_MAX_ROWS = int(os.getenv('POSTGREST_MAX_ROWS', '1000'))
 
+    # Account deletion executor (services/account_deletion_service.py).
+    # Accounts erased per sweep run. Bounded well under POSTGREST_MAX_ROWS so
+    # the due-accounts query can never be silently truncated; a backlog simply
+    # drains over successive runs.
+    ACCOUNT_DELETION_SWEEP_BATCH = int(os.getenv('ACCOUNT_DELETION_SWEEP_BATCH', '50'))
+
+    # Data retention for AI tutor conversation history
+    # (services/data_retention_service.py).
+    #
+    # DISABLED BY DEFAULT AND MUST STAY THAT WAY: turning this on deletes real
+    # customer data on a timer, so it is an explicit per-environment decision,
+    # never a deploy side effect. With it off the sweep still reports how many
+    # conversations would be purged — check that number before enabling.
+    #
+    # Scope is AI tutor chat only. Evidence, task completions, XP, transcripts
+    # and enrollment history are education records a school may be required to
+    # retain; nothing here touches them.
+    TUTOR_RETENTION_ENABLED = os.getenv('TUTOR_RETENTION_ENABLED', 'false').lower() == 'true'
+    TUTOR_RETENTION_MONTHS = int(os.getenv('TUTOR_RETENTION_MONTHS', '12'))
+    TUTOR_RETENTION_BATCH = int(os.getenv('TUTOR_RETENTION_BATCH', '200'))
+
     # Service Layer Configuration - CONFIGURABLE
     SERVICE_RETRY_ATTEMPTS = int(os.getenv('SERVICE_RETRY_ATTEMPTS', '3'))
     SERVICE_RETRY_DELAY = float(os.getenv('SERVICE_RETRY_DELAY', '0.5'))
@@ -158,13 +189,11 @@ class Config:
             raise ValueError("SUPABASE_URL is required. Set it in your environment variables.")
         if not SUPABASE_ANON_KEY:
             raise ValueError("SUPABASE_ANON_KEY is required. Set it in your environment variables.")
-        if not SUPABASE_SERVICE_ROLE_KEY:
-            # NOTE: print() used here due to circular dependency - logger not available yet
-            pass
-    else:
-        # Development mode - just warn (but suppress to reduce log clutter)
-        # NOTE: print() used here due to circular dependency - logger not available yet
-        pass
+        # SUPABASE_SERVICE_ROLE_KEY is NOT checked here on purpose. There used to
+        # be an `if not ...: pass` branch, which read like a deliberately skipped
+        # check. Config.validate() already requires the key in every environment
+        # and raises RuntimeError when it is missing, so a second check here would
+        # be dead code with a misleading shape. See validate() below.
     
     # Google Gemini Configuration
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
@@ -222,6 +251,15 @@ class Config:
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
     SUPPORT_EMAIL = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
     SUPPORT_COPY_EMAIL = os.getenv('SUPPORT_COPY_EMAIL', 'tanner@optioeducation.com')
+    # Blind monitoring copy ([COPY] of every transactional email to
+    # SUPPORT_COPY_EMAIL). OFF by default since Aug 2026: on a K-12 platform
+    # that switch pointed the full body of tuition invoices, credit awards, and
+    # anything else naming a student at one personal inbox, which concentrates
+    # children's education records somewhere they don't belong. Turn it on
+    # deliberately and briefly (SUPPORT_COPY_EMAILS=true) when debugging mail
+    # delivery, then turn it back off. Even when on, email_service refuses to
+    # copy messages carrying attachments or flagged as student records.
+    SUPPORT_COPY_EMAILS_ENABLED = os.getenv('SUPPORT_COPY_EMAILS', 'false').lower() == 'true'
 
     # JWT / Session Tokens (M5)
     # JWT_SECRET_KEY is the dedicated signing key for app-issued access/refresh
@@ -429,6 +467,22 @@ class Config:
     def is_development(cls) -> bool:
         """Check if running in development environment"""
         return cls.FLASK_ENV == 'development'
+
+    @classmethod
+    def is_pytest_run(cls) -> bool:
+        """True while a pytest test is executing.
+
+        Distinct from TESTING, which only flips when FLASK_ENV=testing and so is
+        False during an ordinary `pytest tests/` run. Callers use this to refuse
+        side effects that would otherwise reach whatever database the developer's
+        .env points at -- in practice, production.
+
+        Evaluated per call rather than at import: pytest sets PYTEST_CURRENT_TEST
+        when each test starts, which is after this module is imported. Lives here
+        because routes/services/middleware may not read os.environ directly
+        (tests/unit/test_no_raw_env_in_routes.py).
+        """
+        return bool(os.getenv('PYTEST_CURRENT_TEST'))
 
 class DevelopmentConfig(Config):
     """Development configuration"""

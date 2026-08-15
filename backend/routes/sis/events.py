@@ -12,6 +12,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import sanitize_text
+from utils.validation.sanitizers import pgrst_timestamp, PostgrestFilterError
 from database import get_supabase_admin_client
 from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
 
@@ -91,7 +92,13 @@ def list_events(user_id):
     q = (get_supabase_admin_client().table('sis_events').select('*')
          .eq('organization_id', org_id))
     if request.args.get('from'):
-        f = request.args['from']
+        # ?from= is raw query-string input landing in a PostgREST filter STRING,
+        # where a comma ends the clause and starts another. Validate it as a
+        # timestamp so the only thing that can reach the filter is a timestamp.
+        try:
+            f = pgrst_timestamp(request.args['from'], 'from')
+        except PostgrestFilterError:
+            return jsonify({'error': 'from must be an ISO-8601 date or timestamp'}), 400
         q = q.or_(f'start_at.gte.{f},end_at.gte.{f}')
     if request.args.get('to'):
         q = q.lt('start_at', request.args['to'])

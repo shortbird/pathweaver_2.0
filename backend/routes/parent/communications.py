@@ -9,6 +9,7 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.logger import get_logger
 from .dashboard_overview import verify_parent_access
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -93,6 +94,8 @@ def get_all_student_conversations(user_id, student_id):
 
         # Sort all conversations by last_message_at
         conversations.sort(key=lambda x: x.get('last_message_at') or '', reverse=True)
+        # Private-bucket avatars, one batch for the whole list.
+        sign_in_place(conversations, ['avatar_url'])
 
         return jsonify({
             'success': True,
@@ -147,6 +150,10 @@ def get_student_dm_conversations(user_id, student_id):
             })
 
         conversations.sort(key=lambda x: x.get('last_message_at') or '', reverse=True)
+        sign_in_place(
+            [c['other_user'] for c in conversations if isinstance(c.get('other_user'), dict)],
+            ['avatar_url'],
+        )
 
         return jsonify({
             'success': True,
@@ -189,9 +196,12 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('conversation_id', conversation_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
+        rows = messages.data or []
+        sign_in_place([m['sender'] for m in rows if isinstance(m.get('sender'), dict)],
+                      ['avatar_url'])
         return jsonify({
             'success': True,
-            'messages': messages.data or [],
+            'messages': rows,
             'conversation_id': conversation_id,
             'count': len(messages.data or []),
             'limit': limit,
@@ -274,9 +284,12 @@ def get_student_group_messages(user_id, student_id, group_id):
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('group_id', group_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
+        rows = messages.data or []
+        sign_in_place([m['sender'] for m in rows if isinstance(m.get('sender'), dict)],
+                      ['avatar_url'])
         return jsonify({
             'success': True,
-            'messages': messages.data or [],
+            'messages': rows,
             'group_id': group_id,
             'count': len(messages.data or []),
             'limit': limit,

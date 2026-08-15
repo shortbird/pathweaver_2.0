@@ -12,6 +12,7 @@ from typing import Callable, Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -321,6 +322,10 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'household_name': (hh or {}).get('household_name'),
         })
     roster.sort(key=lambda r: r['name'].lower())
+    # Student and staff photos are private-bucket objects. One batch per bucket
+    # for the entire roster — a per-row sign here would be one storage round
+    # trip per family in the school.
+    sign_in_place(roster, ['avatar_url'])
     return roster
 
 
@@ -827,6 +832,7 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
     out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
     _annotate_class_counts(org_id, out)
     _annotate_duplicates(out)
+    sign_in_place(out, ['avatar_url'])
     return out
 
 
@@ -919,9 +925,11 @@ def send_staff_invite(user_id: str, email: str, first_name: str, org_id: str) ->
     now = datetime.now(timezone.utc)
     token = secrets.token_urlsafe(32)
     try:
+        # Store the hash, email the token (utils/reset_tokens.py).
+        from utils.reset_tokens import hash_reset_token
         _admin().table('password_reset_tokens').insert({
             'user_id': user_id,
-            'token': token,
+            'token': hash_reset_token(token),
             'expires_at': (now + timedelta(days=STAFF_INVITE_EXPIRY_DAYS)).isoformat(),
             'used': False,
             'created_at': now.isoformat(),
@@ -2012,6 +2020,10 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             for k in ('first_name', 'last_name', 'date_of_birth'):
                 m.pop(k, None)
     _disambiguate_household_names(households)
+    sign_in_place(
+        [m for h in households for m in h['members']],
+        ['avatar_url'],
+    )
     return households
 
 

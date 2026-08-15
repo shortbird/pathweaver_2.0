@@ -36,6 +36,11 @@ from dataclasses import dataclass
 from werkzeug.utils import secure_filename
 from services.base_service import BaseService, ValidationError
 from utils.logger import get_logger
+from utils.storage_urls import (
+    PRIVATE_MEDIA_BUCKETS,
+    public_object_url,
+    sign_stored_url,
+)
 
 logger = get_logger(__name__)
 
@@ -44,7 +49,12 @@ logger = get_logger(__name__)
 class UploadResult:
     """Result of a file upload operation."""
     success: bool
+    # Durable pointer to persist. For a private bucket this is an identifier,
+    # not a fetchable link — see utils/storage_urls.py.
     url: Optional[str] = None
+    # Short-lived signed URL for immediate display. Equal to `url` for buckets
+    # that are public on purpose (course covers, quest headers).
+    display_url: Optional[str] = None
     filename: Optional[str] = None
     file_size: int = 0
     error_message: Optional[str] = None
@@ -174,7 +184,13 @@ class FileUploadService(BaseService):
         except Exception:
             logger.debug("intentional swallow", exc_info=True)
 
-        # Bucket doesn't exist, try to create it
+        # Bucket doesn't exist, try to create it.
+        # A bucket on the private list is created private no matter what the
+        # caller asked for: buckets here are created lazily by whichever request
+        # happens to be first, so a stray `public=True` at one call site is
+        # enough to make the whole bucket world-readable forever.
+        if bucket_name in PRIVATE_MEDIA_BUCKETS:
+            public = False
         try:
             self.client.storage.create_bucket(
                 bucket_name,
@@ -229,8 +245,9 @@ class FileUploadService(BaseService):
             # Generate unique filename
             unique_filename = f"{quest_id}_{uuid.uuid4().hex[:12]}.{file_ext}"
 
-            # Ensure bucket exists
-            self._ensure_bucket_exists(self.ATTACHMENT_BUCKET, public=True)
+            # Ensure bucket exists (private: curriculum attachments are org
+            # material, and student work gets filed alongside it)
+            self._ensure_bucket_exists(self.ATTACHMENT_BUCKET, public=False)
 
             # Upload to storage
             file_path = f"quest_{quest_id}/{unique_filename}"
@@ -250,8 +267,8 @@ class FileUploadService(BaseService):
                     )
                 raise
 
-            # Get public URL
-            file_url = self.client.storage.from_(self.ATTACHMENT_BUCKET).get_public_url(file_path)
+            # Durable pointer for the database; the fetchable URL is signed below.
+            file_url = public_object_url(self.ATTACHMENT_BUCKET, file_path)
 
             # Record attachment in database if service provided
             attachment = None
@@ -269,6 +286,7 @@ class FileUploadService(BaseService):
             return UploadResult(
                 success=True,
                 url=file_url,
+                display_url=sign_stored_url(file_url, self.ATTACHMENT_BUCKET),
                 filename=filename,
                 file_size=len(file_data)
             )
@@ -376,12 +394,13 @@ class FileUploadService(BaseService):
                     )
                 raise
 
-            # Get public URL
-            file_url = self.client.storage.from_(self.IMAGE_BUCKET).get_public_url(file_path)
+            # Durable pointer for the database; signed twin for display.
+            file_url = public_object_url(self.IMAGE_BUCKET, file_path)
 
             return UploadResult(
                 success=True,
                 url=file_url,
+                display_url=sign_stored_url(file_url, self.IMAGE_BUCKET),
                 filename=filename,
                 file_size=len(processed_data)
             )

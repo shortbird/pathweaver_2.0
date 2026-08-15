@@ -19,6 +19,20 @@ def _dob(years):
     return (date.today() - timedelta(days=int(365.25 * years))).isoformat()
 
 
+# peer_connections.requester_id / addressee_id and user_blocks.blocker_id /
+# blocked_id are `uuid` columns in Postgres, so a non-UUID id is not a value
+# these code paths can ever legitimately see -- PostgREST rejects it as
+# 22P02 before the row is even considered. The builders that interpolate these
+# ids into a PostgREST filter string now prove they are UUIDs first (see
+# utils/validation/sanitizers.pgrst_uuid), which is what makes the filter
+# injection-proof by construction rather than by callsite discipline.
+#
+# The short 'a'/'b' ids used elsewhere in this file are fine where they never
+# reach a filter string. The tests below do reach one, so they use real UUIDs.
+PEER_A = '11111111-1111-4111-8111-111111111111'
+PEER_B = '22222222-2222-4222-8222-222222222222'
+
+
 # ---------------------------------------------------------------------------
 # is_under_13 -- the COPPA line, distinct from the 18 line
 # ---------------------------------------------------------------------------
@@ -276,7 +290,7 @@ def test_only_an_active_connection_counts_as_a_peer():
     client.table.return_value.select.return_value.eq.return_value.or_.return_value \
         .limit.return_value.execute.return_value = Mock(data=[])
     with patch.object(pa, '_admin', return_value=client):
-        assert pa.is_peer_of('a', 'b') is False
+        assert pa.is_peer_of(PEER_A, PEER_B) is False
 
 
 def test_a_block_beats_an_active_connection():
@@ -289,7 +303,7 @@ def test_a_block_beats_an_active_connection():
         .limit.return_value.execute.return_value = Mock(data=[{'id': 'c1'}])
     with patch.object(pa, '_admin', return_value=client):
         with patch.object(pa, 'is_blocked_between', return_value=True):
-            assert pa.is_peer_of('a', 'b') is False
+            assert pa.is_peer_of(PEER_A, PEER_B) is False
 
 
 def test_nobody_is_their_own_peer():
@@ -579,13 +593,14 @@ def test_a_block_removes_a_peer_from_the_feed():
 
     client = Mock()
     client.table.return_value.select.return_value.eq.return_value.or_.return_value \
-        .execute.return_value = Mock(data=[{'requester_id': 'a', 'addressee_id': 'b'}])
+        .execute.return_value = Mock(
+        data=[{'requester_id': PEER_A, 'addressee_id': PEER_B}])
 
     with patch.object(svc, '_admin', return_value=client):
         with patch.object(svc.pa, 'is_blocked_between', return_value=True):
-            assert svc.active_peer_ids('a') == []
+            assert svc.active_peer_ids(PEER_A) == []
         with patch.object(svc.pa, 'is_blocked_between', return_value=False):
-            assert svc.active_peer_ids('a') == ['b']
+            assert svc.active_peer_ids(PEER_A) == [PEER_B]
 
 
 def test_build_activity_feed_drops_other_peoples_hidden_items():

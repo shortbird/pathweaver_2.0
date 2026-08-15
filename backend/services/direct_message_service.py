@@ -12,6 +12,7 @@ from services.notification_service import NotificationService
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -48,7 +49,12 @@ class DirectMessageService(BaseService):
             try:
                 block_check = supabase.table('user_blocks') \
                     .select('id') \
-                    .or_(f'and(blocker_id.eq.{user_id},blocked_id.eq.{target_id}),and(blocker_id.eq.{target_id},blocked_id.eq.{user_id})') \
+                    .or_(
+                        f'and(blocker_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                        f'blocked_id.eq.{pgrst_uuid(target_id, "target_id")}),'
+                        f'and(blocker_id.eq.{pgrst_uuid(target_id, "target_id")},'
+                        f'blocked_id.eq.{pgrst_uuid(user_id, "user_id")})'
+                    ) \
                     .limit(1) \
                     .execute()
                 if block_check.data:
@@ -312,6 +318,15 @@ class DirectMessageService(BaseService):
 
             # Sort by last_message_at descending
             all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
+
+            # Avatars live in private buckets. Sign the whole conversation list
+            # in one batch per bucket rather than a round trip per header.
+            from utils.storage_urls import sign_in_place
+            sign_in_place(
+                [c['other_user'] for c in all_conversations
+                 if isinstance(c.get('other_user'), dict)],
+                ['avatar_url'],
+            )
 
             return all_conversations
 
@@ -647,7 +662,13 @@ class DirectMessageService(BaseService):
                 'conversation_id', conversation_id
             ).order('created_at', desc=False).execute()
 
-            return messages.data if messages.data else []
+            rows = messages.data if messages.data else []
+            # The parent's access to this child's thread was verified above.
+            # Attachments sit in a private bucket, so mint their short-lived
+            # URLs here — one batched call for the whole thread.
+            from services import messaging_extras_service as extras
+            extras.sign_attachments(rows)
+            return rows
 
         except Exception as e:
             print(f"Error getting child conversation messages: {str(e)}", file=sys.stderr, flush=True)

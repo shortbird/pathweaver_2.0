@@ -89,18 +89,18 @@ def register_routes(bp):
 
             student_name = student.get('display_name') or f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Your child'
 
-            # Cancel any existing pending invitations from this parent for this student
-            supabase.table('observer_invitations') \
-                .delete() \
-                .eq('student_id', student_id) \
-                .eq('invited_by_user_id', parent_id) \
-                .eq('status', 'pending') \
-                .execute()
+            # Outstanding pending invitations are deliberately left alone.
+            # Codes became single-use on 2026-08-15, so one link is one
+            # observer: deleting the previous pending link -- which this route
+            # used to do -- would silently break the invitation a parent sent
+            # grandma the moment they made one for the tutor. A parent may hold
+            # several outstanding links at once; each is spent by exactly one
+            # person and each dies after 7 days.
 
             # Generate unique invitation code
             invitation_code = secrets.token_urlsafe(32)
 
-            # Set expiration (7 days)
+            # Set expiration (7 days). Enforced on redemption in acceptance.py.
             expires_at = datetime.utcnow() + timedelta(days=7)
 
             # Create invitation (no email required - link-based)
@@ -177,15 +177,27 @@ def register_routes(bp):
             if not dependent.data and not (linked and linked.data):
                 return jsonify({'error': 'Not authorized'}), 403
 
-            # Get invitations created by this parent for this student
+            # Only invitations that can still be redeemed. This used to return
+            # every invitation ever created, and the UI showed the most recent
+            # one as "your invite link" -- which, now that codes are single
+            # use, would hand a parent a spent link to send to somebody new.
+            # status='pending' excludes redeemed codes (the accept path moves
+            # them to 'accepted') and revoked ones ('expired').
+            now_iso = datetime.utcnow().isoformat()
             invitations = supabase.table('observer_invitations') \
                 .select('*') \
                 .eq('student_id', student_id) \
                 .eq('invited_by_user_id', parent_id) \
+                .eq('status', 'pending') \
+                .is_('consumed_at', 'null') \
+                .gt('expires_at', now_iso) \
                 .order('created_at', desc=True) \
                 .execute()
 
-            return jsonify({'invitations': invitations.data}), 200
+            return jsonify({
+                'invitations': invitations.data,
+                'outstanding_count': len(invitations.data or []),
+            }), 200
 
         except Exception as e:
             logger.error(f"Failed to fetch parent observer invitations: {str(e)}", exc_info=True)

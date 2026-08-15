@@ -12,6 +12,7 @@ from services.base_service import BaseService
 from services.ai_gen import generate_with_timeout
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid, pgrst_uuid_list
 
 logger = get_logger(__name__)
 
@@ -363,7 +364,10 @@ Example for "Build a robot arm":
 
                     if not org_id:
                         # No organization - global public quests + user's own
-                        query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
+                        query = query.or_(
+                            f'and(organization_id.is.null,is_public.eq.true),'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                        )
                         result = query.execute()
                         quests = result.data or []
                     else:
@@ -380,8 +384,8 @@ Example for "Build a robot arm":
                             # Global public quests + org quests + user's own
                             query = query.or_(
                                 f'and(organization_id.is.null,is_public.eq.true),'
-                                f'organization_id.eq.{org_id},'
-                                f'created_by.eq.{user_id}'
+                                f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                                f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                             )
                             result = query.execute()
                             quests = result.data or []
@@ -396,16 +400,15 @@ Example for "Build a robot arm":
                             quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
 
                             if quest_ids:
-                                quest_ids_str = ','.join(quest_ids)
                                 query = query.or_(
-                                    f'id.in.({quest_ids_str}),'
-                                    f'organization_id.eq.{org_id},'
-                                    f'created_by.eq.{user_id}'
+                                    f'id.in.({pgrst_uuid_list(quest_ids, "quest_id")}),'
+                                    f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                                    f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                                 )
                             else:
                                 query = query.or_(
-                                    f'organization_id.eq.{org_id},'
-                                    f'created_by.eq.{user_id}'
+                                    f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                                    f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                                 )
                             result = query.execute()
                             quests = result.data or []
@@ -413,8 +416,8 @@ Example for "Build a robot arm":
                         elif policy == 'private_only':
                             # Only org quests + user's own
                             query = query.or_(
-                                f'organization_id.eq.{org_id},'
-                                f'created_by.eq.{user_id}'
+                                f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                                f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                             )
                             result = query.execute()
                             quests = result.data or []
@@ -422,8 +425,8 @@ Example for "Build a robot arm":
                             # Unknown policy, fall back to all_optio behavior
                             query = query.or_(
                                 f'and(organization_id.is.null,is_public.eq.true),'
-                                f'organization_id.eq.{org_id},'
-                                f'created_by.eq.{user_id}'
+                                f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                                f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                             )
                             result = query.execute()
                             quests = result.data or []

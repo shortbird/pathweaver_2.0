@@ -336,6 +336,8 @@ const FamilySettingsModal = ({
           <div className="space-y-4">
             <Alert variant="info">
               Invite family members to view your children's learning progress and leave encouraging comments.
+              Each link works once, for one person, and expires after 7 days &mdash; make a separate link for
+              everyone you want to invite.
             </Alert>
 
             {/* Generate Link Section */}
@@ -395,13 +397,13 @@ const FamilySettingsModal = ({
                   className="btn-primary w-full min-h-[44px]"
                 >
                   <LinkIcon className="w-5 h-5" />
-                  {isGeneratingLink ? 'Generating...' : 'Generate Invitation Link'}
+                  {isGeneratingLink ? 'Generating...' : 'Create a link for one person'}
                 </button>
               </div>
             ) : (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
                 <p className="text-sm font-medium text-green-800">
-                  Share this link with your invitee:
+                  Send this link to one person:
                 </p>
                 {generatedLink.studentNames?.length > 0 && (
                   <p className="text-xs text-green-600">
@@ -423,12 +425,14 @@ const FamilySettingsModal = ({
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
-                <p className="text-xs text-green-600">Expires {formatDate(generatedLink.expiresAt)}</p>
+                <p className="text-xs text-green-600">
+                  Works once, for whoever opens it first. Expires {formatDate(generatedLink.expiresAt)}.
+                </p>
                 <button
                   onClick={() => setGeneratedLink(null)}
                   className="text-sm text-green-700 hover:underline"
                 >
-                  Generate new link
+                  Create another link for someone else
                 </button>
               </div>
             )}

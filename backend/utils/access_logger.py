@@ -62,15 +62,16 @@ class AccessLogger:
                 if hasattr(request, 'user_role'):
                     accessor_role = request.user_role
                 elif accessor_id:
-                    # Fetch role from database if not in context
-                    admin_client = get_supabase_admin_singleton()
-                    accessor = admin_client.table('users').select('role').eq('id', accessor_id).single().execute()
-                    if accessor.data:
-                        accessor_role = accessor.data.get('role', 'unknown')
+                    accessor_role = AccessLogger._lookup_accessor_role(accessor_id)
                 else:
                     accessor_role = 'public'
             else:
                 accessor_role = 'system'
+
+            # accessor_role is NOT NULL in student_access_logs. An unknown role
+            # must not be the reason a disclosure goes unrecorded -- the point
+            # of the row is that the access happened.
+            accessor_role = accessor_role or 'unknown'
 
             # Insert log entry
             admin_client = get_supabase_admin_singleton()
@@ -113,6 +114,33 @@ class AccessLogger:
             )
             # Don't raise - logging failure shouldn't break the main operation
             return False
+
+    @staticmethod
+    def _lookup_accessor_role(accessor_id: str) -> str:
+        """Effective role of the accessor, or 'unknown'.
+
+        Uses limit(1) rather than single(): single() RAISES on zero rows, and
+        that exception used to propagate to log_student_data_access's outer
+        handler, which meant a disclosure by a user whose row had been removed
+        (or replaced mid-request) silently produced no audit entry at all.
+
+        Reports the effective role so an org_managed accessor is logged as the
+        advisor or org_admin they actually are, rather than as 'org_managed'
+        -- a disclosure report that cannot say what capacity someone acted in
+        is not much of a disclosure report.
+        """
+        try:
+            admin_client = get_supabase_admin_singleton()
+            rows = admin_client.table('users') \
+                .select('id, role, org_role, org_roles') \
+                .eq('id', accessor_id).limit(1).execute().data or []
+            if not rows:
+                return 'unknown'
+            from utils.roles import get_effective_role
+            return get_effective_role(rows[0]) or rows[0].get('role') or 'unknown'
+        except Exception as e:
+            logger.warning(f"[AccessLogger] Could not resolve accessor role: {e}")
+            return 'unknown'
 
     @staticmethod
     def get_student_access_history(

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from repositories.base_repository import BaseRepository
 from utils.logger import get_logger
 from utils.db_fetch import fetch_all_rows
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -256,6 +257,7 @@ class AnalyticsRepository(BaseRepository):
                     'total_xp': total_xp
                 })
 
+            sign_in_place(top_users, ['avatar_url'])
             return top_users
         except Exception as e:
             logger.error(f"Error fetching top users: {e}")

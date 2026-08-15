@@ -108,7 +108,8 @@ class EmailService(BaseService):
         attachments: Optional[List[Dict[str, Any]]] = None,
         reply_to: Optional[str] = None,
         brevo_funnel: Optional[str] = None,
-        support_copy: Optional[bool] = None
+        support_copy: Optional[bool] = None,
+        contains_student_records: bool = False
     ) -> bool:
         """
         Send an email via the Brevo transactional API
@@ -139,7 +140,13 @@ class EmailService(BaseService):
                 fan-outs pass False per recipient and send one summary copy
                 themselves — the recipient-org lookup can't see platform
                 parents of an excluded org's students, and a copy per family
-                floods the support inbox either way.
+                floods the support inbox either way. NOTE: the whole mechanism
+                is off unless Config.SUPPORT_COPY_EMAILS_ENABLED is set, so
+                True is a request, not a guarantee.
+            contains_student_records: This message's body quotes a student's
+                education record (evidence, grades, credit, attendance,
+                discipline, health). Such a message is NEVER copied, whatever
+                the setting says. Attachments imply this automatically.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -194,15 +201,35 @@ class EmailService(BaseService):
                 return False
             logger.info(f"Email sent successfully to {to_email}")
 
-            # Automatically copy support email for monitoring all outgoing emails.
-            # Sent as a separate message (not BCC) so it can carry the [COPY]
-            # subject prefix and context banner.
-            # Use tanner@optioeducation.com directly to avoid email alias loops (support@ and admin@ redirect to tanner@)
+            # Optional monitoring copy of an outgoing email. Sent as a separate
+            # message (not BCC) so it can carry the [COPY] subject prefix and
+            # context banner. Use tanner@optioeducation.com directly to avoid
+            # email alias loops (support@ and admin@ redirect to tanner@).
+            #
+            # Three gates, in order of authority:
+            #   1. Off unless Config.SUPPORT_COPY_EMAILS_ENABLED. This is a
+            #      short-lived debug/support aid, not a standing archive: left
+            #      on, it accumulates children's education records in one
+            #      personal mailbox.
+            #   2. Never for records mail. An attachment on Optio mail is a
+            #      student portfolio, invoice, or transcript — the credit-award
+            #      PDF alone carries a child's evidence text and photos — and
+            #      contains_student_records covers the same content inline.
+            #      Neither is overridable by support_copy=True.
+            #   3. Then the pre-existing per-org / per-caller rules.
             support_email = Config.SUPPORT_EMAIL
             support_copy_email = Config.SUPPORT_COPY_EMAIL
-            # Skip the monitoring copy for opted-out orgs (e.g. iCreate) so their
-            # high-volume, stable system mail doesn't flood the support inbox.
-            if support_copy is None:
+            carries_records = bool(attachments) or contains_student_records
+            if carries_records and support_copy:
+                logger.info(
+                    "Support copy suppressed: message carries student records "
+                    f"(attachments={bool(attachments)})"
+                )
+            if not Config.SUPPORT_COPY_EMAILS_ENABLED or carries_records:
+                support_copy = False
+            elif support_copy is None:
+                # Skip the monitoring copy for opted-out orgs (e.g. iCreate) so
+                # their high-volume, stable system mail doesn't flood the inbox.
                 support_copy = (recipient_org or {}).get('slug') not in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
             if (support_copy
                     and support_email not in cc
@@ -302,7 +329,8 @@ class EmailService(BaseService):
         bcc: Optional[List[str]] = None,
         reply_to: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        brevo_funnel: Optional[str] = None
+        brevo_funnel: Optional[str] = None,
+        contains_student_records: bool = False
     ) -> bool:
         """
         Send an email using the template system (database overrides + YAML fallback)
@@ -321,6 +349,8 @@ class EmailService(BaseService):
                 'mimetype': str} dicts (optional)
             brevo_funnel: Live Brevo automation this send hands off to, if any
                 (see send_email) — drives the [COPY] banner only.
+            contains_student_records: Body quotes a student's education record;
+                blocks the monitoring copy outright (see send_email).
 
         Returns:
             True if email sent successfully, False otherwise
@@ -357,7 +387,8 @@ class EmailService(BaseService):
                 sender_name_override=sender_name,
                 reply_to=reply_to,
                 attachments=attachments,
-                brevo_funnel=brevo_funnel
+                brevo_funnel=brevo_funnel,
+                contains_student_records=contains_student_records
             )
 
         except TemplateNotFound as e:
@@ -650,7 +681,11 @@ class EmailService(BaseService):
                 'has_attachment': bool(attachments),
             },
             cc=cc,
-            attachments=attachments
+            attachments=attachments,
+            # Names a child, the class they took, and the credit awarded — an
+            # education record even on the rare send where the portfolio PDF
+            # failed to build and there is no attachment to trip the same guard.
+            contains_student_records=True
         )
 
     def send_class_review_submitted_admin_email(

@@ -29,6 +29,7 @@ from middleware.rate_limiter import rate_limit
 from utils.db_fetch import fetch_all_rows
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -456,6 +457,7 @@ def list_signals(user_id):
         u = names.get(s['student_id'], {})
         s['student_name'] = u.get('first_name') or u.get('display_name')
         s['student_avatar'] = u.get('avatar_url')
+    sign_in_place(signals, ['student_avatar'])
     return jsonify({'success': True, 'signals': signals, 'count': len(signals)}), 200
 
 
@@ -491,7 +493,9 @@ def list_students(user_id):
     res = (admin.table('users')
            .select('id, first_name, last_name, display_name, avatar_url, total_xp')
            .in_('id', allowed).execute())
-    return jsonify({'success': True, 'students': res.data or []}), 200
+    students = res.data or []
+    sign_in_place(students, ['avatar_url'])
+    return jsonify({'success': True, 'students': students}), 200
 
 
 # ── facilitator: pin-creation queue ──────────────────────────────────────────
@@ -1078,6 +1082,11 @@ def kiosk_roster():
     students = [{'id': s['id'], 'name': s.get('first_name') or s.get('display_name'),
                  'avatar_url': s.get('avatar_url')} for s in (res.data or [])]
     students.sort(key=lambda s: (s.get('name') or '').lower())
+    # Pre-auth by design: the hashed device token is the credential and has just
+    # been checked. Sign the picker photos so what a shared classroom iPad
+    # renders expires with the TTL instead of being a permanent public link to
+    # every child's face. The cohort lists below alias these same dicts.
+    sign_in_place(students, ['avatar_url'])
 
     # Group the picker by cohort so littles don't sift through the whole org's
     # names: simple-UI (littles) cohorts first, then the rest, then anyone not

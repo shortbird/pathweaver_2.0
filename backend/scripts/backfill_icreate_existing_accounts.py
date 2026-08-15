@@ -48,6 +48,8 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 from supabase import create_client
 
+from utils.validation.sanitizers import pgrst_pattern
+
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ['SUPABASE_SERVICE_KEY']
 
@@ -404,8 +406,10 @@ def main():
                 .select('id, first_name, last_name, display_name, email, role, org_role, '
                         'organization_id, is_dependent, managed_by_parent_id, date_of_birth, '
                         'total_xp, created_at')
-                .or_(f"first_name.ilike.%{q}%,last_name.ilike.%{q}%,"
-                     f"display_name.ilike.%{q}%,email.ilike.%{q}%")
+                .or_(f'first_name.ilike.%{pgrst_pattern(q)}%,'
+                     f'last_name.ilike.%{pgrst_pattern(q)}%,'
+                     f'display_name.ilike.%{pgrst_pattern(q)}%,'
+                     f'email.ilike.%{pgrst_pattern(q)}%')
                 .execute()).data or []
         for u in rows:
             print(f"{u['id']}  role={u.get('role')}/{u.get('org_role')} "

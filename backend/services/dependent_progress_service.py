@@ -89,6 +89,9 @@ class DependentProgressService(BaseService):
                 'completion_stats': self._get_completion_stats(dependent_id, start_date, end_date)
             }
 
+            from utils.storage_urls import sign_in_place
+            sign_in_place([report['dependent']], ['avatar_url'])
+
             return report
 
         except Exception as e:

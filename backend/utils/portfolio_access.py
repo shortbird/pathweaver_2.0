@@ -34,6 +34,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -245,8 +246,8 @@ def is_blocked_between(a_id: str, b_id: str) -> bool:
     if not a_id or not b_id:
         return False
     rows = _admin().table('user_blocks').select('id').or_(
-        f'and(blocker_id.eq.{a_id},blocked_id.eq.{b_id}),'
-        f'and(blocker_id.eq.{b_id},blocked_id.eq.{a_id})'
+        f'and(blocker_id.eq.{pgrst_uuid(a_id, "a_id")},blocked_id.eq.{pgrst_uuid(b_id, "b_id")}),'
+        f'and(blocker_id.eq.{pgrst_uuid(b_id, "b_id")},blocked_id.eq.{pgrst_uuid(a_id, "a_id")})'
     ).limit(1).execute().data or []
     return bool(rows)
 
@@ -264,8 +265,10 @@ def is_peer_of(caller_id: str, student_id: str) -> bool:
         return False
 
     rows = _admin().table('peer_connections').select('id').eq('status', 'active').or_(
-        f'and(requester_id.eq.{caller_id},addressee_id.eq.{student_id}),'
-        f'and(requester_id.eq.{student_id},addressee_id.eq.{caller_id})'
+        f'and(requester_id.eq.{pgrst_uuid(caller_id, "caller_id")},'
+        f'addressee_id.eq.{pgrst_uuid(student_id, "student_id")}),'
+        f'and(requester_id.eq.{pgrst_uuid(student_id, "student_id")},'
+        f'addressee_id.eq.{pgrst_uuid(caller_id, "caller_id")})'
     ).limit(1).execute().data or []
     if not rows:
         return False

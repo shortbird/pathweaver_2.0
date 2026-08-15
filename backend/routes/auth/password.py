@@ -17,6 +17,7 @@ from utils.validation import (
     validate_password_not_breached
 )
 from utils.auth.decorators import require_auth
+from utils.reset_tokens import hash_reset_token, lookup_values
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, mask_user_id, should_log_sensitive_data
 from middleware.error_handler import ValidationError
@@ -278,16 +279,18 @@ def forgot_password():
                 expires_at = now_utc + timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRY_HOURS)
                 logger.info(f"[FORGOT_PASSWORD] Token generated, expires at: {expires_at.isoformat()}")
 
-                # Store token in database with timezone-aware timestamp
-                logger.info("[FORGOT_PASSWORD] Storing token in database")
-                token_result = admin_client.table('password_reset_tokens').insert({
+                # Store the HASH, never the token. The row is a bearer credential:
+                # anything that can read this table could otherwise reset every
+                # account holding a live link. See utils/reset_tokens.py.
+                logger.info("[FORGOT_PASSWORD] Storing token hash in database")
+                admin_client.table('password_reset_tokens').insert({
                     'user_id': user_id,
-                    'token': reset_token,
+                    'token': hash_reset_token(reset_token),
                     'expires_at': expires_at.isoformat(),
                     'used': False,
                     'created_at': now_utc.isoformat()
                 }).execute()
-                logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
+                logger.info("[FORGOT_PASSWORD] Token stored successfully")
 
                 # Generate reset link
                 frontend_url = Config.FRONTEND_URL
@@ -363,9 +366,15 @@ def staff_invite_info(token):
     # admin client justified: pre-auth invite lookup (same posture as /reset-password)
     admin_client = get_supabase_admin_client()
     try:
-        rows = admin_client.table('password_reset_tokens')\
-            .select('user_id, expires_at, used')\
-            .eq('token', token).limit(1).execute().data
+        # Hashed form first, then the raw legacy form for links already in
+        # inboxes (utils/reset_tokens.py).
+        rows = None
+        for stored in lookup_values(token):
+            rows = admin_client.table('password_reset_tokens')\
+                .select('user_id, expires_at, used')\
+                .eq('token', stored).limit(1).execute().data
+            if rows:
+                break
         if not rows or rows[0].get('used'):
             return jsonify({'error': 'Invalid invite link'}), 404
         expires_at = datetime.fromisoformat(rows[0]['expires_at'].replace('Z', '+00:00'))
@@ -447,8 +456,33 @@ def _apply_invite_profile(admin_client, user_id, data):
         logger.error(f"[RESET_PASSWORD] Could not apply invited-staff profile: {e}")
 
 
-def _release_reset_token(admin_client, reset_token: str) -> None:
+def _claim_reset_token(admin_client, reset_token: str, now_utc):
+    """Atomically mark the token used, and return (row, stored_value).
+
+    The claim has to happen as a conditional UPDATE (`used = false` in the WHERE)
+    so two concurrent submits cannot both spend the same link — which means the
+    comparison happens in the database and we cannot hash-and-compare in Python.
+    Hence the loop: try the hashed form, then the raw legacy form for links
+    already sitting in inboxes (see utils/reset_tokens.py).
+
+    Returns (None, None) when no unused row matched.
+    """
+    for stored in lookup_values(reset_token):
+        result = admin_client.table('password_reset_tokens')\
+            .update({'used': True, 'used_at': now_utc.isoformat()})\
+            .eq('token', stored)\
+            .eq('used', False)\
+            .execute()
+        if result.data:
+            return result.data[0], stored
+    return None, None
+
+
+def _release_reset_token(admin_client, stored_token: str) -> None:
     """Un-claim a token whose password update never actually landed.
+
+    Takes the value as STORED (the hash for anything minted after 2026-08-15),
+    not the token from the link — that is what _claim_reset_token matched on.
 
     /reset-password claims the token BEFORE touching auth.users so two
     concurrent submits can't both spend it. The cost of claiming first is that
@@ -460,10 +494,12 @@ def _release_reset_token(admin_client, reset_token: str) -> None:
     message anywhere saying so.) Releasing on failure keeps the race protection
     and gives the link back.
     """
+    if not stored_token:
+        return
     try:
         admin_client.table('password_reset_tokens')\
             .update({'used': False, 'used_at': None})\
-            .eq('token', reset_token)\
+            .eq('token', stored_token)\
             .execute()
     except Exception as e:  # noqa: BLE001
         logger.error(f"[RESET_PASSWORD] Could not release reset token: {e}")
@@ -521,24 +557,23 @@ def reset_password():
         # admin client justified: token-gated password reset; updates auth.users via Admin API, no user session yet
         admin_client = get_supabase_admin_client()
 
+        # Bound before the try so the release path in `except` can never raise a
+        # NameError over a claim that failed before it returned.
+        stored_token = None
+
         try:
             # Immediately mark token as used to prevent race condition (token reuse window)
             # Use atomic update that only succeeds if token is still unused
             now_utc = datetime.now(timezone.utc)
 
-            token_update = admin_client.table('password_reset_tokens')\
-                .update({'used': True, 'used_at': now_utc.isoformat()})\
-                .eq('token', reset_token)\
-                .eq('used', False)\
-                .execute()
+            token_data, stored_token = _claim_reset_token(
+                admin_client, reset_token, now_utc)
 
             # Check if update succeeded (token was unused)
-            if not token_update.data:
+            if not token_data:
                 return jsonify({
                     'error': 'Invalid or already used reset token. Please request a new password reset.'
                 }), 400
-
-            token_data = token_update.data[0]
 
             # Parse expiration timestamp with timezone awareness
             expires_at_str = token_data['expires_at'].replace('Z', '+00:00')
@@ -555,7 +590,7 @@ def reset_password():
             # Get user from auth.users (source of truth for authentication)
             auth_user = admin_client.auth.admin.get_user_by_id(user_id)
             if not auth_user or not auth_user.user:
-                _release_reset_token(admin_client, reset_token)
+                _release_reset_token(admin_client, stored_token)
                 return jsonify({'error': 'User not found'}), 404
 
             auth_email = auth_user.user.email
@@ -576,7 +611,7 @@ def reset_password():
                 )
             except Exception as update_error:
                 # The password never changed, so the link must survive.
-                _release_reset_token(admin_client, reset_token)
+                _release_reset_token(admin_client, stored_token)
                 if _is_weak_password_error(update_error):
                     logger.info(
                         f"[RESET_PASSWORD] Rejected breached password for "
@@ -586,7 +621,7 @@ def reset_password():
                 raise
 
             if not auth_response:
-                _release_reset_token(admin_client, reset_token)
+                _release_reset_token(admin_client, stored_token)
                 return jsonify({'error': 'Failed to update password'}), 500
 
             # Sync email in public.users to match auth.users (prevent future mismatches)
@@ -624,6 +659,11 @@ def reset_password():
             except Exception as invalidate_error:
                 logger.error(f"[RESET_PASSWORD] Failed to stamp last_logout_at: {invalidate_error}")
 
+            # And on the rotation side, so a stolen refresh token cannot ride out
+            # the reset by refreshing before the users lookup catches up.
+            from utils import refresh_families
+            refresh_families.revoke_user_families(user_id, 'password_reset')
+
             # Clear any account lockouts for this user
             reset_login_attempts(auth_email)
 
@@ -638,7 +678,7 @@ def reset_password():
             # Anything that lands here failed before the password changed (every
             # step after the update swallows its own errors), so give the link
             # back rather than stranding the user on a burned token.
-            _release_reset_token(admin_client, reset_token)
+            _release_reset_token(admin_client, stored_token)
             logger.error(f"[RESET_PASSWORD] Error: {str(auth_error)}")
             return jsonify({
                 'error': 'Failed to reset password. Please try again or request a new reset link.'
@@ -726,17 +766,23 @@ def change_password(user_id):
         except Exception as invalidate_error:
             logger.error(f"[CHANGE_PASSWORD] Failed to stamp last_logout_at: {invalidate_error}")
 
+        # Same revocation, written where the refresh path can act on it. The
+        # tokens minted below start a fresh family, so this session survives and
+        # every other chain is dead — which is exactly what the message promises.
+        from utils import refresh_families
+        refresh_families.revoke_user_families(user_id, 'password_change')
+
         reset_login_attempts(auth_email)
         logger.info(f"[CHANGE_PASSWORD] Password changed for {mask_email(auth_email)}")
 
         from flask import make_response
         from utils.session_manager import session_manager as sm
+        from . import token_delivery
         access_token = sm.generate_access_token(user_id)
         refresh_token = sm.generate_refresh_token(user_id)
         response = make_response(jsonify({
             'message': 'Password updated. You are still signed in here; other devices have been signed out.',
-            'app_access_token': access_token,
-            'app_refresh_token': refresh_token,
+            **token_delivery.body_tokens(access_token, refresh_token),
         }), 200)
         sm.set_auth_cookies(response, user_id, access_token, refresh_token)
         return response

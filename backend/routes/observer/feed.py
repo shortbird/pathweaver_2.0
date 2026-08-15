@@ -1007,6 +1007,27 @@ def register_routes(bp):
                         'is_highlighted': bool(item.get('completion_id')) and item['completion_id'] in highlighted_completions,
                     })
 
+            # Everything the browser will fetch lives in a private bucket:
+            # avatars in user-uploads/user-photos, student work in
+            # quest-evidence. Sign the whole page in one batch per bucket —
+            # a per-row sign here would be one HTTP round trip per feed card.
+            from utils.storage_urls import sign_in_place
+            _people = [i['student'] for i in feed_items if isinstance(i.get('student'), dict)]
+            _people += [
+                i['moment']['posted_by'] for i in feed_items
+                if isinstance((i.get('moment') or {}).get('posted_by'), dict)
+            ]
+            sign_in_place(_people, ['avatar_url'])
+
+            _media = [i['evidence'] for i in feed_items if isinstance(i.get('evidence'), dict)]
+            for i in feed_items:
+                _media.extend(m for m in (i.get('media') or []) if isinstance(m, dict))
+                _media.extend(
+                    b for b in ((i.get('evidence') or {}).get('blocks') or [])
+                    if isinstance(b, dict)
+                )
+            sign_in_place(_media, ['url', 'thumbnail_url'])
+
             # Log feed access
             try:
                 audit_service = ObserverAuditService(user_id=observer_id)

@@ -13,6 +13,8 @@ from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.roles import get_effective_role
 from utils.logger import get_logger
+from utils.storage_urls import sign_stored_url
+from utils.access_logger import AccessLogger
 from services.portfolio_service import PortfolioService
 from routes.users.helpers import calculate_subject_xp_from_tasks
 
@@ -122,6 +124,19 @@ def get_student_overview(user_id, student_id):
         # admin client justified: advisor consolidated student overview; cross-user reads gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
         verify_advisor_access(supabase, user_id, student_id)
+
+        # FERPA disclosure log. School officials reading a student record under
+        # legitimate educational interest is exactly the disclosure a school is
+        # expected to be able to account for. Never raises -- AccessLogger
+        # swallows its own failures, so a logging outage cannot block an
+        # advisor from their students.
+        AccessLogger.log_student_data_access(
+            student_id=student_id,
+            accessor_id=user_id,
+            data_type='student_overview',
+            purpose='legitimate_educational_interest',
+            fields=['profile', 'quests', 'tasks', 'xp', 'engagement'],
+        )
 
         # 1. Get student profile
         student_response = supabase.table('users').select('''
@@ -561,7 +576,7 @@ def get_student_overview(user_id, student_id):
                 'id': student['id'],
                 'first_name': student.get('first_name'),
                 'last_name': student.get('last_name'),
-                'avatar_url': student.get('avatar_url'),
+                'avatar_url': sign_stored_url(student.get('avatar_url')),
                 'created_at': student.get('created_at')
             },
             'dashboard': {

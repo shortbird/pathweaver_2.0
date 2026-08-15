@@ -104,10 +104,16 @@ def get_evidence_document(user_id: str, task_id: str):
             if block.get('uploaded_by_user_id'):
                 block['uploaded_by_name'] = uploader_names.get(block['uploaded_by_user_id'], 'Unknown')
 
+        # `quest-evidence` is private: what the blocks hold is a durable pointer,
+        # not something a browser can fetch. Mint short-lived URLs for this
+        # render — one batched call for the whole document.
+        from services.portfolio_service import PortfolioService
+        blocks = PortfolioService().sign_evidence_blocks(blocks_response.data or [])
+
         return jsonify({
             'success': True,
             'document': document,
-            'blocks': blocks_response.data or []
+            'blocks': blocks
         })
 
     except Exception as e:
@@ -403,13 +409,19 @@ def upload_task_file(user_id: str, task_id: str):
 
         response_data = {
             'success': True,
+            # `url` is the durable pointer the client persists on the block;
+            # `display_url` is the signed, expiring twin it renders right away.
+            # Never swap them: storing the twin would put an hour-long
+            # capability in the row and the image would go dark after it.
             'url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,
         }
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
+            response_data['thumbnail_display_url'] = result.thumbnail_display_url
         if result.duration_seconds is not None:
             response_data['duration_seconds'] = result.duration_seconds
         if result.width is not None:
@@ -522,13 +534,19 @@ def finalize_task_signed_upload(user_id: str, task_id: str):
 
         response_data = {
             'success': True,
+            # `url` is the durable pointer the client persists on the block;
+            # `display_url` is the signed, expiring twin it renders right away.
+            # Never swap them: storing the twin would put an hour-long
+            # capability in the row and the image would go dark after it.
             'url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,
         }
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
+            response_data['thumbnail_display_url'] = result.thumbnail_display_url
         if result.duration_seconds is not None:
             response_data['duration_seconds'] = result.duration_seconds
         if result.width is not None:
@@ -693,12 +711,15 @@ def finalize_block_signed_upload(user_id: str, block_id: str):
         response_data = {
             'success': True,
             'message': 'File uploaded successfully',
-            'file_url': result.file_url,
+            # The block row already holds the canonical pointer (set above), so
+            # this field is preview-only — hand back the signed twin.
+            'file_url': result.display_url or result.file_url,
             'filename': result.filename,
             'file_size': result.file_size,
         }
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
+            response_data['thumbnail_display_url'] = result.thumbnail_display_url
         if result.duration_seconds is not None:
             response_data['duration_seconds'] = result.duration_seconds
         if result.width is not None:
@@ -794,12 +815,15 @@ def upload_block_file(user_id: str, block_id: str):
         response_data = {
             'success': True,
             'message': 'File uploaded successfully',
-            'file_url': result.file_url,
+            # The block row already holds the canonical pointer (set above), so
+            # this field is preview-only — hand back the signed twin.
+            'file_url': result.display_url or result.file_url,
             'filename': result.filename,
             'file_size': result.file_size,
         }
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
+            response_data['thumbnail_display_url'] = result.thumbnail_display_url
         if result.duration_seconds is not None:
             response_data['duration_seconds'] = result.duration_seconds
         if result.width is not None:
@@ -961,6 +985,23 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             'error': 'Failed to complete task'
         }
 
+def _canonical_block_content(content: Dict[str, Any]) -> Dict[str, Any]:
+    """Reduce every storage URL inside one block's content to the canonical
+    pointer we persist.
+
+    The read path signs these (see get_evidence_document), and the editor
+    auto-saves the tree it was given. Without this, a save would write a signed
+    URL into the row: it would work for an hour and then render as a broken
+    image forever. External links (YouTube, a Google Doc) are left alone.
+
+    Thin wrapper: the logic lives next to sign_evidence_blocks so the two halves
+    of the contract cannot drift apart.
+    """
+    from services.portfolio_service import PortfolioService
+
+    return PortfolioService.canonical_block_content(content)
+
+
 def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     """
     Update the content blocks for a document.
@@ -1001,6 +1042,11 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
 
             # Get content and potentially enrich it
             content = block['content'].copy() if block['content'] else {}
+
+            # Reads hand the editor SIGNED media URLs, and auto-save posts the
+            # whole block tree back. Reduce every storage URL to the canonical
+            # pointer so a row never persists a capability that expires.
+            content = _canonical_block_content(content)
 
             # For link blocks, fetch metadata if not already present
             if block['type'] == 'link' and content.get('url') and not content.get('title'):

@@ -14,6 +14,7 @@ from repositories.base_repository import BaseRepository, DatabaseError
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
+from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -115,7 +116,10 @@ class AdvisorRepository(BaseRepository):
                     .execute()
                 )
 
-            return response.data or []
+            rows = response.data or []
+            sign_in_place([r['users'] for r in rows if isinstance(r.get('users'), dict)],
+                          ['avatar_url'])
+            return rows
         except Exception as e:
             logger.error(f"Error getting assigned students for advisor {advisor_id}: {e}")
             raise DatabaseError("Failed to get assigned students") from e

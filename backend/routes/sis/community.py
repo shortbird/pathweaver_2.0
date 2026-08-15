@@ -18,12 +18,15 @@ from utils.logger import get_logger
 from database import get_supabase_admin_client
 from services import sis_community_service as community
 from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
+from utils.storage_urls import public_object_url, sign_stored_url
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_community', __name__, url_prefix='/api/sis/community')
 
-# Lost & Found photos reuse the family-images upload pattern (public bucket).
+# Lost & Found photos reuse the family-images upload pattern. The bucket is
+# private (utils.storage_urls.PRIVATE_MEDIA_BUCKETS): store the canonical
+# pointer, serve a signed URL.
 _IMAGE_BUCKET = 'community-images'
 _IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -147,8 +150,12 @@ def mark_lost_found_expired(user_id):
 @bp.route('/lost-found/upload', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def upload_lost_found_image(user_id):
-    """Upload a Lost & Found photo to a public bucket; returns its URL. Mirrors the
-    household image upload pattern in routes/sis/__init__.py."""
+    """Upload a Lost & Found photo; returns a short-lived signed URL for the
+    preview and the canonical pointer to persist. Mirrors the household image
+    upload pattern in routes/sis/__init__.py.
+
+    The bucket is PRIVATE: these are photographs taken inside a school and
+    routinely have children in them. See utils/storage_urls.py."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -169,10 +176,10 @@ def upload_lost_found_image(user_id):
     supabase = get_supabase_admin_client()
     try:
         if not supabase.storage.get_bucket(_IMAGE_BUCKET):
-            supabase.storage.create_bucket(_IMAGE_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_IMAGE_BUCKET)
     except Exception:
         try:
-            supabase.storage.create_bucket(_IMAGE_BUCKET, options={'public': True})
+            supabase.storage.create_bucket(_IMAGE_BUCKET)
         except Exception:
             pass
     path = f"{org_id}/lost-found/{_uuid.uuid4().hex}.{ext}"
@@ -181,11 +188,17 @@ def upload_lost_found_image(user_id):
             path=path, file=file.read(),
             file_options={'content-type': file.content_type or f'image/{ext}'},
         )
-        url = supabase.storage.from_(_IMAGE_BUCKET).get_public_url(path)
+        url = public_object_url(_IMAGE_BUCKET, path)
     except Exception as e:  # noqa: BLE001
         logger.error(f'Lost & Found image upload failed: {e}')
         return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
-    return jsonify({'success': True, 'url': url})
+    # `url` is the durable pointer the client posts back to be stored;
+    # `display_url` is the fetchable twin for the optimistic preview.
+    return jsonify({
+        'success': True,
+        'url': url,
+        'display_url': sign_stored_url(url, _IMAGE_BUCKET),
+    })
 
 
 # ── Recognition ───────────────────────────────────────────────────────────────

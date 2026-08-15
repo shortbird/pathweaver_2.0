@@ -176,9 +176,11 @@ def send_account_invite(student_id: str, email: str, first_name: str,
     now = datetime.now(timezone.utc)
     token = _secrets.token_urlsafe(32)
     try:
+        # Store the hash, email the token (utils/reset_tokens.py).
+        from utils.reset_tokens import hash_reset_token
         admin.table('password_reset_tokens').insert({
             'user_id': student_id,
-            'token': token,
+            'token': hash_reset_token(token),
             'expires_at': (now + timedelta(days=INVITE_EXPIRY_DAYS)).isoformat(),
             'used': False,
             'created_at': now.isoformat(),

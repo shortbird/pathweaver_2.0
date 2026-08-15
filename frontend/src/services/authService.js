@@ -137,6 +137,11 @@ class AuthService {
       // ✅ HYBRID AUTH (January 2025): httpOnly cookies + Authorization headers
       // For browsers that block cross-site cookies (Safari/iOS/Firefox), store tokens
       // for Authorization header usage. Otherwise, use httpOnly cookies only.
+      //
+      // The backend draws the same line and only SENDS the tokens to those
+      // browsers, so on Chrome/Edge these fields are simply absent
+      // (backend/routes/auth/token_delivery.py). Both checks stay: this one
+      // decides what we keep, that one decides what leaves the server.
       if (shouldUseAuthHeaders()) {
         const appAccessToken = response.data.app_access_token
         const appRefreshToken = response.data.app_refresh_token

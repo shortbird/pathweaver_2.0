@@ -142,6 +142,15 @@ def lti_quest_evidence():
             }
         )
 
+    # This page renders inside the LMS grader's browser (Canvas SpeedGrader),
+    # and `quest-evidence` is private — the stored URL is a pointer, not
+    # something that iframe can fetch. Sign every block on the page in one
+    # batched call. Deliberately NOT a public URL: this endpoint authenticates
+    # by signed launch token, and a permanent link handed to an LMS is a link
+    # that outlives the grader's access to the course.
+    from services.portfolio_service import PortfolioService
+    PortfolioService().sign_evidence_blocks_on(out_tasks)
+
     full_name = (
         student_row.get("display_name")
         or f"{student_row.get('first_name','')} {student_row.get('last_name','')}".strip()

@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from app_config import Config
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.storage_urls import parse_object_ref, public_object_url, sign_stored_urls
 
 logger = get_logger(__name__)
 
@@ -64,6 +65,26 @@ def broadcast_group(group_id: str, event: str, payload: Dict[str, Any]) -> None:
 
 
 # ── Attachments (metadata validation; upload handled by MediaUploadService) ───
+# Message attachments live in the private `user-uploads` bucket. What is stored
+# on the row is the canonical pointer; the signed, expiring URL is minted per
+# read, for the viewer whose participation has already been checked. Baking a
+# signed URL into the row would hand every future reader a link that outlives
+# the check that produced it — and one that expires, so old threads would rot.
+ATTACHMENT_BUCKET = 'user-uploads'
+
+
+def _stored_attachment_url(value: str) -> str:
+    """Reduce a client-supplied attachment URL to the canonical pointer.
+
+    The uploader hands the composer a SIGNED url, and the send call posts it
+    straight back; without this the thread would persist a capability that
+    expires within the hour.
+    """
+    text = str(value)[:2048]
+    ref = parse_object_ref(text)
+    return public_object_url(*ref) if ref else text
+
+
 def clean_attachments(raw) -> List[Dict[str, Any]]:
     """Sanitize a client-provided attachments array down to known fields."""
     out = []
@@ -71,12 +92,34 @@ def clean_attachments(raw) -> List[Dict[str, Any]]:
         if not isinstance(a, dict) or not a.get('url'):
             continue
         out.append({
-            'url': str(a['url'])[:2048],
+            'url': _stored_attachment_url(a['url']),
             'type': str(a.get('type') or 'file')[:100],
             'name': str(a.get('name') or 'attachment')[:255],
             'size': int(a.get('size') or 0),
         })
     return out
+
+
+def sign_attachments(rows: List[Dict[str, Any]]) -> None:
+    """Swap every stored attachment pointer on these message rows for a signed
+    URL, in ONE batched call for the whole thread. Mutates `rows`.
+
+    Called on the READ path only, after the caller's participation has been
+    verified — never at write time.
+    """
+    originals = [
+        a.get('url') for r in rows if isinstance(r, dict)
+        for a in (r.get('attachments') or []) if isinstance(a, dict) and a.get('url')
+    ]
+    if not originals:
+        return
+    mapping = sign_stored_urls(originals, ATTACHMENT_BUCKET)
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        for a in (r.get('attachments') or []):
+            if isinstance(a, dict) and a.get('url') in mapping:
+                a['url'] = mapping[a['url']]
 
 
 # ── Access helpers ─────────────────────────────────────────────────────────────
@@ -372,5 +415,15 @@ def enrich_messages(message_type: str, messages: List[Dict[str, Any]],
         row['reactions'] = reactions.get(m['id'], [])
         if m.get('reply_to_message_id'):
             row['reply_to'] = replies.get(m['reply_to_message_id'])
+        # Don't share one attachments list between the stored row and the
+        # response: signing below rewrites the dicts in place.
+        if row.get('attachments'):
+            row['attachments'] = [
+                dict(a) if isinstance(a, dict) else a for a in row['attachments']
+            ]
         out.append(row)
+    # The viewer is an established participant by the time we get here, so this
+    # is exactly the right place to mint their short-lived attachment URLs — one
+    # batched signing call for the whole page of messages.
+    sign_attachments(out)
     return out

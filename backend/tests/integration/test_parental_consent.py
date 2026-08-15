@@ -69,7 +69,11 @@ def test_send_consent_stores_only_a_hashed_token(client, db, minor):
 
     assert response.status_code == 200
     body = response.get_json()
-    assert body['parent_email'] == 'parent@example.com'
+    # Masked since 2026-08-15: this endpoint is unauthenticated, and echoing
+    # the address on file let a caller who guessed a child's UUID read back the
+    # real guardian's email by posting any address at all.
+    assert body['parent_email_masked'] == 'p****t@example.com'
+    assert 'parent_email' not in body
 
     row = _consent_row(
         db, minor['id'],
@@ -201,18 +205,50 @@ def test_a_verified_token_cannot_be_replayed(client, db, minor, no_consent_email
 
 
 @pytest.mark.integration
-def test_status_reports_an_unverified_minor(client, minor):
-    response = client.get(f'/api/parental-consent/status/{minor["id"]}')
+def test_status_reports_an_unverified_minor_to_the_minor(client, minor, auth_headers_for):
+    response = client.get(
+        f'/api/parental-consent/status/{minor["id"]}',
+        headers=auth_headers_for(minor['id']),
+    )
 
     assert response.status_code == 200
     body = response.get_json()
     assert body.get('requires_consent') is True
     assert body.get('consent_verified') is False
+    # The guardian's address is never returned here (2026-08-15).
+    assert 'parent_email' not in body
 
 
 @pytest.mark.integration
-def test_status_404s_for_an_unknown_user(client):
-    response = client.get(f'/api/parental-consent/status/{uuid.uuid4()}')
+@pytest.mark.security
+def test_status_is_closed_to_anonymous_callers(client, minor):
+    """This endpoint had no auth decorator at all and returned the guardian's
+    email for any UUID -- a phishing seed with a child attached."""
+    response = client.get(f'/api/parental-consent/status/{minor["id"]}')
+
+    assert response.status_code == 404
+    assert 'parent_email' not in (response.get_json() or {})
+
+
+@pytest.mark.integration
+@pytest.mark.security
+def test_status_is_closed_to_an_unrelated_signed_in_user(client, minor, student, auth_headers_for):
+    response = client.get(
+        f'/api/parental-consent/status/{minor["id"]}',
+        headers=auth_headers_for(student['id']),
+    )
+
+    # Same answer an unknown id gets, so the endpoint cannot confirm that a
+    # UUID belongs to a real child.
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+def test_status_404s_for_an_unknown_user(client, student, auth_headers_for):
+    response = client.get(
+        f'/api/parental-consent/status/{uuid.uuid4()}',
+        headers=auth_headers_for(student['id']),
+    )
 
     assert response.status_code == 404
 
@@ -221,31 +257,55 @@ def test_status_404s_for_an_unknown_user(client):
 
 
 @pytest.mark.integration
-def test_resend_issues_a_different_token(client, db, minor, no_consent_email):
+def test_resend_issues_a_different_token(client, db, minor, no_consent_email, auth_headers_for):
     _send(client, minor)
     first_hash = _consent_row(db, minor['id'], 'parental_consent_token')['parental_consent_token']
 
-    response = client.post('/api/parental-consent/resend', json={'user_id': minor['id']})
+    response = client.post(
+        '/api/parental-consent/resend',
+        json={'user_id': minor['id']},
+        headers=auth_headers_for(minor['id']),
+    )
 
     assert response.status_code == 200
     second_hash = _consent_row(db, minor['id'], 'parental_consent_token')['parental_consent_token']
     assert second_hash != first_hash, 'resend reused the previous token'
+    # Masked, never the raw guardian address.
+    assert 'parent_email' not in response.get_json()
 
 
 @pytest.mark.integration
-def test_resend_refuses_once_consent_is_verified(client, db, minor, no_consent_email):
+@pytest.mark.security
+def test_resend_refuses_a_bare_user_id_from_a_stranger(client, minor):
+    """A body-supplied user_id with no session and no knowledge of the child's
+    own email is not authority to mail that child's guardian."""
+    response = client.post('/api/parental-consent/resend', json={'user_id': minor['id']})
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+def test_resend_refuses_once_consent_is_verified(client, db, minor, no_consent_email, auth_headers_for):
     _send(client, minor)
     raw_token = no_consent_email.call_args.kwargs['verification_link'].split('token=')[1]
     client.post('/api/parental-consent/verify', json={'token': raw_token})
 
-    response = client.post('/api/parental-consent/resend', json={'user_id': minor['id']})
+    response = client.post(
+        '/api/parental-consent/resend',
+        json={'user_id': minor['id']},
+        headers=auth_headers_for(minor['id']),
+    )
 
     assert response.status_code == 400
 
 
 @pytest.mark.integration
-def test_resend_refuses_a_user_who_does_not_need_consent(client, student):
-    response = client.post('/api/parental-consent/resend', json={'user_id': student['id']})
+def test_resend_refuses_a_user_who_does_not_need_consent(client, student, auth_headers_for):
+    response = client.post(
+        '/api/parental-consent/resend',
+        json={'user_id': student['id']},
+        headers=auth_headers_for(student['id']),
+    )
 
     assert response.status_code == 400
 

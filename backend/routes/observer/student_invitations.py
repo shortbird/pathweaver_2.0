@@ -62,18 +62,18 @@ def register_routes(bp):
             student = supabase.table('users').select('first_name, last_name, display_name').eq('id', user_id).single().execute()
             student_name = student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip() or 'Student'
 
-            # Cancel any existing pending link-based invitations from this student
-            supabase.table('observer_invitations') \
-                .delete() \
-                .eq('student_id', user_id) \
-                .eq('invited_by_role', 'student') \
-                .eq('status', 'pending') \
-                .execute()
+            # Outstanding pending invitations are deliberately left alone.
+            # Codes became single-use on 2026-08-15, so one link is one
+            # observer: deleting the previous pending link -- which this route
+            # used to do -- would silently break the invitation the student
+            # sent their grandmother the moment they made one for their coach.
+            # Several links may be outstanding at once; each is spent by
+            # exactly one person and each dies after 7 days.
 
             # Generate unique invitation code
             invitation_code = secrets.token_urlsafe(32)
 
-            # Set expiration (7 days)
+            # Set expiration (7 days). Enforced on redemption in acceptance.py.
             expires_at = datetime.utcnow() + timedelta(days=7)
 
             # Create invitation (link-based, no email required)

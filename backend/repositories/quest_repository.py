@@ -10,7 +10,12 @@ from repositories.base_repository import BaseRepository, DatabaseError, NotFound
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
-from utils.validation.sanitizers import sanitize_search_input
+from utils.validation.sanitizers import (
+    sanitize_search_input,
+    pgrst_pattern,
+    pgrst_uuid,
+    pgrst_uuid_list,
+)
 
 logger = get_logger(__name__)
 
@@ -238,7 +243,10 @@ class QuestRepository(BaseRepository):
                 self.client.table(self.table_name)
                 .select('*')
                 .eq('is_active', True)
-                .or_(f'title.ilike.%{search_term}%,description.ilike.%{search_term}%')
+                .or_(
+                    f'title.ilike.%{pgrst_pattern(search_term)}%,'
+                    f'description.ilike.%{pgrst_pattern(search_term)}%'
+                )
                 .limit(limit)
             )
 
@@ -507,7 +515,10 @@ class QuestRepository(BaseRepository):
                 # Apply search FIRST (before org filtering) to reduce result set
                 # Search in title and big_idea
                 if search_term:
-                    query = query.or_(f"title.ilike.%{search_term}%,big_idea.ilike.%{search_term}%")
+                    query = query.or_(
+                        f'title.ilike.%{pgrst_pattern(search_term)}%,'
+                        f'big_idea.ilike.%{pgrst_pattern(search_term)}%'
+                    )
 
                 # Apply organization visibility policy
                 # Note: Since we applied search first, the org filtering now operates on a smaller set
@@ -519,12 +530,15 @@ class QuestRepository(BaseRepository):
                         # Global PUBLIC quests (NULL org_id + is_public) + organization quests (any is_public) + user's own created quests
                         query = query.or_(
                             f'and(organization_id.is.null,is_public.eq.true),'
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
                     else:
                         # No organization - global PUBLIC quests + user's own created quests
-                        query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
+                        query = query.or_(
+                            f'and(organization_id.is.null,is_public.eq.true),'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                        )
 
                 elif policy == 'curated':
                     if not org_id:
@@ -532,17 +546,16 @@ class QuestRepository(BaseRepository):
                         query = query.is_('organization_id', 'null').eq('is_public', True)
                     elif curated_quest_ids:
                         # Curated quests + organization quests + user's own created quests
-                        quest_ids_str = ','.join(curated_quest_ids)
                         query = query.or_(
-                            f'id.in.({quest_ids_str}),'
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'id.in.({pgrst_uuid_list(curated_quest_ids, "quest_id")}),'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
                     else:
                         # No curated quests, only org quests + user's created quests
                         query = query.or_(
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
 
                 elif policy == 'private_only':
@@ -552,8 +565,8 @@ class QuestRepository(BaseRepository):
                     else:
                         # Only organization quests + user's own created quests
                         query = query.or_(
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
 
                 # Apply additional non-search filters
@@ -669,7 +682,10 @@ class QuestRepository(BaseRepository):
             # Apply organization visibility policy
             if policy == 'all_optio':
                 if org_id:
-                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                    query = query.or_(
+                        f'organization_id.is.null,'
+                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")}'
+                    )
                 else:
                     query = query.is_('organization_id', 'null')
 
@@ -685,16 +701,15 @@ class QuestRepository(BaseRepository):
                     quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
 
                     if quest_ids:
-                        quest_ids_str = ','.join(quest_ids)
                         query = query.or_(
-                            f'id.in.({quest_ids_str}),'
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'id.in.({pgrst_uuid_list(quest_ids, "quest_id")}),'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
                     else:
                         query = query.or_(
-                            f'organization_id.eq.{org_id},'
-                            f'created_by.eq.{user_id}'
+                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                         )
 
             elif policy == 'private_only':
@@ -702,8 +717,8 @@ class QuestRepository(BaseRepository):
                     query = query.eq('created_by', user_id)
                 else:
                     query = query.or_(
-                        f'organization_id.eq.{org_id},'
-                        f'created_by.eq.{user_id}'
+                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
                     )
 
             # Limit results and order by title

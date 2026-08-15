@@ -6,6 +6,14 @@ AI-powered service for completing partially filled quest forms.
 Uses Gemini to intelligently fill in missing fields based on context.
 
 Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
+
+Privacy note (Aug 2026 review): "completion" here means completing a QUEST
+AUTHORING FORM, not a student's task completion. The only thing sent to Gemini
+is the partially filled quest an author typed — title, big idea, mission steps.
+No student, no evidence, no user id passes through, which is why there is no
+parent-AI-toggle check in this file: there is no student whose toggles would
+apply. Anything that starts feeding student content through here needs
+utils/ai_access.check_ai_access on the student's id first.
 """
 
 import json

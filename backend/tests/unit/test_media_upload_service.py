@@ -243,7 +243,14 @@ def test_upload_happy_path_image():
         block_type="image",
     )
     assert result.success is True
-    assert result.file_url.startswith("https://example.invalid/")
+    # `file_url` is the canonical pointer persisted to the database. Since the
+    # 2026-08-15 private-bucket migration it is built locally by
+    # utils.storage_urls.public_object_url rather than asked of the SDK, so it
+    # is always on the custom storage domain and never depends on whether the
+    # bucket happens to be public. See tests/test_private_storage_urls.py.
+    assert result.file_url.startswith(
+        "https://auth.optioeducation.com/storage/v1/object/public/quest-evidence/"
+    )
     assert result.filename == "photo.png"
     assert result.file_size == len(b"PNGDATA")
     assert result.media_type == "image"
@@ -969,8 +976,10 @@ def test_finalize_upload_converts_heic_to_jpeg():
     assert bucket.upload.call_count == 1
     upload_path = bucket.upload.call_args.kwargs.get("path")
     assert upload_path == "learning_moments/child-user-id/uuid.jpg"
-    # ...and the public URL is derived from the new .jpg path.
-    bucket.get_public_url.assert_called_with("learning_moments/child-user-id/uuid.jpg")
+    # ...and the stored pointer is derived from the new .jpg path.
+    assert result.file_url.endswith(
+        "/user-uploads/learning_moments/child-user-id/uuid.jpg"
+    )
 
 
 def test_finalize_upload_removes_original_heic_after_conversion():

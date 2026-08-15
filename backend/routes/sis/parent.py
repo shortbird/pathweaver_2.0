@@ -286,14 +286,15 @@ def upload_my_photo(user_id):
     if err:
         return err
     from database import get_supabase_admin_client
-    from services.user_photo_service import upload_user_photo
+    from services.user_photo_service import photo_display_url, upload_user_photo
     try:
         # admin client justified: storage upload + users.avatar_url write for the caller's own account (user_id from @require_auth)
         avatar_url = upload_user_photo(get_supabase_admin_client(), user_id, file, ext)
     except Exception as e:  # noqa: BLE001
         logger.error(f'parent photo: upload failed for {user_id[:8]}: {e}')
         return jsonify({'success': False, 'error': 'Could not upload the photo'}), 500
-    return jsonify({'success': True, 'avatar_url': avatar_url})
+    # `user-photos` is private; the browser needs the signed twin, not the pointer.
+    return jsonify({'success': True, 'avatar_url': photo_display_url(avatar_url)})
 
 
 @bp.route('/students/<student_id>/photo', methods=['POST'])
@@ -310,14 +311,15 @@ def upload_student_photo(user_id, student_id):
     if err:
         return err
     from database import get_supabase_admin_client
-    from services.user_photo_service import upload_user_photo
+    from services.user_photo_service import photo_display_url, upload_user_photo
     try:
         # admin client justified: writes the child's users.avatar_url; gated by the registerable_students guardian-of-this-student check above
         avatar_url = upload_user_photo(get_supabase_admin_client(), student_id, file, ext)
     except Exception as e:  # noqa: BLE001
         logger.error(f'parent photo: upload failed for student {student_id[:8]}: {e}')
         return jsonify({'success': False, 'error': 'Could not upload the photo'}), 500
-    return jsonify({'success': True, 'avatar_url': avatar_url})
+    # A child's photo in a private bucket: hand back the signed, expiring twin.
+    return jsonify({'success': True, 'avatar_url': photo_display_url(avatar_url)})
 
 
 # ── Planned absences (guardian reports a child will be out) ───────────────────

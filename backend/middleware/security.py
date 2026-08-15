@@ -96,7 +96,10 @@ class SecurityMiddleware:
         response.headers['X-Content-Type-Options'] = 'nosniff'
         if not (request.path or '').startswith('/lti/'):
             response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
+        # X-XSS-Protection is deliberately NOT set. The header is deprecated:
+        # every current browser has removed the XSS auditor it controlled, and
+        # in the browsers that still honoured it the filter was itself an
+        # exploitable side channel. CSP below is the real control.
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 
         # Additional security headers

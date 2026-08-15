@@ -1,5 +1,7 @@
 from typing import Dict, Any, List, Optional
 from repositories.base_repository import BaseRepository
+from utils.roles import OrgRole
+from utils.validation.sanitizers import pgrst_enum
 
 
 class OrganizationRepository(BaseRepository):
@@ -111,7 +113,11 @@ class OrganizationRepository(BaseRepository):
         if role:
             # Check both org_role (single value) and org_roles (array) for the role
             # This supports users with multiple roles like ['advisor', 'parent']
-            query = query.or_(f'org_role.eq.{role},org_roles.cs.["{role}"]')
+            # A role is a closed set, so membership IS the escape -- note the
+            # value lands inside a JSON array literal in the second clause,
+            # where a stray quote would end the string as well as the clause.
+            safe_role = pgrst_enum(role, [r.value for r in OrgRole], 'role')
+            query = query.or_(f'org_role.eq.{safe_role},org_roles.cs.["{safe_role}"]')
 
         response = query.order('first_name').execute()
         return response.data if response.data else []

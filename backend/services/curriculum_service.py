@@ -322,7 +322,12 @@ class CurriculumService(BaseService):
                 .order('created_at', desc=False)\
                 .execute()
 
-            return result.data or []
+            rows = result.data or []
+            # `curriculum` is a private bucket: the stored file_url is a durable
+            # pointer, not a fetchable link. One batched signing call for the list.
+            from utils.storage_urls import sign_in_place
+            sign_in_place(rows, ['file_url'], 'curriculum')
+            return rows
 
         except Exception as e:
             # Table or column might not exist yet - return empty list

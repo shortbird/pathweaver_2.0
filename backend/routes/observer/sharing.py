@@ -11,8 +11,26 @@ from flask import request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from app_config import Config
+from utils.storage_urls import sign_in_place
 
 logger = logging.getLogger(__name__)
+
+
+def _sign_shared_item(item):
+    """Sign every private-bucket URL on a shared feed item, in one batch per
+    bucket: the student's avatar, the evidence preview, its blocks, and any
+    media carousel entries. A shared post is public-by-token, but the objects
+    behind it are not — the token grants a signed URL, not a permanent one."""
+    sign_in_place(
+        [item['student']] if isinstance(item.get('student'), dict) else [],
+        ['avatar_url'],
+    )
+    media = [item['evidence']] if isinstance(item.get('evidence'), dict) else []
+    media += [b for b in ((item.get('evidence') or {}).get('blocks') or [])
+              if isinstance(b, dict)]
+    media += [m for m in (item.get('media') or []) if isinstance(m, dict)]
+    sign_in_place(media, ['url', 'thumbnail_url'])
+    return item
 
 
 def _check_student_access(supabase, user_id, student_id):
@@ -291,7 +309,7 @@ def _build_completion_item(supabase, share, student_info, caller_id):
         'comments_count': comments_count,
     }
 
-    return jsonify({'access': 'granted', 'item': item}), 200
+    return jsonify({'access': 'granted', 'item': _sign_shared_item(item)}), 200
 
 
 def _build_learning_moment_item(supabase, share, student_info, caller_id):
@@ -382,7 +400,7 @@ def _build_learning_moment_item(supabase, share, student_info, caller_id):
         'comments_count': comments_count,
     }
 
-    return jsonify({'access': 'granted', 'item': item}), 200
+    return jsonify({'access': 'granted', 'item': _sign_shared_item(item)}), 200
 
 
 def _get_completion_evidence(supabase, completion):

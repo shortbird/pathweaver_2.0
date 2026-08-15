@@ -139,7 +139,18 @@ def register():
         original_first_name = data['first_name'].strip()
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
-        date_of_birth = data.get('date_of_birth')  # Optional
+        # REQUIRED (2026-08-15). This was `data.get(...)  # Optional`, which made
+        # the under-13 block below skippable rather than merely gameable: omit the
+        # field and you registered as an adult with no age on file at all. Both
+        # signup forms (frontend RegisterPage.jsx / OrganizationSignup.jsx and
+        # frontend-v2 app/(auth)/register.tsx) already mark it required, so this
+        # only closes the direct-to-API path. Org-admin-created, invited and
+        # bulk-imported accounts use other routes and are unaffected.
+        date_of_birth = data.get('date_of_birth')
+        if isinstance(date_of_birth, str):
+            date_of_birth = date_of_birth.strip()
+        if not date_of_birth:
+            raise ValidationError("Date of birth is required. Please provide it as YYYY-MM-DD.")
         parent_email = data.get('parent_email')  # Optional adult contact (COPPA consent email)
         org_slug = data.get('org_slug')  # Optional organization slug for signup
         program_key = data.get('program_key')  # Optional: partner program tag (e.g. OEA Diploma Plan)
@@ -152,6 +163,8 @@ def register():
 
         # COPPA Compliance: Check age BEFORE creating auth user
         requires_parental_consent = False
+        # Always true now that date_of_birth is required above; kept as a guard so
+        # the block stays correct if the value ever becomes optional again.
         if date_of_birth:
             try:
                 dob = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
@@ -490,9 +503,11 @@ def register():
             app_access_token = session_manager.generate_access_token(auth_response.user.id)
             app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
-            # Add app tokens to response
-            response_data['app_access_token'] = app_access_token
-            response_data['app_refresh_token'] = app_refresh_token
+            # Add app tokens to response, but only for clients that cannot use
+            # the httpOnly cookies set below (see routes/auth/token_delivery.py).
+            from . import token_delivery
+            response_data.update(
+                token_delivery.body_tokens(app_access_token, app_refresh_token))
 
             # Create response (legacy format for frontend compatibility)
             # TODO: Migrate to standardized format after updating frontend
@@ -603,10 +618,10 @@ def verify_email_otp():
         app_access_token = session_manager.generate_access_token(user_id)
         app_refresh_token = session_manager.generate_refresh_token(user_id)
 
+        from . import token_delivery
         response_data = {
             'user': user_profile.data if user_profile.data else verify_response.user.model_dump(),
-            'app_access_token': app_access_token,
-            'app_refresh_token': app_refresh_token,
+            **token_delivery.body_tokens(app_access_token, app_refresh_token),
         }
         response = make_response(jsonify(response_data), 200)
         session_manager.set_auth_cookies(response, user_id, app_access_token, app_refresh_token)

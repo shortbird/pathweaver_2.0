@@ -28,6 +28,8 @@ import magic
 from werkzeug.utils import secure_filename
 
 from utils.logger import get_logger
+from utils.storage_urls import public_object_url, sign_stored_url
+from utils.validation.sanitizers import pgrst_uuid
 
 logger = get_logger(__name__)
 
@@ -94,6 +96,11 @@ def get_user_details(admin_id, target_user_id):
             return jsonify({'error': 'User not found'}), 404
 
         user = user_response.data[0]
+
+        # `user-uploads` is private — the stored pointer is an identifier, not a
+        # fetchable link. Sign it for this render.
+        if user.get('avatar_url'):
+            user['avatar_url'] = sign_stored_url(user['avatar_url'], 'user-uploads')
 
         # Get organization name if user has an organization_id
         if user.get('organization_id'):
@@ -783,8 +790,9 @@ def upload_user_avatar(user_id, target_user_id):
             file_options={"content-type": mime_type}
         )
 
-        # Get public URL
-        avatar_url = supabase.storage.from_('user-uploads').get_public_url(unique_filename)
+        # `user-uploads` is private: persist the canonical pointer, serve a
+        # short-lived signed URL. See utils/storage_urls.py.
+        avatar_url = public_object_url('user-uploads', unique_filename)
 
         # Update user's avatar_url
         update_result = supabase.table('users').update({
@@ -793,7 +801,7 @@ def upload_user_avatar(user_id, target_user_id):
 
         return jsonify({
             'success': True,
-            'avatar_url': avatar_url,
+            'avatar_url': sign_stored_url(avatar_url, 'user-uploads'),
             'message': 'Profile picture uploaded successfully'
         }), 200
 
@@ -1288,7 +1296,8 @@ def get_user_connections(admin_user_id: str, user_id: str):
         # --- Advisor assignments, both directions, in two queries ---------
         assignments = supabase.table('advisor_student_assignments') \
             .select('id, advisor_id, student_id, assigned_at') \
-            .or_(f'advisor_id.eq.{user_id},student_id.eq.{user_id}') \
+            .or_(f'advisor_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'student_id.eq.{pgrst_uuid(user_id, "user_id")}') \
             .eq('is_active', True) \
             .execute()
 
@@ -1301,7 +1310,8 @@ def get_user_connections(admin_user_id: str, user_id: str):
         # --- Parent links, both directions, in one query ------------------
         parent_links = supabase.table('parent_student_links') \
             .select('id, parent_user_id, student_user_id, created_at') \
-            .or_(f'parent_user_id.eq.{user_id},student_user_id.eq.{user_id}') \
+            .or_(f'parent_user_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'student_user_id.eq.{pgrst_uuid(user_id, "user_id")}') \
             .execute()
 
         parent_rows = parent_links.data or []
@@ -1313,7 +1323,8 @@ def get_user_connections(admin_user_id: str, user_id: str):
         # --- Observer links, both directions, in one query ----------------
         observer_links = supabase.table('observer_student_links') \
             .select('id, observer_id, student_id, created_at') \
-            .or_(f'observer_id.eq.{user_id},student_id.eq.{user_id}') \
+            .or_(f'observer_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'student_id.eq.{pgrst_uuid(user_id, "user_id")}') \
             .execute()
 
         observer_rows = observer_links.data or []

@@ -151,10 +151,11 @@ export default function ObserverAcceptInvitationPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Invitation Not Available</h2>
           <p className="text-gray-600 mb-6">
-            {invitationError || 'This invitation link is no longer valid. It may have expired or been revoked.'}
+            {invitationError || 'This invitation link is no longer valid. It may have expired, been used already, or been revoked.'}
           </p>
           <p className="text-sm text-gray-500">
-            Please ask the student or their parent to send you a new invitation link.
+            Invitation links work once, for one person, and expire after 7 days. Ask the student or
+            their parent to send you your own link.
           </p>
         </div>
       </div>

@@ -13,6 +13,7 @@ import logging
 
 from database import get_supabase_admin_client
 from utils.quest_status import is_enrollment_complete
+from utils.validation.sanitizers import pgrst_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -630,7 +631,7 @@ class DashboardService:
             .select('class_id, quest_id, due_date, sequence_order, '
                     'quests(id, title, description, quest_type, is_active, header_image_url, image_url)')\
             .in_('class_id', list(class_names.keys()))\
-            .or_(f'publish_at.is.null,publish_at.lte.{now_iso}')\
+            .or_(f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}')\
             .order('sequence_order')\
             .execute()
 

@@ -14,8 +14,18 @@ import logging
 
 from database import get_supabase_admin_client
 from repositories import UserRepository, QuestRepository
+from utils.storage_urls import canonical_stored_url, sign_stored_url, sign_stored_urls
 
 logger = logging.getLogger(__name__)
+
+# Where a URL can hide inside an evidence block's `content` JSON.
+_BLOCK_URL_KEYS = ('url', 'thumbnail_url', 'poster_url', 'src')
+
+# A block ROW can also carry the upload's URL in a column of its own:
+# `learning_event_evidence_blocks.file_url` duplicates `content.url` for
+# image/video/document blocks. `evidence_document_blocks` has no such column,
+# so this is a no-op there — which is why one helper can serve both tables.
+_BLOCK_ROW_URL_KEYS = ('file_url',)
 
 
 class PortfolioService:
@@ -337,13 +347,10 @@ class PortfolioService:
                 subject_credits[subject] = credits
                 total_tc_credits += credits
 
-            # Normalize storage URL to custom domain
-            transcript_url = tc.get('transcript_url')
-            if transcript_url:
-                transcript_url = transcript_url.replace(
-                    'vvfgxcykxjybtvpfzwyx.supabase.co',
-                    'auth.optioeducation.com'
-                )
+            # A transcript from a prior school is an education record with the
+            # student's name on it, stored in the private quest-evidence bucket.
+            # Sign it for this render (also normalizes to the custom domain).
+            transcript_url = sign_stored_url(tc.get('transcript_url'))
 
             records.append({
                 'id': tc.get('id'),
@@ -421,6 +428,108 @@ class PortfolioService:
         ''').eq('user_id', user_id).execute()
         return result.data or []
 
+    @staticmethod
+    def _block_url_holders(block: Dict) -> List[Tuple[Dict, Tuple[str, ...]]]:
+        """Every ``(dict, keys)`` pair in one block that can hold a media URL.
+
+        Three places, and missing any one of them ships a broken image:
+        the block row itself (`file_url`), its `content` JSON, and each entry of
+        `content.items` for the multi-file blocks.
+        """
+        if not isinstance(block, dict):
+            return []
+        holders: List[Tuple[Dict, Tuple[str, ...]]] = [(block, _BLOCK_ROW_URL_KEYS)]
+        content = block.get('content')
+        if isinstance(content, dict):
+            holders.append((content, _BLOCK_URL_KEYS))
+            holders.extend(
+                (item, _BLOCK_URL_KEYS)
+                for item in (content.get('items') or [])
+                if isinstance(item, dict)
+            )
+        return holders
+
+    @classmethod
+    def _collect_block_urls(cls, blocks: List[Dict]) -> List[str]:
+        """Every stored media URL reachable from a list of evidence blocks."""
+        found: List[str] = []
+        for block in blocks or []:
+            for holder, keys in cls._block_url_holders(block):
+                for key in keys:
+                    value = holder.get(key)
+                    if isinstance(value, str) and value:
+                        found.append(value)
+        return found
+
+    def sign_evidence_blocks(self, blocks: List[Dict]) -> List[Dict]:
+        """Rewrite the media URLs in evidence blocks to short-lived signed URLs.
+
+        A public portfolio is a real, opt-in, parent-consented product feature —
+        it just must not be implemented by making the underlying objects
+        world-readable forever. The objects stay private; the page mints a URL
+        per render that stops working after Config.STORAGE_SIGNED_URL_TTL.
+
+        Mutates and returns ``blocks``. One batched signing call for the whole
+        page, because a diploma can carry dozens of blocks.
+        """
+        originals = self._collect_block_urls(blocks)
+        if not originals:
+            return blocks
+        mapping = sign_stored_urls(originals)
+        for block in blocks or []:
+            for holder, keys in self._block_url_holders(block):
+                for key in keys:
+                    value = holder.get(key)
+                    if isinstance(value, str) and value in mapping:
+                        holder[key] = mapping[value]
+        return blocks
+
+    def sign_evidence_blocks_on(
+        self,
+        items: List[Dict],
+        key: str = 'evidence_blocks',
+    ) -> List[Dict]:
+        """Sign the evidence blocks hanging off each item of a list, in ONE batch.
+
+        The shape almost every evidence read path ends in: a list of moments, of
+        completions, of tasks, each carrying its own ``evidence_blocks``. Signing
+        per item would be one storage round trip per row; flatten first and let
+        :meth:`sign_evidence_blocks` group by bucket. Mutates ``items``.
+        """
+        blocks = [
+            block
+            for item in (items or [])
+            if isinstance(item, dict)
+            for block in (item.get(key) or [])
+            if isinstance(block, dict)
+        ]
+        if blocks:
+            self.sign_evidence_blocks(blocks)
+        return items
+
+    @classmethod
+    def canonical_block_content(cls, content: Dict) -> Dict:
+        """Reduce every storage URL inside one block's ``content`` to the
+        canonical pointer we persist.
+
+        The mirror image of :meth:`sign_evidence_blocks`, for the write side.
+        Reads hand the editor SIGNED media URLs and the editor posts the whole
+        tree back on save, so without this a row would quietly acquire a URL
+        that expires. External links (a YouTube video, a Google Doc) are left
+        alone. Mutates and returns ``content``.
+        """
+        if not isinstance(content, dict):
+            return content
+        holders = [content] + [
+            item for item in (content.get('items') or []) if isinstance(item, dict)
+        ]
+        for holder in holders:
+            for key in _BLOCK_URL_KEYS:
+                value = holder.get(key)
+                if isinstance(value, str) and value:
+                    holder[key] = canonical_stored_url(value)
+        return content
+
     def build_evidence_map(
         self,
         evidence_documents: List[Dict],
@@ -454,7 +563,11 @@ class PortfolioService:
             if blocks:
                 evidence_docs_map[task_id] = {
                     'document_id': doc.get('id'),
-                    'blocks': sorted(blocks, key=lambda b: b.get('order_index', 0)),
+                    # Signed at render time: the evidence buckets are private,
+                    # so the URL stored on the block is a pointer, not a link.
+                    'blocks': self.sign_evidence_blocks(
+                        sorted(blocks, key=lambda b: b.get('order_index', 0))
+                    ),
                     'completed_at': doc.get('completed_at'),
                     'is_confidential': doc.get('is_confidential', False),
                     'owner_user_id': doc.get('user_id')
@@ -495,7 +608,9 @@ class PortfolioService:
             if result.data and len(result.data) > 0:
                 doc = result.data[0]
                 blocks = doc.get('evidence_document_blocks', [])
-                sorted_blocks = sorted(blocks, key=lambda b: b.get('order_index', 0))
+                sorted_blocks = self.sign_evidence_blocks(
+                    sorted(blocks, key=lambda b: b.get('order_index', 0))
+                )
                 return sorted_blocks, doc.get('is_confidential', False), doc.get('user_id')
 
             return [], False, None
@@ -1228,7 +1343,10 @@ class PortfolioService:
                     evidence_content = evidence_text
                 elif evidence_url:
                     evidence_type = 'link'
-                    evidence_content = evidence_url
+                    # Legacy single-URL evidence. Rows here hold either an
+                    # external link (left alone) or a Supabase object pointer
+                    # in a now-private bucket (signed for this render).
+                    evidence_content = sign_stored_url(evidence_url) or evidence_url
                 else:
                     evidence_type = 'text'
                     evidence_content = 'No evidence submitted for this task'

@@ -25,8 +25,9 @@ from repositories import (
     ParentRepository,
     AdvisorRepository
 )
-
+from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
+from utils.storage_urls import canonical_stored_url
 
 logger = get_logger(__name__)
 
@@ -140,7 +141,11 @@ def upload_evidence_for_student(user_id):
         student_id = data.get('student_id')
         task_id = data.get('task_id')
         block_type = data.get('block_type')
-        content = data.get('content', {})
+        # The helper upload endpoints below return the canonical pointer AND a
+        # signed twin for the preview; the form posts back whichever it holds.
+        # `quest-evidence` is private, so persisting the twin would store a URL
+        # that stops working after one TTL. Reduce it first.
+        content = PortfolioService.canonical_block_content(data.get('content', {}))
 
         if not all([student_id, task_id, block_type]):
             raise ValidationError("student_id, task_id, and block_type are required")
@@ -291,6 +296,9 @@ def upload_evidence_batch(user_id):
                 raise ValidationError(f"blocks[{i}]: must be an object")
             if b.get('block_type') not in ('text', 'link', 'image', 'video', 'document'):
                 raise ValidationError(f"blocks[{i}]: invalid block_type")
+            # Same reduction as the single-shot endpoint: never persist the
+            # signed twin the client was handed for its preview.
+            b['content'] = PortfolioService.canonical_block_content(b.get('content', {}))
 
         # Role + relationship check ONCE (was per-block in the single-shot
         # endpoint — N round trips on a 5-block save).
@@ -437,9 +445,11 @@ def _create_helper_learning_event(supabase, student_id, uploader_id, uploader_ro
         'order_index': 0
     }
 
-    # Add file_url if present in content
+    # Add file_url if present in content. Callers reduce `content` to canonical
+    # pointers before this runs; reduce again here so the mirrored column can
+    # never diverge from the block it copies.
     if content.get('url') and block_type in ('image', 'document'):
-        block_data['file_url'] = content['url']
+        block_data['file_url'] = canonical_stored_url(content['url'])
 
     supabase.table('learning_event_evidence_blocks').insert(block_data).execute()
 
@@ -765,7 +775,10 @@ def helper_signed_upload_finalize(user_id):
 
         response_data = {
             'success': True,
+            # Canonical pointer to persist, plus the signed twin for the
+            # immediate preview (the bucket is private).
             'url': result.file_url,
+            'display_url': result.display_url,
             'filename': result.filename,
             'file_size': result.file_size,
             'content_type': result.content_type,

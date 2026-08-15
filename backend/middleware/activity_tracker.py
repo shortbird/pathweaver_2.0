@@ -14,6 +14,7 @@ from flask import request, g, make_response
 import uuid
 import atexit
 from datetime import datetime
+from app_config import Config
 from database import get_supabase_admin_singleton
 from utils.logger import get_logger
 from concurrent.futures import ThreadPoolExecutor
@@ -305,6 +306,22 @@ class ActivityTracker:
         Never raises exceptions to prevent disrupting main request.
         """
         try:
+            # Never write analytics from a test run.
+            #
+            # This fires on a background thread with the service-role client, so
+            # it targets whatever SUPABASE_URL the process was started with --
+            # and a developer's backend/.env points at production. Under pytest
+            # that means the unit suite reaches across and inserts telemetry into
+            # the live analytics table. Today it happens to fail closed, because
+            # fixture ids like 'test-user-123' are rejected as invalid uuids, but
+            # that is an accident of the fixtures rather than a control: any test
+            # using a realistic uuid would write a real row.
+            #
+            # Checked here rather than in the caller because the caller is a
+            # before_request hook whose whole job is to be invisible.
+            if Config.is_pytest_run():
+                return
+
             # Use singleton admin client for background thread (thread-safe)
             supabase = get_supabase_admin_singleton()
 

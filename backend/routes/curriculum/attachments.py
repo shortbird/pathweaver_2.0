@@ -111,10 +111,16 @@ def upload_attachment(user_id: str, quest_id: str):
         except Exception as db_err:
             logger.warning(f"Failed to record attachment in DB (file uploaded OK): {db_err}")
 
+        # The row keeps the canonical pointer (`url`); the client renders the
+        # signed twin, because `curriculum` is a private bucket.
+        if isinstance(attachment, dict) and attachment.get('file_url'):
+            attachment = {**attachment, 'display_url': result.display_url}
+
         return jsonify({
             'success': True,
             'attachment': attachment,
             'url': result.url,
+            'display_url': result.display_url,
             'message': 'File uploaded successfully'
         }), 201
 

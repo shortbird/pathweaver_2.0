@@ -269,6 +269,16 @@ api.interceptors.response.use(
                   requestBody.refresh_token = currentRefreshToken
                   logger.debug('[API] Sending refresh_token in body for Safari/iOS/Firefox')
                 }
+              } else {
+                // Tell the backend we authenticate by cookie, so it withholds the
+                // new tokens from the response body instead of handing this tab a
+                // readable 30-day refresh token it will never use.
+                //
+                // The backend decides this for itself as well (from the User-Agent
+                // and Origin) and does not need us — a flag that could GRANT a
+                // credential would be worth forging. This one can only take one
+                // away, which is why it is safe to send and safe to ignore.
+                requestBody.auth_mode = 'cookie'
               }
 
               // One jittered retry on a transient failure (cold Render worker,
@@ -278,8 +288,11 @@ api.interceptors.response.use(
               })
 
               if (response.status === 200) {
-                // Backend returns access_token and refresh_token in response body for all browsers.
-                // Store in memory so subsequent requests can attach the Authorization header.
+                // Tokens come back in the body only for clients that cannot use
+                // cookies (Safari/iOS/Firefox, and the mobile app). For everyone
+                // else the response carries no tokens at all and the refreshed
+                // httpOnly cookies on the same response are the whole session —
+                // an empty body here is success, not a failure to parse.
                 if (response.data.access_token && response.data.refresh_token) {
                   tokenStore.setTokens(response.data.access_token, response.data.refresh_token)
                   logger.debug('[API] New tokens stored after refresh')
