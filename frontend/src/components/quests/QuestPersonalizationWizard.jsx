@@ -82,6 +82,18 @@ const DIPLOMA_SUBJECTS = [
  *   dialog against the full — possibly very tall — iframe and clips it out
  *   of the visible viewport. Embedded mode drops the overlay, the viewport
  *   max-height, and the inner scrollbar; the iframe just grows.
+ * @param onAcceptTaskOverride  Optional async (task) => Promise. When supplied,
+ *   an accepted task is handed to this callback INSTEAD of being POSTed to
+ *   /personalization/accept-task. This is how a parent runs the same wizard
+ *   for their child: the UI and the AI steps are identical, only the write
+ *   target changes (see ParentQuestView). Mirrors how v2 mobile reuses its
+ *   TaskCreationWizard via onAcceptTask.
+ * @param onManualTasksOverride Optional async (tasks[]) => Promise, the same
+ *   substitution for the hand-written path (see ManualTaskCreator.onSubmitOverride).
+ * @param skipSubjectXp         When true, don't fetch /api/users/subject-xp.
+ *   That endpoint reports the CALLER's credit progress, which is meaningless
+ *   when a parent is authoring for their child — the ring would show the
+ *   parent's own (zero) XP against the child's credits.
  */
 export default function QuestPersonalizationWizard({
   questId,
@@ -92,6 +104,9 @@ export default function QuestPersonalizationWizard({
   embedded = false,
   approachExamples = null,
   xpThreshold = null,
+  onAcceptTaskOverride = null,
+  onManualTasksOverride = null,
+  skipSubjectXp = false,
 }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -142,6 +157,10 @@ export default function QuestPersonalizationWizard({
 
   // Fetch user's subject XP on mount
   useEffect(() => {
+    // Parent-authoring mode: this endpoint is caller-scoped, so it would show
+    // the parent's credits, not the child's. Leave the map empty instead.
+    if (skipSubjectXp) return;
+
     const fetchSubjectXP = async () => {
       setLoadingCredits(true);
       try {
@@ -161,7 +180,7 @@ export default function QuestPersonalizationWizard({
       }
     };
     fetchSubjectXP();
-  }, []);
+  }, [skipSubjectXp]);
 
   // Start personalization session
   const startSession = async (method) => {
@@ -261,13 +280,22 @@ export default function QuestPersonalizationWizard({
     setError(null);
 
     try {
-      // Add task immediately to user's quest
-      const response = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
-        session_id: sessionId,
-        task: currentTask
-      });
+      // Parent-authoring mode writes to the child's enrollment through its own
+      // endpoint; the self-serve path POSTs to accept-task as usual. Either way
+      // a throw lands in the catch below and the task is not marked accepted.
+      let accepted;
+      if (onAcceptTaskOverride) {
+        await onAcceptTaskOverride(currentTask);
+        accepted = true;
+      } else {
+        const response = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
+          session_id: sessionId,
+          task: currentTask
+        });
+        accepted = response.data.success;
+      }
 
-      if (response.data.success) {
+      if (accepted) {
         // Track accepted task
         setAcceptedTasks([...acceptedTasks, currentTask]);
 
@@ -845,6 +873,7 @@ export default function QuestPersonalizationWizard({
           sessionId={sessionId}
           onTasksCreated={handleManualTasksCreated}
           onCancel={onCancel}
+          onSubmitOverride={onManualTasksOverride}
         />
       )}
 

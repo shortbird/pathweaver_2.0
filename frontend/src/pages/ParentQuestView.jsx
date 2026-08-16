@@ -12,10 +12,20 @@ import {
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal';
 import { submitHelperEvidence } from '../components/evidence/helperEvidenceUtils';
+import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 
 /**
- * ParentQuestView - Streamlined quest view for parents to upload evidence.
- * Uses the standard AddEvidenceModal (single source of truth) for evidence upload.
+ * ParentQuestView - Streamlined quest view for parents to upload evidence and
+ * add tasks to their student's quest.
+ *
+ * Evidence uses the standard AddEvidenceModal (single source of truth).
+ *
+ * Task authoring runs the SAME QuestPersonalizationWizard the student uses —
+ * identical AI generation, complexity dial, and hand-written path — with only
+ * the write target swapped to the child (POST /api/family/quests/:id/tasks,
+ * which persists through the shared persist_accepted_task helper so a
+ * parent-added task is byte-for-byte what a student self-accepted task is).
+ * Mirrors how v2 mobile reuses its TaskCreationWizard on the parent screen.
  */
 const ParentQuestView = () => {
   const { studentId, questId } = useParams();
@@ -28,6 +38,7 @@ const ParentQuestView = () => {
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
   const [evidenceModalTaskId, setEvidenceModalTaskId] = useState(null);
   const [deletingBlockId, setDeletingBlockId] = useState(null);
+  const [taskWizardOpen, setTaskWizardOpen] = useState(false);
 
   const loadQuestData = async () => {
     try {
@@ -98,6 +109,38 @@ const ParentQuestView = () => {
     }
   };
 
+  // Write a single wizard-accepted task to the STUDENT's enrollment. The
+  // backend re-verifies the parent->student relationship and persists via the
+  // same helper the student's own accept-task path uses, so success_criteria,
+  // AI subject classification and diploma subjects all carry over.
+  const addTaskForStudent = async (task) => {
+    await parentAPI.createTaskForDependent(questId, {
+      child_id: studentId,
+      title: task.title,
+      description: task.description,
+      pillar: task.pillar,
+      xp_value: task.xp_value,
+      success_criteria: task.success_criteria,
+      diploma_subjects: task.diploma_subjects
+    });
+  };
+
+  // Hand-written path: the family endpoint takes one task at a time, so send
+  // them in order. Sequential rather than parallel so order_index stays stable
+  // (each insert reads the current max) and a mid-batch failure reports how far
+  // it got instead of leaving an unpredictable subset written.
+  const addManualTasksForStudent = async (newTasks) => {
+    for (const task of newTasks) {
+      await addTaskForStudent(task);
+    }
+  };
+
+  const handleWizardComplete = async () => {
+    setTaskWizardOpen(false);
+    toast.success('Tasks added to your student\'s quest');
+    await loadQuestData();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -164,20 +207,34 @@ const ParentQuestView = () => {
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Help Banner */}
+        {/* Help Banner, with the Add Tasks action on the same row. Stacks on
+            narrow screens so the button never crowds the copy. */}
         <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/20 rounded-xl p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
-              <PlusIcon className="w-5 h-5 text-white" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+                <PlusIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">
+                  Help Upload Evidence
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Add photos, documents, or links for any task below. Your child will review and can mark tasks complete.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900">
-                Help Upload Evidence
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                Add photos, documents, or links for any task below. Your child will review and can mark tasks complete.
-              </p>
-            </div>
+
+            {/* Add tasks — same wizard the student uses, written to their quest. */}
+            {questData.can_add_tasks && (
+              <button
+                onClick={() => setTaskWizardOpen(true)}
+                className="flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Add Tasks
+              </button>
+            )}
           </div>
         </div>
 
@@ -313,6 +370,22 @@ const ParentQuestView = () => {
         }}
         onSave={handleSaveHelperEvidence}
       />
+
+      {/* Task authoring — the student's own wizard, pointed at the student.
+          approachExamples is intentionally omitted: the "Choose a Path" option
+          posts to add-path-tasks, which writes to the CALLER's enrollment and
+          has no parent delegation, so it would silently enroll the parent. */}
+      {taskWizardOpen && (
+        <QuestPersonalizationWizard
+          questId={questId}
+          questTitle={quest.title}
+          onComplete={handleWizardComplete}
+          onCancel={() => setTaskWizardOpen(false)}
+          onAcceptTaskOverride={addTaskForStudent}
+          onManualTasksOverride={addManualTasksForStudent}
+          skipSubjectXp
+        />
+      )}
     </div>
   );
 };

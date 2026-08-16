@@ -247,10 +247,13 @@ def create_task_for_dependent(user_id, quest_id):
         # admin client justified: parent creates a task for a dependent; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
-        # Verify child IS a dependent (managed_by_parent_id == user_id)
-        child_check = supabase.table('users').select('managed_by_parent_id').eq('id', child_id).single().execute()
-        if not child_check.data or child_check.data.get('managed_by_parent_id') != user_id:
-            return jsonify({'success': False, 'error': 'This action is only allowed for managed dependents'}), 403
+        # NOTE: deliberately NOT restricted to managed dependents. Task authoring
+        # is allowed for any child the parent is verified against above — both
+        # managed dependents (managed_by_parent_id) and approved
+        # parent_student_links (org students who keep their own login, e.g.
+        # Hearthwood Academy families). Deleting and un-completing a task remain
+        # dependent-only below: those destroy a student's own work, whereas
+        # adding a task only ever offers them more to do.
 
         # Validate required fields
         if not data.get('title'):

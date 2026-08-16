@@ -12,7 +12,7 @@ import useCanEditXp from '../../hooks/useCanEditXp';
  * - Manual task entry with title, description, and pillar selection
  * - No AI assistance - pure student-driven task creation
  */
-const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => {
+const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSubmitOverride = null }) => {
   const canEditXp = useCanEditXp();
   const [currentTask, setCurrentTask] = useState({
     title: '',
@@ -127,6 +127,15 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     setError('');
 
     try {
+      // Parent-authoring mode: hand the batch to the caller, which writes it to
+      // the child's enrollment instead of the signed-in user's. Same form, same
+      // validation — only the write target differs.
+      if (onSubmitOverride) {
+        await onSubmitOverride(addedTasks);
+        onTasksCreated({ success: true, tasks: addedTasks });
+        return;
+      }
+
       const response = await api.post(`/api/quests/${questId}/add-manual-tasks`, {
         tasks: addedTasks
       });
@@ -336,7 +345,9 @@ ManualTaskCreator.propTypes = {
   questId: PropTypes.string.isRequired,
   sessionId: PropTypes.string.isRequired,
   onTasksCreated: PropTypes.func.isRequired,
-  onCancel: PropTypes.func.isRequired
+  onCancel: PropTypes.func.isRequired,
+  // Parent-authoring mode: receives the finished batch instead of POSTing it.
+  onSubmitOverride: PropTypes.func
 };
 
 export default ManualTaskCreator;
