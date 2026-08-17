@@ -36,17 +36,17 @@ const rowFor = (label) => within(screen.getByText(label).closest('div').parentEl
 describe('the advisor sees the same standing the student does', () => {
   it('counts credit that overflowed into Electives', () => {
     render(<StudentContext context={CONTEXT} loading={false} />)
-    expect(rowFor('Electives').getByText('4.0/4')).toBeInTheDocument()
+    expect(rowFor('Electives').getByText('4/4')).toBeInTheDocument()
   })
 
   it('caps an over-earned subject at its requirement', () => {
     render(<StudentContext context={CONTEXT} loading={false} />)
-    expect(rowFor('CTE').getByText('1.0/1')).toBeInTheDocument()
+    expect(rowFor('CTE').getByText('1/1')).toBeInTheDocument()
   })
 
   it('leaves genuinely unfinished subjects short', () => {
     render(<StudentContext context={CONTEXT} loading={false} />)
-    expect(rowFor('Social Studies').getByText('2.0/4')).toBeInTheDocument()
+    expect(rowFor('Social Studies').getByText('2/4')).toBeInTheDocument()
   })
 
   it('totals the applied credit, matching the diploma panel', () => {

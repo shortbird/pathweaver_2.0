@@ -77,12 +77,19 @@ export const TOTAL_XP_REQUIRED = 48000;
 export const XP_PER_CREDIT = 2000;
 
 /**
- * Calculate credits earned from XP
+ * Calculate credits earned from XP.
+ *
+ * Two decimals, because a quarter credit is a real thing a school awards — a
+ * one-semester half of a half-year course. Rounding to one decimal turned 2.25
+ * into 2.3, which put a number on screen the student had not earned and made
+ * the surplus arithmetic visibly fail to add up. It also disagreed with the
+ * backend, which has always rounded transcript credits to two.
+ *
  * @param {number} xp - XP earned in subject
- * @returns {number} - Credits earned (rounded to 1 decimal place)
+ * @returns {number} - Credits earned (rounded to 2 decimal places)
  */
 export const calculateCreditsFromXP = (xp) => {
-  return Math.round((xp / XP_PER_CREDIT) * 10) / 10;
+  return Math.round((xp / XP_PER_CREDIT) * 100) / 100;
 };
 
 /**
@@ -145,6 +152,18 @@ export const getAllCreditProgress = (subjectXP) => {
     }
     return b.creditsRequired - a.creditsRequired;
   });
+};
+
+/**
+ * Credits as a person reads them: up to two decimals, no trailing zeros.
+ *
+ * 1 rather than 1.0, and 3.25 rather than 3.3 — .toFixed(1) at the render
+ * layer would undo the two-decimal arithmetic and put a quarter credit back on
+ * screen as a number nobody earned.
+ */
+export const formatCredits = (credits) => {
+  const n = Math.round((Number(credits) || 0) * 100) / 100;
+  return String(n);
 };
 
 /** The one bucket defined as "anything", so the only one surplus may flow into. */

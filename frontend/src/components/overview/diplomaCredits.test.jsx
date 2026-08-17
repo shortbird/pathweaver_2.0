@@ -24,17 +24,16 @@ import {
 
 // Finn's real shape after his prior learning was transcribed. CTE is over-earned
 // against a 1.0 requirement while Electives is short — the exact case the
-// overflow rule exists for. (calculateCreditsFromXP rounds to one decimal, so
-// 4500 XP reads as 2.3 credits, not 2.25.)
+// overflow rule exists for.
 const FINN_XP = {
   math: 6000,            // 3.0 / 3    complete
   science: 6000,         // 3.0 / 3    complete
   pe: 4000,              // 2.0 / 2    complete
-  cte: 4500,             // 2.3 / 1    complete, 1.3 surplus
+  cte: 4500,             // 2.25 / 1   complete, 1.25 surplus
   financial_literacy: 1000,
   health: 1000,
   digital_literacy: 1000,
-  electives: 6500,       // 3.3 / 4    0.7 short -> filled by CTE surplus
+  electives: 6500,       // 3.25 / 4   0.75 short -> filled by CTE surplus
   language_arts: 6000,   // 3.0 / 4
   fine_arts: 2000,       // 1.0 / 1.5
   social_studies: 4000,  // 2.0 / 4
@@ -58,16 +57,16 @@ describe('the overflow rule', () => {
   it('spills surplus into Electives, completing it', () => {
     const { progress } = getCreditStanding(FINN_XP)
     const electives = progress.find((c) => c.subject === 'electives')
-    expect(electives.overflowIn).toBe(0.7)
+    expect(electives.overflowIn).toBe(0.75)
     expect(electives.isComplete).toBe(true)
   })
 
   it('takes only what the gap needs, leaving the rest genuinely beyond', () => {
     const { progress, beyond } = getCreditStanding(FINN_XP)
     const cte = progress.find((c) => c.subject === 'cte')
-    expect(cte.overflowOut).toBe(0.7)   // of its 1.3 surplus
-    expect(cte.creditsBeyond).toBe(0.6) // the remainder helps nobody
-    expect(beyond).toBe(0.6)
+    expect(cte.overflowOut).toBe(0.75)   // of its 1.25 surplus
+    expect(cte.creditsBeyond).toBe(0.5) // the remainder helps nobody
+    expect(beyond).toBe(0.5)
   })
 
   it('never lets one academic subject satisfy another', () => {
@@ -94,7 +93,7 @@ describe('the overflow rule', () => {
 
   it('reports earned and applied as separate totals', () => {
     const standing = getCreditStanding(FINN_XP)
-    expect(standing.totalEarned).toBe(21.1)
+    expect(standing.totalEarned).toBe(21)
     expect(standing.totalApplied).toBe(20.5)
     expect(standing.remaining).toBe(3.5)
   })
@@ -135,8 +134,8 @@ describe('telling a student where they stand', () => {
 
   it('says what was earned in total when it exceeds what the diploma needs', () => {
     renderPanel()
-    expect(screen.getByText(/21.1 earned in total/)).toBeInTheDocument()
-    expect(screen.getByText(/0.6 beyond what the diploma requires/)).toBeInTheDocument()
+    expect(screen.getByText(/21 earned in total/)).toBeInTheDocument()
+    expect(screen.getByText(/0.5 beyond what the diploma requires/)).toBeInTheDocument()
   })
 
   it('stays quiet about surplus when there is none', () => {
@@ -174,18 +173,18 @@ describe('a finished subject reads as finished', () => {
 describe('showing a student where their surplus went', () => {
   it('names the credit that arrived in Electives', () => {
     renderPanel()
-    expect(screen.getByText('+0.7 from other subjects')).toBeInTheDocument()
+    expect(screen.getByText('+0.75 from other subjects')).toBeInTheDocument()
   })
 
   it('names the credit that left the over-earned subject', () => {
     renderPanel()
-    expect(screen.getByText('0.7 counted as electives')).toBeInTheDocument()
+    expect(screen.getByText('0.75 counted as electives')).toBeInTheDocument()
   })
 
   it('still shows the part that helps nobody, rather than hiding it', () => {
     renderPanel()
-    expect(screen.getByText('+0.6')).toBeInTheDocument()
+    expect(screen.getByText('+0.5')).toBeInTheDocument()
     // The old bug-looking ratio is gone either way.
-    expect(screen.queryByText('2.3/1')).not.toBeInTheDocument()
+    expect(screen.queryByText('2.25/1')).not.toBeInTheDocument()
   })
 })

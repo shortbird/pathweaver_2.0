@@ -1,5 +1,5 @@
 import React from 'react'
-import { getCreditStanding, XP_PER_CREDIT } from '../../utils/creditRequirements'
+import { getCreditStanding, formatCredits, XP_PER_CREDIT } from '../../utils/creditRequirements'
 
 const SUBJECTS = [
   'language_arts', 'math', 'science', 'social_studies', 'financial_literacy',
@@ -81,7 +81,7 @@ const StudentContext = ({ context, loading }) => {
         )}
         <div>
           <p className="font-medium text-sm text-gray-900">{`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}</p>
-          <p className="text-xs text-gray-500">{totalCredits.toFixed(1)} / 24 credits ({progressPercent.toFixed(0)}%)</p>
+          <p className="text-xs text-gray-500">{formatCredits(totalCredits)} / 24 credits ({progressPercent.toFixed(0)}%)</p>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ const StudentContext = ({ context, loading }) => {
                 <div className="flex justify-between mb-0.5">
                   <span className="text-gray-600">{SUBJECT_LABELS[subject]}</span>
                   <span className="text-gray-400">
-                    {(credit?.creditsCounted || 0).toFixed(1)}/{credit?.creditsRequired || 0}
+                    {formatCredits(credit?.creditsCounted)}/{credit?.creditsRequired || 0}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 flex overflow-hidden">

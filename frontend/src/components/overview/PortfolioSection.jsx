@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import QuestAccordionGallery from './QuestAccordionGallery';
 import EvidenceDetailModal from '../diploma/EvidenceDetailModal';
+import { formatCredits } from '../../utils/creditRequirements';
 
 const SUBJECT_DISPLAY_NAMES = {
   'language_arts': 'Language Arts',
@@ -312,7 +313,7 @@ const PortfolioSection = ({
         {/* Info area - matches quest card p-3 */}
         <div className="p-3">
           <h4 className="text-sm font-semibold text-gray-900">
-            {tc.total_credits.toFixed(1)} credits
+            {formatCredits(tc.total_credits)} credits
           </h4>
           {sortedSubjects.length > 0 && (
             <ul className="mt-2 space-y-1">

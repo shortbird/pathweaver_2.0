@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { formatCredits } from '../../utils/creditRequirements';
 
 // Subject progress row with full name. Shared core primitive used by the Optio
 // credits panel (SkillsGrowth) and by program diploma widgets (e.g. Hearthwood
@@ -13,7 +14,7 @@ import PropTypes from 'prop-types';
 //   - In progress (purple): credit earned, requirement not yet met.
 //   - Pending approval (yellow): requested but not yet finalized.
 //
-// Over-earned credit is called out rather than clipped. A row reading "2.3/1"
+// Over-earned credit is called out rather than clipped. A row reading "2.25/1"
 // with a full bar otherwise looks like a bug, and it is also the explanation
 // for why a student's total XP implies more credits than the headline shows:
 // the excess is on their transcript but cannot count toward another subject.
@@ -107,7 +108,7 @@ const SubjectProgressRow = ({ credit, pendingCredits = 0 }) => {
           <span className="text-gray-500">
             {remaining} to go
             {hasPending && (
-              <span className="text-yellow-600 ml-1">+{pendingCredits.toFixed(1)}</span>
+              <span className="text-yellow-600 ml-1">+{formatCredits(pendingCredits)}</span>
             )}
           </span>
         )}

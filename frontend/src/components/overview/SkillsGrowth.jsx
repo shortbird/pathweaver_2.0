@@ -8,6 +8,7 @@ import {
   getCreditStanding,
   calculateTotalCredits,
   splitCreditProgress,
+  formatCredits,
   TOTAL_CREDITS_REQUIRED
 } from '../../utils/creditRequirements';
 
@@ -91,7 +92,7 @@ const SkillsGrowth = ({
             }`}>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-gray-800">
-                  {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
+                  {formatCredits(totalCreditsEarned)}/{TOTAL_CREDITS_REQUIRED}
                 </span>
                 <span className={`text-xs font-medium ${
                   allComplete ? 'text-green-700' : 'text-blue-600'
@@ -148,7 +149,7 @@ const SkillsGrowth = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span className="text-xs font-medium">
-                    +{totalPendingCredits.toFixed(1)} pending approval
+                    +{formatCredits(totalPendingCredits)} pending approval
                   </span>
                 </div>
               )}

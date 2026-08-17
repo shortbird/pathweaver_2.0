@@ -80,7 +80,7 @@ describe('a card per previous school', () => {
 
   it('states the credits alongside the XP', () => {
     renderPortfolio([CAVA])
-    expect(cardFor(CAVA.school_name).getByText('8.8 credits')).toBeInTheDocument()
+    expect(cardFor(CAVA.school_name).getByText('8.75 credits')).toBeInTheDocument()
   })
 })
 
