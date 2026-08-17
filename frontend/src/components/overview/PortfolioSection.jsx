@@ -278,15 +278,21 @@ const PortfolioSection = ({
     ? transferCredits
     : transferCredits ? [transferCredits] : [];
 
-  // Single Transfer Credit Card
+  // One card per previous school: what transferred, and into which subjects.
+  //
+  // Deliberately NOT a link to the transcript. The transcript is an education
+  // record with the student's name, address and grades on it; the portfolio is
+  // the surface a student shares. What belongs here is the SHAPE of what they
+  // brought — this much XP, in these subjects — not the underlying document,
+  // which stays in the private bucket for staff.
   const TransferCreditCard = ({ tc }) => {
     if (!tc || !tc.total_credits) return null;
 
-    const subjectCredits = tc.subject_credits || {};
-    const sortedSubjects = Object.entries(subjectCredits)
-      .filter(([, credits]) => credits > 0)
+    const subjectXp = tc.subject_xp || {};
+    const sortedSubjects = Object.entries(subjectXp)
+      .filter(([, xp]) => xp > 0)
       .sort((a, b) => b[1] - a[1]);
-    const totalXp = Math.round(tc.total_credits * 2000);
+    const totalXp = tc.total_xp || Math.round(tc.total_credits * 2000);
 
     return (
       <div className="rounded-xl border border-gray-200 overflow-hidden bg-white flex flex-col mb-4 break-inside-avoid">
@@ -294,10 +300,10 @@ const PortfolioSection = ({
         <div className="relative h-32 overflow-hidden">
           <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-500 flex flex-col items-center justify-center px-3 text-center">
             <svg className="w-8 h-8 text-white/50 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42A12 12 0 0118 16.5 11.96 11.96 0 0112 21a11.96 11.96 0 01-6-4.5 12 12 0 01-.16-5.92L12 14z" />
             </svg>
             <p className="text-white font-bold text-sm leading-tight">{tc.school_name || 'Previous School'}</p>
-            <p className="text-white/70 text-xs mt-0.5">Official Transcript</p>
+            <p className="text-white/70 text-xs mt-0.5">Credit transferred in</p>
           </div>
           <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-semibold text-emerald-600">
             +{totalXp.toLocaleString()} XP
@@ -305,25 +311,23 @@ const PortfolioSection = ({
         </div>
         {/* Info area - matches quest card p-3 */}
         <div className="p-3">
-          <h4 className="text-sm font-semibold text-gray-900 truncate">
-            Transfer Credits ({tc.total_credits.toFixed(1)} cr)
+          <h4 className="text-sm font-semibold text-gray-900">
+            {tc.total_credits.toFixed(1)} credits
           </h4>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            {tc.transcript_url && (
-              <a
-                href={tc.transcript_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View Transcript
-              </a>
-            )}
-          </div>
+          {sortedSubjects.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {sortedSubjects.map(([subject, xp]) => (
+                <li key={subject} className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-gray-600 truncate">
+                    {SUBJECT_DISPLAY_NAMES[subject] || subject}
+                  </span>
+                  <span className="text-gray-500 tabular-nums whitespace-nowrap">
+                    {xp.toLocaleString()} XP
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     );

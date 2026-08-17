@@ -5,7 +5,9 @@ import SubjectProgressRow from '../diploma/SubjectProgressRow';
 import { renderDiplomaWidget } from '../../programs/registry';
 import {
   getAllCreditProgress,
+  getCreditStanding,
   calculateTotalCredits,
+  splitCreditProgress,
   TOTAL_CREDITS_REQUIRED
 } from '../../utils/creditRequirements';
 
@@ -18,8 +20,15 @@ const SkillsGrowth = ({
   hideHeader = false,
   showDiplomaCredits = true
 }) => {
-  const totalCreditsEarned = calculateTotalCredits(subjectXp);
-  const creditProgress = getAllCreditProgress(subjectXp);
+  // Standing, not a single total: `totalApplied` is progress toward the
+  // diploma, `totalEarned` is what's on the transcript. Showing only the first
+  // is what made a student's XP look like it disagreed with their credits.
+  const standing = getCreditStanding(subjectXp);
+  const creditProgress = standing.progress;
+  const totalCreditsEarned = standing.totalApplied;
+  const { remaining, complete } = splitCreditProgress(creditProgress);
+  const creditsLeft = standing.remaining;
+  const allComplete = creditProgress.length > 0 && remaining.length === 0;
 
   const pendingCreditProgress = getAllCreditProgress(pendingSubjectXp);
   const totalPendingCredits = calculateTotalCredits(pendingSubjectXp);
@@ -73,13 +82,20 @@ const SkillsGrowth = ({
           <div className="p-6">
             <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Diploma Credits</h3>
 
-            {/* Overall Progress Bar */}
-            <div className="p-4 rounded-lg mb-4 bg-blue-50 border border-blue-200">
+            {/* Overall progress. The headline answers "how far am I", the line
+                under it answers "how much is left" — which the ratio alone
+                never did, because over-earned credit makes 24 minus the total
+                the wrong answer (see creditsRemaining). */}
+            <div className={`p-4 rounded-lg mb-4 border ${
+              allComplete ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
+            }`}>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-gray-800">
                   {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
                 </span>
-                <span className="text-xs font-medium text-blue-600">
+                <span className={`text-xs font-medium ${
+                  allComplete ? 'text-green-700' : 'text-blue-600'
+                }`}>
                   {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
                 </span>
               </div>
@@ -93,12 +109,39 @@ const SkillsGrowth = ({
                   ></div>
                 )}
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-primary transition-all duration-500"
+                  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                    allComplete ? 'bg-green-500' : 'bg-gradient-primary'
+                  }`}
                   style={{
                     width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
                   }}
                 ></div>
               </div>
+
+              {/* The tally students actually track themselves by. */}
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                <span className={allComplete ? 'text-green-800 font-medium' : 'text-gray-600'}>
+                  {allComplete
+                    ? 'Every subject complete'
+                    : `${complete.length} of ${creditProgress.length} subjects complete`}
+                </span>
+                {!allComplete && (
+                  <span className="text-gray-600">
+                    {creditsLeft} credit{creditsLeft === 1 ? '' : 's'} to go
+                  </span>
+                )}
+              </div>
+
+              {/* Earned vs applied, stated only when they differ. Credit past
+                  every requirement is real and on the transcript; saying so is
+                  what stops the headline looking like it lost something. */}
+              {standing.beyond > 0 && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {standing.totalEarned} earned in total
+                  {' · '}
+                  {standing.beyond} beyond what the diploma requires
+                </p>
+              )}
               {hasPendingCredits && (
                 <div className="mt-2 flex items-center gap-1 text-yellow-700">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,15 +154,44 @@ const SkillsGrowth = ({
               )}
             </div>
 
-            {/* Subject Progress List */}
-            <div className="space-y-2.5">
-              {creditProgress.map((credit) => (
-                <SubjectProgressRow
-                  key={credit.subject}
-                  credit={credit}
-                  pendingCredits={pendingBySubject[credit.subject] || 0}
-                />
-              ))}
+            {/* Two groups, unfinished first. The panel's job is "what's next",
+                and complete-first sorting buried that under a wall of finished
+                bars. The finished group stays visible rather than collapsing —
+                the pile of done subjects is the part worth looking at. */}
+            <div className="space-y-4">
+              {remaining.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Still to earn · {remaining.length}
+                  </h4>
+                  {remaining.map((credit) => (
+                    <SubjectProgressRow
+                      key={credit.subject}
+                      credit={credit}
+                      pendingCredits={pendingBySubject[credit.subject] || 0}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {complete.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-semibold text-green-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" clipRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z" />
+                    </svg>
+                    Complete · {complete.length}
+                  </h4>
+                  {complete.map((credit) => (
+                    <SubjectProgressRow
+                      key={credit.subject}
+                      credit={credit}
+                      pendingCredits={pendingBySubject[credit.subject] || 0}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}

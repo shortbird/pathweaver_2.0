@@ -162,6 +162,19 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
   };
 
   if (questGroups.length === 0) {
+    // A student can have a portfolio with no quests in it yet — a transfer
+    // student's first content is the credit they arrived with. Returning null
+    // here dropped those cards on the floor and showed them an empty portfolio
+    // the day they joined, which is the worst possible first impression.
+    if (transferCreditsCard) {
+      return (
+        <div className="quest-accordion-gallery">
+          <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
+            {transferCreditsCard}
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 
