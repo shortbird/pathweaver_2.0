@@ -1,9 +1,19 @@
 import { expect, afterEach, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import * as matchers from '@testing-library/jest-dom/matchers'
 
 // Extend Vitest's expect with jest-dom matchers
 expect.extend(matchers)
+
+// findBy*/waitFor default to 1s, which is shorter than the 5s testTimeout this
+// project sets in vitest.config.mjs - so a test the config considers to have
+// four seconds left will already have failed. What that costs is a flake in
+// whichever test renders first in a file: it pays for the cold-start module
+// transform, and on a slow runner it loses to the 1s cap on timing alone.
+// schoolPageCarpool.test.jsx failed exactly this way (its own first test, the
+// other six green, and the whole file green when the cap is lifted). Align the
+// two so only genuinely stuck assertions fail; a passing suite waits no longer.
+configure({ asyncUtilTimeout: 5000 })
 
 // Mock focus-trap-react globally to avoid focus trap issues in jsdom
 // Focus traps require tabbable elements which jsdom doesn't properly support
