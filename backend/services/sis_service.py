@@ -206,6 +206,12 @@ def _age_years(dob: Any) -> Optional[int]:
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+# Public name for the same thing, for callers outside this module (the training
+# catalog narrows a student audience by age). Nothing here is private-by-design;
+# the underscore is only how this file names its own helpers.
+age_years = _age_years
+
+
 def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
     """Absolute day gap between two DOBs, or None when either is unknown."""
     da, db = _parse_iso_date(a), _parse_iso_date(b)

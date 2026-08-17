@@ -41,8 +41,18 @@ class TestTheAudience:
         assert training._audience('family') == 'family'
         assert training._audience('  FAMILY  ') == 'family'
 
-    def test_those_are_the_only_two(self):
-        assert training.AUDIENCES == ('staff', 'family')
+    def test_students_joined_them(self):
+        """iCreate, 2026-08-17: "12+ students and all parents". Students were a
+        group the catalog could not name at all."""
+        assert training._audience('student') == 'student'
+        assert training.AUDIENCES == ('staff', 'family', 'student')
+
+    def test_a_row_can_be_for_several_groups_at_once(self):
+        assert training._audiences(['student', 'family']) == ['family', 'student']
+
+    def test_a_row_written_before_the_column_still_means_what_it_meant(self):
+        assert training._audiences(None, 'family') == ['family']
+        assert training._audiences([], None) == ['staff']
 
 
 def _quest_row(quest_id='q1', title='Back to school night', active=True):
@@ -62,7 +72,7 @@ class _Tables:
     def __call__(self, name):
         self.queried.append(name)
         t = Mock()
-        for chained in ('select', 'eq', 'in_', 'order', 'limit', 'range'):
+        for chained in ('select', 'eq', 'in_', 'contains', 'order', 'limit', 'range'):
             getattr(t, chained).return_value = t
         t.execute.return_value = Mock(data=self.rows.get(name, []))
         return t
@@ -119,15 +129,26 @@ class TestWhatAGuardianSees:
         out, _ = _school_quests({'sis_staff_training': []})
         assert out == []
 
-    def test_it_never_reads_a_student_record(self):
-        """Back to school night is the parent's, not their child's. If this ever
-        starts touching students, the feature has quietly changed meaning."""
-        _, tables = _school_quests({
+    def test_the_list_it_returns_is_the_guardians_own(self):
+        """Back to school night is the parent's, not their child's.
+
+        The household IS read now — a quest a school sets for its students has
+        no page of its own to enroll them from, so that catch-up runs here, over
+        this guardian's children (see catch_up_students). What must not change
+        is whose list this is: the rows returned are the guardian's quests and
+        the guardian's progress, and nothing a child has done appears in them.
+        """
+        out, tables = _school_quests({
             'sis_staff_training': [_quest_row()],
             'user_quests': [{'id': 'uq1', 'quest_id': 'q1', 'completed_at': None}],
+            'user_quest_tasks': [{'id': 't1', 'user_quest_id': 'uq1'}],
         })
-        assert 'household_members' not in tables.queried
+        assert [q['quest_id'] for q in out] == ['q1']
+        assert out[0]['progress'] == {'started': True, 'completed': False,
+                                      'done': 0, 'total': 1}
+        # Nothing about a child's school day belongs in a guardian's quest list.
         assert 'class_enrollments' not in tables.queried
+        assert 'quest_task_completions' in tables.queried
 
 
 @pytest.mark.unit

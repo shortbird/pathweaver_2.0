@@ -18,17 +18,23 @@ import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
  *
- * Two audiences (iCreate, 2026-08-06: "admin need to be able to create quests
+ * Three audiences (iCreate, 2026-08-06: "admin need to be able to create quests
  * for all their teachers and families"):
  *   Teachers  training — the original page.
  *   Families  quests guardians do themselves, e.g. back to school night.
+ *   Students  quests the school sets, optionally narrowed by age.
+ *
+ * The tabs are a filter, not a filing system: one quest can be set for several
+ * groups at once — iCreate's orientation quest goes to "12+ students and all
+ * parents" (2026-08-17) — and shows on every tab it targets.
  *
  * Teachers see what they need to do and how far they've got; admins also see
- * who has finished what, for either audience. The content itself is an ordinary
+ * who has finished what, one group at a time. The content itself is an ordinary
  * quest, so it is written in the normal curriculum editor (videos included) and
  * completed in the web platform — this page is the staff-facing door to it.
  *
- * Families read their own side in the family portal, not here.
+ * Families read their own side in the family portal; students just find the
+ * quest on their account, which is why the student audience has no page here.
  */
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
@@ -59,10 +65,22 @@ const progressStyle = (p) => {
   return 'bg-amber-100 text-amber-800'
 }
 
+/** What each tab calls the people on it, in the few places copy needs it. */
+const AUDIENCE_WORDS = {
+  // `joiners` is who arrives later, which is not always the plural of `one`:
+  // people join a school as staff, not as "people".
+  staff: { one: 'person', many: 'people', joiners: 'staff',
+    quests: 'training quests', add: 'Add training' },
+  family: { one: 'family', many: 'families', joiners: 'families',
+    quests: 'family quests', add: 'Add a family quest' },
+  student: { one: 'student', many: 'students', joiners: 'students',
+    quests: 'student quests', add: 'Add a student quest' },
+}
+const words = (audience) => AUDIENCE_WORDS[audience] || AUDIENCE_WORDS.staff
+
 const people = (n, audience) => {
-  const word = audience === 'family' ? 'family' : 'person'
-  const plural = audience === 'family' ? 'families' : 'people'
-  return `${n} ${n === 1 ? word : plural}`
+  const { one, many } = words(audience)
+  return `${n} ${n === 1 ? one : many}`
 }
 
 /**
@@ -73,8 +91,7 @@ const people = (n, audience) => {
  * "'s" on regardless produced "2 families's accounts".
  */
 const accountsOf = (n, audience) => {
-  const one = audience === 'family' ? 'family' : 'person'
-  const many = audience === 'family' ? 'families' : 'people'
+  const { one, many } = words(audience)
   if (n === 1) return `${n} ${one}'s account`
   return `${n} ${many}${many.endsWith('s') ? "'" : "'s"} accounts`
 }
@@ -105,6 +122,18 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
   const [xpThreshold, setXpThreshold] = useState('')
   const [xpEdited, setXpEdited] = useState(false)
   const [roles, setRoles] = useState([])
+  // Who the quest is for. A set, not a value: iCreate's orientation quest goes
+  // to "12+ students and all parents" (2026-08-17), which one audience could
+  // not say. Starts as the tab it was opened from, so the common case of
+  // "a quest for the group I am looking at" needs no thought.
+  const [targets, setTargets] = useState([audience])
+  const [minAge, setMinAge] = useState('')
+  const [maxAge, setMaxAge] = useState('')
+  const toggleTarget = (value) => setTargets((ts) => (
+    ts.includes(value)
+      // Never leave it aimed at nobody — the last one ticked stays ticked.
+      ? (ts.length > 1 ? ts.filter((t) => t !== value) : ts)
+      : [...ts, value]))
   const [busy, setBusy] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   // Uploaded as soon as it is chosen, so the preview can show the real picture
@@ -192,10 +221,22 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
         setRequired(!!cat.is_required)
         setAutoAssign(!!cat.auto_assign)
         setRoles(cat.visible_to_roles || [])
+        setTargets(cat.audiences?.length ? cat.audiences : [cat.audience || audience])
+        setMinAge(cat.student_min_age == null ? '' : String(cat.student_min_age))
+        setMaxAge(cat.student_max_age == null ? '' : String(cat.student_max_age))
       })
       .catch(() => toast.error('Could not load that quest'))
       .finally(() => setLoadingEdit(false))
   }, [editItem, orgId])
+
+  // Who it is for, in the shape all three save paths send. The age window is
+  // only meaningful with students ticked, and is sent as null rather than
+  // omitted so unticking students actually clears it.
+  const audienceFields = () => ({
+    audiences: targets,
+    student_min_age: targets.includes('student') && minAge !== '' ? Number(minAge) : null,
+    student_max_age: targets.includes('student') && maxAge !== '' ? Number(maxAge) : null,
+  })
 
   const saveEdits = async () => {
     if (!title.trim()) { toast.error('Give the quest a title'); return }
@@ -211,6 +252,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
         category: category.trim(), is_required: required,
         auto_assign: autoAssign,
         visible_to_roles: roles.length ? roles : undefined,
+        ...audienceFields(),
       })
       toast.success('Changes saved')
       onAdded()
@@ -230,9 +272,11 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
         category: category.trim(), is_required: required,
         auto_assign: autoAssign, xp_threshold: xpToSend,
         visible_to_roles: roles.length ? roles : undefined,
+        ...audienceFields(),
       })
       toast.success(assignedMessage(res.data?.assigned, audience,
-        audience === 'family' ? 'Set for families' : 'Added to training'))
+        audience === 'family' ? 'Set for families'
+          : audience === 'student' ? 'Set for students' : 'Added to training'))
       onAdded()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not add it')
@@ -256,11 +300,13 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
         category: category.trim(), is_required: required,
         auto_assign: autoAssign, xp_threshold: xpToSend,
         visible_to_roles: roles.length ? roles : undefined,
+        ...audienceFields(),
       })
       toast.success(asDraft
         ? 'Saved as a draft. Nobody can see it until you publish it.'
         : assignedMessage(res.data?.assigned, audience,
-          audience === 'family' ? 'Quest built and set for families' : 'Quest built and added'))
+          audience === 'family' ? 'Quest built and set for families'
+            : audience === 'student' ? 'Quest built and set for students' : 'Quest built and added'))
       onAdded()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not build the quest')
@@ -276,7 +322,9 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           ? 'Editing this quest. Changes apply to anyone who starts it from now on \u2014 tasks already on somebody\u2019s account are their work and are left alone.'
           : audience === 'family'
             ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
-            : 'Training is a quest. Attach one you already have, or build it here.'}
+            : audience === 'student'
+              ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, or build it here.'
+              : 'Training is a quest. Attach one you already have, or build it here.'}
       </p>
       {/* Two doors: attach one that exists, or build one here. Editing has only
           the one door \u2014 the quest already exists and is being rewritten. */}
@@ -355,11 +403,13 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           title={title} setTitle={setTitle}
           description={description} setDescription={setDescription}
           tasks={tasks} setTasks={setTasks}
-          titlePlaceholder={audience === 'family' ? 'Quest title (e.g. Back to school night)' : 'Quest title (e.g. Classroom management)'}
-          descriptionPlaceholder={audience === 'family' ? 'What are families doing?' : 'What are teachers learning?'}
-          taskHint={audience === 'family'
-            ? 'Preset tasks are copied to each parent when they start the quest. Leave it empty and they write their own.'
-            : 'Preset tasks are copied to each teacher when they start the quest. Leave it empty and they write their own.'}
+          titlePlaceholder={audience === 'family' ? 'Quest title (e.g. Back to school night)'
+            : audience === 'student' ? 'Quest title (e.g. Welcome to iCreate)'
+              : 'Quest title (e.g. Classroom management)'}
+          descriptionPlaceholder={audience === 'family' ? 'What are families doing?'
+            : audience === 'student' ? 'What are students doing?' : 'What are teachers learning?'}
+          taskHint={'Preset tasks are copied to each person when they start the quest. '
+            + 'Leave it empty and they write their own.'}
           />
         </div>
       )}
@@ -368,7 +418,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           placeholder="Category (e.g. Onboarding, Classroom management)" className={inputClass} />
         <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-          {audience === 'family' ? 'Required for all families' : 'Required for all staff'}
+          Required for everyone it goes to
         </label>
         <label className="flex items-start gap-2 text-sm text-neutral-700">
           <span className="shrink-0 pt-2">XP to finish</span>
@@ -411,25 +461,58 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           <span>
             Put it on their accounts
             <span className="block text-xs text-neutral-500">
-              {audience === 'family'
-                ? 'Every family gets the quest now, and any family that joins later gets it too. Untick to let families find it themselves.'
-                : 'Everyone it applies to gets the quest now, and anyone who joins later gets it too. Untick to let staff pick it up themselves.'}
+              Everyone it goes to gets the quest now, and anyone who joins later gets it
+              too. Untick to let them find it themselves.
             </span>
           </span>
         </label>
-        {audience !== 'family' && (
-          <div className="sm:col-span-2 text-xs text-neutral-500">
-            <span className="block mb-1">Which staff roles <span className="text-neutral-400">(none ticked = all staff)</span></span>
-            <div className="flex items-center gap-3">
-              {[['org_admin', 'Admins'], ['campus_coordinator', 'Coordinators'], ['advisor', 'Teachers']].map(([value, label]) => (
-                <label key={value} className="flex items-center gap-1.5 text-sm text-neutral-700">
-                  <input type="checkbox" checked={roles.includes(value)} onChange={() => toggleRole(value)} />
-                  {label}
-                </label>
-              ))}
-            </div>
+        {/* Who it goes to. Several groups at once, because a school's
+            orientation quest is one quest whether the parents or the teenagers
+            are doing it (iCreate, 2026-08-17). */}
+        <div className="sm:col-span-2 border-t border-gray-200 pt-3">
+          <span className="block text-xs text-neutral-500 mb-1.5">Who gets this quest</span>
+          <div className="flex flex-wrap items-center gap-4">
+            {[['staff', 'Staff'], ['family', 'Parents'], ['student', 'Students']].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                <input type="checkbox" checked={targets.includes(value)}
+                  onChange={() => toggleTarget(value)} />
+                {label}
+              </label>
+            ))}
           </div>
-        )}
+          {targets.includes('student') && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-neutral-700">
+              <span className="text-xs text-neutral-500">Students aged</span>
+              <input type="number" min={0} max={120} value={minAge}
+                onChange={(e) => setMinAge(e.target.value)}
+                placeholder="any" aria-label="Youngest student age"
+                className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+              <span className="text-xs text-neutral-500">to</span>
+              <input type="number" min={0} max={120} value={maxAge}
+                onChange={(e) => setMaxAge(e.target.value)}
+                placeholder="any" aria-label="Oldest student age"
+                className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+              <span className="block w-full text-xs text-neutral-500 mt-1">
+                {minAge || maxAge
+                  ? 'A student with no date of birth on file is left out, so check their record if somebody is missing.'
+                  : 'Leave both blank for every student. Fill in the first for "12 and up".'}
+              </span>
+            </div>
+          )}
+          {targets.includes('staff') && (
+            <div className="mt-3 text-xs text-neutral-500">
+              <span className="block mb-1">Which staff roles <span className="text-neutral-400">(none ticked = all staff)</span></span>
+              <div className="flex items-center gap-3">
+                {[['org_admin', 'Admins'], ['campus_coordinator', 'Coordinators'], ['advisor', 'Teachers']].map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                    <input type="checkbox" checked={roles.includes(value)} onChange={() => toggleRole(value)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
@@ -594,7 +677,8 @@ const StaffTrainingPage = () => {
           this is where an admin decides what is on it. */}
       {admin && (
         <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-4">
-          {[['staff', 'For teachers'], ['family', 'For families']].map(([key, label]) => (
+          {[['staff', 'For teachers'], ['family', 'For families'],
+            ['student', 'For students']].map(([key, label]) => (
             <button key={key} onClick={() => { setAudience(key); setAdding(false) }}
               aria-pressed={audience === key}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -633,7 +717,7 @@ const StaffTrainingPage = () => {
           {!adding && view === 'mine' && (
             <button onClick={() => setAdding(true)}
               className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
-              <PlusIcon className="w-4 h-4" /> {audience === 'family' ? 'Add a family quest' : 'Add training'}
+              <PlusIcon className="w-4 h-4" /> {words(audience).add}
             </button>
           )}
         </div>
@@ -652,7 +736,7 @@ const StaffTrainingPage = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <AcademicCapIcon className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
           <p className="text-sm text-neutral-600 font-medium">
-            {audience === 'family' ? 'No family quests yet.' : 'No training quests yet.'}
+            No {words(audience).quests} yet.
           </p>
           {admin && <p className="text-sm text-neutral-500 mt-1">Build a quest, then add it here.</p>}
         </div>
@@ -677,9 +761,14 @@ const StaffTrainingPage = () => {
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
                         title="Only admins can see this">Draft</span>
                     )}
+                    {/* "On everyone's accounts" read as a claim that it was
+                        already live for everyone. It is a setting, not a state:
+                        what it means is that new arrivals get it too. */}
                     {admin && t.auto_assign && !t.is_draft && (
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700"
-                        title="Anyone who joins later gets this automatically">On everyone's accounts</span>
+                        title={`Any ${words(audience).one} who joins later gets this automatically`}>
+                        Auto-assigns to new {words(audience).joiners}
+                      </span>
                     )}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full ${progressStyle(t.my_progress)}`}>
                       {progressLabel(t.my_progress)}
@@ -747,13 +836,14 @@ const StaffTrainingPage = () => {
       ))}
 
       {!loading && view === 'everyone' && admin && (
-        !report?.staff?.length ? <p className="text-neutral-500">No staff to report on yet.</p> : (
+        !report?.staff?.length
+          ? <p className="text-neutral-500">No {words(audience).many} to report on yet.</p> : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
         <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
-                    {audience === 'family' ? 'Family' : 'Staff'}
+                    {audience === 'family' ? 'Family' : audience === 'student' ? 'Student' : 'Staff'}
                   </th>
                   {(report.training || []).map((t) => (
                     <th key={t.quest_id} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">

@@ -127,14 +127,14 @@ describe('assigning training to everyone', () => {
 
   it('shows which quests keep assigning themselves to new arrivals', async () => {
     render(<StaffTrainingPage />)
-    expect(await screen.findByText(/on everyone's accounts/i)).toBeInTheDocument()
+    expect(await screen.findByText(/auto-assigns to new staff/i)).toBeInTheDocument()
   })
 
   it('leaves the badge off a quest people opt into themselves', async () => {
     mockGets([{ ...ITEM, auto_assign: false }])
     render(<StaffTrainingPage />)
     await screen.findByText('Family orientation')
-    expect(screen.queryByText(/on everyone's accounts/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/auto-assigns to new/i)).not.toBeInTheDocument()
   })
 })
 

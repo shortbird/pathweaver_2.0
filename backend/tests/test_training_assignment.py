@@ -181,6 +181,95 @@ def test_narrowing_still_excludes_the_roles_it_leaves_out():
     assert training._item_applies_to(item, {'id': 'u', 'roles': ['observer']}, 'staff') is False
 
 
+# ── Students, and the age window ──────────────────────────────────────────────
+#
+# iCreate, 2026-08-17, of their orientation quest: they did not want it on
+# everybody's account, they wanted it on "12+ students and all parents". Two
+# groups at once, one of which the catalog could not name and one of which needs
+# an age gate.
+
+def _student(uid='s1', age=13):
+    return {'id': uid, 'group': 'student', 'age': age}
+
+
+def test_a_row_with_no_age_window_reaches_every_student():
+    assert training._item_applies_to({}, _student(age=6)) is True
+
+
+def test_twelve_and_up_leaves_the_younger_ones_out():
+    item = {'student_min_age': 12}
+    assert training._item_applies_to(item, _student(age=12)) is True
+    assert training._item_applies_to(item, _student(age=17)) is True
+    assert training._item_applies_to(item, _student(age=11)) is False
+
+
+def test_a_window_can_be_closed_at_both_ends():
+    item = {'student_min_age': 8, 'student_max_age': 11}
+    assert training._item_applies_to(item, _student(age=8)) is True
+    assert training._item_applies_to(item, _student(age=11)) is True
+    assert training._item_applies_to(item, _student(age=12)) is False
+
+
+def test_a_student_with_no_date_of_birth_is_left_out_of_a_windowed_row():
+    """"12 and up" has to mean it. Guessing would put a quest written for
+    teenagers on a six-year-old's account, where nobody would see it happen."""
+    assert training._item_applies_to({'student_min_age': 12}, _student(age=None)) is False
+
+
+def test_but_an_unknown_age_is_fine_when_the_row_has_no_window():
+    assert training._item_applies_to({}, _student(age=None)) is True
+
+
+def test_the_age_window_does_not_leak_onto_staff_or_families():
+    """A row for parents AND 12+ students must not quietly age-check a parent."""
+    item = {'student_min_age': 12}
+    assert training._item_applies_to(item, {'id': 'g1', 'group': 'family'}) is True
+    assert training._item_applies_to(
+        item, {'id': 'u1', 'group': 'staff', 'roles': ['advisor']}) is True
+
+
+def test_an_admin_is_not_swept_into_a_student_row_by_being_an_admin():
+    """Admins are exempt from staff ROLE narrowing. That exemption must not
+    carry over: running the school does not make you a 12-year-old."""
+    item = {'student_min_age': 12, 'student_max_age': 17}
+    admin_as_student = {'id': 'u1', 'group': 'student',
+                        'roles': ['org_admin'], 'age': 40}
+    assert training._item_applies_to(item, admin_as_student) is False
+
+
+def test_one_row_reaches_several_groups(monkeypatch):
+    """The whole point: parents and 12+ students off a single catalog row."""
+    monkeypatch.setattr(training, '_audience_people', lambda org, group: {
+        'family': [{'id': 'mum', 'group': 'family'}],
+        'student': [{'id': 'teen', 'group': 'student', 'age': 14},
+                    {'id': 'little', 'group': 'student', 'age': 6}],
+        'staff': [{'id': 'teacher', 'group': 'staff', 'roles': ['advisor']}],
+    }[group])
+    people = training._eligible_people(ORG, {
+        'audiences': ['family', 'student'], 'student_min_age': 12})
+    assert [p['id'] for p in people] == ['mum', 'teen']
+
+
+def test_somebody_in_two_groups_is_counted_once(monkeypatch):
+    """At iCreate the admins are parents too. Reaching them twice would make
+    "assigned to 12 people" a count of memberships rather than of people."""
+    monkeypatch.setattr(training, '_audience_people', lambda org, group: {
+        'staff': [{'id': 'molly', 'group': 'staff', 'roles': ['org_admin']}],
+        'family': [{'id': 'molly', 'group': 'family'}, {'id': 'dana', 'group': 'family'}],
+        'student': [],
+    }[group])
+    people = training._eligible_people(ORG, {'audiences': ['staff', 'family']})
+    assert [p['id'] for p in people] == ['molly', 'dana']
+
+
+def test_a_row_written_before_the_column_is_read_as_what_it_was(monkeypatch):
+    """Every existing catalog row has audiences NULL until it is next saved."""
+    monkeypatch.setattr(training, '_audience_people', lambda org, group:
+                        [{'id': f'{group}-1', 'group': group}])
+    people = training._eligible_people(ORG, {'audience': 'family'})
+    assert [p['id'] for p in people] == ['family-1']
+
+
 # ── Who counts as a guardian ──────────────────────────────────────────────────
 
 def test_roles_are_read_from_every_column_that_holds_one():

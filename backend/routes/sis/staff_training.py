@@ -32,6 +32,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
+from services import sis_training_service
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 
@@ -64,7 +65,9 @@ def _bad_uuid(*values):
     return False
 
 
-AUDIENCES = ('staff', 'family')
+# Who a catalog row can be set for. Listed in the order a row's PRIMARY group is
+# picked when it targets several — see _primary_audience.
+AUDIENCES = ('staff', 'family', 'student')
 
 # Quest-authoring limits and pillar handling, matching routes/sis/class_quests.py
 # — the same rules about what a quest IS, reached from the other screen that
@@ -99,6 +102,11 @@ def _clean_image_url(raw):
     if _HEADER_IMAGE_PATH not in url:
         return None, 'That image was not uploaded here. Upload the file instead of linking to it.'
     return url, None
+
+
+def _uploaded_image(url):
+    """The url only if it is one of ours, otherwise ''. See get_training_quest."""
+    return url if (url and _HEADER_IMAGE_PATH in url) else ''
 
 
 def _org_logo(org_id):
@@ -171,6 +179,66 @@ def _audience(value):
     return v if v in AUDIENCES else 'staff'
 
 
+def _audiences(value, fallback=None):
+    """Every group a row is set for, in AUDIENCES order, never empty.
+
+    iCreate, 2026-08-17: "assign to 12+ students and all parents". One quest,
+    two groups — so who a row is for is a set, not a value. `fallback` is the
+    row's old single `audience`, which is what a catalog nobody has edited since
+    still carries.
+    """
+    if isinstance(value, str):
+        value = [value]
+    if isinstance(value, (list, tuple)):
+        wanted = {str(v).strip().lower() for v in value if v}
+        picked = [a for a in AUDIENCES if a in wanted]
+        if picked:
+            return picked
+    return [_audience(fallback)]
+
+
+def _primary_audience(audiences):
+    """The one value the `audience` column keeps holding.
+
+    It carries the one-row-per-quest unique index, and the guardian family
+    portal still reads on it — so a row that includes parents must resolve to
+    'family' rather than to whatever happens to sort first.
+    """
+    return audiences[0]
+
+
+def _row_audiences(row):
+    """A catalog row's groups, tolerating a row written before the column."""
+    return _audiences(row.get('audiences'), row.get('audience'))
+
+
+def _clean_age(raw, label):
+    """(age, error) for one end of the student age window."""
+    if raw is None or raw == '':
+        return None, None
+    try:
+        age = int(raw)
+    except (TypeError, ValueError):
+        return None, f'{label} must be a number.'
+    if age < 0 or age > 120:
+        return None, f'{label} must be between 0 and 120.'
+    return age, None
+
+
+def _clean_age_window(data):
+    """(min, max, error). An inverted window assigns to nobody, which looks
+    exactly like a broken assign button, so it is refused here."""
+    lo, err = _clean_age(data.get('student_min_age'), 'The youngest age')
+    if err:
+        return None, None, err
+    hi, err = _clean_age(data.get('student_max_age'), 'The oldest age')
+    if err:
+        return None, None, err
+    if lo is not None and hi is not None and lo > hi:
+        return None, None, 'The youngest age cannot be above the oldest age.'
+    return lo, hi, None
+
+
 def _catalog(org_id, audience='staff', include_drafts=False):
     """The org's quests for one audience, in order, with quest titles.
 
@@ -178,11 +246,16 @@ def _catalog(org_id, audience='staff', include_drafts=False):
     is_active=False — built, reviewable, previewable, but not on anybody's
     account and invisible to the people it is eventually for.
     """
+    # Filtered on `audiences` rather than the primary `audience` column: a quest
+    # set for parents AND students belongs on both tabs, and reading the single
+    # column would drop it from one of them.
     rows = (_admin().table('sis_staff_training')
             .select('id, quest_id, category, is_required, sequence_order, audience, '
+                    'audiences, student_min_age, student_max_age, '
                     'visible_to_roles, auto_assign, '
                     'quests(id, title, description, is_active, xp_threshold, organization_id)')
-            .eq('organization_id', org_id).eq('audience', _audience(audience))
+            .eq('organization_id', org_id)
+            .contains('audiences', [_audience(audience)])
             .order('sequence_order').execute()).data or []
     out = []
     for r in rows:
@@ -202,6 +275,9 @@ def _catalog(org_id, audience='staff', include_drafts=False):
             'is_required': bool(r.get('is_required')),
             'sequence_order': r.get('sequence_order') or 0,
             'audience': _audience(r.get('audience')),
+            'audiences': _row_audiences(r),
+            'student_min_age': r.get('student_min_age'),
+            'student_max_age': r.get('student_max_age'),
             'visible_to_roles': r.get('visible_to_roles'),
             'auto_assign': bool(r.get('auto_assign')),
             'is_draft': not q.get('is_active'),
@@ -270,9 +346,19 @@ _NOT_STARTED = {'started': False, 'completed': False, 'done': 0, 'total': 0,
 #              enrolled on their own next read instead of being missed.
 
 def _audience_people(org_id, audience):
-    """Everyone a catalog row for this audience could apply to."""
-    return (_guardians(org_id) if _audience(audience) == 'family'
-            else sis_service.list_org_staff(org_id))
+    """Everyone in one group, each tagged with the group they came from — a
+    person can be in two (an iCreate admin is a parent as well), and which one
+    they were reached as is what decides whether a row applies to them."""
+    audience = _audience(audience)
+    if audience == 'family':
+        people = _guardians(org_id)
+    elif audience == 'student':
+        people = _org_students(org_id)
+    else:
+        people = sis_service.list_org_staff(org_id)
+    for p in people:
+        p['group'] = audience
+    return people
 
 
 # Whoever runs the school. Always assignable, whatever a row targets.
@@ -294,17 +380,29 @@ def _roles_of(user):
     return roles
 
 
-def _item_applies_to(item, person, audience):
-    """Role-narrowed staff training only reaches the roles it names. Family rows
-    carry no targeting. Mirrors _applies() in the progress report.
+def _item_applies_to(item, person, audience=None):
+    """Whether one person, reached as one group, is in a row's audience.
 
-    An admin is always eligible. A course aimed at teachers still has to be
-    doable by the person who set it — to try it before it goes out, and because
-    at a small school the admin teaches too. Narrowing is about not burying a
-    teacher in campus-operations training, not about locking admins out.
+    Students are narrowed by age, staff by role. Guardians carry no targeting.
+    Mirrors _applies() in the progress report.
+
+    An admin is always eligible for staff training. A course aimed at teachers
+    still has to be doable by the person who set it — to try it before it goes
+    out, and because at a small school the admin teaches too. Narrowing is about
+    not burying a teacher in campus-operations training, not about locking
+    admins out. It is deliberately NOT extended to the student age window: an
+    admin is not a student, and a quest for 12-year-olds should not land on
+    their account because they run the school.
     """
+    group = person.get('group') or _audience(audience)
+    if group == 'student':
+        # Shared with the family-portal catch-up, which has to gate on exactly
+        # the same window (services/sis_training_service.py).
+        return sis_training_service.student_in_age_window(item, person)
+    if group == 'family':
+        return True
     targets = item.get('visible_to_roles')
-    if not targets or _audience(audience) == 'family':
+    if not targets:
         return True
     roles = set(person.get('roles') or [])
     if roles & set(_ADMIN_ORG_ROLES):
@@ -325,7 +423,8 @@ def _owned_item(user_id, training_id):
     if _bad_uuid(training_id):
         return None, (jsonify({'success': False, 'error': 'Invalid id'}), 400)
     rows = (_admin().table('sis_staff_training')
-            .select('id, organization_id, quest_id, audience, visible_to_roles, '
+            .select('id, organization_id, quest_id, audience, audiences, '
+                    'student_min_age, student_max_age, visible_to_roles, '
                     'auto_assign, category, is_required, quests(is_active)')
             .eq('id', training_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
@@ -333,13 +432,25 @@ def _owned_item(user_id, training_id):
     return rows[0], None
 
 
-def _eligible_people(org_id, item, audience):
-    """The people in this audience a catalog row actually applies to."""
-    return [p for p in _audience_people(org_id, audience)
-            if _item_applies_to(item, p, audience)]
+def _eligible_people(org_id, item, audience=None):
+    """Everyone a catalog row actually reaches, across every group it targets.
+
+    `audience` is only a fallback for a row that predates the audiences column.
+    Somebody who is in two groups — the iCreate admins are parents too — is
+    listed once, under the first group that reached them, so the assign count is
+    a count of people rather than of memberships.
+    """
+    seen, out = set(), []
+    for group in _audiences(item.get('audiences'), audience or item.get('audience')):
+        for p in _audience_people(org_id, group):
+            if p['id'] in seen or not _item_applies_to(item, p):
+                continue
+            seen.add(p['id'])
+            out.append(p)
+    return out
 
 
-def _assign_item(org_id, item, audience, people=None, only_user_ids=None):
+def _assign_item(org_id, item, audience=None, people=None, only_user_ids=None):
     """Enroll the people this catalog row applies to. Idempotent — see
     utils.quest_assignment. Returns the counts.
 
@@ -478,10 +589,14 @@ def add_training(user_id):
                          or (quest.get('organization_id') is None and quest.get('is_public'))):
         return jsonify({'success': False, 'error': 'That quest is not available'}), 404
 
-    audience = _audience(data.get('audience'))
+    audiences = _audiences(data.get('audiences'), data.get('audience'))
+    audience = _primary_audience(audiences)
     visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
     if roles_err:
         return jsonify({'success': False, 'error': roles_err}), 400
+    min_age, max_age, age_err = _clean_age_window(data)
+    if age_err:
+        return jsonify({'success': False, 'error': age_err}), 400
     last = (_admin().table('sis_staff_training').select('sequence_order')
             .eq('organization_id', org_id).eq('audience', audience)
             .order('sequence_order', desc=True).limit(1).execute()).data
@@ -500,9 +615,12 @@ def add_training(user_id):
         'organization_id': org_id,
         'quest_id': quest_id,
         'audience': audience,
+        'audiences': audiences,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
-        'visible_to_roles': visible_to_roles if audience == 'staff' else None,
+        'visible_to_roles': visible_to_roles if 'staff' in audiences else None,
+        'student_min_age': min_age if 'student' in audiences else None,
+        'student_max_age': max_age if 'student' in audiences else None,
         'auto_assign': auto_assign,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
@@ -511,7 +629,9 @@ def add_training(user_id):
     # already here get it now rather than on their next page load.
     assigned = _assign_item(org_id, {
         'quest_id': quest_id, 'visible_to_roles': visible_to_roles,
-    }, audience) if auto_assign else None
+        'audiences': audiences,
+        'student_min_age': min_age, 'student_max_age': max_age,
+    }) if auto_assign else None
     return jsonify({'success': True, 'training': row[0] if row else None,
                     'assigned': assigned}), 201
 
@@ -587,7 +707,11 @@ def create_training_quest(user_id):
                         'error': f'A quest can have at most {_MAX_TASKS} tasks.'}), 400
 
     description = (data.get('description') or '').strip()
-    audience = _audience(data.get('audience'))
+    audiences = _audiences(data.get('audiences'), data.get('audience'))
+    audience = _primary_audience(audiences)
+    min_age, max_age, age_err = _clean_age_window(data)
+    if age_err:
+        return jsonify({'success': False, 'error': age_err}), 400
     admin = _admin()
 
     # Header image, in order of what the school actually meant:
@@ -659,9 +783,12 @@ def create_training_quest(user_id):
     auto_assign = bool(data.get('auto_assign'))
     admin.table('sis_staff_training').insert({
         'organization_id': org_id, 'quest_id': quest_id, 'audience': audience,
+        'audiences': audiences,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
-        'visible_to_roles': visible_to_roles if audience == 'staff' else None,
+        'visible_to_roles': visible_to_roles if 'staff' in audiences else None,
+        'student_min_age': min_age if 'student' in audiences else None,
+        'student_max_age': max_age if 'student' in audiences else None,
         'auto_assign': auto_assign,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
@@ -673,10 +800,13 @@ def create_training_quest(user_id):
     # it is what turns that intent into enrollments.
     assigned = _assign_item(org_id, {
         'quest_id': quest_id, 'visible_to_roles': visible_to_roles,
-    }, audience) if (auto_assign and not is_draft) else None
+        'audiences': audiences,
+        'student_min_age': min_age, 'student_max_age': max_age,
+    }) if (auto_assign and not is_draft) else None
 
     return jsonify({'success': True, 'quest_id': quest_id,
                     'task_count': len(cleaned), 'audience': audience,
+                    'audiences': audiences,
                     'is_draft': is_draft, 'assigned': assigned}), 201
 
 
@@ -773,13 +903,14 @@ def assign_training(user_id, training_id):
         if not only:
             return jsonify({'success': False, 'error': 'Choose at least one person.'}), 400
 
-    counts = _assign_item(org_id, item, audience, only_user_ids=only)
+    counts = _assign_item(org_id, item, only_user_ids=only)
     logger.info(
         f"Training {training_id} assigned by {user_id} "
         f"({'chosen' if only is not None else 'everyone'}): "
         f"{counts['enrolled']} enrolled, {counts['already']} already, {counts['failed']} failed"
     )
-    return jsonify({'success': True, 'audience': audience, **counts})
+    return jsonify({'success': True, 'audience': audience,
+                    'audiences': _row_audiences(item), **counts})
 
 
 @bp.route('/training/<training_id>/people', methods=['GET'])
@@ -788,20 +919,27 @@ def training_people(user_id, training_id):
     """Who this training could go to, and who already has it.
 
     Feeds the "choose people" picker. Returns only those the row applies to, so
-    a coordinator-only course does not offer the whole staff room.
+    a coordinator-only course does not offer the whole staff room, and a quest
+    set for 12-and-up does not offer the six-year-olds.
     """
     item, err = _owned_item(user_id, training_id)
     if err:
         return err
     audience = _audience(item.get('audience'))
-    people = _eligible_people(item['organization_id'], item, audience)
+    people = _eligible_people(item['organization_id'], item)
     progress = _progress_for([p['id'] for p in people], [item['quest_id']])
-    return jsonify({'success': True, 'audience': audience, 'people': [{
-        'user_id': p['id'],
-        'name': p.get('name'),
-        'email': p.get('email'),
-        'progress': progress.get((p['id'], item['quest_id']), dict(_NOT_STARTED)),
-    } for p in people]})
+    return jsonify({'success': True, 'audience': audience,
+                    'audiences': _row_audiences(item), 'people': [{
+                        'user_id': p['id'],
+                        'name': p.get('name'),
+                        'email': p.get('email'),
+                        # Which group reached them, so the picker can group a
+                        # mixed list rather than showing one flat run of names.
+                        'group': p.get('group'),
+                        'age': p.get('age'),
+                        'progress': progress.get((p['id'], item['quest_id']),
+                                                 dict(_NOT_STARTED)),
+                    } for p in people]})
 
 
 @bp.route('/training/<training_id>/quest', methods=['GET'])
@@ -829,7 +967,14 @@ def get_training_quest(user_id, training_id):
         'quest_id': q['id'],
         'title': q.get('title') or '',
         'description': q.get('big_idea') or q.get('description') or '',
-        'image_url': q.get('header_image_url') or '',
+        # Only an image uploaded here can be handed back to the form. A quest
+        # created without one carries the org logo (a base64 data URI) or a
+        # stock search result in this column, and echoing that into the form
+        # means the very next save posts it back and is rejected as "not
+        # uploaded here" — an admin who only changed a task's wording could not
+        # save at all (iCreate, 2026-08-17). Blank shows the same logo fallback
+        # the builder shows, and leaves the stored artwork untouched.
+        'image_url': _uploaded_image(q.get('header_image_url')),
         'xp_threshold': q.get('xp_threshold') or 0,
         'allow_custom_tasks': bool(q.get('allow_custom_tasks')),
         'has_source_material': bool(q.get('source_material')),
@@ -844,6 +989,9 @@ def get_training_quest(user_id, training_id):
         'auto_assign': bool(item.get('auto_assign')),
         'visible_to_roles': item.get('visible_to_roles'),
         'audience': _audience(item.get('audience')),
+        'audiences': _row_audiences(item),
+        'student_min_age': item.get('student_min_age'),
+        'student_max_age': item.get('student_max_age'),
     }})
 
 
@@ -864,7 +1012,7 @@ def update_training_quest(user_id, training_id):
     org_id = item['organization_id']
     admin = _admin()
 
-    owned = (admin.table('quests').select('id, organization_id')
+    owned = (admin.table('quests').select('id, organization_id, header_image_url')
              .eq('id', item['quest_id']).limit(1).execute()).data
     if not owned or owned[0].get('organization_id') != org_id:
         return jsonify({
@@ -886,7 +1034,13 @@ def update_training_quest(user_id, training_id):
     xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
     if xp_err:
         return jsonify({'success': False, 'error': xp_err}), 400
-    image_url, image_err = _clean_image_url(data.get('image_url'))
+    # A form that posts back the artwork the quest already has is not uploading
+    # anything, whatever that artwork is — so it is a no-op, not an error.
+    raw_image = (data.get('image_url') or '').strip()
+    if raw_image and raw_image == (owned[0].get('header_image_url') or ''):
+        image_url, image_err = None, None
+    else:
+        image_url, image_err = _clean_image_url(raw_image)
     if image_err:
         return jsonify({'success': False, 'error': image_err}), 400
     visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
@@ -920,17 +1074,33 @@ def update_training_quest(user_id, training_id):
             t['quest_id'] = item['quest_id']
         admin.table('quest_template_tasks').insert(cleaned).execute()
 
+    # Who it is for can be changed here too — an orientation quest that went to
+    # parents is the same quest when the school decides the teenagers should do
+    # it as well. Left alone when the form does not send it, so a client that
+    # only knows about the old fields cannot silently narrow the audience.
+    audiences = (_audiences(data.get('audiences')) if data.get('audiences')
+                 else _row_audiences(item))
+    min_age, max_age, age_err = _clean_age_window(data)
+    if age_err:
+        return jsonify({'success': False, 'error': age_err}), 400
+    if 'student_min_age' not in data and 'student_max_age' not in data:
+        min_age, max_age = item.get('student_min_age'), item.get('student_max_age')
+
     catalog_fields = {
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
         'auto_assign': bool(data.get('auto_assign')),
-        'visible_to_roles': visible_to_roles if _audience(item.get('audience')) == 'staff' else None,
+        'audience': _primary_audience(audiences),
+        'audiences': audiences,
+        'visible_to_roles': visible_to_roles if 'staff' in audiences else None,
+        'student_min_age': min_age if 'student' in audiences else None,
+        'student_max_age': max_age if 'student' in audiences else None,
     }
     admin.table('sis_staff_training').update(catalog_fields).eq('id', training_id).execute()
 
     logger.info(f"Training quest {item['quest_id']} edited by {user_id}")
     return jsonify({'success': True, 'quest_id': item['quest_id'],
-                    'task_count': len(cleaned)})
+                    'task_count': len(cleaned), 'audiences': audiences})
 
 
 @bp.route('/training/<training_id>/publish', methods=['POST'])
@@ -957,7 +1127,7 @@ def publish_training(user_id, training_id):
         .eq('id', item['quest_id']).eq('organization_id', org_id).execute()
 
     assign_now = data.get('assign', True) and item.get('auto_assign')
-    assigned = _assign_item(org_id, item, audience) if assign_now else None
+    assigned = _assign_item(org_id, item) if assign_now else None
     logger.info(f"Training {training_id} published by {user_id}")
     return jsonify({'success': True, 'audience': audience, 'assigned': assigned})
 
@@ -994,18 +1164,19 @@ def training_progress(user_id):
         return err
     audience = _audience(request.args.get('audience'))
     catalog = _catalog(org_id, audience)
-    staff = (_guardians(org_id) if audience == 'family'
-             else sis_service.list_org_staff(org_id))
+    # One tab, one group of people. A quest set for parents AND students shows
+    # on both tabs, but each tab reports on the people that tab is about — a
+    # report mixing parents and students into one list answers neither
+    # "which families still owe us orientation" nor "which teenagers have done it".
+    staff = _audience_people(org_id, audience)
     quest_ids = [c['quest_id'] for c in catalog]
     progress = _progress_for([s['id'] for s in staff], quest_ids)
 
     def _applies(c, person):
-        """Role-narrowed training only counts for the roles it targets. Family
-        rows carry no roles, and family training carries no targeting."""
-        targets = c.get('visible_to_roles')
-        if not targets or audience == 'family':
-            return True
-        return bool(set(targets) & set(person.get('roles') or []))
+        """Whether a quest counts against this person at all. The same rule the
+        assignment uses (_item_applies_to), so the report cannot claim somebody
+        is behind on a quest they were never going to be given."""
+        return _item_applies_to(c, person, audience)
 
     rows = []
     for s in staff:
@@ -1026,6 +1197,42 @@ def training_progress(user_id):
     required_total = len([c for c in catalog if c['is_required']])
     return jsonify({'success': True, 'training': catalog, 'staff': rows,
                     'audience': audience, 'required_total': required_total})
+
+
+def _org_students(org_id):
+    """The org's students, shaped like the other two listers, with their age.
+
+    Age is carried on the person rather than looked up later because it is what
+    the row's window is checked against, and a student whose DOB was never
+    recorded has to come through as age None so the window can leave them out
+    rather than silently include them.
+    """
+    from utils.db_fetch import fetch_all_rows
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, username, '
+                'org_role, org_roles, role, date_of_birth')
+        .eq('organization_id', org_id)
+    ))
+    out = []
+    for u in rows:
+        roles = _roles_of(u)
+        # Students only. An admin or a parent who also happens to hold the
+        # student role at their own school is reached as a student here, which
+        # is correct — it is the role that decides, not the person.
+        if 'student' not in roles:
+            continue
+        out.append({
+            'id': u['id'],
+            'name': (u.get('display_name')
+                     or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                     or u.get('username') or u.get('email') or 'Unnamed'),
+            'email': u.get('email'),
+            'roles': sorted(roles),
+            'age': sis_service.age_years(u.get('date_of_birth')),
+        })
+    out.sort(key=lambda p: (p['name'] or '').lower())
+    return out
 
 
 def _guardians(org_id):

@@ -1053,7 +1053,7 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     rows = (admin.table('sis_staff_training')
             .select('quest_id, category, is_required, sequence_order, auto_assign, '
                     'quests(id, title, description, is_active, header_image_url)')
-            .eq('organization_id', org_id).eq('audience', 'family')
+            .eq('organization_id', org_id).contains('audiences', ['family'])
             .order('sequence_order').execute()).data or []
     catalog = [r for r in rows if (r.get('quests') or {}).get('is_active')]
     if not catalog:
@@ -1099,6 +1099,18 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
         if created:
             user_quests, tasks, done = _read_progress()
             by_quest = {uq['quest_id']: uq for uq in user_quests}
+
+    # The same catch-up for this guardian's own children. A quest a school sets
+    # for its students has no page of its own to run this from — it just appears
+    # on the student's account — so it is done here, where a parent is already
+    # loading a page and the set of students is their household's.
+    try:
+        from services.sis_training_service import catch_up_students
+        kids = [s['student_id'] for s in registerable_students(user_id)
+                if s.get('org_id') == org_id]
+        catch_up_students(org_id, kids)
+    except Exception as e:  # noqa: BLE001 — the guardian's own list is the point
+        logger.warning(f"Student auto-assign catch-up failed for org {org_id}: {e}")
 
     out = []
     for r in catalog:
