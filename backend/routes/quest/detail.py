@@ -376,6 +376,19 @@ def get_quest_detail(user_id: str, quest_id: str):
         # no gain.
         sign_in_place(quest_data.get('quest_tasks') or [], ['evidence_url'])
 
+        # Training a school set for its staff or families (sis_staff_training).
+        # The page uses this to drop the pillar dimension: whether onboarding
+        # grew your "Art" pillar is noise, and for a guardian doing back to
+        # school night it is meaningless. The pillar is still stored — it is
+        # NOT NULL and the XP award path requires it — just not shown.
+        try:
+            training = supabase.table('sis_staff_training').select('id')\
+                .eq('quest_id', quest_id).limit(1).execute()
+            quest_data['is_training'] = bool(training.data)
+        except Exception as training_err:  # noqa: BLE001 — a badge is not worth a 500
+            logger.warning(f"[QUEST DETAIL] Could not resolve training flag: {training_err}")
+            quest_data['is_training'] = False
+
         return jsonify({
             'success': True,
             'quest': quest_data

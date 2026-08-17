@@ -39,7 +39,12 @@ const QuestDetailHeader = ({
   endQuestMutation
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveRole } = useAuth();
+  // A parent reaches this page only for a quest their school set for families
+  // (routes/sis/staff_training.py, audience='family'). The student-only
+  // surfaces it links out to are still closed to them, so the links would
+  // bounce them silently to their own home — see App.jsx.
+  const isParent = effectiveRole === 'parent';
   const [showJourney, setShowJourney] = useState(false);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -308,7 +313,7 @@ const QuestDetailHeader = ({
               <ArrowTopRightOnSquareIcon className="w-4 h-4" />
               View Curriculum
             </a>
-          ) : quest?.has_curriculum && isEnrolled ? (
+          ) : quest?.has_curriculum && isEnrolled && !isParent ? (
             <button
               onClick={() => navigate(`/quests/${quest.id}/curriculum`)}
               className="btn-primary min-h-[44px] touch-manipulation"

@@ -1010,6 +1010,23 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         if exclude_tasks:
             exclude_text = f"\nIMPORTANT: Do NOT generate tasks similar to these already-selected tasks:\n{chr(10).join(['- ' + task for task in exclude_tasks])}\nGenerate completely NEW and UNIQUE task approaches."
 
+        # Source material the quest was built from — a staff handbook, a
+        # syllabus, an orientation packet. Where it exists it is the thing the
+        # tasks are actually about, so it outranks the title and big idea, which
+        # for training are a line and a paragraph. Trimmed to the same 20k the
+        # staff-side drafter uses (services/quest_ai_service.draft_quest_from_context).
+        source_text = ''
+        source_material = (quest.get('source_material') or '').strip()
+        if source_material:
+            source_text = (
+                "\n\nSOURCE MATERIAL (authoritative — the tasks must be about THIS, "
+                "not a general version of the topic):\n"
+                f"{source_material[:20000]}\n\n"
+                "Write tasks that send the learner back to specific things in the "
+                "material above. Do not invent policies, names or details it does "
+                "not contain."
+            )
+
         # Build additional feedback text if provided
         feedback_text = ''
         if additional_feedback:
@@ -1125,7 +1142,7 @@ PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in 
 You are helping a student personalize their learning quest: "{quest_title}".
 
 Quest Description: {quest_description}
-{course_context_text}
+{source_text}{course_context_text}
 
 Student's Selected Approach: {approach_desc}
 

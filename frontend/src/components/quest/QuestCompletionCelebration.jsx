@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AcademicCapIcon, BookOpenIcon, CheckCircleIcon, PaperAirplaneIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 import { getSubjectName } from '../../constants/subjects';
+import { useAuth } from '../../contexts/AuthContext';
 
 const QuestCompletionCelebration = ({
   quest,
@@ -16,7 +17,12 @@ const QuestCompletionCelebration = ({
   submitting = false
 }) => {
   const navigate = useNavigate();
+  const { effectiveRole } = useAuth();
   const [showDialog, setShowDialog] = useState(false);
+  // A guardian finishing a quest their school set for families has no diploma
+  // page of their own — /overview is a student surface. Offering the link at
+  // the moment they finish would bounce them to their own home.
+  const isParent = effectiveRole === 'parent';
 
   // Detect empty quest (no tasks remaining) vs all tasks completed
   const isEmptyQuest = !quest?.quest_tasks?.length;
@@ -230,7 +236,7 @@ const QuestCompletionCelebration = ({
           )}
 
           {/* View diploma link - only for regular completed quests (not class review) */}
-          {!isEmptyQuest && !isClassReady && (
+          {!isEmptyQuest && !isClassReady && !isParent && (
             <div className="text-center mt-6">
               <button
                 onClick={() => navigate('/overview')}

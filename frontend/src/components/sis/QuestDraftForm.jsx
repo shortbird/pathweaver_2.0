@@ -36,7 +36,18 @@ export const blankTask = () => ({ title: '', pillar: 'art', xp_value: 100, is_re
 
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task' }) {
+/**
+ * showPillars=false hides the pillar picker for quests where the dimension is
+ * noise rather than a choice — staff and family training, where the point is
+ * "did you do the onboarding", not which of the five pillars it grew.
+ *
+ * The task still carries a pillar in the database: it is NOT NULL on
+ * quest_template_tasks and user_quest_tasks, and the XP award path validates it
+ * three times over before writing user_skill_xp. Hiding the control leaves
+ * blankTask()'s default in place, which is exactly what the class-quest screen
+ * does with diploma subjects (see StudentTaskEditModal).
+ */
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true }) {
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
   return (
@@ -46,11 +57,13 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task' }) {
           <input value={t.title} onChange={(e) => update(i, { title: e.target.value })}
             placeholder={`Task ${i + 1} — what should they do?`} className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
-            <select value={t.pillar} onChange={(e) => update(i, { pillar: e.target.value })}
-              aria-label={`Task ${i + 1} pillar`}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-              {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-            </select>
+            {showPillars && (
+              <select value={t.pillar} onChange={(e) => update(i, { pillar: e.target.value })}
+                aria-label={`Task ${i + 1} pillar`}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            )}
             <label className="flex items-center gap-1 text-sm text-neutral-600">
               XP
               <input type="number" min={25} step={25} value={t.xp_value}
@@ -89,6 +102,7 @@ export default function QuestDraftForm({
   descriptionPlaceholder = 'What is this quest about?',
   taskHint = 'Preset tasks are copied to each learner when they start the quest. Leave it empty and they write their own.',
   addLabel,
+  showPillars = true,
 }) {
   return (
     <div className="space-y-3">
@@ -99,7 +113,7 @@ export default function QuestDraftForm({
         className={`${inputCls} resize-none`} />
       <div>
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
-        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} />
+        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars} />
       </div>
     </div>
   )

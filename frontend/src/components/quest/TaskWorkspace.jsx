@@ -27,6 +27,10 @@ import StudentTaskEditModal from './StudentTaskEditModal';
 import { SparklesIcon, AcademicCapIcon, PencilSquareIcon, BookmarkIcon } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useAIAccess } from '../../contexts/AIAccessContext';
+import { useAuth } from '../../contexts/AuthContext';
+
+// optio-purple. Stands in for the pillar colour where pillars are hidden.
+const BRAND_PURPLE = '#6d469b';
 import api from '../../services/api';
 import { Spinner, ButtonSpinner } from '../ui';
 
@@ -156,6 +160,7 @@ const TaskWorkspace = ({
   tasks = [],
   questId,
   isClassQuest = false,
+  showPillars = true,
   onTaskSelect,
   onTaskReorder,
   onTaskComplete,
@@ -165,6 +170,12 @@ const TaskWorkspace = ({
   onClose
 }) => {
   const { canUseTaskGeneration } = useAIAccess();
+  const { effectiveRole } = useAuth();
+  // Diploma credit is a student's. A guardian works through the quest their
+  // school set for families on their own account, and requesting credit for it
+  // would file "A student requested diploma credit…" into the org's review
+  // queue for somebody who has no diploma.
+  const canRequestCredit = effectiveRole !== 'parent';
   const [error, setError] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -947,21 +958,25 @@ const TaskWorkspace = ({
 
                 {/* Task metadata cards */}
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Pillar badge */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
-                    style={{ backgroundColor: pillarData?.color }}
-                  >
-                    <div className="w-2 h-2 rounded-full bg-white/40" />
-                    {pillarData?.name}
-                  </div>
+                  {/* Pillar badge. Hidden for school training, where which of
+                      the five pillars an onboarding task grew is noise. */}
+                  {showPillars && (
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
+                      style={{ backgroundColor: pillarData?.color }}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-white/40" />
+                      {pillarData?.name}
+                    </div>
+                  )}
 
-                  {/* XP badge */}
+                  {/* XP badge. It borrows the pillar's colour, so without the
+                      pillar shown it falls back to the brand purple. */}
                   <div
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
                     style={{
-                      backgroundColor: `${pillarData?.color}15`,
-                      color: pillarData?.color
+                      backgroundColor: `${showPillars ? pillarData?.color : BRAND_PURPLE}15`,
+                      color: showPillars ? pillarData?.color : BRAND_PURPLE
                     }}
                   >
                     <TrophyIcon className="w-4 h-4" />
@@ -1048,7 +1063,7 @@ const TaskWorkspace = ({
                         {/* Per-task diploma credit. Hidden inside a class quest —
                             there, credit is requested at the class level once the
                             XP requirement is met (see the class progress panel). */}
-                        {!isClassQuest && (creditStatus === 'none' || creditStatus === 'grow_this') && (
+                        {!isClassQuest && canRequestCredit && (creditStatus === 'none' || creditStatus === 'grow_this') && (
                           <button
                             onClick={handleRequestCredit}
                             disabled={isRequestingCredit}

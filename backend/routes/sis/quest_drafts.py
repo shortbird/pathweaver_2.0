@@ -106,5 +106,12 @@ def generate(user_id):
     if not result.get('success'):
         return jsonify({'success': False,
                         'error': result.get('error') or 'Could not build a quest from that.'}), 502
+    # The source text goes back with the draft so the caller can keep it on the
+    # quest (quests.source_material). A training quest can let its learners
+    # generate their own tasks, and "the handbook" is what those tasks have to
+    # be about — the quest's own title and description are a line and a
+    # paragraph. Still nothing is written here; storing it is the caller's
+    # separate, explicit create call.
     return jsonify({'success': True, 'quest': result['quest'],
+                    'source_material': context[:_MAX_CONTEXT_CHARS],
                     'truncated': len(context) > _MAX_CONTEXT_CHARS})

@@ -34,12 +34,16 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
   const [busy, setBusy] = useState(false)
   const fileRef = useRef(null)
 
-  const apply = (quest) => {
+  const apply = (quest, sourceMaterial = '') => {
     const tasks = (quest.tasks || []).map((t) => ({ ...blankTask(), ...t }))
     onDrafted({
       title: quest.title || '',
       description: quest.description || '',
       tasks: tasks.length ? tasks : [blankTask()],
+      // The text the draft was built from. A caller that lets learners generate
+      // their own tasks keeps it, so those tasks are about the actual document
+      // rather than a general version of the topic.
+      sourceMaterial,
     })
     toast.success(`Draft ready — ${tasks.length} task${tasks.length === 1 ? '' : 's'} to review`)
     if (!alwaysOpen) setOpen(false)
@@ -72,7 +76,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
       if (res.data.truncated) {
         toast('Only the first part of that document was used — it is very long.', { icon: 'ℹ️' })
       }
-      apply(res.data.quest)
+      apply(res.data.quest, res.data.source_material || '')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not build a quest from that')
     } finally {

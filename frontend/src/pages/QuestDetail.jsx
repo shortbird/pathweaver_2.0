@@ -151,6 +151,13 @@ const QuestDetail = () => {
           });
           setShowRestartModal(true);
         } else {
+          // A refusal has a reason worth reading — a parent, for instance, is
+          // told the school assigns their quests rather than being left with a
+          // button that appears to do nothing.
+          const message = error.response?.data?.message
+            || error.response?.data?.error
+            || 'Could not start this quest.';
+          toast.error(message);
           console.error('Enrollment failed:', error);
         }
       }
@@ -614,6 +621,7 @@ const QuestDetail = () => {
                   tasks={quest.quest_tasks}
                   questId={quest.id}
                   isClassQuest={quest.quest_type === 'class'}
+                  showPillars={!quest.is_training}
                   onTaskSelect={handleTaskSelect}
                   onTaskReorder={handleTaskReorder}
                   onTaskComplete={handleTaskCompletion}
