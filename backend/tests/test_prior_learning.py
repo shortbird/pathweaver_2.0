@@ -16,6 +16,8 @@ transcript, or shows a family something the school didn't decide:
    writes the award column.
 """
 
+from unittest.mock import Mock
+
 import pytest
 
 from services import sis_prior_learning_ai as ai
@@ -198,6 +200,108 @@ class TestEvidenceMatchesTaskEvidence:
         from services.media_upload_service import DEFAULT_BUCKETS, STORAGE_PATH_TEMPLATES
         assert DEFAULT_BUCKETS['prior_learning'] == DEFAULT_BUCKETS['task_evidence']
         assert 'prior_learning' in STORAGE_PATH_TEMPLATES
+
+
+@pytest.mark.unit
+class TestDeletingEvidence:
+    """Removing a document takes the file with it.
+
+    Deleting only the row leaves the upload in the private bucket forever —
+    still costing storage, and still holding a family's document the school was
+    asked to remove. Staff can delete during review, when the family's own
+    delete has already locked; that is the whole point of the separate path.
+    """
+
+    def _client(self, monkeypatch, row):
+        removed = []
+        chain = Mock()
+        chain.select.return_value = chain
+        chain.delete.return_value = chain
+        chain.eq.return_value = chain
+        chain.limit.return_value = chain
+        chain.execute.return_value = Mock(data=[row] if row else [])
+        client = Mock()
+        client.table.return_value = chain
+        client.storage.from_.return_value.remove.side_effect = (
+            lambda paths: removed.extend(paths))
+        monkeypatch.setattr(prior, '_admin', lambda: client)
+        return removed
+
+    def test_the_stored_file_is_removed_with_the_row(self, monkeypatch):
+        removed = self._client(monkeypatch, {
+            'id': 'ev-1',
+            'url': 'https://p.supabase.co/storage/v1/object/public/quest-evidence/prior-learning/g/r1_x.pdf',
+        })
+        result = prior._delete_evidence_row('ev-1', 'r1')
+        assert result == {'deleted': True}
+        assert removed == ['prior-learning/g/r1_x.pdf']
+
+    def test_a_link_has_no_file_to_remove(self, monkeypatch):
+        removed = self._client(monkeypatch, {'id': 'ev-1', 'url': 'https://khanacademy.org/x'})
+        assert prior._delete_evidence_row('ev-1', 'r1') == {'deleted': True}
+        assert removed == []
+
+    def test_evidence_from_another_record_is_refused(self, monkeypatch):
+        self._client(monkeypatch, None)
+        result = prior._delete_evidence_row('ev-1', 'r1')
+        assert result['status'] == 404
+
+    def test_staff_may_delete_while_the_family_may_not(self, monkeypatch):
+        """The family's delete locks once review starts; staff's does not,
+        because that is exactly when a bad upload is noticed."""
+        under_review = {'id': 'r1', 'status': 'under_review', 'submitted_by': 'g1'}
+        monkeypatch.setattr(prior, 'get_record', lambda *a, **k: under_review)
+        monkeypatch.setattr(prior, 'get_own_record', lambda *a, **k: under_review)
+        monkeypatch.setattr(prior, '_delete_evidence_row', lambda *a: {'deleted': True})
+
+        assert prior.staff_delete_evidence('ev-1', 'r1', 'org1') == {'deleted': True}
+        assert 'error' in prior.delete_evidence('ev-1', 'r1', 'org1', 'g1')
+
+
+@pytest.mark.unit
+class TestEvidenceUrlsAreSigned:
+    """quest-evidence is private, so the stored /object/public/... pointer is an
+    identifier, not something a browser can fetch. Handing it to the page
+    unsigned is what produced "Bucket not found" on every document in the staff
+    review queue — a storage error for what is really a missing signing step."""
+
+    ROWS = [
+        {'record_id': 'r1', 'evidence_type': 'document', 'sequence_order': 0,
+         'url': 'https://p.supabase.co/storage/v1/object/public/quest-evidence/prior-learning/g/r1_x.pdf'},
+        {'record_id': 'r1', 'evidence_type': 'link', 'sequence_order': 1,
+         'url': 'https://khanacademy.org/algebra'},
+    ]
+
+    def _attach(self, monkeypatch):
+        client = Mock()
+        client.table.return_value.select.return_value.in_.return_value \
+            .order.return_value.execute.return_value = Mock(data=[dict(r) for r in self.ROWS])
+        monkeypatch.setattr(prior, '_admin', lambda: client)
+        monkeypatch.setattr(
+            prior, 'sign_in_place',
+            lambda rows, fields: [r.update({'url': r['url'] + '?token=sig'})
+                                  for r in rows if 'quest-evidence' in r['url']],
+        )
+        return prior._attach_evidence([{'id': 'r1'}])[0]['evidence']
+
+    def test_a_stored_file_pointer_is_signed_before_it_reaches_the_page(self, monkeypatch):
+        assert '?token=sig' in self._attach(monkeypatch)[0]['url']
+
+    def test_a_link_to_someone_elses_site_is_left_alone(self, monkeypatch):
+        assert self._attach(monkeypatch)[1]['url'] == 'https://khanacademy.org/algebra'
+
+    def test_the_read_path_signs_at_all(self, monkeypatch):
+        """Guards the wiring itself: _attach_evidence must call the signer, or
+        both the family page and the staff queue render dead pointers."""
+        called = []
+        client = Mock()
+        client.table.return_value.select.return_value.in_.return_value \
+            .order.return_value.execute.return_value = Mock(data=[dict(self.ROWS[0])])
+        monkeypatch.setattr(prior, '_admin', lambda: client)
+        monkeypatch.setattr(prior, 'sign_in_place',
+                            lambda rows, fields: called.append(list(fields)))
+        prior._attach_evidence([{'id': 'r1'}])
+        assert called == [['url']]
 
 
 @pytest.mark.unit

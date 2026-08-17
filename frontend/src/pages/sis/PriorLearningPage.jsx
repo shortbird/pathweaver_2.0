@@ -15,10 +15,21 @@ import { useSisOrg } from './useSisOrg'
  * ADMIN_ROLES on the backend (front-office paperwork, not money), so a campus
  * coordinator runs this alongside registration and attendance.
  *
- * The AI panel renders `ai_suggestion` when a record has one. Nothing produces
- * them yet — the analyzer is future work (services/sis_prior_learning_ai.py) —
- * and the panel is deliberately labelled as a suggestion so nobody mistakes it
- * for a decision the school already made.
+ * Three steps, deliberately separate, because they are three different
+ * decisions and collapsing them is how wrong numbers reach a transcript:
+ *
+ *   Analyze   the model reads the evidence and PROPOSES a split. It writes
+ *             nothing but ai_suggestion. The panel says "suggested" and every
+ *             number in it is editable before it counts for anything.
+ *   Accept    the office decides it believes the evidence, and awards credit
+ *             on the record.
+ *   Transcribe the credit becomes a transfer_credits row and moves the
+ *             student's XP. This is the only step that touches a transcript,
+ *             and it refuses to run twice on one record.
+ *
+ * "Use these numbers" copies a suggestion into the reviewer's own boxes. It is
+ * a copy, not an application — the reviewer still presses Accept, so a
+ * confident-but-wrong reading always passes through a person.
  */
 
 const STATUS_TABS = [
@@ -50,6 +61,8 @@ const PriorLearningPage = () => {
   const [subjects, setSubjects] = useState([])
   const [openId, setOpenId] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [analyzing, setAnalyzing] = useState(null)
+  const [suggested, setSuggested] = useState({})
   const [disabled, setDisabled] = useState(false)
 
   const query = useMemo(() => {
@@ -81,11 +94,77 @@ const PriorLearningPage = () => {
     try {
       await api.post(`/api/sis/prior-learning/${recordId}/review`,
         { organization_id: orgId || undefined, ...payload })
-      toast.success('Saved')
       setOpenId(null)
-      load()
+      // Accepting moves the record OUT of the tab it was reviewed in, which
+      // used to take the unfinished "Add to transcript" step with it — the
+      // record simply vanished and nothing said the credit had gone nowhere.
+      // Follow it, so the remaining step is on screen instead of one tab away.
+      if (payload.status === 'accepted' && Object.keys(payload.awarded_credits || {}).length) {
+        toast.success('Credit awarded. Now add it to the transcript.')
+        setStatus('accepted')
+      } else {
+        toast.success('Saved')
+        load()
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not save this review')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Reads the evidence and writes ai_suggestion. Synchronous — the reviewer is
+  // looking at the record and waits a few seconds, which beats a queue and a
+  // poll for a call this short.
+  // `passwords` unlock encrypted PDFs for this one call. They are never stored
+  // — not in component state beyond the attempt, not on the record, not in the
+  // response — so a reviewer retypes rather than the school holding a family's
+  // document password.
+  const analyze = async (recordId, passwords) => {
+    setAnalyzing(recordId)
+    try {
+      const r = await api.post(`/api/sis/prior-learning/${recordId}/analyze`,
+        { organization_id: orgId || undefined, passwords: passwords || undefined })
+      setRecords((prev) => prev.map((rec) => (
+        rec.id === recordId ? { ...rec, ai_suggestion: r.data?.suggestion } : rec
+      )))
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not analyze this record')
+    } finally {
+      setAnalyzing(null)
+    }
+  }
+
+  const deleteEvidence = async (recordId, evidenceId) => {
+    setBusy(true)
+    try {
+      await api.delete(`/api/sis/prior-learning/${recordId}/evidence/${evidenceId}`,
+        { params: { organization_id: orgId || undefined } })
+      setRecords((prev) => prev.map((rec) => (
+        rec.id === recordId
+          ? { ...rec, evidence: (rec.evidence || []).filter((e) => e.id !== evidenceId) }
+          : rec
+      )))
+      toast.success('Document deleted')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not delete that document')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The only call that touches a transcript.
+  const addToTranscript = async (recordId, payload) => {
+    setBusy(true)
+    try {
+      const r = await api.post(`/api/sis/prior-learning/${recordId}/credit`,
+        { organization_id: orgId || undefined, ...payload })
+      toast.success(r.data?.action === 'merged'
+        ? 'Added to this school’s existing transfer credit'
+        : 'Added to the transcript')
+      load()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not add this to the transcript')
     } finally {
       setBusy(false)
     }
@@ -139,6 +218,15 @@ const PriorLearningPage = () => {
                   <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[record.status]}`}>
                     {record.status.replace('_', ' ')}
                   </span>
+                  {/* Accepted-and-awarded but not yet transcribed reads as
+                      "done" from the status alone, and it is the state where
+                      the credit exists but the student has none of it. */}
+                  {record.status === 'accepted' && !record.transfer_credit
+                    && Object.keys(record.awarded_credits || {}).length > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                      not on transcript
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5">
                   {[record.student_name, record.provider, dateRange(record),
@@ -146,23 +234,49 @@ const PriorLearningPage = () => {
                     .filter(Boolean).join(' · ')}
                 </p>
               </div>
-              <button type="button" onClick={() => setOpenId(openId === record.id ? null : record.id)}
-                      className="text-sm text-optio-purple font-medium shrink-0">
-                {openId === record.id ? 'Close' : 'Review'}
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button type="button" disabled={analyzing === record.id}
+                        onClick={() => analyze(record.id)}
+                        className="text-sm text-gray-600 font-medium disabled:opacity-50">
+                  {analyzing === record.id ? 'Reading…'
+                    : record.ai_suggestion ? 'Re-analyze' : 'Analyze evidence'}
+                </button>
+                <button type="button" onClick={() => setOpenId(openId === record.id ? null : record.id)}
+                        className="text-sm text-optio-purple font-medium">
+                  {openId === record.id ? 'Close' : 'Review'}
+                </button>
+              </div>
             </div>
 
             {record.description && (
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{record.description}</p>
             )}
 
-            <EvidenceList evidence={record.evidence} />
+            <EvidenceList evidence={record.evidence} busy={busy}
+                          onDelete={(evidenceId) => deleteEvidence(record.id, evidenceId)} />
 
-            {record.ai_suggestion && <AiSuggestion suggestion={record.ai_suggestion} />}
+            {record.ai_suggestion && (
+              <AiSuggestion
+                suggestion={record.ai_suggestion}
+                busy={analyzing === record.id}
+                onUnlock={(password) => analyze(record.id, [password])}
+                onUse={() => {
+                  setSuggested({ ...suggested, [record.id]: record.ai_suggestion })
+                  setOpenId(record.id)
+                }}
+              />
+            )}
 
             {openId === record.id && (
               <ReviewForm record={record} subjects={subjects} busy={busy}
+                          prefill={suggested[record.id]}
                           onSubmit={(payload) => review(record.id, payload)} />
+            )}
+
+            {record.status === 'accepted' && (
+              <TranscriptStep record={record} busy={busy}
+                              suggestion={record.ai_suggestion}
+                              onSubmit={(payload) => addToTranscript(record.id, payload)} />
             )}
           </div>
         ))}
@@ -199,11 +313,14 @@ export const previewKindFor = (item) => {
   return 'download'
 }
 
-const EvidenceList = ({ evidence }) => {
+const EvidenceList = ({ evidence, busy, onDelete }) => {
   if (!evidence?.length) return <p className="text-sm text-gray-500">No evidence attached.</p>
   return (
     <div className="space-y-2">
-      {evidence.map((item) => <EvidenceItem key={item.id} item={item} />)}
+      {evidence.map((item) => (
+        <EvidenceItem key={item.id} item={item} busy={busy}
+                      onDelete={onDelete && (() => onDelete(item.id))} />
+      ))}
     </div>
   )
 }
@@ -220,17 +337,35 @@ const EvidenceList = ({ evidence }) => {
  *
  * Previews are lazy — a browser only fetches the ones scrolled into view.
  */
-const EvidenceItem = ({ item }) => {
+const EvidenceItem = ({ item, busy, onDelete }) => {
   const [open, setOpen] = useState(true)
   const kind = previewKindFor(item)
   const label = item.title || item.file_name || item.url
 
+  // Deleting a family's document is not undoable and the file goes with it, so
+  // it asks first and names what it is about to remove.
+  const confirmDelete = () => {
+    if (window.confirm(`Delete "${label}"? This removes the file for good.`)) onDelete()
+  }
+
+  const DeleteButton = () => (
+    onDelete ? (
+      <button type="button" disabled={busy} onClick={confirmDelete}
+              className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-50">
+        Delete
+      </button>
+    ) : null
+  )
+
   // Typed evidence has no file; it IS the text.
   if (!item.url) {
     return (
-      <div className="text-sm bg-gray-50 rounded-lg px-3 py-2">
-        <span className="text-gray-500 capitalize mr-2">{item.evidence_type}</span>
-        <span className="text-gray-700 whitespace-pre-wrap">{item.content}</span>
+      <div className="flex items-start justify-between gap-3 text-sm bg-gray-50 rounded-lg px-3 py-2">
+        <p className="min-w-0">
+          <span className="text-gray-500 capitalize mr-2">{item.evidence_type}</span>
+          <span className="text-gray-700 whitespace-pre-wrap">{item.content}</span>
+        </p>
+        <div className="shrink-0"><DeleteButton /></div>
       </div>
     )
   }
@@ -253,6 +388,7 @@ const EvidenceItem = ({ item }) => {
              className="text-xs text-gray-500 hover:text-optio-purple">
             Open
           </a>
+          <DeleteButton />
         </div>
       </div>
 
@@ -321,30 +457,365 @@ const TextPreview = ({ url }) => {
   )
 }
 
-const AiSuggestion = ({ suggestion }) => (
-  <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 space-y-1">
-    <p className="text-xs font-semibold text-optio-purple uppercase tracking-wide">
-      Suggested — not a decision
-    </p>
-    {suggestion.summary && <p className="text-sm text-gray-700">{suggestion.summary}</p>}
-    {(suggestion.subjects || []).map((s, i) => (
-      <p key={i} className="text-sm text-gray-700">
-        {s.credits} {s.subject}
-        {s.confidence != null && <span className="text-gray-500"> ({Math.round(s.confidence * 100)}%)</span>}
-        {s.rationale && <span className="text-gray-500"> — {s.rationale}</span>}
+/** Below this, a reading is shaky enough that the reviewer should look at the
+ *  evidence themselves rather than skim the number. Styling only — nothing is
+ *  filtered out, because a low-confidence reading is still worth seeing. */
+export const LOW_CONFIDENCE = 0.7
+
+/** Course rows, in the order a transcript reads: by subject, then as listed. */
+export const transcriptRows = (suggestion) => (suggestion?.subjects || []).flatMap((s) => {
+  const courses = s.courses || []
+  // A subject the model credited without naming a course still gets a line —
+  // it is credit being proposed, and a row missing from the table is credit a
+  // reviewer approves without ever seeing it.
+  if (!courses.length) {
+    return [{
+      subject: s.subject, name: '—', credits: s.credits,
+      term: null, confidence: s.confidence, rationale: s.rationale,
+    }]
+  }
+  return courses.map((c) => ({
+    subject: s.subject, name: c.name, credits: c.credits,
+    term: c.term, confidence: s.confidence, rationale: s.rationale,
+  }))
+})
+
+const TERM_LABELS = { full_year: 'Full year', semester: 'Semester' }
+
+/**
+ * The suggestion, drawn as the transcript it is proposing.
+ *
+ * A registrar's question is "what would this put on the transcript, line by
+ * line" — a paragraph of prose makes them reconstruct the table in their head
+ * before they can check it, and a number nobody checks is a number nobody
+ * caught. So: one row per course, subject and term and credit in columns,
+ * confidence attached to the row it belongs to, and the credit/XP total
+ * spelled out at the foot the way the transcript will show it.
+ *
+ * Still labelled a suggestion, and still requiring "Use these numbers" — the
+ * table is a preview of a proposal, not a record of a decision.
+ */
+/**
+ * Asks for a password for the files that are actually locked, naming them.
+ *
+ * Shown only when a run reported `locked_files`, so it appears at the moment it
+ * would help and never as standing clutter.
+ *
+ * Asked once and only once: on success the backend stores the decrypted copy
+ * over the locked one, so later runs — and the inline preview, which otherwise
+ * prompts the reviewer every single time they open the document — just work.
+ * The password itself is never stored anywhere; it is used to open the file and
+ * then dropped, and the box is cleared on submit.
+ */
+const UnlockPrompt = ({ files, busy, onUnlock }) => {
+  const [password, setPassword] = useState('')
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!password.trim()) return
+    onUnlock(password)
+    setPassword('')
+  }
+
+  return (
+    <form onSubmit={submit} className="px-3 py-2 border-t border-purple-200 bg-amber-50/60">
+      <p className="text-sm text-amber-900">
+        {files.length === 1 ? 'This file is password-protected and was not read:'
+          : 'These files are password-protected and were not read:'}
       </p>
-    ))}
-    {(suggestion.flags || []).map((flag, i) => (
-      <p key={i} className="text-sm text-amber-800">Check: {flag}</p>
-    ))}
-  </div>
+      <ul className="text-xs text-amber-900 list-disc pl-5 mb-2">
+        {files.map((name) => <li key={name}>{name}</li>)}
+      </ul>
+      <div className="flex flex-wrap gap-2 items-center">
+        <label className="sr-only" htmlFor={`pw-${files[0]}`}>PDF password</label>
+        <input id={`pw-${files[0]}`} type="password" autoComplete="off"
+               placeholder="PDF password" value={password}
+               onChange={(e) => setPassword(e.target.value)}
+               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+        <button type="submit" disabled={busy || !password.trim()}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-amber-300 text-amber-900 disabled:opacity-50">
+          {busy ? 'Reading…' : 'Unlock and re-read'}
+        </button>
+      </div>
+      <p className="text-xs text-amber-800 mt-1">
+        Asked once: the unlocked document is kept, so you won’t need this again.
+        The password itself isn’t saved.
+      </p>
+    </form>
+  )
+}
+
+const AiSuggestion = ({ suggestion, busy, onUnlock, onUse }) => {
+  const rows = transcriptRows(suggestion)
+  const locked = suggestion.locked_files || []
+  const totalCredits = rows.reduce((sum, r) => sum + (Number(r.credits) || 0), 0)
+  const flags = suggestion.flags || []
+
+  return (
+    <div className="rounded-lg border border-purple-200 bg-purple-50/60 overflow-hidden">
+      <div className="flex items-start justify-between gap-3 px-3 py-2 border-b border-purple-200">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-optio-purple uppercase tracking-wide">
+            Suggested transcript — not a decision
+          </p>
+          <p className="text-sm text-gray-700 truncate">
+            {[suggestion.school_name,
+              [suggestion.started_on, suggestion.ended_on].filter(Boolean).join(' – ')]
+              .filter(Boolean).join(' · ') || 'School not identified'}
+          </p>
+        </div>
+        {!!rows.length && (
+          <button type="button" onClick={onUse}
+                  className="text-xs font-medium text-optio-purple hover:underline shrink-0">
+            Use these numbers
+          </button>
+        )}
+      </div>
+
+      {rows.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 text-left">
+                <th scope="col" className="font-medium px-3 py-1.5">Course</th>
+                <th scope="col" className="font-medium px-3 py-1.5">Subject</th>
+                <th scope="col" className="font-medium px-3 py-1.5">Term</th>
+                <th scope="col" className="font-medium px-3 py-1.5 text-right">Credits</th>
+                <th scope="col" className="font-medium px-3 py-1.5 text-right">Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const shaky = row.confidence != null && row.confidence < LOW_CONFIDENCE
+                return (
+                  <tr key={i} className={`border-t border-purple-100 ${shaky ? 'bg-amber-50' : ''}`}>
+                    <td className="px-3 py-1.5 text-gray-900">
+                      {row.name}
+                      {row.rationale && (
+                        <span className="block text-xs text-gray-500">{row.rationale}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-gray-600">{row.subject}</td>
+                    <td className="px-3 py-1.5 text-gray-600">{TERM_LABELS[row.term] || '—'}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-900 tabular-nums">{row.credits}</td>
+                    <td className={`px-3 py-1.5 text-right tabular-nums ${shaky ? 'text-amber-800 font-medium' : 'text-gray-500'}`}>
+                      {row.confidence == null ? '—' : `${Math.round(row.confidence * 100)}%`}
+                      {shaky && <span className="block text-xs">check this</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-purple-200 font-medium text-gray-900">
+                <td className="px-3 py-1.5" colSpan={3}>Total</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {Math.round(totalCredits * 100) / 100}
+                </td>
+                <td className="px-3 py-1.5 text-right text-gray-500 tabular-nums">
+                  {Math.round(totalCredits * 2000)} XP
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <p className="px-3 py-2 text-sm text-gray-600">
+          No credit proposed from this evidence.
+        </p>
+      )}
+
+      {locked.length > 0 && onUnlock && (
+        <UnlockPrompt files={locked} busy={busy} onUnlock={onUnlock} />
+      )}
+
+      {(suggestion.summary || flags.length > 0) && (
+        <div className="px-3 py-2 border-t border-purple-200 space-y-1">
+          {flags.map((flag, i) => (
+            <p key={i} className="text-sm text-amber-800">Check: {flag}</p>
+          ))}
+          {suggestion.summary && (
+            <details>
+              <summary className="text-xs text-gray-500 cursor-pointer">What the reader saw</summary>
+              <p className="text-sm text-gray-600 mt-1">{suggestion.summary}</p>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The transcript step, shown once a record is accepted.
+ *
+ * Separate from Accept because they are separate decisions: the office accepts
+ * when it believes the evidence, and transcribes when the credit is settled.
+ * Keeping them apart is also what makes "already added" meaningful — the
+ * backend refuses a second conversion, so once this has run the panel shows
+ * what it produced instead of a button that would 409.
+ *
+ * Course names default to the AI's reading and stay editable; they must add up
+ * to the subject credit or the backend refuses the save, because the transcript
+ * prints both and a transcript that disagrees with itself is worse than one
+ * with no line items.
+ */
+const TranscriptStep = ({ record, suggestion, busy, onSubmit }) => {
+  const awarded = record.awarded_credits || {}
+  const [school, setSchool] = useState(
+    () => suggestion?.school_name || record.provider || ''
+  )
+  const [courses, setCourses] = useState(() => {
+    const bySubject = {}
+    for (const s of (suggestion?.subjects || [])) {
+      if (!awarded[s.subject] || !(s.courses || []).length) continue
+      bySubject[s.subject] = s.courses.map((c) => `${c.name} (${c.credits})`).join(', ')
+    }
+    return bySubject
+  })
+
+  if (record.transfer_credit) {
+    return (
+      <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+        <p className="text-sm text-green-800">
+          On the transcript under <strong>{record.transfer_credit.school_name}</strong>.
+        </p>
+      </div>
+    )
+  }
+
+  if (!Object.keys(awarded).length) {
+    return (
+      <p className="text-sm text-gray-500">
+        Accepted without credit — nothing to add to the transcript.
+      </p>
+    )
+  }
+
+  const parsed = parseCourseText(courses)
+  const mismatches = Object.keys(awarded).filter((subject) => {
+    const list = parsed[subject]
+    return list && Math.abs(courseTotal(list) - Number(awarded[subject])) > 0.01
+  })
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 space-y-3">
+      <p className="text-sm font-medium text-amber-900">
+        Not on the transcript yet
+      </p>
+      <p className="text-xs text-amber-900">
+        Accepting recorded the award on this record. It does not reach the
+        student’s transcript, diploma credits or XP until you add it here.
+      </p>
+      <p className="text-xs text-gray-600">
+        {Object.entries(awarded).map(([s, c]) => `${c} ${s}`).join(' · ')}
+        {' — '}
+        {Object.values(awarded).reduce((a, b) => a + Number(b), 0) * 2000} XP
+      </p>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1"
+               htmlFor={`school-${record.id}`}>School this credit came from</label>
+        <input id={`school-${record.id}`} className={inputClass} value={school}
+               onChange={(e) => setSchool(e.target.value)} />
+        <p className="text-xs text-gray-500 mt-1">
+          Records naming the same school merge into one transcript entry.
+        </p>
+      </div>
+
+      {Object.keys(awarded).map((subject) => {
+        const list = parsed[subject]
+        const total = list ? courseTotal(list) : null
+        const off = mismatches.includes(subject)
+        return (
+        <div key={subject}>
+          <div className="flex items-baseline justify-between gap-2 mb-1">
+            <label className="text-xs font-medium text-gray-600"
+                   htmlFor={`courses-${record.id}-${subject}`}>
+              {subject} courses — must total {awarded[subject]}
+            </label>
+            <span className={`text-xs tabular-nums ${off ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
+              {total === null ? 'none' : `${total} / ${awarded[subject]}`}
+            </span>
+          </div>
+          <input id={`courses-${record.id}-${subject}`}
+                 aria-invalid={off || undefined}
+                 className={off ? inputClass.replace('border-gray-300', 'border-red-400') : inputClass}
+                 placeholder="US History (1.0), Government (0.5)"
+                 value={courses[subject] || ''}
+                 onChange={(e) => setCourses({ ...courses, [subject]: e.target.value })} />
+          {off && (
+            <p className="text-xs text-red-700 mt-1">
+              These courses add up to {total}, but {subject} was awarded{' '}
+              {awarded[subject]}. Fix a course, or{' '}
+              <button type="button"
+                      onClick={() => setCourses({ ...courses, [subject]: '' })}
+                      className="underline font-medium">
+                drop the course names
+              </button>{' '}
+              and transcribe the credit on its own.
+            </p>
+          )}
+        </div>
+      )})}
+
+      <button type="button" disabled={busy || !school.trim() || mismatches.length > 0}
+              onClick={() => onSubmit({
+                school_name: school.trim(),
+                subject_credits: awarded,
+                course_names: parsed,
+              })}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink disabled:opacity-50">
+        Add to transcript
+      </button>
+    </div>
+  )
+}
+
+/**
+ * "US History (1.0), Government (0.5)" -> [{name, credits}], per subject.
+ *
+ * Free text rather than a row editor: a reviewer correcting one course name
+ * shouldn't have to work a grid. Anything without a "(credits)" suffix parses
+ * to nothing, which shows up as a total that doesn't match — visible before
+ * saving rather than as a rejection afterwards.
+ */
+export const parseCourseText = (bySubject) => {
+  const out = {}
+  for (const [subject, text] of Object.entries(bySubject || {})) {
+    const list = String(text || '').split(',').map((chunk) => {
+      const m = chunk.trim().match(/^(.*?)\s*\(([\d.]+)\)$/)
+      return m && m[1].trim() ? { name: m[1].trim(), credits: parseFloat(m[2]) } : null
+    }).filter(Boolean)
+    if (list.length) out[subject] = list
+  }
+  return out
+}
+
+export const courseTotal = (list) => (
+  Math.round((list || []).reduce((sum, c) => sum + (Number(c.credits) || 0), 0) * 100) / 100
 )
 
-const ReviewForm = ({ record, subjects, busy, onSubmit }) => {
+/** A suggestion's subjects as the credit boxes hold them: {subject: "1.0"}. */
+export const creditsFromSuggestion = (suggestion) => Object.fromEntries(
+  (suggestion?.subjects || [])
+    .filter((s) => Number(s.credits) > 0)
+    .map((s) => [s.subject, String(s.credits)])
+)
+
+const ReviewForm = ({ record, subjects, busy, prefill, onSubmit }) => {
   const [notes, setNotes] = useState(record.review_notes || '')
   const [credits, setCredits] = useState(() => (
     Object.fromEntries(Object.entries(record.awarded_credits || {}).map(([k, v]) => [k, String(v)]))
   ))
+
+  // "Use these numbers" fills the boxes; the reviewer still presses Accept, so
+  // the suggestion never becomes an award without a person in between. Keyed on
+  // the suggestion object so re-analyzing refills, but typing does not get
+  // overwritten on every render.
+  useEffect(() => {
+    if (prefill) setCredits(creditsFromSuggestion(prefill))
+  }, [prefill])
 
   const awarded = () => Object.fromEntries(
     Object.entries(credits)

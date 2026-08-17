@@ -32,6 +32,7 @@ from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.org_features import org_has_feature
 from utils.school_subjects import SCHOOL_SUBJECTS
+from utils.storage_urls import parse_object_ref, sign_in_place
 
 logger = get_logger(__name__)
 
@@ -165,6 +166,14 @@ def _attach_evidence(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows = (_admin().table('prior_learning_evidence')
             .select('*').in_('record_id', ids)
             .order('sequence_order').execute().data or [])
+    # `url` holds the canonical /object/public/quest-evidence/... pointer, and
+    # that bucket is PRIVATE — fetching the pointer as-is is what Supabase
+    # answers with {"code":"NoSuchBucket","message":"Bucket not found"}, which
+    # reads like a misconfigured bucket but is really an unsigned read. Both
+    # surfaces render `item.url` directly, so sign in place, once per page.
+    # Link and video evidence hold foreign URLs; sign_stored_urls passes
+    # anything that isn't ours straight through.
+    sign_in_place(rows, ['url'])
     by_record: Dict[str, List[Dict[str, Any]]] = {}
     for row in rows:
         by_record.setdefault(row['record_id'], []).append(row)
@@ -375,7 +384,42 @@ def add_evidence(record_id: str, org_id: str, guardian_id: str,
     created = _admin().table('prior_learning_evidence').insert(row).execute().data
     if not created:
         return {'error': 'Could not attach that evidence'}
-    return {'evidence': created[0]}
+    # The insert echoes back the stored pointer, which the page would render
+    # unsigned — the just-uploaded file would be the one broken thumbnail on an
+    # otherwise working list until the next refetch. Sign it like a read.
+    out = dict(created[0])
+    sign_in_place([out], ['url'])
+    return {'evidence': out}
+
+
+def _delete_evidence_row(evidence_id: str, record_id: str) -> Dict[str, Any]:
+    """Drop one piece of evidence, and the file behind it.
+
+    The row and the blob go together: deleting only the row leaves the upload
+    sitting in the private bucket forever, still counted against storage and
+    still holding a family's document that the school was asked to remove.
+    """
+    rows = (_admin().table('prior_learning_evidence')
+            .select('id, url').eq('id', evidence_id)
+            .eq('record_id', record_id).limit(1).execute().data or [])
+    if not rows:
+        return {'error': 'That evidence is not on this record', 'status': 404}
+
+    # `url` may already be signed in a cached read; parse_object_ref reduces
+    # either form to (bucket, path), and returns None for a foreign link.
+    ref = parse_object_ref(rows[0].get('url'))
+    if ref:
+        bucket, path = ref
+        try:
+            _admin().storage.from_(bucket).remove([path])
+        except Exception as e:  # noqa: BLE001
+            # The row still goes. An orphaned blob is a storage cost; a row
+            # pointing at a file the reviewer thinks they deleted is a lie.
+            logger.warning(f'Could not remove prior-learning file {path}: {e}')
+
+    (_admin().table('prior_learning_evidence').delete()
+     .eq('id', evidence_id).eq('record_id', record_id).execute())
+    return {'deleted': True}
 
 
 def delete_evidence(evidence_id: str, record_id: str, org_id: str,
@@ -385,9 +429,23 @@ def delete_evidence(evidence_id: str, record_id: str, org_id: str,
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
         return {'error': 'The school is reviewing this record, so it can no longer be changed'}
-    (_admin().table('prior_learning_evidence').delete()
-     .eq('id', evidence_id).eq('record_id', record_id).execute())
-    return {'deleted': True}
+    return _delete_evidence_row(evidence_id, record_id)
+
+
+def staff_delete_evidence(evidence_id: str, record_id: str,
+                          org_id: str) -> Dict[str, Any]:
+    """Staff removing a document from a record they are reviewing.
+
+    Not bound by FAMILY_EDITABLE, deliberately: the reason this exists is that a
+    family's upload turned out to be something the school should not be holding
+    — a file about the wrong child, a duplicate, or in the first real case a
+    cloud-hosting invoice attached by mistake — and those are found DURING
+    review, exactly when the family's own delete has already locked.
+    """
+    record = get_record(record_id, org_id)
+    if not record:
+        return {'error': 'Record not found', 'status': 404}
+    return _delete_evidence_row(evidence_id, record_id)
 
 
 # ── Staff review ──────────────────────────────────────────────────────────────

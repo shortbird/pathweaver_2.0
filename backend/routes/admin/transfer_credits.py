@@ -32,31 +32,16 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_transfer_credits', __name__, url_prefix='/api/admin/transfer-credits')
 
-# Valid school subjects (must match the school_subject enum in database)
-VALID_SUBJECTS = [
-    'language_arts', 'math', 'science', 'social_studies',
-    'financial_literacy', 'health', 'pe', 'fine_arts',
-    'cte', 'digital_literacy', 'electives'
-]
-
-# Subject to Pillar mapping (for updating pillar XP alongside subject XP)
-# Pillars: art, stem, communication, civics, wellness
-SUBJECT_TO_PILLAR = {
-    'language_arts': 'communication',    # English, Literature
-    'math': 'stem',                      # Mathematics
-    'science': 'stem',                   # Biology, Chemistry, Physics
-    'social_studies': 'civics',          # History, Geography, Social Studies
-    'financial_literacy': 'wellness',    # Personal Finance
-    'health': 'wellness',                # Health & Nutrition
-    'pe': 'wellness',                    # Physical Education
-    'fine_arts': 'art',                  # Visual Arts, Music
-    'cte': 'stem',                       # Career & Technical Ed (practical STEM)
-    'digital_literacy': 'stem',          # Computer Science
-    'electives': 'art'                   # Default to Art for general electives
-}
-
-# XP per credit (matches existing constant)
-XP_PER_CREDIT = 2000
+# The credit/XP arithmetic lives in the service so the SIS console can share it
+# — services must not import routes (tests/unit/test_import_layers), so the
+# direction is this way round. Re-exported here because this module's own
+# helpers and its tests still refer to them by these names.
+from services.transfer_credit_service import (  # noqa: E402
+    SUBJECT_TO_PILLAR,
+    VALID_SUBJECTS,
+    XP_PER_CREDIT,
+    sync_xp as _sync_xp,
+)
 
 # Maximum file size for transcript uploads (25MB)
 MAX_TRANSCRIPT_SIZE = 25 * 1024 * 1024
@@ -541,84 +526,12 @@ def _delete_transfer_credit_record(supabase, transfer_record, user_id, admin_use
 
 
 def _sync_transfer_credits_to_user_subject_xp(supabase, user_id: str, subject_xp: dict, old_subject_xp: dict = None) -> dict:
+    """Sync transfer credit XP to user_subject_xp and user_skill_xp.
+
+    Thin wrapper over transfer_credit_service.sync_xp, which is the one
+    implementation shared with the SIS console. Kept as a named function
+    because this module's callers (and its tests) know it by this name; the
+    `supabase` argument is now redundant and ignored — the service opens its
+    own admin client.
     """
-    Sync transfer credit XP to both user_subject_xp and user_skill_xp tables.
-
-    This adds the transfer credit XP to:
-    1. user_subject_xp - for diploma credit requirements
-    2. user_skill_xp - for pillar XP (using subject-to-pillar mapping)
-
-    When transfer credits are updated, we handle the delta (difference).
-
-    Args:
-        supabase: Supabase admin client
-        user_id: UUID of the student
-        subject_xp: Dict of subject -> XP amount from NEW transfer credits
-        old_subject_xp: Dict of subject -> XP amount from PREVIOUS transfer credits (before update)
-
-    Returns:
-        Dict with 'success' boolean and optional 'error' message
-    """
-    try:
-        # Use provided old values (captured before the save) or default to empty
-        prev_subject_xp = old_subject_xp or {}
-
-        # Track pillar deltas for batch update
-        pillar_deltas = {}
-
-        # Process each subject
-        for subject in VALID_SUBJECTS:
-            new_xp = subject_xp.get(subject, 0)
-            old_xp = prev_subject_xp.get(subject, 0)
-            delta = new_xp - old_xp
-
-            if delta == 0:
-                continue
-
-            # --- Update user_subject_xp (diploma credits) ---
-            current = supabase.table('user_subject_xp').select('id, xp_amount').eq('user_id', user_id).eq('school_subject', subject).execute()
-
-            if current.data:
-                current_xp = current.data[0].get('xp_amount', 0)
-                updated_xp = max(0, current_xp + delta)
-                supabase.table('user_subject_xp').update({
-                    'xp_amount': updated_xp
-                }).eq('id', current.data[0]['id']).execute()
-            elif new_xp > 0:
-                supabase.table('user_subject_xp').insert({
-                    'user_id': user_id,
-                    'school_subject': subject,
-                    'xp_amount': new_xp
-                }).execute()
-
-            # --- Track pillar delta ---
-            pillar = SUBJECT_TO_PILLAR.get(subject)
-            if pillar:
-                pillar_deltas[pillar] = pillar_deltas.get(pillar, 0) + delta
-
-        # --- Update user_skill_xp (pillar XP) ---
-        for pillar, delta in pillar_deltas.items():
-            if delta == 0:
-                continue
-
-            current_pillar = supabase.table('user_skill_xp').select('id, xp_amount').eq('user_id', user_id).eq('pillar', pillar).execute()
-
-            if current_pillar.data:
-                current_xp = current_pillar.data[0].get('xp_amount', 0)
-                updated_xp = max(0, current_xp + delta)
-                supabase.table('user_skill_xp').update({
-                    'xp_amount': updated_xp
-                }).eq('id', current_pillar.data[0]['id']).execute()
-            elif delta > 0:
-                supabase.table('user_skill_xp').insert({
-                    'user_id': user_id,
-                    'pillar': pillar,
-                    'xp_amount': delta
-                }).execute()
-
-        logger.info(f"[TRANSFER CREDITS] Synced XP for user {user_id}: subjects={list(subject_xp.keys())}, pillar_deltas={pillar_deltas}")
-        return {'success': True}
-
-    except Exception as e:
-        logger.error(f"Error syncing transfer credits to user_subject_xp/user_skill_xp: {str(e)}")
-        return {'success': False, 'error': str(e)}
+    return _sync_xp(user_id, subject_xp, old_subject_xp)

@@ -33,15 +33,28 @@ logger = get_logger(__name__)
 # the frontend can render a suggestion before the producer exists.
 SUGGESTION_SCHEMA = {
     'summary': 'str — one paragraph a reviewer can read instead of the evidence',
+    'school_name': 'str|null — the issuing institution, as printed on the evidence',
+    'started_on': 'str|null — YYYY-MM-DD',
+    'ended_on': 'str|null — YYYY-MM-DD',
     'subjects': [{
         'subject': f'one of {SCHOOL_SUBJECTS}',
         'credits': 'float — proposed Carnegie units',
         'confidence': 'float 0..1',
         'rationale': 'str — which evidence supports this, in one sentence',
+        'courses': [{
+            'name': 'str — the course as printed (e.g. "US History")',
+            'credits': 'float — must sum to the subject credits',
+            'term': "'full_year' | 'semester' — what the evidence shows",
+        }],
     }],
     'flags': ['str — anything a human must check (illegible scan, missing dates, '
               'evidence that does not match the claim)'],
 }
+
+# A full-year high-school class is 1.0 credit; a semester is 0.5. The model is
+# told this rather than left to infer it, because "credits" means different
+# things at different schools and a wrong unit lands on a transcript.
+TERM_CREDITS = {'full_year': 1.0, 'semester': 0.5}
 
 # Evidence a text-only model can read directly vs. evidence it needs to be handed
 # as a file/URL. The split is here, not in the prompt, so both stay in step.

@@ -53,12 +53,18 @@ def list_records(user_id):
     status = request.args.get('status') or None
     if status and status not in ('submitted', 'under_review', 'accepted', 'rejected'):
         return jsonify({'success': False, 'error': 'Unknown status'}), 400
+    records = prior.list_for_org(org_id, status=status,
+                                 student_id=request.args.get('student_id'))
+    # Which of these are already on a transcript, in one query for the page.
+    from services import transfer_credit_service as credit
+    converted = credit.conversions_for_records([r['id'] for r in records])
+    for record in records:
+        record['transfer_credit'] = converted.get(record['id'])
     return jsonify({
         'success': True,
-        'records': prior.list_for_org(org_id, status=status,
-                                      student_id=request.args.get('student_id')),
+        'records': records,
         'counts': prior.queue_counts(org_id),
-        # The award vocabulary, so the reviewer's boxes and the future analyzer's
+        # The award vocabulary, so the reviewer's boxes and the analyzer's
         # suggestions can never drift apart.
         'subjects': [{'key': key, 'name': SCHOOL_SUBJECT_DISPLAY_NAMES.get(key, key)}
                      for key in SCHOOL_SUBJECTS],
@@ -77,10 +83,14 @@ def get_record(user_id, record_id):
     record = prior.get_record(record_id, org_id)
     if not record:
         return jsonify({'success': False, 'error': 'Record not found'}), 404
+    from services import transfer_credit_service as credit
     return jsonify({
         'success': True,
         'record': record,
         'accepted_totals': prior.accepted_credit_totals(record['student_user_id']),
+        # Non-null once this record is on the transcript. The UI needs it to
+        # show "already added" rather than offering a button that 409s.
+        'transfer_credit': credit.already_converted(record_id),
     })
 
 
@@ -101,6 +111,96 @@ def review_record(user_id, record_id):
     )
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/evidence/<evidence_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_evidence(user_id, record_id, evidence_id):
+    """Remove one uploaded document from a record under review.
+
+    The file goes with the row — see staff_delete_evidence. Unlike the family's
+    own delete this is not gated on the record still being editable, because
+    the documents worth removing are the ones found during review.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = prior.staff_delete_evidence(evidence_id, record_id, org_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    logger.info(f'[PRIOR LEARNING] {user_id[:8]} deleted evidence {evidence_id} '
+                f'from record {record_id}')
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/analyze', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def analyze_record(user_id, record_id):
+    """Ask the analyzer to read this record's evidence and propose a split.
+
+    Synchronous on purpose: a reviewer clicks this while looking at the record
+    and waits a few seconds for the answer. Backgrounding it would need a queue,
+    a poll and a stale-suggestion story for a call that takes about as long as
+    reading the first page of the scan yourself.
+
+    The result is only ever a suggestion — it lands in ai_suggestion, and
+    /credit is what puts anything on a transcript.
+
+    Optional `passwords`: candidates for encrypted PDFs on this record, tried
+    against every locked file. They are used for this one call — never written
+    to the record, never logged, and not echoed back in the response.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    record = prior.get_record(record_id, org_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Record not found'}), 404
+
+    data = request.json or {}
+    raw_passwords = data.get('passwords') or data.get('password') or []
+    if isinstance(raw_passwords, str):
+        raw_passwords = [raw_passwords]
+    passwords = [p for p in (str(x).strip() for x in raw_passwords[:10]) if p]
+
+    from services.sis_prior_learning_analyzer import analyze_record as run_analysis
+    result = run_analysis(record, org_id, passwords)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 502
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/credit', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def credit_record(user_id, record_id):
+    """Put an accepted record's credit on the student's transcript.
+
+    Body is what the reviewer approved on screen — school_name, subject_credits,
+    course_names, notes — NOT the AI's suggestion. The suggestion reaches this
+    endpoint only through a human who looked at it and pressed the button.
+
+    Separate from /review because accepting and transcribing are different
+    decisions: the office accepts a record when it believes the evidence, and
+    transcribes it when the credit is settled. Keeping them apart is also what
+    makes the double-credit guard meaningful.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    record = prior.get_record(record_id, org_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Record not found'}), 404
+    if record.get('status') != 'accepted':
+        return jsonify({'success': False,
+                        'error': 'Accept this record before adding it to the transcript'}), 400
+
+    from services import transfer_credit_service as credit
+    result = credit.convert_prior_learning(record, request.json or {}, user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error'],
+                        'transfer_credit_id': result.get('transfer_credit_id')}), \
+            result.get('status', 400)
     return jsonify({'success': True, **result})
 
 
