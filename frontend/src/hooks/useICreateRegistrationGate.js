@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
+import { isMasquerading } from '../services/masqueradeService'
 
 // Gate for iCreate registration funnel completion.
 //
@@ -76,7 +77,11 @@ export function useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
   const { checking, incomplete } = useRegistrationIncomplete(user, isAuthenticated)
   // Only a pure parent can be globally gated, so only they wait on the check —
   // non-parent org users (students, advisors, admins) never see the spinner.
-  const applies = effectiveRole === 'parent'
+  // An admin masquerading as that parent is exempt: the point of masquerading
+  // into a stuck account is to see what the parent would see AFTER the funnel,
+  // and being locked to /enroll/resume makes the session useless. The parent's
+  // own login is unaffected — this reads the masquerade session, not the user.
+  const applies = effectiveRole === 'parent' && !isMasquerading()
   return { checking: applies && checking, mustRegister: applies && incomplete }
 }
 

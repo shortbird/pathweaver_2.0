@@ -54,8 +54,20 @@ def _student_name(u: Dict[str, Any]) -> str:
 def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     """Students the guardian may register, as [{student_id, name, org_id, household_id}].
 
-    Limited to SIS-enabled orgs. Resolves family via household membership (microschool
-    model) and the platform managed_by_parent_id link (dependent accounts).
+    Limited to SIS-enabled orgs. Resolves family three ways, because a school
+    can be built on any of them:
+      - household membership (the microschool model, created by the funnel),
+      - the platform managed_by_parent_id link (dependent accounts),
+      - an approved parent_student_links row (a parent and an independent
+        student account linked to each other).
+
+    The third path was missing until 2026-08-17, and Optio Academy runs almost
+    entirely on it — its families are linked accounts, not funnel households.
+    That split a parent in half: sis_service.member_org_id already counts an
+    approved link as belonging to the school, so /school opened for them, while
+    this function said they guarded nobody, so every family card on it was
+    withheld and /api/sis/parent/* answered "Not authorized for this
+    organization". A guardian who could see the school but not their own child.
     """
     found: Dict[tuple, Dict[str, Any]] = {}  # (student_id, org_id) -> partial
 
@@ -95,6 +107,25 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
         if org_id:
             found.setdefault((m['id'], org_id), {
                 'student_id': m['id'], 'org_id': org_id, 'household_id': None,
+            })
+
+    # 3) Linked accounts — an approved parent_student_links row. The student's
+    # own organization_id is the school here (there is no household to carry
+    # it), matching how member_org_id resolves the same link. Only 'approved':
+    # a pending request is not yet a family relationship.
+    links = (
+        _admin().table('parent_student_links').select('student_user_id')
+        .eq('parent_user_id', guardian_user_id).eq('status', 'approved').execute()
+    ).data or []
+    link_ids = [l['student_user_id'] for l in links if l.get('student_user_id')]
+    if link_ids:
+        linked = (
+            _admin().table('users').select('id, organization_id')
+            .in_('id', link_ids).not_.is_('organization_id', 'null').execute()
+        ).data or []
+        for s in linked:
+            found.setdefault((s['id'], s['organization_id']), {
+                'student_id': s['id'], 'org_id': s['organization_id'], 'household_id': None,
             })
 
     if not found:
@@ -1020,7 +1051,7 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
         return None
     admin = _admin()
     rows = (admin.table('sis_staff_training')
-            .select('quest_id, category, is_required, sequence_order, '
+            .select('quest_id, category, is_required, sequence_order, auto_assign, '
                     'quests(id, title, description, is_active, header_image_url)')
             .eq('organization_id', org_id).eq('audience', 'family')
             .order('sequence_order').execute()).data or []
@@ -1029,23 +1060,45 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
         return []
 
     quest_ids = [r['quest_id'] for r in catalog]
+
     # Progress comes from the ordinary quest tables — the same records that drive
     # the guardian's own dashboard, so nothing here needs keeping in step.
-    user_quests = (admin.table('user_quests')
-                   .select('id, quest_id, completed_at')
-                   .eq('user_id', user_id).in_('quest_id', quest_ids).execute()).data or []
+    def _read_progress():
+        user_quests = (admin.table('user_quests')
+                       .select('id, quest_id, completed_at')
+                       .eq('user_id', user_id).in_('quest_id', quest_ids).execute()).data or []
+        uq_ids = [uq['id'] for uq in user_quests]
+        tasks = []
+        if uq_ids:
+            tasks = (admin.table('user_quest_tasks').select('id, user_quest_id')
+                     .in_('user_quest_id', uq_ids).execute()).data or []
+        done = set()
+        task_ids = [t['id'] for t in tasks]
+        for i in range(0, len(task_ids), 200):
+            done.update(r['task_id'] for r in (
+                admin.table('quest_task_completions').select('task_id')
+                .in_('task_id', task_ids[i:i + 200]).execute()).data or [])
+        return user_quests, tasks, done
+
+    user_quests, tasks, done = _read_progress()
     by_quest = {uq['quest_id']: uq for uq in user_quests}
-    uq_ids = [uq['id'] for uq in user_quests]
-    tasks = []
-    if uq_ids:
-        tasks = (admin.table('user_quest_tasks').select('id, user_quest_id')
-                 .in_('user_quest_id', uq_ids).execute()).data or []
-    done = set()
-    task_ids = [t['id'] for t in tasks]
-    for i in range(0, len(task_ids), 200):
-        done.update(r['task_id'] for r in (
-            admin.table('quest_task_completions').select('task_id')
-            .in_('task_id', task_ids[i:i + 200]).execute()).data or [])
+
+    # A family that registered after the admin pressed "assign to everyone" is
+    # enrolled here, on their first look at the portal — an orientation quest
+    # nobody remembered to re-assign would otherwise silently skip them.
+    missing = [r['quest_id'] for r in catalog
+               if r.get('auto_assign') and r['quest_id'] not in by_quest]
+    if missing:
+        from utils.quest_assignment import assign_quest_to_users
+        created = 0
+        for qid in missing:
+            try:
+                created += assign_quest_to_users(admin, qid, [user_id])['enrolled']
+            except Exception as e:  # noqa: BLE001 — reading the portal is the point
+                logger.warning(f"Family auto-assign catch-up failed for quest {qid}: {e}")
+        if created:
+            user_quests, tasks, done = _read_progress()
+            by_quest = {uq['quest_id']: uq for uq in user_quests}
 
     out = []
     for r in catalog:

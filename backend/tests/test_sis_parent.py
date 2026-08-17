@@ -35,6 +35,15 @@ class _Query:
     def order(self, *_a, **_k):
         return self
 
+    # `.not_.is_('organization_id', 'null')` — a filter the resolvers below
+    # don't branch on, so it only has to chain.
+    @property
+    def not_(self):
+        return self
+
+    def is_(self, *_a, **_k):
+        return self
+
     def execute(self):
         return Mock(data=self._resolver(self._table, self._eq, self._in))
 
@@ -66,6 +75,26 @@ def _resolver(table, eq, in_):
     return []
 
 
+# A guardian 'g2' has no household at all — they and student 'stu2' are linked
+# accounts, which is how Optio Academy families are built.
+def _linked_resolver(table, eq, in_):
+    if table == 'household_members':
+        return []
+    if table == 'parent_student_links':
+        if eq.get('parent_user_id') == 'g2' and eq.get('status') == 'approved':
+            return [{'student_user_id': 'stu2'}]
+        return []
+    if table == 'users':
+        if eq.get('managed_by_parent_id'):
+            return []
+        if 'stu2' in (in_.get('id') or []):
+            return [{'id': 'stu2', 'organization_id': 'org1', 'display_name': 'Stu Two'}]
+        return []
+    if table == 'organizations':
+        return [{'id': 'org1', 'name': 'Optio Academy'}]
+    return []
+
+
 @pytest.mark.unit
 class TestRegisterableStudents:
     def test_household_student_is_registerable_when_sis_enabled(self):
@@ -89,6 +118,28 @@ class TestRegisterableStudents:
                    return_value=_fake_admin(_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             assert parent.registerable_students('stranger') == []
+
+    def test_approved_link_makes_a_guardian_without_a_household(self):
+        with patch('services.sis_parent_service.get_supabase_admin_client',
+                   return_value=_fake_admin(_linked_resolver)), \
+             patch('services.sis_parent_service.org_has_feature', return_value=True):
+            students = parent.registerable_students('g2')
+        assert len(students) == 1
+        assert students[0]['student_id'] == 'stu2'
+        assert students[0]['org_id'] == 'org1'
+        assert students[0]['household_id'] is None
+
+    def test_pending_link_is_not_a_guardian(self):
+        def pending(table, eq, in_):
+            # Same family, but the link was never approved.
+            if table == 'parent_student_links':
+                return []
+            return _linked_resolver(table, eq, in_)
+
+        with patch('services.sis_parent_service.get_supabase_admin_client',
+                   return_value=_fake_admin(pending)), \
+             patch('services.sis_parent_service.org_has_feature', return_value=True):
+            assert parent.registerable_students('g2') == []
 
     def test_context_groups_students_by_org(self):
         with patch('services.sis_parent_service.get_supabase_admin_client',
