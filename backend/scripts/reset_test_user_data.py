@@ -16,6 +16,7 @@ Use --preserve-enrollments to keep 1 enrolled quest:
 """
 
 import os
+import sys
 import argparse
 from supabase import create_client
 

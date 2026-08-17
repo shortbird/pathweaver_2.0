@@ -54,7 +54,7 @@ _fix_images_progress = {
 
 
 
-from routes.admin.curriculum_generate import bp
+from routes.admin.curriculum_generate import bp, get_organization_id
 
 
 @bp.route('/<course_id>/queue', methods=['POST'])

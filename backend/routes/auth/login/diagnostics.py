@@ -28,6 +28,44 @@ from .security import (
     ensure_user_diploma_and_skills
 )
 
+
+def get_safari_recommendations(is_safari, has_cookie, has_header, is_authenticated):
+    """Generate Safari-specific troubleshooting recommendations"""
+    recommendations = []
+
+    if is_safari and not has_cookie and not has_header:
+        recommendations.append({
+            'issue': 'Safari is blocking cookies and no Authorization header detected',
+            'solution': 'Frontend should automatically use Authorization headers. Check browser console for errors.',
+            'action': 'Try logging out and logging back in to refresh authentication method.'
+        })
+    elif is_safari and not has_cookie and has_header:
+        recommendations.append({
+            'issue': 'Safari is blocking cookies (expected behavior)',
+            'solution': 'Using Authorization header fallback - this is working correctly!',
+            'action': 'No action needed. System is functioning normally with Safari.'
+        })
+    elif is_safari and has_cookie:
+        recommendations.append({
+            'issue': 'None - cookies are working in Safari',
+            'solution': 'Your Safari browser is accepting cookies. System is functioning normally.',
+            'action': 'No action needed.'
+        })
+    elif not is_authenticated:
+        recommendations.append({
+            'issue': 'Not authenticated',
+            'solution': 'Please log in to access protected resources.',
+            'action': 'Navigate to the login page.'
+        })
+    else:
+        recommendations.append({
+            'issue': 'None detected',
+            'solution': 'System is functioning normally.',
+            'action': 'No action needed.'
+        })
+
+    return recommendations
+
 logger = get_logger(__name__)
 
 

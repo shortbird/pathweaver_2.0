@@ -22,6 +22,7 @@ Admin endpoints (superadmin only):
 
 from flask import Blueprint, request, jsonify
 import re
+from database import get_supabase_admin_client
 from utils.validation.sanitizers import pgrst_pattern
 from utils.auth.decorators import require_superadmin
 from utils.logger import get_logger
