@@ -12,11 +12,12 @@ import {
   COMMISSION_WEBSITE,
 } from '../constants/accreditation';
 
-const CREDIT_REQUIREMENTS = {
-  'Language Arts': 4.0, 'Mathematics': 3.0, 'Science': 3.0, 'Social Studies': 3.5,
-  'Financial Literacy': 0.5, 'Health': 0.5, 'Physical Education': 2.0, 'Fine Arts': 1.5,
-  'Career & Technical Education': 1.0, 'Digital Literacy': 0.5, 'Electives': 4.0
-};
+// A copy of the requirement table used to sit here, keyed by display name. It
+// was never read by anything on this page, and it had gone stale — Social
+// Studies said 3.5 against the 4.0 in utils/creditRequirements and in the
+// backend's DIPLOMA_REQUIREMENTS. Removed rather than corrected: a table
+// nothing consults cannot be right, it can only mislead whoever copies it next.
+// Requirements and elective overflow live in utils/creditRequirements.
 
 const SUBJECT_DISPLAY_NAMES = {
   'language_arts': 'Language Arts', 'math': 'Mathematics', 'science': 'Science',

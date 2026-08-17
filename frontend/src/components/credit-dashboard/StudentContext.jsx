@@ -1,4 +1,5 @@
 import React from 'react'
+import { getCreditStanding, XP_PER_CREDIT } from '../../utils/creditRequirements'
 
 const SUBJECTS = [
   'language_arts', 'math', 'science', 'social_studies', 'financial_literacy',
@@ -19,12 +20,12 @@ const SUBJECT_LABELS = {
   electives: 'Electives'
 }
 
-const XP_PER_CREDIT = 2000
-const CREDIT_REQUIREMENTS = {
-  language_arts: 4.0, math: 3.0, science: 3.0, social_studies: 4.0,
-  financial_literacy: 0.5, health: 0.5, pe: 2.0, fine_arts: 1.5,
-  cte: 1.0, digital_literacy: 0.5, electives: 4.0
-}
+// Requirements, credit conversion and elective overflow all come from
+// utils/creditRequirements. This panel used to hold its own copy of the table
+// and cap each subject itself, which meant it disagreed with the student's own
+// diploma panel about whether a subject was finished — an advisor reviewing
+// credit saw "3.3 / 4 electives" for a student whose electives were already
+// complete via surplus from an over-earned subject.
 
 const StudentContext = ({ context, loading }) => {
   if (loading) {
@@ -58,12 +59,13 @@ const StudentContext = ({ context, loading }) => {
     }
   })
 
-  // Calculate total credits
-  let totalCredits = 0
-  SUBJECTS.forEach(s => {
-    const xp = (xpMap[s]?.finalized || 0)
-    totalCredits += Math.min(xp / XP_PER_CREDIT, CREDIT_REQUIREMENTS[s] || 0)
-  })
+  // One standing for the whole panel, so the total and the per-subject rows
+  // can't tell an advisor two different stories.
+  const standing = getCreditStanding(
+    Object.fromEntries(SUBJECTS.map(s => [s, xpMap[s]?.finalized || 0]))
+  )
+  const bySubject = Object.fromEntries(standing.progress.map(c => [c.subject, c]))
+  const totalCredits = standing.totalApplied
   const progressPercent = Math.min(100, (totalCredits / 24) * 100)
 
   return (
@@ -96,10 +98,12 @@ const StudentContext = ({ context, loading }) => {
         <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Subject Progress</h4>
         <div className="space-y-1.5">
           {SUBJECTS.map(subject => {
-            const xp = xpMap[subject]?.finalized || 0
+            const credit = bySubject[subject]
             const pending = xpMap[subject]?.pending || 0
-            const required = (CREDIT_REQUIREMENTS[subject] || 0) * XP_PER_CREDIT
-            const percent = required > 0 ? Math.min(100, (xp / required) * 100) : 0
+            const required = (credit?.creditsRequired || 0) * XP_PER_CREDIT
+            // creditsCounted includes anything that overflowed in, so a subject
+            // finished that way reads as finished here too.
+            const percent = credit?.progressPercentage || 0
             const pendingPercent = required > 0 ? Math.min(100 - percent, (pending / required) * 100) : 0
 
             return (
@@ -107,7 +111,7 @@ const StudentContext = ({ context, loading }) => {
                 <div className="flex justify-between mb-0.5">
                   <span className="text-gray-600">{SUBJECT_LABELS[subject]}</span>
                   <span className="text-gray-400">
-                    {(xp / XP_PER_CREDIT).toFixed(1)}/{CREDIT_REQUIREMENTS[subject]}
+                    {(credit?.creditsCounted || 0).toFixed(1)}/{credit?.creditsRequired || 0}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 flex overflow-hidden">

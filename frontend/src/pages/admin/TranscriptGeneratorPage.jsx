@@ -15,20 +15,13 @@ import {
   COMMISSION_WEBSITE,
 } from '../../constants/accreditation';
 
-// Diploma credit requirements per subject (must match backend CreditMappingService.DIPLOMA_REQUIREMENTS)
-const CREDIT_REQUIREMENTS = {
-  'Language Arts': 4.0,
-  'Mathematics': 3.0,
-  'Science': 3.0,
-  'Social Studies': 3.5,
-  'Financial Literacy': 0.5,
-  'Health': 0.5,
-  'Physical Education': 2.0,
-  'Fine Arts': 1.5,
-  'Career & Technical Education': 1.0,
-  'Digital Literacy': 0.5,
-  'Electives': 4.0
-};
+// A copy of the requirement table used to sit here, with a comment saying it
+// "must match backend CreditMappingService.DIPLOMA_REQUIREMENTS". It didn't —
+// Social Studies said 3.5 where the backend says 4.0 — and nothing on this page
+// read it, so nothing ever caught the drift. Removed rather than corrected: an
+// unread copy can't be right, and that comment invites the next person to
+// trust it. Requirements and elective overflow live in
+// utils/creditRequirements; the transcript's own numbers come from the API.
 
 const SUBJECT_OPTIONS = [
   { value: 'language_arts', label: 'Language Arts' },
