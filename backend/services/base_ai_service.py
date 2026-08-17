@@ -854,34 +854,31 @@ class BaseAIService(BaseService):
         result = self.extract_json(text)
 
         if result is None:
-            # Comprehensive debugging for JSON parse failures
-            logger.error("=" * 60)
-            logger.error("JSON PARSING FAILED - DETAILED DEBUG INFO")
-            logger.error("=" * 60)
-            logger.error(f"Response length: {len(text)} chars")
-
-            # Check for common issues
+            # ONE log line, not ten. Sentry opens an issue per distinct
+            # logger.error() message, so the old block-of-eleven debug dump
+            # turned a single failed quest draft into ten separate issues
+            # (OPTIO-BACKEND-65..6E) with the actual signal - "unbalanced
+            # braces, the response was cut off" - split across three of them.
+            # Same diagnostics, carried as structured data on one event.
+            stripped = text.strip() if text else ''
             has_opening_brace = '{' in text
-            has_closing_brace = '}' in text
-            starts_with_code_block = text.strip().startswith('```')
-            ends_with_code_block = text.strip().endswith('```')
+            starts_with_code_block = stripped.startswith('```')
             open_braces = text.count('{')
             close_braces = text.count('}')
 
-            logger.error(f"Contains '{{': {has_opening_brace}, Contains '}}': {has_closing_brace}")
-            logger.error(f"Open braces: {open_braces}, Close braces: {close_braces}")
-            logger.error(f"Starts with ```: {starts_with_code_block}, Ends with ```: {ends_with_code_block}")
-
-            # Show start of response
-            preview_start = text[:800] if len(text) > 800 else text
-            logger.error(f"Response START (first 800 chars):\n{preview_start}")
-
-            # Show end of response
-            if len(text) > 800:
-                preview_end = text[-400:]
-                logger.error(f"Response END (last 400 chars):\n...{preview_end}")
-
-            logger.error("=" * 60)
+            logger.error(
+                'AI response could not be parsed as JSON',
+                extra={'ai_json_parse_failure': {
+                    'response_chars': len(text),
+                    'open_braces': open_braces,
+                    'close_braces': close_braces,
+                    'looks_truncated': open_braces != close_braces,
+                    'fenced': starts_with_code_block,
+                    'ends_fenced': stripped.endswith('```'),
+                    'head': text[:800],
+                    'tail': text[-400:] if len(text) > 800 else '',
+                }},
+            )
 
             if strict:
                 # Build a helpful error message
@@ -925,9 +922,9 @@ class BaseAIService(BaseService):
 
         # First, strip markdown code block markers if present
         # This is more robust than regex for handling truncated responses
-        logger.warning(f"extract_json: about to call _strip_markdown_code_blocks")
+        logger.debug(f"extract_json: about to call _strip_markdown_code_blocks")
         text = self._strip_markdown_code_blocks(text)
-        logger.warning(f"extract_json: after stripping, text starts with: {repr(text[:50]) if text else '(empty)'}")
+        logger.debug(f"extract_json: after stripping, text starts with: {repr(text[:50]) if text else '(empty)'}")
 
         # Clean common issues before parsing
         cleaned_text = self._clean_json_text(text)
@@ -1044,7 +1041,7 @@ class BaseAIService(BaseService):
             Text with markdown code block markers removed
         """
         # Log entry - use WARNING to ensure visibility
-        logger.warning(f"_strip_markdown_code_blocks called with {len(text) if text else 0} chars")
+        logger.debug(f"_strip_markdown_code_blocks called with {len(text) if text else 0} chars")
 
         if not text:
             return text
@@ -1054,11 +1051,11 @@ class BaseAIService(BaseService):
         # Strip whitespace first
         text = text.strip()
 
-        logger.warning(f"Text starts with: {repr(text[:20])}")
+        logger.debug(f"Text starts with: {repr(text[:20])}")
 
         # Check if it starts with a code block marker
         if text.startswith('```'):
-            logger.warning("Found opening ``` marker - stripping")
+            logger.debug("Found opening ``` marker - stripping")
             # Find the end of the opening marker line (handle both \n and \r\n)
             first_newline = -1
             for i, char in enumerate(text):
@@ -1071,33 +1068,33 @@ class BaseAIService(BaseService):
 
             if first_newline > 0:
                 marker_line = text[:first_newline].strip()
-                logger.warning(f"Opening marker line: '{marker_line}'")
+                logger.debug(f"Opening marker line: '{marker_line}'")
                 # Strip the opening marker line (skip \r\n if present)
                 if text[first_newline] == '\r':
                     text = text[first_newline + 2:]
                 else:
                     text = text[first_newline + 1:]
-                logger.warning(f"After stripping opening, starts with: {repr(text[:30])}")
+                logger.debug(f"After stripping opening, starts with: {repr(text[:30])}")
             else:
-                logger.warning(f"No newline found after ```, first_newline={first_newline}")
+                logger.debug(f"No newline found after ```, first_newline={first_newline}")
         else:
-            logger.warning(f"Text does NOT start with ```, starts with: {repr(text[:10])}")
+            logger.debug(f"Text does NOT start with ```, starts with: {repr(text[:10])}")
 
         # Strip trailing code block marker if present
         text_stripped = text.rstrip()
         if text_stripped.endswith('```'):
-            logger.warning("Found closing ``` marker - stripping")
+            logger.debug("Found closing ``` marker - stripping")
             # Find and remove the last ```
             last_marker = text.rfind('```')
             if last_marker >= 0:
                 text = text[:last_marker].rstrip()
-                logger.warning(f"After stripping closing, ends with: {repr(text[-30:])}")
+                logger.debug(f"After stripping closing, ends with: {repr(text[-30:])}")
 
         final_len = len(text)
         if final_len != original_len:
-            logger.warning(f"Stripped markdown: {original_len} -> {final_len} chars")
+            logger.debug(f"Stripped markdown: {original_len} -> {final_len} chars")
         else:
-            logger.warning(f"No stripping performed (length: {original_len})")
+            logger.debug(f"No stripping performed (length: {original_len})")
 
         return text
 
@@ -1109,7 +1106,7 @@ class BaseAIService(BaseService):
             return text
 
         original_len = len(text)
-        logger.warning(f"_clean_json_text called with {original_len} chars")
+        logger.debug(f"_clean_json_text called with {original_len} chars")
 
         # Remove BOM and other invisible characters
         text = text.strip('\ufeff\u200b\u200c\u200d\u2060')
@@ -1176,9 +1173,9 @@ class BaseAIService(BaseService):
 
         final_len = len(text)
         if final_len != original_len:
-            logger.warning(f"_clean_json_text modified: {original_len} -> {final_len} chars")
-        logger.warning(f"_clean_json_text output starts with: {repr(text[:50])}")
-        logger.warning(f"_clean_json_text output ends with: {repr(text[-50:])}")
+            logger.debug(f"_clean_json_text modified: {original_len} -> {final_len} chars")
+        logger.debug(f"_clean_json_text output starts with: {repr(text[:50])}")
+        logger.debug(f"_clean_json_text output ends with: {repr(text[-50:])}")
 
         return text
 
@@ -1385,83 +1382,109 @@ class BaseAIService(BaseService):
         """
         Attempt to repair truncated JSON by closing unclosed brackets/braces.
         Common issue when AI response hits token limit.
-        """
-        logger.debug(f"_repair_truncated_json called with {len(text)} chars")
 
-        # Find JSON start
+        Only reached once every ordinary parse in extract_json has already
+        failed, so the worst case here is the None we would have returned
+        anyway. Two things have to be right for the repair to parse:
+
+          - the tail has to be cut back to the last COMPLETE element. A draft
+            that stops after ``"description":`` leaves a key with no value,
+            and no amount of closing braces makes that valid.
+          - closers have to come out in nesting order. A quest draft cut off
+            mid-task is ``{ ... "tasks": [ {``, which needs ``}``, ``]``,
+            ``}`` - not every ``]`` followed by every ``}``.
+
+        Both were wrong before (Sentry OPTIO-BACKEND-65..6E): a teacher
+        uploaded a staff handbook, the model answered with a good title, a
+        good description and one task before running out of output budget,
+        and the repair turned it into ``..."description":]}}``. The draft was
+        thrown away and the teacher was told the AI could not find enough in
+        their document.
+        """
         start_brace = text.find('{')
         start_bracket = text.find('[')
-
         if start_brace < 0 and start_bracket < 0:
             return None
-
-        # Determine which comes first
         if start_brace >= 0 and (start_bracket < 0 or start_brace < start_bracket):
-            start = start_brace
-            json_text = text[start:]
+            body = text[start_brace:]
         else:
-            start = start_bracket
-            json_text = text[start:]
+            body = text[start_bracket:]
 
-        # Count unclosed braces/brackets
-        open_braces = 0
-        open_brackets = 0
+        def closers_for(stk):
+            return ''.join('}' if c == '{' else ']' for c in reversed(stk))
+
+        stack = []      # containers currently open, outermost first
+        states = []     # what the matching container expects next
+        cuts = []       # (index, closers) positions the value is complete at
         in_string = False
-        escape_next = False
+        escape = False
+        in_literal = False
 
-        for char in json_text:
-            if escape_next:
-                escape_next = False
-                continue
+        def value_ended(idx):
+            if states:
+                states[-1] = 'after'
+            cuts.append((idx, closers_for(stack)))
+            # Bound memory on very long responses; the tail is what matters.
+            if len(cuts) > 64:
+                del cuts[:32]
 
-            if char == '\\':
-                escape_next = True
-                continue
-
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-
+        for i, ch in enumerate(body):
             if in_string:
+                if escape:
+                    escape = False
+                elif ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                    if states and states[-1] == 'key':
+                        states[-1] = 'colon'    # that string was an object key
+                    else:
+                        value_ended(i + 1)
                 continue
 
-            if char == '{':
-                open_braces += 1
-            elif char == '}':
-                open_braces -= 1
-            elif char == '[':
-                open_brackets += 1
-            elif char == ']':
-                open_brackets -= 1
+            if in_literal and ch not in '-+.eE0123456789abcdefglnrstu':
+                in_literal = False
+                value_ended(i)              # the bare literal ended before ch
 
-        # Log what we found
-        logger.debug(f"Truncated repair analysis: open_braces={open_braces}, open_brackets={open_brackets}, in_string={in_string}")
+            if ch == '"':
+                in_string = True
+                escape = False
+                if stack and stack[-1] == '{' and states[-1] in ('open', 'key'):
+                    states[-1] = 'key'
+            elif ch in '{[':
+                stack.append(ch)
+                states.append('open')
+                cuts.append((i + 1, closers_for(stack)))   # empty is valid
+            elif ch in '}]':
+                if stack:
+                    stack.pop()
+                    states.pop()
+                value_ended(i + 1)
+            elif ch == ':':
+                if states:
+                    states[-1] = 'value'
+            elif ch == ',':
+                if states:
+                    states[-1] = 'key' if stack[-1] == '{' else 'value'
+            elif not in_literal and ch not in ' \t\r\n':
+                in_literal = True           # number / true / false / null
 
-        # If we have unclosed structures, try to close them
-        if open_braces > 0 or open_brackets > 0 or in_string:
-            repair_parts = []
+        if not stack and not in_string and not in_literal:
+            return None                     # nothing was actually truncated
 
-            # Close any open string first
-            if in_string:
-                # Truncated inside a string - close it and potentially truncate cleanly
-                # Find last good position (not in the middle of an escape sequence)
-                json_text += '"'
-                repair_parts.append('closed open string')
+        # Newest cut first: keep as much of the draft as still parses.
+        for idx, closers in reversed(cuts):
+            candidate = body[:idx] + closers
+            try:
+                json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if idx < len(body):
+                logger.info(
+                    f"Truncated JSON repair: dropped {len(body) - idx} incomplete "
+                    f"trailing chars, closed with {closers!r}")
+            return candidate
 
-            # Add closing brackets and braces
-            repair = ''
-            for _ in range(open_brackets):
-                repair += ']'
-            for _ in range(open_braces):
-                repair += '}'
-
-            if repair:
-                repair_parts.append(f'added {repair}')
-
-            logger.info(f"Truncated JSON repair: {', '.join(repair_parts)}")
-            return json_text + repair
-
-        logger.debug("No truncation detected, returning None")
         return None
 
     def validate_content(
