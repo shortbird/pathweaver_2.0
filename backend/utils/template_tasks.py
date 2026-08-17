@@ -37,6 +37,19 @@ def get_valid_source_template_ids(admin, template_tasks):
         return set()
 
 
+def load_template_tasks(quest_id):
+    """A quest's authored task list, including the legacy fallback tables.
+
+    Exists so a caller enrolling several people can load once and pass the
+    result into each copy, without every such caller reaching into routes/ for
+    itself (utils -> routes is a layer violation; this module is already the
+    one place that does it).
+    """
+    from routes.quest_types import get_template_tasks
+
+    return get_template_tasks(quest_id, filter_type='all') or []
+
+
 def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
                                       template_tasks=None):
     """
@@ -47,10 +60,8 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
     template_tasks may be passed in when the caller already loaded them (bulk
     assignment loads once per quest); otherwise they are fetched here.
     """
-    from routes.quest_types import get_template_tasks
-
     if template_tasks is None:
-        template_tasks = get_template_tasks(quest_id, filter_type='all') or []
+        template_tasks = load_template_tasks(quest_id)
     if not template_tasks:
         return 0
 

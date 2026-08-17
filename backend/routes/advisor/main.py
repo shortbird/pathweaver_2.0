@@ -269,38 +269,18 @@ def get_invitable_quests(user_id):
         }), 500
 
 
-def _assign_one_quest(admin, quest_id, user_ids, now):
+def _assign_one_quest(admin, quest_id, user_ids):
     """Enroll user_ids into one quest (copying template tasks). Returns (title, enrolled, skipped)."""
-    from routes.quest_types import get_template_tasks
-    from utils.template_tasks import copy_template_tasks_to_enrollment
+    from utils.quest_assignment import assign_quest_to_users
 
     quest = admin.table('quests').select('id, title').eq('id', quest_id).execute()
     if not quest.data:
         raise NotFoundError(f"Quest {quest_id} not found")
     quest_title = quest.data[0].get('title', 'Quest')
 
-    template_tasks = get_template_tasks(quest_id, filter_type='all') or []
-
-    existing = admin.table('user_quests')\
-        .select('user_id').eq('quest_id', quest_id).in_('user_id', user_ids).execute()
-    already_enrolled = {r['user_id'] for r in (existing.data or [])}
-
-    enrolled = 0
-    for student_id in user_ids:
-        if student_id in already_enrolled:
-            continue
-        insert_result = admin.table('user_quests').insert({
-            'user_id': student_id, 'quest_id': quest_id, 'status': 'picked_up',
-            'is_active': True, 'times_picked_up': 1, 'last_picked_up_at': now, 'started_at': now,
-        }).execute()
-        enrolled += 1
-
-        if template_tasks and insert_result.data:
-            copy_template_tasks_to_enrollment(
-                admin, quest_id, student_id, insert_result.data[0]['id'],
-                template_tasks=template_tasks,
-            )
-    return quest_title, enrolled, len(already_enrolled)
+    # Shared with the school's training assignment (utils/quest_assignment).
+    counts = assign_quest_to_users(admin, quest_id, user_ids)
+    return quest_title, counts['enrolled'], counts['already']
 
 
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
@@ -327,14 +307,12 @@ def assign_students_to_quest(user_id):
             raise ValidationError("user_ids array cannot be empty")
 
         from database import get_supabase_admin_client
-        from datetime import datetime
         # admin client justified: @require_role gate above; advisor writing user_quests rows for OTHER students requires cross-user write
         admin = get_supabase_admin_client()
-        now = datetime.utcnow().isoformat()
 
         total_enrolled, total_skipped, titles = 0, 0, []
         for qid in quest_ids:
-            title, enrolled, skipped = _assign_one_quest(admin, qid, data['user_ids'], now)
+            title, enrolled, skipped = _assign_one_quest(admin, qid, data['user_ids'])
             titles.append(title)
             total_enrolled += enrolled
             total_skipped += skipped

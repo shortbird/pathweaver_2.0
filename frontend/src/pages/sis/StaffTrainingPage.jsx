@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   AcademicCapIcon, CheckCircleIcon, PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon,
+  PhotoIcon, EyeIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -10,6 +11,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
+import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
+import QuestPreviewModal from '../../components/sis/QuestPreviewModal'
+import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
 
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
@@ -36,21 +40,108 @@ const progressLabel = (p) => {
   return `${p.done} of ${p.total} tasks`
 }
 
+/** "150 of 300 XP" — only where a finish line has actually been set. */
+const xpLabel = (item) => {
+  const needed = item?.xp_threshold || 0
+  if (!needed) return null
+  return `${item.my_progress?.earned_xp || 0} of ${needed} XP`
+}
+
+const xpStyle = (item) => {
+  const needed = item?.xp_threshold || 0
+  const earned = item?.my_progress?.earned_xp || 0
+  return earned >= needed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-600'
+}
+
 const progressStyle = (p) => {
   if (!p?.started) return 'bg-gray-100 text-neutral-500'
   if (p.completed) return 'bg-green-100 text-green-700'
   return 'bg-amber-100 text-amber-800'
 }
 
-const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
+const people = (n, audience) => {
+  const word = audience === 'family' ? 'family' : 'person'
+  const plural = audience === 'family' ? 'families' : 'people'
+  return `${n} ${n === 1 ? word : plural}`
+}
+
+/**
+ * "1 family's account", "2 families' accounts", "3 people's accounts".
+ *
+ * The possessive cannot be tacked onto the plural: "families" already ends in
+ * s and takes a bare apostrophe, while "people" does not and takes 's. Gluing
+ * "'s" on regardless produced "2 families's accounts".
+ */
+const accountsOf = (n, audience) => {
+  const one = audience === 'family' ? 'family' : 'person'
+  const many = audience === 'family' ? 'families' : 'people'
+  if (n === 1) return `${n} ${one}'s account`
+  return `${n} ${many}${many.endsWith('s') ? "'" : "'s"} accounts`
+}
+
+/** "Added to training. Now on 22 people's accounts." */
+const assignedMessage = (assigned, audience, base) => {
+  if (!assigned) return base
+  const { enrolled = 0, already = 0 } = assigned
+  const total = enrolled + already
+  if (!total) return `${base} Nobody to assign it to yet.`
+  if (!enrolled) return `${base} ${people(already, audience)} already had it.`
+  return `${base} Now on ${accountsOf(enrolled, audience)}${already ? `, ${already} already had it` : ''}.`
+}
+
+const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editItem = null }) => {
   const [options, setOptions] = useState([])
   const [questId, setQuestId] = useState('')
   const [category, setCategory] = useState('')
   const [required, setRequired] = useState(false)
+  // On by default: somebody setting a quest for their whole school almost always
+  // means "put it on their accounts", and the alternative is a quest nobody can
+  // find. Untick it for something optional people opt into.
+  const [autoAssign, setAutoAssign] = useState(true)
+  // The finish line (quests.xp_threshold, enforced by the ordinary end-quest
+  // route). It defaults to "all of it" — the sum of the task XP — and follows
+  // the tasks as they are edited or regenerated, until an admin types their own
+  // number. After that it is theirs and stops moving underneath them.
+  const [xpThreshold, setXpThreshold] = useState('')
+  const [xpEdited, setXpEdited] = useState(false)
   const [roles, setRoles] = useState([])
   const [busy, setBusy] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  // Uploaded as soon as it is chosen, so the preview can show the real picture
+  // before the quest is committed to. Blank means the backend picks a stock
+  // image from the title.
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const imageRef = useRef(null)
+  // Off by default: training is a set list of things the school needs done, so
+  // people writing their own extra tasks is the exception, not the norm.
+  const [ownTasks, setOwnTasks] = useState(false)
+  // What the draft was generated from, kept only so those learner-written tasks
+  // can be about the actual handbook.
+  const [sourceMaterial, setSourceMaterial] = useState('')
+
+  const pickImage = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Choose an image file'); return }
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res = await api.post(withOrg('/api/sis/training/header-image', orgId), fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } })
+      setImageUrl(res.data?.url || '')
+      toast.success('Header image ready')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not upload that image')
+    } finally {
+      setUploadingImage(false)
+      if (imageRef.current) imageRef.current.value = ''
+    }
+  }
   const toggleRole = (value) => setRoles((rs) =>
     rs.includes(value) ? rs.filter((r) => r !== value) : [...rs, value])
+
   // "Where does the quest get built?" (iCreate, 2026-08-06). Attaching an
   // existing quest is a dead end if you have not made one, and sending somebody
   // to the learning app to author one and come back is not a flow people
@@ -60,24 +151,88 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
   const [description, setDescription] = useState('')
   const [tasks, setTasks] = useState([blankTask()])
 
+  // Everything the quest is worth. "Do all of it" is the sensible default for
+  // training, and it is what an admin would otherwise add up by hand.
+  const taskXpTotal = tasks.reduce(
+    (sum, t) => sum + (t.title.trim() ? Number(t.xp_value) || 0 : 0), 0)
+  const xpValue = xpEdited ? xpThreshold : (taskXpTotal ? String(taskXpTotal) : '')
+  const xpToSend = xpValue === '' ? null : Number(xpValue)
+
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId || editItem) return
     // Training content is an ordinary quest — the school's own, or the library.
     api.get(`${withOrg('/api/sis/training/assignable-quests', orgId)}&audience=${audience}`)
       .then((r) => setOptions(r.data?.quests || []))
       .catch(() => setOptions([]))
-  }, [orgId, audience])
+  }, [orgId, audience, editItem])
+
+  // Reopening a quest for more work. A draft you cannot pick back up is not a
+  // draft, it is a dead end.
+  const [loadingEdit, setLoadingEdit] = useState(!!editItem)
+  useEffect(() => {
+    if (!editItem) return
+    setLoadingEdit(true)
+    api.get(withOrg(`/api/sis/training/${editItem.id}/quest`, orgId))
+      .then((r) => {
+        const q = r.data?.quest || {}
+        const cat = r.data?.training || {}
+        setTab('new')
+        setTitle(q.title || '')
+        setDescription(q.description || '')
+        setTasks((q.tasks || []).length
+          ? q.tasks.map((t) => ({ ...blankTask(), ...t }))
+          : [blankTask()])
+        setImageUrl(q.image_url || '')
+        setOwnTasks(!!q.allow_custom_tasks)
+        // The finish line was already decided once; typing over the tasks now
+        // must not silently move it.
+        setXpThreshold(q.xp_threshold ? String(q.xp_threshold) : '')
+        setXpEdited(true)
+        setCategory(cat.category || '')
+        setRequired(!!cat.is_required)
+        setAutoAssign(!!cat.auto_assign)
+        setRoles(cat.visible_to_roles || [])
+      })
+      .catch(() => toast.error('Could not load that quest'))
+      .finally(() => setLoadingEdit(false))
+  }, [editItem, orgId])
+
+  const saveEdits = async () => {
+    if (!title.trim()) { toast.error('Give the quest a title'); return }
+    setBusy(true)
+    try {
+      await api.put(withOrg(`/api/sis/training/${editItem.id}/quest`, orgId), {
+        title: title.trim(), description: description.trim(),
+        tasks: tasks.filter((t) => t.title.trim()),
+        image_url: imageUrl || undefined,
+        xp_threshold: xpToSend,
+        allow_custom_tasks: ownTasks,
+        source_material: ownTasks ? sourceMaterial : undefined,
+        category: category.trim(), is_required: required,
+        auto_assign: autoAssign,
+        visible_to_roles: roles.length ? roles : undefined,
+      })
+      toast.success('Changes saved')
+      onAdded()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the changes')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const add = async () => {
     if (!questId) { toast.error('Pick a quest'); return }
     setBusy(true)
     try {
-      await api.post('/api/sis/training', {
+      const res = await api.post('/api/sis/training', {
         organization_id: orgId, quest_id: questId, audience,
         category: category.trim(), is_required: required,
+        auto_assign: autoAssign, xp_threshold: xpToSend,
         visible_to_roles: roles.length ? roles : undefined,
       })
-      toast.success(audience === 'family' ? 'Set for families' : 'Added to training')
+      toast.success(assignedMessage(res.data?.assigned, audience,
+        audience === 'family' ? 'Set for families' : 'Added to training'))
       onAdded()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not add it')
@@ -86,18 +241,26 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
     }
   }
 
-  const createAndAdd = async () => {
+  const createAndAdd = async (asDraft = false) => {
     if (!title.trim()) { toast.error('Give the quest a title'); return }
     setBusy(true)
     try {
-      await api.post('/api/sis/training/create', {
+      const res = await api.post('/api/sis/training/create', {
+        is_draft: asDraft,
         organization_id: orgId, audience,
         title: title.trim(), description: description.trim(),
         tasks: tasks.filter((t) => t.title.trim()),
+        image_url: imageUrl || undefined,
+        allow_custom_tasks: ownTasks,
+        source_material: ownTasks ? sourceMaterial : undefined,
         category: category.trim(), is_required: required,
+        auto_assign: autoAssign, xp_threshold: xpToSend,
         visible_to_roles: roles.length ? roles : undefined,
       })
-      toast.success(audience === 'family' ? 'Quest built and set for families' : 'Quest built and added')
+      toast.success(asDraft
+        ? 'Saved as a draft. Nobody can see it until you publish it.'
+        : assignedMessage(res.data?.assigned, audience,
+          audience === 'family' ? 'Quest built and set for families' : 'Quest built and added'))
       onAdded()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not build the quest')
@@ -109,12 +272,15 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
   return (
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
       <p className="text-sm text-neutral-600">
-        {audience === 'family'
-          ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
-          : 'Training is a quest. Attach one you already have, or build it here.'}
+        {editItem
+          ? 'Editing this quest. Changes apply to anyone who starts it from now on \u2014 tasks already on somebody\u2019s account are their work and are left alone.'
+          : audience === 'family'
+            ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
+            : 'Training is a quest. Attach one you already have, or build it here.'}
       </p>
-      {/* Two doors: attach one that exists, or build one here. */}
-      <div className="flex gap-1 border-b border-gray-200">
+      {/* Two doors: attach one that exists, or build one here. Editing has only
+          the one door \u2014 the quest already exists and is being rewritten. */}
+      <div className={`flex gap-1 border-b border-gray-200 ${editItem ? 'hidden' : ''}`}>
         {[['existing', 'Use an existing quest'], ['new', 'Build a new one']].map(([k, label]) => (
           <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -135,7 +301,57 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
           ))}
         </select>
       ) : (
-        <QuestDraftForm
+        <div className="space-y-3">
+          {/* Orientation and training already exist as a handbook. Upload it and
+              the quest is drafted from it, rather than retyped from it.
+              Only when building: reopening a finished quest is about changing
+              its details, and a panel whose job is to overwrite the whole form
+              is the last thing wanted there. */}
+          {!editItem && (
+            <QuestAiDraftPanel
+              alwaysOpen
+              hasDraft={Boolean(title.trim() || description.trim() || tasks.some((t) => t.title.trim()))}
+              onDrafted={(d) => {
+                setTitle(d.title); setDescription(d.description); setTasks(d.tasks)
+                setSourceMaterial(d.sourceMaterial || '')
+              }}
+            />
+          )}
+          {/* Header image. The first thing anybody sees when they open the
+              quest, so it is offered here rather than left to a stock search. */}
+          <div className="flex items-center gap-3">
+            {imageUrl ? (
+              <img src={imageUrl} alt="" className="w-24 h-16 rounded-lg object-cover border border-gray-200" />
+            ) : orgLogo ? (
+              <img src={orgLogo} alt="" className="w-24 h-16 rounded-lg object-contain bg-white border border-gray-200 p-1" />
+            ) : (
+              <div className="w-24 h-16 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+                <PhotoIcon className="w-5 h-5 text-white/80" />
+              </div>
+            )}
+            <div className="flex-1">
+              <input ref={imageRef} type="file" accept="image/*" onChange={pickImage}
+                className="hidden" aria-label="Upload a header image" />
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={uploadingImage}
+                  onClick={() => imageRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-neutral-700 hover:bg-gray-50 disabled:opacity-50">
+                  {uploadingImage ? 'Uploading…' : imageUrl ? 'Change image' : 'Upload header image'}
+                </button>
+                {imageUrl && (
+                  <button type="button" onClick={() => setImageUrl('')}
+                    className="text-xs text-neutral-500 hover:underline">Remove</button>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                {imageUrl ? 'Shown across the top of the quest.'
+                  : orgLogo ? 'Your school logo is used unless you upload something else.'
+                    : 'Optional — without one we find a stock image from the title.'}
+              </p>
+            </div>
+          </div>
+          <QuestDraftForm
+          showPillars={false}
           title={title} setTitle={setTitle}
           description={description} setDescription={setDescription}
           tasks={tasks} setTasks={setTasks}
@@ -144,7 +360,8 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
           taskHint={audience === 'family'
             ? 'Preset tasks are copied to each parent when they start the quest. Leave it empty and they write their own.'
             : 'Preset tasks are copied to each teacher when they start the quest. Leave it empty and they write their own.'}
-        />
+          />
+        </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <input value={category} onChange={(e) => setCategory(e.target.value)}
@@ -152,6 +369,53 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
         <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
           {audience === 'family' ? 'Required for all families' : 'Required for all staff'}
+        </label>
+        <label className="flex items-start gap-2 text-sm text-neutral-700">
+          <span className="shrink-0 pt-2">XP to finish</span>
+          <span className="flex-1">
+            <span className="flex items-center gap-2">
+              <input type="number" min={0} step={25} value={xpValue}
+                onChange={(e) => { setXpEdited(true); setXpThreshold(e.target.value) }}
+                placeholder="Any amount" aria-label="XP required to finish"
+                className={inputClass} />
+              {xpEdited && taskXpTotal > 0 && Number(xpValue || 0) !== taskXpTotal && (
+                <button type="button"
+                  onClick={() => { setXpEdited(false); setXpThreshold('') }}
+                  className="shrink-0 text-xs text-optio-purple hover:underline">
+                  Use all {taskXpTotal}
+                </button>
+              )}
+            </span>
+            <span className="block text-xs text-neutral-500 mt-1">
+              {xpEdited
+                ? 'They must earn this much before the quest will close. Clear it and finishing is never blocked.'
+                : `Every task adds up to ${taskXpTotal || 0} XP, so they have to do all of it. Type your own number to ask for less.`}
+            </span>
+          </span>
+        </label>
+        <label className="sm:col-span-2 flex items-start gap-2 text-sm text-neutral-700">
+          <input type="checkbox" className="mt-0.5" checked={ownTasks}
+            onChange={(e) => setOwnTasks(e.target.checked)} />
+          <span>
+            Let them add tasks of their own
+            <span className="block text-xs text-neutral-500">
+              {sourceMaterial
+                ? 'They can generate extra tasks for themselves, written from the document you uploaded.'
+                : 'They can generate extra tasks for themselves, alongside the ones you set. Build the quest from a document and those tasks are written from it.'}
+            </span>
+          </span>
+        </label>
+        <label className="sm:col-span-2 flex items-start gap-2 text-sm text-neutral-700">
+          <input type="checkbox" className="mt-0.5" checked={autoAssign}
+            onChange={(e) => setAutoAssign(e.target.checked)} />
+          <span>
+            Put it on their accounts
+            <span className="block text-xs text-neutral-500">
+              {audience === 'family'
+                ? 'Every family gets the quest now, and any family that joins later gets it too. Untick to let families find it themselves.'
+                : 'Everyone it applies to gets the quest now, and anyone who joins later gets it too. Untick to let staff pick it up themselves.'}
+            </span>
+          </span>
         </label>
         {audience !== 'family' && (
           <div className="sm:col-span-2 text-xs text-neutral-500">
@@ -169,25 +433,53 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
       </div>
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
+        {tab === 'new' && (
+          <button onClick={() => setPreviewing(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-neutral-700 hover:bg-gray-50">
+            <EyeIcon className="w-4 h-4" /> Preview quest
+          </button>
+        )}
         {tab === 'existing' ? (
           <button onClick={add} disabled={busy || !questId}
             className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
             {busy ? 'Adding…' : 'Add training'}
           </button>
-        ) : (
-          <button onClick={createAndAdd} disabled={busy || !title.trim()}
+        ) : editItem ? (
+          <button onClick={saveEdits} disabled={busy || loadingEdit || !title.trim()}
             className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-            {busy ? 'Building…' : 'Build and add'}
+            {busy ? 'Saving…' : 'Save changes'}
           </button>
+        ) : (
+          <>
+            {/* Build it now, decide who gets it later. */}
+            <button onClick={() => createAndAdd(true)} disabled={busy || !title.trim()}
+              className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-neutral-700 hover:bg-gray-50 disabled:opacity-50">
+              {busy ? 'Saving…' : 'Save as draft'}
+            </button>
+            <button onClick={() => createAndAdd(false)} disabled={busy || !title.trim()}
+              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              {busy ? 'Building…' : 'Build and add'}
+            </button>
+          </>
         )}
       </div>
+
+      <QuestPreviewModal
+        open={previewing} onClose={() => setPreviewing(false)}
+        title={title} description={description} tasks={tasks}
+        imageUrl={imageUrl || orgLogo} containImage={!imageUrl && !!orgLogo}
+        xpThreshold={xpToSend} audience={audience} allowOwnTasks={ownTasks}
+      />
     </div>
   )
 }
 
 const StaffTrainingPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  // The default header image, so the builder and the preview show what will
+  // actually be used rather than a placeholder.
+  const orgLogo = activeOrg?.branding_config?.logo_url || null
   const admin = isSisAdmin(user)
   const [training, setTraining] = useState([])
   const [report, setReport] = useState(null)
@@ -213,6 +505,53 @@ const StaffTrainingPage = () => {
   }, [orgId, admin, audience])
 
   useEffect(() => { load() }, [load])
+
+  // Idempotent on the backend, so it is safe to press again next week to catch
+  // whoever has joined since.
+  const [assigning, setAssigning] = useState(null)
+  const [picking, setPicking] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const assign = async (t) => {
+    setAssigning(t.id)
+    try {
+      const res = await api.post(withOrg(`/api/sis/training/${t.id}/assign`, orgId), {})
+      // The row's own audience, not the page toggle — they can differ.
+      toast.success(assignedMessage(res.data, res.data?.audience || t.audience || audience,
+        `"${t.title}" assigned.`))
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not assign it')
+    } finally {
+      setAssigning(null)
+    }
+  }
+
+  // The finish line is a column on the quest, so it is editable after the fact
+  // without rebuilding anything — an admin who set it too high on Monday moves
+  // it on Tuesday.
+  const saveXp = async (t, value) => {
+    const next = value === '' ? null : Number(value)
+    if ((t.xp_threshold || 0) === (next || 0)) return
+    try {
+      await api.patch(withOrg(`/api/sis/training/${t.id}`, orgId), { xp_threshold: next })
+      toast.success(next ? `Finish line set to ${next} XP` : 'XP requirement removed')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the XP requirement')
+      load()
+    }
+  }
+
+  const publish = async (t) => {
+    try {
+      const res = await api.post(withOrg(`/api/sis/training/${t.id}/publish`, orgId), {})
+      toast.success(assignedMessage(res.data?.assigned, t.audience || audience,
+        `"${t.title}" published.`))
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not publish it')
+    }
+  }
 
   const remove = async (t) => {
     if (!window.confirm(`Remove "${t.title}" from training? The quest itself is kept.`)) return
@@ -248,7 +587,7 @@ const StaffTrainingPage = () => {
       <p className="text-sm text-neutral-500 mb-6">
         {admin
           ? 'Quests your school sets for its teachers and its families. Open one to start it on the web platform \u2014 progress shows up here automatically.'
-          : 'Courses to work through at your own pace. Open one to start it on the web platform \u2014 your progress shows up here automatically.'}
+          : 'Quests to work through at your own pace. Open one to start it on the web platform \u2014 your progress shows up here automatically.'}
       </p>
 
       {/* Audience switch. Families read their own side in the family portal;
@@ -274,7 +613,7 @@ const StaffTrainingPage = () => {
             mine.requiredDone === mine.requiredTotal ? 'text-green-800' : 'text-amber-900'}`}>
             {mine.requiredDone === mine.requiredTotal
               ? 'All required training complete.'
-              : `${mine.requiredDone} of ${mine.requiredTotal} required courses complete.`}
+              : `${mine.requiredDone} of ${mine.requiredTotal} required quests complete.`}
           </p>
         </div>
       )}
@@ -282,7 +621,7 @@ const StaffTrainingPage = () => {
       {admin && (
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-            {[['mine', audience === 'family' ? 'The quests' : 'The courses'],
+            {[['mine', 'The quests'],
               ['everyone', 'Who has done what']].map(([key, label]) => (
               <button key={key} onClick={() => setView(key)}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -300,8 +639,12 @@ const StaffTrainingPage = () => {
         </div>
       )}
 
-      {adding && <AddTraining orgId={orgId} audience={audience}
+      {adding && <AddTraining orgId={orgId} audience={audience} orgLogo={orgLogo}
         onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />}
+
+      {editing && <AddTraining key={editing.id} orgId={orgId} audience={audience}
+        orgLogo={orgLogo} editItem={editing}
+        onAdded={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
 
@@ -309,7 +652,7 @@ const StaffTrainingPage = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <AcademicCapIcon className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
           <p className="text-sm text-neutral-600 font-medium">
-            {audience === 'family' ? 'No family quests yet.' : 'No training courses yet.'}
+            {audience === 'family' ? 'No family quests yet.' : 'No training quests yet.'}
           </p>
           {admin && <p className="text-sm text-neutral-500 mt-1">Build a quest, then add it here.</p>}
         </div>
@@ -330,24 +673,72 @@ const StaffTrainingPage = () => {
                     {t.is_required && (
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">Required</span>
                     )}
+                    {t.is_draft && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
+                        title="Only admins can see this">Draft</span>
+                    )}
+                    {admin && t.auto_assign && !t.is_draft && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700"
+                        title="Anyone who joins later gets this automatically">On everyone's accounts</span>
+                    )}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full ${progressStyle(t.my_progress)}`}>
                       {progressLabel(t.my_progress)}
                     </span>
+                    {xpLabel(t) && (
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full ${xpStyle(t)}`}>
+                        {xpLabel(t)}
+                      </span>
+                    )}
                   </div>
                   {t.description && <p className="text-sm text-neutral-500 mt-0.5 line-clamp-2">{t.description}</p>}
+                  {admin && t.quest_is_ours && (
+                    <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
+                      XP to finish
+                      <input type="number" min={0} step={25} defaultValue={t.xp_threshold || ''}
+                        onBlur={(e) => saveXp(t, e.target.value)}
+                        placeholder="Any"
+                        aria-label={`XP required to finish ${t.title}`}
+                        className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+                    </label>
+                  )}
                   <button
                     onClick={() => switchSurfaceInApp('learning', `/quests/${t.quest_id}`)}
                     className="inline-flex items-center gap-1.5 text-sm text-optio-purple hover:underline mt-1"
                   >
-                    {t.my_progress?.started ? 'Continue' : 'Start this course'}
+                    {t.my_progress?.started ? 'Continue' : 'Start this Quest'}
                     <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 {admin && (
-                  <button onClick={() => remove(t)} className="p-1.5 text-gray-400 hover:text-red-500 shrink-0"
-                    aria-label={`Remove ${t.title}`}>
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* A quest built here can be picked back up; a library one
+                        belongs to every school, so it is not ours to rewrite. */}
+                    {t.quest_is_ours && (
+                      <button onClick={() => setEditing(t)}
+                        className="px-2.5 py-1 rounded-lg border border-gray-300 text-xs font-medium text-neutral-700 hover:bg-gray-50">
+                        Edit
+                      </button>
+                    )}
+                    <button onClick={() => setPicking(t)}
+                      className="px-2.5 py-1 rounded-lg border border-gray-300 text-xs font-medium text-neutral-700 hover:bg-gray-50">
+                      Choose people
+                    </button>
+                    {t.is_draft ? (
+                      <button onClick={() => publish(t)}
+                        className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold">
+                        Publish
+                      </button>
+                    ) : (
+                      <button onClick={() => assign(t)} disabled={assigning === t.id}
+                        className="px-2.5 py-1 rounded-lg border border-gray-300 text-xs font-medium text-neutral-700 hover:bg-gray-50 disabled:opacity-50">
+                        {assigning === t.id ? 'Assigning…' : 'Assign to everyone'}
+                      </button>
+                    )}
+                    <button onClick={() => remove(t)} className="p-1.5 text-gray-400 hover:text-red-500"
+                      aria-label={`Remove ${t.title}`}>
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -393,6 +784,19 @@ const StaffTrainingPage = () => {
             </table>
           </div>
         )
+      )}
+
+      {picking && (
+        <TrainingPeoplePicker
+          item={picking} orgId={orgId}
+          onClose={() => setPicking(null)}
+          onAssigned={(result) => {
+            toast.success(assignedMessage(result, picking.audience || audience,
+              `"${picking.title}" assigned.`))
+            setPicking(null)
+            load()
+          }}
+        />
       )}
     </div>
   )

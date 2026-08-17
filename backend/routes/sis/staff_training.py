@@ -22,10 +22,12 @@ NEW, additive (/api/sis/training). Admin manages the catalog; teachers read thei
 own progress here, and guardians read theirs through /api/sis/parent/quests.
 """
 
+import uuid
 from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
+from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import validate_uuid
@@ -82,6 +84,62 @@ _DEFAULT_XP = 100
 _MIN_XP = 25
 
 
+# What our own upload endpoint returns. The image URL arrives from the client,
+# so it is pinned to that bucket rather than trusted — otherwise an admin could
+# point a school's quest header at any URL on the internet, which then renders
+# inside the app and calls out from every learner's browser.
+_HEADER_IMAGE_PATH = '/storage/v1/object/public/quest-headers/'
+
+
+def _clean_image_url(raw):
+    """(url, error). Empty means 'no image', which falls back to the stock search."""
+    url = (raw or '').strip()
+    if not url:
+        return None, None
+    if _HEADER_IMAGE_PATH not in url:
+        return None, 'That image was not uploaded here. Upload the file instead of linking to it.'
+    return url, None
+
+
+def _org_logo(org_id):
+    """The school's logo, usually a base64 data URI (that is how SisOrgSettings
+    stores an upload). Renderable as-is; nothing to sign."""
+    try:
+        rows = (_admin().table('organizations').select('branding_config')
+                .eq('id', org_id).limit(1).execute()).data
+        return ((rows[0].get('branding_config') or {}).get('logo_url') or None) if rows else None
+    except Exception as e:  # noqa: BLE001 — artwork is never worth failing a create
+        logger.warning(f'Could not read org logo for {org_id}: {e}')
+        return None
+
+
+# Source material is capped where the drafter caps it, so what is stored is what
+# the model was actually shown (routes/sis/quest_drafts._MAX_CONTEXT_CHARS).
+_MAX_SOURCE_CHARS = 20000
+
+
+def _clean_xp_threshold(raw):
+    """The XP somebody must earn before the quest counts as finished.
+
+    Stored on the quest itself (`quests.xp_threshold`), which the ordinary
+    completion route already enforces — POST /api/quests/<id>/end refuses with
+    XP_THRESHOLD_NOT_MET below it (routes/quest/completion.py). So training
+    inherits the same gate every other quest uses rather than inventing one.
+
+    Returns (value, error). None/0/'' means no requirement, which is how every
+    quest behaved before an admin set one.
+    """
+    if raw is None or raw == '':
+        return None, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None, 'XP required must be a number.'
+    if value < 0:
+        return None, 'XP required cannot be negative.'
+    return (value or None), None
+
+
 def _clean_task(raw, order_index):
     """One preset task, or None when it has no title (an untouched blank row)."""
     if not isinstance(raw, dict):
@@ -113,19 +171,27 @@ def _audience(value):
     return v if v in AUDIENCES else 'staff'
 
 
-def _catalog(org_id, audience='staff'):
-    """The org's quests for one audience, in order, with quest titles."""
+def _catalog(org_id, audience='staff', include_drafts=False):
+    """The org's quests for one audience, in order, with quest titles.
+
+    include_drafts is for admins only. A draft is an ordinary quest with
+    is_active=False — built, reviewable, previewable, but not on anybody's
+    account and invisible to the people it is eventually for.
+    """
     rows = (_admin().table('sis_staff_training')
             .select('id, quest_id, category, is_required, sequence_order, audience, '
-                    'visible_to_roles, quests(id, title, description, is_active)')
+                    'visible_to_roles, auto_assign, '
+                    'quests(id, title, description, is_active, xp_threshold, organization_id)')
             .eq('organization_id', org_id).eq('audience', _audience(audience))
             .order('sequence_order').execute()).data or []
     out = []
     for r in rows:
         q = r.get('quests') or {}
-        # A quest deleted or deactivated out from under the catalog shouldn't
-        # show up as a broken training item.
-        if not q.get('is_active'):
+        # A quest deleted out from under the catalog shouldn't show up as a
+        # broken training item. An inactive one is either a draft the admin is
+        # still working on or a quest somebody retired — either way the people
+        # it is for must not see it.
+        if not q.get('is_active') and not include_drafts:
             continue
         out.append({
             'id': r['id'],
@@ -137,6 +203,13 @@ def _catalog(org_id, audience='staff'):
             'sequence_order': r.get('sequence_order') or 0,
             'audience': _audience(r.get('audience')),
             'visible_to_roles': r.get('visible_to_roles'),
+            'auto_assign': bool(r.get('auto_assign')),
+            'is_draft': not q.get('is_active'),
+            'xp_threshold': q.get('xp_threshold') or 0,
+            # A library quest belongs to everybody, so its finish line is not
+            # this school's to move — the UI hides the field rather than
+            # offering an edit the backend will refuse.
+            'quest_is_ours': q.get('organization_id') == org_id,
         })
     return out
 
@@ -153,7 +226,10 @@ def _progress_for(user_ids, quest_ids):
     uq_ids = [uq['id'] for uq in user_quests]
     tasks = []
     if uq_ids:
-        tasks = (admin.table('user_quest_tasks').select('id, user_quest_id')
+        # xp_value rides along because a training quest can carry an XP finish
+        # line; there is no xp_awarded column, so earned XP is always summed
+        # from the completed tasks' xp_value (see services/xp_goal_service.py).
+        tasks = (admin.table('user_quest_tasks').select('id, user_quest_id, xp_value')
                  .in_('user_quest_id', uq_ids).execute()).data or []
     done_ids = set()
     task_ids = [t['id'] for t in tasks]
@@ -167,16 +243,148 @@ def _progress_for(user_ids, quest_ids):
     out = {}
     for uq in user_quests:
         own = by_uq.get(uq['id'], [])
+        finished = [t for t in own if t['id'] in done_ids]
         out[(uq['user_id'], uq['quest_id'])] = {
             'started': True,
             'completed': bool(uq.get('completed_at')),
-            'done': len([t for t in own if t['id'] in done_ids]),
+            'done': len(finished),
             'total': len(own),
+            'earned_xp': sum(t.get('xp_value') or 0 for t in finished),
+            'available_xp': sum(t.get('xp_value') or 0 for t in own),
         }
     return out
 
 
-_NOT_STARTED = {'started': False, 'completed': False, 'done': 0, 'total': 0}
+_NOT_STARTED = {'started': False, 'completed': False, 'done': 0, 'total': 0,
+                'earned_xp': 0, 'available_xp': 0}
+
+
+# ── Putting the quest on people's accounts ────────────────────────────────────
+#
+# Until 2026-08-17 the catalog only *listed* quests: everyone had to find the
+# quest and pick it up themselves, and "required" was a label with nothing
+# behind it. iCreate running orientation and teacher training as quests needs
+# the quest to already be there. Two ways in, sharing one primitive:
+#   assign     an admin presses the button, the current roster is enrolled.
+#   auto_assign the catalog row keeps doing it, so whoever joins next week is
+#              enrolled on their own next read instead of being missed.
+
+def _audience_people(org_id, audience):
+    """Everyone a catalog row for this audience could apply to."""
+    return (_guardians(org_id) if _audience(audience) == 'family'
+            else sis_service.list_org_staff(org_id))
+
+
+# Whoever runs the school. Always assignable, whatever a row targets.
+_ADMIN_ORG_ROLES = ('org_admin', 'campus_coordinator')
+
+
+def _roles_of(user):
+    """Every role a user holds: the org_roles array, org_role, and the platform
+    role. A person can hold several — at iCreate the admins are parents too —
+    and reading only one column is how a parent-who-is-also-an-admin went
+    missing from their own school's family quests.
+    """
+    roles = set()
+    if isinstance(user.get('org_roles'), list):
+        roles.update(r for r in user['org_roles'] if r)
+    for key in ('org_role', 'role'):
+        if user.get(key):
+            roles.add(user[key])
+    return roles
+
+
+def _item_applies_to(item, person, audience):
+    """Role-narrowed staff training only reaches the roles it names. Family rows
+    carry no targeting. Mirrors _applies() in the progress report.
+
+    An admin is always eligible. A course aimed at teachers still has to be
+    doable by the person who set it — to try it before it goes out, and because
+    at a small school the admin teaches too. Narrowing is about not burying a
+    teacher in campus-operations training, not about locking admins out.
+    """
+    targets = item.get('visible_to_roles')
+    if not targets or _audience(audience) == 'family':
+        return True
+    roles = set(person.get('roles') or [])
+    if roles & set(_ADMIN_ORG_ROLES):
+        return True
+    return bool(set(targets) & roles)
+
+
+def _owned_item(user_id, training_id):
+    """(row, error) for one catalog row this caller's org actually owns.
+
+    The id comes from the browser, so ownership is re-checked before anything is
+    read or written — otherwise one school could assign quests to another's
+    families, or publish their drafts.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return None, err
+    if _bad_uuid(training_id):
+        return None, (jsonify({'success': False, 'error': 'Invalid id'}), 400)
+    rows = (_admin().table('sis_staff_training')
+            .select('id, organization_id, quest_id, audience, visible_to_roles, '
+                    'auto_assign, category, is_required, quests(is_active)')
+            .eq('id', training_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return None, (jsonify({'success': False, 'error': 'Not found'}), 404)
+    return rows[0], None
+
+
+def _eligible_people(org_id, item, audience):
+    """The people in this audience a catalog row actually applies to."""
+    return [p for p in _audience_people(org_id, audience)
+            if _item_applies_to(item, p, audience)]
+
+
+def _assign_item(org_id, item, audience, people=None, only_user_ids=None):
+    """Enroll the people this catalog row applies to. Idempotent — see
+    utils.quest_assignment. Returns the counts.
+
+    only_user_ids narrows it to a chosen few, and is INTERSECTED with the
+    eligible set rather than trusted: the ids come from the browser, and an
+    admin must not be able to enrol somebody from another school, a student, or
+    a teacher the training was never aimed at by editing a request.
+    """
+    from utils.quest_assignment import assign_quest_to_users
+
+    people = _eligible_people(org_id, item, audience) if people is None else people
+    user_ids = [p['id'] for p in people]
+    if only_user_ids is not None:
+        chosen = set(only_user_ids)
+        user_ids = [uid for uid in user_ids if uid in chosen]
+    # admin client justified: enrolling OTHER people is a cross-user write, and
+    # the route above is ADMIN_ROLES-gated (or the caller is enrolling themself).
+    return assign_quest_to_users(_admin(), item['quest_id'], user_ids)
+
+
+def catch_up_auto_assigned(user_id, catalog, audience):
+    """Enroll one person into the auto-assign quests on their own list.
+
+    Called from the audience's own read path — the staff training page and the
+    family portal — so somebody who joined after the admin pressed the button
+    still lands with the quest on their account. Best-effort: a failure here
+    must never cost somebody their training page. Returns how many enrollments
+    it created, so the caller knows whether to re-read progress.
+    """
+    from utils.quest_assignment import assign_quest_to_users
+
+    # A draft is not on anybody's account yet — that is what makes it a draft.
+    pending = [c for c in catalog
+               if c.get('auto_assign') and not c.get('is_draft')
+               and not (c.get('my_progress') or {}).get('started')]
+    if not pending:
+        return 0
+    admin = _admin()
+    created = 0
+    for c in pending:
+        try:
+            created += assign_quest_to_users(admin, c['quest_id'], [user_id])['enrolled']
+        except Exception as e:  # noqa: BLE001 — reading the list is the point
+            logger.warning(f"Auto-assign catch-up failed for quest {c['quest_id']}: {e}")
+    return created
 
 
 # ── Catalog ───────────────────────────────────────────────────────────────────
@@ -193,14 +401,23 @@ def list_training(user_id):
     if err:
         return err
     audience = _audience(request.args.get('audience'))
-    catalog = _catalog(org_id, audience)
+    # Only an admin sees work in progress; a teacher's list is what the school
+    # has actually set for them.
+    catalog = _catalog(org_id, audience, include_drafts=sis_service.caller_is_admin(user_id))
     # Role-narrowed staff training only reaches the roles it targets — a
     # teacher's list does not carry the coordinator's campus-operations course.
     if audience == 'staff':
         catalog = sis_service.filter_role_visible(user_id, catalog)
-    progress = _progress_for([user_id], [c['quest_id'] for c in catalog])
+    quest_ids = [c['quest_id'] for c in catalog]
+    progress = _progress_for([user_id], quest_ids)
     for c in catalog:
         c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
+    # A teacher hired after the admin pressed "assign to everyone" gets the
+    # auto-assign quests here, on their first look at the page.
+    if catch_up_auto_assigned(user_id, catalog, audience):
+        progress = _progress_for([user_id], quest_ids)
+        for c in catalog:
+            c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
     return jsonify({'success': True, 'training': catalog, 'audience': audience})
 
 
@@ -268,6 +485,17 @@ def add_training(user_id):
     last = (_admin().table('sis_staff_training').select('sequence_order')
             .eq('organization_id', org_id).eq('audience', audience)
             .order('sequence_order', desc=True).limit(1).execute()).data
+    # The finish line lives on the quest. Only movable for the school's own
+    # quests — a library quest is shared, so one school must not retune it for
+    # everybody else.
+    if 'xp_threshold' in data and quest.get('organization_id') == org_id:
+        xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
+        if xp_err:
+            return jsonify({'success': False, 'error': xp_err}), 400
+        _admin().table('quests').update({'xp_threshold': xp_threshold}) \
+            .eq('id', quest_id).execute()
+
+    auto_assign = bool(data.get('auto_assign'))
     row = (_admin().table('sis_staff_training').upsert({
         'organization_id': org_id,
         'quest_id': quest_id,
@@ -275,10 +503,59 @@ def add_training(user_id):
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
         'visible_to_roles': visible_to_roles if audience == 'staff' else None,
+        'auto_assign': auto_assign,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
     }, on_conflict='organization_id,quest_id,audience').execute()).data
-    return jsonify({'success': True, 'training': row[0] if row else None}), 201
+    # Ticking auto-assign means "everyone does this", so the people who are
+    # already here get it now rather than on their next page load.
+    assigned = _assign_item(org_id, {
+        'quest_id': quest_id, 'visible_to_roles': visible_to_roles,
+    }, audience) if auto_assign else None
+    return jsonify({'success': True, 'training': row[0] if row else None,
+                    'assigned': assigned}), 201
+
+
+@bp.route('/training/header-image', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+@rate_limit(max_requests=30, window_seconds=300)
+def upload_training_header_image(user_id):
+    """Upload a header image for a training quest being built.
+
+    Uploaded BEFORE the quest exists, because this screen creates the quest in
+    one submit and an admin should see the picture in the preview before
+    committing to any of it. The path is keyed on a fresh id rather than a quest
+    id for the same reason; nothing else in the system reads these by path.
+
+    `quest-headers` is a deliberately public bucket (see utils/storage_urls.py)
+    — quest artwork is referenced raw from emails and cached pages, where a
+    signed URL would expire before it was looked at.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+
+    file = request.files.get('image')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'error': 'Choose an image to upload.'}), 400
+
+    data = file.read()
+    if not data:
+        return jsonify({'success': False, 'error': 'That file is empty.'}), 400
+
+    from services.file_upload_service import FileUploadService
+    result = FileUploadService().upload_quest_header(
+        file_data=data,
+        filename=file.filename,
+        content_type=file.content_type,
+        # Not a quest id — the quest does not exist yet. Just a unique folder.
+        quest_id=f'training/{uuid.uuid4().hex[:12]}',
+    )
+    if not result.success:
+        return jsonify({'success': False,
+                        'error': result.error_message or 'Could not upload that image.'}), 400
+    logger.info(f"Training header image uploaded by {user_id} for org {org_id}")
+    return jsonify({'success': True, 'url': result.url})
 
 
 @bp.route('/training/create', methods=['POST'])
@@ -313,19 +590,54 @@ def create_training_quest(user_id):
     audience = _audience(data.get('audience'))
     admin = _admin()
 
-    image_url = None
-    try:
-        from services.image_service import search_quest_image
-        image_url = search_quest_image(title, description)
-    except Exception as e:  # noqa: BLE001 — a missing header image is not a failure
-        logger.warning(f'Training-quest image lookup failed (non-fatal): {e}')
+    # Header image, in order of what the school actually meant:
+    #   1. one they uploaded here,
+    #   2. their own logo — training is the school talking to its own people, so
+    #      its badge beats a stock photo of somebody else's classroom,
+    #   3. the stock search, for an org that has never set a logo.
+    # The logo is contained rather than cropped full-bleed, which is what
+    # metadata.header_style='org_logo' tells the card and the detail header to do
+    # (same flag OEA and POE use).
+    image_url, image_err = _clean_image_url(data.get('image_url'))
+    if image_err:
+        return jsonify({'success': False, 'error': image_err}), 400
+    header_style = None
+    if not image_url:
+        image_url = _org_logo(org_id)
+        if image_url:
+            header_style = 'org_logo'
+    if not image_url:
+        try:
+            from services.image_service import search_quest_image
+            image_url = search_quest_image(title, description)
+        except Exception as e:  # noqa: BLE001 — a missing header image is not a failure
+            logger.warning(f'Training-quest image lookup failed (non-fatal): {e}')
+
+    xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
+    if xp_err:
+        return jsonify({'success': False, 'error': xp_err}), 400
 
     now = datetime.now(timezone.utc).isoformat()
     # is_public False: a school's own quest, not pushed into the shared library.
+    # Off unless asked for: training is a set list of things the school needs
+    # done, so a learner inventing extra tasks for themselves is the exception.
+    allow_custom_tasks = bool(data.get('allow_custom_tasks'))
+    source_material = (data.get('source_material') or '').strip()[:_MAX_SOURCE_CHARS]
+
+    # A draft is built, previewable and editable, but is on nobody's account and
+    # invisible to the people it is for. is_active=False is what every other
+    # read already keys off, so nothing else has to learn the word "draft".
+    is_draft = bool(data.get('is_draft'))
+
     quest = (admin.table('quests').insert({
         'title': title, 'big_idea': description, 'description': description,
-        'is_v3': True, 'is_active': True, 'is_public': False,
+        'is_v3': True, 'is_active': not is_draft, 'is_public': False,
         'quest_type': 'optio', 'header_image_url': image_url, 'image_url': image_url,
+        'metadata': {'header_style': header_style} if header_style else {},
+        'xp_threshold': xp_threshold,
+        'allow_custom_tasks': allow_custom_tasks,
+        # Only worth keeping if they can actually generate against it.
+        'source_material': source_material if (allow_custom_tasks and source_material) else None,
         'created_by': user_id, 'created_at': now, 'organization_id': org_id,
     }).execute()).data
     if not quest:
@@ -344,17 +656,28 @@ def create_training_quest(user_id):
     last = (admin.table('sis_staff_training').select('sequence_order')
             .eq('organization_id', org_id).eq('audience', audience)
             .order('sequence_order', desc=True).limit(1).execute()).data
+    auto_assign = bool(data.get('auto_assign'))
     admin.table('sis_staff_training').insert({
         'organization_id': org_id, 'quest_id': quest_id, 'audience': audience,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
         'visible_to_roles': visible_to_roles if audience == 'staff' else None,
+        'auto_assign': auto_assign,
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
     }).execute()
 
+    # Built and set for everyone in one step — the roster that exists right now
+    # is enrolled here; later arrivals are picked up by the catch-up on read.
+    # A draft assigns to nobody, whatever the auto-assign box says; publishing
+    # it is what turns that intent into enrollments.
+    assigned = _assign_item(org_id, {
+        'quest_id': quest_id, 'visible_to_roles': visible_to_roles,
+    }, audience) if (auto_assign and not is_draft) else None
+
     return jsonify({'success': True, 'quest_id': quest_id,
-                    'task_count': len(cleaned), 'audience': audience}), 201
+                    'task_count': len(cleaned), 'audience': audience,
+                    'is_draft': is_draft, 'assigned': assigned}), 201
 
 
 @bp.route('/training/<training_id>', methods=['PATCH'])
@@ -365,16 +688,41 @@ def update_training(user_id, training_id):
         return err
     if _bad_uuid(training_id):
         return jsonify({'success': False, 'error': 'Invalid id'}), 400
-    owned = (_admin().table('sis_staff_training').select('id, organization_id')
+    owned = (_admin().table('sis_staff_training').select('id, organization_id, quest_id')
              .eq('id', training_id).limit(1).execute()).data
     if not owned or owned[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Not found'}), 404
     data = request.get_json(silent=True) or {}
+
+    # The XP finish line is a column on the quest, not on the catalog row, so
+    # that the ordinary completion gate enforces it. Same rule as attaching:
+    # only the school's own quests can be retuned.
+    if 'xp_threshold' in data:
+        xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
+        if xp_err:
+            return jsonify({'success': False, 'error': xp_err}), 400
+        quest = (_admin().table('quests').select('id, organization_id')
+                 .eq('id', owned[0]['quest_id']).limit(1).execute()).data
+        if not quest or quest[0].get('organization_id') != org_id:
+            return jsonify({
+                'success': False,
+                'error': 'That quest belongs to the Optio library, so its XP requirement cannot be changed here.',
+            }), 403
+        _admin().table('quests').update({'xp_threshold': xp_threshold}) \
+            .eq('id', owned[0]['quest_id']).execute()
+        # The finish line lives on the quest, so this request can be complete
+        # without touching the catalog row at all.
+        changed_quest = True
+    else:
+        changed_quest = False
+
     fields = {}
     if 'category' in data:
         fields['category'] = (data.get('category') or '').strip() or None
     if 'is_required' in data:
         fields['is_required'] = bool(data.get('is_required'))
+    if 'auto_assign' in data:
+        fields['auto_assign'] = bool(data.get('auto_assign'))
     if 'visible_to_roles' in data:
         visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
         if roles_err:
@@ -386,9 +734,232 @@ def update_training(user_id, training_id):
         except (TypeError, ValueError):
             return jsonify({'success': False, 'error': 'sequence_order must be a number'}), 400
     if not fields:
+        if changed_quest:
+            return jsonify({'success': True})
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
     _admin().table('sis_staff_training').update(fields).eq('id', training_id).execute()
     return jsonify({'success': True})
+
+
+@bp.route('/training/<training_id>/assign', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def assign_training(user_id, training_id):
+    """Put this quest on every eligible account in its audience, now.
+
+    Safe to press again — anyone already enrolled is counted and left alone,
+    including somebody who has finished it, so re-running to catch new families
+    never restarts anybody's quest.
+    """
+    item, err = _owned_item(user_id, training_id)
+    if err:
+        return err
+    org_id = item['organization_id']
+    audience = _audience(item.get('audience'))
+
+    if not (item.get('quests') or {}).get('is_active'):
+        return jsonify({
+            'success': False,
+            'error': 'That quest is still a draft. Publish it before assigning it.',
+        }), 400
+
+    # Optional: just these people, rather than the whole audience.
+    data = request.get_json(silent=True) or {}
+    only = data.get('user_ids')
+    if only is not None:
+        if not isinstance(only, list):
+            return jsonify({'success': False, 'error': 'user_ids must be a list'}), 400
+        if _bad_uuid(*only):
+            return jsonify({'success': False, 'error': 'Invalid user id'}), 400
+        if not only:
+            return jsonify({'success': False, 'error': 'Choose at least one person.'}), 400
+
+    counts = _assign_item(org_id, item, audience, only_user_ids=only)
+    logger.info(
+        f"Training {training_id} assigned by {user_id} "
+        f"({'chosen' if only is not None else 'everyone'}): "
+        f"{counts['enrolled']} enrolled, {counts['already']} already, {counts['failed']} failed"
+    )
+    return jsonify({'success': True, 'audience': audience, **counts})
+
+
+@bp.route('/training/<training_id>/people', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def training_people(user_id, training_id):
+    """Who this training could go to, and who already has it.
+
+    Feeds the "choose people" picker. Returns only those the row applies to, so
+    a coordinator-only course does not offer the whole staff room.
+    """
+    item, err = _owned_item(user_id, training_id)
+    if err:
+        return err
+    audience = _audience(item.get('audience'))
+    people = _eligible_people(item['organization_id'], item, audience)
+    progress = _progress_for([p['id'] for p in people], [item['quest_id']])
+    return jsonify({'success': True, 'audience': audience, 'people': [{
+        'user_id': p['id'],
+        'name': p.get('name'),
+        'email': p.get('email'),
+        'progress': progress.get((p['id'], item['quest_id']), dict(_NOT_STARTED)),
+    } for p in people]})
+
+
+@bp.route('/training/<training_id>/quest', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_training_quest(user_id, training_id):
+    """Everything the builder needs to reopen this quest for editing.
+
+    A draft that cannot be picked back up is not a draft, it is a dead end.
+    """
+    item, err = _owned_item(user_id, training_id)
+    if err:
+        return err
+    admin = _admin()
+    rows = (admin.table('quests')
+            .select('id, title, description, big_idea, header_image_url, is_active, '
+                    'xp_threshold, allow_custom_tasks, source_material, organization_id')
+            .eq('id', item['quest_id']).limit(1).execute()).data
+    if not rows:
+        return jsonify({'success': False, 'error': 'Not found'}), 404
+    q = rows[0]
+    tasks = (admin.table('quest_template_tasks')
+             .select('title, description, pillar, xp_value, is_required, order_index')
+             .eq('quest_id', item['quest_id']).order('order_index').execute()).data or []
+    return jsonify({'success': True, 'quest': {
+        'quest_id': q['id'],
+        'title': q.get('title') or '',
+        'description': q.get('big_idea') or q.get('description') or '',
+        'image_url': q.get('header_image_url') or '',
+        'xp_threshold': q.get('xp_threshold') or 0,
+        'allow_custom_tasks': bool(q.get('allow_custom_tasks')),
+        'has_source_material': bool(q.get('source_material')),
+        'is_draft': not q.get('is_active'),
+        # A library quest is shared with every other school, so its content is
+        # not this one's to rewrite.
+        'quest_is_ours': q.get('organization_id') == item['organization_id'],
+        'tasks': tasks,
+    }, 'training': {
+        'category': item.get('category') or '',
+        'is_required': bool(item.get('is_required')),
+        'auto_assign': bool(item.get('auto_assign')),
+        'visible_to_roles': item.get('visible_to_roles'),
+        'audience': _audience(item.get('audience')),
+    }})
+
+
+@bp.route('/training/<training_id>/quest', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def update_training_quest(user_id, training_id):
+    """Save edits to a quest built here — its content and its catalog settings.
+
+    Template tasks are replaced wholesale rather than diffed: they are a short
+    authored list, and matching them up by hand would be a lot of machinery for
+    no visible difference. Note this only changes what FUTURE enrollees receive;
+    tasks already copied onto somebody's account are their work now and are left
+    alone (utils/template_tasks).
+    """
+    item, err = _owned_item(user_id, training_id)
+    if err:
+        return err
+    org_id = item['organization_id']
+    admin = _admin()
+
+    owned = (admin.table('quests').select('id, organization_id')
+             .eq('id', item['quest_id']).limit(1).execute()).data
+    if not owned or owned[0].get('organization_id') != org_id:
+        return jsonify({
+            'success': False,
+            'error': 'That quest belongs to the Optio library, so it cannot be edited here.',
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'error': 'A quest title is required.'}), 400
+    if len(title) > _MAX_TITLE_LEN:
+        return jsonify({'success': False, 'error': 'Title is too long.'}), 400
+    raw_tasks = data.get('tasks') or []
+    if len(raw_tasks) > _MAX_TASKS:
+        return jsonify({'success': False,
+                        'error': f'A quest can have at most {_MAX_TASKS} tasks.'}), 400
+
+    xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
+    if xp_err:
+        return jsonify({'success': False, 'error': xp_err}), 400
+    image_url, image_err = _clean_image_url(data.get('image_url'))
+    if image_err:
+        return jsonify({'success': False, 'error': image_err}), 400
+    visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
+    if roles_err:
+        return jsonify({'success': False, 'error': roles_err}), 400
+
+    description = (data.get('description') or '').strip()
+    allow_custom_tasks = bool(data.get('allow_custom_tasks'))
+    fields = {
+        'title': title, 'big_idea': description, 'description': description,
+        'xp_threshold': xp_threshold,
+        'allow_custom_tasks': allow_custom_tasks,
+    }
+    # Only touch the artwork when a new one was uploaded — an untouched form
+    # must not wipe the header image the quest already has.
+    if image_url:
+        fields['header_image_url'] = image_url
+        fields['image_url'] = image_url
+        fields['metadata'] = {}
+    # Turning learner generation off makes the stored handbook dead weight.
+    if not allow_custom_tasks:
+        fields['source_material'] = None
+    elif (data.get('source_material') or '').strip():
+        fields['source_material'] = data['source_material'].strip()[:_MAX_SOURCE_CHARS]
+    admin.table('quests').update(fields).eq('id', item['quest_id']).execute()
+
+    cleaned = [t for t in (_clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
+    admin.table('quest_template_tasks').delete().eq('quest_id', item['quest_id']).execute()
+    if cleaned:
+        for t in cleaned:
+            t['quest_id'] = item['quest_id']
+        admin.table('quest_template_tasks').insert(cleaned).execute()
+
+    catalog_fields = {
+        'category': (data.get('category') or '').strip() or None,
+        'is_required': bool(data.get('is_required')),
+        'auto_assign': bool(data.get('auto_assign')),
+        'visible_to_roles': visible_to_roles if _audience(item.get('audience')) == 'staff' else None,
+    }
+    admin.table('sis_staff_training').update(catalog_fields).eq('id', training_id).execute()
+
+    logger.info(f"Training quest {item['quest_id']} edited by {user_id}")
+    return jsonify({'success': True, 'quest_id': item['quest_id'],
+                    'task_count': len(cleaned)})
+
+
+@bp.route('/training/<training_id>/publish', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def publish_training(user_id, training_id):
+    """Take a draft live.
+
+    Publishing is the moment the quest becomes real for its audience: it starts
+    showing on their list, and if it was built to go on everybody's accounts,
+    this is when that happens.
+
+    Body: {assign: false} publishes without enrolling anybody, which is what the
+    people-picker does when it is about to enrol a chosen few — otherwise going
+    live would sweep in the whole audience a moment before.
+    """
+    item, err = _owned_item(user_id, training_id)
+    if err:
+        return err
+    org_id = item['organization_id']
+    audience = _audience(item.get('audience'))
+    data = request.get_json(silent=True) or {}
+
+    _admin().table('quests').update({'is_active': True}) \
+        .eq('id', item['quest_id']).eq('organization_id', org_id).execute()
+
+    assign_now = data.get('assign', True) and item.get('auto_assign')
+    assigned = _assign_item(org_id, item, audience) if assign_now else None
+    logger.info(f"Training {training_id} published by {user_id}")
+    return jsonify({'success': True, 'audience': audience, 'assigned': assigned})
 
 
 @bp.route('/training/<training_id>', methods=['DELETE'])
@@ -459,18 +1030,44 @@ def training_progress(user_id):
 
 def _guardians(org_id):
     """The org's guardians, shaped like list_org_staff so the report is one code
-    path for both audiences."""
+    path for both audiences.
+
+    Roles are read from `org_roles` as well as `org_role`. A person can hold
+    several — at iCreate the admins are parents too — and the old check looked
+    only at the single `org_role` column, so a parent whose primary role was
+    org_admin was missing from their own school's family quests.
+
+    Org admins are included whether or not they are parents: they run the
+    school, and a back-to-school-night quest is theirs to be able to do (and to
+    try out before it goes to real families).
+    """
     from utils.db_fetch import fetch_all_rows
     rows = fetch_all_rows(lambda: (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, org_role, role')
+        .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
         .eq('organization_id', org_id)
     ))
-    out = [{
-        'id': u['id'],
-        'name': (u.get('display_name')
-                 or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
-                 or u.get('email') or 'Unnamed'),
-    } for u in rows if 'parent' in (u.get('org_role'), u.get('role'))]
+    school_account = None
+    try:
+        school_account = sis_service.org_messaging_email(org_id)
+    except Exception:  # noqa: BLE001 — worst case the placeholder shows up
+        pass
+
+    out = []
+    for u in rows:
+        # The org's messaging identity is infrastructure, not a person.
+        if school_account and u.get('email') == school_account:
+            continue
+        roles = _roles_of(u)
+        if not (roles & {'parent', *_ADMIN_ORG_ROLES}):
+            continue
+        out.append({
+            'id': u['id'],
+            'name': (u.get('display_name')
+                     or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                     or u.get('email') or 'Unnamed'),
+            'email': u.get('email'),
+            'roles': sorted(roles),
+        })
     out.sort(key=lambda p: (p['name'] or '').lower())
     return out
