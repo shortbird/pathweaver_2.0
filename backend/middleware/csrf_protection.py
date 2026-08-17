@@ -23,6 +23,43 @@ except ImportError as e:
         "CSRF protection is mandatory for security (OWASP A01:2021)."
     ) from e
 
+def classify_csrf_failure(reason):
+    """Bucket a Flask-WTF CSRFError description into a stable tag value.
+
+    All rejections used to land in one Sentry issue, where the routine case —
+    a token that aged past WTF_CSRF_TIME_LIMIT in an open tab, which the web
+    client transparently refetches and retries — outnumbered and hid the ones
+    that look like forgery. The returned slug is the `csrf_reason` tag and part
+    of the fingerprint, so each shape gets its own issue and its own rate.
+
+    Matching is on substrings of Flask-WTF's own wording rather than exact
+    strings: the descriptions are human-facing text and have been reworded
+    across releases. An unrecognized description falls through to 'other',
+    which is a signal to come read this function again.
+    """
+    text = (reason or '').lower()
+    # Referrer first: its two descriptions ("...header is missing", "...does not
+    # match the host") both contain wording the token buckets below match on,
+    # and a referrer failure is about the request's origin, not its token.
+    if 'referrer' in text or 'referer' in text:
+        return 'referrer'
+    if 'expired' in text:
+        return 'expired'
+    # "The CSRF session token is missing." must not read as a plain missing
+    # header — it means the session cookie itself is gone, which is a different
+    # bug (cookie dropped, session store lost) with a different fix. Checked
+    # before the bare 'missing' test for the same reason.
+    if 'session token is missing' in text:
+        return 'session_missing'
+    if 'do not match' in text or 'does not match' in text:
+        return 'mismatch'
+    if 'missing' in text:
+        return 'missing'
+    if 'invalid' in text or 'failed' in text:
+        return 'invalid'
+    return 'other'
+
+
 # Endpoints exempt from CSRF enforcement, resolved by ENDPOINT NAME at request
 # time. Two hard-won lessons live here (2026-07-21 iCreate registration outage):
 #   1. init_csrf() runs BEFORE blueprints are registered in app.py, so anything
@@ -190,24 +227,34 @@ def init_csrf(app):
             csrf.protect()
         except CSRFError as e:
             reason = getattr(e, 'description', None) or str(e)
+            kind = classify_csrf_failure(reason)
             # A CSRF rejection blocks a real user action (or is an actual
             # attack) — either way we want to see it. The response below is a
             # handled 400, which Sentry's Flask integration never captures, so
             # report explicitly (no-op when Sentry is not initialized).
             logger.warning(
                 f"CSRF rejection: {request.method} {path} "
-                f"endpoint={request.endpoint} reason={reason}"
+                f"endpoint={request.endpoint} kind={kind} reason={reason}"
             )
             try:
                 import sentry_sdk
                 with sentry_sdk.new_scope() as scope:
                     scope.set_tag('csrf_endpoint', request.endpoint or 'unknown')
+                    scope.set_tag('csrf_reason', kind)
                     scope.set_extra('path', path)
                     scope.set_extra('method', request.method)
                     scope.set_extra('reason', reason)
+                    # Split by kind so the benign case cannot bury the alarming
+                    # one. An `expired` token is a tab left open past
+                    # WTF_CSRF_TIME_LIMIT; the axios interceptor refetches and
+                    # retries (frontend/src/services/api.js), so the user never
+                    # sees it — that is a rate to watch, not an incident.
+                    # `missing`, `mismatch` and `invalid` are the shapes a real
+                    # forgery attempt makes, and they stay at warning.
+                    scope.fingerprint = ['csrf-rejection', kind]
                     sentry_sdk.capture_message(
-                        'CSRF rejection on cookie-authenticated request',
-                        level='warning',
+                        f'CSRF rejection ({kind}) on cookie-authenticated request',
+                        level='info' if kind == 'expired' else 'warning',
                     )
             except Exception:
                 pass

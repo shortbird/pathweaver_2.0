@@ -143,9 +143,13 @@ class UploadSession:
     storage_path: Optional[str] = None
     bucket: Optional[str] = None
     # Canonical identifier to persist once the client's PUT completes.
+    #
+    # Deliberately no signed twin here: signing is a read capability and
+    # Supabase 404s when asked to sign an object that does not exist yet. At
+    # session-creation time the client's PUT has not happened, so the object
+    # never exists — every attempt logged an error and returned None. The
+    # fetchable URL comes back from finalize_upload as `display_url`.
     final_url: Optional[str] = None
-    # Fetchable, expiring twin of final_url — for an optimistic preview.
-    final_display_url: Optional[str] = None
     media_type: Optional[str] = None
     max_size: Optional[int] = None
     expires_in: int = 7200
@@ -529,7 +533,6 @@ class MediaUploadService:
             storage_path=storage_path,
             bucket=bucket,
             final_url=final_url,
-            final_display_url=sign_stored_url(final_url, bucket) if final_url else None,
             media_type=block_type,
             max_size=max_size,
         )

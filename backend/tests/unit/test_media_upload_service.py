@@ -529,6 +529,27 @@ def test_create_upload_session_happy_path_image():
     bucket.create_signed_upload_url.assert_called_once()
 
 
+def test_create_upload_session_does_not_sign_a_file_that_does_not_exist_yet():
+    """Session creation must not mint a read URL for the pending object.
+
+    Signing is a read capability: Supabase 404s on an object that has not been
+    PUT yet, which is always the case here. The old optimistic-preview field
+    turned every upload init into a logged storage error (OPTIO-BACKEND-6G/6F).
+    """
+    svc, client, bucket = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="user-1",
+        context_type="task",
+        context_id="task-99",
+        filename="photo.png",
+        file_size=1024,
+        block_type="image",
+    )
+    assert session.success is True
+    bucket.create_signed_url.assert_not_called()
+    assert not hasattr(session, "final_display_url")
+
+
 def test_create_upload_session_moment_uses_user_uploads_bucket():
     svc, client, bucket = _make_service_with_stub_client()
     session = svc.create_upload_session(

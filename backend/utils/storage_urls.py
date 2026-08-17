@@ -197,7 +197,17 @@ def signed_url(
             raw = signed.get('signedURL') or signed.get('signedUrl') or signed.get('signed_url')
         return _normalize(raw)
     except Exception as e:  # noqa: BLE001
-        logger.error(f"[storage] Failed to sign {bucket}/{path}: {e}")
+        # Lazy %-args, not an f-string: Sentry's logging integration groups by
+        # the format TEMPLATE, and `path` carries a UUID, a timestamp and a
+        # filename. Interpolated eagerly, every failing object opened its own
+        # Sentry issue instead of incrementing one — a burst of uploads read as
+        # a burst of unrelated bugs and buried the rate. `bucket` is a closed
+        # set so it can stay in the template; the object path goes to `extra`,
+        # where it is still on the event but out of the grouping hash.
+        logger.error(
+            "[storage] Failed to sign object in %s: %s", bucket, e,
+            extra={'extra_fields': {'storage_path': path}},
+        )
         return None
 
 
