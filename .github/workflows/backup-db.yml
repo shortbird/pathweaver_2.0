@@ -1,0 +1,272 @@
+name: Nightly DB Backup
+
+# Off-site logical backup of the PROD Supabase database.
+#
+# Why this exists alongside Supabase's own backups: the Pro plan gives us daily
+# physical backups with a 7-day retention window, restorable only into a Supabase
+# project. That leaves two gaps this job closes:
+#   1. Retention cliff — corruption noticed on day 9 is unrecoverable from Supabase.
+#      These dumps live as long as the bucket lifecycle rule says (90 days).
+#   2. Vendor lock-in — a physical backup is not a file we hold. A pg_dump archive
+#      restores into any Postgres 17, including one that isn't Supabase's.
+#
+# It does NOT replace Supabase's backups and it does NOT give point-in-time
+# recovery: worst-case data loss here is ~24h. See backend/docs/BACKUP_RESTORE.md.
+#
+# NOT COVERED: Supabase Storage objects (student evidence uploads, photos, video).
+# Database backups only contain the storage.objects METADATA rows, not the files
+# themselves. That gap is still open.
+
+on:
+  schedule:
+    # 08:00 UTC daily = 01:00 MDT / 02:00 MST. Deliberately off the hours the
+    # cron dispatcher uses (09/10/13/14/15 UTC, backend/jobs/cron_dispatch.py)
+    # so a long dump never overlaps the billing or attendance sweeps.
+    - cron: "0 8 * * *"
+  # Manual runs: use this before applying a risky migration or a bulk data script.
+  workflow_dispatch:
+
+concurrency:
+  # Never let two dumps run at once — they'd race on the same object key and
+  # double the read load on prod.
+  group: backup-db
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Dump, verify, encrypt, upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # Scratch Postgres used ONLY to prove the dump restores. Same major version
+      # as prod (17) so pg_restore doesn't hit a version wall. Nothing here is
+      # persisted; the container dies with the job.
+      verify:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verify
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Install PostgreSQL 17 client
+        # ubuntu-latest ships a PG16 client. pg_dump refuses to dump a server
+        # newer than itself, and prod is 17.4, so we pull the client from PGDG.
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump production database
+        env:
+          # Session-mode pooler connection string (port 5432), NOT the direct
+          # db.<ref>.supabase.co host: that endpoint is IPv6-only without the
+          # IPv4 add-on, and GitHub runners are IPv4-only. Transaction mode
+          # (6543) does not work with pg_dump.
+          PGCONN: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::BACKUP_DB_URL secret is not set — see backend/docs/BACKUP_RESTORE.md"
+            exit 1
+          fi
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          echo "DUMP=optio-prod-$STAMP.dump" >> "$GITHUB_ENV"
+
+          # Custom format (-Fc), max compression. Custom format is what makes a
+          # SELECTIVE restore possible ("put back just sis_invoices"), which is
+          # the realistic recovery case — far more common than a full rebuild.
+          #
+          # Schema selection: public (the app), auth (logins — without it nobody
+          # can sign in), storage (object metadata), supabase_migrations (so a
+          # restored DB knows which migrations it has). The schemas we skip
+          # (realtime, cron, net, vault, extensions, graphql*) are Supabase
+          # platform-managed and get recreated by the platform on a new project;
+          # dumping them produces restore errors without adding recoverable data.
+          #
+          # --no-owner / --no-privileges: role names differ between a Supabase
+          # project and any other target, so baking them in only causes failures.
+          # Grants are re-applied by our migrations, not by the dump.
+          pg_dump "$PGCONN" \
+            --format=custom \
+            --compress=9 \
+            --no-owner \
+            --no-privileges \
+            --quote-all-identifiers \
+            --schema=public \
+            --schema=auth \
+            --schema=storage \
+            --schema=supabase_migrations \
+            --file="$DUMP"
+
+          ls -lh "$DUMP"
+          echo "DUMP_BYTES=$(stat -c%s "$DUMP")" >> "$GITHUB_ENV"
+
+      - name: Sanity-check archive size
+        # A dump that suddenly collapses to near-nothing is the failure mode that
+        # matters most: it uploads "successfully" and is worthless. The prod DB is
+        # ~307MB raw, so a healthy compressed archive is tens of MB. 5MB is a
+        # deliberately loose floor — it catches "empty/truncated", not drift.
+        run: |
+          set -euo pipefail
+          MIN=5000000
+          if [ "$DUMP_BYTES" -lt "$MIN" ]; then
+            echo "::error::Dump is only $DUMP_BYTES bytes (floor $MIN). Refusing to upload a likely-truncated backup."
+            exit 1
+          fi
+          echo "Archive size OK: $DUMP_BYTES bytes"
+
+      - name: Verify the dump actually restores
+        # An unverified backup is a guess. This is the step that turns this job
+        # from "a file exists in a bucket" into "we know we can get the data back".
+        env:
+          PGPASSWORD: verify
+          PGHOST: localhost
+          PGPORT: "5433"
+          PGUSER: postgres
+        run: |
+          set -euo pipefail
+
+          # 1. Archive integrity. pg_restore --list parses the whole table of
+          #    contents and fails on a truncated or corrupt file, without writing
+          #    anything. Cheap, and catches a half-uploaded dump.
+          pg_restore --list "$DUMP" > /tmp/toc.txt
+          echo "Archive TOC entries: $(wc -l < /tmp/toc.txt)"
+
+          # 2. Bootstrap the scratch DB so the restore is clean rather than a
+          #    wall of tolerable-but-unreadable errors. Supabase's roles and the
+          #    extensions our schema depends on don't exist in a stock postgres:17.
+          psql -d verify -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'x';
+          CREATE ROLE supabase_admin SUPERUSER;
+          CREATE ROLE supabase_auth_admin NOLOGIN;
+          CREATE ROLE supabase_storage_admin NOLOGIN;
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE SCHEMA IF NOT EXISTS extensions;
+          SQL
+
+          # 3. Real restore. Errors are tolerated here (|| true) on purpose: the
+          #    dump references Supabase platform objects this scratch instance
+          #    will never have, and failing on those would make the check useless.
+          #    The row-count assertions below are the actual pass/fail signal —
+          #    they only succeed if the data genuinely made it in and is readable.
+          pg_restore \
+            --dbname=verify \
+            --no-owner \
+            --no-privileges \
+            --jobs=4 \
+            "$DUMP" 2> /tmp/restore.err || true
+          echo "Restore stderr (last 20 lines):"
+          tail -20 /tmp/restore.err || true
+
+          # 4. Assert the core tables came back with plausible volume. Floors are
+          #    set well under the current counts (users 736, quests 1031,
+          #    auth.users 739 as of 2026-08-17) so ordinary growth or a modest
+          #    cleanup never trips them — this asks "did the data restore?", not
+          #    "did the row count change?".
+          psql -d verify -v ON_ERROR_STOP=1 -t <<'SQL'
+          DO $$
+          DECLARE
+            n_users   bigint;
+            n_quests  bigint;
+            n_auth    bigint;
+          BEGIN
+            SELECT count(*) INTO n_users  FROM public.users;
+            SELECT count(*) INTO n_quests FROM public.quests;
+            SELECT count(*) INTO n_auth   FROM auth.users;
+            RAISE NOTICE 'restored: public.users=%, public.quests=%, auth.users=%',
+              n_users, n_quests, n_auth;
+            IF n_users < 100 OR n_quests < 100 OR n_auth < 100 THEN
+              RAISE EXCEPTION
+                'Restore verification FAILED: users=%, quests=%, auth.users=%',
+                n_users, n_quests, n_auth;
+            END IF;
+          END $$;
+          SQL
+          echo "Restore verification passed."
+
+      - name: Encrypt
+        # The dump holds PII for minors, family billing records, and password
+        # hashes. Provider-side encryption-at-rest is not enough on its own: it
+        # protects against a stolen disk, not against a leaked bucket key. This
+        # is client-side, so the bucket only ever holds ciphertext.
+        #
+        # gpg symmetric AES256 — gpg is preinstalled on the runner, and restoring
+        # needs nothing but the passphrase and any gpg build.
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PASSPHRASE:-}" ]; then
+            echo "::error::BACKUP_GPG_PASSPHRASE secret is not set"
+            exit 1
+          fi
+          # --pinentry-mode loopback is required by GnuPG 2.1+ to accept a
+          # passphrase on a pipe instead of prompting; without it this hangs or
+          # fails on a headless runner.
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --quiet \
+            --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            --output "$DUMP.gpg" "$DUMP"
+          rm -f "$DUMP"
+          ls -lh "$DUMP.gpg"
+
+      - name: Upload to object storage
+        # S3-compatible on purpose: the same code works against Backblaze B2,
+        # Cloudflare R2, or AWS S3. Only the endpoint/region secrets change.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION }}
+          ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          KEY="daily/$(date -u +%Y)/$(date -u +%m)/$DUMP.gpg"
+          aws s3 cp "$DUMP.gpg" "s3://$BUCKET/$KEY" --endpoint-url "$ENDPOINT" --only-show-errors
+          # Read it back. `cp` reporting success is not proof the object landed
+          # intact and is listable; a HEAD against the key is.
+          aws s3api head-object --bucket "$BUCKET" --key "$KEY" --endpoint-url "$ENDPOINT" > /tmp/head.json
+          echo "Uploaded s3://$BUCKET/$KEY"
+          echo "Remote size: $(python3 -c 'import json;print(json.load(open("/tmp/head.json"))["ContentLength"])') bytes"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Nightly DB backup"
+            echo ""
+            echo "- Timestamp: \`${STAMP:-n/a}\`"
+            echo "- Archive: \`${DUMP:-n/a}.gpg\`"
+            echo "- Raw dump size: \`${DUMP_BYTES:-n/a}\` bytes"
+            echo "- Result: **${{ job.status }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # NOTE: this job deliberately does NOT delete old backups. Retention is a
+      # bucket lifecycle rule (see backend/docs/BACKUP_RESTORE.md). Automating
+      # deletion here would put "rm" on a path that runs unattended every night
+      # against the only off-site copy we have; a lifecycle rule is enforced by
+      # the storage provider, can't be broken by a bug in this file, and fails
+      # safe (it keeps too much rather than too little).

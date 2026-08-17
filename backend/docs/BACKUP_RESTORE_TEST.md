@@ -1,5 +1,20 @@
 # Database Backup Restore Test Procedure
 
+> **MOSTLY AUTOMATED SINCE 2026-08-17 — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md).**
+>
+> The monthly manual restore test this document describes was never run. It is now
+> largely unnecessary: [backup-db.yml](../../.github/workflows/backup-db.yml)
+> restores every nightly dump into a throwaway Postgres 17 container and asserts
+> row counts on `public.users`, `public.quests`, and `auth.users`. A dump that
+> cannot be read back turns the job red that night.
+>
+> One manual check still matters and is **quarterly**, not monthly: decrypt the
+> latest archive on a laptop using the passphrase from the password manager. That
+> tests the link automation can't — that a human can still reach the credentials.
+> See the "Verifying it works" section of [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+>
+> Kept below for the restore-scenario detail; not a live procedure.
+
 ## Overview
 
 This document provides step-by-step procedures for testing database backup restoration. Regular testing ensures backups are valid and recovery procedures work when needed.

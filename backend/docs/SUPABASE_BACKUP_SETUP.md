@@ -1,14 +1,24 @@
 # Supabase Database Backup Configuration Guide
 
+> **SUPERSEDED (2026-08-17) — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md).**
+>
+> This 2025 document was a pre-launch plan that was never implemented, and parts
+> of it are wrong. Most importantly, its plan table below claimed Point-in-Time
+> Recovery is included in the Pro plan. **It is not** — PITR is a paid add-on
+> (~$100/mo for 7-day retention) on Pro, Team, and Enterprise alike, and it is
+> currently **not enabled** for Optio.
+>
+> The table has been corrected in place so nobody budgets or plans off the wrong
+> numbers. Everything below is kept for history only; treat
+> [BACKUP_RESTORE.md](BACKUP_RESTORE.md) as authoritative for what exists today.
+
 ## Overview
 
 This guide covers setting up automated backups for the Optio production database hosted on Supabase.
 
 ## Current State
 
-**Status**: ⚠️ NEEDS CONFIGURATION
-
-Supabase provides automated backups, but the configuration needs to be verified and enhanced for production readiness.
+**Status**: superseded — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ---
 
@@ -21,11 +31,14 @@ Supabase provides automatic daily backups with the following features:
 | Plan | Daily Backups | Retention | Point-in-Time Recovery |
 |------|--------------|-----------|------------------------|
 | Free | ❌ No | N/A | ❌ No |
-| Pro | ✅ Yes | 7 days | ✅ Last 7 days |
-| Team | ✅ Yes | 14 days | ✅ Last 14 days |
-| Enterprise | ✅ Yes | 30 days | ✅ Last 30 days |
+| Pro | ✅ Yes | 7 days | Paid add-on (~$100/mo for 7 days) |
+| Team | ✅ Yes | 14 days | Paid add-on (same pricing) |
+| Enterprise | ✅ Yes | 30 days | Paid add-on (same pricing) |
 
-**Current Plan**: [TO BE DETERMINED - Check Supabase dashboard]
+PITR pricing scales with retention: ~$100/mo (7d), ~$200/mo (14d), ~$400/mo (28d),
+billed hourly and **not covered by the Supabase spend cap**.
+
+**Current Plan**: Pro (org `Shortbird`), verified 2026-08-17. PITR **not enabled**.
 
 ---
 
