@@ -33,9 +33,15 @@ import { fileURLToPath } from 'url'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// A centered-modal backdrop: `fixed` + full-viewport anchor + flex centering,
-// all within one className string (the [^"'`]* stops at the attribute boundary).
-const BACKDROP = /\bfixed\b[^"'`]*\b(?:inset-0|top-0 left-0)\b[^"'`]*\bitems-center\b/
+// A modal backdrop: `fixed` + full-viewport anchor + flex alignment, all within
+// one className string (the [^"'`]* stops at the attribute boundary).
+//
+// items-start and items-end count too. A tall modal is often top-aligned so it
+// can scroll rather than centre off-screen, and that variant is just as
+// vulnerable to a transformed ancestor — it slipped a hand-rolled preview modal
+// past this guard on 2026-08-17. Widening it flagged nothing else, so no
+// baseline entries were added.
+const BACKDROP = /\bfixed\b[^"'`]*\b(?:inset-0|top-0 left-0)\b[^"'`]*\bitems-(?:center|start|end)\b/
 // A file is considered to portal its overlay if it uses any of these.
 const PORTAL = /createPortal|ModalOverlay|ui\/Modal['"]/
 

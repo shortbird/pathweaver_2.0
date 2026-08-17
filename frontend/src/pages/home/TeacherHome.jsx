@@ -13,6 +13,7 @@ import { switchSurfaceInApp } from '../../utils/appSurface'
 import api from '../../services/api'
 import { Spinner } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
+import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 
 /**
  * Teacher Home — a teacher's landing on the learning app (rendered by RoleHome
@@ -300,6 +301,9 @@ export default function TeacherHome() {
         showInvitations={!sisEnabled}
       />
       <MyClasses classes={classes} sisEnabled={sisEnabled} />
+      {/* Training the school set for its staff lands on this account; a teacher
+          has no student dashboard to meet it on. */}
+      <MyEnrolledQuests className="mt-8" />
     </div>
   )
 }

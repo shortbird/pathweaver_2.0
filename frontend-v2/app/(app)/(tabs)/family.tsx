@@ -10,6 +10,7 @@ import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDime
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
+import { useDashboard } from '@/src/hooks/useDashboard';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
@@ -286,6 +287,79 @@ function QuestsList({
   );
 }
 
+/**
+ * The quests on the grown-up's OWN account.
+ *
+ * iCreate, 2026-08-17: schools set training and orientation quests for their
+ * families and staff, assign them straight onto those accounts, and expect them
+ * done on the phone. This screen is the parent shell's home, and every other
+ * thing on it is scoped to a child — "Browse quests" adds a quest to the kid,
+ * and the quest list routes to the read-only parent view of the kid's work.
+ * Their own enrolment had no surface at all: the parent tab set has no Home tab
+ * (src/config/navigation.ts, parentMobileTabOrder), so the dashboard that would
+ * have shown it is unreachable.
+ *
+ * Also catches a case that is not about parents: useIsParent treats anyone with
+ * a child as a parent, so an advisor or org admin who has a kid on the platform
+ * is put in this shell too and loses their Home tab — and with it their staff
+ * training. They get it back here.
+ *
+ * Renders nothing when there is nothing enrolled.
+ */
+function MyOwnQuests() {
+  const c = useThemeColors();
+  const { data, loading } = useDashboard();
+  const quests = data?.active_quests || [];
+
+  if (loading || quests.length === 0) return null;
+
+  return (
+    <VStack space="sm">
+      <Heading size="md">Your quests</Heading>
+      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+        Set for you by your school — these are yours, not your child's.
+      </UIText>
+      {quests.map((q: any) => {
+        const quest = q.quests || q;
+        const questId = q.quest_id || q.id || quest.id;
+        return (
+          <Pressable
+            key={questId}
+            // The learner's own quest screen, where tasks are completed —
+            // NOT /parent/quest/<student>/<quest>, which is the read-only view
+            // of somebody else's work.
+            onPress={() => router.push(`/(app)/quests/${questId}` as any)}
+            accessibilityLabel={`Open ${quest.title}`}
+          >
+            <Card variant="outline" size="md">
+              <HStack className="items-center gap-3">
+                {quest.image_url ? (
+                  <Image
+                    source={{ uri: quest.image_url }}
+                    style={{ width: 48, height: 48, borderRadius: 10 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="school-outline" size={22} color="#6D469B" />
+                  </View>
+                )}
+                <VStack className="flex-1 min-w-0">
+                  <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{quest.title}</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                    {quest.description || quest.big_idea || ''}
+                  </UIText>
+                </VStack>
+                <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
+              </HStack>
+            </Card>
+          </Pressable>
+        );
+      })}
+    </VStack>
+  );
+}
+
 // ── Hearthwood Academy entry (only for OEA-program parents) ──
 // Persistent way into the Hearthwood Academy diploma flow (choose pathways / track
 // credits). The post-signup redirect only fires once and is skipped when email
@@ -500,6 +574,9 @@ export default function ParentDashboardPage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
+
+          {/* The grown-up's OWN quests, not their child's. */}
+          <MyOwnQuests />
 
           {/* Hearthwood Academy entry (OEA-program parents only) */}
           {isOEAParent && <OpenEdAcademyEntry />}

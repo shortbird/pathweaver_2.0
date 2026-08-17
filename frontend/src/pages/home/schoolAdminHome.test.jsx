@@ -164,7 +164,10 @@ describe('SchoolAdminHome', () => {
     api.get.mockRejectedValue(new Error('should not be called'))
     renderPage()
 
-    expect(api.get).not.toHaveBeenCalled()
+    // No ORG-scoped query fires without an org. The admin's own enrolled quests
+    // are not org-scoped — they belong to the account — so that card still asks.
+    const orgCalls = api.get.mock.calls.filter(([url]) => !url.startsWith('/api/quests/'))
+    expect(orgCalls).toEqual([])
     expect(screen.queryByTestId('home-stat-skeleton')).not.toBeInTheDocument()
     expect(screen.getByText('Organization Console')).toBeInTheDocument()
   })

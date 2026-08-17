@@ -4,6 +4,7 @@ import { BuildingLibraryIcon, UsersIcon, MegaphoneIcon, AcademicCapIcon } from '
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTiles'
+import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 
 /**
  * School Home — the non-SIS org admin's landing (rendered by RoleHome at
@@ -126,6 +127,9 @@ export default function SchoolAdminHome() {
       )}
 
       <HomeDoorGrid ariaLabel="School admin surfaces" doors={DOORS} />
+      {/* An admin can be assigned the school's own training like anybody else,
+          and has no student dashboard to find it on. */}
+      <MyEnrolledQuests className="mt-8" />
     </div>
   )
 }

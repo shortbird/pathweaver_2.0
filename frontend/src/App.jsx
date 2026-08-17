@@ -537,10 +537,22 @@ function App() {
                 <Route path="student-dashboard" element={<StudentDashboardPage />} />
                 {/* Student-only surfaces: parents/observers are bounced to their
                     own home. Students, advisors, org_admins, superadmin unaffected. */}
+                {/* One quest, open to a parent as well. A school can set a quest
+                    for FAMILIES — orientation, back to school night — which the
+                    guardian holds on their own account and completes themselves
+                    (routes/sis/staff_training.py, audience='family'). The family
+                    portal links straight here, so blocking parents made that
+                    link bounce them to their own home and the quest could never
+                    be finished. Browsing quests stays student-only below: a
+                    parent has no quest library, only the ones set for them.
+                    Enrolling themselves is still refused by the backend
+                    (routes/quest/enrollment.py) — the school assigns it. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} />}>
+                  <Route path="quests/:id" element={<QuestDetail />} />
+                </Route>
                 <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
                   {/* Quest Routes */}
                   <Route path="quests" element={<QuestDiscovery />} />
-                  <Route path="quests/:id" element={<QuestDetail />} />
                   <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                   <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
                   {/* Peer connections. Student-only surface: a parent reaches

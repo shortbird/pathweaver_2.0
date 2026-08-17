@@ -9,6 +9,7 @@ import { useActingAs } from '../../contexts/ActingAsContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { PageLoader } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
+import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 import { htmlToText } from '../../utils/richText'
 import { inOptioAcademy } from '../../config/optioAcademy'
 import { cardsFor } from '../SchoolPage'
@@ -275,6 +276,11 @@ export default function FamilyHome() {
       </section>
 
       {!schoolFirst && schoolSection}
+
+      {/* A quest the school set for FAMILIES is the guardian's own work, held on
+          their own account. They have no student dashboard to meet it on, and
+          the school card above only links out to the portal. */}
+      <MyEnrolledQuests className="mt-8" />
     </div>
   )
 }
