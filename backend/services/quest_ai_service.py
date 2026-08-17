@@ -11,7 +11,7 @@ import re
 import time
 from typing import Dict, List, Optional, Any
 
-from services.base_ai_service import BaseAIService
+from services.base_ai_service import BaseAIService, AIParsingError
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -378,14 +378,39 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
 """
 
         try:
-            data = self.generate_json(prompt, generation_config_preset='structured_output')
+            # Thinking tokens are drawn from the same max_output_tokens budget,
+            # so the 2048 of 'structured_output' is not 2048 tokens of JSON. A
+            # teacher's handbook upload spent nearly all of it reasoning and the
+            # answer was cut off one task in (Sentry OPTIO-BACKEND-65..6E).
+            # Eight tasks of quest JSON is roughly 800 tokens; the rest is
+            # headroom for the model to think first.
+            data = self.generate_json(
+                prompt,
+                generation_config_preset='structured_output',
+                max_output_tokens=8192,
+                strict=True,
+            )
+        except AIParsingError as e:
+            # The model answered; we could not read what it said. Reporting
+            # that as "not enough in your document" sent a teacher back to
+            # re-upload a handbook that was never the problem.
+            logger.error(f'Quest draft: model answer unreadable: {e}')
+            return {'success': False,
+                    'error': ("The AI's answer got cut off before it finished. "
+                              "Try asking for fewer tasks, or trim the document to "
+                              "the part you want the quest built from."),
+                    'quest': None}
         except Exception as e:
             logger.error(f'Quest draft generation failed: {e}')
-            return {'success': False, 'error': str(e), 'quest': None}
+            return {'success': False,
+                    'error': 'Could not build a quest from that.', 'quest': None}
 
         if isinstance(data, list):  # model returned bare tasks
             data = {'title': '', 'description': '', 'tasks': data}
         if not isinstance(data, dict) or not data.get('tasks'):
+            # Reached only when the model returned readable JSON that carried no
+            # tasks - which is what this sentence has always claimed and, until
+            # the parse failures above were split out, rarely meant.
             return {'success': False,
                     'error': 'The AI could not find enough to build a quest from that.',
                     'quest': None}
