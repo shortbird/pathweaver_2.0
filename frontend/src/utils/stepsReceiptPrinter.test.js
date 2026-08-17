@@ -38,22 +38,35 @@ describe('buildStepsReceiptHtml', () => {
     expect((html.match(/box done/g) || []).length).toBe(1)
   })
 
-  it('lays out inside the printable width of 62mm tape, not the full tape', () => {
+  it('insets the text column from both edges of the tape', () => {
     const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
     expect(html).toContain('@page { size: 62mm auto; margin: 0; }')
-    expect(html).toContain('width: 59mm;')
+    expect(html).toContain('.label { width: 62mm; padding: 2mm 3mm; }')
   })
 
   it('honors a different tape width', () => {
     const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps, tapeWidthMm: 29 })
     expect(html).toContain('@page { size: 29mm auto; margin: 0; }')
-    expect(html).toContain('width: 26mm;')
+    expect(html).toContain('.label { width: 29mm; padding: 2mm 3mm; }')
   })
 
-  it('pins the page height to the rendered content instead of leaving it auto', () => {
+  it('lets the step text shrink below its longest word so nothing is sheared', () => {
     const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
-    expect(html).toContain('document.body.scrollHeight')
+    expect(html).toContain('flex: 1 1 auto; min-width: 0;')
+    expect(html).toContain('overflow-wrap: anywhere')
+  })
+
+  it('pins the page height to the label only, not the screen-only setup note', () => {
+    const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
+    expect(html).toContain("document.getElementById('label')")
+    expect(html).not.toContain('document.body.scrollHeight')
     expect(html).toContain("'@page { size: 62mm ' + heightMm + 'mm; margin: 0; }'")
+  })
+
+  it('warns on screen about browser headers and footers, and hides it in print', () => {
+    const html = buildStepsReceiptHtml({ taskTitle: 'Task', steps })
+    expect(html).toContain('Headers and footers')
+    expect(html).toContain('.setup { display: none; }')
   })
 
   it('escapes HTML in AI-generated text', () => {
