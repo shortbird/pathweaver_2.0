@@ -7,21 +7,17 @@ import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { getCreditStanding, XP_PER_CREDIT } from '../../utils/creditRequirements';
 
-// Credit requirements per subject (XP needed for graduation)
-const CREDIT_REQUIREMENTS = {
-  language_arts: { required: 8000, label: 'Language Arts' },
-  math: { required: 6000, label: 'Math' },
-  science: { required: 6000, label: 'Science' },
-  social_studies: { required: 7000, label: 'Social Studies' },
-  financial_literacy: { required: 1000, label: 'Financial Literacy' },
-  health: { required: 1000, label: 'Health' },
-  pe: { required: 4000, label: 'PE' },
-  fine_arts: { required: 3000, label: 'Fine Arts' },
-  cte: { required: 2000, label: 'CTE' },
-  digital_literacy: { required: 1000, label: 'Digital Literacy' },
-  electives: { required: 8000, label: 'Electives' }
-};
+// Requirements and progress come from utils/creditRequirements — the same
+// source the diploma panel reads.
+//
+// This file used to carry its own copy of the requirement table, and the two
+// had drifted: Social Studies asked 7000 XP here and 8000 there, so a student
+// was told a different thing about the same subject on two screens. The copy
+// also predated elective overflow, so a subject completed by surplus from
+// another (Electives, filled by over-earned CTE) still showed as unfinished
+// and invited a student to spend a quest on credit they already had.
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -154,6 +150,13 @@ export default function QuestPersonalizationWizard({
   // Credit progress state
   const [subjectXP, setSubjectXP] = useState({});
   const [loadingCredits, setLoadingCredits] = useState(false);
+
+  // Keyed by subject so a card can look itself up. Same standing the diploma
+  // panel shows, elective overflow and all.
+  const creditStanding = getCreditStanding(subjectXP).progress.reduce((acc, c) => {
+    acc[c.subject] = c;
+    return acc;
+  }, {});
 
   // Fetch user's subject XP on mount
   useEffect(() => {
@@ -710,10 +713,14 @@ export default function QuestPersonalizationWizard({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {DIPLOMA_SUBJECTS.map(subject => {
-                const current = subjectXP[subject.id] || 0;
-                const required = CREDIT_REQUIREMENTS[subject.id]?.required || 0;
-                const percentage = required > 0 ? Math.min(100, (current / required) * 100) : 0;
-                const isComplete = percentage >= 100;
+                // creditsCounted includes credit that overflowed in from an
+                // over-earned subject, so a subject already satisfied that way
+                // reads as complete here too.
+                const standing = creditStanding[subject.id];
+                const current = Math.round((standing?.creditsCounted || 0) * XP_PER_CREDIT);
+                const required = Math.round((standing?.creditsRequired || 0) * XP_PER_CREDIT);
+                const percentage = standing?.progressPercentage || 0;
+                const isComplete = !!standing?.isComplete;
                 const isSelected = crossCurricularSubjects.includes(subject.id);
 
                 // Circular progress values
