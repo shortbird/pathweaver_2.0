@@ -499,7 +499,24 @@ class ClassService(BaseService):
             classes.append(cls)
 
         self._attach_schedule(classes)
+        self._strip_staff_only(classes)
         return classes
+
+    @staticmethod
+    def _strip_staff_only(classes: List[Dict[str, Any]]) -> None:
+        """Drop the staff-only columns before a student sees their own classes.
+
+        The enrollment read selects `org_classes(*)`, so everything on the row
+        came along — internal notes and the per-student materials budget
+        included. The SIS catalog already solved this for its family audience;
+        this reuses that list rather than keeping a second opinion about which
+        columns are internal.
+        """
+        from services.sis_catalog_service import STAFF_ONLY_FIELDS
+
+        for cls in classes:
+            for field in STAFF_ONLY_FIELDS:
+                cls.pop(field, None)
 
     def _attach_schedule(self, classes: List[Dict[str, Any]]) -> None:
         """Attach each class's weekly meetings and the room they are in.

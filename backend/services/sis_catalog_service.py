@@ -27,7 +27,15 @@ REGISTRATION_STATUSES = ('open', 'closed')
 # org_classes columns for the office's eyes only. The parent Schedule Builder
 # and the public embed both read classes through this service with
 # audience='family' — anything listed here is stripped from those payloads.
-STAFF_ONLY_FIELDS = ('internal_notes',)
+# Columns on a class that only staff may see. Applied by _for_audience to every
+# non-staff payload, and by class_service.get_student_classes to the student's
+# own class list — one definition, so a new internal column is hidden in both
+# places or neither.
+#
+# supply_budget_per_student is the school's materials budget. It is edited in
+# the SIS class editor and read by no family- or student-facing surface, so it
+# has no business on a payload sent to one.
+STAFF_ONLY_FIELDS = ('internal_notes', 'supply_budget_per_student')
 
 
 def _admin():

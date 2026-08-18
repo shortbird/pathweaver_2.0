@@ -87,6 +87,17 @@ STORAGE_PATH_TEMPLATES = {
 }
 
 # Thumbnail path templates
+# Thumbnails are written with upsert so a repeat is a no-op rather than a 409.
+#
+# The task/block/event templates below key on a timestamp with SECOND
+# resolution, so two finalize calls for the same upload inside one second
+# resolve to the same object path — and a plain upload answers the second one
+# with "Duplicate", which surfaced to the user as a failed video upload
+# (Sentry OPTIO-BACKEND-6T, 2026-08-18). A retried finalize is exactly the case
+# that collides, and the bytes are identical either way, so overwriting is
+# both safe and what the caller meant.
+_THUMBNAIL_FILE_OPTIONS = {"content-type": "image/jpeg", "upsert": "true"}
+
 THUMBNAIL_PATH_TEMPLATES = {
     'task': 'evidence-tasks/{user_id}/thumbnails/{context_id}_{timestamp}_{thumb_name}',
     'block': 'evidence-blocks/{user_id}/thumbnails/{context_id}_{timestamp}_{thumb_name}',
@@ -346,7 +357,7 @@ class MediaUploadService:
                     supabase.storage.from_(bucket).upload(
                         path=thumb_path,
                         file=thumb_bytes,
-                        file_options={"content-type": "image/jpeg"}
+                        file_options=_THUMBNAIL_FILE_OPTIONS,
                     )
                     # Canonical pointer — this is what gets persisted.
                     return public_object_url(bucket, thumb_path)
@@ -814,7 +825,7 @@ class MediaUploadService:
                 supabase.storage.from_(bucket).upload(
                     path=thumb_path,
                     file=thumb_bytes,
-                    file_options={"content-type": "image/jpeg"},
+                    file_options=_THUMBNAIL_FILE_OPTIONS,
                 )
                 # Canonical pointer — this is what gets persisted.
                 return public_object_url(bucket, thumb_path)

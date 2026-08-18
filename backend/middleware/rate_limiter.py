@@ -362,12 +362,30 @@ def _resolve_rate_limit_user_id() -> Optional[str]:
 
     Imported lazily to avoid a circular import (session_manager imports
     several modules that, transitively, import this middleware).
+
+    Why the failure is logged rather than swallowed: this runs BEFORE
+    require_auth, so a request whose token has not been attached yet — the
+    mobile client reads it synchronously, so an app resuming from background or
+    refreshing mid-flight can fire without one — resolves to None and lands in
+    the shared IP bucket instead of its own. That is how iCreate's families
+    exhausted a 60/hour upload limit between them (2026-08-18): the IP was a
+    Cloudflare edge, so the bucket was the whole building. The IP half is fixed
+    (TRUSTED_PROXY_HOPS), but a silent None here is what made it invisible, so
+    say which path was taken and why.
     """
     try:
         from utils.session_manager import session_manager
-        return session_manager.get_effective_user_id()
-    except Exception:
+        user_id = session_manager.get_effective_user_id()
+    except Exception as e:  # noqa: BLE001 — never let telemetry break a request
+        logger.warning(f"[RateLimit] user resolution raised, keying by IP: {e}")
         return None
+    if not user_id:
+        logger.info(
+            "[RateLimit] no authenticated user on the request; keying by IP. "
+            f"auth_header={'yes' if request.headers.get('Authorization') else 'no'} "
+            f"endpoint={request.endpoint}"
+        )
+    return user_id
 
 
 def _report_rate_limit_exceeded(identifier: str, endpoint: str, max_req: int, window: int) -> None:
@@ -386,14 +404,21 @@ def _report_rate_limit_exceeded(identifier: str, endpoint: str, max_req: int, wi
         f"[RateLimit] 429 for identifier={identifier} endpoint={endpoint} "
         f"limit={max_req}/{window}s"
     )
+    # Whether the bucket was keyed by user or by IP is the first thing anyone
+    # asks, and its absence here is why the shared-bucket lockout had to be
+    # reconstructed from Render logs.
+    keyed_by = 'user' if identifier.startswith('user:') else 'ip'
     try:
         import sentry_sdk
         with sentry_sdk.push_scope() as scope:
             scope.set_tag('rate_limit_endpoint', endpoint or 'unknown')
+            scope.set_tag('rate_limit_keyed_by', keyed_by)
             scope.set_context('rate_limit', {
                 'endpoint': endpoint,
                 'limit': max_req,
                 'window_seconds': window,
+                'identifier': identifier,
+                'keyed_by': keyed_by,
             })
             # Group every denial on the same endpoint into one issue; the event
             # count then signals how widespread the lockout is.
@@ -452,6 +477,18 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
         def decorated_function(*args, **kwargs):
             # Skip rate limiting for OPTIONS requests (CORS preflight)
             if request.method == 'OPTIONS':
+                return f(*args, **kwargs)
+
+            # The kill switch, and it is now actually wired: RATE_LIMIT_ENABLED
+            # was read into Config and then consulted by nothing, so anyone
+            # reaching for it mid-incident would have found it did nothing.
+            # Logged at WARNING every time, because a service running with its
+            # limits off should never be a quiet state.
+            if not Config.RATE_LIMIT_ENABLED:
+                logger.warning(
+                    f"[RateLimit] DISABLED by RATE_LIMIT_ENABLED=false — "
+                    f"{request.endpoint} served without a limit"
+                )
                 return f(*args, **kwargs)
 
             # CVE-OPTIO-2025-012 FIX: Use secure IP extraction to prevent spoofing
