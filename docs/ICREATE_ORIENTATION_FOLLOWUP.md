@@ -348,6 +348,62 @@ costs parents the daily social surface, dropping Bounties costs the earning
 loop, and the tab bar cannot hold both plus Journal and School.
 
 
+### 2.5 School documents/resources section is missing from the mobile school page
+
+**Impact: high — the orientation quest sends families to a section that does not
+exist on their phones.**
+
+One of the 15 tasks on the iCreate Exploration Quest reads:
+
+> *"Check the Family Guide, Behavior Agreement and other docs found in the
+> **Resources section** or ask an iCreate staff member if you don't already know
+> the answers."*
+
+There is no Resources section in the mobile app. `frontend-v2` contains **no
+reference to resources at all** — no screen, no hook, no API call. Families
+doing that task on a phone had nowhere to go, which is very likely why the
+task's fallback ("or ask an iCreate staff member") got exercised so much.
+
+#### Everything needed already exists
+
+This is a missing screen, not a missing feature. The data and the endpoint are
+in place and populated:
+
+- **Endpoint:** `GET /api/sis/parent/resources?organization_id=…`
+  ([backend/routes/sis/parent.py:676](../backend/routes/sis/parent.py#L676)),
+  `@require_auth`, family-scoped, already returns signed URLs — uploaded
+  documents live in the private `org-documents` bucket and are signed in one
+  batched call, so the client needs no storage logic.
+- **iCreate has seven family-visible documents loaded right now:**
+
+  | audience | documents |
+  |---|---|
+  | `families` | Enrollment & Tuition Agreement, Liability Waiver, **Family Guidebook** |
+  | `all` | Quest Learning Day, Elementary Academic Learning Day, Teen Academic Learning Day Guide, **Student Behavior Agreement** |
+
+  The two the quest names by title — Family Guidebook and Student Behavior
+  Agreement — are both there.
+- The web SIS already renders this
+  ([frontend/src/pages/sis/ResourcesPage.jsx](../frontend/src/pages/sis/ResourcesPage.jsx)),
+  so the shape of the payload and the audience rules are settled.
+
+#### Build notes
+
+- Add it as another `SchoolSection` on the mobile school page, so it inherits
+  the shared header, toggle and closed-on-arrival default alongside
+  Announcements, the class schedules and the carpool board.
+- **Respect the audience field.** `families` and `all` are family-visible;
+  `staff` is not. The parent endpoint already filters, so just do not widen it.
+- **`requires_ack` exists** and is currently `false` on all seven iCreate rows,
+  but the acknowledgement flow is real (`/api/sis/resources/<id>/ack`, and the
+  web page surfaces stale acks when a document is re-versioned). Decide whether
+  mobile shows ack state read-only or lets a parent acknowledge; if a school
+  ever flips `requires_ack` on, a mobile-only parent must not be stuck unable to
+  sign.
+- Opening a document is a signed URL — reuse the existing `DocumentViewer`
+  rather than adding another PDF path.
+
+
 ---
 
 ## 3. iCreate data quality
