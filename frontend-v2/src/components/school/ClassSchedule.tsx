@@ -77,28 +77,29 @@ export default function ClassSchedule({ organizationId }: { organizationId?: str
   if (loading || !hasAny) return null;
 
   const withClasses = schedules.filter((s) => s.classes.length > 0);
-  const showNames = withClasses.length > 1 || withClasses[0]?.student_name !== 'My schedule';
 
-  // Wrapped in SchoolSection like every other block on the page, so it carries
-  // the same header, the same toggle, and the same closed-on-arrival default.
-  const classCount = withClasses.reduce((n, s) => n + s.classes.length, 0);
-
+  // One section PER STUDENT, not one section holding all of them. A parent with
+  // three children was opening a single "Class schedule" block and getting
+  // thirty-odd classes at once; with a section each they open the child they
+  // came for. Each carries the page's usual closed-on-arrival default, so a
+  // four-child family lands on four headings rather than four schedules.
+  //
+  // A student looking at their own gets the neutral title — "Class schedule"
+  // reads better than their own name on their own page.
   return (
     <View testID="class-schedule">
-      <SchoolSection title="Class schedule" icon="time-outline" count={classCount}>
-        <VStack space="sm">
-          {withClasses.map((s: StudentSchedule) => (
-            <VStack key={s.student_id} space="xs">
-              {showNames && (
-                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
-                  {s.student_name}
-                </UIText>
-              )}
-              {s.classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}
-            </VStack>
-          ))}
-        </VStack>
-      </SchoolSection>
+      {withClasses.map((s: StudentSchedule) => (
+        <SchoolSection
+          key={s.student_id}
+          title={s.student_name === 'My schedule' ? 'Class schedule' : s.student_name}
+          icon="time-outline"
+          count={s.classes.length}
+        >
+          <VStack space="sm">
+            {s.classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}
+          </VStack>
+        </SchoolSection>
+      ))}
     </View>
   );
 }

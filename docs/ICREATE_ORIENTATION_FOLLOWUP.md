@@ -146,7 +146,71 @@ Before wiring it up:
 The working script is a good starting point — it is in the session scratchpad,
 and its approach is described above.
 
-### 2.2 No "promote to parent" step in the mobile app
+### 2.2 Mobile type is too small — audit and raise the baseline
+
+**Impact: high — it affects every screen and every user, and the audience
+includes parents and grandparents reading on a phone.**
+
+Reported after orientation: "the text in the mobile app is very small." It is,
+and it is measurable rather than a matter of taste.
+
+#### What the scale is now
+
+`UIText` maps to Tailwind sizes ([src/components/ui/Text.tsx](../frontend-v2/src/components/ui/Text.tsx)):
+
+| prop | rendered | uses across `app/` + `src/` |
+|---|---|---|
+| `xs` | 12px | **696** |
+| `sm` | 14px | **696** |
+| `md` | 16px (default when no prop) | 226 |
+| `lg` | 18px | 193 |
+
+**1,392 of 1,811 sized calls — 77% — render at 12px or 14px.** Only 23% reach
+16px. On top of that there are **25 hardcoded `fontSize: 8–11` overrides** that
+go *below* the `xs` scale, including tab-bar labels at 10px
+([app/(app)/(tabs)/_layout.tsx](../frontend-v2/app/(app)/(tabs)/_layout.tsx))
+and several badge labels.
+
+For reference: iOS's default body text is 17px and Apple's HIG treats 11pt as a
+floor, not a target; Material's body sizes are 14–16sp. The app is built almost
+entirely below both platforms' body defaults.
+
+#### One thing that is already right
+
+`allowFontScaling` is **never disabled** anywhere in the codebase, and no
+`maxFontSizeMultiplier` caps are set. A user who turns up text size in iOS or
+Android settings already gets larger text throughout. That is the accessibility
+floor and it is intact — the problem is the *default*, not the scaling.
+
+Do not "fix" this by disabling scaling to protect layouts.
+
+#### Suggested plan
+
+1. **Decide the baseline first, in one place.** The fix is the `sizeMap` in
+   `Text.tsx`, not 1,811 call sites. Proposal: `xs` 12→13, `sm` 14→15,
+   `md` 16→17 (matching iOS body), `lg` 18→20. One change, whole app moves.
+2. **Screenshot the highest-density screens before and after**, because
+   raising the scale is what breaks layouts. The worst offenders by `xs` count
+   are `admin.tsx` (71), `courses/[id]/index.tsx` (33),
+   `CreateQuestModal.tsx` (28), `TaskCreationWizard.tsx` (26),
+   `quests/[id].tsx` (20), `advisor.tsx` (20).
+3. **Audit the `xs` calls by role, not in bulk.** `xs` is legitimate for badge
+   and metadata chips; it is not legitimate for anything a parent has to
+   *read* — task descriptions, evidence text, schedule rows, announcement
+   bodies. Anything in a reading position should be `sm` at minimum, ideally
+   `md`.
+4. **Remove the sub-11px hardcodes.** 25 of them, and they bypass the scale
+   entirely, so step 1 will not move them.
+5. **Test at 200% OS text size**, which is where clamped rows and one-line
+   truncation break. This is exactly how the orientation task-title bug
+   presented — `numberOfLines={1}` on text that needed to wrap.
+6. **Check contrast while in there.** Much of the small text is also the
+   lightest token (`text-typo-400` on white). Small *and* low-contrast is worse
+   than either alone.
+
+Worth doing as one deliberate pass with screenshots, not piecemeal.
+
+### 2.3 No "promote to parent" step in the mobile app
 
 **Impact: medium — the documented way to add a co-parent cannot be finished on a phone.**
 
