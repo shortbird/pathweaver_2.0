@@ -12,7 +12,67 @@ Ordered by priority within each section.
 
 ## 1. Broken in production, not yet fixed
 
-### 1.1 `/api/observers/invite` does not exist, and two clients call it
+### 1.1 Optio does not surface in Google Play search (it does on the App Store)
+
+**Impact: high for Android acquisition — but the app IS published; this is a
+findability problem, not a publishing one.**
+
+Checked directly rather than assumed. The listing is live:
+
+- `https://play.google.com/store/apps/details?id=com.optioeducation.optio`
+  returns **HTTP 200** with a real page — install button, content rating
+  "Everyone", the tagline "Capture what you're learning…". A control request
+  for a nonexistent package returns 404, so the 200 is meaningful.
+
+So "not published" was ruled out. Two things explain the asymmetry instead:
+
+**1. The store names differ.** The Play listing is titled **"Optio"**. The App
+Store listing is **"Optio Education"** (seller "Optio, LLC", category
+Education). Play indexes the title heavily, and "Optio" alone is a generic
+Latin word competing with unrelated results — while anyone searching *"Optio
+Education"* matches the iOS title exactly and misses the Play title. That
+single word is the most likely reason the same search behaves differently on
+the two stores.
+
+**2. The app has ~5 installs.** The listing reports **"5+" downloads**. Play
+search ranking leans on installs, ratings and engagement, so a brand-new app
+with almost no install base ranks poorly for a generic query regardless of
+anything else. Some of this resolves itself as iCreate's families install it.
+
+**Suggested actions, in order of expected effect:**
+
+1. **Rename the Play listing to "Optio Education"** to match iOS. Biggest single
+   lever, costs nothing, and makes the two stores consistent.
+2. **Work the description.** Play has no keyword field — it indexes the title
+   plus the short and long descriptions. Make sure "education", "portfolio",
+   "learning", "homeschool", "students" appear naturally in both.
+3. **Confirm targeting** in Play Console: country availability, and that
+   nothing restricts device eligibility.
+4. **Give it time.** A new listing takes days to index fully, and install
+   count is itself a ranking input.
+5. Meanwhile, hand families the **direct link** rather than telling them to
+   search:
+   `https://play.google.com/store/apps/details?id=com.optioeducation.optio`
+
+#### Separate, real, and worth fixing anyway: `releaseStatus: "draft"`
+
+While checking the above I found the Android production submit profile uploads
+as a draft ([frontend-v2/eas.json](../frontend-v2/eas.json)):
+
+```json
+"android": { "track": "production", "releaseStatus": "draft" }
+```
+
+This is **not** why search is failing — the current build is clearly live. But
+it means **every future Android release lands in Play Console as a draft and
+needs a manual promotion**, which is a step someone will eventually forget,
+producing a silent "we shipped it but nobody got it". Change it to
+`"completed"` (the default) unless the manual gate is deliberate.
+
+The package identifiers themselves are consistent and fine:
+`com.optioeducation.optio` on both platforms.
+
+### 1.2 `/api/observers/invite` does not exist, and two clients call it
 
 **Impact: high — a button that cannot ever work.**
 
@@ -34,7 +94,7 @@ There are unit tests asserting the *client* calls this path
 and therefore prove nothing about the server. Worth noting as a test-design
 lesson: mocking the transport hides a missing route.
 
-### 1.2 Per-user rate limiting silently falls back to IP
+### 1.3 Per-user rate limiting silently falls back to IP
 
 **Impact: high — it is why one shared bucket locked out a building.**
 
@@ -56,7 +116,7 @@ Add the identifier to the Sentry context in `_report_rate_limit_exceeded` while
 you are in there. Its absence is why the IP keying had to be dug out of Render
 logs instead of being visible in the issue.
 
-### 1.3 `student_access_logs` check-constraint violation
+### 1.4 `student_access_logs` check-constraint violation
 
 **Impact: medium — FERPA-adjacent audit logging is failing.**
 
@@ -73,7 +133,7 @@ two role bugs fixed on the day: an `org_managed` value reaching a column that
 expects a resolved role. Check what `valid_accessor_role` permits against what
 the logger passes.
 
-### 1.4 Staff-only class fields are served to students
+### 1.5 Staff-only class fields are served to students
 
 **Impact: medium — data exposure, pre-existing.**
 
@@ -87,7 +147,7 @@ Not introduced by the schedule work, and deliberately left alone during the
 event because narrowing the select could break other consumers. Route it
 through the same audience filter the SIS catalog uses.
 
-### 1.5 CSRF token expiry on the SIS console
+### 1.6 CSRF token expiry on the SIS console
 
 **Impact: low — staff annoyance, no family affected.**
 
@@ -99,7 +159,7 @@ family is touched.
 Fix is client-side: refresh the CSRF token before a mutation, or retry once on
 `csrf_reason: expired` instead of surfacing the failure.
 
-### 1.6 Lower-volume Sentry issues, triaged but unfixed
+### 1.7 Lower-volume Sentry issues, triaged but unfixed
 
 | Issue | Culprit | Note |
 |---|---|---|
