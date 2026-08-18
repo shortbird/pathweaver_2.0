@@ -170,7 +170,7 @@ Fix is client-side: refresh the CSRF token before a mutation, or retry once on
 
 ---
 
-## 2. Written but deliberately not shipped
+## 2. Known work, not yet done
 
 ### 2.1 Auto-resync of training-quest task edits
 
@@ -281,6 +281,72 @@ parent"**. That second step exists only on web
 promote, so a parent starting on their phone gets stuck halfway.
 
 Families at an in-person orientation are on phones. Worth adding.
+
+### 2.4 Parent bottom-nav needs rework
+
+**Impact: medium — parents are the primary mobile audience and their shell has
+drifted from the student one.**
+
+Requested after orientation: give parents a Journal button in the bottom bar,
+move Messages to the top, and possibly move the school button down.
+
+#### Where it stands
+
+Tab orders live in
+[frontend-v2/src/config/navigation.ts](../frontend-v2/src/config/navigation.ts):
+
+| shell | tabs (centre `capture` is the modal trigger) |
+|---|---|
+| student | `dashboard, journal, `**`capture`**`, bounties, feed` |
+| **parent** | `family, feed, `**`capture`**`, bounties, messages` |
+| observer | `feed, `**`capture`**`, bounties` |
+
+Four real slots plus the centre button. So:
+
+- **Parents have no Journal tab at all.** Students do. On mobile the Journal
+  subsumes quest discovery and creation, so parents are missing the surface
+  where a child's learning actually gets captured and reviewed.
+- **Messages is a parent tab but a header icon for students.**
+  `PageHeader` sets `showMessages = !isParent && !isObserver`
+  ([MobileHeader.tsx:425](../frontend-v2/src/components/layouts/MobileHeader.tsx#L425)),
+  with a comment stating the invariant deliberately: *the icon is present iff
+  Messages left the bar.* Any change here is a coordinated two-file edit —
+  `navigation.ts` and `MobileHeader.tsx` — or the icon and the tab both show,
+  or neither does.
+- **The school button is already in the header for parents.** `<SchoolButton />`
+  renders unconditionally in `PageHeader` for any SIS member, so parents can
+  already reach the iCreate page; it is not missing, just not in the bar.
+
+#### Recommendation
+
+The first two asks are exactly complementary — a clean one-for-one swap:
+
+```
+parentMobileTabOrder: ['family', 'journal', 'capture', 'bounties', 'messages']
+                                  ^^^^^^^ replaces 'feed'      ^^^^^^^^ moves out
+→                     ['family', 'journal', 'capture', 'bounties', 'feed']
+   plus showMessages = !isObserver   (parents get the header chat icon)
+```
+
+Messages moving to the header frees the slot Journal needs, and it makes the
+parent shell consistent with the student one, which is the stronger argument:
+Messages is notification-driven rather than a browse destination, which is why
+it left the student bar in the first place.
+
+**On moving the school button down: suggest not, at least not yet.** Two
+reasons. There are only four slots, so School would have to displace Feed or
+Bounties, and the swap above already spends the free one. And the school page
+is only meaningful to SIS org members — a platform parent with
+`organization_id = NULL` would get a dead tab, so it would have to be a
+conditional, variable-length tab bar, which is a good deal more complexity than
+a header icon that already works. Revisit if parents report not finding the
+school page, which is a question worth asking iCreate directly rather than
+guessing at.
+
+Whichever way it goes, decide `Feed` vs `Bounties` deliberately — dropping Feed
+costs parents the daily social surface, dropping Bounties costs the earning
+loop, and the tab bar cannot hold both plus Journal and School.
+
 
 ---
 
