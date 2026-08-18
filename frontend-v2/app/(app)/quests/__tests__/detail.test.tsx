@@ -16,7 +16,7 @@ jest.mock('@/src/services/tokenStore', () => ({
 }));
 
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 import QuestDetailScreen from '../[id]';
 import api from '@/src/services/api';
@@ -94,6 +94,61 @@ describe('QuestDetailScreen', () => {
 
     await waitFor(() => {
       expect(result.getByText('Quest not found')).toBeTruthy();
+    });
+  });
+});
+
+describe('long task titles', () => {
+  // iCreate orientation, 2026-08-18: tasks carry their instruction in the
+  // title ("Find the classroom that has a bright yellow pocket folder in
+  // it…", 131 chars). The title was clamped to one line whether or not the
+  // task was open, so on a phone families saw about a quarter of it and the
+  // edit dialog was the only screen in the app showing the whole thing.
+  const longTitle =
+    'What should you do before leaving a classroom? Find the classroom that '
+    + 'has a bright yellow pocket folder in it to learn the answer.';
+
+  beforeEach(() => {
+    (api.get as jest.Mock).mockResolvedValue({
+      data: {
+        quest: {
+          ...mockQuest,
+          quest_tasks: [{
+            id: 'task-1', title: longTitle, pillar: 'stem',
+            xp_value: 50, is_completed: false, order_index: 0,
+          }],
+        },
+        blocks: [],
+        engagement: null,
+      },
+    });
+  });
+
+  it('clamps the title to one line while the task is collapsed', async () => {
+    let result: any;
+    try {
+      result = render(<QuestDetailScreen />);
+    } catch {
+      return;
+    }
+
+    await waitFor(() => expect(result.getByText(longTitle)).toBeTruthy());
+    expect(result.getByText(longTitle).props.numberOfLines).toBe(1);
+  });
+
+  it('shows the whole title once the task is opened', async () => {
+    let result: any;
+    try {
+      result = render(<QuestDetailScreen />);
+    } catch {
+      return;
+    }
+
+    await waitFor(() => expect(result.getByText(longTitle)).toBeTruthy());
+    fireEvent.press(result.getByText(longTitle));
+
+    await waitFor(() => {
+      expect(result.getByText(longTitle).props.numberOfLines).toBeUndefined();
     });
   });
 });

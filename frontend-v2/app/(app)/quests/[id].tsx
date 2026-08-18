@@ -188,6 +188,7 @@ function TaskItem({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [evidenceBlocks, setEvidenceBlocks] = useState<any[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [evidenceSheetVisible, setEvidenceSheetVisible] = useState(false);
@@ -234,7 +235,21 @@ function TaskItem({
     }
   }, [task.id, task.is_moment]);
 
+  // Evidence is required to complete a task — the backend has always enforced
+  // it (evidence_documents.py returns a 400 saying so). This screen threw that
+  // response away in a bare `catch {}`, so tapping Complete with nothing
+  // attached did nothing at all: no spinner, no message, no completed task.
+  // Say it before the round trip, and still surface the server's words if a
+  // request fails for any other reason.
+  const needsEvidence = !task.is_moment && evidenceBlocks.length === 0;
+
   const handleComplete = async () => {
+    setCompleteError(null);
+    if (needsEvidence) {
+      setCompleteError('Add at least one piece of evidence before completing this task.');
+      setEvidenceSheetVisible(true);
+      return;
+    }
     setCompleting(true);
     try {
       await api.post(`/api/evidence/documents/${task.id}`, {
@@ -242,11 +257,60 @@ function TaskItem({
         status: 'completed',
       });
       onComplete(task.id);
-    } catch {
-      // Error
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.response?.data?.error;
+      setCompleteError(typeof msg === 'string' && msg
+        ? msg
+        : "That didn't save. Check your connection and try again.");
     } finally {
       setCompleting(false);
     }
+  };
+
+  // Saving evidence onto a task that is ALREADY complete has to keep the
+  // document's status at 'completed'. TaskEvidenceSheet's default posts
+  // 'draft', which the save endpoint writes straight onto the document — the
+  // task would read as un-finished again while its quest_task_completions row
+  // (and the XP it awarded) stayed put. Re-posting 'completed' is safe: the
+  // endpoint skips the award when a completion already exists.
+  const saveBlocks = async (blocks: any[], status: 'draft' | 'completed') => {
+    await api.post(`/api/evidence/documents/${task.id}`, {
+      blocks: blocks.map(normalizeBlockForSave),
+      status,
+    });
+  };
+
+  const handleRemoveBlock = async (block: any) => {
+    const remaining = evidenceBlocks.filter((b) => b !== block);
+    // The last piece of evidence cannot come off a completed task: the task
+    // would be complete with nothing behind it, which is the exact state the
+    // completion check refuses to create in the first place.
+    if (task.is_completed && remaining.length === 0) {
+      setCompleteError('A completed task needs at least one piece of evidence. Add another before removing this one.');
+      return;
+    }
+    setCompleteError(null);
+    const previous = evidenceBlocks;
+    setEvidenceBlocks(remaining);
+    try {
+      await saveBlocks(remaining, task.is_completed ? 'completed' : 'draft');
+      refetchEvidence();
+    } catch {
+      setEvidenceBlocks(previous);
+      setCompleteError("That evidence couldn't be removed. Try again.");
+    }
+  };
+
+  const confirmRemoveBlock = (block: any) => {
+    const message = 'This evidence will be removed from the task.';
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) handleRemoveBlock(block);
+      return;
+    }
+    Alert.alert('Remove evidence?', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => handleRemoveBlock(block) },
+    ]);
   };
 
   // All evidence add flows live in TaskEvidenceSheet (photo/video/voice/text/link
@@ -286,9 +350,15 @@ function TaskItem({
             )}
             <VStack className="flex-1 min-w-0">
               <HStack className="items-center gap-1.5">
+                {/* Clamped to one line while collapsed so the list stays
+                    scannable, but never clamped once opened: a task's
+                    instruction often IS its title ("Find the classroom that has
+                    a bright yellow pocket folder in it…"), and clamping it
+                    everywhere left the edit dialog as the only place in the app
+                    that showed the whole thing. */}
                 <UIText
                   size="sm"
-                  numberOfLines={1}
+                  numberOfLines={expanded ? undefined : 1}
                   className={`flex-shrink font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
                 >
                   {task.title}
@@ -377,19 +447,33 @@ function TaskItem({
                 </HStack>
               )}
 
-              {/* Evidence display */}
+              {/* Evidence display. Each block can be taken back off — finishing
+                  a task used to freeze it, so a wrong photo was permanent. */}
               {evidenceBlocks.length > 0 && (
                 <VStack space="sm">
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Evidence</UIText>
                   {evidenceBlocks.map((block, idx) => (
-                    <EvidenceBlockDisplay key={block.id || idx} block={block} />
+                    <View key={block.id || idx} className="relative">
+                      <EvidenceBlockDisplay block={block} />
+                      {!task.is_moment && (
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation(); confirmRemoveBlock(block); }}
+                          hitSlop={8}
+                          accessibilityLabel="Remove this evidence"
+                          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 items-center justify-center"
+                        >
+                          <Ionicons name="close" size={15} color="#FFFFFF" />
+                        </Pressable>
+                      )}
+                    </View>
                   ))}
                 </VStack>
               )}
 
-              {/* Single Add Evidence button — opens the bottom sheet that handles
-                  photo/video/voice/text/link in one flow. */}
-              {!task.is_completed && (
+              {/* Add Evidence — shown after completion too. A finished task is
+                  still the student's to add to: they come back with the photo
+                  they meant to take, or swap one they got wrong. */}
+              {!task.is_moment && (
                 <Pressable
                   onPress={(e) => { e.stopPropagation(); setEvidenceSheetVisible(true); }}
                   className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
@@ -400,6 +484,16 @@ function TaskItem({
                     {evidenceBlocks.length > 0 ? 'Add more evidence' : 'Add evidence'}
                   </UIText>
                 </Pressable>
+              )}
+
+              {/* Whatever went wrong, in words, where the button is. */}
+              {completeError && (
+                <HStack className="items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30">
+                  <Ionicons name="alert-circle-outline" size={15} color="#D97706" style={{ marginTop: 1 }} />
+                  <UIText size="xs" className="flex-1 text-amber-700 dark:text-amber-500">
+                    {completeError}
+                  </UIText>
+                </HStack>
               )}
 
               {/* Completed status */}
@@ -426,6 +520,16 @@ function TaskItem({
                   muted text link with a confirmation dialog. */}
               {!task.is_completed && (
                 <VStack space="sm" className="mt-2">
+                  {/* Say what Complete needs BEFORE it is pressed, so the
+                      button is never a dead end. */}
+                  {needsEvidence && (
+                    <HStack className="items-center gap-1.5">
+                      <Ionicons name="information-circle-outline" size={13} color={c.iconMuted} />
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                        Add evidence first — a photo, note or link showing what you did.
+                      </UIText>
+                    </HStack>
+                  )}
                   <Button size="lg" className="w-full" onPress={handleComplete} loading={completing}>
                     <ButtonText>
                       <HStack className="items-center gap-2">
@@ -474,6 +578,11 @@ function TaskItem({
         existingBlocks={evidenceBlocks}
         onClose={() => setEvidenceSheetVisible(false)}
         onSaved={refetchEvidence}
+        // Only overridden once the task is finished: the sheet's own save
+        // posts 'draft', which would knock a completed task back to unfinished.
+        onSave={task.is_completed
+          ? (_new, combined) => saveBlocks(combined, 'completed')
+          : undefined}
       />
     </Pressable>
   );

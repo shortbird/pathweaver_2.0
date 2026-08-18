@@ -498,7 +498,52 @@ class ClassService(BaseService):
 
             classes.append(cls)
 
+        self._attach_schedule(classes)
         return classes
+
+    def _attach_schedule(self, classes: List[Dict[str, Any]]) -> None:
+        """Attach each class's weekly meetings and the room they are in.
+
+        Students and families had no way to see when a class met or where to go
+        — the times live in class_meetings, which only staff-facing SIS routes
+        ever read (iCreate asked for this during family orientation).
+
+        Room falls back to the class's own `location`: iCreate records the room
+        on the class and leaves it off the individual meetings (12 of 202
+        meetings carry one), so reading only the meeting would show a blank
+        room for almost every class.
+        """
+        if not classes:
+            return
+        class_ids = [c['id'] for c in classes]
+        try:
+            # Bounded by one student's enrollments, so a single read is safe.
+            meetings = (self.class_repo.admin_client.table('class_meetings')
+                        .select('class_id, day_of_week, specific_date, '
+                                'start_time, end_time, location')
+                        .in_('class_id', class_ids).execute()).data or []
+        except Exception as e:  # noqa: BLE001 — a schedule must not cost the class list
+            logger.warning(f"Could not load class meetings: {e}")
+            return
+
+        by_class: Dict[str, List[Dict[str, Any]]] = {}
+        for m in meetings:
+            by_class.setdefault(m['class_id'], []).append({
+                'day_of_week': m.get('day_of_week'),
+                'specific_date': m.get('specific_date'),
+                # HH:MM — the seconds Postgres returns are noise on a schedule.
+                'start_time': str(m.get('start_time') or '')[:5] or None,
+                'end_time': str(m.get('end_time') or '')[:5] or None,
+                'location': m.get('location'),
+            })
+
+        for cls in classes:
+            rows = by_class.get(cls['id'], [])
+            rows.sort(key=lambda m: (m['day_of_week'] if m['day_of_week'] is not None else 7,
+                                     m['start_time'] or ''))
+            for m in rows:
+                m['location'] = m['location'] or cls.get('location')
+            cls['meetings'] = rows
 
     # ===== Private Helpers =====
 

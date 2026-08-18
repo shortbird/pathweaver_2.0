@@ -47,27 +47,34 @@ def verify_parent_role(user_id: str, check_relationships: bool = False):
                             (dependents or linked students) regardless of role
 
     Access is granted if:
-    1. User has role='parent' or org_role='parent'
+    1. User holds the parent role anywhere — `role`, `org_role`, or `org_roles`
     2. User is superadmin
     3. (If check_relationships=True) User has dependents or linked students
     """
     # admin client justified: role/relationship lookup is itself the auth check; reads users + parent_student_links to determine if caller can manage dependents
     supabase = get_supabase_admin_client()
 
-    user_response = supabase.table('users').select('role, org_role').eq('id', user_id).execute()
+    user_response = (supabase.table('users').select('role, org_role, org_roles')
+                     .eq('id', user_id).execute())
     if not user_response.data:
         raise AuthorizationError("User not found")
 
     user_data = user_response.data[0]
     user_role = user_data.get('role')
-    user_org_role = user_data.get('org_role')
 
     # Superadmin always has access
     if user_role == UserRole.SUPERADMIN.value:
         return True
 
-    # Check for parent role (platform or org)
-    if user_role == UserRole.PARENT.value or user_org_role == 'parent':
+    # Every role the person holds, not just the primary one. At iCreate the
+    # staff are parents too, and reading `org_role` alone locked a campus
+    # coordinator out of her own children's accounts mid-orientation — she is
+    # org_roles ['campus_coordinator', 'parent'], and 'parent' is not the one
+    # the single column happens to carry (Sentry OPTIO-BACKEND-6P, 2026-08-18).
+    roles = {user_role, user_data.get('org_role')}
+    if isinstance(user_data.get('org_roles'), list):
+        roles.update(user_data['org_roles'])
+    if UserRole.PARENT.value in roles or 'parent' in roles:
         return True
 
     # Optionally check for existing parent relationships

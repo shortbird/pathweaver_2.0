@@ -290,29 +290,54 @@ def _catalog(org_id, audience='staff', include_drafts=False):
     return out
 
 
+def _fetch_in_chunks(table, columns, key, values, chunk=100):
+    """Every row matching `key IN values`, chunked for the URL and PAGED inside
+    each chunk.
+
+    Both halves matter. Chunking keeps the `in_()` filter out of URL-length
+    trouble; paging is what keeps the answer true. A single chunk's response is
+    still capped at 1000 rows and PostgREST does not say when it hit the cap —
+    which is exactly how this report went wrong (Sentry OPTIO-BACKEND-5T,
+    2026-08-18): one orientation quest on 152 accounts is 2,398
+    user_quest_tasks rows, so a plain read returned the first 1000 and the
+    training page quietly showed most of the school a task total that was
+    short. See the Row Limits note in CLAUDE.md.
+    """
+    from utils.db_fetch import fetch_all_rows
+
+    out = []
+    for i in range(0, len(values), chunk):
+        part = values[i:i + chunk]
+        out.extend(fetch_all_rows(lambda p=part: (
+            _admin().table(table).select(columns).in_(key, p)
+        )))
+    return out
+
+
 def _progress_for(user_ids, quest_ids):
     """{(user_id, quest_id): {started, completed, done, total}} from the normal
     quest tables — the same records that drive a learner's own dashboard."""
     if not user_ids or not quest_ids:
         return {}
-    admin = _admin()
-    user_quests = (admin.table('user_quests')
-                   .select('id, user_id, quest_id, completed_at, started_at')
-                   .in_('user_id', user_ids).in_('quest_id', quest_ids).execute()).data or []
+    # Scoped to these quests first, then filtered to the people asked about:
+    # the row count grows with the size of the school, so every read here is
+    # paged (_fetch_in_chunks).
+    wanted = set(user_ids)
+    user_quests = [uq for uq in _fetch_in_chunks(
+        'user_quests', 'id, user_id, quest_id, completed_at, started_at',
+        'quest_id', list(quest_ids)) if uq['user_id'] in wanted]
     uq_ids = [uq['id'] for uq in user_quests]
     tasks = []
     if uq_ids:
         # xp_value rides along because a training quest can carry an XP finish
         # line; there is no xp_awarded column, so earned XP is always summed
         # from the completed tasks' xp_value (see services/xp_goal_service.py).
-        tasks = (admin.table('user_quest_tasks').select('id, user_quest_id, xp_value')
-                 .in_('user_quest_id', uq_ids).execute()).data or []
-    done_ids = set()
+        tasks = _fetch_in_chunks('user_quest_tasks', 'id, user_quest_id, xp_value',
+                                 'user_quest_id', uq_ids)
     task_ids = [t['id'] for t in tasks]
-    for i in range(0, len(task_ids), 200):
-        rows = (admin.table('quest_task_completions').select('task_id')
-                .in_('task_id', task_ids[i:i + 200]).execute()).data or []
-        done_ids.update(r['task_id'] for r in rows)
+    done_ids = {r['task_id'] for r in
+                _fetch_in_chunks('quest_task_completions', 'id, task_id',
+                                 'task_id', task_ids, chunk=200)}
     by_uq = {}
     for t in tasks:
         by_uq.setdefault(t['user_quest_id'], []).append(t)
