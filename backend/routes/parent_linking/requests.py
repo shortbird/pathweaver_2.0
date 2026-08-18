@@ -373,17 +373,31 @@ def promote_observer_to_parent(user_id):
         # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
-        # Verify requesting user is a parent
-        parent = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+        # Roles are resolved, not read off the `role` column: an organisation's
+        # members are role='org_managed' with the real role in
+        # org_role/org_roles, so a bare column read sees 'org_managed' and
+        # refuses both the parent doing the promoting and the observer being
+        # promoted (iCreate family orientation, 2026-08-18 — this is step two
+        # of the invite-then-promote flow schools actually use, and it was shut
+        # for every org family).
+        from utils.roles import get_effective_roles
+
+        parent = (supabase.table('users').select('role, org_role, org_roles')
+                  .eq('id', user_id).single().execute())
+        if not parent.data or not ({'parent', 'superadmin'}
+                                   & set(get_effective_roles(parent.data))):
             return jsonify({'error': 'Only parents can promote observers'}), 403
 
         # Verify user exists and is an observer (or already a parent)
-        observer = supabase.table('users').select('id, role, display_name, first_name, last_name, email').eq('id', observer_id).single().execute()
+        observer = (supabase.table('users')
+                    .select('id, role, org_role, org_roles, organization_id, '
+                            'display_name, first_name, last_name, email')
+                    .eq('id', observer_id).single().execute())
         if not observer.data:
             raise NotFoundError("User not found")
 
-        if observer.data['role'] not in ('observer', 'parent'):
+        observer_roles = set(get_effective_roles(observer.data))
+        if not (observer_roles & {'observer', 'parent'}):
             return jsonify({'error': 'This user cannot be made a parent'}), 400
 
         # Verify this user was invited by this parent (via observer links)
@@ -398,9 +412,31 @@ def promote_observer_to_parent(user_id):
 
         student_ids = [link['student_id'] for link in links.data]
 
-        # Change role to parent if not already
-        if observer.data['role'] != 'parent':
-            supabase.table('users').update({'role': 'parent'}).eq('id', observer_id).execute()
+        # Grant the parent role in the column that actually carries it.
+        #
+        # Writing role='parent' onto an ORGANISATION member breaks the role
+        # model: org members are role='org_managed' with the real role in
+        # org_role/org_roles, and nothing in the database refuses the bad write
+        # — users_role_check allows 'parent', so it corrupts quietly and the
+        # account stops behaving like a member of its school. `is_org_admin` is
+        # derived from these columns by the sync_is_org_admin trigger, so the
+        # role columns are the thing to write and the flag is read back.
+        #
+        # An existing role is added to, never replaced: a school's advisor who
+        # is also a parent must stay an advisor.
+        if 'parent' not in observer_roles:
+            if observer.data.get('organization_id'):
+                existing = observer.data.get('org_roles')
+                existing = list(existing) if isinstance(existing, list) else []
+                if observer.data.get('org_role') and observer.data['org_role'] not in existing:
+                    existing.append(observer.data['org_role'])
+                if 'parent' not in existing:
+                    existing.append('parent')
+                update = {'role': 'org_managed', 'org_role': 'parent',
+                          'org_roles': existing}
+            else:
+                update = {'role': 'parent'}
+            supabase.table('users').update(update).eq('id', observer_id).execute()
 
         # Create parent_student_links for all children (dependents and linked)
         for student_id in student_ids:
