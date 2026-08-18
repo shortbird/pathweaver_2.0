@@ -3,9 +3,15 @@
  * counterpart of the web FeedSection; every section of the School page uses it
  * so the feed reads as one visual system.
  *
- * Collapsible: the whole header is the toggle. State is per-mount (sections
- * reopen on the next visit) — the collapse is for skimming past a long block,
- * not a preference worth persisting.
+ * Collapsible, and CLOSED on arrival. iCreate asked for this during family
+ * orientation (2026-08-18): with announcements, events, lost & found,
+ * shout-outs, the carpool board and every child's class schedule all expanded,
+ * the page opened as a wall of text and the thing a parent came for was
+ * several screens down. Closed by default, the page opens as a list of
+ * headings you can pick from.
+ *
+ * State is per-mount (sections re-close on the next visit) — the collapse is
+ * navigation, not a preference worth persisting.
  */
 
 import React, { useState } from 'react';
@@ -24,7 +30,7 @@ interface SchoolSectionProps {
 
 export function SchoolSection({ title, icon, count, intro, children }: SchoolSectionProps) {
   const c = useThemeColors();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <Card className="mb-3 bg-white dark:bg-dark-surface-100">

@@ -1,6 +1,11 @@
 /**
  * SchoolCommunity + CarpoolBoard — sections render only when the school has
  * used them, and the carpool affordances follow canPost/mine/canModerate.
+ *
+ * Sections arrive COLLAPSED (iCreate, 2026-08-18 — the page was a wall of text
+ * on a phone), so a test that asserts on a section's contents has to open it
+ * first. `open()` below is that step; a heading assertion needs no open,
+ * because the header is what stays visible.
  */
 
 import React from 'react';
@@ -12,6 +17,10 @@ import type { SchoolFeed, CarpoolPost } from '@/src/hooks/useSchool';
 const emptyFeed: SchoolFeed = {
   announcements: [], events: [], lost_found: [], recognition: [], carpool: [],
 };
+
+/** Expand a collapsed section by its title. */
+const open = (getByTestId: any, title: string) =>
+  fireEvent.press(getByTestId(`section-toggle-${title}`));
 
 describe('SchoolCommunity', () => {
   it('renders nothing for a null feed', () => {
@@ -25,9 +34,14 @@ describe('SchoolCommunity', () => {
       announcements: [{ id: 'a1', title: 'Picture day', body: '<p>Wear <strong>bright</strong> colors</p>', pinned: true, priority: 'urgent', created_at: '2026-08-01T00:00:00Z' }],
       recognition: [{ id: 'r1', type: 'weekly_win', recipient_name: 'Jane B.', message: 'Finished her mural', created_at: '2026-08-02T00:00:00Z' }],
     };
-    const { getByText, queryByText } = render(<SchoolCommunity feed={feed} />);
+    const { getByTestId, getByText, queryByText } = render(<SchoolCommunity feed={feed} />);
 
+    // Headings are visible while collapsed — that is the point of the change.
     expect(getByText('Announcements')).toBeTruthy();
+    expect(getByText('Shout-outs')).toBeTruthy();
+
+    open(getByTestId, 'Announcements');
+    open(getByTestId, 'Shout-outs');
     expect(getByText('Picture day')).toBeTruthy();
     expect(getByText('Pinned')).toBeTruthy();
     expect(getByText('Urgent')).toBeTruthy();
@@ -43,7 +57,7 @@ describe('SchoolCommunity', () => {
     expect(queryByText(/Lost & found/)).toBeNull();
   });
 
-  it('each section collapses and expands on a header tap', () => {
+  it('sections start collapsed and expand on a header tap', () => {
     const feed: SchoolFeed = {
       ...emptyFeed,
       announcements: [{ id: 'a1', title: 'Picture day', body: null, pinned: false, priority: 'normal', created_at: '2026-08-01T00:00:00Z' }],
@@ -51,14 +65,17 @@ describe('SchoolCommunity', () => {
     };
     const { getByTestId, getByText, queryByText } = render(<SchoolCommunity feed={feed} />);
 
-    expect(getByText('Picture day')).toBeTruthy();
-    fireEvent.press(getByTestId('section-toggle-Announcements'));
+    // Closed on arrival: the heading shows, the content does not.
+    expect(getByText('Announcements')).toBeTruthy();
     expect(queryByText('Picture day')).toBeNull();
-    // Only that section collapsed — the next one keeps its content.
-    expect(getByText('Open house')).toBeTruthy();
 
-    fireEvent.press(getByTestId('section-toggle-Announcements'));
+    open(getByTestId, 'Announcements');
     expect(getByText('Picture day')).toBeTruthy();
+    // Only that section opened — its neighbour stays shut.
+    expect(queryByText('Open house')).toBeNull();
+
+    open(getByTestId, 'Announcements');
+    expect(queryByText('Picture day')).toBeNull();
   });
 
   it('shows the donation countdown on lost & found items', () => {
@@ -70,7 +87,8 @@ describe('SchoolCommunity', () => {
         days_until_donation: 3,
       }],
     };
-    const { getByText } = render(<SchoolCommunity feed={feed} />);
+    const { getByTestId, getByText } = render(<SchoolCommunity feed={feed} />);
+    open(getByTestId, 'Lost & found');
     expect(getByText('Donated in 3 days')).toBeTruthy();
   });
 });
@@ -90,21 +108,23 @@ describe('CarpoolBoard', () => {
   });
 
   it('students see posts but no composer or message buttons', () => {
-    const { getByText, queryByTestId } = render(
+    const { getByTestId, getByText, queryByTestId } = render(
       <CarpoolBoard posts={[post()]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} onMessage={noop} />,
     );
+    open(getByTestId, 'Carpool board');
     expect(getByText('Two seats from Provo')).toBeTruthy();
     expect(queryByTestId('carpool-open-composer')).toBeNull();
     expect(queryByTestId('carpool-message-c1')).toBeNull();
   });
 
   it('a parent can message another family\'s post but not their own', () => {
-    const { queryByTestId } = render(
+    const { getByTestId, queryByTestId } = render(
       <CarpoolBoard
         posts={[post(), post({ id: 'c2', mine: true })]}
         canPost canModerate={false} onPost={noop} onRemove={noop} onMessage={noop}
       />,
     );
+    open(getByTestId, 'Carpool board');
     expect(queryByTestId('carpool-message-c1')).toBeTruthy();
     expect(queryByTestId('carpool-message-c2')).toBeNull();
     // Own post is removable; someone else's is not (no moderation).
@@ -113,9 +133,10 @@ describe('CarpoolBoard', () => {
   });
 
   it('a moderator can remove any post', () => {
-    const { queryByTestId } = render(
+    const { getByTestId, queryByTestId } = render(
       <CarpoolBoard posts={[post()]} canPost canModerate onPost={noop} onRemove={noop} onMessage={noop} />,
     );
+    open(getByTestId, 'Carpool board');
     expect(queryByTestId('carpool-remove-c1')).toBeTruthy();
   });
 
@@ -124,6 +145,7 @@ describe('CarpoolBoard', () => {
     const { getByTestId } = render(
       <CarpoolBoard posts={[post()]} canPost canModerate={false} onPost={noop} onRemove={noop} onMessage={onMessage} />,
     );
+    open(getByTestId, 'Carpool board');
     fireEvent.press(getByTestId('carpool-message-c1'));
     fireEvent.changeText(getByTestId('carpool-dm-input'), 'Is the Tuesday seat open?');
     fireEvent.press(getByTestId('carpool-dm-send'));
@@ -135,6 +157,7 @@ describe('CarpoolBoard', () => {
     const { getByTestId } = render(
       <CarpoolBoard posts={[]} canPost canModerate={false} onPost={onPost} onRemove={noop} onMessage={noop} />,
     );
+    open(getByTestId, 'Carpool board');
     fireEvent.press(getByTestId('carpool-open-composer'));
     fireEvent.press(getByTestId('carpool-type-need'));
     fireEvent.changeText(getByTestId('carpool-message-input'), 'Need a ride on studio days');

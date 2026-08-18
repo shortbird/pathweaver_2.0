@@ -10,7 +10,8 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Heading, UIText, VStack, HStack } from '@/src/components/ui';
+import { UIText, VStack, HStack } from '@/src/components/ui';
+import { SchoolSection } from './SchoolSection';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   useClassSchedule, dayName, meetingTime,
@@ -78,19 +79,26 @@ export default function ClassSchedule({ organizationId }: { organizationId?: str
   const withClasses = schedules.filter((s) => s.classes.length > 0);
   const showNames = withClasses.length > 1 || withClasses[0]?.student_name !== 'My schedule';
 
+  // Wrapped in SchoolSection like every other block on the page, so it carries
+  // the same header, the same toggle, and the same closed-on-arrival default.
+  const classCount = withClasses.reduce((n, s) => n + s.classes.length, 0);
+
   return (
-    <VStack space="sm" className="mb-5" testID="class-schedule">
-      <Heading size="md">Class schedule</Heading>
-      {withClasses.map((s: StudentSchedule) => (
-        <VStack key={s.student_id} space="xs">
-          {showNames && (
-            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
-              {s.student_name}
-            </UIText>
-          )}
-          {s.classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}
+    <View testID="class-schedule">
+      <SchoolSection title="Class schedule" icon="time-outline" count={classCount}>
+        <VStack space="sm">
+          {withClasses.map((s: StudentSchedule) => (
+            <VStack key={s.student_id} space="xs">
+              {showNames && (
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
+                  {s.student_name}
+                </UIText>
+              )}
+              {s.classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}
+            </VStack>
+          ))}
         </VStack>
-      ))}
-    </VStack>
+      </SchoolSection>
+    </View>
   );
 }
