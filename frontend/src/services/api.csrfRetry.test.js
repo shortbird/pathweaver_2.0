@@ -10,7 +10,7 @@
  * The interceptor must fetch a fresh token and retry once, and report
  * unrecovered rejections to Sentry.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 vi.mock('../utils/logger', () => ({
   default: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() }
@@ -165,5 +165,92 @@ describe('CSRF auto-recovery', () => {
     await api.get('/api/things')
 
     expect(calls.map(c => c.url)).toEqual(['/api/things'])
+  })
+})
+
+// The recovery above works, so nobody sees an error — but it spends a rejected
+// round trip per hour on every long-lived tab, and the backend reports each one
+// (OPTIO-BACKEND-6J: 20 in a day off the SIS class editor, which the front
+// office leaves open all day). The token has a known server-side lifetime, so
+// the client can retire it before the server does.
+describe('CSRF pre-emptive refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useRealTimers()
+    csrfTokenStore.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const adapterServing = (token, calls) => vi.fn(async (config) => {
+    calls.push(config)
+    if (config.url === '/api/auth/csrf-token') {
+      return respond(config, 200, { csrf_token: token })
+    }
+    return respond(config, 200, { ok: true })
+  })
+
+  it('reuses a token that is still well inside the server lifetime', async () => {
+    csrfTokenStore.set('current-token')
+    const calls = []
+    api.defaults.adapter = adapterServing('refetched-token', calls)
+
+    vi.useFakeTimers()
+    vi.advanceTimersByTime(30 * 60 * 1000)  // 30 min: fresh
+    await api.post('/api/things', {})
+
+    expect(calls.map(c => c.url)).toEqual(['/api/things'])
+    expect(calls[0].headers['X-CSRF-Token']).toBe('current-token')
+  })
+
+  it('refetches before the server would reject a token nearing 1 hour', async () => {
+    csrfTokenStore.set('aging-token')
+    const calls = []
+    api.defaults.adapter = adapterServing('refetched-token', calls)
+
+    vi.useFakeTimers()
+    vi.advanceTimersByTime(55 * 60 * 1000)  // past the 50 min ceiling, under the server's 60
+    await api.post('/api/things', {})
+
+    // No rejected attempt: the token is replaced before it is used.
+    expect(calls.map(c => c.url)).toEqual(['/api/auth/csrf-token', '/api/things'])
+    expect(calls[1].headers['X-CSRF-Token']).toBe('refetched-token')
+    expect(captureException).not.toHaveBeenCalled()
+  })
+
+  it('restarts the clock on the replacement token', async () => {
+    csrfTokenStore.set('aging-token')
+    const calls = []
+    api.defaults.adapter = adapterServing('refetched-token', calls)
+
+    vi.useFakeTimers()
+    vi.advanceTimersByTime(55 * 60 * 1000)
+    await api.post('/api/things', {})
+    vi.advanceTimersByTime(10 * 60 * 1000)  // 10 min into the new token's hour
+    await api.post('/api/things', {})
+
+    expect(calls.filter(c => c.url === '/api/auth/csrf-token')).toHaveLength(1)
+  })
+
+  it('sends the aging token anyway when the refetch fails', async () => {
+    csrfTokenStore.set('aging-token')
+    const calls = []
+    api.defaults.adapter = vi.fn(async (config) => {
+      calls.push(config)
+      if (config.url === '/api/auth/csrf-token') {
+        reject(config, 503, { error: 'unavailable' })
+      }
+      return respond(config, 200, { ok: true })
+    })
+
+    vi.useFakeTimers()
+    vi.advanceTimersByTime(55 * 60 * 1000)
+    await api.post('/api/things', {})
+
+    // A failed refresh must not downgrade the request to no token at all —
+    // the aging one is still valid for another five minutes.
+    expect(calls[1].headers['X-CSRF-Token']).toBe('aging-token')
   })
 })

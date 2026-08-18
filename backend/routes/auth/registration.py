@@ -122,7 +122,12 @@ def register():
         # Validate input data
         is_valid, error_message = validate_registration_data(data)
         if not is_valid:
-            logger.error(f"[REGISTRATION] Validation failed: {error_message}")
+            # info, not error: a weak or malformed signup field is ordinary user
+            # input, and the caller already gets a clear 400 back. At `error` the
+            # Sentry logging integration (event_level=ERROR by default) turned
+            # every person who typed "password123" into an issue to triage
+            # (OPTIO-BACKEND-6V, 2026-08-18).
+            logger.info(f"[REGISTRATION] Validation failed: {error_message}")
             raise ValidationError(error_message)
 
         # Catch breached passwords at signup rather than letting Supabase refuse

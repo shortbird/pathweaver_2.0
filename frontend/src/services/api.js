@@ -122,6 +122,21 @@ api.interceptors.request.use(
 // - Token fetched from API and sent in headers
 // - Flask-WTF validates against httpOnly session cookie
 let csrfToken = null
+let csrfTokenIssuedAt = 0
+
+// The backend expires a CSRF token after WTF_CSRF_TIME_LIMIT (1 hour,
+// middleware/csrf_protection.py). Retire ours ten minutes early so a mutating
+// request never carries a token the server is about to refuse. Without this the
+// token was fetched once at app load and only replaced after a rejection, so
+// every long-lived tab paid one 400 + refetch + retry per hour — invisible to
+// the user thanks to the response interceptor below, but a steady stream of
+// escalating CSRF-expired reports off the SIS class editor, which the front
+// office keeps open all day (OPTIO-BACKEND-6J, 2026-08-18).
+const CSRF_TOKEN_MAX_AGE_MS = 50 * 60 * 1000
+
+function csrfTokenIsStale() {
+  return Date.now() - csrfTokenIssuedAt >= CSRF_TOKEN_MAX_AGE_MS
+}
 
 // Function to get CSRF token from memory
 function getCsrfToken() {
@@ -131,6 +146,7 @@ function getCsrfToken() {
 // Function to set CSRF token in memory (called after fetching from API)
 function setCsrfToken(token) {
   csrfToken = token
+  csrfTokenIssuedAt = token ? Date.now() : 0
 }
 
 // One shared bootstrap fetch, so a burst of early mutating requests costs a
@@ -138,7 +154,7 @@ function setCsrfToken(token) {
 let csrfBootstrap = null
 
 function ensureCsrfToken() {
-  if (csrfToken) return Promise.resolve(csrfToken)
+  if (csrfToken && !csrfTokenIsStale()) return Promise.resolve(csrfToken)
   if (!csrfBootstrap) {
     csrfBootstrap = api.get('/api/auth/csrf-token')
       .then(({ data }) => {
@@ -147,7 +163,11 @@ function ensureCsrfToken() {
         }
         return csrfToken
       })
-      .catch(() => null)
+      // Fall back to whatever we already hold rather than null: when the
+      // pre-emptive refetch above is the thing that failed, sending the aging
+      // token still usually works, and the response interceptor recovers it if
+      // it does not. Before the token had an age this was always null anyway.
+      .catch(() => csrfToken)
       .finally(() => { csrfBootstrap = null })
   }
   return csrfBootstrap
@@ -158,7 +178,7 @@ export const csrfTokenStore = {
   get: getCsrfToken,
   ensure: ensureCsrfToken,
   set: setCsrfToken,
-  clear: () => { csrfToken = null }
+  clear: () => setCsrfToken(null)
 }
 
 /**
