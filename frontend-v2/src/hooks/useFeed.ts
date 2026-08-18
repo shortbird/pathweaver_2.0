@@ -21,7 +21,11 @@ export interface FeedStudent {
 }
 
 export interface FeedEvidence {
-  type: 'document_blocks' | 'link' | 'text' | 'image' | 'video';
+  // 'document_blocks' is the non-singular form the feed uses when a post has
+  // several document blocks; a single top-level document arrives as 'document'
+  // (backend/routes/observer/feed.py). Both are real, and omitting the latter
+  // made the isDocument branch look unreachable to tsc.
+  type: 'document_blocks' | 'document' | 'link' | 'text' | 'image' | 'video' | 'audio';
   blocks?: Array<{ type: string; content?: string; url?: string; title?: string }>;
   url?: string;
   preview_text?: string;

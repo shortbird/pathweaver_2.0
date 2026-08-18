@@ -11,56 +11,56 @@ describe('RhythmBadge', () => {
 
   it('maps in_flow to Active', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Active')).toBeTruthy();
   });
 
   it('maps building to Building', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'building', state_display: 'Building', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'building', state_display: 'Building', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Building')).toBeTruthy();
   });
 
   it('maps finding_rhythm to Building', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'finding_rhythm', state_display: 'Finding Rhythm', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'finding_rhythm', state_display: 'Finding Rhythm', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Building')).toBeTruthy();
   });
 
   it('maps fresh_return to Building', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'fresh_return', state_display: 'Fresh Return', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'fresh_return', state_display: 'Fresh Return', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Building')).toBeTruthy();
   });
 
   it('maps resting to Resting', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'resting', state_display: 'Resting', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'resting', state_display: 'Resting', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Resting')).toBeTruthy();
   });
 
   it('maps ready_to_begin to Resting', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'ready_to_begin', state_display: 'Ready to Begin', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'ready_to_begin', state_display: 'Ready to Begin', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Resting')).toBeTruthy();
   });
 
   it('maps ready_when_you_are to Resting', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'ready_when_you_are', state_display: 'Ready When You Are', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'ready_when_you_are', state_display: 'Ready When You Are', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Resting')).toBeTruthy();
   });
 
   it('defaults to Resting for unknown backend state', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'some_new_state', state_display: 'New', message: '' }} compact />
+      <RhythmBadge rhythm={{ state: 'some_new_state', state_display: 'New', message: '', pattern_description: '' }} compact />
     );
     expect(getByText('Resting')).toBeTruthy();
   });
@@ -74,7 +74,7 @@ describe('RhythmBadge', () => {
 
   it('renders compact mode with label only', () => {
     const { getByText, queryByText } = render(
-      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: 'Great job!' }} compact />
+      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: 'Great job!', pattern_description: '' }} compact />
     );
     expect(getByText('Active')).toBeTruthy();
     expect(queryByText('Great job!')).toBeNull();
@@ -82,7 +82,7 @@ describe('RhythmBadge', () => {
 
   it('renders full mode with label and message', () => {
     const { getByText } = render(
-      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: 'Great job!' }} />
+      <RhythmBadge rhythm={{ state: 'in_flow', state_display: 'In Flow', message: 'Great job!', pattern_description: '' }} />
     );
     expect(getByText('Active')).toBeTruthy();
     expect(getByText('Great job!')).toBeTruthy();

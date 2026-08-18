@@ -382,7 +382,7 @@ function ProjectSection({
       const updated = prev.map(t => t.id === taskId ? { ...t, is_completed: true, completed_at: new Date().toISOString() } : t);
       const task = prev.find(t => t.id === taskId);
       if (task && !task.is_completed) {
-        setLocalEarnedXp(xp => xp + (task.xp_value || task.xp_amount || 0));
+        setLocalEarnedXp((xp: number) => xp + (task.xp_value || task.xp_amount || 0));
       }
       return updated;
     });

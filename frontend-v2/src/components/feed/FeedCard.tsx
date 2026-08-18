@@ -644,7 +644,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           {/* Pillar tags */}
           {pillars.length > 0 && (
             <HStack className="items-center gap-2 flex-wrap">
-              {pillars.map((p: string) => (
+              {pillars.filter((p): p is string => !!p).map((p) => (
                 <PillarBadge key={p} pillar={p} />
               ))}
               {isTask && item.task?.xp_value && (

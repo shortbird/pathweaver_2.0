@@ -56,6 +56,10 @@ export interface CourseDetail extends Course {
     percentage: number;
     completed_quests: number;
     total_quests: number;
+    // Optional: the detail payload does not always carry course-level XP, which
+    // is why the screen falls back to summing the quests' own progress.
+    earned_xp?: number;
+    total_xp?: number;
   };
 }
 

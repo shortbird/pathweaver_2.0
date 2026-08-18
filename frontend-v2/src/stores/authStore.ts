@@ -21,6 +21,9 @@ export interface User {
   id: string;
   email: string;
   display_name: string;
+  /** From /api/auth/me, which selects the whole users row. Optional because
+   *  older cached sessions predate it being read here. */
+  created_at?: string;
   first_name: string;
   last_name: string;
   role: string;

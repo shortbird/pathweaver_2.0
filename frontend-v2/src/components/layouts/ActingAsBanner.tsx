@@ -1,9 +1,13 @@
 /**
- * ActingAsBanner - Persistent banner shown when parent is acting as a dependent
- * or admin is masquerading as a user.
- *
- * Renders at the top of the app content area. Shows target user info
+ * ActingAsBanner - Persistent banner shown when a parent is acting as a
+ * dependent. Renders at the top of the app content area with the target's name
  * and a "Switch Back" button.
+ *
+ * Masquerade is deliberately NOT shown here (see the early return below), so
+ * this component only ever runs in 'dependent' mode. It used to carry a second
+ * set of masquerade labels, colours and a stopMasquerade() branch underneath
+ * that return — all unreachable, and all of it flagged by tsc as comparisons
+ * with no overlap once the early return narrowed the type. Removed 2026-08-18.
  */
 
 import React from 'react';
@@ -15,7 +19,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { UIText } from '../ui/text';
 
 export function ActingAsBanner() {
-  const { target, isActive, mode, switching, stopActingAs, stopMasquerade } = useActingAsStore();
+  const { target, isActive, mode, switching, stopActingAs } = useActingAsStore();
   const user = useAuthStore((s) => s.user);
   const insets = useSafeAreaInsets();
 
@@ -34,23 +38,16 @@ export function ActingAsBanner() {
     user?.display_name ||
     'User';
 
-  const label = mode === 'masquerade' ? 'Viewing as' : 'Acting as';
-  const icon = mode === 'masquerade' ? 'shield-checkmark' : 'people';
-
   const handleSwitchBack = async () => {
     if (switching) return;
-    // stop methods swap tokens back and trigger a full page reload
-    if (mode === 'masquerade') {
-      await stopMasquerade();
-    } else {
-      await stopActingAs();
-    }
+    // Swaps the tokens back and triggers a full page reload.
+    await stopActingAs();
   };
 
   return (
     <View
       style={{
-        backgroundColor: mode === 'masquerade' ? '#DC2626' : '#6D469B',
+        backgroundColor: '#6D469B',
         paddingHorizontal: 16,
         paddingTop: insets.top + 10,
         paddingBottom: 10,
@@ -59,9 +56,9 @@ export function ActingAsBanner() {
         gap: 10,
       }}
     >
-      <Ionicons name={icon as any} size={18} color="#FFFFFF" />
+      <Ionicons name="people" size={18} color="#FFFFFF" />
       <UIText size="sm" style={{ color: '#FFFFFF', flex: 1 }} className="font-poppins-medium">
-        {label} {displayName}
+        Acting as {displayName}
       </UIText>
       <Pressable
         onPress={handleSwitchBack}

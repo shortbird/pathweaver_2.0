@@ -41,9 +41,20 @@ jobs:
         # a reason and an expiry date, instead of the whole gate being lowered.
         # See scripts/audit-gate.mjs.
         run: node scripts/audit-gate.mjs --dir frontend-v2
-      - name: TypeScript check (informational)
+      - name: TypeScript check
         working-directory: frontend-v2
-        continue-on-error: true
+        # Gating since 2026-08-18. It ran with continue-on-error for as long as
+        # there was a backlog of pre-existing errors, which meant it could see a
+        # real break and not stop it: a wrong-cased import ("../Text" against
+        # text.tsx) passed on a macOS laptop, was reported here as TS2307, and
+        # still reached main — only jest failed, and only because that module
+        # happened to be imported by a test.
+        #
+        # The backlog was cleared in the same pass (51 -> 0), and several of
+        # those errors were real: a Button `isDisabled` prop that was never
+        # declared and so never disabled anything, evidence unions missing
+        # values the API actually sends, and a masquerade branch made dead by an
+        # early return. Keep this at zero rather than letting it drift back.
         run: npm run typecheck
       - name: Run tests + coverage gate
         working-directory: frontend-v2

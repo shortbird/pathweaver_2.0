@@ -39,7 +39,7 @@ describe('FeedScreen', () => {
   it('renders FlatList of FeedCard items', async () => {
     const items = [
       createMockFeedItem(),
-      createMockFeedItem({ id: 'tc_feed-2', task: { id: 't2', title: 'Science Report', pillar: 'stem', xp_value: 75, quest_id: 'q1', quest_title: 'Q' } }),
+      createMockFeedItem({ id: 'tc_feed-2', task: { id: 't2', title: 'Science Report', pillar: 'stem', xp_value: 75 } }),
     ];
     (useFeed as jest.Mock).mockReturnValue({
       items, loading: false, loadingMore: false, hasMore: false, error: null,

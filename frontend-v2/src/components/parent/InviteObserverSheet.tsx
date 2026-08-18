@@ -565,7 +565,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                         {obs.children.map((kid) => (
                           <Pressable
                             key={kid.student_id}
-                            onPress={() => toggleObserverKid(obs.observer_id, kid)}
+                            onPress={() => obs.observer_id && toggleObserverKid(obs.observer_id, kid)}
                             accessibilityLabel={`${kid.enabled ? 'Disable' : 'Enable'} access to ${kid.student_name}`}
                             style={{
                               flexDirection: 'row',

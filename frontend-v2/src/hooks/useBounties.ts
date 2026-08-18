@@ -14,7 +14,18 @@ export interface Bounty {
   xp_reward: number;
   poster_id: string;
   poster_name?: string;
-  rewards: Array<{ type: string; value: string; pillar?: string }>;
+  // Two shapes, both from bounty_service.create/update:
+  //   xp     -> { id, type: 'xp', value: number, pillar }
+  //   custom -> { id, type: 'custom', text }
+  // `value` was typed as a string and `text` was missing entirely, so a custom
+  // reward could not be described at all (found by the typecheck, 2026-08-18).
+  rewards: Array<{
+    id?: string;
+    type: string;
+    value?: string | number;
+    pillar?: string;
+    text?: string;
+  }>;
   deliverables: Array<{ id: string; text: string }>;
   status: string;
   claims_count?: number;

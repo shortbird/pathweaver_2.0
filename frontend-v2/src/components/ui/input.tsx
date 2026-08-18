@@ -11,6 +11,11 @@ interface InputProps extends ViewProps {
   size?: InputSize;
   isDisabled?: boolean;
   isInvalid?: boolean;
+  /** Shown but not editable — an invite form pre-filling the address the
+   *  invitation was sent to, for instance. Undeclared until 2026-08-18, so it
+   *  reached the container View as an unknown prop and the field stayed
+   *  editable. */
+  isReadOnly?: boolean;
 }
 
 const variantClasses: Record<InputVariant, string> = {
@@ -27,8 +32,9 @@ const sizeClasses: Record<InputSize, string> = {
 
 const InputContext = React.createContext<{
   isDisabled: boolean;
+  isReadOnly: boolean;
   setFocused: (v: boolean) => void;
-}>({ isDisabled: false, setFocused: () => {} });
+}>({ isDisabled: false, isReadOnly: false, setFocused: () => {} });
 
 export function Input({
   className = '',
@@ -36,6 +42,7 @@ export function Input({
   size = 'md',
   isDisabled = false,
   isInvalid = false,
+  isReadOnly = false,
   children,
   ...props
 }: InputProps) {
@@ -48,7 +55,7 @@ export function Input({
   const disabledClass = isDisabled ? 'opacity-50' : '';
 
   return (
-    <InputContext.Provider value={{ isDisabled, setFocused: setIsFocused }}>
+    <InputContext.Provider value={{ isDisabled, isReadOnly, setFocused: setIsFocused }}>
       <View
         className={`flex-row items-center ${variantClasses[variant]} ${sizeClasses[size]} ${invalidClass} ${focusClass} ${disabledClass} ${className}`}
         {...props}
@@ -64,12 +71,12 @@ interface InputFieldProps extends TextInputProps {
 }
 
 export function InputField({ className = '', onFocus, onBlur, ...props }: InputFieldProps) {
-  const { isDisabled, setFocused } = React.useContext(InputContext);
+  const { isDisabled, isReadOnly, setFocused } = React.useContext(InputContext);
 
   return (
     <TextInput
       className={`flex-1 px-3 py-2 font-poppins text-sm text-typo dark:text-dark-typo web:outline-none ${className}`}
-      editable={!isDisabled}
+      editable={!isDisabled && !isReadOnly}
       placeholderTextColor="#9CA3AF"
       onFocus={(e) => { setFocused(true); onFocus?.(e); }}
       onBlur={(e) => { setFocused(false); onBlur?.(e); }}

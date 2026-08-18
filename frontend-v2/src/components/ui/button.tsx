@@ -26,6 +26,16 @@ interface ButtonProps extends PressableProps {
   action?: ButtonAction;
   size?: ButtonSize;
   loading?: boolean;
+  /** Pressable allows a render-prop child ((state) => ReactNode). This button
+   *  renders `{children}` next to the loading spinner, so only plain nodes work
+   *  — narrowed here rather than cast away at the render site. */
+  children?: React.ReactNode;
+  /** Alias for `disabled`, the gluestack spelling the call sites inherited.
+   *  It was not declared here, so it fell into ...props, reached Pressable,
+   *  and was ignored — 14 buttons that looked disabled stayed pressable
+   *  (found by the typecheck, 2026-08-18). Accepted rather than renamed at
+   *  every call site so both spellings work. */
+  isDisabled?: boolean;
 }
 
 const variantActionClasses: Record<ButtonVariant, Record<ButtonAction, string>> = {
@@ -97,10 +107,13 @@ export function Button({
   size = 'md',
   loading = false,
   disabled,
+  isDisabled,
   children,
   style,
   ...props
 }: ButtonProps) {
+  // Either spelling disables the button; see the isDisabled note on the props.
+  const isOff = disabled || isDisabled || loading;
   const base = `flex-row items-center justify-center gap-2 ${sizeClasses[size]} ${variantActionClasses[variant][action]}`;
   // Web affordances: pointer cursor + a subtle hover dim (works for every
   // variant, including the brand-gradient primary whose background can't be
@@ -110,7 +123,7 @@ export function Button({
   // navigation context" when the button renders inside a Modal (capture / evidence
   // / bug-report sheets). hover/cursor are inherently web-only.
   const stateClass =
-    disabled || loading
+    isOff
       ? 'opacity-50 web:cursor-not-allowed'
       : 'web:cursor-pointer web:hover:opacity-90 web:transition-opacity';
   const isBrandPrimary = variant === 'solid' && action === 'primary';
@@ -119,7 +132,7 @@ export function Button({
     <ButtonContext.Provider value={{ variant, action, size }}>
       <Pressable
         className={`${base} ${stateClass} ${className}`}
-        disabled={disabled || loading}
+        disabled={isOff}
         style={isBrandPrimary ? [brandGradientStyle, style as any] : style}
         {...props}
       >

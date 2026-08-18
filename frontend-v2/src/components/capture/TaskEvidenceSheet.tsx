@@ -374,7 +374,12 @@ export function TaskEvidenceSheet({
           }
         }),
       );
-      const uploaded = uploadResults.filter((x): x is { type: string; content: Record<string, any> } => Boolean(x));
+      // NonNullable<> rather than restating the shape: the predicate has to be
+      // assignable to the array's own element type, and repeating the literal
+      // drifts from whatever the map above actually returns.
+      const uploaded = uploadResults.filter(
+        (x): x is NonNullable<(typeof uploadResults)[number]> => Boolean(x),
+      );
       const failedUploads = uploadResults.length - uploaded.length;
       recordAction('evidence:uploaded', { ok: uploaded.length, failed: failedUploads });
 

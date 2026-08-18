@@ -8,7 +8,11 @@ import { useAuthStore } from '../stores/authStore';
 
 export interface EvidenceBlock {
   id?: string;
-  block_type: 'text' | 'image' | 'video' | 'link' | 'document';
+  // Mirrors the server's vocabulary exactly — see valid_block_types in
+  // backend/routes/learning_events/evidence.py. 'audio' was missing here, so
+  // every `block_type === 'audio'` check (the voice-note player) read to tsc as
+  // a comparison with no overlap.
+  block_type: 'text' | 'image' | 'video' | 'link' | 'document' | 'audio';
   content: Record<string, any>;
   file_url?: string;
   file_name?: string;

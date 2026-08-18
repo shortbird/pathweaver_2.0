@@ -239,7 +239,7 @@ describe('FeedCard', () => {
   // ── XP Display ──
 
   it('shows XP value for task completions', () => {
-    const item = createMockFeedItem({ task: { id: 't1', title: 'Task', pillar: 'stem', xp_value: 75, quest_id: 'q1', quest_title: 'Q' } });
+    const item = createMockFeedItem({ task: { id: 't1', title: 'Task', pillar: 'stem', xp_value: 75 } });
     const { getByText } = render(<FeedCard item={item} />);
     expect(getByText('+75 XP')).toBeTruthy();
   });

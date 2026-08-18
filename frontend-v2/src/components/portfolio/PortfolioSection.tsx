@@ -46,7 +46,10 @@ interface TaskItem {
 
 function buildQuestGroups(achievements: Achievement[]): QuestGroup[] {
   return achievements
-    .map((achievement) => {
+    // The return type is stated so a shape drift is reported here, at the one
+    // place that builds a QuestGroup, rather than as an unassignable array
+    // several lines later.
+    .map((achievement): QuestGroup | null => {
       const quest = achievement.quest;
       if (!quest) return null;
 
