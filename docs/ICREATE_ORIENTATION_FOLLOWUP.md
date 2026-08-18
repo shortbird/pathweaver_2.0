@@ -165,14 +165,55 @@ Families at an in-person orientation are on phones. Worth adding.
 None of these are code bugs. All need somebody at the school to act, or a
 decision from us.
 
-### 3.1 Lauren Bezzant is not attached to the organisation
+### 3.1 Lauren Bezzant — an abandoned enrolment, not just a missing link
 
-`laurenebv@gmail.com`, `role='parent'`, **`organization_id = NULL`**. She
-registered but her account never joined iCreate, so she has no family portal, no
-school page, and no orientation quest. The "Bezzant Family" household
-(1404 Jordan Ave, Provo) exists with no members.
+**BLOCKED: iCreate needs to confirm whether this family actually enrolled.**
+Nothing was changed on either record pending that answer.
 
-**This is the one with a person waiting on the other end.**
+The account is `laurenebv@gmail.com`, `role='parent'`,
+**`organization_id = NULL`**, no household membership, no dependents, no
+parent-student links. What the timeline shows:
+
+| Time (2026-07-31) | Event |
+|---|---|
+| 00:42:42 | Account created — via the **public platform signup**, not iCreate's org flow, which is why `organization_id` is NULL |
+| 00:43:10 | Email confirmed |
+| 00:43:11 | Signed in — **once, for the only time** |
+| 00:48:52 | "Bezzant Family" household created at iCreate (1404 Jordan Ave, Provo UT 84604), with **`primary_contact_user_id` = Lauren** |
+
+So the school did deliberately record her as the primary contact of an iCreate
+household. But three things never happened:
+
+1. Her account was never attached to the organisation.
+2. **No `household_members` row was ever inserted** — she is the household's
+   primary contact while not being a member of it.
+3. **No children were ever created.** There are no Bezzant students under any
+   name, and nothing matches that address or phone. Every other household in
+   84604 has a parent plus students; this one has nobody.
+
+There is also no registration, invoice, waitlist entry, org invitation or family
+directive anywhere for them.
+
+**The `primary_contact_user_id`-without-membership inconsistency is a one-off** —
+a check across every household in the database returns exactly this one row, so
+it is a single partial failure rather than a systemic bug in family creation.
+Not worth hunting for a code path on this evidence alone; if a second one ever
+appears, that changes.
+
+This is why it was not simply "fixed": attaching her to the organisation would
+grant a possibly-never-enrolled person access to iCreate's community content,
+and her children cannot be invented. It reads like an enrolment that was started
+and abandoned after thirty seconds.
+
+**Resolution depends on the school's answer:**
+
+- *They enrolled* → attach her (`role='org_managed'`, `org_role='parent'`,
+  `organization_id` = iCreate), insert the missing `household_members` row, and
+  get the children's names and dates of birth from the school so their accounts
+  can be created.
+- *They never enrolled* → clear the dangling `primary_contact_user_id`, and
+  decide whether the empty household should be kept as a prospective record or
+  removed. Her platform account is hers either way and should be left alone.
 
 ### 3.2 Five students have no date of birth
 
