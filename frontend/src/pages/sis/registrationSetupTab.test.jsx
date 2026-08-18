@@ -13,8 +13,10 @@ vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
+let authState = { user: { id: 'admin-1', role: 'org_admin' } }
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'admin-1', role: 'org_admin' } }),
+  useAuth: () => authState,
+  AuthContext: { Provider: ({ children }) => children },
 }))
 
 const { api, state } = vi.hoisted(() => {
@@ -65,8 +67,20 @@ const CFG = {
 beforeEach(() => {
   state.flags = {}
   state.putBodies = []
+  authState = { user: { id: 'admin-1', role: 'org_admin' } }
   vi.clearAllMocks()
 })
+
+// What the backend hands a campus coordinator: the same config with every
+// money field redacted out of it (utils/org_finance_flags.py).
+const COORDINATOR_CFG = (() => {
+  const { fee_mode, registration_fee_cents, per_student_fee_cents, payment_url, ...rest } = CFG
+  return rest
+})()
+
+const asCoordinator = () => {
+  authState = { user: { id: 'kate', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+}
 
 describe('Registration setup tab (the editable funnel)', () => {
   it('is the default tab and renders the funnel as families see it', async () => {
@@ -164,5 +178,49 @@ describe('Registration setup tab (the editable funnel)', () => {
     const body = state.putBodies[0]
     expect(body.feature_flags.registration.enabled).toBe(true)
     expect(body.feature_flags.icreate_registration.enabled).toBe(true)
+  })
+})
+
+// iCreate, 2026-08-01: coordinators run the campus, "we don't want the cc's to
+// have access to all the financial stuff". The funnel is theirs; the fee that
+// funnel charges is not — and the amounts never reach this component anyway,
+// so a fee editor here would be an empty form that saves a zero.
+describe('Registration setup tab for a campus coordinator', () => {
+  it('gives them the funnel without the fee editor', async () => {
+    asCoordinator()
+    state.flags = { registration: COORDINATOR_CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+
+    expect(await screen.findByText('Your account')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Registration fee'))
+    expect(await screen.findByText(/set by an organization admin/)).toBeInTheDocument()
+    expect(screen.queryByText('Edit fees & payment')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Stripe secret key/)).not.toBeInTheDocument()
+  })
+
+  it('never sends a fee or a Stripe key when they save', async () => {
+    asCoordinator()
+    state.flags = { registration: COORDINATOR_CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Save registration settings'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+
+    const saved = state.putBodies[0].feature_flags.registration
+    for (const key of ['fee_mode', 'registration_fee_cents', 'per_student_fee_cents',
+      'payment_url', 'stripe_secret_key']) {
+      expect(key in saved).toBe(false)
+    }
+    // The parts that ARE theirs still save.
+    expect(saved.paperwork[0].label).toBe('Family Handbook')
+    expect(saved.questions).toHaveLength(2)
+  })
+
+  it('still lets an org admin edit the fees', async () => {
+    state.flags = { registration: CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Registration fee'))
+    expect(await screen.findByText('Edit fees & payment')).toBeInTheDocument()
   })
 })

@@ -549,6 +549,21 @@ def unenroll_student(user_id, class_id, student_id):
     return jsonify({'success': True})
 
 
+# ── Schedule settings (rooms + time blocks) ──────────────────────────────────
+# STAFF_ROLES, not ADMIN_ROLES: a room name and the school's period grid are
+# campus facts a teacher already sees on their own classes. What matters is that
+# it is NOT the org_admin-gated /api/admin/organizations/<id> the Classes page
+# used to read them from, which locked campus coordinators out of the room and
+# time-block pickers.
+@bp.route('/schedule-settings', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_schedule_settings(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **catalog.schedule_settings(org_id)})
+
+
 # ── Optio-course settings ────────────────────────────────────────────────────
 # Per-org details for the Optio courses an org offers (the "iCreate versions" of
 # at-home-learning courses). Teacher is per-course (org_course_settings); tuition

@@ -55,18 +55,68 @@ def has_role_or_admin(effective_role: str, *allowed_roles) -> bool:
         return True
     return False
 
+def authorizing_user_id():
+    """The identity this request is AUTHORIZED as.
+
+    Normally that is simply the caller. During a MASQUERADE it is the target,
+    and the admin behind them counts for nothing.
+
+    Masquerade exists to answer one question — "what does this person see?" —
+    and an answer computed from the viewer's own role is not an answer, it is a
+    different account's screen with the target's name on the banner. Every
+    decorator that authorized `get_actual_admin_id()` gave exactly that: a
+    superadmin viewing as a campus coordinator was authorized as the superadmin,
+    so the org-settings read that 403s for the coordinator succeeded for them,
+    and the Classes editor showed a room dropdown that the coordinator herself
+    could never get (iCreate, 2026-08-18). Every such divergence is invisible
+    from inside the masquerade, which is the worst property a debugging tool can
+    have.
+
+    Acting-as (a parent working inside their dependent's account) is deliberately
+    NOT redirected here: get_masquerade_info() covers masquerade tokens only, so
+    a parent keeps their own authority, which is what those flows are built on.
+
+    The real admin stays on `request.masquerade_admin_id` for audit logging. It
+    must never be consulted for a permission decision.
+    """
+    info = session_manager.get_masquerade_info()
+    if info and info.get('is_masquerading') and info.get('target_user_id'):
+        request.masquerade_admin_id = info.get('admin_id')
+        return info['target_user_id']
+    return session_manager.get_actual_admin_id()
+
+
+def _log_masquerade_denial(check: str, user_id: str) -> None:
+    """Note a 403 that a masquerade produced ON PURPOSE.
+
+    The target genuinely lacks this; the admin viewing them does not. Without
+    the line it reads like a broken admin session, and the previous fix for
+    that was to authorize the admin instead — which is the bug.
+    """
+    admin_id = getattr(request, 'masquerade_admin_id', None)
+    if admin_id:
+        logger.info(
+            f"[Masquerade] {check} denied for target {str(user_id)[:8]}... "
+            f"(admin {str(admin_id)[:8]}... is viewing as them) — "
+            f"this is what that user sees")
+
+
 def caller_is_superadmin(supabase, effective_user_id: str) -> bool:
-    """True if the request is from a superadmin — directly, OR a superadmin
-    masquerading as another user. @require_auth hands endpoints the masquerade
-    TARGET, so a superadmin acting-as a student would otherwise lose their
-    privileges; this also checks the actual admin behind the masquerade so
-    admins keep full functionality while acting-as."""
+    """True if the request is from a superadmin.
+
+    While ACTING-AS a dependent the parent's own identity still counts, so a
+    superadmin working inside a dependent account keeps their privileges. While
+    MASQUERADING it does not: the whole point is to be the other person, and a
+    superadmin bypass leaking through here is the difference between "this
+    observer can comment" and "the observer sees what I see because I am me".
+    """
     from utils.session_manager import session_manager
     candidate_ids = {effective_user_id}
     try:
-        actual = session_manager.get_actual_admin_id()
-        if actual:
-            candidate_ids.add(actual)
+        if not session_manager.is_masquerading():
+            actual = session_manager.get_actual_admin_id()
+            if actual:
+                candidate_ids.add(actual)
     except Exception:
         pass
     try:
@@ -125,7 +175,9 @@ def require_admin(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'superadmin' role.
 
-    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+    When masquerading, this checks the TARGET: an admin viewing as a student is
+    not an admin for the duration. Exiting the masquerade (/api/admin/masquerade/exit)
+    is undecorated and reads the token directly, so nobody gets stranded.
 
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
@@ -135,8 +187,8 @@ def require_admin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get actual admin user ID (not masquerade target)
-        user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -158,6 +210,7 @@ def require_admin(f):
                 user = supabase.table('users').select('role').eq('id', user_id).execute()
 
                 if not user.data or len(user.data) == 0 or user.data[0].get('role') != 'superadmin':
+                    _log_masquerade_denial('superadmin', user_id)
                     raise AuthorizationError('Superadmin access required')
 
                 break
@@ -279,6 +332,49 @@ def validate_uuid_param(*param_names):
         return decorated_function
     return decorator
 
+def require_admin_identity(f):
+    """Superadmin check against the REAL caller, ignoring any active masquerade.
+
+    Reserved for the masquerade CONTROL PLANE — starting a session, reading the
+    audit history. Those endpoints are the tool itself, not the app being
+    viewed, so they have to stay reachable while the admin is inside somebody
+    else's account (otherwise switching from one target to another means
+    exiting first, and an admin who lands on a broken account can get stuck).
+
+    Everything else authorizes the target: see authorizing_user_id(). Reaching
+    for this decorator anywhere else re-creates the exact bug it exists beside —
+    a screen that answers to the admin while claiming to be the user's.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        user_id = session_manager.get_actual_admin_id()
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        request.user_id = user_id
+        _set_sentry_user(user_id)
+
+        from database import get_supabase_admin_client
+        try:
+            # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
+            supabase = get_supabase_admin_client()
+            user = supabase.table('users').select('role').eq('id', user_id).execute()
+            if not user.data or user.data[0].get('role') != 'superadmin':
+                raise AuthorizationError('Superadmin access required')
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying admin identity: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify admin status')
+
+        return f(user_id, *args, **kwargs)
+
+    return decorated_function
+
+
 def require_advisor(f):
     """
     Decorator to require advisor, org_admin, or superadmin access for routes.
@@ -289,9 +385,9 @@ def require_advisor(f):
     Supports users with multiple roles (org_roles array).
     Advisors can create quest drafts but need admin approval to publish.
 
-    Authorization: Checks the actual admin identity (not masquerade target).
-    Data fetching: Uses masquerade target's ID when masquerading, so "My Students"
-                   shows the masqueraded user's students, not the superadmin's.
+    Authorization AND data both use the masquerade target while masquerading, so
+    "My Students" is their student list and an admin viewing a plain student is
+    refused exactly as that student would be.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -303,8 +399,8 @@ def require_advisor(f):
             response.status_code = 200
             return response
 
-        # Get actual user ID for authorization check
-        actual_user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        actual_user_id = authorizing_user_id()
 
         if not actual_user_id:
             raise AuthenticationError('Authentication required')
@@ -334,27 +430,14 @@ def require_advisor(f):
                 has_assignments = is_assigned_advisor(actual_user_id)
                 logger.info(f"require_advisor - user {actual_user_id} has_role_access={has_role_access}, checking assignments: {has_assignments}")
                 if not has_assignments:
+                    _log_masquerade_denial('advisor', actual_user_id)
                     raise AuthorizationError('Advisor access required')
 
-            # Determine effective user_id for data operations
-            # When masquerading, use the target user's ID so "My Students" shows their students
+            # The identity that was authorized above is the identity the route
+            # operates as. There used to be a second lookup here that swapped in
+            # the masquerade target for data while the ADMIN had been authorized:
+            # two identities in one request, and the route could only see one.
             effective_user_id = actual_user_id
-            masquerade_info = session_manager.get_masquerade_info()
-            if masquerade_info and masquerade_info.get('is_masquerading'):
-                target_user_id = masquerade_info.get('target_user_id')
-                if target_user_id:
-                    # Verify target user exists and has advisor access
-                    target_user = supabase.table('users')\
-                        .select('id, role, org_role, org_roles, is_org_admin')\
-                        .eq('id', target_user_id)\
-                        .single()\
-                        .execute()
-                    if target_user.data:
-                        target_data = target_user.data
-                        target_has_access = has_any_role(target_data, ['advisor', 'org_admin']) or target_data.get('is_org_admin', False) or is_assigned_advisor(target_user_id)
-                        if target_has_access:
-                            effective_user_id = target_user_id
-                            logger.info(f"require_advisor - masquerading as {target_user_id}, using their ID for data")
 
             # Store user_id in request context
             request.user_id = effective_user_id
@@ -379,7 +462,8 @@ def require_advisor_for_student(f):
     Supports users with multiple roles (org_roles array).
     Admins always have access.
 
-    When masquerading, this checks the actual admin identity, not the masquerade target.
+    When masquerading, this checks the TARGET — the advisor being viewed needs
+    the assignment, not the admin doing the viewing.
 
     Usage: Decorate routes that access student-specific data.
     The decorated function must have 'target_user_id' or 'student_id' as a parameter.
@@ -390,8 +474,8 @@ def require_advisor_for_student(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get actual user ID (not masquerade target for advisor routes)
-        user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -424,6 +508,7 @@ def require_advisor_for_student(f):
             if user_data.get('role') != 'superadmin':
                 if not has_any_role(user_data, ['advisor', 'org_admin']):
                     # Other roles don't have access
+                    _log_masquerade_denial('advisor-for-student', user_id)
                     raise AuthorizationError('Advisor or admin access required')
 
                 assignment = supabase.table('advisor_student_assignments')\
@@ -434,6 +519,7 @@ def require_advisor_for_student(f):
                     .execute()
 
                 if not assignment.data or len(assignment.data) == 0:
+                    _log_masquerade_denial('advisor-student-assignment', user_id)
                     raise AuthorizationError('Not authorized to access this student')
 
         except (AuthenticationError, AuthorizationError, ValidationError):
@@ -454,7 +540,7 @@ def require_superadmin(f):
     Only tannerbowman@gmail.com should have this role.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+    When masquerading, this checks the TARGET, not the admin behind them.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -462,8 +548,8 @@ def require_superadmin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get actual admin user ID (not masquerade target)
-        user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -480,6 +566,7 @@ def require_superadmin(f):
             user = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
             if not user.data or user.data['role'] != 'superadmin':
+                _log_masquerade_denial('superadmin', user_id)
                 raise AuthorizationError('Superadmin access required')
 
         except (AuthenticationError, AuthorizationError):
@@ -504,7 +591,7 @@ def require_school_admin(f):
     Verifies user has 'org_admin' or 'superadmin' effective role, OR is_org_admin=True.
     Org admins can manage their organization (quest visibility, announcements, etc.).
 
-    When masquerading, this checks the actual admin identity, not the masquerade target.
+    When masquerading, this checks the TARGET, not the admin behind them.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -512,8 +599,8 @@ def require_school_admin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get actual user ID (not masquerade target)
-        user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -537,6 +624,7 @@ def require_school_admin(f):
 
             # Check if superadmin, has org_admin role, or is_org_admin flag
             if user_data.get('role') != 'superadmin' and not has_any_role(user_data, ['org_admin']) and not is_org_admin_flag:
+                _log_masquerade_denial('org-admin', user_id)
                 raise AuthorizationError('Organization admin access required')
 
         except (AuthenticationError, AuthorizationError):
@@ -559,8 +647,11 @@ def require_org_admin(f):
     Supports users with multiple roles (org_roles array).
 
     Uses httpOnly cookies exclusively for enhanced security.
-    When masquerading, this checks the ACTUAL admin identity for authorization,
-    but uses the masquerade target's organization_id for scoping.
+    When masquerading, the TARGET is authorized and scoped — one identity, not
+    two. It used to authorize the admin and scope to the target, which is how a
+    campus coordinator (deliberately not an org_admin) could watch a superadmin
+    load her org's settings from inside her own account and conclude the page
+    worked for her. It did not; she got a 403 nobody could see.
 
     Passes user_id, organization_id, and is_superadmin to the decorated function.
     """
@@ -570,8 +661,8 @@ def require_org_admin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get actual admin user ID (not masquerade target)
-        user_id = session_manager.get_actual_admin_id()
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -604,25 +695,13 @@ def require_org_admin(f):
             has_org_admin_access = is_superadmin or has_any_role(user_data, ['org_admin']) or is_org_admin_flag
 
             if not has_org_admin_access:
+                _log_masquerade_denial('org-admin', user_id)
                 raise AuthorizationError('Organization admin access required')
 
-            # Determine organization_id to use
-            # If masquerading, use the target user's organization_id and treat as non-superadmin
+            # Scope comes from the same row that was just authorized, so the
+            # org and the role context can no longer belong to two people.
             organization_id = user_data['organization_id']
             effective_is_superadmin = is_superadmin
-            masquerade_info = session_manager.get_masquerade_info()
-            if masquerade_info and masquerade_info.get('is_masquerading'):
-                target_user_id = masquerade_info.get('target_user_id')
-                if target_user_id:
-                    target_user = supabase.table('users')\
-                        .select('organization_id, role, org_role, org_roles')\
-                        .eq('id', target_user_id)\
-                        .single()\
-                        .execute()
-                    if target_user.data:
-                        organization_id = target_user.data.get('organization_id')
-                        # When masquerading, use the target's role context
-                        effective_is_superadmin = target_user.data.get('role') == 'superadmin'
 
         except (AuthenticationError, AuthorizationError):
             raise
@@ -632,6 +711,76 @@ def require_org_admin(f):
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
+
+    return decorated_function
+
+
+def require_org_front_office(f):
+    """The org's front office: org_admin, campus_coordinator, superadmin.
+
+    Same contract as @require_org_admin — the view receives
+    (user_id, organization_id, is_superadmin) — but authorized against
+    utils.sis_roles.ADMIN_ROLES, so a campus coordinator gets in.
+
+    Use it for the OPERATIONAL org routes the SIS console runs on: reading the
+    org's settings, editing the registration funnel, handing out family
+    invitation links. NEVER for the money (FINANCE_ROLES) or for anything that
+    grants a role (ROLE_GRANT_ROLES) — a coordinator who can grant org_admin can
+    grant themselves the finance access this whole tier exists to withhold.
+
+    Routes that use it are responsible for the per-field half: a coordinator on
+    an otherwise-operational endpoint must not read or write the money on it.
+    See utils/org_finance_flags.py, which does that for feature_flags.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        # Whoever this request is authorized as — the masquerade target, if any
+        user_id = authorizing_user_id()
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        request.user_id = user_id
+        _set_sentry_user(user_id)
+
+        from database import get_supabase_admin_client
+        from utils.sis_roles import CAMPUS_COORDINATOR
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users')\
+                .select('role, org_role, org_roles, email, is_org_admin, organization_id')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+
+            if not user.data:
+                raise AuthorizationError('User not found')
+
+            user_data = user.data
+            is_superadmin = user_data.get('role') == 'superadmin'
+            has_access = (
+                is_superadmin
+                or has_any_role(user_data, ['org_admin', CAMPUS_COORDINATOR])
+                or user_data.get('is_org_admin', False)
+            )
+            if not has_access:
+                _log_masquerade_denial('org-front-office', user_id)
+                raise AuthorizationError('Organization admin access required')
+
+            organization_id = user_data['organization_id']
+
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying org front-office status: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify organization admin status')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, organization_id, is_superadmin, *args, **kwargs)
 
     return decorated_function
 

@@ -6,6 +6,8 @@ import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SisOrgSettings from '../../components/sis/SisOrgSettings'
 import ClassroomsCard from '../../components/sis/ClassroomsCard'
+import { AuthContext } from '../../contexts/AuthContext'
+import { canSeeFinance } from './sisRole'
 import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
 import CalendarCategoriesCard from '../../components/sis/CalendarCategoriesCard'
 import QuickLinksCard from '../../components/sis/QuickLinksCard'
@@ -29,6 +31,15 @@ import KioskDevicesCard from '../../components/sis/KioskDevicesCard'
  */
 const SettingsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
+  // Read the context directly rather than through useAuth(): this page is
+  // rendered bare in tests, and a missing provider must degrade, not throw.
+  const user = React.useContext(AuthContext)?.user
+  // The organization card is the org's identity, its AI entitlements and its
+  // prices — an org admin's, not the front office's. A campus coordinator gets
+  // the rest of this page: rooms, blocks, calendar categories, quick links,
+  // kiosks. The backend agrees (utils/org_finance_flags.py); this only decides
+  // whether to render a card that would come back empty and save nothing.
+  const seesOrgCard = canSeeFinance(user)
   const { refreshOrganization } = useOrganization()
   const [orgData, setOrgData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -73,13 +84,15 @@ const SettingsPage = () => {
       ) : (
         <div className="grid gap-6">
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
-          <SisOrgSettings
-            key={orgId}
-            orgId={orgId}
-            orgData={orgData}
-            onUpdate={fetchOrg}
-            onLogoChange={refreshOrganization}
-          />
+          {seesOrgCard && (
+            <SisOrgSettings
+              key={orgId}
+              orgId={orgId}
+              orgData={orgData}
+              onUpdate={fetchOrg}
+              onLogoChange={refreshOrganization}
+            />
+          )}
           <ClassroomsCard key={`rooms-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <CalendarCategoriesCard key={`cats-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />

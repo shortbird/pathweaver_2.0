@@ -6,7 +6,7 @@ Handles email invitations for org admins to invite users to join their organizat
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_org_admin
+from utils.auth.decorators import require_org_admin, require_org_front_office
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from utils.logger import get_logger
@@ -45,8 +45,11 @@ def validate_email(email):
     return re.match(pattern, email) is not None
 
 
+# Front office: the SIS Registration page reads this to find (and show) the
+# standing family registration link. Roles are not granted here — that stays on
+# the create routes, which check ROLE_GRANT_ROLES per role below.
 @bp.route('/<org_id>/invitations', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
     """
     Get all invitations for an organization
@@ -317,7 +320,7 @@ def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org
 
 
 @bp.route('/<org_id>/invitations', methods=['POST'])
-@require_org_admin
+@require_org_front_office
 @rate_limit(max_requests=20, window_seconds=300)  # 20 invitations per 5 minutes
 def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
     """
@@ -344,6 +347,12 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
         role = data.get('role', 'student').lower()
         if role not in VALID_INVITATION_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
+
+        # Adding a family is front-office work; adding staff is not (see
+        # sis_service.caller_may_grant).
+        from services.sis_service import caller_may_grant
+        if not caller_may_grant(user_id, role):
+            return jsonify({'error': 'Only an organization admin can invite staff.'}), 403
 
         invited_name = sanitize_input(data.get('name', ''))
         send_email = data.get('send_email', True)
@@ -576,7 +585,7 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
 
 
 @bp.route('/<org_id>/invitations/link', methods=['POST'])
-@require_org_admin
+@require_org_front_office
 @rate_limit(max_requests=20, window_seconds=300)  # 20 links per 5 minutes
 def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org_id):
     """
@@ -599,6 +608,12 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
         role = data.get('role', 'student').lower()
         if role not in VALID_INVITATION_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
+
+        # A standing link is a role grant to whoever holds it: the family
+        # registration link is the coordinator's to hand out, a staff one is not.
+        from services.sis_service import caller_may_grant
+        if not caller_may_grant(user_id, role):
+            return jsonify({'error': 'Only an organization admin can invite staff.'}), 403
 
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
@@ -671,7 +686,7 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
 
 
 @bp.route('/<org_id>/invitations/links', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_standing_invitation_links(current_user_id, current_org_id, is_superadmin, org_id):
     """
     Return the organization's standing account-creation links: one permanent
@@ -760,7 +775,7 @@ def get_standing_invitation_links(current_user_id, current_org_id, is_superadmin
 
 
 @bp.route('/<org_id>/invitations/<invitation_id>', methods=['DELETE'])
-@require_org_admin
+@require_org_front_office
 def cancel_invitation(current_user_id, current_org_id, is_superadmin, org_id, invitation_id):
     """
     Cancel a pending invitation

@@ -81,6 +81,13 @@ export function useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
   // into a stuck account is to see what the parent would see AFTER the funnel,
   // and being locked to /enroll/resume makes the session useless. The parent's
   // own login is unaffected — this reads the masquerade session, not the user.
+  //
+  // This is the ONE place a masquerade deliberately shows more than the person
+  // being viewed, kept on purpose (decision reaffirmed 2026-08-18). Everything
+  // else answers to the target: backend authorization included, see
+  // utils/auth/decorators.authorizing_user_id. Do not add a second exemption
+  // without the same explicit decision — the value of the tool is that its
+  // divergences can be counted on one finger.
   const applies = effectiveRole === 'parent' && !isMasquerading()
   return { checking: applies && checking, mustRegister: applies && incomplete }
 }

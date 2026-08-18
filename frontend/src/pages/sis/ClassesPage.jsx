@@ -118,10 +118,15 @@ const ClassesPage = () => {
       api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
-      api.get(`/api/admin/organizations/${orgId}`).catch(() => ({ data: {} })),
+      // Rooms + school-day blocks. Deliberately NOT /api/admin/organizations/:id:
+      // that endpoint is org_admin-gated, so a campus coordinator got a 403 here
+      // and the editor silently degraded to a free-text classroom box and raw
+      // time inputs — a bug only they could see, since a masquerading superadmin
+      // is authorized as themselves.
+      api.get(withOrg('/api/sis/schedule-settings', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/teacher-conflicts', orgId)).catch(() => ({ data: {} })),
     ])
-      .then(([cls, crs, stf, ct, org, tc]) => {
+      .then(([cls, crs, stf, ct, sched, tc]) => {
         setClasses(cls.data?.classes || [])
         setTeacherConflicts(tc.data?.conflicts || [])
         const all = crs.data?.courses || []
@@ -131,8 +136,8 @@ const ClassesPage = () => {
         for (const row of ct.data?.course_settings || []) map[row.course_id] = row
         setCourseSettings(map)
         setCourseTuition(ct.data?.optio_course_tuition_cents ?? null)
-        setTimeBlocks(org.data?.organization?.feature_flags?.sis_settings?.time_blocks || [])
-        setRooms(org.data?.organization?.feature_flags?.sis_settings?.rooms || [])
+        setTimeBlocks(sched.data?.time_blocks || [])
+        setRooms(sched.data?.rooms || [])
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))

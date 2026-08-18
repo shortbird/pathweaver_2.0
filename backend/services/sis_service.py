@@ -678,6 +678,22 @@ def caller_sees_pay(user_id: str) -> bool:
     return not is_campus_coordinator(_user_org_roles(ctx))
 
 
+def caller_may_grant(user_id: str, role: str) -> bool:
+    """False when `role` is a staff role this caller may not hand out.
+
+    The front office adds families all day — students, parents, observers — and
+    that is squarely a campus coordinator's job. Staff roles are not: a
+    coordinator who can create an advisor or an org_admin can create the account
+    that hands them the finance access their tier exists to withhold. Same
+    membership as ROLE_GRANT_ROLES, applied to account creation and invitations
+    rather than to editing an existing person's roles.
+    """
+    from utils.sis_roles import CAMPUS_COORDINATOR
+    if role not in ('advisor', 'org_admin', CAMPUS_COORDINATOR):
+        return True
+    return caller_can_grant_privileged_role(user_id)
+
+
 def caller_can_grant_privileged_role(user_id: str) -> bool:
     """True only for ROLE_GRANT_ROLES (org_admin / superadmin).
 

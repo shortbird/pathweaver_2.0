@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
@@ -11,12 +12,27 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import SisNewUserModal from './SisNewUserModal'
+// The modal reads the signed-in user to decide which roles it may offer, so the
+// context is part of the fixture now.
+vi.mock('../../contexts/AuthContext', async () => {
+  const React = await import('react')
+  return { AuthContext: React.createContext(null) }
+})
 
-const setup = (props = {}) => {
+import SisNewUserModal from './SisNewUserModal'
+import { AuthContext as Ctx } from '../../contexts/AuthContext'
+
+const ADMIN = { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] }
+const COORDINATOR = { id: 'kate', role: 'org_managed', org_roles: ['campus_coordinator'] }
+
+const setup = (props = {}, user = ADMIN) => {
   const onClose = vi.fn()
   const onCreated = vi.fn()
-  render(<SisNewUserModal orgId="org-1" onClose={onClose} onCreated={onCreated} {...props} />)
+  render(
+    <Ctx.Provider value={{ user }}>
+      <SisNewUserModal orgId="org-1" onClose={onClose} onCreated={onCreated} {...props} />
+    </Ctx.Provider>
+  )
   return { onClose, onCreated }
 }
 
@@ -83,5 +99,23 @@ describe('SisNewUserModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create User' }))
     expect(await screen.findByText('First name is required')).toBeInTheDocument()
     expect(api.post).not.toHaveBeenCalled()
+  })
+})
+
+// A campus coordinator adds families all day; staff accounts are an admin's to
+// create. Offering them the option and having the backend refuse it would be a
+// worse answer than not offering it.
+describe('SisNewUserModal for a campus coordinator', () => {
+  it('offers the family roles only', () => {
+    setup({}, COORDINATOR)
+    const options = [...screen.getByRole('combobox').options].map((o) => o.value)
+    expect(options).toEqual(['student', 'parent', 'observer'])
+  })
+
+  it('still offers an org admin every role', () => {
+    setup({}, ADMIN)
+    const options = [...screen.getByRole('combobox').options].map((o) => o.value)
+    expect(options).toContain('advisor')
+    expect(options).toContain('org_admin')
   })
 })

@@ -10,7 +10,7 @@ Admin masquerade routes - Allow admins to view platform as other users
 """
 from flask import Blueprint, jsonify, request, make_response
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin, require_superadmin
+from utils.auth.decorators import require_admin_identity, require_superadmin
 from utils.session_manager import session_manager
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place, sign_stored_url
@@ -21,8 +21,12 @@ logger = get_logger(__name__)
 
 masquerade_bp = Blueprint('masquerade', __name__, url_prefix='/api/admin/masquerade')
 
+# Control plane: @require_admin_identity checks the REAL caller, so starting a
+# session still works from inside one (switching targets, or backing out of an
+# account that renders nothing). Everything OUTSIDE these routes authorizes the
+# person being viewed — see utils.auth.decorators.authorizing_user_id.
 @masquerade_bp.route('/<target_user_id>', methods=['POST'])
-@require_admin
+@require_admin_identity
 def start_masquerade(admin_id, target_user_id):
     """
     Start a masquerade session as another user
@@ -182,7 +186,7 @@ def exit_masquerade():
 
 
 @masquerade_bp.route('/history', methods=['GET'])
-@require_admin
+@require_admin_identity
 def get_masquerade_history(admin_id):
     """
     Get masquerade history for audit purposes
