@@ -17,7 +17,7 @@ import { useCallback } from 'react';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
-import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { effectiveRoleOf, userHasRole } from '@/src/utils/effectiveRole';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 
@@ -36,7 +36,9 @@ export function useIsParent(): boolean {
   if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
   if (!user) return false;
   return (
-    effectiveRoleOf(user) === 'parent' ||
+    // Parent wins over a second org role (teacher+parent combos carry both in
+    // org_roles); see isParentUser in services/landingRoute.
+    userHasRole(user, 'parent') ||
     (user as any).has_dependents === true ||
     (user as any).has_linked_students === true
   );

@@ -17,6 +17,14 @@ describe('isParentUser', () => {
     expect(isParentUser({ ...base, role: 'org_managed', org_role: 'parent' })).toBe(true);
   });
 
+  it('is true for a teacher who is also a parent (parent wins the shell)', () => {
+    // Real account: org_role 'advisor', org_roles ['advisor','parent']. The old
+    // effectiveRoleOf check returned 'advisor', so she never saw the family tab.
+    expect(isParentUser({
+      ...base, role: 'org_managed', org_role: 'advisor', org_roles: ['advisor', 'parent'],
+    } as any)).toBe(true);
+  });
+
   it('is true for users with linked dependents/students', () => {
     expect(isParentUser({ ...base, role: 'student', has_dependents: true })).toBe(true);
     expect(isParentUser({ ...base, role: 'student', has_linked_students: true })).toBe(true);
@@ -31,6 +39,12 @@ describe('landingRouteForUser', () => {
   it('sends students and unknown users to the dashboard', () => {
     expect(landingRouteForUser({ ...base, role: 'student' })).toBe('/(app)/(tabs)/dashboard');
     expect(landingRouteForUser(null)).toBe('/(app)/(tabs)/dashboard');
+  });
+
+  it('sends teacher+parent combos to the family tab', () => {
+    expect(landingRouteForUser({
+      ...base, role: 'org_managed', org_role: 'advisor', org_roles: ['advisor', 'parent'],
+    } as any)).toBe('/(app)/(tabs)/family');
   });
 
   it('sends superadmins to the dashboard even with dependents (default Student preview shell)', () => {

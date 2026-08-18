@@ -11,12 +11,16 @@
  * `org_role`), minus the superadmin preview shell, which doesn't apply at launch.
  */
 import type { User } from '@/src/stores/authStore';
-import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { userHasRole } from '@/src/utils/effectiveRole';
 
 export function isParentUser(user: User | null | undefined): boolean {
   if (!user) return false;
   return (
-    effectiveRoleOf(user) === 'parent' ||
+    // userHasRole, not effectiveRoleOf: a teacher who is also a parent carries
+    // both in org_roles with 'advisor' as the primary org_role. Parent wins —
+    // the family shell is the one they can't otherwise reach on mobile, and
+    // teacher affordances stay role-checked where they're used.
+    userHasRole(user, 'parent') ||
     (user as any).has_dependents === true ||
     (user as any).has_linked_students === true
   );
