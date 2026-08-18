@@ -307,7 +307,7 @@ function ChildConversation({
                     </UIText>
                     <UIText
                       size="xs"
-                      style={{ color: isChild ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10, marginTop: 4, textAlign: 'right' }}
+                      style={{ color: isChild ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 12, marginTop: 4, textAlign: 'right' }}
                     >
                       {formatTime(msg.created_at)}
                     </UIText>

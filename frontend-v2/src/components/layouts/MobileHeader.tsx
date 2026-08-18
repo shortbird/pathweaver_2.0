@@ -51,7 +51,7 @@ function PreviewRolePill() {
 }
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
-import { useIsParent, useIsObserver } from '@/src/hooks/useStartSomething';
+import { useIsObserver } from '@/src/hooks/useStartSomething';
 import { useSchool } from '@/src/hooks/useSchool';
 import { VStack, UIText, Heading } from '../ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -417,12 +417,13 @@ function MasqueradeBadge() {
 
 export function PageHeader({ title }: PageHeaderProps) {
   const { isDesktop } = useBreakpoint();
-  const isParent = useIsParent();
   const isObserver = useIsObserver();
-  // Messages lives in the header only for the student shell. Parents keep it as
-  // a bottom tab; observers have no messaging surface. Mirrors which shell
-  // (tabs)/_layout.tsx renders, so the icon is present iff Messages left the bar.
-  const showMessages = !isParent && !isObserver;
+  // Messages lives in the header for everyone who has it, which since
+  // 2026-08-18 means parents too — Journal took its slot in the parent tab bar
+  // (see parentMobileTabOrder). Observers have no messaging surface at all.
+  // Mirrors which shell (tabs)/_layout.tsx renders, so the icon is present iff
+  // Messages left the bar; the two must move together.
+  const showMessages = !isObserver;
 
   // Desktop doesn't need this -- sidebar handles navigation
   if (isDesktop) return null;

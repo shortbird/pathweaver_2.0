@@ -122,7 +122,7 @@ function MembersList({ members, userId }: { members: any[]; userId?: string; onC
                     borderRadius: 8,
                   }}
                 >
-                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? '#6D469B' : c.textMuted, fontSize: 10 }}>
+                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? '#6D469B' : c.textMuted }}>
                     {roleLabel}
                   </UIText>
                 </View>
@@ -586,7 +586,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
             <View key={msg.id}>
               {/* Sender name (for others) */}
               {showSender && (
-                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mb-1" style={{ marginLeft: isMine ? 0 : 44, fontSize: 11 }}>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mb-1" style={{ marginLeft: isMine ? 0 : 44 }}>
                   {name}
                 </UIText>
               )}
@@ -666,7 +666,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                     {msg.edited_at && !msg.is_deleted ? (
                       <UIText
                         size="xs"
-                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 12 }}
                       >
                         (edited)
                       </UIText>
@@ -675,7 +675,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                       size="xs"
                       style={{
                         color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint,
-                        fontSize: 10,
+                        fontSize: 12,
                         textAlign: 'right',
                       }}
                     >

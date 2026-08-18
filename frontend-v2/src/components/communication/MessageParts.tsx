@@ -203,7 +203,7 @@ export function MessageAttachments({
                 {a.name || 'Attachment'}
               </UIText>
               {a.size ? (
-                <UIText size="xs" style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,0.7)' : c.textMuted }}>
+                <UIText size="xs" style={{ color: isMine ? 'rgba(255,255,255,0.7)' : c.textMuted }}>
                   {formatBytes(a.size)}
                 </UIText>
               ) : null}

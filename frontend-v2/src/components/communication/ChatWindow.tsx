@@ -402,14 +402,14 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     {msg.edited_at && !msg.is_deleted ? (
                       <UIText
                         size="xs"
-                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 12 }}
                       >
                         (edited)
                       </UIText>
                     ) : null}
                     <UIText
                       size="xs"
-                      style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                      style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 12 }}
                     >
                       {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
                     </UIText>

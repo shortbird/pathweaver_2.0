@@ -275,6 +275,39 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     }
   };
 
+  // Promote an observer to a co-parent. This is step two of how a second
+  // parent is actually added — invite them as an observer, then promote — and
+  // it existed only on the web until 2026-08-18, so a parent who started on
+  // their phone got stuck halfway.
+  const promoteObserver = (observer: Observer) => {
+    const name = observer.observer_name || observer.observer_email || 'this observer';
+    Alert.alert(
+      'Make a parent?',
+      `${name} will get full parent access to your children's accounts — the same as you. This cannot be undone from here.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Make a parent',
+          onPress: async () => {
+            try {
+              const { data } = await api.post('/api/parents/promote-observer', {
+                observer_id: observer.observer_id,
+              });
+              haptic.success();
+              Alert.alert('Done', data?.message || `${name} is now a parent in your family`);
+              // They stop being an observer, so the list has to be re-read
+              // rather than patched.
+              await refreshObservers();
+            } catch (err: any) {
+              haptic.error();
+              Alert.alert('Error', err?.response?.data?.error || 'Could not make this person a parent');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const removeObserver = (observer: Observer) => {
     const isPending = observer.status === 'pending';
     const name = observer.observer_name || observer.observer_email || (isPending ? 'this pending invite' : 'this observer');
@@ -509,6 +542,22 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                         <Ionicons name="trash-outline" size={16} color={c.iconMuted} />
                       </Pressable>
                     </HStack>
+                    {/* Promote to co-parent — accepted observers only, for the
+                        same reason as the toggles below: a pending invite has
+                        no links to convert. */}
+                    {!isPending && obs.observer_id && (
+                      <Pressable
+                        onPress={() => promoteObserver(obs)}
+                        accessibilityLabel={`Make ${name} a parent`}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10 }}
+                      >
+                        <Ionicons name="people-outline" size={14} color="#6D469B" />
+                        <UIText size="xs" className="text-optio-purple font-poppins-semibold">
+                          Make a parent
+                        </UIText>
+                      </Pressable>
+                    )}
+
                     {/* Per-kid toggle chips — accepted observers only; a pending
                         invite has no link rows to toggle yet. */}
                     {!isPending && multiKidFamily && (

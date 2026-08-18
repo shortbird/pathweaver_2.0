@@ -398,7 +398,7 @@ function TaskItem({
                 )}
                 {task.is_moment && (
                   <View className="px-1.5 py-0.5 rounded bg-optio-purple/10">
-                    <UIText size="xs" className="text-optio-purple" style={{ fontSize: 10 }}>From Journal</UIText>
+                    <UIText size="xs" className="text-optio-purple">From Journal</UIText>
                   </View>
                 )}
                 {!task.is_moment && evidenceBlocks.length > 0 && (
@@ -425,7 +425,7 @@ function TaskItem({
               {/* Success criteria - the checkable "done" bar for this task */}
               {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
                 <VStack space="xs" className="p-2.5 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
-                  <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase" style={{ fontSize: 10 }}>
+                  <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase">
                     Definition of Done
                   </UIText>
                   {task.success_criteria.map((criterion: string, i: number) => (

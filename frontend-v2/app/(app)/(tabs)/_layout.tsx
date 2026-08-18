@@ -91,7 +91,7 @@ export default function TabsLayout() {
             tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
-              fontSize: 10,
+              fontSize: 11,
               letterSpacing: -0.1,
             },
             tabBarItemStyle: {
@@ -215,7 +215,7 @@ export default function TabsLayout() {
             tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
-              fontSize: 10,
+              fontSize: 11,
               letterSpacing: -0.1,
             },
             tabBarItemStyle: {
@@ -319,7 +319,7 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: c.iconMuted,
           tabBarLabelStyle: {
             fontFamily: 'Poppins_500Medium',
-            fontSize: 10,
+            fontSize: 11,
             letterSpacing: -0.1,
           },
           tabBarItemStyle: {

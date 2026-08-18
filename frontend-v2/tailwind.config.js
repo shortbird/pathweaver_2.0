@@ -78,6 +78,21 @@ module.exports = {
           wellness: '#E65C5C',
         },
       },
+      // Body text sizes, deliberately a step above Tailwind's web defaults.
+      //
+      // 77% of this app's sized text rendered at 12px or 14px against an iOS
+      // body default of 17px, and families at iCreate's orientation reported it
+      // as simply too small to read (2026-08-18). These are the sizes UIText
+      // maps to; headings keep the standard scale, which was never the problem.
+      //
+      // Named rather than overriding text-xs/text-sm so the standard classes
+      // still mean what they say wherever they are used directly.
+      fontSize: {
+        'body-xs': '13px',
+        'body-sm': '15px',
+        'body-md': '17px',
+        'body-lg': '20px',
+      },
       fontFamily: {
         poppins: ['Poppins_400Regular'],
         'poppins-medium': ['Poppins_500Medium'],

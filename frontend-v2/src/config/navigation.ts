@@ -57,8 +57,18 @@ export const mobileTabOrder = ['dashboard', 'journal', 'capture', 'bounties', 'f
 
 /** Mobile tab order for parents. 'capture' is the center button, handled the
  *  same way as in the student shell — it triggers the CaptureSheet modal in
- *  parent mode (multi-select which kid(s) the moment is for). */
-export const parentMobileTabOrder = ['family', 'feed', 'capture', 'bounties', 'messages'];
+ *  parent mode (multi-select which kid(s) the moment is for).
+ *
+ *  Journal replaced Messages here on 2026-08-18. Parents had no Journal tab at
+ *  all, which on mobile is the surface quest discovery and capture live on, and
+ *  Messages was the odd one out: it is notification-driven rather than a browse
+ *  destination, which is exactly why it sits in the header for students. Moving
+ *  it up freed the slot Journal needed and made the two shells consistent.
+ *
+ *  This pairs with `showMessages` in components/layouts/MobileHeader.tsx — the
+ *  chat icon is shown iff Messages is NOT in the bar. Change one without the
+ *  other and parents get both surfaces or neither. */
+export const parentMobileTabOrder = ['family', 'journal', 'capture', 'bounties', 'feed'];
 
 /** Items visible in desktop sidebar */
 export const desktopNavItems = navItems.filter((n) => n.platforms.includes('web'));

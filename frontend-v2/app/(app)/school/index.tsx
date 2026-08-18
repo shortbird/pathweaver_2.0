@@ -23,6 +23,7 @@ import { useSchool, useSchoolHub, hasCommunityContent } from '@/src/hooks/useSch
 import SchoolCommunity from '@/src/components/school/SchoolCommunity';
 import CarpoolBoard from '@/src/components/school/CarpoolBoard';
 import ClassSchedule from '@/src/components/school/ClassSchedule';
+import SchoolResources from '@/src/components/school/SchoolResources';
 
 function DoorCard({ icon, title, description, onPress, testID }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -125,6 +126,8 @@ export default function SchoolScreen() {
           </VStack>
 
           <ClassSchedule organizationId={org?.organization_id} />
+
+          <SchoolResources organizationId={org?.organization_id} />
 
           <SchoolCommunity feed={feed} />
 

@@ -153,7 +153,7 @@ const ContactRow = React.memo(function ContactRow({
               <View
                 style={{ backgroundColor: `${relColor}15`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 }}
               >
-                <UIText size="xs" style={{ color: relColor, fontSize: 10, fontFamily: 'Poppins_500Medium' }}>
+                <UIText size="xs" style={{ color: relColor, fontFamily: 'Poppins_500Medium' }}>
                   {contact.relationship}
                 </UIText>
               </View>
