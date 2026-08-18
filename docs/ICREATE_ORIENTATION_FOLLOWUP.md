@@ -59,7 +59,7 @@ Send these now so answers arrive before anyone starts work that depends on them.
   (§1.1). Highest-value five minutes on this whole list — it is the most likely
   fix for Android search and costs nothing.
 
-### P2 — one backend pass
+### P2 — one backend pass  ✅ done 2026-08-18
 
 All small, all in the same neighbourhood (roles, permissions, serialisation),
 so they batch into one branch with one review and one deploy.
@@ -88,7 +88,7 @@ so they batch into one branch with one review and one deploy.
    search bug, but it means every future Android release waits on a manual
    promotion someone will forget.
 
-### P3 — one mobile pass, in this order
+### P3 — one mobile pass, in this order  ✅ done 2026-08-18 (bar the screenshot sweep)
 
 **Do the type scale first.** §2.2 changes the rendered size of every screen and
 needs a before/after screenshot sweep. Building the new screens first means
@@ -113,7 +113,7 @@ everything built afterwards is built at the right size.
 Steps 2–4 all touch the school page and tab bar, so land them together behind
 **one OTA** rather than three.
 
-### P4 — the one that needs care
+### P4 — the one that needs care  ✅ done 2026-08-18
 
 **§2.1 training-quest auto-resync.** Deliberately last. It performs bulk writes
 across every enrollment on each save, and the cascade behaviour is genuinely
@@ -138,7 +138,10 @@ completion survives, a draft evidence upload survives, and a task completed
   so a telemetry failure can never block a release, but nothing is broken.
 
 
-## 1. Broken in production, not yet fixed
+## 1. Broken in production
+
+Items marked DONE were fixed in the follow-up pass on 2026-08-18 and are kept
+here with their diagnosis, because the reasoning is the useful part.
 
 ### 1.1 Optio does not surface in Google Play search (it does on the App Store)
 
@@ -202,6 +205,8 @@ The package identifiers themselves are consistent and fine:
 
 ### 1.2 `/api/observers/invite` does not exist, and two clients call it
 
+**DONE 2026-08-18 (follow-up pass).** The mobile invite now creates a shareable link via `/api/observers/generate-link`; the dead web helper and `ParentLinking.jsx` (imported nowhere, calling two nonexistent routes) are deleted, along with the stale spec entries. A new backend test scans client source for `/api/` literals and asks the url_map whether anything serves them — it found **64** dead paths in total, frozen into a `KNOWN_DEAD` baseline so the check runs now and fails on anything new, with a companion test so the list can only shrink. See §4.5 for the debt it exposed.
+
 **Impact: high — a button that cannot ever work.**
 
 The route is not registered anywhere in the app. `app.url_map` has
@@ -223,6 +228,8 @@ and therefore prove nothing about the server. Worth noting as a test-design
 lesson: mocking the transport hides a missing route.
 
 ### 1.3 Per-user rate limiting silently falls back to IP
+
+**DONE 2026-08-18 (follow-up pass).** Instrumented, not fully root-caused. The identifier and whether the bucket was keyed by user or IP are now on the Sentry event, and the resolver logs why it fell back. The likely trigger is recorded: the limiter runs before `require_auth` and the mobile client reads its token synchronously, so an app resuming from background can fire without one. Confirming that needs a production repro.
 
 **Impact: high — it is why one shared bucket locked out a building.**
 
@@ -246,6 +253,8 @@ logs instead of being visible in the issue.
 
 ### 1.4 `student_access_logs` check-constraint violation
 
+**DONE 2026-08-18 (follow-up pass).** Already fixed before this pass — commit `7202d2f1` widened the CHECK and added a fallback; both events predate that deploy. Sentry issue resolved.
+
 **Impact: medium — FERPA-adjacent audit logging is failing.**
 
 Sentry **OPTIO-BACKEND-6K**, culprit `parent_child_overview.get_child_overview`:
@@ -262,6 +271,8 @@ expects a resolved role. Check what `valid_accessor_role` permits against what
 the logger passes.
 
 ### 1.5 Staff-only class fields are served to students
+
+**DONE 2026-08-18 (follow-up pass).** `/api/student/classes` now runs through the SIS catalog's own `STAFF_ONLY_FIELDS`, and `supply_budget_per_student` joined that list.
 
 **Impact: medium — data exposure, pre-existing.**
 
@@ -298,9 +309,13 @@ Fix is client-side: refresh the CSRF token before a mutation, or retry once on
 
 ---
 
-## 2. Known work, not yet done
+## 2. Product and UX work
+
+Items marked DONE were shipped in the follow-up pass on 2026-08-18.
 
 ### 2.1 Auto-resync of training-quest task edits
+
+**DONE 2026-08-18 (follow-up pass).** Shipped, rewritten to update rows **in place** rather than delete-and-recreate, with the ten tests this section asked for — including the three destructive edges.
 
 **Status: helper written, uncommitted, untested, wiring removed before deploy.**
 
@@ -335,6 +350,8 @@ The working script is a good starting point — it is in the session scratchpad,
 and its approach is described above.
 
 ### 2.2 Mobile type is too small — audit and raise the baseline
+
+**DONE 2026-08-18 (follow-up pass).** Body scale raised to 13/15/17/20 via named sizes in `tailwind.config.js`; 15 sub-11px hardcodes removed. The five that remain are unread-count numerals in fixed circular badges. A test pins the scale. **Still to do: the screenshot sweep over the densest screens and a pass at 200% OS text size** — the change is shipped but has not been eyeballed at scale.
 
 **Impact: high — it affects every screen and every user, and the audience
 includes parents and grandparents reading on a phone.**
@@ -400,6 +417,8 @@ Worth doing as one deliberate pass with screenshots, not piecemeal.
 
 ### 2.3 No "promote to parent" step in the mobile app
 
+**DONE 2026-08-18 (follow-up pass).** "Make a parent" now exists in the mobile observer sheet.
+
 **Impact: medium — the documented way to add a co-parent cannot be finished on a phone.**
 
 Adding a second parent is: invite as observer → **Family Settings → "Make a
@@ -411,6 +430,8 @@ promote, so a parent starting on their phone gets stuck halfway.
 Families at an in-person orientation are on phones. Worth adding.
 
 ### 2.4 Parent bottom-nav needs rework
+
+**DONE 2026-08-18 (follow-up pass).** Journal is in the parent bar, Messages moved to the header. `Feed` kept over `Bounties`.
 
 **Impact: medium — parents are the primary mobile audience and their shell has
 drifted from the student one.**
@@ -477,6 +498,8 @@ loop, and the tab bar cannot hold both plus Journal and School.
 
 
 ### 2.5 School documents/resources section is missing from the mobile school page
+
+**DONE 2026-08-18 (follow-up pass).** Shipped as a `Documents` SchoolSection, grouped by the school's own categories. `requires_ack` is still display-only — the open decision in this section stands.
 
 **Impact: high — the orientation quest sends families to a section that does not
 exist on their phones.**
@@ -664,6 +687,8 @@ Neither was written to disk.
 
 ### 4.2 Dead rate-limit config
 
+**DONE 2026-08-18 (follow-up pass).** `RATE_LIMIT_ENABLED` is now honoured by the decorator and logs a warning on every request it waves through; the unread `RATE_LIMIT_DEFAULT` is deleted. **The stray `DISABLE_RATE_LIMIT` env var on the Render service should be removed by hand** — nothing has ever read it.
+
 `DISABLE_RATE_LIMIT` is set on the prod service (`false`) and
 `RATE_LIMIT_ENABLED` is defined in `app_config.py`, but **nothing in the
 codebase reads either one**. Anyone reaching for them as an emergency switch
@@ -701,9 +726,32 @@ environment but not in the local shell, and `npm run ota:production` chains
 failed the *upload* and silently skipped the *publish*. Worth decoupling those
 steps so a telemetry failure can never block a release.
 
+### 4.5 64 dead API paths across the clients
+
+Surfaced by the new `test_client_api_paths_exist` guard. Client code calls 64
+`/api/...` paths that no Flask route serves — every one a button that fails for
+somebody. They are frozen in that test's `KNOWN_DEAD` baseline so new breakage
+fails while this is burnt down.
+
+Roughly:
+
+| group | count | note |
+|---|---|---|
+| `/api/tutor/*` | 8 | The tutor backend is gone — its tables are in CLAUDE.md's deleted list — but `ChatInterface.jsx`, `TutorWidget.jsx` and `ConversationHistory.jsx` still call it. Almost certainly delete the frontend. |
+| `/api/admin/*` | 9 | Services, quest-sources and service-inquiries routes that outlived their features. |
+| `/api/parents/*` | 7 | The student-invites-their-parent flow, plus approve/decline paths. |
+| `/api/quests/*` | 6 | rate/rating/progress/abandon. |
+| `/api/users/*` | 6 | `<id>/profile`, `<id>/settings`, `<id>/transcript`. |
+| the rest | 28 | LMS, SIS, portfolio, bounties, evidence, credits. |
+
+Worth doing group by group rather than all at once, deleting the caller wherever
+the feature is genuinely gone. The stale-baseline test means each deletion has
+to come off the list, so it cannot rot.
+
+
 ---
 
-## Already resolved on the day — do not re-investigate
+## Already resolved — do not re-investigate
 
 | | Resolution |
 |---|---|
