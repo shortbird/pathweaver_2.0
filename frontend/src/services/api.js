@@ -441,10 +441,6 @@ export const observerAPI = {
   // Get list of linked observers for current student
   getMyObservers: () => api.get('/api/observers/my-observers'),
 
-  // Send invitation to observer (student-initiated, email-based - legacy)
-  sendInvitation: (observerEmail, observerName, relationship) =>
-    api.post('/api/observers/invite', { observer_email: observerEmail, observer_name: observerName, relationship }),
-
   // Generate shareable invite link (student-initiated, link-based)
   generateInviteLink: () =>
     api.post('/api/observers/generate-link', {}),

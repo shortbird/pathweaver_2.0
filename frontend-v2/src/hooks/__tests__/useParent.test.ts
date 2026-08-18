@@ -142,28 +142,6 @@ describe('parent actions', () => {
     expect(api.post).toHaveBeenCalledTimes(2);
   });
 
-  it('add observer to kid: POST /api/observers/invite with student_id', async () => {
-    (api.post as jest.Mock).mockResolvedValueOnce({ data: { invitation: { id: 'inv-1' } } });
-
-    await api.post('/api/observers/invite', {
-      student_id: 'child-1',
-      observer_email: 'grandma@test.com',
-    });
-
-    expect(api.post).toHaveBeenCalledWith('/api/observers/invite', {
-      student_id: 'child-1',
-      observer_email: 'grandma@test.com',
-    });
-  });
-
-  it('remove observer from kid: DELETE /api/observers/{id}', async () => {
-    (api.delete as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
-
-    await api.delete('/api/observers/observer-1');
-
-    expect(api.delete).toHaveBeenCalledWith('/api/observers/observer-1');
-  });
-
   it('toggle AI settings: PUT /api/dependents/{id}/settings', async () => {
     (api.put as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
 

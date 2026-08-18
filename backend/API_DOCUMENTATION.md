@@ -248,7 +248,7 @@ Key endpoints:
 **Tag**: `Observer`
 
 Key endpoints:
-- `POST /api/observers/invite` - Send observer invitation
+- `POST /api/observers/generate-link` - Create a shareable observer invite link
 - `GET /api/observers/my-invitations` - List sent invitations
 - `GET /api/observers/my-observers` - List linked observers
 - `POST /api/observers/accept/{code}` - Accept invitation (PUBLIC)
@@ -454,7 +454,7 @@ Critical endpoints have rate limiting to prevent abuse:
 | `POST /api/auth/register` | 3 attempts per hour |
 | `POST /api/auth/password/reset` | 3 attempts per hour |
 | `POST /api/evidence/*` | 10 uploads per minute |
-| `POST /api/observers/invite` | 5 invitations per hour |
+| `POST /api/observers/generate-link` | 5 invitations per hour |
 
 Rate limit headers included in responses:
 - `X-RateLimit-Limit` - Request limit

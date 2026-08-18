@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch, Image } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch, Image, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
@@ -99,8 +99,10 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
   const [otaDebugVisible, setOtaDebugVisible] = useState(false);
-  const [observerEmail, setObserverEmail] = useState('');
   const [invitingObserver, setInvitingObserver] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  // Set when the server says a minor must ask a parent instead; it names who.
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [deletionRequesting, setDeletionRequesting] = useState(false);
   const [portfolioCopied, setPortfolioCopied] = useState(false);
   const [makingPublic, setMakingPublic] = useState(false);
@@ -113,19 +115,36 @@ export default function ProfileScreen() {
 
   const isStudent = user?.role === 'student' || user?.org_role === 'student';
 
-  const handleInviteObserver = async () => {
-    if (!observerEmail.trim()) return;
+  // Observer invites are a shareable LINK, not an email. The email endpoint
+  // this screen used to POST to (/api/observers/invite) does not exist —
+  // student invites became link-based, and the button had been failing with a
+  // 404 for everyone who pressed it. /api/observers/generate-link is the
+  // supported path and returns a URL to hand out.
+  const handleGenerateInviteLink = async () => {
     setInvitingObserver(true);
+    setInviteNotice(null);
     try {
-      await api.post('/api/observers/invite', { observer_email: observerEmail.trim() });
-      Alert.alert('Sent', `Invitation sent to ${observerEmail.trim()}`);
-      setObserverEmail('');
-      setInviteObserverVisible(false);
+      const { data } = await api.post('/api/observers/generate-link', {});
+      if (!data?.shareable_link) throw new Error('No link returned');
+      setInviteLink(data.shareable_link);
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to send invitation');
+      const body = err?.response?.data;
+      // A minor cannot hand out access to their own record — the server
+      // answers with who to ask instead, so show that rather than an error.
+      if (body?.error === 'parent_required' && body?.message) {
+        setInviteNotice(body.message);
+      } else {
+        Alert.alert('Error', body?.error || 'Could not create an invite link');
+      }
     } finally {
       setInvitingObserver(false);
     }
+  };
+
+  const closeInviteObserver = () => {
+    setInviteObserverVisible(false);
+    setInviteLink(null);
+    setInviteNotice(null);
   };
 
   const handleRemoveObserver = (linkId: string, name: string) => {
@@ -537,30 +556,57 @@ export default function ProfileScreen() {
         <UpdateDiagnosticsModal visible onClose={() => setOtaDebugVisible(false)} />
       )}
 
-      {/* Invite Observer Modal */}
-      <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>
+      {/* Invite Observer Modal — a shareable link, not an email invite. */}
+      <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={closeInviteObserver}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setInviteObserverVisible(false)} />
+          <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={closeInviteObserver} />
           <View style={{ backgroundColor: isDark ? '#1E1E36' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
             <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
-              <Heading size="lg">Invite Observer</Heading>
-              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                Enter the email of someone you'd like to observe your learning journey.
-              </UIText>
-              <TextInput
-                value={observerEmail}
-                onChangeText={setObserverEmail}
-                placeholder="Observer's email address"
-                placeholderTextColor={c.textFaint}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
-                style={{ fontFamily: 'Poppins_400Regular' }}
-              />
-              <Button size="lg" onPress={handleInviteObserver} loading={invitingObserver} disabled={!observerEmail.trim() || invitingObserver} className="w-full">
-                <ButtonText>Send Invitation</ButtonText>
-              </Button>
+              <Heading size="lg">Invite an observer</Heading>
+
+              {inviteNotice ? (
+                // A minor asking: the server names the parent to ask, so say
+                // that plainly rather than showing a failure.
+                <HStack className="items-start gap-2 p-3 rounded-xl bg-surface-50 dark:bg-dark-surface-50">
+                  <Ionicons name="information-circle-outline" size={18} color="#6D469B" style={{ marginTop: 1 }} />
+                  <UIText size="sm" className="flex-1 text-typo-600 dark:text-dark-typo-400">
+                    {inviteNotice}
+                  </UIText>
+                </HStack>
+              ) : inviteLink ? (
+                <>
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                    Send this link to whoever you want following your learning. It
+                    works once, and expires in 7 days.
+                  </UIText>
+                  <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4">
+                    <UIText size="sm" className="text-typo-600 dark:text-dark-typo-400" selectable>
+                      {inviteLink}
+                    </UIText>
+                  </View>
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onPress={() => Share.share(
+                      Platform.OS === 'ios' ? { url: inviteLink } : { message: inviteLink },
+                    )}
+                  >
+                    <ButtonText>Share link</ButtonText>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                    Create a link you can send to someone you'd like following your
+                    learning journey. They'll be able to see your activity and
+                    leave comments.
+                  </UIText>
+                  <Button size="lg" onPress={handleGenerateInviteLink} loading={invitingObserver} disabled={invitingObserver} className="w-full">
+                    <ButtonText>Create invite link</ButtonText>
+                  </Button>
+                </>
+              )}
             </VStack>
           </View>
         </KeyboardAvoidingView>

@@ -7,8 +7,11 @@
  *
  * Two audiences, two endpoints, deliberately:
  *
- *   student   /api/classes/student/classes — their own enrollments. Carries
- *             `meetings` since class_service._attach_schedule.
+ *   student   /api/student/classes — their own enrollments. Carries `meetings`
+ *             since class_service._attach_schedule. NOTE the prefix: the
+ *             blueprint mounts at /api/student, not /api/classes. This was
+ *             shipped as /api/classes/student/classes and 404'd for every
+ *             student until the client-path test caught it.
  *   guardian  /api/sis/parent/students/<id>/schedule — one call per child.
  *             This route already returned meetings (it backs the web schedule
  *             builder), so a guardian's schedule needs no backend change.
@@ -105,7 +108,7 @@ export function useClassSchedule(organizationId?: string | null) {
     setLoading(true);
     try {
       if (isStudent) {
-        const { data } = await api.get('/api/classes/student/classes');
+        const { data } = await api.get('/api/student/classes');
         setSchedules([{
           student_id: (user as any).id,
           student_name: 'My schedule',

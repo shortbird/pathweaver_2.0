@@ -917,34 +917,6 @@ paths:
   # OBSERVERS (6 endpoints)
   # =====================
 
-  /api/observers/invite:
-    post:
-      tags: [Observer]
-      summary: Send observer invitation
-      description: Email invitation to observer (grandparent, mentor, etc.)
-      security:
-        - cookieAuth: []
-        - csrfToken: []
-      parameters:
-        - in: body
-          name: invitation
-          required: true
-          schema:
-            type: object
-            required: [email, observer_name]
-            properties:
-              email:
-                type: string
-              observer_name:
-                type: string
-              personal_message:
-                type: string
-      responses:
-        200:
-          description: Invitation sent
-        429:
-          description: Too many invitations
-
   /api/observers/my-invitations:
     get:
       tags: [Observer]

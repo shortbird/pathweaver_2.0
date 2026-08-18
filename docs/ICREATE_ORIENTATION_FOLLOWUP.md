@@ -29,17 +29,19 @@ Two facts that shaped the order:
 | | Task | Why now |
 |---|---|---|
 | **P0.1** | **Rotate the Expo access token and the Render API key** (§4.1) | Both were exposed in a session transcript. Everything else can wait; this cannot. |
-| **P0.2** | **Scale Render down to Standard × 2** (§4.3) | Currently Pro × 2 ≈ $170/mo for a service now peaking at **0.10 CPU of 2.0**. |
+| ~~P0.2~~ | ~~Scale Render down~~ — **decided against, 2026-08-18: staying on Pro × 2** | Headroom for the next event is worth more than the difference. See §4.3. |
 | **P0.3** | Resolve Sentry **OPTIO-BACKEND-6Q** | It is the deliberate restart during scaling. Close it so the issue list means something. |
 
-**P0.2 has a trap.** Do **not** go back to Starter. Workers went 2 → 4 and
-threads 2 → 8 during the incident, and memory now runs **656–734 MB per
-instance** — comfortably over Starter's 512 MB cap. Starter would OOM. Standard
-(1 CPU / 2 GB) fits it with room, keeps two instances, and costs roughly $50/mo
-against $170. Keep two instances regardless: the second is what removed the last
-502s, because `max_requests=1000` recycles workers and a single instance has
-nothing to serve during a recycle. A plan change needs a full **deploy**, not a
-restart.
+**Sizing decision (2026-08-18): stay on Pro × 2.** Kept deliberately for
+headroom at the next event rather than scaled back down.
+
+If that is ever revisited, the trap to know: workers went 2 → 4 and threads
+2 → 8 during the incident, so memory now runs **656–734 MB per instance** —
+over Starter's 512 MB cap. Starter would OOM unless the worker count is reverted
+with it. Standard (1 CPU / 2 GB) would fit. Keep two instances whatever the
+plan: the second is what removed the last 502s, because `max_requests=1000`
+recycles workers and a single instance has nothing to serve during a recycle.
+A plan change needs a full **deploy**, not a restart.
 
 ### P1 — today, then wait: the questions other people answer
 

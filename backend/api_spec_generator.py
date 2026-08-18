@@ -293,7 +293,6 @@ def generate_summary(path, method, endpoint):
         '/api/dependents/<uuid:dependent_id>/promote': 'Promote dependent to independent account',
 
         # Observer
-        '/api/observers/invite': 'Send observer invitation email',
         '/api/observers/my-observers': 'List all observers for student',
         '/api/observers/accept/<code>': 'Accept observer invitation',
 
@@ -333,7 +332,6 @@ def generate_description(path, method, endpoint):
         '/api/badges/claimable': 'Get list of badges the user has earned but not yet claimed. Checks quest completion and XP requirements.',
         '/api/portfolio/<slug>': 'Public endpoint for viewing user portfolios/diplomas. Shows completed quests, earned badges, and XP breakdown by pillar.',
         '/api/dependents/create': 'Create a COPPA-compliant dependent profile for children under 13. Requires parental consent.',
-        '/api/observers/invite': 'Send email invitation to observer (grandparent, mentor, etc.) to view student\'s learning journey.',
     }
 
     if path in descriptions:
