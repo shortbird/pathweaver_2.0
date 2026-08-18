@@ -18,11 +18,29 @@ from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
 from utils.storage_urls import sign_in_place
 
+from utils.roles import get_effective_roles
+
 logger = logging.getLogger(__name__)
 
 # Loose email validation — server-side guard, not a substitute for the
 # more permissive client-side hint. Anything obviously malformed gets rejected.
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+
+# Every parent-side route here gates on "is the caller a parent". It has to read
+# the role the way the role model actually works: an organisation's parents are
+# role='org_managed' with 'parent' in org_role/org_roles, so a check against the
+# `role` column alone sees 'org_managed' and refuses them.
+#
+# That is what blocked Mary Caples from inviting her husband during iCreate's
+# family orientation (2026-08-18) — and it blocked every other org parent in the
+# building, on all seven parent endpoints in this module and its sibling. Same
+# shape as the campus-coordinator lockout the same day (Sentry OPTIO-BACKEND-6P).
+def _is_parent(user):
+    """True when this user holds the parent role — platform or organisation —
+    or is a superadmin previewing a parent surface."""
+    return bool({'parent', 'superadmin'} & set(get_effective_roles(user or {})))
 
 
 def register_routes(bp):
@@ -57,8 +75,8 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Verify parent role
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Verify parent-child relationship for ALL students
@@ -186,11 +204,11 @@ def register_routes(bp):
 
             # Verify caller is a parent (or superadmin previewing as parent)
             parent = supabase.table('users') \
-                .select('id, role, display_name, first_name, last_name') \
+                .select('id, role, org_role, org_roles, display_name, first_name, last_name') \
                 .eq('id', parent_id) \
                 .single() \
                 .execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Look up the invitation; must belong to this parent, still be pending,
@@ -290,8 +308,8 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Verify parent role
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Get all children this parent manages
@@ -487,8 +505,8 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Verify parent role
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Verify parent-child relationship
@@ -580,8 +598,8 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Verify parent role
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Get all children this parent manages
@@ -636,8 +654,8 @@ def register_routes(bp):
         try:
             # admin client justified: parent-role gate + cross-user read of covered children's profiles via observer_invitation_students for the parent's own pending invites
             supabase = get_supabase_admin_client()
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             now_iso = datetime.utcnow().isoformat()

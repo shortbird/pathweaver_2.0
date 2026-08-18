@@ -15,7 +15,25 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 
+from utils.roles import get_effective_roles
+
 logger = logging.getLogger(__name__)
+
+
+
+# Every parent-side route here gates on "is the caller a parent". It has to read
+# the role the way the role model actually works: an organisation's parents are
+# role='org_managed' with 'parent' in org_role/org_roles, so a check against the
+# `role` column alone sees 'org_managed' and refuses them.
+#
+# That is what blocked Mary Caples from inviting her husband during iCreate's
+# family orientation (2026-08-18) — and it blocked every other org parent in the
+# building, on all seven parent endpoints in this module and its sibling. Same
+# shape as the campus-coordinator lockout the same day (Sentry OPTIO-BACKEND-6P).
+def _is_parent(user):
+    """True when this user holds the parent role — platform or organisation —
+    or is a superadmin previewing a parent surface."""
+    return bool({'parent', 'superadmin'} & set(get_effective_roles(user or {})))
 
 
 def register_routes(bp):
@@ -52,8 +70,8 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Verify parent role
-            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
-            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            parent = supabase.table('users').select('role, org_role, org_roles').eq('id', parent_id).single().execute()
+            if not parent.data or not _is_parent(parent.data):
                 return jsonify({'error': 'Only parents can use this endpoint'}), 403
 
             # Verify parent-child relationship
