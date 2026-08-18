@@ -10,6 +10,132 @@ Ordered by priority within each section.
 
 ---
 
+## 0. Plan of attack
+
+Written after the event closed, 2026-08-18. Five phases, ordered so that
+nothing has to be done twice and the things other people gate on get asked
+first.
+
+Two facts that shaped the order:
+
+- **CI is green on `main`.** Every push today ran `Release (main)` and passed,
+  even though the deploys were triggered by hand to skip the wait. Nothing was
+  left broken and there is no cleanup — normal `git push origin main` flow can
+  resume immediately.
+- **Load is back to idle**, but memory is not what it was. See P0.2.
+
+### P0 — today, minutes each
+
+| | Task | Why now |
+|---|---|---|
+| **P0.1** | **Rotate the Expo access token and the Render API key** (§4.1) | Both were exposed in a session transcript. Everything else can wait; this cannot. |
+| **P0.2** | **Scale Render down to Standard × 2** (§4.3) | Currently Pro × 2 ≈ $170/mo for a service now peaking at **0.10 CPU of 2.0**. |
+| **P0.3** | Resolve Sentry **OPTIO-BACKEND-6Q** | It is the deliberate restart during scaling. Close it so the issue list means something. |
+
+**P0.2 has a trap.** Do **not** go back to Starter. Workers went 2 → 4 and
+threads 2 → 8 during the incident, and memory now runs **656–734 MB per
+instance** — comfortably over Starter's 512 MB cap. Starter would OOM. Standard
+(1 CPU / 2 GB) fits it with room, keeps two instances, and costs roughly $50/mo
+against $170. Keep two instances regardless: the second is what removed the last
+502s, because `max_requests=1000` recycles workers and a single instance has
+nothing to serve during a recycle. A plan change needs a full **deploy**, not a
+restart.
+
+### P1 — today, then wait: the questions other people answer
+
+Send these now so answers arrive before anyone starts work that depends on them.
+
+- **iCreate:** did the **Bezzant family** actually enrol? (§3.1 — blocks a real
+  person's account either way.)
+- **iCreate:** are the two **Stephanie Davis** accounts the same person? (§3.3)
+- **iCreate:** dates of birth for **Garrison Bird, Emmitt Funk, Chloe Woellhaf,
+  Cami Christensen** (§3.2), and whether **Erin Swenson** is the second guardian
+  on the Swenson household (§3.3).
+- **iCreate:** the room for **Elementary Microschool (Monday)** (§3.6) — one
+  field, appears in the app instantly, no release.
+- **Whoever holds Play Console:** rename the listing to **"Optio Education"**
+  (§1.1). Highest-value five minutes on this whole list — it is the most likely
+  fix for Android search and costs nothing.
+
+### P2 — one backend pass
+
+All small, all in the same neighbourhood (roles, permissions, serialisation),
+so they batch into one branch with one review and one deploy.
+
+1. **§1.2 `/api/observers/invite` does not exist.** Do this first — it is a
+   button that has never worked for anyone. Decide whether the route should
+   exist or the two callers should point at `generate-link` /
+   `parent-invite`, then delete the stale entries from
+   `API_DOCUMENTATION.md` and `complete_api_spec.yml`.
+2. **§1.4 `student_access_logs` constraint violation.** Audit records are being
+   dropped. Very likely the same `org_managed`-reaching-a-resolved-role-column
+   shape as the two bugs already fixed today, so it should be quick with that
+   in mind.
+3. **§1.5 staff-only class fields served to students.** Route
+   `/api/classes/student/classes` through the audience filter the SIS catalog
+   already has (`STAFF_ONLY_FIELDS` / `_for_audience`).
+4. **§1.3 per-user rate limiting falling back to IP.** Root cause only — the
+   symptom is already fixed. While in there, add the identifier to the Sentry
+   context so the next lockout is legible without digging through Render logs.
+5. **§1.7** — 6T (make finalize idempotent), 6M (confirm retry coverage), 6N
+   (confirm it is not a mobile refresh race).
+6. **§4.2 dead rate-limit config.** Wire `DISABLE_RATE_LIMIT` /
+   `RATE_LIMIT_ENABLED` up or delete them. Config that looks like an emergency
+   switch and does nothing is worse than no switch.
+7. **§1.1 `releaseStatus: "draft"`** → `"completed"` in `eas.json`. Not the
+   search bug, but it means every future Android release waits on a manual
+   promotion someone will forget.
+
+### P3 — one mobile pass, in this order
+
+**Do the type scale first.** §2.2 changes the rendered size of every screen and
+needs a before/after screenshot sweep. Building the new screens first means
+screenshotting them twice and re-fixing their layouts. Doing it first means
+everything built afterwards is built at the right size.
+
+1. **§2.2 type scale.** One change to `sizeMap` in `Text.tsx`, then the
+   screenshot sweep over the six densest screens, then the 25 sub-11px
+   hardcodes, then a pass at 200% OS text size. Do not disable
+   `allowFontScaling` to protect a layout.
+2. **§2.5 resources section.** Highest user value on the mobile list: the
+   orientation quest literally tells families to open a Resources section that
+   does not exist, the endpoint is already built and family-scoped, and iCreate
+   has seven documents sitting there. Ship it as a `SchoolSection` so it
+   inherits the collapse behaviour.
+3. **§2.4 parent nav rework.** One swap — Messages to the header, Journal into
+   the bar. Remember it is a coordinated two-file edit or parents get both
+   surfaces or neither.
+4. **§2.3 mobile promote-to-parent.** Completes the co-parent flow on the
+   surface families actually use.
+
+Steps 2–4 all touch the school page and tab bar, so land them together behind
+**one OTA** rather than three.
+
+### P4 — the one that needs care
+
+**§2.1 training-quest auto-resync.** Deliberately last. It performs bulk writes
+across every enrollment on each save, and the cascade behaviour is genuinely
+dangerous: `quest_task_completions.user_quest_task_id` and
+`user_task_evidence_documents.task_id` are both `ON DELETE CASCADE`, so the
+obvious implementation destroys awarded XP and uploaded evidence.
+
+Do not start it without reading §2.1's constraints. The one-off that ran
+successfully on 152 live enrollments **updated rows in place** precisely so a
+race could not cascade. Required tests before it goes anywhere near a route: a
+completion survives, a draft evidence upload survives, and a task completed
+*during* the run survives.
+
+### Not on the critical path
+
+- **§1.6 CSRF expiry** — staff annoyance, `level: info`, no family affected.
+  Fix when someone is already in that code.
+- **§3.4 households with no linked accounts** — leave them. Two are prepaid
+  families; deleting throws away the fee match.
+- **§3.5 "person Family"** test record — delete whenever convenient.
+- **§4.4 OTA sourcemaps** — worth decoupling the Sentry upload from the publish
+  so a telemetry failure can never block a release, but nothing is broken.
+
+
 ## 1. Broken in production, not yet fixed
 
 ### 1.1 Optio does not surface in Google Play search (it does on the App Store)
