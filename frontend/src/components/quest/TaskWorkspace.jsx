@@ -1006,24 +1006,17 @@ const TaskWorkspace = ({
                     My Evidence
                   </h3>
                   <div className="flex items-center gap-1 sm:gap-2">
-                    {/* Save Button - icon only on mobile */}
-                    <button
-                      onClick={() => saveEvidence(evidenceBlocks)}
-                      disabled={isSaving || evidenceBlocks.length === 0}
-                      className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
-                      title="Save"
-                    >
-                      {isSaving ? (
+                    {/* There is no Save button. Evidence saves itself: adding,
+                        editing, deleting and reordering each call saveEvidence
+                        on the spot, so the button only ever re-posted blocks
+                        that were already stored. It sat first in a row of five
+                        controls and read as the thing you had to press. */}
+                    {isSaving && (
+                      <span className="flex items-center gap-1.5 text-xs text-gray-400" role="status">
                         <Spinner size="sm" />
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 sm:hidden">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 3.75H6.912a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H15M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M12 3v8.25m0 0l-3-3m3 3l3-3" />
-                          </svg>
-                          <span className="hidden sm:inline">Save</span>
-                        </>
-                      )}
-                    </button>
+                        <span className="hidden sm:inline">Saving…</span>
+                      </span>
+                    )}
 
                     {/* Add Evidence Button - icon only on mobile */}
                     <button
@@ -1053,13 +1046,14 @@ const TaskWorkspace = ({
                       </button>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                        {/* Plain text, not a bordered pill. The tick already
+                            says "completed", so the word was saying it twice,
+                            and boxing a status made it compete with the two
+                            real buttons beside it. */}
+                        <span className="flex items-center gap-1 text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap">
                           <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                          <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap">
-                            <span className="sm:hidden">+{task.xp_amount} XP</span>
-                            <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
-                          </span>
-                        </div>
+                          +{task.xp_amount} XP
+                        </span>
                         {/* Per-task diploma credit. Hidden inside a class quest —
                             there, credit is requested at the class level once the
                             XP requirement is met (see the class progress panel). */}
@@ -1112,15 +1106,17 @@ const TaskWorkspace = ({
                                 : 'text-gray-600 bg-white border-gray-300 hover:border-optio-purple/40 hover:text-optio-purple'
                             }`}
                             title={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
+                            aria-label={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
+                            aria-pressed={portfolioPick.inPortfolio}
                           >
+                            {/* Icon only. "Include in portfolio" was the widest
+                                thing in the row for a toggle whose filled/empty
+                                bookmark already says which way it is set. */}
                             {portfolioPick.inPortfolio ? (
                               <BookmarkSolidIcon className="w-4 h-4" />
                             ) : (
                               <BookmarkIcon className="w-4 h-4" />
                             )}
-                            <span className="hidden sm:inline">
-                              {portfolioPick.inPortfolio ? 'In portfolio' : 'Include in portfolio'}
-                            </span>
                           </button>
                         )}
                       </div>
