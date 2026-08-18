@@ -199,6 +199,35 @@ def optio_course_tuition_cents(org_id: str) -> Optional[int]:
     return value if isinstance(value, int) and value >= 0 else None
 
 
+# ── Schedule settings (rooms + time blocks) ──────────────────────────────────
+# Both live in organizations.feature_flags.sis_settings, edited in SIS Settings.
+# They are served here, on their own, because the Classes page used to read them
+# out of GET /api/admin/organizations/<id> -- an org_admin-gated platform
+# endpoint. A campus coordinator is deliberately NOT an org_admin, so that call
+# 403'd for them and the page fell back to its no-rooms/no-blocks form: a free
+# text box for the classroom instead of the room picker, and raw time inputs
+# instead of the school's blocks. It only ever looked right while a superadmin
+# was masquerading, because require_org_admin authorizes the ACTUAL admin.
+
+def schedule_settings(org_id: str) -> Dict[str, Any]:
+    """The org's classrooms and school-day blocks; empty lists when unset.
+
+    Just these two keys, not the whole sis_settings blob: the rest of it is
+    money and policy, and this read is open to every staff role.
+    """
+    row = (
+        _admin().table('organizations').select('feature_flags')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    settings = ((row[0].get('feature_flags') or {}).get('sis_settings') or {}) if row else {}
+    rooms = settings.get('rooms')
+    blocks = settings.get('time_blocks')
+    return {
+        'rooms': rooms if isinstance(rooms, list) else [],
+        'time_blocks': blocks if isinstance(blocks, list) else [],
+    }
+
+
 def list_course_settings(org_id: str) -> Dict[str, Any]:
     rows = (
         _admin().table('org_course_settings')

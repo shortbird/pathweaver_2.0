@@ -158,3 +158,96 @@ class TestTeacherConflictRoutes:
                               headers=auth_headers)
         assert resp.status_code == 200
         assert resp.get_json()['conflicts'] == [row]
+
+
+def _admin_client_for_org_role(org_role):
+    """Fake admin client for an org_managed user whose real role is in org_role."""
+    client = Mock()
+    table = Mock()
+    client.table.return_value = table
+    for chained in ('select', 'eq', 'limit'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(
+        data=[{'role': 'org_managed', 'org_role': org_role, 'org_roles': [org_role]}]
+    )
+    return client
+
+
+@pytest.mark.unit
+class TestScheduleSettingsRoute:
+    """Rooms + time blocks for the class editor's pickers.
+
+    The reason this route exists: the Classes page read them from
+    /api/admin/organizations/<id>, which is org_admin-gated. A campus
+    coordinator is deliberately not an org_admin, so they got a 403 and a
+    free-text classroom box where everyone else saw the room dropdown.
+    """
+
+    SETTINGS = {'rooms': [{'name': 'Art Studio', 'description': '12 students'}],
+                'time_blocks': [{'start': '09:30', 'end': '10:30', 'label': ''}]}
+
+    def test_requires_auth(self, client):
+        assert client.get('/api/sis/schedule-settings').status_code == 401
+
+    def test_forbidden_for_student(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('student')):
+            resp = client.get('/api/sis/schedule-settings', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_campus_coordinator_gets_the_rooms(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_org_role('campus_coordinator')), \
+             patch('services.sis_service.resolve_org_id', return_value='org-1'), \
+             patch('routes.sis.catalog.catalog.schedule_settings', return_value=self.SETTINGS):
+            resp = client.get('/api/sis/schedule-settings?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body['rooms'] == self.SETTINGS['rooms']
+        assert body['time_blocks'] == self.SETTINGS['time_blocks']
+
+    def test_teacher_may_read_them_too(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_org_role('advisor')), \
+             patch('services.sis_service.resolve_org_id', return_value='org-1'), \
+             patch('routes.sis.catalog.catalog.schedule_settings', return_value=self.SETTINGS):
+            resp = client.get('/api/sis/schedule-settings?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+
+
+@pytest.mark.unit
+class TestScheduleSettingsService:
+    """Only the two schedule keys come back, and never as anything but a list."""
+
+    def _org_row(self, flags):
+        admin = Mock()
+        table = Mock()
+        admin.table.return_value = table
+        for chained in ('select', 'eq', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[{'feature_flags': flags}])
+        return admin
+
+    def _call(self, flags):
+        from services import sis_catalog_service
+        with patch.object(sis_catalog_service, '_admin', return_value=self._org_row(flags)):
+            return sis_catalog_service.schedule_settings('org-1')
+
+    def test_returns_rooms_and_blocks(self):
+        out = self._call({'sis_settings': {
+            'rooms': [{'name': 'Kitchen'}],
+            'time_blocks': [{'start': '09:30', 'end': '10:30'}],
+        }})
+        assert out == {'rooms': [{'name': 'Kitchen'}],
+                       'time_blocks': [{'start': '09:30', 'end': '10:30'}]}
+
+    def test_withholds_the_rest_of_the_settings_blob(self):
+        out = self._call({'sis_settings': {'rooms': [], 'optio_course_tuition_cents': 25000}})
+        assert out == {'rooms': [], 'time_blocks': []}
+
+    def test_empty_when_unset_or_nulled(self):
+        # Settings cards write null, not [], when the last row is removed.
+        assert self._call({'sis_settings': {'rooms': None}}) == {'rooms': [], 'time_blocks': []}
+        assert self._call({}) == {'rooms': [], 'time_blocks': []}

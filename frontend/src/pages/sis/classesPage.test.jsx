@@ -34,6 +34,18 @@ const { api, apiData, conflictRows } = vi.hoisted(() => {
         optio_course_tuition_cents: 25000, // one org-wide price for all Optio courses
       } }
     }
+    // Rooms + school-day blocks for the editor's pickers. Served by a SIS
+    // route, not the org_admin-gated /api/admin/organizations/:id, so a campus
+    // coordinator gets them too.
+    if (url.includes('/api/sis/schedule-settings')) {
+      return { data: {
+        rooms: [
+          { name: 'Art Studio', description: 'Upstairs. 12 students' },
+          { name: 'Kitchen', description: 'Cooking classroom' },
+        ],
+        time_blocks: [],
+      } }
+    }
     if (url.includes('/api/sis/staff')) {
       return { data: { staff: [
         { id: 's1', name: 'Jane Doe', roles: ['advisor'] },
@@ -257,6 +269,25 @@ describe('ClassesPage', () => {
     // clicking the row again collapses it
     fireEvent.click(screen.getByText('Pottery'))
     expect(screen.queryByDisplayValue('Clay')).not.toBeInTheDocument()
+  })
+
+  // The room picker's data comes from /api/sis/schedule-settings, NOT from the
+  // org_admin-gated /api/admin/organizations/:id it used to read. A campus
+  // coordinator is deliberately not an org_admin, so that call 403'd for them
+  // and the editor fell back to a bare text box -- while a masquerading
+  // superadmin, authorized as themselves, saw the dropdown and no bug.
+  it('offers the school rooms in the expanded row, for a campus coordinator too', async () => {
+    authState = { user: { id: 'u1', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(screen.getByText('Pottery'))
+
+    const classroom = await screen.findByLabelText('Classroom')
+    expect(classroom.tagName).toBe('SELECT')
+    expect(screen.getByRole('option', { name: /Art Studio/ })).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/schedule-settings'))
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/admin/organizations'))
   })
 
   it('edits an expanded row inline and saves it from the table view', async () => {
