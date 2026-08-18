@@ -30,6 +30,13 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
   const [context, setContext] = useState('')
   const [notes, setNotes] = useState('')
   const [taskCount, setTaskCount] = useState(4)
+  // The chosen document is held until Generate is pressed rather than sent the
+  // instant it is picked. Choosing a file used to start the run on the spot,
+  // which meant the notes and task-count fields above it were whatever they
+  // happened to be — iCreate: "when you upload the document, it starts
+  // generating it automatically, it'd be better if it let me click the generate
+  // draft button when I was ready."
+  const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
   const [busy, setBusy] = useState(false)
   const fileRef = useRef(null)
@@ -47,11 +54,11 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
     })
     toast.success(`Draft ready — ${tasks.length} task${tasks.length === 1 ? '' : 's'} to review`)
     if (!alwaysOpen) setOpen(false)
-    setContext(''); setNotes(''); setFileName('')
+    setContext(''); setNotes(''); setFileName(''); setFile(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const generate = async (file) => {
+  const generate = async () => {
     if (!file && !context.trim()) {
       toast.error('Paste some context or choose a document first')
       return
@@ -85,10 +92,10 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
   }
 
   const onFile = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setFileName(file.name)
-    generate(file)
+    const chosen = e.target.files?.[0]
+    if (!chosen) return
+    setFile(chosen)
+    setFileName(chosen.name)
   }
 
   if (!open && !alwaysOpen) {
@@ -143,11 +150,17 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
           {fileName || 'Upload a document'}
         </button>
 
-        <button type="button" disabled={busy || !context.trim()} onClick={() => generate(null)}
+        <button type="button" disabled={busy || !(file || context.trim())} onClick={generate}
           className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
           {busy ? 'Reading it…' : 'Generate draft'}
         </button>
       </div>
+      {file && !busy && (
+        <p className="text-xs text-neutral-600">
+          Ready to read <span className="font-medium">{fileName}</span> — set the tasks and
+          emphasis above, then press Generate draft.
+        </p>
+      )}
       <p className="text-[11px] text-neutral-400">
         PDF, Word, or text, up to 5MB. A scanned PDF is a picture of words, so its text has to be pasted.
       </p>

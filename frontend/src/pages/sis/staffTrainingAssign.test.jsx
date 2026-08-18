@@ -580,13 +580,17 @@ describe('building a training quest', () => {
     expect(body.title).toBe('Family orientation')
   })
 
-  it('does not ask which pillar an onboarding task grows', async () => {
-    // The task still carries a pillar in the database — it is NOT NULL and the
-    // XP award path requires one. It is just not a question worth asking about
-    // a staff handbook.
+  it('lets an admin choose which pillar a task grows', async () => {
+    // This used to assert the opposite. The pillar chip is genuinely noise on a
+    // staff handbook, so the LEARNER's page still hides it (QuestDetail reads
+    // quest.is_training) — but hiding the control here did not remove the
+    // pillar, it silently kept blankTask()'s default. Ten of iCreate's sixteen
+    // orientation tasks went in as Art, "Find the Absences feature in Optio"
+    // among them, and that is the pillar their XP landed in. An admin editing
+    // the quest has to be able to reach it.
     await openBuilder()
     await screen.findByPlaceholderText(/quest title/i)
-    expect(screen.queryByLabelText(/task 1 pillar/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/task 1 pillar/i)).toBeInTheDocument()
   })
 
   it('still asks for XP per task, which is what the finish line counts', async () => {

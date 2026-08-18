@@ -345,7 +345,22 @@ Return ONLY valid JSON (no markdown code blocks):
 
         target_task_count = max(2, min(8, target_task_count))
         pillars = ', '.join(self.valid_pillars)
-        extra = f"\nWhat the teacher wants emphasised: {notes.strip()}\n" if (notes or '').strip() else ""
+        # The teacher's own instructions go LAST, after the house style, and say
+        # so. They used to sit above it, and the specific rules underneath simply
+        # won: "make the first task read part 1 and 2 of the handbook" came back
+        # as "write notes from the teacher handbook" (Read was not in the verb
+        # list), "make the FIRST task required" came back with every task
+        # required, and a document that already listed its tasks was rewritten
+        # into the house shape anyway (iCreate, 2026-08-17).
+        extra = (f"""
+THE TEACHER'S OWN INSTRUCTIONS — these OVERRIDE the house style above wherever
+the two disagree. Follow them exactly, including when they single out one task
+("the first task should…") rather than all of them. Do not generalise an
+instruction about one task to every task.
+\"\"\"
+{notes.strip()}
+\"\"\"
+""" if (notes or '').strip() else "")
 
         prompt = f"""
 You are helping a teacher turn material they already wrote into an Optio quest.
@@ -353,23 +368,28 @@ You are helping a teacher turn material they already wrote into an Optio quest.
 {CORE_PHILOSOPHY}
 
 SOURCE MATERIAL (authoritative — build from THIS, do not substitute your own
-version of the subject; if it already names activities, those become the tasks):
+version of the subject; if it already names activities, those become the tasks,
+in the source's own words and order — do not reword them into your own):
 \"\"\"
 {context[:20000]}
 \"\"\"
-{extra}
+
 Produce ONE quest:
 - title: 3-8 words, concrete, no colons or subtitles
 - description: 2-3 sentences saying what the learner will actually do
 - tasks: exactly {target_task_count} tasks drawn from the source material, in a
   sensible order, each with:
-    - title: starts with a simple action verb (Make, Build, Write, Draw, Record,
-      Interview, Test, Show). 5-8 words, ONE idea.
+    - title: starts with a plain action verb — whatever the action actually is
+      (Read, Find, Watch, Visit, Ask, Practise, Make, Build, Write, Draw,
+      Record, Interview, Test, Show). Do not swap the verb for a different
+      activity: if the task is to read something, the task is to read it.
+      5-8 words, ONE idea.
     - description: 1-2 sentences, plain words, suggesting how they might do it.
     - pillar: one of [{pillars}]
-    - xp_value: 25-150, a multiple of 25, scaled to real effort
+    - xp_value: 25-150, a multiple of 25, scaled to real effort. 25 is a hard
+      floor — a smaller number is not storable, so use 25 when asked for less.
     - is_required: true for the core of the unit, false for extensions
-
+{extra}
 READING LEVEL: 5th-6th grade. The task may be hard; the words must be easy.
 Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
 

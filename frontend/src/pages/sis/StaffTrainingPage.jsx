@@ -398,8 +398,15 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
               </p>
             </div>
           </div>
+          {/* Pillars are shown here even though the learner's own page hides
+              them on a training quest (QuestDetail, quest.is_training). The
+              chip is noise to somebody doing back-to-school night; the stored
+              value is not, because it decides which pillar the XP lands in.
+              Left hidden, every task typed by hand kept blankTask()'s default
+              — ten of iCreate's sixteen orientation tasks are filed under Art,
+              including "Find the Absences feature in Optio". An admin asked to
+              be able to edit every part of the quest, and this is a part. */}
           <QuestDraftForm
-          showPillars={false}
           title={title} setTitle={setTitle}
           description={description} setDescription={setDescription}
           tasks={tasks} setTasks={setTasks}
