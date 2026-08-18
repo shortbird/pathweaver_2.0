@@ -20,6 +20,17 @@ const HOME_ICON = (
   </svg>
 )
 
+// The Optio mark, desaturated: a student's own class is Optio's, not a school's,
+// so it carries the brand rather than a generic grad cap (which the org "Classes"
+// and "My school" items already use).
+const OPTIO_MARK_ICON = (
+  <img
+    src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
+    alt=""
+    className="w-5 h-5 object-contain grayscale opacity-70"
+  />
+)
+
 const FAMILY_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -258,11 +269,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     learningItems.push({
       name: 'Custom Class',
       path: '/my-classes',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0v7m0-7l6.16-3.422M6 11.5V16c0 1.105 2.686 2 6 2s6-.895 6-2v-4.5" />
-        </svg>
-      )
+      icon: OPTIO_MARK_ICON
     })
   }
 
