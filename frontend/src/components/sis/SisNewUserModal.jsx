@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { AuthContext } from '../../contexts/AuthContext'
+import { canGrantRoles } from '../../pages/sis/sisRole'
 import ModalOverlay from '../ui/ModalOverlay'
 
 /**
@@ -12,6 +14,11 @@ import ModalOverlay from '../ui/ModalOverlay'
  *    observer. Students can be linked to the creating admin as their parent.
  *  - "Invite by email": an email invitation via /invitations. Available for all
  *    roles, and the ONLY way to add another org admin.
+ *
+ * A campus coordinator adds families — students, parents, observers. Staff
+ * roles are not theirs to hand out (sisRole.canGrantRoles, and the backend
+ * refuses them at sis_service.caller_may_grant), so those options are not
+ * offered rather than offered and rejected.
  */
 
 const ROLES = [
@@ -26,6 +33,11 @@ const ROLES = [
 const CREATE_NOW_ROLES = new Set(['student', 'parent', 'advisor', 'observer'])
 
 export default function SisNewUserModal({ orgId, onClose, onCreated }) {
+  // Context directly, not useAuth(): this modal is rendered bare in tests.
+  const mayGrantStaffRoles = canGrantRoles(React.useContext(AuthContext)?.user)
+  const roleOptions = mayGrantStaffRoles
+    ? ROLES
+    : ROLES.filter((r) => !['advisor', 'org_admin'].includes(r.value))
   const [role, setRole] = useState('student')
   const [method, setMethod] = useState('create') // 'create' | 'invite'
   const [form, setForm] = useState({
@@ -201,7 +213,7 @@ export default function SisNewUserModal({ orgId, onClose, onCreated }) {
             onChange={(e) => setRole(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
           >
-            {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {roleOptions.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </div>
 

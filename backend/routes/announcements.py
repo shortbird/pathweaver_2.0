@@ -19,6 +19,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.roles import get_effective_role
+from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 from utils.validation.sanitizers import pgrst_pattern
 from database import get_supabase_admin_client
 from services import announcement_service, sis_service
@@ -32,8 +33,13 @@ bp = Blueprint('announcements', __name__)
 ROLE_AUDIENCES = announcement_service.ROLE_AUDIENCES
 
 
+# The tiers, not hand-written tuples: campus_coordinator reached `archive` and
+# nothing else here, so a coordinator on the Messaging page could read the
+# history of announcements and neither send one nor see the current list. That
+# is the failure utils/sis_roles.py exists to stop — one literal updated, the
+# neighbours missed.
 @bp.route('/api/announcements', methods=['POST'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def create_announcement(user_id):
     """Create an announcement and fan it out as notifications to the chosen audience.
 
@@ -78,7 +84,7 @@ def create_announcement(user_id):
 
 
 @bp.route('/api/announcements', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin', 'student', 'parent')
+@require_role(*STAFF_ROLES, 'student', 'parent')
 def list_announcements(user_id):
     """List recent announcements for the caller's organization."""
     try:
@@ -119,7 +125,7 @@ def _archive_audience_token(effective_role, view_as):
 
 
 @bp.route('/api/announcements/archive', methods=['GET'])
-@require_role('org_admin', 'campus_coordinator', 'advisor', 'superadmin', 'student', 'parent')
+@require_role(*STAFF_ROLES, 'student', 'parent')
 def announcements_archive(user_id):
     """
     Paginated, searchable communications archive for the caller's org.
@@ -238,7 +244,7 @@ def _resolve_admin_org(admin, user_id):
 
 
 @bp.route('/api/announcements/templates', methods=['GET'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def get_announcement_templates(user_id):
     """Reusable message templates, stored in feature_flags.sis_settings.message_templates."""
     try:
@@ -261,7 +267,7 @@ def get_announcement_templates(user_id):
 
 
 @bp.route('/api/announcements/templates', methods=['PUT'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def put_announcement_templates(user_id):
     """Replace the org's template list: [{id, name, title, body}]."""
     try:

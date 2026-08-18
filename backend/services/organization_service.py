@@ -90,10 +90,20 @@ class OrganizationService(BaseService):
 
         return org
 
-    def get_organization_dashboard_data(self, org_id: str) -> Dict[str, Any]:
-        """Get all data needed for org admin dashboard (excluding analytics for lazy loading)"""
+    def get_organization_dashboard_data(self, org_id: str,
+                                        include_finance: bool = True) -> Dict[str, Any]:
+        """Get all data needed for org admin dashboard (excluding analytics for lazy loading).
+
+        include_finance=False strips the prices out of feature_flags for the
+        front office — a campus coordinator reads this for the school's rooms,
+        blocks and registration funnel, which share the blob with tuition and
+        the registration fee (utils/org_finance_flags.py).
+        """
 
         org = self.org_repo.find_by_id(org_id)
+        if not include_finance:
+            from utils.org_finance_flags import redact_org_finance
+            org = redact_org_finance(org)
         users = self.org_repo.get_organization_users(org_id)
         quests = self.org_repo.get_organization_quests(org_id)
         courses = self.org_repo.get_organization_courses(org_id)

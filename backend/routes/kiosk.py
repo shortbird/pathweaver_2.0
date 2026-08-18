@@ -34,6 +34,7 @@ from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_role, validate_uuid_param
+from utils.sis_roles import ADMIN_ROLES
 from utils.org_features import org_has_feature
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
@@ -139,7 +140,7 @@ def _student_payload(u):
 
 # ── admin: device provisioning ───────────────────────────────────────────────
 @bp.route('/devices', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def create_device(user_id):
     """
     Provision a shared kiosk device for an org. Body: {name, class_id?,
@@ -189,7 +190,7 @@ def create_device(user_id):
 
 
 @bp.route('/devices', methods=['GET'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def list_devices(user_id):
     """List the org's kiosk devices (no token hashes). Superadmin: ?organization_id=."""
     # admin client justified: role-gated read of the org's kiosk-device rows (org-level table); _caller_org_id pins the caller to their own org
@@ -221,7 +222,7 @@ def list_devices(user_id):
 
 
 @bp.route('/devices/<device_id>/deactivate', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 @validate_uuid_param('device_id')
 def deactivate_device(user_id, device_id):
     """Deactivate a device token (soft revoke — the row is kept for audit)."""

@@ -13,7 +13,7 @@ Phase 2: Backend Repository & Service Layer
 """
 
 from flask import Blueprint, request, jsonify
-from utils.auth.decorators import require_superadmin, require_org_admin
+from utils.auth.decorators import require_superadmin, require_org_admin, require_org_front_office
 from services.organization_service import OrganizationService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -187,10 +187,13 @@ def create_organization(superadmin_user_id):
         return jsonify({'error': str(e)}), 500
 
 
+# Front office, not finance: the SIS console reads this for the rooms, blocks and
+# registration funnel a coordinator runs; prices come out per-field, see
+# utils/org_finance_flags.py.
 @bp.route('/<org_id>', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
-    """Get organization details (org admin or superadmin)"""
+    """Get organization details (front office or superadmin)"""
     try:
         logger.info(f"get_organization called: user={current_user_id}, current_org={current_org_id}, is_superadmin={is_superadmin}, target_org={org_id}")
 
@@ -199,8 +202,9 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
             logger.warning(f"Access denied: not superadmin and org mismatch ({current_org_id} != {org_id})")
             return jsonify({'error': 'Access denied'}), 403
 
-        service = OrganizationService()
-        org = service.get_organization_dashboard_data(org_id)
+        from services import sis_service
+        org = OrganizationService().get_organization_dashboard_data(
+            org_id, include_finance=sis_service.caller_sees_pay(current_user_id))
         logger.info(f"Organization data fetched successfully for {org_id}")
 
         return jsonify(org), 200
@@ -210,7 +214,7 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
 
 @bp.route('/<org_id>', methods=['PUT'])
-@require_org_admin
+@require_org_front_office
 def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
     """Update organization (org_admin for own org, superadmin for any)"""
     try:
@@ -220,9 +224,16 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
         data = request.get_json()
 
+        from services import sis_service
+        sees_finance = sis_service.caller_sees_pay(current_user_id)
+
         # Define allowed fields based on role
         # Org admins can update branding, AI settings, and course visibility policy
-        if is_superadmin:
+        if not sees_finance:
+            # Campus coordinator: the settings blob only, never the org's name,
+            # branding, AI entitlements or visibility policies.
+            allowed_fields = ['feature_flags']
+        elif is_superadmin:
             allowed_fields = ['name', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
                             'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled',
                             'feature_flags']
@@ -252,6 +263,17 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         )
 
         incoming_flags = update_data.get('feature_flags')
+
+        # Merged, not replaced, when the caller cannot see the prices — utils/org_finance_flags.py.
+        if isinstance(incoming_flags, dict) and not sees_finance:
+            from utils.org_finance_flags import guarded_flags_for_front_office
+            from repositories.organization_repository import OrganizationRepository as _OrgRepo
+            stored_flags = (_OrgRepo().find_by_id(org_id) or {}).get('feature_flags') or {}
+            incoming_flags, blocked = guarded_flags_for_front_office(stored_flags, incoming_flags)
+            if blocked:
+                return jsonify({'error': 'Tuition and registration fees are managed by an organization admin.', 'fields': blocked}), 403
+            update_data['feature_flags'] = incoming_flags
+
         submitted_key = None
         if isinstance(incoming_flags, dict):
             # The funnel config lives at 'registration' (org-neutral key); the
@@ -261,6 +283,12 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
                 if isinstance(reg, dict) and STRIPE_SECRET_KEY in reg:
                     submitted_key = (reg.get(STRIPE_SECRET_KEY) or '').strip()
                     break
+
+        # The card-payment credential is finance: a coordinator may not set it,
+        # and may not clear it either.
+        if submitted_key is not None and not sees_finance:
+            return jsonify({'error': 'Card payment settings are managed by an '
+                                     'organization admin.'}), 403
 
         # A malformed Stripe key breaks the iCreate registration funnel at the
         # "Pay securely" step, so reject it at save time. Secret keys are sk_…
@@ -1145,7 +1173,7 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
 
 @bp.route('/<org_id>/users/create-username', methods=['POST'])
-@require_org_admin
+@require_org_front_office
 def create_username_student(current_user_id, current_org_id, is_superadmin, org_id):
     """
     Create a no-email org member account using username + auto-generated password.
@@ -1206,6 +1234,9 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
         valid_roles = ['student', 'parent', 'advisor', 'observer']
         if org_role not in valid_roles:
             return jsonify({'error': f'org_role must be one of: {", ".join(valid_roles)}'}), 400
+        from services.sis_service import caller_may_grant
+        if not caller_may_grant(current_user_id, org_role):
+            return jsonify({'error': 'Only an organization admin can add staff.'}), 403
 
         # Auto-generate kid-friendly password (PIN + word)
         password = generate_simple_password()

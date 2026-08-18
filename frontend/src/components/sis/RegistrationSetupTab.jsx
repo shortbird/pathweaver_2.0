@@ -3,6 +3,8 @@ import { toast } from 'react-hot-toast'
 import { ArrowPathIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import { CheckIcon, ClipboardIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from '../../pages/sis/sisRole'
 import { getLearningOrigin } from '../../utils/appSurface'
 import FirstDayOfSchoolCard from './FirstDayOfSchoolCard'
 import EnrollmentAgeGatesCard from './EnrollmentAgeGatesCard'
@@ -36,6 +38,9 @@ const STRIPE_KEY_RE = /^(sk|rk)_[A-Za-z0-9_]{20,}$/
 // Wraps a family-visible region the org can configure. The region renders
 // exactly as families see it; the pill toggles an inline editor beneath it.
 const Editable = ({ label = 'Edit', open, onToggle, editor, children }) => (
+  // A null editor means the region is shown but is not this user's to change —
+  // the fees for a campus coordinator. No pill, no dashed drawer.
+  !editor ? <div className="rounded-xl">{children}</div> : (
   <div className={`relative rounded-xl transition-shadow ${open ? 'ring-2 ring-optio-purple/50' : 'ring-1 ring-transparent hover:ring-optio-purple/30'}`}>
     <button
       type="button"
@@ -54,6 +59,7 @@ const Editable = ({ label = 'Edit', open, onToggle, editor, children }) => (
       </div>
     )}
   </div>
+  )
 )
 
 // A step region families see but orgs cannot change.
@@ -65,6 +71,12 @@ const FixedNote = ({ children }) => (
 const mockInput = `${field} bg-neutral-50 pointer-events-none`
 
 const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
+  const { user } = useAuth()
+  // Fees and the school's Stripe key are FINANCE_ROLES. A campus coordinator
+  // runs the rest of the funnel — paperwork, questions, scheduling link — and
+  // the backend redacts the amounts out of what they read, so there is nothing
+  // here to render even if this check were wrong.
+  const seesFinance = canSeeFinance(user)
   const org = orgData?.organization || {}
   const flags = org.feature_flags || {}
   // Org-neutral key first; legacy key until the prod rename ships.
@@ -277,8 +289,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const save = async () => {
     const feeCents = Math.round(parseFloat(fee || '0') * 100)
     const perStudentCents = Math.round(parseFloat(perStudentFee || '0') * 100)
-    if (Number.isNaN(feeCents) || feeCents < 0) return toast.error('Enter a valid per-family fee')
-    if (Number.isNaN(perStudentCents) || perStudentCents < 0) return toast.error('Enter a valid per-student fee')
+    if (seesFinance && (Number.isNaN(feeCents) || feeCents < 0)) return toast.error('Enter a valid per-family fee')
+    if (seesFinance && (Number.isNaN(perStudentCents) || perStudentCents < 0)) return toast.error('Enter a valid per-student fee')
     if (stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim())) {
       return toast.error("That doesn't look like a Stripe secret key — copy the full key (sk_live_… or rk_live_…) from Stripe Dashboard → Developers → API keys.")
     }
@@ -306,18 +318,25 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
       enabled: true,
       emergency_contacts: askContacts,
       health_fields: askHealth,
-      fee_mode: feeMode,
-      registration_fee_cents: feeCents,
-      per_student_fee_cents: perStudentCents,
-      payment_url: absUrl(paymentUrl),
       scheduling_url: absUrl(schedulingUrl),
       paperwork: items,
       questions: qs,
     }
-    // Only touch the stored Stripe key when the admin acted on it.
-    if (stripeClear) newCfg.stripe_secret_key = ''
-    else if (stripeKey.trim()) newCfg.stripe_secret_key = stripeKey.trim()
-    else delete newCfg.stripe_secret_key
+    // The money is submitted only by someone who may set it. A coordinator's
+    // save leaves these keys out entirely, and the backend merges rather than
+    // replaces, so the stored fees survive a form that never saw them.
+    if (seesFinance) {
+      newCfg.fee_mode = feeMode
+      newCfg.registration_fee_cents = feeCents
+      newCfg.per_student_fee_cents = perStudentCents
+      newCfg.payment_url = absUrl(paymentUrl)
+      // Only touch the stored Stripe key when the admin acted on it.
+      if (stripeClear) newCfg.stripe_secret_key = ''
+      else if (stripeKey.trim()) newCfg.stripe_secret_key = stripeKey.trim()
+      else delete newCfg.stripe_secret_key
+    } else {
+      delete newCfg.stripe_secret_key
+    }
 
     setSaving(true)
     try {
@@ -353,7 +372,10 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // Mirror the funnel exactly: the fee step only exists when the org can
   // actually charge (a fee amount, an external payment link, or card payment).
   // Zero-fee orgs never see it — so neither does this editor's stepper.
-  const feeStepVisible = feeApplies || Boolean(absUrl(paymentUrl)) || (stripeEnabled && !stripeClear)
+  // A coordinator cannot see the amounts, so "no fee configured" is not a
+  // conclusion they are entitled to draw — the step stays, stated as unknown.
+  const feeStepVisible = !seesFinance
+    || feeApplies || Boolean(absUrl(paymentUrl)) || (stripeEnabled && !stripeClear)
   const editorSteps = feeStepVisible ? STEPS : STEPS.filter((s) => s !== 'fee')
   const editorLabels = askContacts ? STEP_LABELS : { ...STEP_LABELS, details: 'A few questions' }
 
@@ -792,7 +814,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
           </button>
         </div>
       </Section>
-      {!feeStepVisible && (
+      {!feeStepVisible && seesFinance && (
         <Editable label="Add a fee" open={openZones.has('fee')} onToggle={() => toggleZone('fee')} editor={feeEditor}>
           <div className="rounded-xl border border-dashed border-gray-300 bg-white/60 px-4 py-3 text-sm text-neutral-400">
             No registration fee — after signing, families go straight to the finish step.
@@ -806,7 +828,15 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
 
   const feeStep = (
     <div className="space-y-6">
-      <Editable label="Edit fees & payment" open={openZones.has('fee')} onToggle={() => toggleZone('fee')} editor={feeEditor}>
+      <Editable label="Edit fees & payment" open={openZones.has('fee')} onToggle={() => toggleZone('fee')}
+        editor={seesFinance ? feeEditor : null}>
+        {!seesFinance ? (
+          <Section title="Registration fee">
+            <p className="text-sm text-neutral-500 my-3 text-center">
+              Whatever families are charged here is set by an organization admin.
+            </p>
+          </Section>
+        ) : (
         <Section title={sampleFee > 0 ? 'Registration fee' : 'Finish your registration'}>
           <div className="text-center">
             {sampleFee > 0
@@ -833,6 +863,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
             ))}
           </div>
         </Section>
+        )}
       </Editable>
       {waitlistGates.length > 0 && sampleFee > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">

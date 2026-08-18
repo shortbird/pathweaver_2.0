@@ -257,6 +257,17 @@ class TestOnboardingOffersCoordinators:
         assert [p['id'] for p in people] == ['cc-2']
 
 
+# The shared tiers (utils/sis_roles.py) all contain campus_coordinator, so a
+# decorator that names one admits them just as surely as spelling the role out —
+# and is the form that stops the next missed literal.
+_COORDINATOR_TIERS = ('STAFF_ROLES', 'ADMIN_ROLES')
+
+
+def _admits_coordinator(module, view_name):
+    line = _require_role_line(module, view_name)
+    return 'campus_coordinator' in line or any(t in line for t in _COORDINATOR_TIERS)
+
+
 def _require_role_line(module, view_name):
     """The @require_role(...) line above a view, read off the module source —
     the same trick TestTheFinanceModulesAreActuallyGated uses."""
@@ -282,18 +293,34 @@ class TestTheSchoolPageAdmitsCoordinators:
 
     def test_the_community_feed_admits_coordinators(self):
         from routes.sis import community
-        assert 'campus_coordinator' in _require_role_line(community, 'family_feed')
+        assert _admits_coordinator(community, 'family_feed')
 
     def test_the_carpool_writes_admit_coordinators(self):
         """canPost/canModerate are True for a coordinator (caller_is_admin),
         so the routes behind those buttons must not 403 them."""
         from routes.sis import community
         for view in ('create_carpool', 'message_carpool_author', 'delete_carpool'):
-            assert 'campus_coordinator' in _require_role_line(community, view), view
+            assert _admits_coordinator(community, view), view
 
     def test_the_announcements_archive_admits_coordinators(self):
         from routes import announcements
-        assert 'campus_coordinator' in _require_role_line(announcements, 'announcements_archive')
+        assert _admits_coordinator(announcements, 'announcements_archive')
+
+    def test_they_can_read_and_send_announcements_at_all(self):
+        """The archive was the ONLY announcements route that named them, so the
+        Messaging page a coordinator is shown could read its history and neither
+        list the current messages nor send one (found 2026-08-18)."""
+        from routes import announcements
+        for view in ('create_announcement', 'list_announcements',
+                     'get_announcement_templates', 'put_announcement_templates'):
+            assert _admits_coordinator(announcements, view), view
+
+    def test_the_attendance_kiosks_are_theirs_too(self):
+        """Kiosk devices are provisioned from the Settings page a coordinator
+        sees, and check-in is attendance — front office, not finance."""
+        from routes import kiosk
+        for view in ('create_device', 'list_devices', 'deactivate_device'):
+            assert _admits_coordinator(kiosk, view), view
 
     def test_a_coordinator_reads_the_archive_unfiltered_like_an_admin(self):
         """No audience token means no filter: staff see every sent message —

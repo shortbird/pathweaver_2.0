@@ -91,6 +91,21 @@ class AccessLogger:
                 ip_address = request.remote_addr
                 user_agent = request.headers.get('User-Agent', '')
 
+                # A masquerade is authorized AS the target, so `accessor_id` is
+                # the target -- true, but not the whole truth. Name the human
+                # behind the session too, or a disclosure report credits the
+                # look to someone who was not at the keyboard.
+                masquerading_admin = getattr(request, 'masquerade_admin_id', None)
+                if not masquerading_admin:
+                    try:
+                        from utils.session_manager import session_manager
+                        info = session_manager.get_masquerade_info()
+                        masquerading_admin = info.get('admin_id') if info else None
+                    except Exception:  # noqa: BLE001 - never lose the row over this
+                        masquerading_admin = None
+                if masquerading_admin:
+                    data_accessed['masquerading_admin_id'] = masquerading_admin
+
                 # Get accessor role from request context if available
                 if hasattr(request, 'user_role'):
                     accessor_role = request.user_role
