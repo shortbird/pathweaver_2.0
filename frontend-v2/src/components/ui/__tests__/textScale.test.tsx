@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { UIText } from '../Text';
+import { UIText } from '../text';
 
 /** The class each size must resolve to, and the px it is defined as in
  *  tailwind.config.js. Both halves matter: the class name is what the
