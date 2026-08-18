@@ -1027,9 +1027,17 @@ def update_training_quest(user_id, training_id):
 
     Template tasks are replaced wholesale rather than diffed: they are a short
     authored list, and matching them up by hand would be a lot of machinery for
-    no visible difference. Note this only changes what FUTURE enrollees receive;
-    tasks already copied onto somebody's account are their work now and are left
-    alone (utils/template_tasks).
+    no visible difference.
+
+    The save then pushes those tasks onto everyone already holding the quest.
+    That is deliberately narrower than the quest library at large, where an edit
+    must not reach into work a learner is part-way through — but a training or
+    orientation quest is the school's own document, the admin edits it BECAUSE
+    the people holding it need the new wording, and until 2026-08-18 there was
+    no way to give it to them: iCreate saved a fix mid-orientation and all 152
+    families stayed on the previous copy. Anything already completed, or
+    carrying an evidence upload, is left exactly as it is — see
+    resync_enrollments_to_template, which rewrites rows in place for that reason.
     """
     item, err = _owned_item(user_id, training_id)
     if err:
@@ -1098,6 +1106,16 @@ def update_training_quest(user_id, training_id):
         for t in cleaned:
             t['quest_id'] = item['quest_id']
         admin.table('quest_template_tasks').insert(cleaned).execute()
+
+    # Best-effort: the edit is saved either way. An admin told the save failed
+    # would press it again and edit twice, which is worse than a stale copy.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        synced = resync_enrollments_to_template(admin, item['quest_id'])
+        logger.info(f"Training quest {item['quest_id']} resynced: {synced}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Could not resync enrollments for {item['quest_id']}: {e}",
+                     exc_info=True)
 
     # Who it is for can be changed here too — an orientation quest that went to
     # parents is the same quest when the school decides the teenagers should do
