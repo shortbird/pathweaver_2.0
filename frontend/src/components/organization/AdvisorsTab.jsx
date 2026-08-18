@@ -11,12 +11,14 @@ import {
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import ModalOverlay from '../ui/ModalOverlay'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Dedicated Advisors tab for org management.
  * Allows org_admins to assign students to advisors (including themselves).
  */
 export default function AdvisorsTab({ orgId }) {
+  const confirm = useConfirm()
   const [advisors, setAdvisors] = useState([])
   const [loading, setLoading] = useState(true)
   const [expandedAdvisorId, setExpandedAdvisorId] = useState(null)
@@ -121,7 +123,7 @@ export default function AdvisorsTab({ orgId }) {
 
   const handleUnassignStudent = async (studentId) => {
     if (!selectedAdvisor) return
-    if (!window.confirm('Are you sure you want to unassign this student?')) return
+    if (!(await confirm('Are you sure you want to unassign this student?'))) return
 
     try {
       await api.delete(`/api/admin/organizations/${orgId}/advisors/${selectedAdvisor.id}/students/${studentId}`)

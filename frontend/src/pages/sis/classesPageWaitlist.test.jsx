@@ -15,7 +15,7 @@ import { MemoryRouter } from 'react-router-dom'
  * or expired entry was a dead end.
  */
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -48,6 +48,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('../../pages/courses/CourseHomepage', () => ({ default: () => <div /> }))
 
 import ClassesPage from './ClassesPage'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -93,9 +94,9 @@ describe('class waitlist — staff actions', () => {
   })
 
   it('enrolls an offered student directly, without waiting for the family', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
+    await answerConfirm()
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/waitlist/w1/enroll',
         { organization_id: 'org-1', force: false }),
@@ -111,17 +112,16 @@ describe('class waitlist — staff actions', () => {
             conflicts: [{ class_id: 'cX', class_name: 'Elementary Microschool (Wednesday)' }] } } })
         : Promise.resolve({ data: { success: true } })
     ))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
-    await waitFor(() => expect(window.confirm).toHaveBeenCalledTimes(2))
-    expect(window.confirm.mock.calls[1][0]).toMatch(/already has Elementary Microschool/)
+    await answerConfirm()                       // the plain "enroll now?" ask
+    expect(await confirmText()).toMatch(/already has Elementary Microschool/)
+    await answerConfirm()                       // the clash warning
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/waitlist/w1/enroll',
       { organization_id: 'org-1', force: true }))
   })
 
   it('enrolls even when the class is full — an admin doing this by hand is the override', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await openWaitlistTab()
     // "Offer next seat" stays disabled on a full class...
     expect(screen.getByRole('button', { name: 'Offer next seat' })).toBeDisabled()
@@ -129,6 +129,7 @@ describe('class waitlist — staff actions', () => {
     const enroll = screen.getAllByRole('button', { name: 'Enroll now' })[0]
     expect(enroll).not.toBeDisabled()
     fireEvent.click(enroll)
+    await answerConfirm()
     await waitFor(() => expect(api.post).toHaveBeenCalled())
   })
 
@@ -152,18 +153,18 @@ describe('class waitlist — staff actions', () => {
   })
 
   it('removes an entry after confirming', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0])
+    await answerConfirm()
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('/api/sis/waitlist/w1?organization_id=org-1'),
     )
   })
 
   it('does not enroll when the confirm is dismissed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
+    await answerConfirm(false)
     expect(api.post).not.toHaveBeenCalled()
   })
 
@@ -204,12 +205,11 @@ describe('class waitlist — staff actions', () => {
       }
       return Promise.resolve({ data: { success: true } })
     })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
     fireEvent.click(await screen.findByRole('button', { name: 'Enroll directly' }))
-    await waitFor(() => expect(window.confirm).toHaveBeenCalled())
-    expect(window.confirm.mock.calls[0][0]).toMatch(/already has Art Expeditions at that time/)
+    expect(await confirmText()).toMatch(/already has Art Expeditions at that time/)
+    await answerConfirm()
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/waitlist/w1/enroll',
       { organization_id: 'org-1', class_id: 'c2', force: true },
@@ -223,11 +223,10 @@ describe('class waitlist — staff actions', () => {
             conflicts: [{ class_id: 'cX', class_name: 'Art Expeditions' }] } } })
         : Promise.resolve({ data: { success: true } })
     ))
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
     fireEvent.click(await screen.findByRole('button', { name: 'Enroll directly' }))
-    await waitFor(() => expect(window.confirm).toHaveBeenCalled())
+    await answerConfirm(false)
     expect(api.post).toHaveBeenCalledTimes(1)   // never re-sent with force
   })
 

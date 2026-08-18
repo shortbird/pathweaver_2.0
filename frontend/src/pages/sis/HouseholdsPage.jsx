@@ -6,6 +6,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -20,6 +21,7 @@ const collageInitials = (name) =>
  * the org yet, e.g. a kid's pre-existing Optio account a parent asked about.
  */
 const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
+  const confirm = useConfirm()
   const [picks, setPicks] = useState({}) // student_id -> household_id
   const [email, setEmail] = useState('')
   const [emailPick, setEmailPick] = useState('')
@@ -40,7 +42,7 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
       // The student already looks present in this family — confirm before doubling up.
       if (d?.needs_confirmation && !confirmDuplicate) {
         setBusy(null)
-        return window.confirm(d.error) ? add(key, householdId, body, true) : undefined
+        return await confirm(d.error) ? add(key, householdId, body, true) : undefined
       }
       toast.error(d?.error || 'Could not add to the family')
     }
@@ -50,7 +52,7 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
   // Graduated / no-longer-enrolled students clutter this list. Marking them
   // graduated drops them off it without needing a family.
   const markGraduated = async (s) => {
-    if (!window.confirm(`Mark ${s.name} as graduated and remove them from this list?`)) return
+    if (!(await confirm(`Mark ${s.name} as graduated and remove them from this list?`))) return
     setBusy(s.id)
     try {
       await api.patch(`/api/sis/enrollments/${s.id}`, { status: 'graduated', organization_id: orgId })

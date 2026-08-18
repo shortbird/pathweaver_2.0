@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * Custom hook managing all state and handlers for ConnectionsTab.
  */
 export function useConnectionsTabState({ orgId }) {
+  const confirm = useConfirm()
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -170,7 +172,7 @@ export function useConnectionsTabState({ orgId }) {
 
   const handleUnassignStudent = async (studentId) => {
     if (!selectedAdvisor) return
-    if (!window.confirm('Are you sure you want to unassign this student?')) return
+    if (!(await confirm('Are you sure you want to unassign this student?'))) return
 
     try {
       await api.delete(`/api/admin/organizations/${orgId}/advisors/${selectedAdvisor.id}/students/${studentId}`)
@@ -187,7 +189,7 @@ export function useConnectionsTabState({ orgId }) {
   }
 
   const handleUnassignAdvisorFromStudent = async (studentId, advisorId, advisorName) => {
-    if (!window.confirm(`Are you sure you want to remove ${advisorName} from this student?`)) return
+    if (!(await confirm(`Are you sure you want to remove ${advisorName} from this student?`))) return
 
     try {
       await api.delete(`/api/admin/organizations/${orgId}/students/${studentId}/advisors/${advisorId}`)

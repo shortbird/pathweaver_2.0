@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom'
 import { XMarkIcon, ExclamationCircleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, organizationId = null, canDelete = false, onDelete = null }) => {
+  const confirm = useConfirm()
   const [loading, setLoading] = useState(false)
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -224,8 +226,8 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, o
               {canDelete && onDelete && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
+                  onClick={async () => {
+                    if (await confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
                       onDelete(quest.id);
                     }
                   }}

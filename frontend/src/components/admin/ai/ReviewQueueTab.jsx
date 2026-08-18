@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react'
 import api from '../../../services/api'
 import toast from 'react-hot-toast'
 import { MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { useConfirm } from '../../../contexts/ConfirmContext'
 
 const ReviewQueueTab = () => {
+  const confirm = useConfirm()
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('pending_review')
@@ -57,7 +59,7 @@ const ReviewQueueTab = () => {
   }
 
   const handleReject = async (questReviewId) => {
-    if (!window.confirm('Are you sure you want to reject this quest?')) {
+    if (!(await confirm('Are you sure you want to reject this quest?'))) {
       return
     }
 
@@ -79,7 +81,7 @@ const ReviewQueueTab = () => {
       return
     }
 
-    if (!window.confirm(`Approve ${selectedQuests.size} selected quests?`)) {
+    if (!(await confirm(`Approve ${selectedQuests.size} selected quests?`))) {
       return
     }
 
@@ -110,7 +112,7 @@ const ReviewQueueTab = () => {
       return
     }
 
-    if (!window.confirm(`Reject ${selectedQuests.size} selected quests?`)) {
+    if (!(await confirm(`Reject ${selectedQuests.size} selected quests?`))) {
       return
     }
 

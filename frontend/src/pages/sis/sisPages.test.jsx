@@ -3,7 +3,7 @@ import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testin
 import { MemoryRouter } from 'react-router-dom'
 
 // All SIS pages may render react-router <Link>s — wrap every render in a router.
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -86,6 +86,7 @@ import HouseholdsPage from './HouseholdsPage'
 import FamilyMessagingPage from './FamilyMessagingPage'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -218,7 +219,6 @@ describe('HouseholdsPage', () => {
         } },
       })
       .mockResolvedValueOnce({ data: { member: { user_id: 's9' } } })
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     render(<HouseholdsPage />)
     const heading = await screen.findByText('Students without a family')
@@ -227,13 +227,13 @@ describe('HouseholdsPage', () => {
     fireEvent.mouseDown(await within(panel).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Add'))
 
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
+    expect(await confirmText()).toMatch(/looks like the same student/)
+    await answerConfirm()
     await waitFor(() =>
       expect(api.post).toHaveBeenLastCalledWith('/api/sis/households/h1/members',
         expect.objectContaining({ user_id: 's9', relationship: 'student', confirm_duplicate: true })),
     )
     expect(api.post).toHaveBeenCalledTimes(2)
-    confirmSpy.mockRestore()
   })
 
   it('does not add the duplicate when the admin declines the warning', async () => {
@@ -243,8 +243,6 @@ describe('HouseholdsPage', () => {
         error: 'This family already includes Zachary Barlow, which looks like the same student. Add anyway?',
       } },
     })
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-
     render(<HouseholdsPage />)
     const heading = await screen.findByText('Students without a family')
     const panel = heading.closest('.bg-amber-50')
@@ -252,22 +250,20 @@ describe('HouseholdsPage', () => {
     fireEvent.mouseDown(await within(panel).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Add'))
 
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
+    await answerConfirm(false)
     expect(api.post).toHaveBeenCalledTimes(1) // never retried
-    confirmSpy.mockRestore()
   })
 
   it('marks a student graduated to remove them from the list', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<HouseholdsPage />)
     const heading = await screen.findByText('Students without a family')
     const panel = heading.closest('.bg-amber-50')
     fireEvent.click(within(panel).getByText('Graduated'))
+    await answerConfirm()
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/enrollments/s9',
         expect.objectContaining({ status: 'graduated', organization_id: 'org-1' })),
     )
-    confirmSpy.mockRestore()
   })
 
   it('badges an unassigned student who looks like someone already in a family', async () => {

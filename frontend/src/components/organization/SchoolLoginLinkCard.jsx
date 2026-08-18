@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LinkIcon, CheckIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { usePromptText } from '../../contexts/ConfirmContext'
 
 /**
  * SchoolLoginLinkCard - Shows the org's login URL with copy button and QR code.
@@ -11,6 +12,7 @@ import { LinkIcon, CheckIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outl
 export default function SchoolLoginLinkCard({ slug }) {
   const [copied, setCopied] = useState(false)
   const qrRef = useRef(null)
+  const promptText = usePromptText()
 
   if (!slug) return null
 
@@ -22,8 +24,14 @@ export default function SchoolLoginLinkCard({ slug }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Clipboard unavailable (e.g. non-secure context); select-and-copy fallback
-      window.prompt('Copy your school login link:', loginUrl)
+      // Clipboard unavailable (e.g. non-secure context); show the link so it
+      // can be selected and copied by hand.
+      await promptText({
+        title: 'Copy your school login link',
+        body: 'Your browser blocked the clipboard, so select the link below and copy it.',
+        defaultValue: loginUrl,
+        confirmLabel: 'Done',
+      })
     }
   }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -15,6 +15,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../services/api', () => ({ default: api }))
 
 import ScheduleBuilderPage from './ScheduleBuilderPage'
+import { withConfirm } from '../tests/confirmTestUtils'
 
 const ORG = { organization_id: 'org1', organization_name: 'Micro School', students: [{ student_id: 's1', name: 'Kid One', avatar_url: 'x.jpg' }] }
 
@@ -91,13 +92,30 @@ describe('ScheduleBuilderPage', () => {
   it('shows enrolled classes on the calendar; clicking one offers details + drop', async () => {
     api.get.mockImplementation(mockApi({ schedule: { classes: [POTTERY] } }))
     api.delete.mockResolvedValue({ data: { success: true } })
-    window.confirm = vi.fn(() => true)
+    // Deliberately NOT stubbing window.confirm: the drop must go through the
+    // in-app dialog. `window.confirm` never renders inside an iOS in-app
+    // WKWebView and returns false, which silently killed every drop from a
+    // phone. jsdom's window.confirm throws "not implemented", so if the page
+    // ever reaches for it again this test fails rather than passing on a stub.
     render(<ScheduleBuilderPage />)
     fireEvent.click(await screen.findByText('Pottery')) // the calendar block
     fireEvent.click(await screen.findByRole('button', { name: 'Drop class' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, drop it' }))
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('/api/sis/parent/students/s1/classes/c1?organization_id=org1'),
     )
+  })
+
+  it('drops nothing when the confirmation is dismissed', async () => {
+    api.get.mockImplementation(mockApi({ schedule: { classes: [POTTERY] } }))
+    render(<ScheduleBuilderPage />)
+    fireEvent.click(await screen.findByText('Pottery'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Drop class' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep it' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Keep it' })).not.toBeInTheDocument(),
+    )
+    expect(api.delete).not.toHaveBeenCalled()
   })
 
   it('locks add/drop after the first day of school', async () => {
@@ -197,6 +215,23 @@ describe('ScheduleBuilderPage', () => {
   const oneBlock = (id, day) => ({
     ...POTTERY, id, name: `Class ${id}`, price_cents: 36500,
     meetings: [{ day_of_week: day, start_time: '09:30', end_time: '10:30' }],
+  })
+
+  // The path an iCreate family actually takes on a phone: with time blocks
+  // configured, tapping an enrolled block opens the slot picker, and the drop
+  // lives there rather than in the details modal.
+  it('drops an enrolled class from the slot picker', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: { classes: [oneBlock('c1', 2)], time_blocks: BLOCKS, block_pricing: PRICING },
+    }))
+    api.delete.mockResolvedValue({ data: { success: true } })
+    render(<ScheduleBuilderPage />)
+    fireEvent.click(await screen.findByText('Class c1')) // the calendar block
+    fireEvent.click(await screen.findByRole('button', { name: 'Drop' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, drop it' }))
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/api/sis/parent/students/s1/classes/c1?organization_id=org1'),
+    )
   })
 
   it('block tier wins when cheaper than the per-class sum, with the payment plan', async () => {

@@ -10,6 +10,7 @@ import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Funding source options (school-of-record enrollment is tracked separately).
 const FUNDING_OPTIONS = [
@@ -40,6 +41,7 @@ const TABS = [
 ]
 
 const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
+  const confirm = useConfirm()
   const [tab, setTab] = useState('family')
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name || '')
@@ -75,12 +77,12 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     // Say plainly where the accounts end up: deleting a duplicate family and
     // then not finding the people it grouped is exactly how this confused
     // iCreate. People › Everyone › ⋯ › Remove from school is the follow-up.
-    if (!window.confirm(
+    if (!(await confirm(
       `Delete ${household.name}? This removes the family and its member links.\n\n`
       + 'Students and guardians keep their accounts — they stay in People › Everyone, '
       + 'just without a family. To remove an account as well (e.g. a duplicate '
       + 'registration), use ⋯ › Remove from school on that person.'
-    )) return
+    ))) return
     try {
       await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
       toast.success('Family deleted')
@@ -171,6 +173,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
 }
 
 const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
+  const confirm = useConfirm()
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ user_id: '', email: '', relationship: 'student' })
   const list = household.members || []
@@ -193,14 +196,14 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
       const d = e?.response?.data
       // The student looks like one already in this family — confirm before doubling them up.
       if (d?.needs_confirmation && !confirmDuplicate) {
-        if (window.confirm(d.error)) return add(true)
+        if (await confirm(d.error)) return add(true)
         return
       }
       toast.error(d?.error || 'Could not add member')
     }
   }
   const remove = async (m) => {
-    if (!window.confirm(`Remove ${m.name} from this family?`)) return
+    if (!(await confirm(`Remove ${m.name} from this family?`))) return
     try { await api.delete(`/api/sis/households/${household.id}/members/${m.user_id}?organization_id=${orgId}`); onSaved?.() }
     catch { toast.error('Could not remove member') }
   }
@@ -577,6 +580,7 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
 }
 
 const FamilyContactsPanel = ({ householdId, orgId }) => {
+  const confirm = useConfirm()
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -602,7 +606,7 @@ const FamilyContactsPanel = ({ householdId, orgId }) => {
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not add contact') }
   }
   const remove = async (c) => {
-    if (!window.confirm(`Remove ${c.name} as an emergency contact for the family?`)) return
+    if (!(await confirm(`Remove ${c.name} as an emergency contact for the family?`))) return
     try {
       const r = await api.post(`/api/sis/households/${householdId}/emergency-contacts/delete`, { ids: c.ids, organization_id: orgId })
       setContacts(r.data?.contacts || [])
@@ -653,6 +657,7 @@ const FamilyContactsPanel = ({ householdId, orgId }) => {
 // (answers, signed paperwork, kids, fee). Empty state for households that were
 // created by staff rather than through the registration flow.
 const RegistrationPanel = ({ household, orgId, onSaved }) => {
+  const confirm = useConfirm()
   const householdId = household.id
   const { user } = useAuth()
   const [reg, setReg] = useState(null)
@@ -672,10 +677,10 @@ const RegistrationPanel = ({ household, orgId, onSaved }) => {
   const canWaive = canSeeFinance(user) && (feeOutstanding || household.registration_hold)
 
   const waiveFee = async () => {
-    if (!window.confirm(
+    if (!(await confirm(
       `Waive the registration fee for ${household.name}?\n\n`
       + 'They will owe nothing, their registration finishes at $0, and the fee hold '
-      + 'on their account is lifted so they can sign up for classes.')) return
+      + 'on their account is lifted so they can sign up for classes.'))) return
     setWaiving(true)
     try {
       const r = await api.post(`/api/sis/households/${householdId}/waive-fee`, {

@@ -7,12 +7,14 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const ReportCard = ({ report, onShare, onDelete }) => {
+  const confirm = useConfirm()
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this report? The shareable link will stop working.')) {
+    if (!(await confirm('Are you sure you want to delete this report? The shareable link will stop working.'))) {
       return;
     }
     setIsDeleting(true);

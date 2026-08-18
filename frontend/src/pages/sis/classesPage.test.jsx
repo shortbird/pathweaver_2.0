@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -85,6 +85,7 @@ vi.mock('../../pages/courses/CourseHomepage', () => ({
 }))
 
 import ClassesPage from './ClassesPage'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -162,10 +163,10 @@ describe('ClassesPage', () => {
   })
 
   it('archives a class after confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await renderCards()
     fireEvent.click(screen.getByText('Pottery'))
     fireEvent.click(await screen.findByText('Archive class'))
+    await answerConfirm()
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith(expect.stringContaining('/api/sis/classes/c1')),
     )
@@ -332,12 +333,12 @@ describe('ClassesPage', () => {
   })
 
   it('marks closed classes per-row and can open them all at once', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ClassesPage />)
     await screen.findByText('Pottery')
     // The closed class is flagged on its own row/card, not in a page-level banner.
     expect(screen.getByText('Closed')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Open all 1 closed' }))
+    await answerConfirm()
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
     )

@@ -9,6 +9,7 @@ import { FolderIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import CurriculumFields, { blankCurriculum, curriculumFieldsOf } from './CurriculumFields'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * ClassCurriculumLibrary — the school's curriculum for this class, as the
@@ -31,6 +32,7 @@ import CurriculumFields, { blankCurriculum, curriculumFieldsOf } from './Curricu
  * refresh the materials column.
  */
 export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedToClass }) {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const [entries, setEntries] = useState([])
   const [canManage, setCanManage] = useState(false)
@@ -59,7 +61,7 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
   const canEditEntry = (e) => isAdmin || e.created_by === user?.id
 
   const remove = async (e) => {
-    if (!window.confirm(`Remove "${e.title}" from this class? The Drive folder itself is untouched.`)) return
+    if (!(await confirm(`Remove "${e.title}" from this class? The Drive folder itself is untouched.`))) return
     try {
       await api.delete(`/api/sis/classes/${classId}/curriculum/${e.id}`)
       toast.success('Curriculum removed')

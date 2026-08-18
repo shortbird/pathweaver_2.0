@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
 import CurriculumResources from '../../components/sis/CurriculumResources'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * CurriculumPage — the school's curriculum library.
@@ -163,6 +164,7 @@ const SortHeader = ({ label, col, sort, onSort }) => (
 )
 
 const CurriculumPage = () => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const admin = isSisAdmin(user)
@@ -189,7 +191,7 @@ const CurriculumPage = () => {
   useEffect(() => { load() }, [load])
 
   const remove = async (entry) => {
-    if (!window.confirm(`Remove "${entry.title}" from the library? The Drive folder itself is untouched.`)) return
+    if (!(await confirm(`Remove "${entry.title}" from the library? The Drive folder itself is untouched.`))) return
     try {
       await api.delete(withOrg(`/api/sis/curriculum/${entry.id}`, orgId))
       toast.success('Curriculum removed')

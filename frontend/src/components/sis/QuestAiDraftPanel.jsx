@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import { SparklesIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { blankTask } from './QuestDraftForm'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Start a quest from material the school already has.
@@ -26,6 +27,7 @@ const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm foc
 export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = false }) {
   // Collapsed by default where it sits above a form somebody may already be
   // typing into; always open where it IS the container (the curriculum page).
+  const confirm = useConfirm()
   const [open, setOpen] = useState(alwaysOpen)
   const [context, setContext] = useState('')
   const [notes, setNotes] = useState('')
@@ -63,7 +65,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
       toast.error('Paste some context or choose a document first')
       return
     }
-    if (hasDraft && !window.confirm('Replace what is currently in the form with the generated draft?')) return
+    if (hasDraft && !(await confirm('Replace what is currently in the form with the generated draft?'))) return
     setBusy(true)
     try {
       let res

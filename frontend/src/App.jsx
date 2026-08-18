@@ -8,6 +8,7 @@ import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
+import { ConfirmProvider } from './contexts/ConfirmContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { PageLoader as SharedPageLoader } from './components/ui/Spinner'
 import { warmupBackend } from './utils/retryHelper'
@@ -433,6 +434,10 @@ function App() {
             <AIAccessProvider>
             <OrganizationProvider>
             <ActingAsProvider>
+            {/* Serves useConfirm() — the app-wide replacement for
+                `window.confirm`, which silently returns false inside iOS
+                in-app browsers. See contexts/ConfirmContext.jsx. */}
+            <ConfirmProvider>
             <AppContent />
             <InstallPrompt />
             <PerchReporter />
@@ -768,6 +773,7 @@ function App() {
           </Routes>
             )} />
           </Suspense>
+            </ConfirmProvider>
             </ActingAsProvider>
             </OrganizationProvider>
             </AIAccessProvider>

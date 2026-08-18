@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -269,6 +270,7 @@ const FilterChip = ({ label, active, colorClass, onClick }) => (
 )
 
 const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplicate, onClose, onSaved }) => {
+  const confirm = useConfirm()
   const seed = event || copyFrom
   const start = seed ? splitStamp(seed.start_at) : { date: defaultDate, time: '' }
   const end = seed?.end_at ? splitStamp(seed.end_at) : { date: '', time: '' }
@@ -332,7 +334,7 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
   }
 
   const remove = async () => {
-    if (!window.confirm(`Delete "${event.title}"?`)) return
+    if (!(await confirm(`Delete "${event.title}"?`))) return
     setBusy(true)
     try {
       await api.delete(`/api/sis/events/${event.id}?organization_id=${orgId}`)

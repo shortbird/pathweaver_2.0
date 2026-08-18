@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Secure documents — a private, admin-managed store for sensitive SIS files
@@ -27,6 +28,7 @@ const formatSize = (bytes) => {
 }
 
 const SecureDocumentsPage = () => {
+  const confirm = useConfirm()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [docs, setDocs] = useState([])
   const [people, setPeople] = useState([])
@@ -146,7 +148,7 @@ const SecureDocumentsPage = () => {
   }, [orgId])
 
   const handleDelete = useCallback(async (doc) => {
-    if (!window.confirm(`Delete "${docName(doc)}"? This permanently removes the file.`)) return
+    if (!(await confirm(`Delete "${docName(doc)}"? This permanently removes the file.`))) return
     try {
       await api.delete(withOrg(`/api/sis/secure-documents/${doc.id}`, orgId))
       toast.success('Document deleted')
@@ -163,8 +165,8 @@ const SecureDocumentsPage = () => {
   // someone made on purpose.
   const toggleShare = useCallback(async (doc) => {
     const next = !doc.shared_with_owner
-    if (next && !window.confirm(
-      `Share "${docName(doc)}" with ${doc.owner_name}? They'll see it in My Documents.`)) return
+    if (next && !(await confirm(
+      `Share "${docName(doc)}" with ${doc.owner_name}? They'll see it in My Documents.`))) return
     try {
       await api.patch(`/api/sis/secure-documents/${doc.id}`, {
         organization_id: orgId, shared_with_owner: next,

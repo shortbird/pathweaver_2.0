@@ -11,6 +11,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * OnboardingPage — role-switched.
@@ -307,6 +308,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 // Authoring templates is rare, so it sits at the bottom, collapsed, and its
 // editor opens over the page instead of pushing everything else off screen.
 export const AdminOnboarding = ({ orgId, onCount = null }) => {
+  const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
   const [assignments, setAssignments] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
@@ -333,7 +335,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
   useEffect(() => { onCount?.(awaitingReview.length) }, [awaitingReview.length, onCount])
 
   const deleteTemplate = async (t, { force = false } = {}) => {
-    if (!force && !window.confirm(`Delete the "${t.name}" template? This can't be undone.`)) return
+    if (!force && !(await confirm(`Delete the "${t.name}" template? This can't be undone.`))) return
     try {
       await api.delete(withOrg(`/api/sis/staff-admin/onboarding/templates/${t.id}${force ? '?force=1' : ''}`, orgId))
       toast.success('Template deleted')
@@ -341,7 +343,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
     } catch (err) {
       // 409 = still assigned to people. Say who, then let them confirm.
       if (err?.response?.status === 409) {
-        if (window.confirm(`${err.response.data?.error}\n\nTheir checklists stay in place.`)) {
+        if (await confirm(`${err.response.data?.error}\n\nTheir checklists stay in place.`)) {
           deleteTemplate(t, { force: true })
         }
         return
@@ -355,7 +357,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
     const warning = done
       ? `\n\n${done} of ${a.total_count} items are already done. Any documents they uploaded are kept.`
       : ''
-    if (!window.confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`)) return
+    if (!(await confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`))) return
     try {
       await api.delete(withOrg(`/api/sis/staff-admin/onboarding/assignments/${a.id}`, orgId))
       toast.success('Checklist removed')
@@ -377,7 +379,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
   }
 
   const clearSignature = async (assignmentId, itemKey, signerName) => {
-    if (!window.confirm(`Clear ${signerName ? `${signerName}'s` : 'the'} signature on this item? They will need to sign again.`)) return
+    if (!(await confirm(`Clear ${signerName ? `${signerName}'s` : 'the'} signature on this item? They will need to sign again.`))) return
     try {
       await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
         organization_id: orgId, clear_signature: true,

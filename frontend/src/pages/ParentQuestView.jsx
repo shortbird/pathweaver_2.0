@@ -13,6 +13,7 @@ import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDispla
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal';
 import { submitHelperEvidence } from '../components/evidence/helperEvidenceUtils';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * ParentQuestView - Streamlined quest view for parents to upload evidence and
@@ -28,6 +29,7 @@ import QuestPersonalizationWizard from '../components/quests/QuestPersonalizatio
  * Mirrors how v2 mobile reuses its TaskCreationWizard on the parent screen.
  */
 const ParentQuestView = () => {
+  const confirm = useConfirm()
   const { studentId, questId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -71,7 +73,7 @@ const ParentQuestView = () => {
 
   const handleDeleteBlock = async (block) => {
     if (!block?.id || deletingBlockId) return;
-    if (!window.confirm('Remove this evidence? This cannot be undone.')) return;
+    if (!(await confirm('Remove this evidence? This cannot be undone.'))) return;
 
     try {
       setDeletingBlockId(block.id);

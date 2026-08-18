@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -20,6 +20,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../services/api', () => ({ default: api }))
 
 import FamilyGoalsPage from './FamilyGoalsPage'
+import { withConfirm, answerConfirm, confirmText } from '../tests/confirmTestUtils'
 
 const CONFIG = {
   subjects: ['Math', 'Science'],
@@ -70,25 +71,23 @@ describe('FamilyGoalsPage', () => {
   })
 
   it('submits for review after confirming the meeting dialog', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<FamilyGoalsPage />)
     await screen.findByText('Goal Setting')
     fireEvent.click(screen.getByText('Submit for review'))
+    expect(await confirmText()).toContain('Gryffin Learning Center')
+    await answerConfirm()
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledWith('/api/sis/goals/students/s1',
         expect.objectContaining({ submit: true })),
     )
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Gryffin Learning Center'))
-    confirmSpy.mockRestore()
   })
 
   it('does not submit when the confirm dialog is declined', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<FamilyGoalsPage />)
     await screen.findByText('Goal Setting')
     fireEvent.click(screen.getByText('Submit for review'))
+    await answerConfirm(false)
     expect(api.put).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
   })
 
   it('shows the submitted banner for a child whose goals are in review', async () => {

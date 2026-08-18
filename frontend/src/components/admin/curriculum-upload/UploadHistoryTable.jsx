@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import toast from 'react-hot-toast'
 import api from '../../../services/api'
 import StatusBadge from './StatusBadge'
+import { useConfirm } from '../../../contexts/ConfirmContext'
 
 // Helper to format relative time
 const formatRelativeTime = (dateString) => {
@@ -31,6 +32,7 @@ function UploadHistoryTable({
   onSelectUpload,
   onCancelUpload,
 }) {
+  const confirm = useConfirm()
   const [expandedErrors, setExpandedErrors] = useState({})
 
   if (historyLoading) {
@@ -64,7 +66,7 @@ function UploadHistoryTable({
   }
 
   const handleCancel = async (upload) => {
-    if (!window.confirm('Cancel this upload? You may be able to resume later.')) return
+    if (!(await confirm('Cancel this upload? You may be able to resume later.'))) return
     try {
       await api.delete(`/api/admin/curriculum/upload/${upload.id}`)
       toast.success('Upload cancelled')

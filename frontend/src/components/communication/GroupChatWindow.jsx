@@ -27,6 +27,7 @@ import {
   MessageActionBar,
   MessageEditForm
 } from './MessageParts'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const scrollThreadToBottom = (endEl, smooth = true) => {
   const container = endEl?.closest('.overflow-y-auto')
@@ -40,6 +41,7 @@ const scrollThreadToBottom = (endEl, smooth = true) => {
 }
 
 const GroupChatWindow = ({ group, onBack }) => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const [showSettings, setShowSettings] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
@@ -137,8 +139,8 @@ const GroupChatWindow = ({ group, onBack }) => {
     }
   }
 
-  const handleDelete = (msg) => {
-    if (window.confirm('Delete this message?')) {
+  const handleDelete = async (msg) => {
+    if (await confirm('Delete this message?')) {
       deleteMessageMutation.mutate({ groupId: group.id, messageId: msg.id })
     }
   }

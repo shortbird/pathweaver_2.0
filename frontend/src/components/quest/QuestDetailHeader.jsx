@@ -18,6 +18,7 @@ import {
   MapPinIcon
 } from '@heroicons/react/24/outline';
 import { isFocusMode } from '../../utils/focusMode';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const stripHtml = (html) => {
   if (!html) return '';
@@ -38,6 +39,7 @@ const QuestDetailHeader = ({
   onEndQuest,
   endQuestMutation
 }) => {
+  const confirm = useConfirm()
   const navigate = useNavigate();
   const { user, effectiveRole } = useAuth();
   // A parent reaches this page only for a quest their school set for families
@@ -338,8 +340,8 @@ const QuestDetailHeader = ({
           {/* Mark Completed Button - LMS quests only */}
           {isEnrolled && !isQuestCompleted && quest?.lms_platform && (
             <button
-              onClick={() => {
-                if (window.confirm('Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
+              onClick={async () => {
+                if (await confirm('Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
                   onEndQuest();
                 }
               }}

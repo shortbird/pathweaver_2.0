@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 import SubjectBadges, { getSubjectConfig } from '../components/common/SubjectBadges';
 import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
+import { useConfirm } from '../contexts/ConfirmContext'
 
 // Diploma subjects for filtering
 const DIPLOMA_SUBJECTS = [
@@ -25,6 +26,7 @@ const DIPLOMA_SUBJECTS = [
 ];
 
 export default function TaskLibraryBrowser() {
+  const confirm = useConfirm()
   const { questId } = useParams();
   const navigate = useNavigate();
   const [quest, setQuest] = useState(null);
@@ -62,7 +64,7 @@ export default function TaskLibraryBrowser() {
     // Check if already added - allow deselecting
     if (addedTasks.has(taskId)) {
       // Confirm before removing
-      if (!window.confirm('Remove this task from your quest?')) {
+      if (!(await confirm('Remove this task from your quest?'))) {
         return;
       }
 

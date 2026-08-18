@@ -9,6 +9,7 @@ import courseService from '../services/courseService'
 import { useModalState } from './courseBuilder/useModalState'
 import { useSelectionState } from './courseBuilder/useSelectionState'
 import { useAITools } from './courseBuilder/useAITools'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * Custom hook that manages all state and handlers for the Course Builder.
@@ -21,6 +22,7 @@ import { useAITools } from './courseBuilder/useAITools'
  * - This hook: Core data state, CRUD operations, composition
  */
 export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
+  const confirm = useConfirm()
   const navigate = useNavigate()
 
   // Compose modal state
@@ -215,17 +217,28 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     let deleteQuest = false
 
     if (isSuperadmin) {
-      deleteQuest = window.confirm(
-        'Remove this project from the course?\n\n' +
-        'Click OK to also DELETE the project permanently (if not used elsewhere).\n' +
-        'Click Cancel to just remove from this course (keeps the project).'
-      )
+      // Two asks because this is a three-way choice: delete outright, remove
+      // from the course only, or back out. The labels carry it now that the
+      // buttons are ours to name — the old copy described OK/Cancel, which no
+      // longer exist.
+      deleteQuest = await confirm({
+        title: 'Delete this project permanently?',
+        body: 'It is removed from this course either way. Deleting also removes the '
+          + 'project itself, if no other course uses it.',
+        confirmLabel: 'Delete the project',
+        cancelLabel: 'Just remove it from the course',
+      })
       if (!deleteQuest) {
-        const justRemove = window.confirm('Remove the project from this course without deleting it?')
+        const justRemove = await confirm({
+          title: 'Remove this project from the course?',
+          body: 'The project stays in the library and can be added again later.',
+          confirmLabel: 'Remove from course',
+          destructive: false,
+        })
         if (!justRemove) return
       }
     } else {
-      const confirmRemove = window.confirm('Remove this project from the course?')
+      const confirmRemove = await confirm('Remove this project from the course?')
       if (!confirmRemove) return
     }
 

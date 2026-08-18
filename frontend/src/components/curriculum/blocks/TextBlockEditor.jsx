@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
+import { usePromptText } from '../../../contexts/ConfirmContext'
 
 /**
  * TextBlockEditor - WYSIWYG editor using TipTap
@@ -15,6 +16,7 @@ const TextBlockEditor = ({
   onChange,
   placeholder = 'Start typing your lesson content...',
 }) => {
+  const promptText = usePromptText()
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -71,9 +73,14 @@ const TextBlockEditor = ({
     </button>
   )
 
-  const setLink = () => {
+  const setLink = async () => {
     const previousUrl = editor.getAttributes('link').href
-    const url = window.prompt('Enter URL:', previousUrl)
+    const url = await promptText({
+      title: 'Link to a URL',
+      body: 'Leave it empty to remove the link.',
+      defaultValue: previousUrl || '',
+      confirmLabel: 'Apply link',
+    })
 
     if (url === null) {
       return

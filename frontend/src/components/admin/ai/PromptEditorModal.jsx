@@ -3,8 +3,10 @@ import { Modal, ModalFooter } from '../../ui/Modal'
 import api from '../../../services/api'
 import toast from 'react-hot-toast'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
+import { useConfirm } from '../../../contexts/ConfirmContext'
 
 const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, category, onSave }) => {
+  const confirm = useConfirm()
   const [content, setContent] = useState(initialContent || '')
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -74,7 +76,7 @@ const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, cat
   }
 
   const handleReset = async () => {
-    if (!window.confirm('Reset this prompt to default? This cannot be undone.')) {
+    if (!(await confirm('Reset this prompt to default? This cannot be undone.'))) {
       return
     }
 
@@ -95,9 +97,9 @@ const PromptEditorModal = ({ isOpen, onClose, componentName, initialContent, cat
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (hasChanges) {
-      if (!window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+      if (!(await confirm('You have unsaved changes. Are you sure you want to close?'))) {
         return
       }
     }

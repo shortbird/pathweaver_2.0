@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 // Roles with a standing account-creation link (not org_admin or observer)
 const VALID_ROLES = [
@@ -14,6 +15,7 @@ const VALID_ROLES = [
  */
 export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   // User list state
+  const confirm = useConfirm()
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCreateUsernameModal, setShowCreateUsernameModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
@@ -339,7 +341,7 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
 
   const handleUnassignStudent = async (studentId) => {
     if (!selectedAdvisor) return
-    if (!window.confirm('Are you sure you want to unassign this student?')) return
+    if (!(await confirm('Are you sure you want to unassign this student?'))) return
 
     try {
       await api.delete(`/api/admin/organizations/${orgId}/advisors/${selectedAdvisor.id}/students/${studentId}`)

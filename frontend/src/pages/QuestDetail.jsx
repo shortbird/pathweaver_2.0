@@ -19,6 +19,7 @@ import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import Spinner, { PageLoader } from '../components/ui/Spinner';
 import { useProgramQuestView } from '../programs/registry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
+import { useConfirm } from '../contexts/ConfirmContext'
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -55,6 +56,7 @@ const preloadWizard = () => {
 };
 
 const QuestDetail = () => {
+  const confirm = useConfirm()
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -186,7 +188,7 @@ const QuestDetail = () => {
   };
 
   const handleDropTask = async (taskId) => {
-    if (!window.confirm('Remove this task from your active quest? You can add it back later from the task library.')) {
+    if (!(await confirm('Remove this task from your active quest? You can add it back later from the task library.'))) {
       return;
     }
 

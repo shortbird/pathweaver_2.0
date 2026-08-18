@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Modal, Alert, FormField, FormFooter } from './ui';
 import SimilarQuestAutocomplete from './SimilarQuestAutocomplete';
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * CreateQuestModal - Modal for users to create their own quests
@@ -11,6 +12,7 @@ import SimilarQuestAutocomplete from './SimilarQuestAutocomplete';
  * until an admin makes them public. Created quests are immediately available for use.
  */
 const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
+  const confirm = useConfirm()
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -34,8 +36,8 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
     if (error) setError('');
   };
 
-  const handleSelectSimilarQuest = (selectedQuest) => {
-    if (window.confirm(`Use the existing quest "${selectedQuest.title}" instead of creating a new one?`)) {
+  const handleSelectSimilarQuest = async (selectedQuest) => {
+    if (await confirm(`Use the existing quest "${selectedQuest.title}" instead of creating a new one?`)) {
       onClose();
       navigate(`/quests/${selectedQuest.id}`);
     }

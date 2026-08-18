@@ -14,6 +14,7 @@ import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
 import QuestPreviewModal from '../../components/sis/QuestPreviewModal'
 import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
@@ -565,6 +566,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
 }
 
 const StaffTrainingPage = () => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
   // The default header image, so the builder and the preview show what will
@@ -644,7 +646,7 @@ const StaffTrainingPage = () => {
   }
 
   const remove = async (t) => {
-    if (!window.confirm(`Remove "${t.title}" from training? The quest itself is kept.`)) return
+    if (!(await confirm(`Remove "${t.title}" from training? The quest itself is kept.`))) return
     try {
       await api.delete(withOrg(`/api/sis/training/${t.id}`, orgId))
       toast.success('Removed from training')

@@ -9,6 +9,7 @@ import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
 import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * SIS Registration page — everything about how families register, in two tabs:
@@ -111,6 +112,7 @@ const siblingTitle = (e, prioritized) => {
 // Releasing unlocks class selection and emails the family; "Not accepted"
 // refunds that child's registration fee.
 const EnrollmentWaitlistCard = ({ orgId, org }) => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const admin = isSisAdmin(user) // adding + reordering are admin-only
   const [entries, setEntries] = useState([])
@@ -171,7 +173,7 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
   }
 
   const rejectOne = async (e) => {
-    if (!window.confirm(`Mark ${e.student_name} as NOT accepted? Their share of the family's registration fee will be refunded and their family emailed. This can't be undone.`)) return
+    if (!(await confirm(`Mark ${e.student_name} as NOT accepted? Their share of the family's registration fee will be refunded and their family emailed. This can't be undone.`))) return
     setBusy(e.id)
     try {
       const { data } = await api.post(`/api/sis/enrollment-waitlist/${e.id}/reject`, { organization_id: orgId })
@@ -216,7 +218,7 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
 
   const releaseBand = async (band) => {
     const n = band.members.length
-    if (!window.confirm(`Release all ${n} waiting student${n === 1 ? '' : 's'} (${band.band_label})? Each family will be emailed.`)) return
+    if (!(await confirm(`Release all ${n} waiting student${n === 1 ? '' : 's'} (${band.band_label})? Each family will be emailed.`))) return
     setBusy(band.band_label)
     try {
       await api.post('/api/sis/enrollment-waitlist/release-band', {

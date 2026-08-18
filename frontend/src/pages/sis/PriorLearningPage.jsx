@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg } from './useSisOrg'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Prior Learning review (SIS console).
@@ -338,14 +339,15 @@ const EvidenceList = ({ evidence, busy, onDelete }) => {
  * Previews are lazy — a browser only fetches the ones scrolled into view.
  */
 const EvidenceItem = ({ item, busy, onDelete }) => {
+  const confirm = useConfirm()
   const [open, setOpen] = useState(true)
   const kind = previewKindFor(item)
   const label = item.title || item.file_name || item.url
 
   // Deleting a family's document is not undoable and the file goes with it, so
   // it asks first and names what it is about to remove.
-  const confirmDelete = () => {
-    if (window.confirm(`Delete "${label}"? This removes the file for good.`)) onDelete()
+  const confirmDelete = async () => {
+    if (await confirm(`Delete "${label}"? This removes the file for good.`)) onDelete()
   }
 
   const DeleteButton = () => (

@@ -14,6 +14,7 @@ import StaffProfileModal from '../../components/sis/StaffProfileModal'
 import StaffDetailModal from '../../components/sis/StaffDetailModal'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { setPreviewTeacher } from './teacherPreview'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const fmtDate = (d) => {
   if (!d) return null
@@ -63,6 +64,7 @@ const StatusPills = ({ s }) => (
 )
 
 const StaffPage = ({ embedded = false, toolbarEl = null }) => {
+  const confirm = useConfirm()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
@@ -130,7 +132,7 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
   const mergeDuplicate = async (placeholder) => {
     const real = placeholder.duplicate_of
     const classes = placeholder.class_count || 0
-    const ok = window.confirm(
+    const ok = await confirm(
       `Merge the "${placeholder.name}" card into ${real.email}?\n\n` +
       (classes
         ? `Their ${classes} class assignment${classes === 1 ? '' : 's'} move to that account, and the duplicate card is removed.`

@@ -11,6 +11,7 @@ import {
   DIFF_MODIFIED,
   DIFF_REMOVED,
 } from './evidenceDiff'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Evidence block content can be a string or an object like {text: "..."}
 const getBlockText = (content) => {
@@ -182,6 +183,7 @@ const formatSubject = (s) => {
 }
 
 const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance, onGrowThis, onFeedbackChange, feedbackTextareaRef }) => {
+  const confirm = useConfirm()
   const [feedback, setFeedback] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false)
@@ -189,7 +191,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
 
   const handleAiSuggest = async () => {
     if (!item) return
-    if (feedback.trim() && !window.confirm('Replace your current feedback with an AI draft?')) {
+    if (feedback.trim() && !(await confirm('Replace your current feedback with an AI draft?'))) {
       return
     }
     setAiSuggestLoading(true)

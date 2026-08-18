@@ -20,6 +20,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Sortable Task Row Component
 const SortableTaskRow = ({
@@ -240,6 +241,7 @@ const SortableTaskRow = ({
 };
 
 const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, organizationId = null, canDelete = false, onDelete = null }) => {
+  const confirm = useConfirm()
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [loadingTasks, setLoadingTasks] = useState(mode === 'edit');
@@ -768,8 +770,8 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, or
                   {canDelete && onDelete && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
+                      onClick={async () => {
+                        if (await confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
                           onDelete(quest.id);
                         }
                       }}

@@ -14,6 +14,7 @@ import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
 import api from '../services/api'
 import { PageLoader } from '../components/ui/Spinner'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 const PILLAR_LABELS = {
   stem: 'STEM', art: 'Art', communication: 'Communication', civics: 'Civics', wellness: 'Wellness',
@@ -28,6 +29,7 @@ const PILLAR_COLORS = {
 }
 
 const BountyDetailPage = () => {
+  const confirm = useConfirm()
   const { bountyId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -429,8 +431,8 @@ const BountyDetailPage = () => {
           evidence={viewingEvidence}
           title={viewingEvidence.title}
           onClose={() => setViewingEvidence(null)}
-          onDelete={(idx) => {
-            if (!window.confirm('Delete this evidence?')) return
+          onDelete={async (idx) => {
+            if (!(await confirm('Delete this evidence?'))) return
             deleteEvidenceMutation.mutate({
               bountyId: viewingEvidence.bountyId,
               claimId: viewingEvidence.claimId,

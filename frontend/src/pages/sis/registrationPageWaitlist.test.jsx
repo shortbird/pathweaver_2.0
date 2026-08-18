@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 // The queues live on the Registration page's second tab (the default tab is
 // the editable registration form), so mount the page with ?tab=queues.
-const render = (ui) => rtlRender(<MemoryRouter initialEntries={['/registration?tab=queues']}>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter initialEntries={['/registration?tab=queues']}>{withConfirm(ui)}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -104,11 +105,11 @@ describe('EnrollmentWaitlistCard', () => {
   })
 
   it('releases a whole band after a count confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     state.entries = [WAITING(), WAITING({ id: 'w2', student_name: 'Kid Two', position: 2 })]
     render(<RegistrationPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Release all 2' }))
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('2 waiting students'))
+    expect(await confirmText()).toContain('2 waiting students')
+    await answerConfirm()
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/enrollment-waitlist/release-band', {
         organization_id: 'org-1', band_min_age: 5, band_max_age: 9,
@@ -170,12 +171,12 @@ describe('EnrollmentWaitlistCard', () => {
   })
 
   it('rejects a student (refund) after a confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     api.post.mockResolvedValueOnce({ data: { rejected: true, refund_cents: 4167, emailed: true } })
     state.entries = [WAITING()]
     render(<RegistrationPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Not accepted' }))
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('NOT accepted'))
+    expect(await confirmText()).toContain('NOT accepted')
+    await answerConfirm()
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/enrollment-waitlist/w1/reject',
         { organization_id: 'org-1' }),
@@ -183,10 +184,10 @@ describe('EnrollmentWaitlistCard', () => {
   })
 
   it('does not reject when the confirm is dismissed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     state.entries = [WAITING()]
     render(<RegistrationPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Not accepted' }))
+    await answerConfirm(false)
     expect(api.post).not.toHaveBeenCalledWith('/api/sis/enrollment-waitlist/w1/reject',
       { organization_id: 'org-1' })
   })

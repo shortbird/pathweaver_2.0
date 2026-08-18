@@ -4,6 +4,7 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * SIS — Customized Learning Plan (CLP) meeting view.
@@ -121,6 +122,7 @@ const SeatsPill = ({ cls }) => {
 }
 
 const ClpPage = () => {
+  const confirm = useConfirm()
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
 
   const [directory, setDirectory] = useState({ families: [], students: [], counts: null })
@@ -325,7 +327,7 @@ const ClpPage = () => {
       )
     } catch (e) {
       if (e.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
-        if (window.confirm(`${e.response.data.error}\n\nEnroll them in ${cls.name} anyway?`)) {
+        if (await confirm(`${e.response.data.error}\n\nEnroll them in ${cls.name} anyway?`)) {
           return enroll(cls, true)
         }
         return
@@ -353,7 +355,7 @@ const ClpPage = () => {
       )
     } catch (e) {
       if (e.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
-        if (window.confirm(
+        if (await confirm(
           `${e.response.data.error}\n\nAdd them to the ${cls.name} waitlist anyway?`)) {
           return joinWaitlist(cls, true)
         }
@@ -504,7 +506,7 @@ const ClpPage = () => {
                         title={`Drop ${cls.name}`}
                         aria-label={`Drop ${cls.name}`}
                         disabled={busyId === cls.class_id}
-                        onClick={() => { if (window.confirm(`Drop ${cls.name} from this student's schedule?`)) drop(cls) }}
+                        onClick={async () => { if (await confirm(`Drop ${cls.name} from this student's schedule?`)) drop(cls) }}
                         className="absolute top-1 right-1 text-neutral-300 hover:text-red-600 leading-none text-base font-bold px-1 disabled:opacity-40"
                       >
                         {busyId === cls.class_id ? '·' : '×'}

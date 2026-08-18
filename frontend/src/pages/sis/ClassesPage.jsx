@@ -18,6 +18,7 @@ import ClassesTable from '../../components/sis/ClassesTable'
 import ClassesExportModal from '../../components/sis/ClassesExportModal'
 import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -68,6 +69,7 @@ const stripHtml = (html) => {
 }
 
 const ClassesPage = () => {
+  const confirm = useConfirm()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
@@ -296,7 +298,7 @@ const ClassesPage = () => {
   const [exporting, setExporting] = useState(false)
 
   const archiveClass = async (c) => {
-    if (!window.confirm(`Archive "${c.name}"? It will no longer accept registrations.`)) return
+    if (!(await confirm(`Archive "${c.name}"? It will no longer accept registrations.`))) return
     try {
       await api.delete(`/api/sis/classes/${c.id}?organization_id=${orgId}`)
       toast.success('Class archived')
@@ -348,7 +350,7 @@ const ClassesPage = () => {
   // Schedule Builder — new classes default to closed, which is easy to miss.
   const closedClasses = classes.filter((c) => c.registration_status !== 'open' && c.status !== 'archived')
   const openAll = async () => {
-    if (!window.confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`)) return
+    if (!(await confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`))) return
     try {
       await Promise.all(closedClasses.map((c) =>
         api.patch(`/api/sis/classes/${c.id}`, { registration_status: 'open', organization_id: orgId })))
@@ -967,6 +969,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
 
 // Enrolled students for the class (sorted by last name).
 const ClassRoster = ({ classId, orgId }) => {
+  const confirm = useConfirm()
   const [roster, setRoster] = useState(null)
   const [dropping, setDropping] = useState(null)
 
@@ -978,7 +981,7 @@ const ClassRoster = ({ classId, orgId }) => {
   useEffect(() => { reload() }, [reload])
 
   const drop = async (s) => {
-    if (!window.confirm(`Drop ${s.name} from this class?`)) return
+    if (!(await confirm(`Drop ${s.name} from this class?`))) return
     setDropping(s.student_id)
     try {
       await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
@@ -1035,6 +1038,7 @@ const offerExpiryText = (e) => {
 }
 
 const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
+  const confirm = useConfirm()
   const [entries, setEntries] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(null)
@@ -1087,7 +1091,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   // confirmed before forcing — admitting off the waitlist is how a student
   // ended up in two Wednesday microschool sections at once.
   const enroll = async (e, force = false) => {
-    if (!force && !window.confirm(`Enroll ${e.student_name} in ${cls?.name || 'this class'} now?`)) return
+    if (!force && !(await confirm(`Enroll ${e.student_name} in ${cls?.name || 'this class'} now?`))) return
     setBusy(e.id)
     try {
       await api.post(`/api/sis/waitlist/${e.id}/enroll`, { organization_id: orgId, force })
@@ -1098,7 +1102,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       const clash = err?.response?.status === 409 && err.response.data?.conflicts
       if (clash?.length) {
         const names = clash.map((c) => c.class_name || c.name).filter(Boolean).join(', ')
-        if (window.confirm(
+        if (await confirm(
           `${e.student_name} already has ${names} at that time.\n\n`
           + `Enroll in ${cls?.name || 'this class'} anyway? They'll be in both.`)) {
           return enroll(e, true)
@@ -1143,7 +1147,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       const clash = err?.response?.status === 409 && err.response.data?.conflicts
       if (clash) {
         const names = clash.map((c) => c.class_name || c.name).filter(Boolean).join(', ')
-        if (window.confirm(
+        if (await confirm(
           `${e.student_name} already has ${names} at that time.\n\n`
           + `Enroll in ${section.name} anyway? They'll be in both.`)) {
           return enrollInSection(e, section, true)
@@ -1166,7 +1170,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   }
 
   const remove = async (e) => {
-    if (!window.confirm(`Remove ${e.student_name} from this waitlist?`)) return
+    if (!(await confirm(`Remove ${e.student_name} from this waitlist?`))) return
     setBusy(e.id)
     try {
       await api.delete(`/api/sis/waitlist/${e.id}?organization_id=${orgId}`)

@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../ui/Button'
 import { withOrg } from '../../pages/sis/useSisOrg'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const fmtWhen = (ts) => {
   try { return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }
@@ -20,6 +21,7 @@ const ageBand = (r) => (r.class_min_age != null && r.class_max_age != null
  * the age override. Renders nothing when the org has no requests.
  */
 const AgeExceptionRequestsCard = ({ orgId }) => {
+  const confirm = useConfirm()
   const [requests, setRequests] = useState([])
 
   const load = useCallback(() => {
@@ -45,7 +47,7 @@ const AgeExceptionRequestsCard = ({ orgId }) => {
       const conflicts = e?.response?.status === 409 ? e.response.data?.conflicts : null
       if (conflicts?.length) {
         const names = conflicts.map((c) => c.class_name).join(', ')
-        if (window.confirm(
+        if (await confirm(
           `${r.student_name} is already enrolled in ${names} at the same time. ` +
           `Drop ${names} and enroll in ${r.class_name}?`)) {
           await resolve(r, action, true)

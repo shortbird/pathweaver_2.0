@@ -2,8 +2,10 @@ import React, { useState, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { Modal, Alert, FormFooter } from '../ui'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const BulkEmailModal = ({ selectedUserIds, users, onClose, onSend }) => {
+  const confirm = useConfirm()
   const [emailData, setEmailData] = useState({
     subject: '',
     message: '',
@@ -67,7 +69,7 @@ The OptioQuest Team`
       return
     }
 
-    if (window.confirm(`Send email to ${selectedUserIds.length} users?`)) {
+    if (await confirm(`Send email to ${selectedUserIds.length} users?`)) {
       setSending(true)
       try {
         await api.post('/api/admin/users/bulk-email', {

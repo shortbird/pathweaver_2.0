@@ -5,8 +5,10 @@ import LearningEventModal from './LearningEventModal';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { getVideoEmbedUrl, isUploadedVideoUrl } from '../../utils/videoUtils';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId = null }) => {
+  const confirm = useConfirm()
   const [showEditModal, setShowEditModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -17,7 +19,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
   const canParentModify = isParentView && event?.captured_by_user_id;
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this learning moment? This cannot be undone.')) {
+    if (!(await confirm('Are you sure you want to delete this learning moment? This cannot be undone.'))) {
       return;
     }
 

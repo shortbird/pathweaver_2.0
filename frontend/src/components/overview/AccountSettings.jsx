@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import api, { tokenStore } from '../../services/api';
 import toast from 'react-hot-toast';
 import PasswordStrengthMeter from '../auth/PasswordStrengthMeter';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const AccountSettings = ({
   user,
@@ -11,6 +12,7 @@ const AccountSettings = ({
   onUserUpdate,
   hideHeader = false
 }) => {
+  const confirm = useConfirm()
   const [isExpanded, setIsExpanded] = useState(hideHeader); // Auto-expand when header is hidden
   const [isEditing, setIsEditing] = useState(false);
   const [deletionRequesting, setDeletionRequesting] = useState(false);
@@ -76,7 +78,7 @@ const AccountSettings = ({
   };
 
   const requestAccountDeletion = async () => {
-    const confirmed = window.confirm(
+    const confirmed = await confirm(
       'Are you sure you want to delete your account? This will:\n\n' +
       '- Schedule your account for permanent deletion in 30 days\n' +
       '- You can cancel within the 30-day grace period\n' +

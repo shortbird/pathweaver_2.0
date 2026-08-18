@@ -17,6 +17,7 @@ import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
 import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
 import { useIsMobile } from '../../hooks/useSwipeGesture';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const blockTypes = {
   text: {
@@ -91,6 +92,7 @@ export const EvidenceBlockRenderer = ({
   moveBlockUp,
   moveBlockDown
 }) => {
+  const confirm = useConfirm()
   const {
     activeBlock,
     setActiveBlock,
@@ -109,7 +111,7 @@ export const EvidenceBlockRenderer = ({
   const hasUploadError = uploadErrors[block.id];
 
   // Keyboard navigation handler
-  const handleKeyDown = (e) => {
+  const handleKeyDown = async (e) => {
     // Only handle keyboard events when the drag handle is focused
     if (e.target.getAttribute('aria-label') !== 'Drag to reorder block') return;
 
@@ -129,7 +131,7 @@ export const EvidenceBlockRenderer = ({
       case 'Delete':
       case 'Backspace':
         e.preventDefault();
-        if (window.confirm('Delete this block?')) {
+        if (await confirm('Delete this block?')) {
           deleteBlock(block.id);
         }
         break;

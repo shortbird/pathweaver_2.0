@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 let mockUser = { id: 'kate', role: 'org_managed', org_roles: ['advisor'] }
 vi.mock('../../contexts/AuthContext', () => ({
@@ -36,6 +36,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import OnboardingPage from './OnboardingPage'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 const item = (over = {}) => ({
   key: 'contract', title: 'Staff agreement', required: true,
@@ -183,8 +184,6 @@ describe('clearing a signature as an admin', () => {
       return Promise.resolve({ data: {} })
     })
 
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-
     render(<OnboardingPage />)
 
     expect(await screen.findByText(/Signed by/)).toBeInTheDocument()
@@ -192,6 +191,7 @@ describe('clearing a signature as an admin', () => {
 
     const clearBtn = screen.getByRole('button', { name: 'Clear signature' })
     fireEvent.click(clearBtn)
+    await answerConfirm()
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
       '/api/sis/teacher/onboarding/a1/items/contract',

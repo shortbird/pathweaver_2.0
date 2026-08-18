@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import RichTextEditor from '../../components/course/outline/RichTextEditor'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -225,6 +226,7 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
 
 // ── Announcements ─────────────────────────────────────────────────────────────
 const AnnouncementsTab = ({ orgId, admin }) => {
+  const confirm = useConfirm()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null) // row | 'new' | null
@@ -239,7 +241,7 @@ const AnnouncementsTab = ({ orgId, admin }) => {
   useEffect(() => { load() }, [load])
 
   const remove = async (a) => {
-    if (!window.confirm(`Delete "${a.title}"?`)) return
+    if (!(await confirm(`Delete "${a.title}"?`))) return
     try {
       await api.delete(`/api/sis/community/announcements/${a.id}?organization_id=${orgId}`)
       toast.success('Announcement deleted')
@@ -417,6 +419,7 @@ const lfStatusPill = (s) => ({
 }[s] || 'bg-gray-100 text-neutral-600')
 
 const LostFoundTab = ({ orgId, admin }) => {
+  const confirm = useConfirm()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null) // row | 'new' | null
@@ -437,7 +440,7 @@ const LostFoundTab = ({ orgId, admin }) => {
     } catch { toast.error('Could not update') }
   }
   const remove = async (item) => {
-    if (!window.confirm('Delete this item?')) return
+    if (!(await confirm('Delete this item?'))) return
     try {
       await api.delete(`/api/sis/community/lost-found/${item.id}?organization_id=${orgId}`)
       toast.success('Item deleted')
@@ -445,7 +448,7 @@ const LostFoundTab = ({ orgId, admin }) => {
     } catch { toast.error('Could not delete') }
   }
   const markExpired = async () => {
-    if (!window.confirm('Mark every unclaimed item past its 14-day deadline as donated?')) return
+    if (!(await confirm('Mark every unclaimed item past its 14-day deadline as donated?'))) return
     try {
       const r = await api.post('/api/sis/community/lost-found/mark-expired', { organization_id: orgId })
       toast.success(`${r.data?.donated || 0} item(s) marked for donation`)
@@ -603,6 +606,7 @@ const LostFoundForm = ({ orgId, item, onDone, onCancel }) => {
 
 // ── Recognition ───────────────────────────────────────────────────────────────
 const RecognitionTab = ({ orgId }) => {
+  const confirm = useConfirm()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [posting, setPosting] = useState(false)
@@ -617,7 +621,7 @@ const RecognitionTab = ({ orgId }) => {
   useEffect(() => { load() }, [load])
 
   const remove = async (r) => {
-    if (!window.confirm('Delete this recognition?')) return
+    if (!(await confirm('Delete this recognition?'))) return
     try {
       await api.delete(`/api/sis/community/recognition/${r.id}?organization_id=${orgId}`)
       load()

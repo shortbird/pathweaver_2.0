@@ -6,6 +6,7 @@ import {
 import api from '../../services/api'
 import QuestDraftForm, { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -125,6 +126,7 @@ function PresetTaskManager({ classId, questId }) {
 }
 
 export default function ClassQuestsManager({ classId }) {
+  const confirm = useConfirm()
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
@@ -203,11 +205,11 @@ export default function ClassQuestsManager({ classId }) {
 
   // Save this section's list back, so next year's section starts from it.
   const saveToCurriculum = async (c) => {
-    if (!window.confirm(
+    if (!(await confirm(
       `Save this class's ${quests.length} quest${quests.length === 1 ? '' : 's'} to "${c.title}"?\n\n`
       + 'This replaces the curriculum\'s saved set. Classes that already copied from it keep what they have — '
       + 'the change applies next time a class is set up from this curriculum.'
-    )) return
+    ))) return
     setSyncing(c.curriculum_id)
     try {
       const { data } = await api.post(`/api/sis/classes/${classId}/quests/to-curriculum`,
@@ -253,8 +255,8 @@ export default function ClassQuestsManager({ classId }) {
   // Two different things, kept visibly apart: unassign takes the quest off this
   // class and leaves it in the school's library; delete removes it entirely.
   const unassign = async (q) => {
-    if (!window.confirm(
-      `Take "${q.title}" off this class?\n\nThe quest stays in your school's library and you can assign it again later.`)) return
+    if (!(await confirm(
+      `Take "${q.title}" off this class?\n\nThe quest stays in your school's library and you can assign it again later.`))) return
     try {
       await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}`)
       setQuests((prev) => prev.filter((x) => x.quest_id !== q.quest_id))
@@ -265,8 +267,8 @@ export default function ClassQuestsManager({ classId }) {
   }
 
   const destroy = async (q) => {
-    if (!window.confirm(
-      `Delete "${q.title}" for good?\n\nThis removes it from your school's library, not just this class. It can't be undone.`)) return
+    if (!(await confirm(
+      `Delete "${q.title}" for good?\n\nThis removes it from your school's library, not just this class. It can't be undone.`))) return
     try {
       await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}/delete`)
       setQuests((prev) => prev.filter((x) => x.quest_id !== q.quest_id))
@@ -280,8 +282,8 @@ export default function ClassQuestsManager({ classId }) {
   // Same delete, reached from the assign picker — for a quest that isn't on any
   // class (a teacher's abandoned draft from last year, iCreate 2026-07-30).
   const destroyUnassigned = async (q) => {
-    if (!window.confirm(
-      `Delete "${q.title}" for good?\n\nThis removes it from your school's library. It can't be undone.`)) return
+    if (!(await confirm(
+      `Delete "${q.title}" for good?\n\nThis removes it from your school's library. It can't be undone.`))) return
     try {
       await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}/delete`)
       setAvailable((prev) => prev.filter((x) => x.quest_id !== q.quest_id))

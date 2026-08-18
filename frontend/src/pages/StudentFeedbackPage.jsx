@@ -19,8 +19,10 @@ import {
   ChevronUpIcon,
   EyeIcon
 } from '@heroicons/react/24/outline';
+import { useConfirm } from '../contexts/ConfirmContext'
 
 export default function StudentFeedbackPage() {
+  const confirm = useConfirm()
   const { user } = useAuth();
   const [feedItems, setFeedItems] = useState([]);
   const [peerCount, setPeerCount] = useState(0);
@@ -110,7 +112,7 @@ export default function StudentFeedbackPage() {
   };
 
   const handleRemoveObserver = async (linkId, observerName) => {
-    if (!window.confirm(`Remove ${observerName} as an observer? They will no longer be able to view your activity.`)) {
+    if (!(await confirm(`Remove ${observerName} as an observer? They will no longer be able to view your activity.`))) {
       return;
     }
     setRemovingId(linkId);

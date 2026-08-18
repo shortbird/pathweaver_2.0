@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Kiosk devices — provision and manage shared-device tokens for the org's
@@ -17,6 +18,7 @@ import api from '../../services/api'
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 const KioskDevicesCard = ({ orgId }) => {
+  const confirm = useConfirm()
   const [devices, setDevices] = useState([])
   const [kioskEnabled, setKioskEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -58,7 +60,7 @@ const KioskDevicesCard = ({ orgId }) => {
   }
 
   const deactivate = async (device) => {
-    if (!window.confirm(`Deactivate "${device.name}"? The kiosk on that device will stop working.`)) return
+    if (!(await confirm(`Deactivate "${device.name}"? The kiosk on that device will stop working.`))) return
     try {
       await api.post(`/api/kiosk/devices/${device.id}/deactivate`, {})
       toast.success('Device deactivated')

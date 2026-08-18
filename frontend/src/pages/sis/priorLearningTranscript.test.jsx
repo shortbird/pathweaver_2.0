@@ -20,6 +20,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('./useSisOrg', () => ({ useSisOrg: () => ({ orgId: 'org-1' }) }))
 
 import PriorLearningPage, { creditsFromSuggestion, parseCourseText } from './PriorLearningPage'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 const SUBJECTS = [
   { key: 'math', name: 'Math' },
@@ -336,27 +337,25 @@ describe('deleting an uploaded document', () => {
   })
 
   it('asks before removing a family’s file, and does nothing if declined', async () => {
-    const confirm = vi.fn(() => false)
-    window.confirm = confirm
     mockQueue([withDoc()])
-    render(<PriorLearningPage />)
+    render(withConfirm(<PriorLearningPage />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Invoice-ZEZUKC-00003.pdf'))
+    expect(await confirmText()).toContain('Invoice-ZEZUKC-00003.pdf')
+    await answerConfirm(false)
     expect(api.delete).not.toHaveBeenCalled()
   })
 
   it('deletes the document once confirmed and drops it from the list', async () => {
-    const confirm = vi.fn(() => true)
-    window.confirm = confirm
     mockQueue([withDoc()])
     api.delete.mockResolvedValue({ data: { deleted: true } })
-    render(<PriorLearningPage />)
+    render(withConfirm(<PriorLearningPage />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await answerConfirm()
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
       '/api/sis/prior-learning/rec-1/evidence/ev-1',
@@ -365,14 +364,13 @@ describe('deleting an uploaded document', () => {
   })
 
   it('keeps the document on screen when the delete fails', async () => {
-    const confirm = vi.fn(() => true)
-    window.confirm = confirm
     mockQueue([withDoc()])
     api.delete.mockRejectedValue({ response: { data: { error: 'nope' } } })
-    render(<PriorLearningPage />)
+    render(withConfirm(<PriorLearningPage />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await answerConfirm()
 
     await waitFor(() => expect(api.delete).toHaveBeenCalled())
     expect(screen.getByText('Invoice-ZEZUKC-00003.pdf')).toBeInTheDocument()

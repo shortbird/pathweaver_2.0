@@ -18,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import ChildPrivacyCard from './ChildPrivacyCard';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * FamilySettingsModal - Unified family management modal.
@@ -34,6 +35,7 @@ const FamilySettingsModal = ({
   onChildSettingsClick,
   onRefresh
 }) => {
+  const confirm = useConfirm()
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('children');
 
@@ -169,7 +171,7 @@ const FamilySettingsModal = ({
   };
 
   const handleRemoveObserver = async (observerId, observerName) => {
-    if (!window.confirm(`Remove ${observerName}? They will no longer be able to view any of your children.`)) {
+    if (!(await confirm(`Remove ${observerName}? They will no longer be able to view any of your children.`))) {
       return;
     }
 
@@ -184,7 +186,7 @@ const FamilySettingsModal = ({
 
   // Parent handlers
   const handlePromoteObserver = async (observerId, observerName) => {
-    if (!window.confirm(`Make ${observerName} a parent? They will have full access to manage your children's accounts.`)) {
+    if (!(await confirm(`Make ${observerName} a parent? They will have full access to manage your children's accounts.`))) {
       return;
     }
 

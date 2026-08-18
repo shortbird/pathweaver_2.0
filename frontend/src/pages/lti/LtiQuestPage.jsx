@@ -16,6 +16,7 @@ import { useParams } from 'react-router-dom'
 import api from '../../services/api'
 import LtiShell from '../../components/lti/LtiShell'
 import LtiEvidenceEditor from '../../components/lti/LtiEvidenceEditor'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Reuse v1's wizard. Lazy-loaded so the iframe payload stays small.
 const QuestPersonalizationWizard = lazy(() =>
@@ -412,6 +413,7 @@ function CompletedTaskRow({ task, onComplete }) {
 }
 
 function TaskRow({ task, onComplete, onRemove }) {
+  const confirm = useConfirm()
   const [err, setErr] = useState(null)
   const [removing, setRemoving] = useState(false)
 
@@ -419,7 +421,7 @@ function TaskRow({ task, onComplete, onRemove }) {
     const warn = task.is_completed
       ? `Remove "${task.title}"? You'll lose the ${task.xp_value} XP it earned.`
       : `Remove "${task.title}"?`
-    if (!window.confirm(warn)) return
+    if (!(await confirm(warn))) return
     setRemoving(true)
     try {
       await onRemove()

@@ -4,6 +4,7 @@ import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
 import Button from '../components/ui/Button'
 import { GlassTabBar } from '../components/ui'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * Goal Setting — the post-registration step for goals-mode schools (e.g. Gryffin
@@ -74,6 +75,7 @@ const previewStudents = (preview) => ([{
 }])
 
 const FamilyGoalsPage = ({ preview = null }) => {
+  const confirm = useConfirm()
   const [students, setStudents] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [forms, setForms] = useState({}) // studentId -> form
@@ -121,7 +123,7 @@ const FamilyGoalsPage = ({ preview = null }) => {
     if (!active || !form) return
     if (submit) {
       const orgName = active.config?.organization_name || 'the school'
-      if (!window.confirm(`You'll review these together at your meeting with ${orgName} staff. Submit now?`)) return
+      if (!(await confirm(`You'll review these together at your meeting with ${orgName} staff. Submit now?`))) return
     }
     setSaving(true)
     try {

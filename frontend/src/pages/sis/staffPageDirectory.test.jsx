@@ -16,7 +16,7 @@ import { MemoryRouter } from 'react-router-dom'
  * anything saying the two rows were the same person.
  */
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -63,6 +63,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import StaffPage from './StaffPage'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -150,32 +151,32 @@ describe('staff directory — the same person twice', () => {
   })
 
   it('merges the placeholder into the invited account', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<StaffPage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
+    // The classes moving is the point, so the confirm says so before it happens.
+    expect(await confirmText()).toMatch(/12 class assignments move/)
+    await answerConfirm()
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/staff/ph1/link', {
       email: 'juliaconnor03@gmail.com', organization_id: 'org-1',
     }))
-    // The classes moving is the point, so the confirm says so before it happens.
-    expect(window.confirm.mock.calls[0][0]).toMatch(/12 class assignments move/)
   })
 
   it('does nothing when the merge is declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<StaffPage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
+    await answerConfirm(false)
     expect(api.post).not.toHaveBeenCalled()
   })
 
   it('reports a refusal instead of pretending it merged', async () => {
     const { toast } = await import('react-hot-toast')
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
     render(<StaffPage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
+    await answerConfirm()
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('This email belongs to a student account'))
   })

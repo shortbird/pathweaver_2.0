@@ -12,6 +12,7 @@ import {
   STEPS, STEP_LABELS, field, money, absUrl, gateBandText,
   QuestionField, VerticalStepper, Section, PasswordInput, PrimaryButton,
 } from '../registration/funnelUi'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * The Registration setup tab: the family registration funnel rendered exactly
@@ -71,6 +72,7 @@ const FixedNote = ({ children }) => (
 const mockInput = `${field} bg-neutral-50 pointer-events-none`
 
 const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   // Fees and the school's Stripe key are FINANCE_ROLES. A campus coordinator
   // runs the rest of the funnel — paperwork, questions, scheduling link — and
@@ -225,7 +227,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   }
 
   const resetRegLink = async () => {
-    if (!window.confirm('Reset the family registration link? Anyone who has the current link will no longer be able to use it.')) return
+    if (!(await confirm('Reset the family registration link? Anyone who has the current link will no longer be able to use it.'))) return
     setRegLinkBusy(true)
     try {
       if (regLink) {

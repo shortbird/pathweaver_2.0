@@ -6,8 +6,10 @@ import toast from 'react-hot-toast'
 import QuestForm from './QuestForm'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import Spinner from '../ui/Spinner'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const AdminQuests = () => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
@@ -97,7 +99,7 @@ const AdminQuests = () => {
   }
 
   const handleDelete = async (questId) => {
-    if (window.confirm('Are you sure you want to delete this quest?')) {
+    if (await confirm('Are you sure you want to delete this quest?')) {
       try {
         await api.delete(`/api/admin/quests/${questId}`)
         toast.success('Quest deleted successfully')
@@ -126,7 +128,7 @@ const AdminQuests = () => {
   }
 
   const handleCloneToOptio = async (questId) => {
-    if (!window.confirm('Clone this quest to Optio library? AI will enhance the content to match Optio standards.')) return
+    if (!(await confirm('Clone this quest to Optio library? AI will enhance the content to match Optio standards.'))) return
 
     try {
       setIsProcessing(true)
@@ -206,7 +208,7 @@ const AdminQuests = () => {
   const handleBulkDelete = async () => {
     if (selectedCount === 0) return
     const confirmMessage = `Are you sure you want to delete ${selectedCount} quest${selectedCount > 1 ? 's' : ''}? This action cannot be undone.`
-    if (!window.confirm(confirmMessage)) return
+    if (!(await confirm(confirmMessage))) return
 
     const idsToDelete = [...selectedIds]
     setIsProcessing(true)

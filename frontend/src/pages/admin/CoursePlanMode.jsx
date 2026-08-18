@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import planModeService from '../../services/planModeService'
 import OutlinePanel from '../../components/plan/OutlinePanel'
 import ChatPanel from '../../components/plan/ChatPanel'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Course Plan Mode - Iterative AI course design through conversation
@@ -13,6 +14,7 @@ import ChatPanel from '../../components/plan/ChatPanel'
  * - Right: AI chat conversation with suggestions
  */
 const CoursePlanMode = () => {
+  const confirm = useConfirm()
   const { sessionId } = useParams()
   const navigate = useNavigate()
 
@@ -185,7 +187,7 @@ const CoursePlanMode = () => {
   const handleAbandon = async () => {
     if (!session?.id) return
 
-    if (!window.confirm('Are you sure you want to discard this draft? This cannot be undone.')) {
+    if (!(await confirm('Are you sure you want to discard this draft? This cannot be undone.'))) {
       return
     }
 

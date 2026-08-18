@@ -13,6 +13,7 @@ import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import api, { treehouseAPI } from '../../services/api'
 import CreateUsernameStudentModal from '../../components/organization/CreateUsernameStudentModal'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Facilitator = org_admin/advisor (or superadmin). Students who land here (e.g. a
 // stale link) are bounced back to their home instead of hitting 403s.
@@ -594,6 +595,7 @@ function AssignTab({ cohortId }) {
 
 // A1 management: cohorts, facilitator assignment, enrollment, simplified UI toggle.
 function CohortsTab() {
+  const confirm = useConfirm()
   const [cohorts, setCohorts] = useState([])
   const [facilitators, setFacilitators] = useState([])
   const [students, setStudents] = useState([])
@@ -658,7 +660,7 @@ function CohortsTab() {
     catch { toast.error('Could not duplicate') }
   }
   const deleteCohort = async (c) => {
-    if (!window.confirm(`Delete the "${c.name}" cohort? Students and their work are kept — this only removes the cohort grouping.`)) return
+    if (!(await confirm(`Delete the "${c.name}" cohort? Students and their work are kept — this only removes the cohort grouping.`))) return
     try { await treehouseAPI.deleteCohort(c.id); load(); toast.success('Cohort deleted') }
     catch { toast.error('Could not delete') }
   }

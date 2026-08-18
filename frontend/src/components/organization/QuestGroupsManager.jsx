@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Quest Groups — named subcategories of the org's quests (e.g. "Ages 5-7 pins",
@@ -9,6 +10,7 @@ import api from '../../services/api'
  * group at once. A quest can be in several groups.
  */
 export default function QuestGroupsManager({ orgId, refreshKey = 0 }) {
+  const confirm = useConfirm()
   const [groups, setGroups] = useState([])
   const [quests, setQuests] = useState([])
   const [selectedId, setSelectedId] = useState(null)
@@ -74,7 +76,7 @@ export default function QuestGroupsManager({ orgId, refreshKey = 0 }) {
 
   const deleteGroup = async () => {
     if (!selected) return
-    if (!window.confirm(`Delete the group "${selected.name}"? The quests themselves are not affected.`)) return
+    if (!(await confirm(`Delete the group "${selected.name}"? The quests themselves are not affected.`))) return
     setBusy(true)
     try {
       await api.delete(`/api/organizations/${orgId}/quest-groups/${selected.id}`)

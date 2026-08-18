@@ -6,6 +6,7 @@ import BackToSchool from '../components/navigation/BackToSchool'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
 import { ModalOverlay, GlassTabBar, Spinner } from '../components/ui'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 // Family Schedule Builder — the weekly calendar IS the interface:
 //   - enrolled classes show as colored blocks; click one for details / drop
@@ -141,6 +142,7 @@ const ScheduleBuilderPage = () => {
   const [detail, setDetail] = useState(null)     // { item, enrolled }
   const [myAvatar, setMyAvatar] = useState(null)
   const [photoBusy, setPhotoBusy] = useState(null) // student_id or 'me' mid-upload
+  const confirm = useConfirm()
 
   // Modals for one child's week don't carry over to another schedule.
   useEffect(() => { setSlotModal(null); setDetail(null) }, [orgId, studentId])
@@ -401,9 +403,27 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // Ask before dropping, in-app. `window.confirm` looked fine on desktop but is
+  // not dependable on iOS: in an in-app WKWebView (a link opened from Gmail,
+  // Facebook, Outlook) the dialog never renders and the call returns false, so
+  // every drop silently did nothing for families on phones. This was the only
+  // silent path in the page — every other outcome here raises a toast, which is
+  // why the button looked dead rather than broken.
   const dropClass = async (c, isWaitlist = false) => {
-    const verb = isWaitlist ? `Leave the waitlist for "${c.name || c.class_name}"?` : `Drop "${c.name}"?`
-    if (!window.confirm(verb)) return false
+    const name = c.name || c.class_name
+    const ok = await confirm(isWaitlist ? {
+      title: `Leave the waitlist for ${name}?`,
+      body: 'You can rejoin later, but you would go to the back of the waitlist.',
+      confirmLabel: 'Yes, leave it',
+      cancelLabel: 'Keep it',
+    } : {
+      title: `Drop ${name}?`,
+      body: `This frees up ${name}'s seat and opens the time slot back up. `
+        + 'You can add it again while schedule changes are still open.',
+      confirmLabel: 'Yes, drop it',
+      cancelLabel: 'Keep it',
+    })
+    if (!ok) return false
     if (previewCode) {
       const id = c.id || c.class_id
       setSchedule((s) => ({ ...s,

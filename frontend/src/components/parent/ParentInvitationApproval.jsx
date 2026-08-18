@@ -9,8 +9,10 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const ParentInvitationApproval = () => {
+  const confirm = useConfirm()
   const { user } = useAuth();
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ const ParentInvitationApproval = () => {
   };
 
   const declineInvitation = async (invitationId, studentName) => {
-    if (!window.confirm(`Are you sure you want to decline the invitation from ${studentName}?`)) {
+    if (!(await confirm(`Are you sure you want to decline the invitation from ${studentName}?`))) {
       return;
     }
 

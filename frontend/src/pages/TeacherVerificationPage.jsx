@@ -4,8 +4,10 @@ import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import VerificationModal from '../components/verification/VerificationModal'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 const TeacherVerificationPage = () => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [pendingTasks, setPendingTasks] = useState([])
@@ -33,7 +35,7 @@ const TeacherVerificationPage = () => {
   }
 
   const handleQuickApprove = async (task) => {
-    if (!window.confirm('Quick approve with AI-proposed distribution?')) {
+    if (!(await confirm('Quick approve with AI-proposed distribution?'))) {
       return
     }
 

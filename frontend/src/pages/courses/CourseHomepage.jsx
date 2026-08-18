@@ -28,6 +28,7 @@ import { OnboardingProvider, useOnboarding } from '../../contexts/OnboardingCont
 import CourseOnboardingSteps from '../../components/onboarding/CourseOnboardingSteps'
 import { getPillarData } from '../../utils/pillarMappings'
 import api from '../../services/api'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const QuestPersonalizationWizard = lazy(() => import('../../components/quests/QuestPersonalizationWizard'))
 
@@ -816,6 +817,7 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
  * CourseHomepage - Main course homepage with sidebar navigation
  */
 const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose }) => {
+  const confirm = useConfirm()
   const params = useParams()
   const courseId = propCourseId || params.courseId
   const navigate = useNavigate()
@@ -955,7 +957,7 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
 
   // Handle end course (preserves progress)
   const handleEndCourse = async () => {
-    if (!window.confirm('Are you sure you want to end this course? Your progress and XP will be preserved.')) {
+    if (!(await confirm('Are you sure you want to end this course? Your progress and XP will be preserved.'))) {
       return
     }
 
@@ -985,7 +987,7 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
 
   // Handle unenroll from course (deletes all progress)
   const handleUnenroll = async () => {
-    if (!window.confirm('Are you sure you want to unenroll from this course? This will DELETE all your progress, tasks, and XP from this course. This cannot be undone.')) {
+    if (!(await confirm('Are you sure you want to unenroll from this course? This will DELETE all your progress, tasks, and XP from this course. This cannot be undone.'))) {
       return
     }
 
@@ -1157,11 +1159,15 @@ const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose 
     setSearchParams({})
   }
 
-  const handleCloseLesson = () => {
+  const handleCloseLesson = async () => {
     if (hasUnsavedChanges) {
-      const shouldSave = window.confirm(
-        'You have unsaved progress. Would you like to save before leaving?\n\nClick OK to save and close, or Cancel to discard changes.'
-      )
+      const shouldSave = await confirm({
+        title: 'Save your progress before leaving?',
+        body: 'You have unsaved progress on this lesson.',
+        confirmLabel: 'Save and close',
+        cancelLabel: 'Discard changes',
+        destructive: false,
+      })
       if (shouldSave && saveProgressFn) {
         saveProgressFn()
       }

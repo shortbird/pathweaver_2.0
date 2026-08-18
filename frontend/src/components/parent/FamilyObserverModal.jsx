@@ -11,8 +11,10 @@ import {
   UserPlusIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
+  const confirm = useConfirm()
   const [selectedChildren, setSelectedChildren] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -126,7 +128,7 @@ const FamilyObserverModal = ({ isOpen, onClose, children = [], onSuccess }) => {
   };
 
   const handleRemoveObserver = async (observerId, observerName) => {
-    if (!window.confirm(`Remove ${observerName} from all children? They will no longer be able to view any of your children's progress.`)) {
+    if (!(await confirm(`Remove ${observerName} from all children? They will no longer be able to view any of your children's progress.`))) {
       return;
     }
 

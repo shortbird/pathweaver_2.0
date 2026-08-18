@@ -22,6 +22,7 @@ import { useAIAccess } from '../../../contexts/AIAccessContext'
 import RichTextEditor from './RichTextEditor'
 import ProjectHeaderImage from './ProjectHeaderImage'
 import api from '../../../services/api'
+import { useConfirm } from '../../../contexts/ConfirmContext'
 
 /**
  * OutlineEditor - Right panel editor that shows dynamic editor based on selected item type
@@ -496,6 +497,7 @@ const LessonEditor = ({
  * Step Editor - Title, type selector, rich text content, video URL, file uploads, links
  */
 const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem, onSave, selectedType }) => {
+  const confirm = useConfirm()
   const [linkUrl, setLinkUrl] = useState('')
   const [linkText, setLinkText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -755,8 +757,8 @@ const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem, o
       {onDeleteStep && selectedItem?.lessonId !== undefined && selectedItem?.stepIndex !== undefined && (
         <div className="pt-4 mt-4 border-t border-gray-200">
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to delete this step?')) {
+            onClick={async () => {
+              if (await confirm('Are you sure you want to delete this step?')) {
                 onDeleteStep({ id: selectedItem.lessonId }, selectedItem.stepIndex)
               }
             }}

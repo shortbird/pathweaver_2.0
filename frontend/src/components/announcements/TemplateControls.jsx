@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { usePromptText } from '../../contexts/ConfirmContext'
 
 /**
  * TemplateControls - unobtrusive template picker + "Save as template" for the
@@ -16,6 +17,7 @@ import api from '../../services/api'
  *   onApply  - ({ title, body }) => void, fills the composer
  */
 export default function TemplateControls({ orgId, title, body, onApply }) {
+  const promptText = usePromptText()
   const [templates, setTemplates] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [allowed, setAllowed] = useState(false)
@@ -52,7 +54,11 @@ export default function TemplateControls({ orgId, title, body, onApply }) {
       toast.error('Write a title or message first')
       return
     }
-    const name = window.prompt('Template name:', title?.trim()?.slice(0, 60) || '')
+    const name = await promptText({
+      title: 'Name this template',
+      defaultValue: title?.trim()?.slice(0, 60) || '',
+      confirmLabel: 'Save template',
+    })
     if (!name || !name.trim()) return
     try {
       setSaving(true)

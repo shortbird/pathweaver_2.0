@@ -10,8 +10,10 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSuccess }) => {
+  const confirm = useConfirm()
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [generatedLink, setGeneratedLink] = useState(null);
@@ -40,7 +42,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
   };
 
   const handleRemoveObserver = async (linkId, observerName) => {
-    if (!window.confirm(`Remove ${observerName} as an observer for ${studentName}? They will no longer be able to view this student's progress.`)) {
+    if (!(await confirm(`Remove ${observerName} as an observer for ${studentName}? They will no longer be able to view this student's progress.`))) {
       return;
     }
 

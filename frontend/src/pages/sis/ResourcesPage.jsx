@@ -7,6 +7,7 @@ import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -16,6 +17,7 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
  * them on the web platform's Resources page any time after registration.
  */
 const ResourcesPage = () => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const admin = isSisAdmin(user)
@@ -41,7 +43,7 @@ const ResourcesPage = () => {
   useEffect(() => { load() }, [load])
 
   const remove = async (r) => {
-    if (!window.confirm(`Remove "${r.title}"? Families will no longer see it.`)) return
+    if (!(await confirm(`Remove "${r.title}"? Families will no longer see it.`))) return
     try {
       await api.delete(`/api/sis/resources/${r.id}?organization_id=${orgId}`)
       toast.success('Resource removed')

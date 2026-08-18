@@ -14,6 +14,7 @@ import {
   COMMISSION_ADDRESS,
   COMMISSION_WEBSITE,
 } from '../../constants/accreditation';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // A copy of the requirement table used to sit here, with a comment saying it
 // "must match backend CreditMappingService.DIPLOMA_REQUIREMENTS". It didn't —
@@ -116,6 +117,7 @@ const DatePickerField = ({ value, rawDate, onChange, className = '' }) => {
 };
 
 const TranscriptGeneratorPage = () => {
+  const confirm = useConfirm()
   const { userId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -263,7 +265,7 @@ const TranscriptGeneratorPage = () => {
   };
 
   const handleDeletePlannedCredit = async (creditId) => {
-    if (!window.confirm('Delete this planned credit?')) return;
+    if (!(await confirm('Delete this planned credit?'))) return;
     try {
       await api.delete(`/api/admin/transcript/${userId}/planned-credits/${creditId}`);
       toast.success('Deleted');

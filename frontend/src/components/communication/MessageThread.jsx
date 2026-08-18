@@ -8,6 +8,7 @@ import {
   MessageActionBar,
   MessageEditForm
 } from './MessageParts'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const scrollThreadToBottom = (endEl, smooth = true) => {
   const container = endEl?.closest('.overflow-y-auto')
@@ -29,6 +30,7 @@ const MessageThread = ({
   onEditMessage,
   onDeleteMessage
 }) => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const messagesEndRef = useRef(null)
   const [editingId, setEditingId] = useState(null)
@@ -72,9 +74,9 @@ const MessageThread = ({
     }
   }
 
-  const handleDelete = (message) => {
+  const handleDelete = async (message) => {
     if (!onDeleteMessage) return
-    if (window.confirm('Delete this message?')) {
+    if (await confirm('Delete this message?')) {
       onDeleteMessage(message)
     }
   }

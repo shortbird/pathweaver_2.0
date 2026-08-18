@@ -8,8 +8,10 @@ import {
 import DocsArticleEditor from './DocsArticleEditor'
 import DocsCategoryEditor from './DocsCategoryEditor'
 import api from '../../services/api'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 const DocsManager = () => {
+  const confirm = useConfirm()
   const [view, setView] = useState('dashboard') // 'dashboard' | 'edit-article' | 'new-article'
   const [editArticleId, setEditArticleId] = useState(null)
   const [categories, setCategories] = useState([])
@@ -43,7 +45,7 @@ const DocsManager = () => {
   }
 
   const deleteCategory = async (cat) => {
-    if (!window.confirm(`Delete "${cat.title}" and all its articles? This cannot be undone.`)) return
+    if (!(await confirm(`Delete "${cat.title}" and all its articles? This cannot be undone.`))) return
     try {
       await api.delete(`/api/admin/docs/categories/${cat.id}`)
       toast.success('Category deleted')
@@ -54,7 +56,7 @@ const DocsManager = () => {
   }
 
   const deleteArticle = async (article) => {
-    if (!window.confirm(`Delete "${article.title}"? This cannot be undone.`)) return
+    if (!(await confirm(`Delete "${article.title}"? This cannot be undone.`))) return
     try {
       await api.delete(`/api/admin/docs/articles/${article.id}`)
       toast.success('Article deleted')

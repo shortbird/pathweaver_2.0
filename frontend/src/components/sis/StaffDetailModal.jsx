@@ -6,6 +6,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import { RolePill } from '../../components/ui/RolePill'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance, canGrantRoles } from '../../pages/sis/sisRole'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * StaffDetailModal — opens when a Staff card is clicked (same pattern as the
@@ -51,6 +52,7 @@ const ASSIGNABLE_ROLES = [
 ]
 
 export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal, onRemoved, onRolesChanged }) {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [resending, setResending] = useState(false)
@@ -98,21 +100,26 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
         : ''
 
       if (data.can_delete) {
-        const choice = window.confirm(
-          `Delete ${staff.name} permanently?${classLine}\n\n`
-          + 'They have no attendance, timesheets, forms, or onboarding on record, so nothing is lost.\n\n'
-          + 'OK to delete, Cancel to keep them.')
+        const choice = await confirm({
+          title: `Delete ${staff.name} permanently?`,
+          body: `They have no attendance, timesheets, forms, or onboarding on record, so nothing is lost.${classLine}`,
+          confirmLabel: 'Delete permanently',
+          cancelLabel: 'Keep them',
+        })
         if (!choice) { setRemoving(false); return }
         const r = await api.delete(
           `/api/sis/staff/${staff.id}?organization_id=${orgId}&mode=delete`)
         toast.success(`${r.data?.name || staff.name} deleted`)
       } else {
         const kinds = Object.keys(data.blocking || {}).join(', ')
-        const choice = window.confirm(
-          `Archive ${staff.name}?${classLine}\n\n`
-          + `They can't be deleted because they have school records attached (${kinds}). `
-          + 'Archiving hides them from staff lists and the directory without losing any history, '
-          + 'and can be undone.\n\nOK to archive, Cancel to keep them.')
+        const choice = await confirm({
+          title: `Archive ${staff.name}?`,
+          body: `They can't be deleted because they have school records attached (${kinds}). `
+            + 'Archiving hides them from staff lists and the directory without losing any history, '
+            + `and can be undone.${classLine}`,
+          confirmLabel: 'Archive',
+          cancelLabel: 'Keep them',
+        })
         if (!choice) { setRemoving(false); return }
         const r = await api.delete(`/api/sis/staff/${staff.id}?organization_id=${orgId}`)
         toast.success(`${r.data?.name || staff.name} archived`)

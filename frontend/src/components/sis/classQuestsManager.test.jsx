@@ -12,6 +12,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import ClassQuestsManager from './ClassQuestsManager'
+import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 const OWN_QUEST = {
   quest_id: 'q1', title: 'Bridge Building', template_task_count: 2, editable_tasks: true,
@@ -28,32 +29,33 @@ const mockQuests = (quests) => api.get.mockImplementation((url) => (
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('ClassQuestsManager unassign vs delete', () => {
   it('unassign takes the quest off the class but keeps it in the library', async () => {
     mockQuests([OWN_QUEST])
     api.delete.mockResolvedValue({ data: { success: true } })
-    render(<ClassQuestsManager classId="c1" />)
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+    // The confirm must say the quest survives, or the two actions read alike.
+    expect(await confirmText()).toMatch(/stays in your school's library/)
+    await answerConfirm()
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1'))
-    // The confirm must say the quest survives, or the two actions read alike.
-    expect(window.confirm.mock.calls[0][0]).toMatch(/stays in your school's library/)
   })
 
   it('delete removes it from the library, on a separate endpoint', async () => {
     mockQuests([OWN_QUEST])
     api.delete.mockResolvedValue({ data: { success: true } })
-    render(<ClassQuestsManager classId="c1" />)
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+    expect(await confirmText()).toMatch(/can't be undone/i)
+    await answerConfirm()
 
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1/delete'))
-    expect(window.confirm.mock.calls[0][0]).toMatch(/can't be undone/i)
   })
 
   it('offers no delete for Optio library quests — they are shared', async () => {
@@ -65,11 +67,11 @@ describe('ClassQuestsManager unassign vs delete', () => {
   })
 
   it('cancelling the confirm leaves the quest alone', async () => {
-    window.confirm.mockReturnValue(false)
     mockQuests([OWN_QUEST])
-    render(<ClassQuestsManager classId="c1" />)
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+    await answerConfirm(false)
 
     expect(api.delete).not.toHaveBeenCalled()
   })
@@ -80,9 +82,10 @@ describe('ClassQuestsManager unassign vs delete', () => {
     api.delete.mockRejectedValue({
       response: { status: 409, data: { error: '3 students have already started this quest' } },
     })
-    render(<ClassQuestsManager classId="c1" />)
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+    await answerConfirm()
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('3 students have already started this quest'))
@@ -100,10 +103,11 @@ describe('ClassQuestsManager unassign vs delete', () => {
         : Promise.resolve({ data: { quests: [] } })
     ))
     api.delete.mockResolvedValue({ data: { success: true } })
-    render(<ClassQuestsManager classId="c1" />)
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Assign a quest' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await answerConfirm()
 
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1/delete'))

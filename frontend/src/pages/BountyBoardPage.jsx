@@ -9,6 +9,7 @@ import api from '../services/api'
 import GlassTabBar from '../components/ui/GlassTabBar'
 import EmptyState from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 const PILLARS = [
   { key: null, label: 'All' },
@@ -307,6 +308,7 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
 }
 
 const BountyBoardPage = () => {
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const location = useLocation()
   // Where "back" from create/detail/edit should land. The board is also
@@ -390,8 +392,8 @@ const BountyBoardPage = () => {
   const [evidenceTarget, setEvidenceTarget] = useState(null) // {bountyId, claimId, deliverableId}
   const [viewingEvidence, setViewingEvidence] = useState(null) // {items, title, bountyId, claimId, deliverableId}
 
-  const handleDelete = (bountyId, title) => {
-    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return
+  const handleDelete = async (bountyId, title) => {
+    if (!(await confirm(`Delete "${title}"? This cannot be undone.`))) return
     deleteMutation.mutate(bountyId)
   }
 
@@ -449,8 +451,8 @@ const BountyBoardPage = () => {
     setViewingEvidence({ items, title, bountyId, claimId, deliverableId })
   }, [])
 
-  const handleDeleteEvidence = useCallback((evidenceIndex) => {
-    if (!viewingEvidence || !window.confirm('Delete this evidence?')) return
+  const handleDeleteEvidence = useCallback(async (evidenceIndex) => {
+    if (!viewingEvidence || !(await confirm('Delete this evidence?'))) return
     deleteEvidenceMutation.mutate({
       bountyId: viewingEvidence.bountyId,
       claimId: viewingEvidence.claimId,

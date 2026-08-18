@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { transferCreditsAPI } from '../../services/api';
 import Button from '../../components/ui/Button';
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 // Subject display names matching the school_subject enum
 const SUBJECT_NAMES = {
@@ -37,6 +38,7 @@ const XP_PER_CREDIT = 2000;
 const MAX_TRANSCRIPT_SIZE = 25 * 1024 * 1024; // 25MB
 
 const TransferCreditForm = () => {
+  const confirm = useConfirm()
   const { userId } = useParams();
 
   // List of all transfer credit records
@@ -254,7 +256,7 @@ const TransferCreditForm = () => {
 
   // Delete a specific transfer credit
   const handleDeleteOne = async (tc) => {
-    if (!window.confirm(`Are you sure you want to delete transfer credits from "${tc.school_name}"? This action cannot be undone.`)) {
+    if (!(await confirm(`Are you sure you want to delete transfer credits from "${tc.school_name}"? This action cannot be undone.`))) {
       return;
     }
 

@@ -8,6 +8,7 @@ import WeeklyScheduleGrid from '../../components/sis/WeeklyScheduleGrid'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * Tabbed per-student management modal.
@@ -246,8 +247,9 @@ const ROLE_OPTIONS = [
 ]
 
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {
+  const confirm = useConfirm()
   const resetPassword = async () => {
-    if (!window.confirm(`Reset ${student.name}'s password?`)) return
+    if (!(await confirm(`Reset ${student.name}'s password?`))) return
     try {
       const r = await api.post(`/api/admin/organizations/${orgId}/users/${student.student_id}/reset-password`, {})
       const pw = r.data?.new_password || r.data?.password
@@ -255,7 +257,7 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not reset password') }
   }
   const remove = async () => {
-    if (!window.confirm(`Remove ${student.name} from this organization? Their account becomes a platform account (not deleted).`)) return
+    if (!(await confirm(`Remove ${student.name} from this organization? Their account becomes a platform account (not deleted).`))) return
     try {
       await api.post(`/api/admin/organizations/${orgId}/users/remove`, { user_id: student.student_id })
       toast.success(`${student.name} removed from the organization`)
@@ -363,6 +365,7 @@ const EmergencyStrip = ({ student }) => {
 }
 
 const ContactsSection = ({ student, orgId }) => {
+  const confirm = useConfirm()
   const [contacts, setContacts] = useState([])
   const [adding, setAdding] = useState(false)
   const emptyContact = { name: '', relationship: '', phone: '', email: '' }
@@ -396,7 +399,7 @@ const ContactsSection = ({ student, orgId }) => {
     } catch { toast.error('Could not add contact') }
   }
   const remove = async (c) => {
-    if (!window.confirm(`Remove ${c.name} as an emergency contact?`)) return
+    if (!(await confirm(`Remove ${c.name} as an emergency contact?`))) return
     try { await api.delete(`/api/sis/emergency-contacts/${c.id}`); setContacts((x) => x.filter((y) => y.id !== c.id)) }
     catch { toast.error('Could not remove contact') }
   }
@@ -445,6 +448,7 @@ const ContactsSection = ({ student, orgId }) => {
 
 // ── Schedule: active classes + teacher + quest link, plus enroll ──────────────
 const SchedulePanel = ({ student, orgId }) => {
+  const confirm = useConfirm()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
   const [all, setAll] = useState([])
@@ -478,7 +482,7 @@ const SchedulePanel = ({ student, orgId }) => {
       reload()
     } catch (e) {
       if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
-        if (window.confirm(`${e.response.data.error}\n\nEnroll them anyway?`)) {
+        if (await confirm(`${e.response.data.error}\n\nEnroll them anyway?`)) {
           setBusy(false)
           return enroll(true)
         }
@@ -491,7 +495,7 @@ const SchedulePanel = ({ student, orgId }) => {
 
   const [dropping, setDropping] = useState(null)
   const drop = async (c) => {
-    if (!window.confirm(`Drop ${student.name || 'this student'} from ${c.name}?`)) return
+    if (!(await confirm(`Drop ${student.name || 'this student'} from ${c.name}?`))) return
     setDropping(c.class_id)
     try {
       await api.delete(`/api/sis/classes/${c.class_id}/enrollments/${student.student_id}?organization_id=${orgId}`)
@@ -713,6 +717,7 @@ const RecordPanel = ({ student, orgId }) => {
 
 // ── Materials: curriculum checklist with Paid/Received ────────────────────────
 const MaterialsPanel = ({ student, orgId }) => {
+  const confirm = useConfirm()
   const [materials, setMaterials] = useState(null)
   const emptyItem = { item_name: '', notes: '' }
   const [ni, setNi] = useState(emptyItem)
@@ -749,7 +754,7 @@ const MaterialsPanel = ({ student, orgId }) => {
   }
 
   const remove = async (m) => {
-    if (!window.confirm(`Remove "${m.item_name}" from the materials list?`)) return
+    if (!(await confirm(`Remove "${m.item_name}" from the materials list?`))) return
     try {
       await api.delete(`/api/sis/materials/${m.id}?organization_id=${orgId}`)
       setMaterials((list) => list.filter((x) => x.id !== m.id))
