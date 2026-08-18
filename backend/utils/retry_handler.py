@@ -36,12 +36,34 @@ RETRY_CONFIGS = {
     'quick': RetryConfig(max_attempts=2, initial_delay=0.2, max_delay=1.0)
 }
 
+def _httpx_transport_errors() -> tuple:
+    """httpx's transport failures, if httpx is importable.
+
+    These do NOT inherit from ConnectionError or IOError -- httpx hangs them off
+    its own HTTPError tree -- so the builtins below never matched them. Neither
+    did the message patterns: "Server disconnected without sending a response"
+    contains no 'connection', no 'timeout', no 'broken pipe'. So a stale pooled
+    socket, the most ordinary transient failure this app has, was classified
+    non-retryable and re-raised on the first attempt even inside
+    with_connection_retry (Sentry OPTIO-BACKEND-6M).
+    """
+    try:
+        import httpx
+    except ImportError:  # httpx is a supabase dependency; belt and braces
+        return ()
+    # Deliberately not the whole TransportError tree: LocalProtocolError is our
+    # own malformed request and UnsupportedProtocol is a bad URL. Neither gets
+    # better on a second attempt.
+    return (httpx.TimeoutException, httpx.NetworkError,
+            httpx.RemoteProtocolError, httpx.ProxyError)
+
+
 # Exceptions that should trigger retry
 RETRYABLE_EXCEPTIONS = (
     ConnectionError,
     TimeoutError,
     IOError,
-)
+) + _httpx_transport_errors()
 
 def is_retryable_error(error: Exception) -> bool:
     """Check if an error is retryable"""
@@ -63,6 +85,10 @@ def is_retryable_error(error: Exception) -> bool:
         'could not connect',
         'connection reset',
         'broken pipe',
+        # httpx's wording for a keepalive socket the far end had already
+        # closed. Matched by type above when the exception reaches us intact;
+        # matched here when a client library has wrapped it in its own error.
+        'server disconnected',
         # WinError 10035 — WSAEWOULDBLOCK, surfaces as "a non-blocking
         # socket operation could not be completed immediately" on Windows
         # local dev when httpx's keepalive socket is caught mid-handshake.

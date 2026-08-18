@@ -117,3 +117,43 @@ def test_ping_database_does_not_retry_past_the_deadline():
 
     assert ok is False
     assert fake_client.get.call_count == 1
+
+
+class TestFailureEscalation:
+    """Sentry OPTIO-BACKEND-5Y: every failed ping was a logger.error, and the
+    Sentry init turns logger.error into an issue. But a single miss is Supabase
+    answering slower than PING_TIMEOUT_SECONDS, which this check already handles
+    correctly -- 503, and the LB rotates the instance out until the next probe.
+    Routine latency was being reported as an outage. A database that is actually
+    gone still is, which is what the consecutive count preserves.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_counter(self):
+        health._consecutive_failures = 0
+        yield
+        health._consecutive_failures = 0
+
+    def test_a_success_reports_no_failures(self):
+        assert health.record_ping_result(True) == 0
+
+    def test_failures_accumulate(self):
+        assert health.record_ping_result(False) == 1
+        assert health.record_ping_result(False) == 2
+
+    def test_one_success_clears_the_streak(self):
+        """The streak has to mean 'consecutive', or a worker that saw three
+        scattered blips over a week would report a permanent outage."""
+        health.record_ping_result(False)
+        health.record_ping_result(False)
+        assert health.record_ping_result(True) == 0
+        assert health.record_ping_result(False) == 1
+
+    def test_a_single_blip_is_not_reported(self):
+        assert not health.should_report_ping_failure(health.record_ping_result(False))
+
+    def test_a_sustained_outage_is_reported(self):
+        failures = 0
+        for _ in range(health.PING_ERROR_AFTER_CONSECUTIVE):
+            failures = health.record_ping_result(False)
+        assert health.should_report_ping_failure(failures)

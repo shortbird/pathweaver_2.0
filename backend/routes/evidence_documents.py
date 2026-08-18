@@ -33,6 +33,7 @@ import json
 
 from app_config import Config
 from utils.logger import get_logger
+from utils.retry_handler import with_connection_retry
 from utils.url_metadata import fetch_url_metadata
 
 logger = get_logger(__name__)
@@ -450,10 +451,16 @@ def init_task_signed_upload(user_id: str, task_id: str):
         # admin client justified: evidence document writes scoped to caller (self) under @require_auth
         admin_supabase = get_supabase_admin_client()
 
-        task_check = admin_supabase.table('user_quest_tasks')\
-            .select('id, user_id')\
-            .eq('id', task_id)\
-            .execute()
+        # Retried: this is the first call of an upload the user has already
+        # picked a file for, and a stale pooled socket here reads to them as
+        # "upload failed" (Sentry OPTIO-BACKEND-6M).
+        task_check = with_connection_retry(
+            lambda: admin_supabase.table('user_quest_tasks')
+            .select('id, user_id')
+            .eq('id', task_id)
+            .execute(),
+            operation_name='init_task_signed_upload_task_lookup',
+        )
         if not task_check.data:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
         if task_check.data[0]['user_id'] != user_id:

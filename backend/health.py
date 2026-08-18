@@ -34,6 +34,36 @@ PING_TIMEOUT_SECONDS = 1.5
 # Only retry while the whole ping still fits comfortably in the budget.
 PING_DEADLINE_SECONDS = 3.0
 
+# Consecutive failed pings before the route logs at error level (and so opens a
+# Sentry issue). Render probes roughly every 5s, so three in a row is ~15s of a
+# genuinely unreachable database rather than one slow response.
+#
+# Sentry OPTIO-BACKEND-5Y: every single failed ping was a logger.error, which
+# the Sentry init turns into an issue. But one miss is Supabase answering slower
+# than PING_TIMEOUT_SECONDS, which this check already handles correctly by
+# returning 503 and letting the LB rotate the instance out. Routine latency was
+# being reported as an outage; a database that is actually gone still is.
+PING_ERROR_AFTER_CONSECUTIVE = 3
+
+# Per worker process, reset by the first success.
+_consecutive_failures = 0
+
+
+def record_ping_result(ok: bool) -> int:
+    """Update the consecutive-failure count and return it.
+
+    Returns 0 on success. The caller compares the result against
+    PING_ERROR_AFTER_CONSECUTIVE to decide its log level.
+    """
+    global _consecutive_failures
+    _consecutive_failures = 0 if ok else _consecutive_failures + 1
+    return _consecutive_failures
+
+
+def should_report_ping_failure(consecutive_failures: int) -> bool:
+    """Whether this failure is worth an error-level log (and a Sentry issue)."""
+    return consecutive_failures >= PING_ERROR_AFTER_CONSECUTIVE
+
 
 def ping_database() -> Tuple[bool, Optional[str]]:
     """Tiny indexed read against Supabase so the health check actually proves

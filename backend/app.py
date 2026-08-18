@@ -127,14 +127,22 @@ def health_check():
     instance out of rotation) when the DB is unreachable, 200 otherwise.
     Helper lives in `health.py` so it's unit-testable without booting the app.
     """
-    from health import ping_database
+    from health import ping_database, record_ping_result, should_report_ping_failure
     ok, err = ping_database()
+    failures = record_ping_result(ok)
     # Deployed commit (Render sets RENDER_GIT_COMMIT) so the post-deploy smoke
     # check in release.yml can wait for ITS commit to be live before probing.
     commit = os.environ.get('RENDER_GIT_COMMIT')
     if ok:
         return jsonify({'status': 'healthy', 'db': 'ok', 'commit': commit}), 200
-    logger.error(f"[HEALTH] DB ping failed: {err}")
+
+    # Level is decided by how many pings have failed in a row -- see
+    # health.PING_ERROR_AFTER_CONSECUTIVE. logger.error opens a Sentry issue
+    # (see the init above), and one slow response is not an outage.
+    if should_report_ping_failure(failures):
+        logger.error(f"[HEALTH] DB ping failed: {err} ({failures} consecutive)")
+    else:
+        logger.warning(f"[HEALTH] DB ping failed: {err}")
     return jsonify({'status': 'unhealthy', 'db': 'unreachable', 'commit': commit}), 503
 
 @app.route('/.well-known/jwks.json', methods=['GET'])

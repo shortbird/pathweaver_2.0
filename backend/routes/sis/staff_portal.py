@@ -105,7 +105,11 @@ def class_roster(user_id, class_id):
            .eq('id', class_id).limit(1).execute()).data
     if not cls or cls[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    role = 'org_admin' if scope is None else 'advisor'
+    # The audit row has to name the capacity the viewer actually acted in. An
+    # unscoped caller was logged as 'org_admin' regardless, which made a
+    # superadmin look like the org's own admin and a campus coordinator look
+    # like someone with access to the money. Ask for the real role.
+    role = (sis_service.caller_org_roles(user_id) or ['advisor'])[0]
     data = staff.class_roster_detail(org_id, class_id, user_id, role)
     # Teachers plan materials against this; it rides along with the roster so the
     # class page doesn't need a second round trip.

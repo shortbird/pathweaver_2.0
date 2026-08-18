@@ -12,6 +12,39 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+# What AccessLogger falls back to when it cannot name the accessor's real role.
+# 'unknown' is also where any role outside the known vocabulary lands -- see
+# _constrained_role.
+SENTINEL_ACCESSOR_ROLES = frozenset({'public', 'system', 'unknown'})
+
+
+def _known_accessor_roles() -> frozenset:
+    """Every accessor_role the valid_accessor_role CHECK accepts.
+
+    org_managed is deliberately absent: get_effective_role always resolves it to
+    the role the person actually acted in, and a disclosure report that says
+    someone acted as 'org_managed' says nothing.
+    """
+    from utils.roles import UserRole, OrgRole
+    roles = {r.value for r in UserRole} | {r.value for r in OrgRole}
+    roles.discard(UserRole.ORG_MANAGED.value)
+    return frozenset(roles | SENTINEL_ACCESSOR_ROLES)
+
+
+def _constrained_role(role: Optional[str]) -> str:
+    """Coerce a role to something student_access_logs will accept.
+
+    The CHECK held five values for eight months while the platform grew to
+    seven roles, so every superadmin, org_admin and campus_coordinator access
+    was rejected at the write and swallowed by the handler below -- the audit
+    trail was missing exactly the accounts that can see everything (Sentry
+    OPTIO-BACKEND-6K). The constraint now covers the real vocabulary, and this
+    is the belt to that migration's braces: a role the database has not been
+    told about degrades to 'unknown' rather than costing us the row.
+    """
+    return role if role in _known_accessor_roles() else 'unknown'
+
+
 class AccessLogger:
     """
     Utility for logging access to student educational records.
@@ -72,13 +105,19 @@ class AccessLogger:
             # must not be the reason a disclosure goes unrecorded -- the point
             # of the row is that the access happened.
             accessor_role = accessor_role or 'unknown'
+            stored_role = _constrained_role(accessor_role)
+            if stored_role != accessor_role:
+                # Keep what we actually resolved. The column has to satisfy the
+                # CHECK, but a disclosure report should still be able to say
+                # what the accessor looked like when the row was written.
+                data_accessed['accessor_role_raw'] = accessor_role
 
             # Insert log entry
             admin_client = get_supabase_admin_singleton()
             result = admin_client.table('student_access_logs').insert({
                 'student_id': student_id,
                 'accessor_id': accessor_id,
-                'accessor_role': accessor_role,
+                'accessor_role': stored_role,
                 'data_accessed': data_accessed,
                 'purpose': purpose,
                 'ip_address': ip_address,

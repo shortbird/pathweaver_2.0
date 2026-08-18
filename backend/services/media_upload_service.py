@@ -18,6 +18,7 @@ from werkzeug.utils import secure_filename
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.retry_handler import with_connection_retry
 from utils.storage_urls import public_object_url, sign_stored_url
 from config.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
@@ -511,7 +512,13 @@ class MediaUploadService:
 
         try:
             supabase = self._get_client()
-            signed = supabase.storage.from_(bucket).create_signed_upload_url(storage_path)
+            # Retried: a stale pooled socket here fails the whole upload before
+            # the user has sent a byte, and they see "Failed to create upload
+            # session" with nothing to retry but the file picker.
+            signed = with_connection_retry(
+                lambda: supabase.storage.from_(bucket).create_signed_upload_url(storage_path),
+                operation_name='create_signed_upload_url',
+            )
         except Exception as e:
             logger.error(f"[MediaUpload] Failed to create signed upload URL for {bucket}/{storage_path}: {e}")
             return UploadSession(

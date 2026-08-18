@@ -534,10 +534,15 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
     sign_in_place(students, ['avatar_url'])
 
     # Access log: one row per student viewed (health data is included).
+    # This insert is a single statement, so one bad accessor_role loses the
+    # whole roster's audit trail, not one row -- and it did: every org-admin
+    # view failed the valid_accessor_role CHECK and was swallowed by the
+    # handler below. _constrained_role keeps the write survivable.
+    from utils.access_logger import _constrained_role
     try:
         admin.table('student_access_logs').insert([{
             'student_id': s['student_id'], 'accessor_id': accessor_id,
-            'accessor_role': accessor_role,
+            'accessor_role': _constrained_role(accessor_role),
             'data_accessed': 'class_roster_health',
             'purpose': f'Class roster view (class {class_id})',
         } for s in students]).execute()
