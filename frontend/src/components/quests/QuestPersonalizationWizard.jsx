@@ -8,6 +8,7 @@ import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCreditStanding, XP_PER_CREDIT } from '../../utils/creditRequirements';
+import { getSubjectName } from '../../constants/subjects';
 
 // Requirements and progress come from utils/creditRequirements — the same
 // source the diploma panel reads.
@@ -86,6 +87,10 @@ const DIPLOMA_SUBJECTS = [
  *   TaskCreationWizard via onAcceptTask.
  * @param onManualTasksOverride Optional async (tasks[]) => Promise, the same
  *   substitution for the hand-written path (see ManualTaskCreator.onSubmitOverride).
+ * @param classSubject          The transcript subject key when the parent quest
+ *   is a credit class (quest_type='class'). Only affects copy: the backend
+ *   routes 100% of a class task's XP into that subject, so the student is told
+ *   which credit their tasks feed rather than being asked to pick.
  * @param skipSubjectXp         When true, don't fetch /api/users/subject-xp.
  *   That endpoint reports the CALLER's credit progress, which is meaningless
  *   when a parent is authoring for their child — the ring would show the
@@ -102,8 +107,10 @@ export default function QuestPersonalizationWizard({
   xpThreshold = null,
   onAcceptTaskOverride = null,
   onManualTasksOverride = null,
+  classSubject = null,
   skipSubjectXp = false,
 }) {
+  const classSubjectName = classSubject ? getSubjectName(classSubject) : null;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -671,6 +678,15 @@ export default function QuestPersonalizationWizard({
               ? 'Pick interests and add any specific ideas to generate tasks'
               : 'Select interests or diploma subjects to generate personalized tasks'}
           </p>
+
+          {classSubjectName && (
+            <div className="mb-6 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3">
+              <p className="text-sm text-gray-700">
+                Every task you add counts toward your{' '}
+                <span className="font-semibold">{classSubjectName}</span> credit.
+              </p>
+            </div>
+          )}
 
           {/* Interests */}
           <div className={sz.section}>

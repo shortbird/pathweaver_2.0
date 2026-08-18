@@ -750,6 +750,12 @@ const QuestDetail = () => {
                    fallback for quests with no authored tasks. */
                 approachExamples={quest.has_template_tasks ? [] : quest.approach_examples}
                 xpThreshold={quest.xp_threshold}
+                /* Credit class: the transcript subject is fixed at creation and
+                   the backend routes 100% of each task's XP into it, so the
+                   diploma-credits picker would be a lie. Name the subject
+                   instead. */
+                hideDiplomaSubjects={quest.quest_type === 'class'}
+                classSubject={quest.quest_type === 'class' ? quest.transcript_subject : null}
               />
             </div>
           </div>

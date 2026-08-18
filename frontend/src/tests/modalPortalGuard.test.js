@@ -89,7 +89,6 @@ const BASELINE = [
   'src/components/admin/curriculum-upload/UploadDetailModal.jsx',
   'src/components/advisor/CheckinHistoryModal.jsx',
   'src/components/bounty/EvidenceViewerModal.jsx',
-  'src/components/classes/CreateCreditClassModal.jsx',
   'src/components/communication/CreateGroupModal.jsx',
   'src/components/communication/GroupSettingsModal.jsx',
   'src/components/consent/ConsentBlockedOverlay.jsx',

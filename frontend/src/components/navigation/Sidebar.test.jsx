@@ -384,3 +384,58 @@ describe('Sidebar — Optio Academy parents: the Family tab is the home tab', ()
       'href', '/parent/dashboard')
   })
 })
+
+describe('Sidebar — Custom Class link visibility', () => {
+  beforeEach(() => {
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  const customClassLink = () => screen.queryByRole('link', { name: /custom class/i })
+
+  it('shows Custom Class for a platform student', () => {
+    authState.user = { id: 's1', role: 'student', email: 's@example.com' }
+    renderSidebar()
+    expect(customClassLink()).toHaveAttribute('href', '/my-classes')
+  })
+
+  it('shows Custom Class for an org student', () => {
+    authState.user = {
+      id: 's2', role: 'org_managed', org_role: 'student',
+      organization_id: 'org-1', email: 's2@example.com',
+    }
+    renderSidebar()
+    expect(customClassLink()).toHaveAttribute('href', '/my-classes')
+  })
+
+  it('hides Custom Class from parents and observers', () => {
+    authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
+    const { unmount } = renderSidebar()
+    expect(customClassLink()).not.toBeInTheDocument()
+    unmount()
+
+    authState.user = { id: 'o1', role: 'observer', email: 'o@example.com' }
+    renderSidebar()
+    expect(customClassLink()).not.toBeInTheDocument()
+  })
+
+  // Classes are 13+, matching the mobile gate. A known under-13 never sees the
+  // entry; a student whose birthday we don't have still does, because the page
+  // is what collects it.
+  it('hides Custom Class from a student under 13', () => {
+    const elevenYearsAgo = new Date()
+    elevenYearsAgo.setFullYear(elevenYearsAgo.getFullYear() - 11)
+    authState.user = {
+      id: 's3', role: 'student', email: 's3@example.com',
+      date_of_birth: elevenYearsAgo.toISOString().slice(0, 10),
+    }
+    renderSidebar()
+    expect(customClassLink()).not.toBeInTheDocument()
+  })
+
+  it('still shows Custom Class when the birthday is unknown', () => {
+    authState.user = { id: 's4', role: 'student', email: 's4@example.com', date_of_birth: null }
+    renderSidebar()
+    expect(customClassLink()).toHaveAttribute('href', '/my-classes')
+  })
+})

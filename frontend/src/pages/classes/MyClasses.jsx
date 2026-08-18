@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 import { getSubjectName } from '../../constants/subjects'
-import CreateCreditClassModal from '../../components/classes/CreateCreditClassModal'
+import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
+import { PageLoader } from '../../components/ui/Spinner'
+import HowClassesWork from '../../components/classes/HowClassesWork'
 
 const REVIEW_STATUS_LABEL = {
   submitted_for_review: { label: 'In review', style: 'bg-yellow-100 text-yellow-800' },
@@ -11,9 +14,12 @@ const REVIEW_STATUS_LABEL = {
 }
 
 const MyClasses = () => {
+  const { user } = useAuth()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
+
+  const age = ageFromDob(user?.date_of_birth)
+  const isUnderage = age !== null && age < CLASS_MIN_AGE
 
   const loadClasses = useCallback(async () => {
     setLoading(true)
@@ -43,15 +49,8 @@ const MyClasses = () => {
   }, [loadClasses])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {showCreate && (
-        <CreateCreditClassModal
-          onClose={() => setShowCreate(false)}
-          onCreated={() => setShowCreate(false)}
-        />
-      )}
-
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">High School Classes</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -59,31 +58,34 @@ const MyClasses = () => {
             class counts toward that credit.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 flex-shrink-0"
-        >
-          Start a class
-        </button>
+        {!isUnderage && classes.length > 0 && (
+          <Link to="/my-classes/new" className="btn-primary flex-shrink-0">
+            Start a class
+          </Link>
+        )}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+        <PageLoader />
+      ) : isUnderage ? (
+        <div className="card text-center">
+          <h2 className="text-lg font-semibold text-gray-900">Classes unlock at {CLASS_MIN_AGE}</h2>
+          <p className="text-sm text-gray-600 mt-2 max-w-md mx-auto">
+            High school classes earn transcript credit, so they open up when you turn{' '}
+            {CLASS_MIN_AGE}. Until then, quests and bounties are all yours.
+          </p>
+          <Link to="/quests" className="btn-primary inline-block mt-6">
+            Browse quests
+          </Link>
         </div>
       ) : classes.length === 0 ? (
-        <div className="p-8 text-center border border-dashed border-gray-300 rounded-lg">
-          <p className="text-gray-600 mb-4">
-            You haven't started a class yet. Pick a subject and start earning credit toward it.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="inline-block px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90"
-          >
-            Start your first class
-          </button>
+        <div className="space-y-6">
+          <HowClassesWork title="What is a class?" />
+          <div className="text-center">
+            <Link to="/my-classes/new" className="btn-primary inline-block">
+              Start your first class
+            </Link>
+          </div>
         </div>
       ) : (
         <ul className="space-y-3">
@@ -100,7 +102,7 @@ const MyClasses = () => {
               <li key={c.questId}>
                 <Link
                   to={`/quests/${c.questId}`}
-                  className="block p-4 border border-gray-200 rounded-lg bg-white hover:border-optio-purple transition"
+                  className="block p-4 bg-white rounded-xl border border-gray-200 shadow-sm hover:border-optio-purple/60 transition-all"
                 >
                   <div className="flex items-start justify-between">
                     {c.image && (
@@ -113,7 +115,7 @@ const MyClasses = () => {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h2 className="font-semibold text-gray-900 truncate">{c.title}</h2>
+                      <h2 className="text-sm font-semibold text-gray-900 truncate">{c.title}</h2>
                       <div className="mt-1 text-xs text-gray-500 flex items-center gap-3">
                         <span className="font-medium text-optio-purple">{subjectName}</span>
                         {!!(p?.credits_earned) && (
@@ -126,11 +128,11 @@ const MyClasses = () => {
                         <div className="mt-2">
                           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-optio-purple to-optio-pink rounded-full"
+                              className="h-full bg-gradient-primary rounded-full"
                               style={{ width: `${percent}%` }}
                             />
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-500 mt-1">
                             {awarded ? 'Credit earned' : `${xpToNext} / ${target} XP toward next credit`}
                           </p>
                         </div>

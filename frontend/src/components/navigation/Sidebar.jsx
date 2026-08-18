@@ -12,6 +12,7 @@ import api from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { getProgramNavItem } from '../../programs/registry'
 import { parentHomePath } from '../../utils/postLoginPath'
+import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 
 const HOME_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,6 +244,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      )
+    })
+  }
+
+  // Custom Class: a student authors their own credit class (quest_type='class').
+  // Classes are 13+, matching the mobile gate. A student whose age we don't know
+  // still sees it — the page asks for the birthday — but a known under-13 doesn't,
+  // so we never advertise something they can't have.
+  const classAge = ageFromDob(user?.date_of_birth)
+  if ((isStudent || user?.role === 'superadmin') && !(classAge !== null && classAge < CLASS_MIN_AGE)) {
+    learningItems.push({
+      name: 'Custom Class',
+      path: '/my-classes',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0v7m0-7l6.16-3.422M6 11.5V16c0 1.105 2.686 2 6 2s6-.895 6-2v-4.5" />
         </svg>
       )
     })

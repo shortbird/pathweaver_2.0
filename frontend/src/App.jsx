@@ -112,6 +112,7 @@ const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
 const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
+const StartClassPage = lazy(() => import('./pages/classes/StartClassPage'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
@@ -574,6 +575,8 @@ function App() {
                 <Route path="courses/new" element={<CourseBuilder />} />
                 {/* Credit classes (quest_type='class') progress page */}
                 <Route path="my-classes" element={<MyClasses />} />
+                {/* Guided class creation — doubles as the tutorial for how classes work */}
+                <Route path="my-classes/new" element={<StartClassPage />} />
                 {/* Parent/guardian self-service: register your own children for SIS
                     classes. Gated behind completing the iCreate registration + fee —
                     including parent+teacher staff, whose teacher surfaces stay open. */}
