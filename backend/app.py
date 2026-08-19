@@ -21,6 +21,7 @@ from middleware.security import security_middleware
 from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
 from middleware.activity_tracker import activity_tracker
+from middleware.signature_gate import signature_gate
 
 # CSRF protection is mandatory in production. In development we still tolerate
 # a missing Flask-WTF install so contributors don't hit hard failures before
@@ -104,6 +105,12 @@ memory_monitor.start_watchdog()
 
 # Configure activity tracking middleware
 activity_tracker.init_app(app)
+
+# Holds a guardian out of the platform while a required document is unsigned.
+# Registered here rather than per-blueprint on purpose: the rule is "everything
+# except the signing flow", and an allowlist expressed once cannot be forgotten
+# on the next route somebody adds.
+signature_gate.init_app(app)
 
 # Configure rate limit headers for all responses
 from middleware.rate_limiter import add_rate_limit_headers

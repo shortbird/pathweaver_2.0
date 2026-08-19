@@ -55,6 +55,7 @@ const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
+const RequiredDocumentsPage = lazy(() => import('./pages/RequiredDocumentsPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 // RoleHome renders each role's own home at /dashboard (it bundles the student
@@ -754,6 +755,10 @@ function App() {
                 alias kept alive for links already distributed to families.
                 /resume is the logged-in continuation for unfinished registrations
                 (PrivateRoute forces registering parents here until they complete it). */}
+            {/* Required school paperwork. Standalone (no app Layout) and NOT
+                behind PrivateRoute — PrivateRoute redirects held families here,
+                so routing it through PrivateRoute would redirect it to itself. */}
+            <Route path="family/required-documents" element={<RequiredDocumentsPage />} />
             <Route path="enroll/resume" element={<ICreateRegisterPage />} />
             <Route path="enroll/:code" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />

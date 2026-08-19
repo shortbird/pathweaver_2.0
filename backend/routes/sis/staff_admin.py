@@ -326,6 +326,17 @@ def remind_signature_request(user_id, assignment_id):
         org_id, assignment_id, include_hr=False)
 
 
+@bp.route('/signature-requests/<assignment_id>/release', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def release_signature_hold(user_id, assignment_id):
+    """Let a family back into the platform without signing. HR sends 404 here."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.release_signature_hold(
+        org_id, assignment_id, include_hr=False)
+
+
 # ── Timesheets & payroll export ──────────────────────────────────────────────
 
 def _period_or_error():

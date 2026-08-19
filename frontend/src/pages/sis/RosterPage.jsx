@@ -8,6 +8,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
+import PeopleExportModal from '../../components/sis/PeopleExportModal'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { RolePill } from '../../components/ui/RolePill'
 import { startMasquerade } from '../../services/masqueradeService'
@@ -29,6 +30,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)   // Manage modal (tabbed)
   const [showNewUser, setShowNewUser] = useState(false)  // + New User modal
+  const [showExport, setShowExport] = useState(false)     // Export CSV modal
   const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
   const [removing, setRemoving] = useState(null)    // person being removed from the org
   const [search, setSearch] = useState('')
@@ -57,35 +59,14 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   }, [roster])
 
   // Export exactly what the table is showing — same filters, same search, same
-  // sort — and include Age, which is the column schools that don't track grade
-  // levels actually filter on. The old export hit a server endpoint that dumped
-  // the whole org: filtering to students still exported parents, and Grade Level
-  // came back empty for anyone without a school_enrollments row.
-  const exportCsv = () => {
-    const rows = visibleRoster
-    if (!rows.length) { toast.error('Nothing to export'); return }
-    const header = ['Name', 'First Name', 'Last Name', 'Age', 'Date of Birth', 'Role',
-                    'Email', 'Phone', 'Username', 'Enrollment Status', 'Grade Level', 'Family',
-                    'Total XP', 'Last Active']
-    const cell = (v) => {
-      const s = v == null ? '' : String(v)
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }
-    const body = rows.map((s) => [
-      s.name, s.first_name, s.last_name, s.age, s.date_of_birth,
-      (s.roles?.length ? s.roles : [s.role]).filter(Boolean).join(' / '),
-      s.email, s.phone_number, s.username, s.enrollment_status, s.grade_level, s.household_name,
-      s.total_xp ?? 0, s.last_active,
-    ].map(cell).join(','))
-    const csv = [header.join(','), ...body].join('\r\n')
-    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `people${studentsOnly ? '-students' : ''}-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success(`Exported ${rows.length} ${rows.length === 1 ? 'person' : 'people'}`)
-  }
+  // sort. The old export hit a server endpoint that dumped the whole org:
+  // filtering to students still exported parents, and Grade Level came back
+  // empty for anyone without a school_enrollments row.
+  //
+  // The columns themselves moved into PeopleExportModal: the fixed list meant
+  // the office exported everything and deleted two thirds by hand for every
+  // actual use. Defaults there are the old fixed columns, so "just export it"
+  // produces the same file it always did.
 
   // ── Administrative actions (dropdown = navigate-away; the rest live in Manage) ─
   const goOverview = (s) => navigate(`/admin/organizations/${orgId}/student/${s.student_id}`)
@@ -156,7 +137,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
         // In the People tab shell: buttons live on the tab row (via the toolbar slot).
         toolbarEl && createPortal(
           <>
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!visibleRoster.length}
+            <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visibleRoster.length}
               title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
             <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
           </>,
@@ -167,7 +148,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
           <h1 className="text-2xl font-bold text-neutral-900">Users</h1>
           <div className="flex items-center gap-3">
             <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!visibleRoster.length}
+            <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visibleRoster.length}
               title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
             <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
           </div>
@@ -299,6 +280,15 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
           orgId={orgId}
           onClose={() => setShowNewUser(false)}
           onCreated={load}
+        />
+      )}
+
+      {showExport && (
+        <PeopleExportModal
+          rows={visibleRoster}
+          orgId={orgId}
+          studentsOnly={studentsOnly}
+          onClose={() => setShowExport(false)}
         />
       )}
 

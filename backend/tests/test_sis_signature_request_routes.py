@@ -262,3 +262,73 @@ class TestASuperadminSendingFromTheOrgPicker:
         assert org_id is None
         assert err[1] == 400
         assert 'organization_id' in err[0].get_json()['error']
+
+
+@pytest.mark.unit
+class TestRequiringASignatureBeforeAccess:
+    """iCreate, 2026-08-18: block a family's platform access until they sign.
+
+    The flag rides on the same send. What matters at this boundary is that a
+    multipart checkbox is read as a boolean rather than as a non-empty string,
+    and that it cannot be set on a send that would silently do nothing with it.
+    """
+
+    def test_the_flag_reaches_the_service(self, app):
+        _body, status, send = _post(
+            app, '/api/sis/staff-admin/signature-requests', allow_hr=False,
+            family_user_id='parent-1', blocks_access='true')
+        assert status == 201
+        assert send.call_args.kwargs['blocks_access'] is True
+
+    def test_a_send_without_the_flag_holds_nobody(self, app):
+        _body, _status, send = _post(
+            app, '/api/sis/staff-admin/signature-requests', allow_hr=False,
+            family_user_id='parent-1')
+        assert send.call_args.kwargs['blocks_access'] is False
+
+    def test_the_string_false_means_false(self, app):
+        """FormData sends strings. `bool('false')` is True, which would make
+        every send from a browser that submits unchecked boxes a lock-out."""
+        _body, _status, send = _post(
+            app, '/api/sis/staff-admin/signature-requests', allow_hr=False,
+            family_user_id='parent-1', blocks_access='false')
+        assert send.call_args.kwargs['blocks_access'] is False
+
+    def test_requiring_it_with_no_families_on_the_send_is_refused(self, app):
+        """The hold is family-side. Accepting the box on a staff-only send
+        would report success and do nothing — worse than saying no."""
+        body, status, send = _post(
+            app, '/api/sis/staff-admin/signature-requests', allow_hr=False,
+            staff_user_id='kate', blocks_access='true')
+        assert status == 400
+        assert 'families' in body['error'].lower()
+        assert send.call_count == 0
+
+
+@pytest.mark.unit
+class TestReleasingAHold:
+
+    def _release(self, app, *, visible=True, released=True):
+        with app.test_request_context('/api/sis/staff-admin/signature-requests/a-1/release',
+                                      method='POST'):
+            with patch.object(views.sis_onboarding_service,
+                              'may_see_signature_assignment', return_value=visible), \
+                 patch.object(views.sis_access_gate, 'release',
+                              return_value={'released': released,
+                                            'user_id': 'parent-1'}) as rel:
+                resp = views.release_signature_hold(ORG, 'a-1', include_hr=False)
+        body, status = (resp if isinstance(resp, tuple) else (resp, 200))
+        return body.get_json(), status, rel
+
+    def test_the_office_can_let_a_family_back_in(self, app):
+        body, status, rel = self._release(app)
+        assert status == 200 and body['released'] is True
+        assert rel.call_args[0] == (ORG, 'a-1')
+
+    def test_a_send_the_caller_may_not_see_is_not_releasable(self, app):
+        """A coordinator must not be able to touch an employment contract's
+        assignment by guessing its id — the same document-sensitivity rule
+        that governs reminders."""
+        body, status, rel = self._release(app, visible=False)
+        assert status == 404 and body['error'] == 'Not found'
+        assert rel.call_count == 0

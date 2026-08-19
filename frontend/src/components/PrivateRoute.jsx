@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 import { roleHomePath } from '../utils/postLoginPath'
 
 const PrivateRoute = ({ requiredRole, blockRoles }) => {
@@ -9,6 +10,8 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const location = useLocation()
   // iCreate parents with an unfinished registration funnel are locked to it.
   const icreateGate = useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
+  // Families holding unsigned REQUIRED school paperwork are locked to signing it.
+  const docsGate = useRequiredDocumentsGate(user, isAuthenticated)
 
   // Initialize graceLoading synchronously to prevent flash on first render
   const [graceLoading, setGraceLoading] = useState(() => {
@@ -72,6 +75,20 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   }
   if (icreateGate.mustRegister) {
     return <Navigate to="/enroll/resume" replace />
+  }
+
+  // Required school paperwork. Checked AFTER registration because a family
+  // still in the funnel belongs in the funnel — it collects its own paperwork,
+  // and bouncing them between two gates would leave neither finishable.
+  if (docsGate.checking) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+  if (docsGate.blocked) {
+    return <Navigate to="/family/required-documents" replace />
   }
 
   // blockRoles: deny these effective roles and bounce them to their own home.

@@ -14,6 +14,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services import sis_parent_service as parent
+from services import sis_access_gate
 from services import sis_onboarding_service as onboarding
 from services import sis_secure_docs_service
 from services import sis_tasks_service
@@ -460,6 +461,25 @@ def my_school_quests(user_id):
     if quests is None:
         return jsonify({'success': False, 'error': 'Not available'}), 403
     return jsonify({'success': True, 'quests': quests})
+
+
+@bp.route('/required-documents', methods=['GET'])
+@require_auth
+def my_required_documents(user_id):
+    """Documents this guardian must sign before the platform opens for them.
+
+    Deliberately takes NO organization_id. Every other family endpoint is
+    org-scoped because a guardian picks which school they are looking at; this
+    one is asked before the app has rendered anything at all, by a client that
+    is only trying to find out whether it may render. Making it depend on a
+    parameter the caller may not have yet would make the gate unaskable in
+    exactly the state it exists for.
+
+    `blocked: false` is the answer for everybody who is not held — no
+    organization, no SIS, staff, or simply nothing outstanding — so the client
+    has one condition to check rather than a taxonomy.
+    """
+    return jsonify({'success': True, **sis_access_gate.status(user_id)})
 
 
 # ── Family portal: checklists a school assigns to the guardian ────────────────

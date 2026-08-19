@@ -218,6 +218,17 @@ def remind_hr_signature_request(user_id, assignment_id):
         org_id, assignment_id, include_hr=True)
 
 
+@bp.route('/secure-documents/signature-requests/<assignment_id>/release', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def release_hr_signature_hold(user_id, assignment_id):
+    """Let a family back into the platform without signing, HR sends included."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return signature_request_views.release_signature_hold(
+        org_id, assignment_id, include_hr=True)
+
+
 @bp.route('/secure-documents', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_secure_documents(user_id):

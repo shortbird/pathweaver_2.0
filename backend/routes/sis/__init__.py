@@ -95,6 +95,23 @@ def roster(user_id):
     return jsonify({'success': True, 'roster': sis_service.get_roster(org_id)})
 
 
+@bp.route('/roster/export-details', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def roster_export_details(user_id):
+    """Guardians, family phone and emergency contacts, keyed by user id.
+
+    A companion to /roster rather than part of it: the People page loads the
+    roster constantly and needs none of this, while the CSV export needs all of
+    it once. Merged onto the visible rows by the client, so the export still
+    honours whatever filters and sort are on screen.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'details': sis_service.roster_export_details(org_id)})
+
+
 @bp.route('/people/<target_id>/removal-preview', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def person_removal_preview(user_id, target_id):

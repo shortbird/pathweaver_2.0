@@ -81,10 +81,18 @@ beforeEach(() => {
 afterEach(() => { URL.createObjectURL = originalCreate })
 
 describe('People export', () => {
+  // Export CSV opens the column picker; Download CSV writes the file. The
+  // picker's own fetch is stubbed by the default api.get mock, so nothing
+  // waits on it here.
+  const exportCsv = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV' }))
+  }
+
   it('exports the rows on screen, with an Age column', async () => {
     render(<RosterPage />)
     await screen.findByText('Ryder Swenson')
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await exportCsv()
     const [header, ...rows] = downloaded.trim().split('\r\n')
     expect(header.split(',')).toContain('Age')
     expect(rows).toHaveLength(3)
@@ -95,7 +103,7 @@ describe('People export', () => {
     render(<RosterPage />)
     await screen.findByText('Ryder Swenson')
     fireEvent.click(screen.getByLabelText('Students only'))
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await exportCsv()
     expect(downloaded).toContain('Ryder Swenson')
     expect(downloaded).not.toContain('Erin Swenson')   // the parent is filtered out
   })
@@ -104,7 +112,7 @@ describe('People export', () => {
     render(<RosterPage />)
     await screen.findByText('Ryder Swenson')
     fireEvent.change(screen.getByPlaceholderText(/Search by name/), { target: { value: 'candland' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await exportCsv()
     expect(downloaded).toContain('Nora Candland')
     expect(downloaded).not.toContain('Ryder Swenson')
   })
@@ -112,8 +120,36 @@ describe('People export', () => {
   it('never hits the whole-org export endpoint', async () => {
     render(<RosterPage />)
     await screen.findByText('Ryder Swenson')
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await exportCsv()
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('roster.csv'), expect.anything())
+  })
+
+  it('can add guardian and emergency-contact columns', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/roster/export-details')) {
+        return Promise.resolve({ data: { details: {
+          s1: {
+            household_phone: '435-555-0100',
+            guardians: [{ name: 'Erin Swenson', email: 'erin@example.com' }],
+            emergency_contacts: [
+              { name: 'Sam Reed', relationship: 'Aunt', phone: '435-555-0111', can_pickup: true },
+            ],
+          },
+        } } })
+      }
+      return Promise.resolve({ data: { roster: ROSTER } })
+    })
+    render(<RosterPage />)
+    await screen.findByText('Ryder Swenson')
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+    fireEvent.click(await screen.findByLabelText('Emergency Contacts'))
+    fireEvent.click(screen.getByLabelText('Guardians'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Download CSV' })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }))
+    expect(downloaded).toContain('Emergency Contacts')
+    expect(downloaded).toContain('Sam Reed — Aunt — 435-555-0111')
+    expect(downloaded).toContain('Erin Swenson')
   })
 })
 

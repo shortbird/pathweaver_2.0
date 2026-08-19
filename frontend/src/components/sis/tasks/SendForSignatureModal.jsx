@@ -50,6 +50,7 @@ export default function SendForSignatureModal({ orgId, endpoint, allowHr = false
   const [message, setMessage] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [sensitivity, setSensitivity] = useState('general')
+  const [blocksAccess, setBlocksAccess] = useState(false)
   const [tab, setTab] = useState('staff')
   const [staff, setStaff] = useState([])
   const [families, setFamilies] = useState([])
@@ -68,6 +69,12 @@ export default function SendForSignatureModal({ orgId, endpoint, allowHr = false
   }, [orgId])
 
   const total = staffIds.length + familyIds.length
+  // The hold is a family-side rule (a teacher is not locked out of their
+  // classroom over paperwork), so the option only exists once a family is on
+  // the list — and un-ticks itself if the last family comes back off it, so the
+  // send can never carry a flag the screen no longer shows.
+  const requireable = familyIds.length > 0
+  useEffect(() => { if (!requireable) setBlocksAccess(false) }, [requireable])
 
   const toggle = (setter) => (id) => setter((prev) => (
     prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -85,13 +92,17 @@ export default function SendForSignatureModal({ orgId, endpoint, allowHr = false
       if (message.trim()) form.append('message', message.trim())
       if (dueDate) form.append('due_date', dueDate)
       form.append('sensitivity', allowHr ? sensitivity : 'general')
+      if (requireable && blocksAccess) form.append('blocks_access', 'true')
       staffIds.forEach((id) => form.append('staff_user_id', id))
       familyIds.forEach((id) => form.append('family_user_id', id))
       // The org also rides in the query string, not just the form body: it is
       // the one place every SIS endpoint reads it from regardless of content
       // type, and a superadmin has no own-org fallback to rescue the request.
       const r = await api.post(withOrg(endpoint, orgId), form)
-      toast.success(`Sent to ${r.data?.sent ?? total} ${total === 1 ? 'person' : 'people'}`)
+      const sent = r.data?.sent ?? total
+      toast.success(r.data?.blocks_access
+        ? `Sent to ${sent} ${sent === 1 ? 'person' : 'people'} — required before they can use Optio`
+        : `Sent to ${sent} ${sent === 1 ? 'person' : 'people'}`)
       onSent?.()
       onClose()
     } catch (err) {
@@ -134,6 +145,22 @@ export default function SendForSignatureModal({ orgId, endpoint, allowHr = false
             placeholder="Please read and sign before the first day of term."
             className={`${inputClass} resize-none`} />
         </label>
+
+        {requireable && (
+          <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 cursor-pointer">
+            <input type="checkbox" checked={blocksAccess}
+              onChange={(e) => setBlocksAccess(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700" />
+            <span className="text-sm text-neutral-800">
+              <span className="font-medium">Require this before they can use Optio</span>
+              <span className="block text-xs text-neutral-600 mt-0.5">
+                The {familyIds.length === 1 ? 'family' : 'families'} you selected will see only this
+                document until they sign it. Their students are not affected, and you can release
+                the hold at any time from Sent paperwork.
+              </span>
+            </span>
+          </label>
+        )}
 
         {allowHr && (
           <label className="block">

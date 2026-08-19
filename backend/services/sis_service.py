@@ -335,6 +335,93 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
     return roster
 
 
+def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
+    """Per-person extras the People CSV export offers, keyed by user id.
+
+    Deliberately NOT folded into get_roster. The roster loads every time
+    somebody opens the People page; this is three more org-wide reads that
+    exist to fill columns almost nobody exports on any given day. Paying for
+    them on every page load to save one request on the rare export is the wrong
+    trade, so the export asks for them and the page does not.
+
+    What it adds, and where each comes from:
+      household_phone     the family's number (households.phone)
+      guardians           the household's guardians, name + email
+      emergency_contacts  from the family's registration -- the ONLY place a
+                          school records "who else may we call, who may collect
+                          this child". Filed by a guardian and true for the
+                          whole household, so it lands on every member of it,
+                          students included: the field-trip list needs it
+                          against the child, not against the parent.
+
+    Every read here is org-wide, so every one of them is paged. An emergency
+    contact list that silently loses its last families is worse than not having
+    one -- see utils/db_fetch.
+    """
+    from utils.db_fetch import fetch_all_rows
+
+    admin = _admin()
+    households = fetch_all_rows(lambda: (
+        admin.table('households').select('id, name, phone').eq('organization_id', org_id)
+    ))
+    if not households:
+        return {}
+    hh_by_id = {h['id']: h for h in households}
+    members = fetch_all_rows(lambda: (
+        admin.table('household_members')
+        .select('id, household_id, user_id, relationship, is_primary_guardian')
+        .in_('household_id', list(hh_by_id.keys()))
+    ))
+
+    guardian_ids = [m['user_id'] for m in members if m.get('relationship') == 'guardian']
+    g_users = {}
+    if guardian_ids:
+        for chunk in (guardian_ids[i:i + 200] for i in range(0, len(guardian_ids), 200)):
+            rows = (admin.table('users')
+                    .select('id, first_name, last_name, display_name, email, phone_number')
+                    .in_('id', chunk).execute()).data or []
+            g_users.update({u['id']: u for u in rows})
+
+    guardians_by_hh: Dict[str, List[Dict[str, Any]]] = {}
+    for m in members:
+        if m.get('relationship') != 'guardian':
+            continue
+        gu = g_users.get(m['user_id']) or {}
+        guardians_by_hh.setdefault(m['household_id'], []).append({
+            'name': _full_name(gu), 'email': gu.get('email'),
+            'phone': gu.get('phone_number'),
+            'is_primary': bool(m.get('is_primary_guardian')),
+        })
+
+    # Emergency contacts, by household, from the most recent registration any of
+    # its guardians filed. Oldest first so a later registration overwrites an
+    # earlier one -- a family who re-registered means the new list.
+    registrations = fetch_all_rows(lambda: (
+        admin.table('icreate_registrations')
+        .select('id, parent_user_id, emergency_contacts, created_at')
+        .eq('organization_id', org_id)
+    ))
+    hh_of_user = {m['user_id']: m['household_id'] for m in members}
+    ec_by_hh: Dict[str, List[Dict[str, Any]]] = {}
+    for reg in sorted(registrations, key=lambda r: r.get('created_at') or ''):
+        contacts = reg.get('emergency_contacts')
+        if not contacts:
+            continue
+        hh_id = hh_of_user.get(reg.get('parent_user_id'))
+        if hh_id:
+            ec_by_hh[hh_id] = contacts
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for m in members:
+        hh = hh_by_id.get(m['household_id']) or {}
+        out[m['user_id']] = {
+            'household_phone': hh.get('phone'),
+            'guardians': guardians_by_hh.get(m['household_id'], []),
+            'emergency_contacts': ec_by_hh.get(m['household_id'], []),
+        }
+    return out
+
+
 def get_dashboard(org_id: str) -> Dict[str, Any]:
     students = _org_students(org_id)
     enrollments = _enrollments_by_student(org_id)

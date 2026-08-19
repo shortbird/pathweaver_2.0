@@ -26,6 +26,7 @@ export default function SignatureBatches({ orgId, endpoint, reloadKey = 0, onCou
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('outstanding')
   const [reminding, setReminding] = useState(null)
+  const [releasing, setReleasing] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -53,6 +54,24 @@ export default function SignatureBatches({ orgId, endpoint, reloadKey = 0, onCou
       toast.error(err?.response?.data?.error || 'Could not send the reminder')
     } finally {
       setReminding(null)
+    }
+  }
+
+  // Lift the hold on one family without them signing. The office needs this for
+  // the family who cannot sign at all — see release_signature_hold on the
+  // backend. The paperwork stays outstanding; only the lock-out comes off, so
+  // the row keeps showing as unsigned afterwards.
+  const release = async (person) => {
+    setReleasing(person.assignment_id)
+    try {
+      await api.post(withOrg(`${endpoint}/${person.assignment_id}/release`, orgId),
+        { organization_id: orgId })
+      toast.success(`${person.name || 'They'} can use Optio again`)
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not release the hold')
+    } finally {
+      setReleasing(null)
     }
   }
 
@@ -89,6 +108,12 @@ export default function SignatureBatches({ orgId, endpoint, reloadKey = 0, onCou
               {b.sensitivity === 'hr' && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">HR</span>
               )}
+              {b.blocks_access && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
+                  title="Families on this send cannot use Optio until they sign it">
+                  Required
+                </span>
+              )}
               {b.sent_at && <span className="text-xs text-neutral-400">sent {fmtDate(b.sent_at)}</span>}
               {b.due_date && <span className="text-xs text-neutral-400">due {b.due_date}</span>}
               <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
@@ -110,12 +135,21 @@ export default function SignatureBatches({ orgId, endpoint, reloadKey = 0, onCou
                     </span>
                   ) : (
                     <span className="ml-auto flex items-center gap-3">
-                      <span className="text-xs text-neutral-400">Not signed yet</span>
+                      <span className="text-xs text-neutral-400">
+                        {p.blocks_access ? 'Not signed — locked out' : 'Not signed yet'}
+                      </span>
                       {/* The natural next click after reading "3 of 12". */}
                       <button onClick={() => remind(b, p)} disabled={reminding === p.assignment_id}
                         className="text-xs text-optio-purple font-medium hover:underline disabled:opacity-50">
                         {reminding === p.assignment_id ? 'Reminding…' : 'Remind'}
                       </button>
+                      {p.blocks_access && (
+                        <button onClick={() => release(p)} disabled={releasing === p.assignment_id}
+                          title="Let them back into Optio without signing"
+                          className="text-xs text-neutral-500 font-medium hover:underline disabled:opacity-50">
+                          {releasing === p.assignment_id ? 'Releasing…' : 'Release hold'}
+                        </button>
+                      )}
                     </span>
                   )}
                 </li>

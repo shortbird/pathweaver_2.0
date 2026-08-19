@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from services import sis_notifications
+from services import sis_access_gate
 from services import sis_secure_docs_service
 from services import sis_service
 from utils.logger import get_logger
@@ -102,8 +103,12 @@ def save_template(org_id: str, data: Dict[str, Any], actor_id: str,
     items = _clean_items(data.get('items') or [])
     if items is None:
         return {'error': 'Each item needs at least a title'}
+    audience = _clean_audience(data.get('audience'))
     payload = {'name': name, 'role_type': (data.get('role_type') or '').strip() or None,
-               'audience': _clean_audience(data.get('audience')),
+               'audience': audience,
+               # Family checklists only — see send_for_signature on why a staff
+               # audience never carries the hold.
+               'blocks_access': bool(data.get('blocks_access')) and audience == 'family',
                'items': items, 'updated_at': _now()}
     admin = _admin()
     if template_id:
@@ -220,6 +225,10 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
         # Snapshotted alongside the items: the portal a checklist belongs to must
         # not change when someone edits or deletes the template it came from.
         'audience': 'family' if is_family else 'staff',
+        # Copied, not referenced — same reason the items are (see the 20260818
+        # migration): editing a template later must not retroactively lock out
+        # families who were assigned the version that didn't.
+        'blocks_access': bool(template.get('blocks_access')) and is_family,
         'items': items, 'assigned_by': assigned_by,
     }).execute()).data
     label = 'Checklist assigned' if is_family else 'Onboarding checklist assigned'
@@ -384,13 +393,22 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
                        recipients: List[Dict[str, Any]], *,
                        title: Optional[str] = None, message: Optional[str] = None,
                        due_date: Optional[str] = None,
-                       sensitivity: str = 'general') -> Dict[str, Any]:
+                       sensitivity: str = 'general',
+                       blocks_access: bool = False) -> Dict[str, Any]:
     """Upload a document, file a copy to each recipient, and assign each of them
     a task to sign it.
 
     `recipients` is [{'id': user_id, 'audience': 'staff'|'family'}] — audience
     decides which portal the notification points at, exactly as a template's
     audience does.
+
+    `blocks_access` makes signing a condition rather than a request: until the
+    recipient signs, the platform gives them the signing screen and nothing
+    else (services/sis_access_gate.py). It applies to FAMILY recipients only.
+    The same send can carry both audiences — a policy that goes to every
+    teacher and every parent — and holding a teacher out of their classroom
+    over paperwork is a different decision from holding a family out, one the
+    school has not made by ticking this box.
     """
     recipients = [r for r in recipients if r.get('id')]
     # De-dupe by user, keeping order: sending the same document to one person
@@ -435,6 +453,7 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
             'kind': 'signature_request',
             'batch_id': batch_id,
             'assigned_by': sent_by,
+            'blocks_access': bool(blocks_access) and is_family,
             'items': [{
                 'key': 'sign',
                 'title': f'Sign: {doc_title}',
@@ -476,13 +495,21 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
 
     for row in rows:
         link = '/family/portal' if row['audience'] == 'family' else '/my-tasks'
+        required = row.get('blocks_access')
         sis_notifications.notify(
-            row['user_id'], 'Document to sign',
-            f'"{doc_title}" is waiting for your signature.',
-            link=link, organization_id=org_id)
+            row['user_id'],
+            'Signature required' if required else 'Document to sign',
+            (f'"{doc_title}" must be signed before you can continue using Optio.'
+             if required else f'"{doc_title}" is waiting for your signature.'),
+            link='/family/required-documents' if required else link,
+            organization_id=org_id)
+        if required:
+            # The gate caches "this person is clear" for a minute; a new hold
+            # has to bite now, not a minute from now.
+            sis_access_gate.clear_cache(row['user_id'])
 
     return {'batch_id': batch_id, 'sent': len(inserted or rows),
-            'document_title': doc_title}
+            'document_title': doc_title, 'blocks_access': bool(blocks_access)}
 
 
 def list_signature_batches(org_id: str, include_hr: bool = False) -> List[Dict[str, Any]]:
@@ -551,6 +578,10 @@ def list_signature_batches(org_id: str, include_hr: bool = False) -> List[Dict[s
             'signed': bool(signature),
             'signed_at': (signature or {}).get('signed_at'),
             'signed_name': (signature or {}).get('name'),
+            # Still holding this person out of the platform? Drops to false the
+            # moment the office releases the hold, so the tracking page shows
+            # the release rather than only the signature.
+            'blocks_access': bool(r.get('blocks_access')),
         })
 
     out = list(batches.values())
@@ -558,8 +589,46 @@ def list_signature_batches(org_id: str, include_hr: bool = False) -> List[Dict[s
         b['recipients'].sort(key=lambda p: (p.get('name') or '').lower())
         b['signed_count'] = len([p for p in b['recipients'] if p['signed']])
         b['total_count'] = len(b['recipients'])
+        # A send is "required" if anyone on it is still held by it.
+        b['blocks_access'] = any(p['blocks_access'] for p in b['recipients'])
     out.sort(key=lambda b: b.get('sent_at') or '', reverse=True)
     return out
+
+
+def _load_signature_assignment(org_id: str, assignment_id: str, *,
+                               include_hr: bool) -> Optional[Dict[str, Any]]:
+    """One send's assignment row, or None if this caller may not see it.
+
+    Whether the caller may see a send at all is decided by the DOCUMENT's
+    sensitivity, exactly as in list_signature_batches — a coordinator must not
+    be able to reach an employment contract by guessing an assignment id, and
+    any split between "not allowed" and "no such row" would confirm the row
+    exists. Everything that acts on a single send resolves it through here, so
+    that rule has one implementation rather than one per action.
+    """
+    rows = (_admin().table('sis_onboarding_assignments')
+            .select('id, organization_id, user_id, audience, template_name, items')
+            .eq('id', assignment_id).eq('kind', 'signature_request')
+            .limit(1).execute()).data or []
+    if not rows or rows[0].get('organization_id') != org_id:
+        return None
+    row = rows[0]
+    doc_id = ((row.get('items') or [{}])[0]).get('document_id')
+    sensitivity = 'hr'
+    if doc_id:
+        docs = (_admin().table('sis_secure_documents').select('id, sensitivity')
+                .eq('id', doc_id).limit(1).execute()).data or []
+        sensitivity = (docs[0].get('sensitivity') if docs else 'hr') or 'hr'
+    if sensitivity == 'hr' and not include_hr:
+        return None
+    return row
+
+
+def may_see_signature_assignment(org_id: str, assignment_id: str, *,
+                                 include_hr: bool = False) -> bool:
+    """Is this send visible to a caller with these privileges?"""
+    return _load_signature_assignment(
+        org_id, assignment_id, include_hr=include_hr) is not None
 
 
 def remind_signature_recipient(org_id: str, assignment_id: str, *,
@@ -568,30 +637,12 @@ def remind_signature_recipient(org_id: str, assignment_id: str, *,
 
     The natural next click after reading "3 of 12 signed" is to chase the other
     nine, and before this the only way to do it was outside the product.
-
-    Whether the caller may see this send at all is decided by the DOCUMENT's
-    sensitivity, exactly as in list_signature_batches — a coordinator must not be
-    able to reach an employment contract by guessing an assignment id, and an
-    "already signed"/"not found" split would confirm the row exists.
     """
-    rows = (_admin().table('sis_onboarding_assignments')
-            .select('id, organization_id, user_id, audience, template_name, items')
-            .eq('id', assignment_id).eq('kind', 'signature_request')
-            .limit(1).execute()).data or []
-    if not rows or rows[0].get('organization_id') != org_id:
+    row = _load_signature_assignment(org_id, assignment_id, include_hr=include_hr)
+    if not row:
         return {'error': 'Not found', 'status': 404}
 
-    row = rows[0]
     item = (row.get('items') or [{}])[0]
-    doc_id = item.get('document_id')
-    sensitivity = 'hr'
-    if doc_id:
-        docs = (_admin().table('sis_secure_documents').select('id, sensitivity')
-                .eq('id', doc_id).limit(1).execute()).data or []
-        sensitivity = (docs[0].get('sensitivity') if docs else 'hr') or 'hr'
-    if sensitivity == 'hr' and not include_hr:
-        return {'error': 'Not found', 'status': 404}
-
     if item.get('signature'):
         return {'error': 'They have already signed this', 'status': 400}
 
@@ -615,7 +666,7 @@ def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
     detached so the UI can warn before removing a checklist with real work in it.
     """
     rows = (_admin().table('sis_onboarding_assignments')
-            .select('id, organization_id, items, template_name')
+            .select('id, organization_id, user_id, items, template_name, blocks_access')
             .eq('id', assignment_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
         return {'error': 'Checklist not found'}
@@ -623,6 +674,9 @@ def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
     docs = len([i for i in items if i.get('document_url')])
     done = len([i for i in items if i.get('status') in ('complete', 'approved')])
     _admin().table('sis_onboarding_assignments').delete().eq('id', assignment_id).execute()
+    if rows[0].get('blocks_access'):
+        # Taking the paperwork back takes the hold with it.
+        sis_access_gate.clear_cache(rows[0].get('user_id'))
     return {'unassigned': True, 'documents_kept': docs, 'items_completed': done,
             'template_name': rows[0].get('template_name')}
 
@@ -636,6 +690,11 @@ def _load_assignment(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]
 
 
 def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if assignment.get('blocks_access'):
+        # Signing needs no invalidation (a held user is never cached), but an
+        # admin clearing a signature re-imposes a hold on someone the cache may
+        # currently believe is clear.
+        sis_access_gate.clear_cache(assignment.get('user_id'))
     required = [i for i in items if i.get('required')]
     all_done = all(i.get('status') in ('complete', 'approved') for i in required) if required else True
     status = 'complete' if all_done else 'in_progress'

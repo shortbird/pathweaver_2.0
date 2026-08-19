@@ -16,6 +16,7 @@ import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
 import ClassesExportModal from '../../components/sis/ClassesExportModal'
+import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -959,7 +960,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
             </div>
           )}
 
-          {tab === 'roster' && <ClassRoster classId={cls.id} orgId={orgId} />}
+          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} />}
           {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>
@@ -968,10 +969,11 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
 }
 
 // Enrolled students for the class (sorted by last name).
-const ClassRoster = ({ classId, orgId }) => {
+const ClassRoster = ({ classId, className, orgId }) => {
   const confirm = useConfirm()
   const [roster, setRoster] = useState(null)
   const [dropping, setDropping] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   const reload = useCallback(() => {
     api.get(withOrg(`/api/sis/classes/${classId}/enrollments`, orgId))
@@ -995,7 +997,17 @@ const ClassRoster = ({ classId, orgId }) => {
   if (!roster.length) return <p className="text-sm text-neutral-400">No students enrolled yet.</p>
   return (
     <div>
-      <p className="text-xs text-neutral-400 mb-2">{roster.length} enrolled</p>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs text-neutral-400">{roster.length} enrolled</p>
+        {/* Sign-in sheets, contact lists, allergy lists — see the modal. */}
+        <Button size="sm" variant="outline" onClick={() => setExporting(true)}>
+          Print / Export
+        </Button>
+      </div>
+      {exporting && (
+        <ClassRosterExportModal classId={classId} className={className} orgId={orgId}
+          onClose={() => setExporting(false)} />
+      )}
       <ul className="divide-y divide-gray-100">
         {roster.map((s) => (
           <li key={s.student_id} className="py-2 flex items-center justify-between gap-3">

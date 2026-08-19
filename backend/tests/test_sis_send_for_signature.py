@@ -410,3 +410,46 @@ class TestChasingAnUnsignedDocument:
         result, notify = self._remind(row=None)
         assert result['status'] == 404
         assert notify.call_count == 0
+
+
+@pytest.mark.unit
+class TestRequiringItBeforeAccess:
+    """A send can hold its recipients out of the platform until they sign."""
+
+    def test_families_on_a_required_send_are_held(self):
+        _r, rows, _s, _rm, _n = _send(blocks_access=True)
+        by_user = {r['user_id']: r for r in rows}
+        assert by_user['parent-1']['blocks_access'] is True
+
+    def test_staff_on_the_same_send_are_not(self):
+        """One policy can go to every teacher and every parent at once. Ticking
+        the box on that send says "hold the families", not "lock the teachers
+        out of their classrooms" — that is a different decision, and the school
+        has not made it here."""
+        _r, rows, _s, _rm, _n = _send(blocks_access=True)
+        by_user = {r['user_id']: r for r in rows}
+        assert by_user['kate']['blocks_access'] is False
+
+    def test_an_ordinary_send_holds_nobody(self):
+        _r, rows, _s, _rm, _n = _send()
+        assert all(r['blocks_access'] is False for r in rows)
+
+    def test_the_notification_says_it_is_required_and_points_at_the_hold(self):
+        _r, _rows, _s, _rm, notify = _send(blocks_access=True)
+        held = [c for c in notify.call_args_list if c[0][0] == 'parent-1'][0]
+        assert held[0][1] == 'Signature required'
+        assert held[1]['link'] == '/family/required-documents'
+
+    def test_a_staff_recipient_still_gets_the_ordinary_notification(self):
+        _r, _rows, _s, _rm, notify = _send(blocks_access=True)
+        staff = [c for c in notify.call_args_list if c[0][0] == 'kate'][0]
+        assert staff[0][1] == 'Document to sign'
+        assert staff[1]['link'] == '/my-tasks'
+
+    def test_the_new_hold_takes_effect_immediately(self):
+        """The gate caches "this person is clear" for a minute. A hold created
+        inside that window has to bite now — otherwise the office sends the
+        document, watches the family carry on, and sends it again."""
+        with patch.object(onboarding.sis_access_gate, 'clear_cache') as clear:
+            _send(blocks_access=True)
+        assert 'parent-1' in [c[0][0] for c in clear.call_args_list]

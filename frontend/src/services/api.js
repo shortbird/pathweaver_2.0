@@ -209,6 +209,20 @@ api.interceptors.response.use(
         nestedError.message || nestedError.code || 'Something went wrong'
     }
 
+    // The school requires a signature before this family may use the platform
+    // (backend/middleware/signature_gate.py). The router gate catches this on
+    // navigation; this catches the case where the hold ARRIVES mid-session —
+    // otherwise the family sits in an app whose every call has quietly started
+    // failing, with nothing telling them why.
+    if (error.response?.status === 403
+        && error.response?.data?.code === 'signature_required') {
+      const here = window.location?.pathname
+      if (here && here !== '/family/required-documents') {
+        window.location.assign('/family/required-documents')
+      }
+      return Promise.reject(error)
+    }
+
     // Handle 403 responses with consent_required flag for COPPA compliance
     // This triggers the ConsentBlockedOverlay component
     if (error.response?.status === 403 && error.response?.data?.consent_required) {
