@@ -16,7 +16,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from services import sis_secure_docs_service, sis_service
+from services import sis_notifications, sis_secure_docs_service, sis_service
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import HR_ROLES as STAFF_ROLES
@@ -35,6 +35,9 @@ bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 _SECURE_DOCS_BUCKET = sis_secure_docs_service.BUCKET
 _MAX_ATTACH_PEOPLE = sis_secure_docs_service.MAX_ATTACH_PEOPLE
 _MAX_TITLE_LEN = sis_secure_docs_service.MAX_TITLE_LEN
+# One page of the documents list, so "select all" on screen always goes through
+# in one request rather than partly succeeding.
+_MAX_BULK_SHARE = 200
 
 
 def _org_or_error(user_id):
@@ -161,14 +164,15 @@ def upload_secure_document(user_id):
     if problem:
         return jsonify({'success': False, 'error': problem}), 400
 
+    share = (request.form.get('shared_with_owner')
+             or request.args.get('shared_with_owner')
+             or '').strip().lower() in ('1', 'true', 'yes')
     result = sis_secure_docs_service.store_document(
         org_id, user_id, blob, file.filename, ext, content_type,
         size_bytes, targets,
         title=_title_from_form(file.filename),
         category=_field('category'), note=_field('note'),
-        shared_with_owner=(request.form.get('shared_with_owner')
-                           or request.args.get('shared_with_owner')
-                           or '').strip().lower() in ('1', 'true', 'yes'),
+        shared_with_owner=share,
         # This blueprint is the HR store; the coordinator-reachable endpoints
         # pass 'general' explicitly (routes/sis/staff_admin.py).
         sensitivity=sis_secure_docs_service.clean_sensitivity(_field('sensitivity'), 'hr'),
@@ -177,6 +181,8 @@ def upload_secure_document(user_id):
         return jsonify({'success': False, 'error': result['error']}), result.get('status', 500)
 
     documents = result['documents']
+    if share:
+        _notify_shared(org_id, documents)
     # `document` kept alongside `documents` for the single-person callers that
     # predate multi-attach.
     return jsonify({'success': True, 'documents': documents,
@@ -274,6 +280,93 @@ def _doc_or_error(user_id, doc_id):
     return rows[0], org_id, None
 
 
+def _notify_shared(org_id, docs):
+    """Tell each owner that a document has appeared in their portal.
+
+    Sharing was silent: the office ticked the box and the person found out by
+    happening to log in and look. Sending a document FOR SIGNATURE already
+    notifies its recipients (sis_onboarding_service.send_for_signature), and
+    upload-then-share is the same event from the recipient's side, so it says so
+    too. Best-effort — sis_notifications.notify swallows its own failures, and a
+    document is still shared whether or not the notice lands.
+    """
+    owners = {d.get('owner_user_id') for d in docs if d.get('owner_user_id')}
+    if not owners:
+        return
+    # admin client justified: org_role lookup to route the notification to the
+    # right portal; ids come from documents already org-checked by the caller.
+    rows = (get_supabase_admin_client().table('users')
+            .select('id, org_role').in_('id', list(owners)).execute()).data or []
+    roles = {r['id']: (r.get('org_role') or '') for r in rows}
+    for doc in docs:
+        owner = doc.get('owner_user_id')
+        if not owner:
+            continue
+        title = doc.get('title') or doc.get('filename') or 'A document'
+        # Parents live in the family portal; staff read theirs in My Documents.
+        link = '/family/portal' if roles.get(owner) == 'parent' else '/my-documents'
+        sis_notifications.notify(
+            owner, 'A document is ready for you',
+            f'"{title}" is now in your portal.',
+            link=link, organization_id=org_id)
+
+
+@bp.route('/secure-documents', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def bulk_share_secure_documents(user_id):
+    """Share (or stop sharing) a selection of documents in one action.
+
+    JSON: organization_id, document_ids (list), shared_with_owner (bool).
+
+    A school that uploads 19 teacher contracts should not have to make 19
+    separate sharing decisions, and until each one is made the teacher sees
+    "your document is not here yet" against the signature item waiting on it
+    (iCreate, 2026-08-18 — 19 contracts, all of them private, every teacher
+    stuck). The per-document PATCH below is unchanged; this is the same
+    decision applied to a selection.
+
+    Documents with nobody attached are skipped rather than failing the batch:
+    the caller selected a set, and one unattached file in it should not undo
+    the rest.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    ids = data.get('document_ids')
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'success': False, 'error': 'Select at least one document'}), 400
+    ids = [str(i) for i in ids if i]
+    if len(ids) > _MAX_BULK_SHARE:
+        return jsonify({'success': False,
+                        'error': f'Share at most {_MAX_BULK_SHARE} documents at a time'}), 400
+    if 'shared_with_owner' not in data:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    share = bool(data['shared_with_owner'])
+
+    # admin client justified: service-role-only sis_secure_documents; gated by
+    # @require_role(HR_ROLES), and the .eq('organization_id') on the read below
+    # is what scopes both it and the update, mirroring _doc_or_error.
+    admin = get_supabase_admin_client()
+    rows = (admin.table('sis_secure_documents')
+            .select('id, title, filename, owner_user_id, organization_id')
+            .in_('id', ids).eq('organization_id', org_id).execute()).data or []
+    # Sharing needs somebody to share WITH — the same rule the single-document
+    # PATCH enforces, applied per row instead of as a 400 for the whole batch.
+    targets = [r for r in rows if r.get('owner_user_id')]
+    skipped = len(ids) - len(targets)
+    if not targets:
+        return jsonify({'success': False,
+                        'error': 'None of those documents are attached to a person'}), 400
+
+    admin.table('sis_secure_documents').update(
+        {'shared_with_owner': share}).in_('id', [r['id'] for r in targets]).execute()
+    if share:
+        _notify_shared(org_id, targets)
+    return jsonify({'success': True, 'updated': len(targets), 'skipped': skipped,
+                    'shared_with_owner': share})
+
+
 @bp.route('/secure-documents/<doc_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def update_secure_document(user_id, doc_id):
@@ -305,6 +398,10 @@ def update_secure_document(user_id, doc_id):
     # admin client justified: update of service-role-only sis_secure_documents; gated by @require_role(HR_ROLES) + _doc_or_error org check above
     row = (get_supabase_admin_client().table('sis_secure_documents')
            .update(fields).eq('id', doc_id).execute()).data
+    # Only on the transition into shared: re-saving an already-shared document
+    # to rename it must not tell the owner it just arrived.
+    if fields.get('shared_with_owner') and not doc.get('shared_with_owner'):
+        _notify_shared(doc['organization_id'], [{**doc, **fields}])
     return jsonify({'success': True, 'document': (row or [doc])[0]})
 
 

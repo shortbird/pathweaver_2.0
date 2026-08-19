@@ -42,12 +42,22 @@ const SecureDocumentsPage = () => {
   const [category, setCategory] = useState('')
   const [note, setNote] = useState('')
   const [personIds, setPersonIds] = useState([])
+  // Deliberately NOT reset after an upload. A school files contracts in one
+  // sitting, and re-ticking this 19 times is how 19 contracts ended up private
+  // (iCreate, 2026-08-18). It is on screen and unticked on every fresh load, so
+  // it stays a visible choice rather than a hidden default.
+  const [shareOnUpload, setShareOnUpload] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [fileKey, setFileKey] = useState(0) // reset the <input type=file> after upload
 
   // Inline rename: the id being renamed, and the text being typed.
   const [renamingId, setRenamingId] = useState(null)
   const [renameText, setRenameText] = useState('')
+
+  // Documents ticked for a bulk share. Ids rather than rows so the set survives
+  // a reload of the list.
+  const [selectedIds, setSelectedIds] = useState([])
+  const [sharingBulk, setSharingBulk] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -66,7 +76,7 @@ const SecureDocumentsPage = () => {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     setDocs([]); setFilter(''); setFile(null); setTitle(''); setCategory(''); setNote('')
-    setPersonIds([]); setRenamingId(null)
+    setPersonIds([]); setRenamingId(null); setSelectedIds([])
   }, [orgId])
 
   const personLabel = useCallback((p) => {
@@ -104,6 +114,7 @@ const SecureDocumentsPage = () => {
       if (!person) return
       form.append(person.is_student ? 'student_user_id' : 'owner_user_id', person.student_id)
     })
+    if (shareOnUpload) form.append('shared_with_owner', 'true')
     setUploading(true)
     try {
       const res = await api.post('/api/sis/secure-documents/upload', form)
@@ -117,7 +128,7 @@ const SecureDocumentsPage = () => {
     } finally {
       setUploading(false)
     }
-  }, [file, orgId, people, personIds, title, category, note, load])
+  }, [file, orgId, people, personIds, title, category, note, shareOnUpload, load])
 
   const handleRename = useCallback(async (doc) => {
     const next = renameText.trim()
@@ -177,6 +188,53 @@ const SecureDocumentsPage = () => {
       toast.error(err?.response?.data?.error || 'Could not change sharing')
     }
   }, [orgId, docName])
+
+  // A document can only be shared with somebody it is filed against, and one
+  // they sent in themselves is already theirs — both are unselectable rather
+  // than silently skipped by the server.
+  const canShare = useCallback((d) => Boolean(d.owner_user_id) && !d.uploaded_by_owner, [])
+  const shareableDocs = useMemo(() => filteredDocs.filter(canShare), [filteredDocs, canShare])
+  const selectedDocs = useMemo(
+    () => shareableDocs.filter((d) => selectedIds.includes(d.id)), [shareableDocs, selectedIds])
+  const allSelected = shareableDocs.length > 0 && selectedDocs.length === shareableDocs.length
+
+  const toggleSelected = useCallback((id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
+
+  // Select-all covers what the filter is showing, not the whole store — the
+  // filter is how you narrow to "this year's contracts" before sharing them.
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(allSelected ? [] : shareableDocs.map((d) => d.id))
+  }, [allSelected, shareableDocs])
+
+  const bulkShare = useCallback(async (share) => {
+    const ids = selectedDocs.map((d) => d.id)
+    if (ids.length === 0) return
+    const who = selectedDocs.length === 1
+      ? (selectedDocs[0].owner_name || 'that person')
+      : `${ids.length} people`
+    if (share && !(await confirm(
+      `Share ${ids.length === 1 ? 'this document' : `these ${ids.length} documents`} with ${who}? `
+      + 'They will be able to open and sign what belongs to them.'))) return
+    setSharingBulk(true)
+    try {
+      const res = await api.patch('/api/sis/secure-documents', {
+        organization_id: orgId, document_ids: ids, shared_with_owner: share,
+      })
+      const n = res.data?.updated ?? ids.length
+      setDocs((prev) => prev.map((d) => (
+        ids.includes(d.id) ? { ...d, shared_with_owner: share } : d)))
+      setSelectedIds([])
+      toast.success(share
+        ? `Shared with ${n} ${n === 1 ? 'person' : 'people'}`
+        : `No longer shared (${n})`)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not change sharing')
+    } finally {
+      setSharingBulk(false)
+    }
+  }, [confirm, orgId, selectedDocs])
 
   return (
     <div>
@@ -273,6 +331,28 @@ const SecureDocumentsPage = () => {
                     Pick as many as you need — each person gets their own copy, shared and
                     deleted separately.
                   </p>
+                  {/* The decision that makes a contract signable, made where the
+                      document is filed instead of as a second pass over the
+                      list afterwards. Students are attached as the subject of a
+                      document, never as its owner, so sharing does not apply to
+                      them — see _attach_targets in routes/sis/secure_documents.py. */}
+                  <label className="flex items-start gap-2 mt-3 text-sm text-neutral-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={shareOnUpload}
+                      onChange={(e) => setShareOnUpload(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700"
+                    />
+                    <span>
+                      Let them see it
+                      <span className="block text-xs text-neutral-400">
+                        Staff and parents get it in their own documents, and can sign it if
+                        something is waiting on it. Leave this off for background checks and
+                        anything else they should not read. Students are never given the
+                        documents filed about them.
+                      </span>
+                    </span>
+                  </label>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -321,11 +401,54 @@ const SecureDocumentsPage = () => {
               </div>
             )}
 
+            {/* Only once something is ticked, so the page is unchanged for
+                everyone who never needs it. */}
+            {selectedDocs.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-optio-purple/30 bg-optio-purple/5 px-4 py-3">
+                <span className="text-sm font-medium text-neutral-800">
+                  {selectedDocs.length} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => bulkShare(true)}
+                  disabled={sharingBulk}
+                  className="px-3 py-1.5 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50"
+                >
+                  {sharingBulk ? 'Working…' : 'Let them see it'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => bulkShare(false)}
+                  disabled={sharingBulk}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-white disabled:opacity-50"
+                >
+                  Make private
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-sm text-neutral-500 hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {!loading && !error && filteredDocs.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-left border-b border-gray-200">
+                      <th className="py-3 pl-4 pr-0 w-8">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all documents"
+                          checked={allSelected}
+                          disabled={shareableDocs.length === 0}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 rounded border-gray-300 accent-purple-700 disabled:opacity-40"
+                        />
+                      </th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Document</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Category</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">About</th>
@@ -338,6 +461,16 @@ const SecureDocumentsPage = () => {
                   <tbody>
                     {filteredDocs.map((d) => (
                       <tr key={d.id} className="border-b border-gray-100 align-top">
+                        <td className="py-3 pl-4 pr-0">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${docName(d)}`}
+                            checked={selectedIds.includes(d.id)}
+                            disabled={!canShare(d)}
+                            onChange={() => toggleSelected(d.id)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 accent-purple-700 disabled:opacity-40"
+                          />
+                        </td>
                         <td className="py-3 px-4 text-neutral-900">
                           {renamingId === d.id ? (
                             <div className="flex items-center gap-1">
