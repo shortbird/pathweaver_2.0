@@ -39,7 +39,9 @@ const ROSTER = [
     enrollment_status: 'enrolled', grade_level: null, household_name: 'Candland', total_xp: 0 },
   { student_id: 'p1', name: 'Erin Swenson', first_name: 'Erin', last_name: 'Swenson',
     is_student: false, role: 'parent', roles: ['parent'], age: null, date_of_birth: null,
-    enrollment_status: null, household_name: null, total_xp: 0 },
+    enrollment_status: null, household_name: null, total_xp: 0,
+    // The only one who joined this week.
+    joined_at: new Date(Date.now() - 2 * 86400000).toISOString() },
 ]
 
 const { api } = vi.hoisted(() => ({
@@ -197,5 +199,32 @@ describe('Removing a person', () => {
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('/api/sis/people/s2?organization_id=org-1&mode=archive'),
     )
+  })
+})
+
+/**
+ * iCreate, 2026-08-19: "It would be nice to have the ability to see people that
+ * have recently registered so that we know to welcome them ... I think we had 3
+ * or 4 families who said they joined today and I can see the two on the
+ * waitlist but have no way to know who the other ones are."
+ *
+ * users.created_at was already being read for the People page and thrown away
+ * before the response was built, so nothing on any screen could answer this.
+ */
+describe('Recently joined', () => {
+  it('filters to the people who joined this week, newest first', async () => {
+    render(<RosterPage />)
+    await screen.findByText('Ryder Swenson')
+
+    fireEvent.click(screen.getByLabelText(/Joined in the last/))
+
+    expect(screen.getByText('Erin Swenson')).toBeInTheDocument()
+    expect(screen.queryByText('Ryder Swenson')).not.toBeInTheDocument()
+  })
+
+  it('flags a new arrival in the list without filtering', async () => {
+    render(<RosterPage />)
+    await screen.findByText('Ryder Swenson')
+    expect(screen.getByText('new')).toBeInTheDocument()
   })
 })

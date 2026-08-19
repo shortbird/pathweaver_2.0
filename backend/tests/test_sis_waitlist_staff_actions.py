@@ -560,3 +560,46 @@ class TestStaffRoutes:
             resp = client.post('/api/sis/waitlist/w1/enroll', headers=auth_headers,
                                json={'organization_id': 'org-1'})
         assert resp.status_code == 403
+
+
+@pytest.mark.unit
+class TestAnOfferSaysWhoGotIt:
+    """iCreate, 2026-08-17: "Two kids were offered a spot in reading workshop
+    block 2 tuesday, but I have no idea who it was because I can't see their
+    names."
+
+    The queue always carried names; the ANSWER to the action did not.
+    _mark_offered returns the row an UPDATE hands back — bare columns, no
+    join — and every caller passes it straight to the office as "who did we
+    just offer this to". Two toasts read "Seat offered to next student".
+    """
+
+    def _offered(self, user_row):
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.side_effect = [
+            Mock(data=[{'id': 'w1', 'student_user_id': 's1', 'status': 'offered'}]),  # the UPDATE
+            Mock(data=[user_row] if user_row else []),                                # the name lookup
+        ]
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+                patch('services.sis_waitlist_service._notify_offer'), \
+                patch('services.sis_waitlist_service.offer_ttl_hours', return_value=168):
+            return wl._mark_offered('org-1', 'c1', 'w1')
+
+    def test_the_offered_entry_carries_the_student_name(self):
+        out = self._offered({'first_name': 'Ryder', 'last_name': 'Swenson'})
+        assert out['student_name'] == 'Ryder Swenson'
+
+    def test_the_preferred_name_wins_because_the_office_reads_it_aloud(self):
+        out = self._offered({'first_name': 'Jenner', 'last_name': 'Roberts',
+                             'preferred_name': 'Jay'})
+        assert out['student_name'] == 'Jay Roberts'
+
+    def test_an_unreadable_user_does_not_break_the_offer(self):
+        """The offer is the point; the name is how it is reported."""
+        out = self._offered(None)
+        assert out['status'] == 'offered'
+        assert out['student_name'] == 'a student'

@@ -37,6 +37,42 @@ class TestAggregators:
         assert out['by_status'] == {'enrolled': 2, 'applicant': 1}
 
 
+class TestStudentsInClasses:
+    """iCreate, 2026-08-18: "we have 7 students and 1 enrolled ... this is
+    incorrect of course."
+
+    Both numbers came off school_enrollments — 7 rows, 4 withdrawn and 2
+    graduated — while 188 children sat in their classes. This is the count that
+    answers the question they were actually asking, and the thing it must get
+    right is that a child in four classes is one student.
+    """
+
+    def _paged(self, classes, enrollments):
+        """Patch fetch_all_rows to answer the two reads in call order."""
+        answers = iter([classes, enrollments])
+        return patch('services.sis_reports_service.fetch_all_rows',
+                     side_effect=lambda *a, **k: next(answers))
+
+    def test_a_student_in_several_classes_counts_once(self):
+        with self._paged(
+            [{'id': 'c1'}, {'id': 'c2'}],
+            [{'id': 'e1', 'student_id': 's1'}, {'id': 'e2', 'student_id': 's1'},
+             {'id': 'e3', 'student_id': 's2'}],
+        ):
+            assert reports.students_in_classes('org-1') == 2
+
+    def test_no_classes_short_circuits_before_the_enrollment_read(self):
+        """An empty `in_` list matches everything in PostgREST, so this must
+        not fall through to a query that would count the whole table."""
+        with patch('services.sis_reports_service.fetch_all_rows', return_value=[]) as f:
+            assert reports.students_in_classes('org-1') == 0
+            assert f.call_count == 1
+
+    def test_a_row_with_no_student_is_not_counted(self):
+        with self._paged([{'id': 'c1'}], [{'id': 'e1', 'student_id': None}]):
+            assert reports.students_in_classes('org-1') == 0
+
+
 def _admin_client_for_role(role):
     client = Mock()
     table = Mock()
@@ -195,3 +231,130 @@ class TestClassReportRoute:
             client.get('/api/sis/reports/classes?organization_id=org-1&include_archived=true',
                        headers=auth_headers)
         spy.assert_called_once_with('org-1', include_archived=True)
+
+
+@pytest.mark.unit
+class TestRosterReport:
+    """iCreate asked for rosters-in-a-spreadsheet four separate times (Perch
+    ff701e99, 0334366b, 90b91553, 00877fea). One class shipped on 2026-08-18;
+    this is the rest — several classes in one sheet, waitlist optional.
+
+    What is worth pinning: the report never silently returns a partial roster,
+    and pulling health columns is audited the way opening the teacher roster is.
+    """
+
+    CLASSES = [{'id': 'c1', 'name': 'Pottery', 'primary_instructor': {'name': 'Ruth Stewart'}},
+               {'id': 'c2', 'name': 'Guitar Jam', 'primary_instructor': None}]
+
+    def _run(self, *, enrollments, waitlist=None, users=None, include_waitlist=False,
+             fields=None, log=None):
+        """Patch the paged reads in call order and run the report."""
+        answers = [
+            enrollments,
+            *([waitlist or []] if include_waitlist else []),
+            list((users or {}).values()),
+            [],   # household_members (students)
+        ]
+        it = iter(answers)
+
+        def _fetch(*a, **k):
+            try:
+                return next(it)
+            except StopIteration:
+                return []
+
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
+                patch('services.sis_reports_service.fetch_all_rows', side_effect=_fetch), \
+                patch('services.sis_reports_service._org_today',
+                      return_value=__import__('datetime').date(2026, 8, 19)), \
+                patch('services.sis_reports_service._log_roster_access') as logger_mock:
+            out = reports.roster_report('org-1', ['c1', 'c2'], accessor_id='admin-1',
+                                        accessor_role='org_admin',
+                                        include_waitlist=include_waitlist, fields=fields)
+        if log is not None:
+            log.append(logger_mock)
+        return out
+
+    def test_rows_from_several_classes_land_in_one_report(self):
+        out = self._run(
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': '2026-08-01'},
+                         {'id': 'e2', 'class_id': 'c2', 'student_id': 's2', 'enrolled_at': '2026-08-02'}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'},
+                   's2': {'id': 's2', 'first_name': 'Ryder', 'last_name': 'Swenson'}})
+        assert [r['class_name'] for r in out['rows']] == ['Guitar Jam', 'Pottery']
+        assert {r['name'] for r in out['rows']} == {'Nora Candland', 'Ryder Swenson'}
+        assert all(r['status'] == 'Enrolled' for r in out['rows'])
+
+    def test_a_student_in_two_classes_gets_a_row_in_each(self):
+        """One row per student PER CLASS — this is a roster, not a headcount."""
+        out = self._run(
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None},
+                         {'id': 'e2', 'class_id': 'c2', 'student_id': 's1', 'enrolled_at': None}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        assert len(out['rows']) == 2
+
+    def test_the_waitlist_is_left_out_unless_asked_for(self):
+        out = self._run(
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            waitlist=[{'id': 'w1', 'class_id': 'c1', 'student_user_id': 's2',
+                       'status': 'waiting', 'created_at': '2026-08-05'}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        assert len(out['rows']) == 1
+
+    def test_waitlisted_students_are_labelled_not_mixed_in(self):
+        out = self._run(
+            include_waitlist=True,
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            waitlist=[{'id': 'w1', 'class_id': 'c1', 'student_user_id': 's2',
+                       'status': 'waiting', 'created_at': '2026-08-05'}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'},
+                   's2': {'id': 's2', 'first_name': 'Ryder', 'last_name': 'Swenson'}})
+        by_name = {r['name']: r['status'] for r in out['rows']}
+        assert by_name == {'Nora Candland': 'Enrolled', 'Ryder Swenson': 'Waiting'}
+        # Enrolled students come first within a class; a roster reads that way.
+        assert out['rows'][0]['status'] == 'Enrolled'
+
+    def test_no_classes_selected_returns_nothing_rather_than_everything(self):
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES):
+            out = reports.roster_report('org-1', [], accessor_id='a', accessor_role='org_admin')
+        assert out['rows'] == []
+
+    def test_unknown_field_keys_are_ignored_not_echoed(self):
+        out = self._run(
+            fields=['name', 'ssn', 'class_name'],
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        assert out['selected'] == ['class_name', 'name']
+
+    def test_the_field_list_ships_with_the_report(self):
+        """So the picker cannot offer a column the CSV does not know."""
+        out = self._run(
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        assert out['fields'] is reports.ROSTER_REPORT_FIELDS
+
+    def test_pulling_health_columns_is_access_logged(self):
+        log = []
+        self._run(
+            fields=['name', 'allergies'], log=log,
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        log[0].assert_called_once()
+
+    def test_a_report_without_health_columns_is_not_logged(self):
+        log = []
+        self._run(
+            fields=['name', 'class_name'], log=log,
+            enrollments=[{'id': 'e1', 'class_id': 'c1', 'student_id': 's1', 'enrolled_at': None}],
+            users={'s1': {'id': 's1', 'first_name': 'Nora', 'last_name': 'Candland'}})
+        log[0].assert_not_called()
+
+    def test_every_read_is_paged(self):
+        """A multi-class export is exactly where PostgREST's silent 1000-row
+        cap bites, and a roster that loses its tail is worse than one that
+        fails. If somebody swaps a fetch_all_rows for .execute(), this notices."""
+        import inspect
+
+        source = inspect.getsource(reports.roster_report) + inspect.getsource(reports._household_context)
+        assert '.execute()' not in source
+        assert source.count('fetch_all_rows') >= 3

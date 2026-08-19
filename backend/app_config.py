@@ -383,6 +383,16 @@ class Config:
         os.getenv('AI_ATTEMPT_TIMEOUT', os.getenv('AI_REQUEST_TIMEOUT', '45'))
     )
     AI_MAX_RETRIES = int(os.getenv('AI_MAX_RETRIES', '2'))
+    # How much of an uploaded document the quest drafter reads.
+    #
+    # iCreate, 2026-08-18: "It told me my document was too long so it only used
+    # the first part of it, lol" — their teacher handbook. This was three
+    # separate 20,000-character literals (the upload route, the staff drafter,
+    # the personalization prompt) that had to agree and were not written down
+    # as agreeing. One number now, and a bigger one: Gemini's context is far
+    # larger than 20k characters, and the old value was cautious rather than
+    # measured. Raise it here, not at a call site.
+    AI_SOURCE_MATERIAL_MAX_CHARS = int(os.getenv('AI_SOURCE_MATERIAL_MAX_CHARS', '120000'))
     PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
 

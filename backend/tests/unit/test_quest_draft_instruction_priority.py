@@ -146,3 +146,43 @@ class TestTheSpecSurvives:
         }) as gen:
             service.draft_quest_from_context('material', notes='', target_task_count=7)
         assert 'exactly 7 tasks' in gen.call_args[0][0]
+
+
+class TestAnUnstatedRequirementIsNotOne:
+    """The other half of "I told it to make the first task required, but it made
+    ALL the tasks required."
+
+    Reordering the prompt fixed the model being TOLD the wrong thing. This is
+    the normalizer: a task that arrives with no is_required at all used to
+    become required, so a model that simply omitted the field on the tasks it
+    considered optional produced an all-required quest anyway.
+    """
+
+    def _draft(self, tasks):
+        service = QuestAIService()
+        with patch.object(service, 'generate_json',
+                          return_value={'title': 'T', 'description': 'D', 'tasks': tasks}):
+            result = service.draft_quest_from_context('material', notes='', target_task_count=3)
+        assert result['success'], result
+        return result['quest']
+
+    def test_an_omitted_flag_is_not_required(self):
+        out = self._draft([{'title': 'Read part 1', 'pillar': 'art', 'xp_value': 25}])
+        assert out['tasks'][0]['is_required'] is False
+
+    def test_an_explicit_true_still_means_required(self):
+        out = self._draft([{'title': 'Read part 1', 'pillar': 'art', 'xp_value': 25,
+                            'is_required': True}])
+        assert out['tasks'][0]['is_required'] is True
+
+    def test_only_the_named_task_comes_back_required(self):
+        """The shape the ticket asked for and did not get."""
+        out = self._draft([
+            {'title': 'Read part 1', 'pillar': 'art', 'xp_value': 25, 'is_required': True},
+            {'title': 'Write notes', 'pillar': 'art', 'xp_value': 25, 'is_required': False},
+            {'title': 'Discuss it', 'pillar': 'art', 'xp_value': 25},
+        ])
+        assert [t['is_required'] for t in out['tasks']] == [True, False, False]
+
+    def test_the_prompt_says_to_set_it_on_every_task(self):
+        assert 'Set it on EVERY task' in _flat(_prompt_for())

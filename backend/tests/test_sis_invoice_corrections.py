@@ -148,3 +148,79 @@ class TestVoidInvoiceGuards:
         with patch('services.sis_billing_service._admin',
                    return_value=_service_with_invoice(inv)):
             assert 'payment has been recorded' in billing.void_invoice('org1', 'inv1', 'actor')['error']
+
+
+def _service_with_payment(payment):
+    """A supabase admin mock whose select and update both answer with `payment`."""
+    client = Mock()
+    table = Mock()
+    client.table.return_value = table
+    for chained in ('select', 'eq', 'limit', 'update', 'insert', 'delete', 'order'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(data=[payment] if payment else [])
+    return client, table
+
+
+@pytest.mark.unit
+class TestCorrectingARecordedPayment:
+    """iCreate, 2026-08-14: "I accidentally chose the wrong form of payment for
+    Simon Hamberger and can see no way to edit that."
+
+    sis_payment_records was insert-only — one writer, no update, no delete — so
+    a mistyped method was permanent. The correction is deliberately narrow: the
+    three fields that DESCRIBE the payment, none of the money.
+    """
+
+    EXISTING = {'id': 'p1', 'invoice_id': 'inv1', 'method': 'card',
+                'external_ref': None, 'note': 'Paid 2026-08-14'}
+
+    def test_missing_payment(self):
+        client, _ = _service_with_payment(None)
+        with patch('services.sis_billing_service._admin', return_value=client):
+            result = billing.update_payment_record('org1', 'p1', {'method': 'zelle'}, 'actor')
+        assert result['error'] == 'Payment not found'
+
+    def test_the_method_is_corrected(self):
+        client, table = _service_with_payment(self.EXISTING)
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service._audit') as audit:
+            result = billing.update_payment_record('org1', 'p1', {'method': 'zelle'}, 'actor')
+        assert 'error' not in result
+        table.update.assert_called_once_with({'method': 'zelle'})
+        # The audit records what it was, so a correction is not a silent rewrite.
+        assert audit.call_args[0][4]['from'] == {'method': 'card'}
+
+    def test_the_amount_cannot_be_changed_through_this_door(self):
+        """A client posting the whole row back must not move money."""
+        client, table = _service_with_payment(self.EXISTING)
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service._audit'):
+            billing.update_payment_record(
+                'org1', 'p1',
+                {'method': 'zelle', 'amount_cents': 1, 'invoice_id': 'other', 'id': 'other'},
+                'actor')
+        assert table.update.call_args[0][0] == {'method': 'zelle'}
+
+    def test_a_body_with_nothing_correctable_is_refused(self):
+        client, table = _service_with_payment(self.EXISTING)
+        with patch('services.sis_billing_service._admin', return_value=client):
+            result = billing.update_payment_record('org1', 'p1', {'amount_cents': 999}, 'actor')
+        assert result['error'] == 'Nothing to update'
+        table.update.assert_not_called()
+
+    def test_an_emptied_reference_is_stored_as_null_not_blank(self):
+        """So a cleared reference reads the same as one never filled in."""
+        client, table = _service_with_payment({**self.EXISTING, 'external_ref': 'CHK-9'})
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service._audit'):
+            billing.update_payment_record('org1', 'p1', {'external_ref': '   '}, 'actor')
+        assert table.update.call_args[0][0] == {'external_ref': None}
+
+    def test_saving_without_changing_anything_writes_nothing(self):
+        client, table = _service_with_payment(self.EXISTING)
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service._audit') as audit:
+            result = billing.update_payment_record('org1', 'p1', {'method': 'card'}, 'actor')
+        assert result['unchanged'] is True
+        table.update.assert_not_called()
+        audit.assert_not_called()

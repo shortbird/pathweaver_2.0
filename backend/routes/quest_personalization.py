@@ -48,6 +48,35 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 # CORS headers are set globally in app.py - do not duplicate here
 
 
+def _custom_tasks_blocked(supabase, quest_id: str):
+    """403 payload when this quest's author un-ticked "Let people add their own
+    tasks", or None when they did not.
+
+    THIS is the gate. The button is hidden in the UI as well, but hiding a
+    button stops nobody holding a URL, a stale tab, or the mobile app — an
+    iCreate orientation quest was built with the box deliberately unchecked and
+    people were adding tasks to it anyway, because no layer had ever read the
+    flag.
+
+    Defaults to allowed: the column defaults to true and older quests predate
+    the checkbox, so only a deliberate un-tick blocks anything. A quest that
+    cannot be read is not treated as blocked either — failing closed here would
+    take the wizard down for every quest on a transient error.
+    """
+    try:
+        row = supabase.table('quests').select('allow_custom_tasks') \
+            .eq('id', quest_id).single().execute()
+    except Exception:
+        logger.warning(f"allow_custom_tasks unreadable for quest {quest_id[:8]}; allowing")
+        return None
+    if row.data and row.data.get('allow_custom_tasks') is False:
+        return jsonify({
+            'success': False,
+            'error': "This quest doesn't allow adding your own tasks."
+        }), 403
+    return None
+
+
 def _class_subject_override(supabase, quest_id: str, xp_value: int):
     """When the parent quest is a class, force 100% of a new task's XP into
     the class's transcript_subject. Returns (diploma_subjects, subject_xp_distribution)
@@ -231,6 +260,12 @@ def start_personalization(user_id: str, quest_id: str):
         acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
     """
     try:
+        # admin client justified: reads one quests row's allow_custom_tasks flag to
+        # authorize the caller's own request under @require_auth; no user data touched
+        blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
+        if blocked:
+            return blocked
+
         # Get optional acting_as_dependent_id from request body
         data = request.get_json() or {}
         acting_as_dependent_id = data.get('acting_as_dependent_id')
@@ -285,6 +320,12 @@ def generate_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        # admin client justified: reads one quests row's allow_custom_tasks flag to
+        # authorize the caller's own request under @require_auth; no user data touched
+        blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
+        if blocked:
+            return blocked
+
         # Check AI access before proceeding
         ai_access_error = require_ai_access(user_id)
         if ai_access_error:
@@ -580,6 +621,12 @@ def analyze_manual_task(user_id: str, quest_id: str):
     Returns suggestions, suggested XP, and pillar values.
     """
     try:
+        # admin client justified: reads one quests row's allow_custom_tasks flag to
+        # authorize the caller's own request under @require_auth; no user data touched
+        blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
+        if blocked:
+            return blocked
+
         data = request.get_json()
 
         title = data.get('title', '').strip()
@@ -637,6 +684,10 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
+        blocked = _custom_tasks_blocked(supabase, quest_id)
+        if blocked:
+            return blocked
+
         subject_service = SubjectClassificationService()
         data = request.get_json()
 
@@ -797,6 +848,10 @@ def add_path_tasks(user_id: str, quest_id: str):
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
+        blocked = _custom_tasks_blocked(supabase, quest_id)
+        if blocked:
+            return blocked
+
         data = request.get_json() or {}
 
         approach_index = data.get('approach_index')
@@ -937,6 +992,12 @@ def finalize_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        # admin client justified: reads one quests row's allow_custom_tasks flag to
+        # authorize the caller's own request under @require_auth; no user data touched
+        blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
+        if blocked:
+            return blocked
+
         data = request.get_json()
 
         # Validate request
@@ -995,6 +1056,10 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
+        blocked = _custom_tasks_blocked(supabase, quest_id)
+        if blocked:
+            return blocked
+
         subject_service = SubjectClassificationService()
         data = request.get_json()
 

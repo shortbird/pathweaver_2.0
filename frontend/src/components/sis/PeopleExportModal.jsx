@@ -93,6 +93,7 @@ const COLUMNS = [
   { key: 'allergies', label: 'Allergies', get: (p) => p.allergies || '' },
   { key: 'medications', label: 'Medical', get: (p) => p.medications || '' },
   { key: 'start_date', label: 'Start Date', get: (p) => p.start_date || '' },
+  { key: 'joined_at', label: 'Joined', get: (p) => (p.joined_at || '').slice(0, 10) },
   { key: 'total_xp', label: 'Total XP', get: (p) => String(p.total_xp ?? 0) },
   { key: 'last_active', label: 'Last Active', get: (p) => p.last_active || '' },
 ]

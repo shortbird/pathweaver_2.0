@@ -781,6 +781,52 @@ def record_payment(org_id: str, invoice_id: str, amount_cents: int,
     return {'payment': record, 'invoice': invoice, 'auto_enrolled': auto}
 
 
+#: What a correction is allowed to touch. Deliberately none of the money.
+#:
+#: iCreate, 2026-08-14: "I accidentally chose the wrong form of payment for
+#: Simon Hamberger and can see no way to edit that." The table was insert-only —
+#: one writer, no update, no delete — so a mistyped method was permanent.
+#:
+#: These three fields are display metadata: nothing recomputes from them, so
+#: correcting one cannot move a balance, flip an invoice's status, or fire the
+#: registration auto-complete. A wrong AMOUNT is a different problem and a
+#: bigger one — it needs a reversing entry, not an UPDATE that rewrites history
+#: and leaves the ledger disagreeing with the receipt the family already has.
+PAYMENT_CORRECTABLE_FIELDS = ('method', 'external_ref', 'note')
+
+
+def update_payment_record(org_id: str, payment_id: str, fields: Dict[str, Any],
+                          actor_user_id: Optional[str]) -> Dict[str, Any]:
+    """Correct how a recorded payment is DESCRIBED. See PAYMENT_CORRECTABLE_FIELDS."""
+    existing = (
+        _admin().table('sis_payment_records')
+        .select('id, invoice_id, method, external_ref, note')
+        .eq('id', payment_id).eq('organization_id', org_id).limit(1).execute()
+    ).data
+    if not existing:
+        return {'error': 'Payment not found'}
+    before = existing[0]
+
+    patch = {k: fields[k] for k in PAYMENT_CORRECTABLE_FIELDS if k in fields}
+    # Blank the field rather than storing "", so an emptied reference reads the
+    # same as one that was never filled in.
+    patch = {k: (v.strip() or None) if isinstance(v, str) else v for k, v in patch.items()}
+    if not patch:
+        return {'error': 'Nothing to update'}
+    if patch == {k: before.get(k) for k in patch}:
+        return {'payment': before, 'unchanged': True}
+
+    record = (
+        _admin().table('sis_payment_records').update(patch)
+        .eq('id', payment_id).eq('organization_id', org_id).execute()
+    ).data[0]
+    _audit(org_id, before['invoice_id'], actor_user_id, 'payment_corrected',
+           {'payment_id': payment_id,
+            'from': {k: before.get(k) for k in patch},
+            'to': patch})
+    return {'payment': record}
+
+
 def set_processing_fee(org_id: str, invoice_id: str, processing_fee_cents: int,
                        actor_user_id: str) -> Dict[str, Any]:
     """Admin override of an invoice's processing fee (e.g. waive it, or set it to
@@ -1949,7 +1995,7 @@ def billing_detail(org_id: str, household_id: Optional[str] = None,
         .in_('invoice_id', ids).order('created_at')))
     payments = fetch_all_rows(lambda: (
         _admin().table('sis_payment_records')
-        .select('invoice_id, amount_cents, method, note, external_ref, recorded_at')
+        .select('id, invoice_id, amount_cents, method, note, external_ref, recorded_at')
         .in_('invoice_id', ids).order('recorded_at', desc=True)))
 
     hh_names = {}
@@ -2001,6 +2047,7 @@ def billing_detail(org_id: str, household_id: Optional[str] = None,
             continue
         family, student = _who(inv)
         pay_rows.append({
+            'id': pay['id'],
             'invoice_id': inv['id'],
             'invoice_number': inv.get('invoice_number'),
             'family_name': family,

@@ -11,6 +11,7 @@ import re
 import time
 from typing import Dict, List, Optional, Any
 
+from app_config import Config
 from services.base_ai_service import BaseAIService, AIParsingError
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -371,7 +372,7 @@ SOURCE MATERIAL (authoritative — build from THIS, do not substitute your own
 version of the subject; if it already names activities, those become the tasks,
 in the source's own words and order — do not reword them into your own):
 \"\"\"
-{context[:20000]}
+{context[:Config.AI_SOURCE_MATERIAL_MAX_CHARS]}
 \"\"\"
 
 Produce ONE quest:
@@ -388,7 +389,10 @@ Produce ONE quest:
     - pillar: one of [{pillars}]
     - xp_value: 25-150, a multiple of 25, scaled to real effort. 25 is a hard
       floor — a smaller number is not storable, so use 25 when asked for less.
-    - is_required: true for the core of the unit, false for extensions
+    - is_required: true for the core of the unit, false for extensions. Set it
+      on EVERY task. If the teacher's instructions name which tasks are
+      required, every task they did not name is false — "make the first task
+      required" means exactly one true.
 {extra}
 READING LEVEL: 5th-6th grade. The task may be hard; the words must be easy.
 Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
@@ -467,7 +471,10 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
                 'description': str(raw.get('description') or '').strip()[:1000],
                 'pillar': pillar,
                 'xp_value': xp,
-                'is_required': bool(raw.get('is_required', True)),
+                # Absent means the model did not say. Defaulting that to True is what
+# turned "make the FIRST task required" into an all-required quest
+# (iCreate, 2026-08-18) — an unstated requirement is not one.
+                'is_required': bool(raw.get('is_required', False)),
             })
 
         return {

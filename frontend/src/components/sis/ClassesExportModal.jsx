@@ -174,13 +174,17 @@ const loadPrefs = () => {
       cols: Array.isArray(saved?.cols) && saved.cols.length
         ? saved.cols.filter((id) => LIST_COLUMNS.some((c) => c.id === id))
         : DEFAULT_COLS,
+      // Default ON, and `!== false` so the browsers that already hold a saved
+      // pref object without this key get the new default rather than archived
+      // classes back.
+      excludeArchived: saved?.excludeArchived !== false,
     }
-  } catch { return { format: 'list', cols: DEFAULT_COLS } }
+  } catch { return { format: 'list', cols: DEFAULT_COLS, excludeArchived: true } }
 }
 
 const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
   const [prefs, setPrefs] = useState(loadPrefs)
-  const { format, cols } = prefs
+  const { format, cols, excludeArchived } = prefs
   const [selectedTeacher, setSelectedTeacher] = useState('all')
   const [selectedDay, setSelectedDay] = useState('all')
 
@@ -197,8 +201,15 @@ const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [classes])
 
+  const archivedCount = React.useMemo(
+    () => classes.filter((c) => c.status === 'archived').length, [classes])
+
   const filteredClasses = React.useMemo(() => {
     return classes.filter((c) => {
+      // The page hands us whatever it is showing, so with "Show archived" on
+      // its archived rows arrive here too. The schedule grids have always
+      // dropped them; the class list was quietly keeping them.
+      if (excludeArchived && c.status === 'archived') return false
       if (selectedTeacher !== 'all') {
         const primary = teacherOf(c)
         const assts = (c.assistant_instructors || []).map((a) => a.name || a.display_name).filter(Boolean)
@@ -213,7 +224,7 @@ const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
       }
       return true
     })
-  }, [classes, selectedTeacher, selectedDay])
+  }, [classes, selectedTeacher, selectedDay, excludeArchived])
 
   const save = (next) => {
     setPrefs(next)
@@ -293,7 +304,21 @@ const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
                 </select>
               </div>
             </div>
-            {(selectedTeacher !== 'all' || selectedDay !== 'all') && (
+            <label className="mt-2.5 flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
+              <input type="checkbox" aria-label="Exclude archived classes"
+                className="mt-0.5 accent-optio-purple shrink-0"
+                checked={excludeArchived}
+                onChange={() => save({ ...prefs, excludeArchived: !excludeArchived })} />
+              <span className="leading-tight">
+                <span className="block font-medium text-neutral-800">Exclude archived classes</span>
+                <span className="block text-[11px] text-neutral-500">
+                  {archivedCount === 0
+                    ? 'No archived classes in view'
+                    : `${archivedCount} archived class${archivedCount === 1 ? '' : 'es'} in view`}
+                </span>
+              </span>
+            </label>
+            {(selectedTeacher !== 'all' || selectedDay !== 'all' || archivedCount > 0) && (
               <p className="mt-1.5 text-xs text-neutral-500 font-medium">
                 {filteredClasses.length === 0
                   ? 'No classes match the selected filter.'

@@ -348,6 +348,26 @@ def record_payment(user_id, invoice_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/payments/<payment_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def correct_payment(user_id, payment_id):
+    """Correct how a recorded payment is described — method, reference, note.
+
+    Not the amount: see PAYMENT_CORRECTABLE_FIELDS. Anything else in the body is
+    ignored rather than rejected, so a client sending the whole row back cannot
+    smuggle a new amount past this.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = billing.update_payment_record(
+        org_id, payment_id, request.json or {}, actor_user_id=user_id)
+    if result.get('error'):
+        status = 404 if result['error'] == 'Payment not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/billing/apply-late-fees', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def apply_late_fees(user_id):

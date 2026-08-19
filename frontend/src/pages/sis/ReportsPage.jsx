@@ -7,10 +7,11 @@ import SisOrgPicker from './SisOrgPicker'
 const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
 const pct = (rate) => (rate == null ? '—' : `${Math.round(rate * 100)}%`)
 
-const Stat = ({ label, value }) => (
+const Stat = ({ label, value, hint }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-4">
     <div className="text-sm text-neutral-500">{label}</div>
     <div className="text-2xl font-bold text-neutral-900 mt-1">{value}</div>
+    {hint && <div className="text-[11px] text-neutral-400 mt-1 leading-tight">{hint}</div>}
   </div>
 )
 
@@ -86,6 +87,7 @@ const shapeReport = (type, data, questionLabel) => {
 // page export chooser. Field definitions come from the API with the report, so
 // the picker can never list a column the CSV doesn't know how to write.
 const CLASS_COLS_KEY = 'sis_class_report_cols'
+const ROSTER_COLS_KEY = 'sis_roster_report_cols'
 
 const loadClassCols = () => {
   try {
@@ -94,17 +96,26 @@ const loadClassCols = () => {
   } catch { return null }
 }
 
-const saveClassCols = (cols) => {
-  try { localStorage.setItem(CLASS_COLS_KEY, JSON.stringify(cols)) } catch { /* ignore */ }
+const saveCols = (key, cols) => {
+  try { localStorage.setItem(key, JSON.stringify(cols)) } catch { /* ignore */ }
+}
+const saveClassCols = (cols) => saveCols(CLASS_COLS_KEY, cols)
+
+const loadRosterCols = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ROSTER_COLS_KEY))
+    return Array.isArray(saved) && saved.length ? saved : null
+  } catch { return null }
 }
 
-// Shape the class report for the shared table, using the caller's column choice.
-export const shapeClassReport = (data, selected) => {
+// Shape a field-picker report (classes, rosters) for the shared table, using
+// the caller's column choice.
+export const shapeClassReport = (data, selected, title = 'Class report') => {
   const report = data?.report || {}
   const fields = report.fields || []
   const keys = fields.map((f) => f.key).filter((k) => (selected || report.selected || []).includes(k))
   return {
-    title: 'Class report',
+    title,
     columns: keys.map((k) => fields.find((f) => f.key === k)?.label || k),
     rows: (report.rows || []).map((r) => keys.map((k) => r[k])),
     fields,
@@ -147,6 +158,11 @@ const ReportsPage = () => {
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [classCols, setClassCols] = useState(loadClassCols)      // null until first run
   const [includeArchived, setIncludeArchived] = useState(false)
+  // Roster report: which classes, and whether waitlisted students come too.
+  const [classList, setClassList] = useState([])
+  const [rosterClassIds, setRosterClassIds] = useState([])
+  const [includeWaitlist, setIncludeWaitlist] = useState(false)
+  const [rosterCols, setRosterCols] = useState(loadRosterCols)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -166,10 +182,13 @@ const ReportsPage = () => {
     api.get(withOrg('/api/sis/reports/registration-questions', orgId))
       .then((res) => setQuestions(res.data?.questions || []))
       .catch(() => setQuestions([]))
+    api.get(withOrg('/api/sis/classes', orgId))
+      .then((res) => setClassList(res.data?.classes || []))
+      .catch(() => setClassList([]))
   }, [orgId])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setReport(null); setQuestionKey('') }, [orgId])
+  useEffect(() => { setReport(null); setQuestionKey(''); setRosterClassIds([]) }, [orgId])
   // Reset the table sort whenever a different report is shown.
   useEffect(() => { setSort({ col: 0, dir: 'asc' }) }, [report?.title])
 
@@ -195,11 +214,18 @@ const ReportsPage = () => {
     + (cols?.length ? `&fields=${cols.join(',')}` : '')
   ), [includeArchived])
 
+  const rosterPath = useCallback((cols) => (
+    `/api/sis/reports/rosters?class_ids=${rosterClassIds.join(',')}`
+    + `&include_waitlist=${includeWaitlist}`
+    + (cols?.length ? `&fields=${cols.join(',')}` : '')
+  ), [rosterClassIds, includeWaitlist])
+
   const runReport = useCallback(async (type, key) => {
     let path = `/api/sis/reports/${type}`
     if (type === 'question') path = `/api/sis/reports/registration-answers?question_key=${encodeURIComponent(key)}`
     else if (type === 'daily-attendance') path = `/api/sis/reports/daily-attendance?date=${attendanceDate}`
     else if (type === 'classes') path = classPath(classCols)
+    else if (type === 'rosters') path = rosterPath(rosterCols)
     setReportLoading(true)
     try {
       const res = await api.get(withOrg(path, orgId))
@@ -207,7 +233,13 @@ const ReportsPage = () => {
         // No saved choice yet: adopt whatever the API says the defaults are.
         const shaped = shapeClassReport(res.data, classCols)
         setClassCols(shaped.selected)
-        setReport({ ...shaped, csvPath: classPath(shaped.selected), csvName: 'classes.csv' })
+        setReport({ ...shaped, kind: 'classes', csvPath: classPath(shaped.selected), csvName: 'classes.csv' })
+        return
+      }
+      if (type === 'rosters') {
+        const shaped = shapeClassReport(res.data, rosterCols, 'Class rosters')
+        setRosterCols(shaped.selected)
+        setReport({ ...shaped, kind: 'rosters', csvPath: rosterPath(shaped.selected), csvName: 'rosters.csv' })
         return
       }
       const label = questions.find((q) => q.key === key)?.label
@@ -223,7 +255,7 @@ const ReportsPage = () => {
     } finally {
       setReportLoading(false)
     }
-  }, [orgId, questions, attendanceDate, classCols, classPath])
+  }, [orgId, questions, attendanceDate, classCols, classPath, rosterCols, rosterPath])
 
   // Toggling a column re-shapes the rows already loaded — every field comes
   // back with the report, so changing the view never refetches.
@@ -233,17 +265,18 @@ const ReportsPage = () => {
     const next = report.fields.map((f) => f.key)
       .filter((k) => (k === fieldKey ? !report.selected.includes(k) : report.selected.includes(k)))
     if (!next.length) return   // never leave the table with no columns
-    setClassCols(next)
-    saveClassCols(next)
+    const isRoster = report.kind === 'rosters'
+    if (isRoster) { setRosterCols(next); saveCols(ROSTER_COLS_KEY, next) }
+    else { setClassCols(next); saveClassCols(next) }
     setSort({ col: 0, dir: 'asc' })
     setReport({
       ...report,
       columns: next.map((k) => report.fields.find((f) => f.key === k)?.label || k),
       rows: report.raw.map((r) => next.map((k) => r[k])),
       selected: next,
-      csvPath: classPath(next),
+      csvPath: isRoster ? rosterPath(next) : classPath(next),
     })
-  }, [report, classPath])
+  }, [report, classPath, rosterPath])
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
@@ -321,6 +354,53 @@ const ReportsPage = () => {
                   </label>
                   <RunButton ariaLabel="View class report" disabled={reportLoading || !orgId}
                     onClick={() => runReport('classes')} />
+                </div>
+              </ReportCard>
+              {/* iCreate asked for this four times (Perch ff701e99, 0334366b,
+                  90b91553, 00877fea). Printing one class shipped on the Classes
+                  page; this is "multiple class rosters/waitlists into one
+                  spreadsheet", with the field picker they asked for. */}
+              <ReportCard
+                title="Class rosters"
+                description="Students across as many classes as you like, in one sheet — guardians, contacts, ages. Pick the columns after you run it."
+              >
+                <div className="space-y-2">
+                  <select
+                    multiple
+                    aria-label="Classes"
+                    size={Math.min(6, Math.max(3, classList.length))}
+                    value={rosterClassIds}
+                    onChange={(e) => setRosterClassIds(
+                      Array.from(e.target.selectedOptions, (o) => o.value))}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                  >
+                    {classList.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <button type="button"
+                        onClick={() => setRosterClassIds(
+                          rosterClassIds.length === classList.length ? [] : classList.map((c) => c.id))}
+                        className="text-xs text-optio-purple hover:underline">
+                        {rosterClassIds.length === classList.length ? 'Clear' : 'Select all'}
+                      </button>
+                      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                        <input type="checkbox" aria-label="Include waitlisted students"
+                          className="accent-optio-purple"
+                          checked={includeWaitlist}
+                          onChange={(e) => setIncludeWaitlist(e.target.checked)} />
+                        Include waitlist
+                      </label>
+                    </div>
+                    <RunButton ariaLabel="View roster report"
+                      disabled={reportLoading || !orgId || !rosterClassIds.length}
+                      onClick={() => runReport('rosters')} />
+                  </div>
+                  {!rosterClassIds.length && (
+                    <p className="text-xs text-neutral-400">Choose one or more classes.</p>
+                  )}
                 </div>
               </ReportCard>
               <ReportCard
@@ -436,14 +516,36 @@ const ReportsPage = () => {
             )}
           </section>
 
+          {/* iCreate, 2026-08-18: "it says we have 7 students and 1 enrolled.
+              What does enrolled vs students mean? And also this is incorrect."
+              Both came off school_enrollments — the diploma/school-of-record
+              record, which most schools barely use — so "Students" was counting
+              withdrawn and graduated rows and "Enrolled" was counting one
+              diploma student, while 188 children sat in their classes. Every
+              number now says what it counts, and the first one is the number
+              people mean by "how many students do we have". */}
           <section>
             <h2 className="font-semibold text-neutral-900 mb-3">Enrollment</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat label="Students" value={enrollment?.total ?? 0} />
-              <Stat label="Enrolled" value={enrollment?.by_status?.enrolled ?? 0} />
-              <Stat label="Applicants" value={enrollment?.by_status?.applicant ?? 0} />
-              <Stat label="Active classes" value={enrollment?.active_classes ?? 0} />
+              <Stat label="Students in classes" value={enrollment?.students_in_classes ?? 0}
+                hint="Distinct students holding a seat in a class" />
+              <Stat label="Active classes" value={enrollment?.active_classes ?? 0}
+                hint="Not counting archived" />
+              <Stat label="School records — enrolled" value={enrollment?.by_status?.enrolled ?? 0}
+                hint="Enrolled with this school as school of record" />
+              <Stat label="School records — applicants" value={enrollment?.by_status?.applicant ?? 0}
+                hint="Applied, not yet enrolled" />
             </div>
+            {(enrollment?.by_status?.withdrawn || enrollment?.by_status?.graduated) ? (
+              <p className="mt-2 text-xs text-neutral-500">
+                School records also hold{' '}
+                {enrollment?.by_status?.withdrawn ? `${enrollment.by_status.withdrawn} withdrawn` : ''}
+                {enrollment?.by_status?.withdrawn && enrollment?.by_status?.graduated ? ' and ' : ''}
+                {enrollment?.by_status?.graduated ? `${enrollment.by_status.graduated} graduated` : ''}
+                {' '}({enrollment?.school_records ?? 0} in total). Those are past students, so they
+                are not counted above.
+              </p>
+            ) : null}
           </section>
 
           <section>

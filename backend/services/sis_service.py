@@ -103,15 +103,19 @@ def member_org_id(user_id: str) -> Optional[str]:
 
 
 def _org_users(org_id: str) -> List[Dict[str, Any]]:
-    resp = (
+    from utils.db_fetch import fetch_all_rows
+
+    # Paged: this is every account in the school and it grows with every family
+    # that joins. iCreate is at 334 and adding families daily; at the 1000-row
+    # cap PostgREST would start dropping the tail silently, and the People page
+    # would simply stop showing some families with nothing to say so.
+    return fetch_all_rows(lambda: (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, phone_number, '
                 'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
                 'preferred_name, gender, allergies, medications, sis_tuition_plan, avatar_url')
         .eq('organization_id', org_id)
-        .execute()
-    )
-    return resp.data or []
+    ))
 
 
 def _org_students(org_id: str) -> List[Dict[str, Any]]:
@@ -320,6 +324,12 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'avatar_url': s.get('avatar_url'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),
+            # iCreate, 2026-08-19: "it would be nice to ... see people that have
+            # recently registered so that we know to welcome them ... I think we
+            # had 3 or 4 families who said they joined today and I can see the
+            # two on the waitlist but have no way to know who the other ones
+            # are." The column was already being read; nothing surfaced it.
+            'joined_at': s.get('created_at'),
             'sis_tuition_plan': s.get('sis_tuition_plan'),
             'enrollment_status': ((enr or {}).get('status') or 'unassigned') if student else None,
             'grade_level': (enr or {}).get('grade_level'),

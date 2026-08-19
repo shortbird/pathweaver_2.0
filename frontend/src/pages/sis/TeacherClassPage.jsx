@@ -10,13 +10,21 @@ import ClassMessagesTab from '../../components/sis/ClassMessagesTab'
 import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
 import PersonPhoto from '../../components/sis/PersonPhoto'
+import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
  * guardian contacts, allergy/medical alerts) and quick-entry attendance.
  * The roster comes from the access-logged /teacher/classes/:id/roster
  * endpoint; attendance reuses the existing class attendance API.
- * Printing uses a print stylesheet that reduces the page to the roster table.
+ *
+ * Printing and CSV go through ClassRosterExportModal, the same component the
+ * admin Classes page uses. This page used to print itself behind a subtractive
+ * stylesheet (hide the sidebar, hide the controls, hope nothing else shows) —
+ * which printed whatever tab happened to be open and no roster at all
+ * (iCreate, 2026-08-19: "Print Roster button on this page prints the page, not
+ * the actual roster"). The modal hides everything and then shows one table, so
+ * what prints does not depend on what else is on screen.
  */
 
 const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
@@ -45,6 +53,7 @@ const TeacherClassPage = () => {
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)  // Print / export roster modal
   // Which student's health alert is expanded. Hover-only tooltips were
   // unreadable on touch and unreliable on desktop, so the badge is a button.
   const [alertFor, setAlertFor] = useState(null)
@@ -118,25 +127,21 @@ const TeacherClassPage = () => {
 
   return (
     <div>
-      <style>{`
-        @media print {
-          .sis-no-print { display: none !important; }
-          aside, nav { display: none !important; }
-          main { margin: 0 !important; padding: 0 !important; }
-        }
-      `}</style>
-
       <div className="flex items-center justify-between mb-6 sis-no-print">
         <div>
           <Link to="/my-classes" className="text-sm text-optio-purple hover:underline">← My Classes</Link>
           <h1 className="text-2xl font-bold text-neutral-900">{cls?.name || 'Class'}</h1>
         </div>
-        <button onClick={() => window.print()}
+        <button onClick={() => setExporting(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
-          <PrinterIcon className="w-4 h-4" /> Print roster
+          <PrinterIcon className="w-4 h-4" /> Print / export roster
         </button>
       </div>
-      <h1 className="hidden print:block text-xl font-bold mb-4">{cls?.name} — roster</h1>
+
+      {exporting && (
+        <ClassRosterExportModal classId={classId} className={cls?.name} orgId={orgId}
+          onClose={() => setExporting(false)} />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
@@ -281,33 +286,6 @@ const TeacherClassPage = () => {
               </div>
             </div>
           )}
-
-          {/* Printed roster — full contact + alert detail for a paper copy. */}
-          <div className="hidden print:block">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left border-b border-gray-300">
-                  <th className="py-1 pr-3">Student</th><th className="py-1 pr-3">Age</th>
-                  <th className="py-1 pr-3">Guardians</th><th className="py-1">Alerts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s) => (
-                  <tr key={s.student_id} className="border-b border-gray-200 align-top">
-                    <td className="py-1.5 pr-3 font-medium">{s.name}</td>
-                    <td className="py-1.5 pr-3">{s.age ?? ''}</td>
-                    <td className="py-1.5 pr-3">
-                      {(s.guardians || []).map((g) => `${g.name}${g.email ? ` (${g.email})` : ''}`).join(' · ') || '—'}
-                      {s.household_phone ? ` · ${s.household_phone}` : ''}
-                    </td>
-                    <td className="py-1.5">
-                      {[s.allergies && `Allergies: ${s.allergies}`, s.medications && `Medical: ${s.medications}`].filter(Boolean).join(' | ') || ''}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>)
       })()}
     </div>

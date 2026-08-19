@@ -10,6 +10,7 @@ import hashlib
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from app_config import Config
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_utils import normalize_pillar_name
@@ -1021,7 +1022,7 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
             source_text = (
                 "\n\nSOURCE MATERIAL (authoritative — the tasks must be about THIS, "
                 "not a general version of the topic):\n"
-                f"{source_material[:20000]}\n\n"
+                f"{source_material[:Config.AI_SOURCE_MATERIAL_MAX_CHARS]}\n\n"
                 "Write tasks that send the learner back to specific things in the "
                 "material above. Do not invent policies, names or details it does "
                 "not contain."

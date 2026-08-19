@@ -60,9 +60,18 @@ def test_a_quest_without_source_material_is_unchanged():
 
 def test_a_huge_document_is_capped():
     """A whole handbook must not blow the context window. A marker character is
-    used so the count cannot collide with the rest of the prompt's prose."""
-    prompt = _prompt({**QUEST, 'source_material': 'ø' * 50000})
-    assert prompt.count('ø') == 20000
+    used so the count cannot collide with the rest of the prompt's prose.
+
+    The cap is read from Config rather than repeated here: it used to be three
+    independent 20,000-character literals across the upload route and the two
+    prompt builders, which is how "it only used the first part of it" became
+    hard to answer (iCreate, 2026-08-18).
+    """
+    from app_config import Config
+
+    cap = Config.AI_SOURCE_MATERIAL_MAX_CHARS
+    prompt = _prompt({**QUEST, 'source_material': 'ø' * (cap + 10000)})
+    assert prompt.count('ø') == cap
 
 
 def test_the_quest_description_still_survives_alongside_it():

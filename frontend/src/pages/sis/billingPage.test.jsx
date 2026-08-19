@@ -62,7 +62,7 @@ const { api } = vi.hoisted(() => {
           invoice_total_cents: 15000, invoice_paid_cents: 0, invoice_balance_cents: 15000,
         }],
         payments: [{
-          invoice_id: 'inv1', invoice_number: 'INV-2026-3B3796',
+          id: 'pay1', invoice_id: 'inv1', invoice_number: 'INV-2026-3B3796',
           family_name: 'Bowman Family', student_name: 'Robin',
           amount_cents: 5000, method: 'scholarship', note: 'UFA Ven',
           external_ref: null, recorded_at: '2026-08-10T00:00:00Z',
@@ -342,5 +342,31 @@ describe('charge detail', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
     fireEvent.click(await screen.findByText('Piano — supplies'))
     expect(await screen.findByText('Reading Workshop (Tues Block 1)')).toBeInTheDocument()
+  })
+
+  /**
+   * iCreate, 2026-08-14: "I accidentally chose the wrong form of payment for
+   * Simon Hamberger and can see no way to edit that." There was no way — the
+   * payments table had no update path at all.
+   */
+  it('corrects the method on a recorded payment', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Correct payment for Bowman Family/ }))
+
+    expect(await screen.findByText('Correct payment')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Method'), { target: { value: 'zelle' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/sis/payments/pay1',
+      expect.objectContaining({ method: 'zelle' })))
+  })
+
+  it('does not offer to change the amount', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Correct payment for Bowman Family/ }))
+    await screen.findByText('Correct payment')
+    expect(screen.queryByLabelText('Amount ($)')).not.toBeInTheDocument()
   })
 })

@@ -96,6 +96,9 @@ describe('ClassesExportModal — class list', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
     fireEvent.click(screen.getByLabelText('Description'))
     fireEvent.click(screen.getByLabelText('Registration'))
+    // Archived rows are excluded by default now; this test is about what the
+    // Registration column SAYS for one, so put it back.
+    fireEvent.click(screen.getByLabelText('Exclude archived classes'))
     openAndExport()
     const header = downloaded.replace('﻿', '').split('\n')[0]
     expect(header).not.toContain('Description')
@@ -176,12 +179,48 @@ describe('ClassesExportModal — filtering', () => {
   it('filters export by selected teacher', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('Filter by teacher'), { target: { value: 'Jane Doe' } })
-    expect(screen.getByText('Exporting 2 of 3 classes')).toBeInTheDocument()
+    // Jane teaches Pottery and the archived Old Thing; archived is excluded.
+    expect(screen.getByText('Exporting 1 of 3 classes')).toBeInTheDocument()
     openAndExport()
     const lines = downloaded.replace('﻿', '').split('\n')
-    expect(lines).toHaveLength(3) // header + 2 classes (Pottery, Old Thing)
+    expect(lines).toHaveLength(2) // header + Pottery
     expect(downloaded).toContain('Pottery')
     expect(downloaded).not.toContain('Guitar Jam')
+  })
+
+  /**
+   * iCreate, 2026-08-18: 'I need to be able to select "Exclude Archived
+   * classes" (if it's including those in the CSV)'. It was — the schedule
+   * grids dropped archived rows, the class list did not, and the modal is
+   * handed whatever the page is showing.
+   */
+  it('excludes archived classes by default, and says how many it dropped', () => {
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Exclude archived classes')).toBeChecked()
+    expect(screen.getByText('1 archived class in view')).toBeInTheDocument()
+    expect(screen.getByText('Exporting 2 of 3 classes')).toBeInTheDocument()
+    openAndExport()
+    expect(downloaded).not.toContain('Old Thing')
+    expect(downloaded).toContain('Pottery')
+  })
+
+  it('unticking it puts the archived classes back', () => {
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText('Exclude archived classes'))
+    openAndExport()
+    expect(downloaded).toContain('Old Thing')
+  })
+
+  it('remembers the choice, and an older saved pref still gets the new default', () => {
+    // A browser that used the modal before this checkbox existed holds a prefs
+    // object with no excludeArchived key; it must not read as "include them".
+    localStorage.setItem('sis_classes_export', JSON.stringify({ format: 'list' }))
+    const { unmount } = render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Exclude archived classes')).toBeChecked()
+    fireEvent.click(screen.getByLabelText('Exclude archived classes'))
+    unmount()
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Exclude archived classes')).not.toBeChecked()
   })
 
   it('filters export by selected day', () => {

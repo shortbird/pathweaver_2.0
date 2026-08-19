@@ -337,11 +337,51 @@ describe('ClassesPage', () => {
     await screen.findByText('Pottery')
     // The closed class is flagged on its own row/card, not in a page-level banner.
     expect(screen.getByText('Closed')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Open all 1 closed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open all' }))
     await answerConfirm()
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
     )
+  })
+
+  /**
+   * iCreate, 2026-08-18: 'On this page it says "Open all 1 closed" but I
+   * actually have no way of knowing what class is actually closed so idk how
+   * to open it.' The count was the only mention of those classes anywhere, so
+   * the bulk action was the only way to act on a set nobody could see.
+   */
+  it('the closed count filters the list down to those classes', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Pottery', registration_status: 'closed', meetings: [] },
+          { id: 'c2', name: 'Guitar Jam', registration_status: 'open', meetings: [] },
+        ] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    expect(screen.getByText('Guitar Jam')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 closed' }))
+    expect(screen.getByText('Pottery')).toBeInTheDocument()          // closed
+    expect(screen.queryByText('Guitar Jam')).not.toBeInTheDocument() // open
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }))
+    expect(screen.getByText('Guitar Jam')).toBeInTheDocument()
+  })
+
+  it('opening them all clears the filter instead of leaving a blank page', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 closed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open all' }))
+    await answerConfirm()
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    // The filter is off again, so the page is not left showing "nothing here".
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Clear filter' })).not.toBeInTheDocument())
   })
 
   it('shows the waitlist count column in the table view', async () => {

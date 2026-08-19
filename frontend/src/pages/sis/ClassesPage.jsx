@@ -102,6 +102,9 @@ const ClassesPage = () => {
   const [rooms, setRooms] = useState([]) // classrooms & activity spaces (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   const [showArchived, setShowArchived] = useState(false) // include archived classes
+  // "Open all N closed" used to be the only mention of those N classes anywhere
+  // on the page, so it asked staff to bulk-publish a set they could not see.
+  const [closedOnly, setClosedOnly] = useState(false)
   // cards | table — table is the spreadsheet view of the org's classes.
   const [view, setViewState] = useState(() => {
     try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
@@ -336,7 +339,9 @@ const ClassesPage = () => {
   const offerNextSeat = async (c) => {
     try {
       const r = await api.post(`/api/sis/classes/${c.id}/waitlist/offer-next`, { organization_id: orgId })
-      if (r.data?.entry) toast.success('Seat offered to next student')
+      // Name who — an unnamed "next student" left the office with no record of
+      // who had been offered the seat (iCreate, 2026-08-17).
+      if (r.data?.entry) toast.success(`Seat offered to ${r.data.entry.student_name || 'the next student'}`)
       // Nobody to offer to: the API says why (usually "they already have an
       // offer out"), which beats a bare "No one waiting" next to a row that
       // reads Waitlist 1.
@@ -349,7 +354,8 @@ const ClassesPage = () => {
 
   // Every non-archived class that isn't open is invisible to families in the
   // Schedule Builder — new classes default to closed, which is easy to miss.
-  const closedClasses = classes.filter((c) => c.registration_status !== 'open' && c.status !== 'archived')
+  const isClosed = (c) => c.registration_status !== 'open' && c.status !== 'archived'
+  const closedClasses = classes.filter(isClosed)
   const openAll = async () => {
     if (!(await confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`))) return
     try {
@@ -359,6 +365,9 @@ const ClassesPage = () => {
     } catch {
       toast.error('Could not open some classes — check the list')
     }
+    // Nothing is closed any more, so leaving the filter on would show an empty
+    // page and read as "the classes are gone".
+    setClosedOnly(false)
     load()
   }
 
@@ -448,13 +457,16 @@ const ClassesPage = () => {
     }
     return classes
       .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => !closedOnly || isClosed(c))
       .map((c) => ({ kind: 'class', _name: c.name, ...c }))
-  }, [classes, courses, tab, search, classMatchesSearch, courseMatchesSearch])
+  }, [classes, courses, tab, search, closedOnly, classMatchesSearch, courseMatchesSearch])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
-    return classes.filter((c) => classMatchesSearch(c, search))
-  }, [classes, search, classMatchesSearch])
+    return classes
+      .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => !closedOnly || isClosed(c))
+  }, [classes, search, closedOnly, classMatchesSearch])
 
   const TABS = [
     { key: 'classes', label: `${orgName} classes`, count: classes.length },
@@ -534,10 +546,26 @@ const ClassesPage = () => {
           </button>
         )}
         {tab === 'classes' && orgId && !loading && closedClasses.length > 0 && (
-          <button onClick={openAll}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-400 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
-            title="Open registration for every class marked Closed">
-            Open all {closedClasses.length} closed
+          <div className="inline-flex rounded-lg border border-amber-400 overflow-hidden">
+            <button onClick={() => setClosedOnly((v) => !v)}
+              aria-pressed={closedOnly}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                closedOnly ? 'bg-amber-100 text-amber-900' : 'text-amber-700 hover:bg-amber-50'
+              }`}
+              title="Show only the classes whose registration is closed">
+              {closedOnly ? 'Showing' : 'Show'} {closedClasses.length} closed
+            </button>
+            <button onClick={openAll}
+              className="px-3 py-2 text-sm font-medium text-amber-700 border-l border-amber-400 hover:bg-amber-50 transition-colors"
+              title="Open registration for every class marked Closed">
+              Open all
+            </button>
+          </div>
+        )}
+        {closedOnly && (
+          <button onClick={() => setClosedOnly(false)}
+            className="px-3 py-2 text-sm text-neutral-500 hover:text-neutral-800 underline">
+            Clear filter
           </button>
         )}
       </div>
@@ -579,7 +607,9 @@ const ClassesPage = () => {
       {/* Empty state (courses tab, or classes tab in card view) */}
       {!loading && !items.length && (tab === 'courses' || view === 'cards') && (
         <p className="text-neutral-500">
-          {search
+          {closedOnly
+            ? 'Every class has registration open.'
+            : search
             ? 'Nothing matches your search.'
             : tab === 'courses'
               ? 'No Optio courses are available to enroll in yet.'
@@ -1085,7 +1115,9 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   const offerNext = async () => {
     try {
       const r = await api.post(`/api/sis/classes/${classId}/waitlist/offer-next`, { organization_id: orgId })
-      if (r.data?.entry) toast.success('Seat offered to next student')
+      // Name who — an unnamed "next student" left the office with no record of
+      // who had been offered the seat (iCreate, 2026-08-17).
+      if (r.data?.entry) toast.success(`Seat offered to ${r.data.entry.student_name || 'the next student'}`)
       else toast(r.data?.message || 'No one is waiting for this class', { icon: 'ℹ️' })
       reload()
     } catch { toast.error('Could not offer seat') }

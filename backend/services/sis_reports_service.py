@@ -51,9 +51,37 @@ def aggregate_enrollment(school_enrollments: List[Dict[str, Any]]) -> Dict[str, 
 # 1000 of 1248 rows). Attendance grows per student per day, so it gets there
 # fastest of all.
 
+def students_in_classes(org_id: str) -> int:
+    """How many distinct students hold an active seat in one of the org's classes.
+
+    iCreate, 2026-08-18: "it says we have 7 students and 1 enrolled. What does
+    enrolled vs students mean? And also this is incorrect of course." Both
+    numbers came from `school_enrollments`, which is the school-of-record
+    (diploma) enrolment and which they barely use — 7 rows, of which 4 were
+    withdrawn and 2 graduated. Meanwhile 188 children were sitting in their
+    classes. Neither number was wrong; neither was the number anyone wanted.
+
+    PostgREST cannot count DISTINCT, so the rows are paged and de-duplicated
+    here. Paged, not fetched: this read is per student per class (1,147 rows for
+    iCreate today) and is exactly the shape that silently truncated at 1000 and
+    made class counts FALL as families enrolled.
+    """
+    class_ids = [c['id'] for c in fetch_all_rows(lambda: (
+        _admin().table('org_classes').select('id')
+        .eq('organization_id', org_id).neq('status', 'archived')
+    ))]
+    if not class_ids:
+        return 0
+    rows = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active')
+    ))
+    return len({r['student_id'] for r in rows if r.get('student_id')})
+
+
 def enrollment_report(org_id: str) -> Dict[str, Any]:
     enrollments = fetch_all_rows(lambda: (
-        _admin().table('school_enrollments').select('status')
+        _admin().table('school_enrollments').select('id, status')
         .eq('organization_id', org_id)
     ))
     active_classes = (
@@ -62,6 +90,11 @@ def enrollment_report(org_id: str) -> Dict[str, Any]:
     ).count or 0
     report = aggregate_enrollment(enrollments)
     report['active_classes'] = active_classes
+    # `total` stays what it always was (every school_enrollments row, whatever
+    # its status) so nothing reading this response changes meaning underneath
+    # it. The two new keys are what the card actually shows.
+    report['students_in_classes'] = students_in_classes(org_id)
+    report['school_records'] = report['total']
     return report
 
 
@@ -297,3 +330,207 @@ def class_report(org_id: str, include_archived: bool = False) -> Dict[str, Any]:
         'rows': build_class_rows(classes, _curriculum_by_class(class_ids),
                                  _materials_by_class(class_ids)),
     }
+
+
+# ── Roster report (many classes, one spreadsheet) ────────────────────────────
+# iCreate asked for this four separate times (Perch ff701e99, 0334366b,
+# 90b91553, 00877fea) — the most-requested thing in their backlog. Printing and
+# exporting ONE class shipped on 2026-08-18; this is the other half of the ask:
+#
+#   "It'd be nice to be able to download multiple class rosters/waitlists into
+#    one spreadsheet too."  — 00877fea
+#   "select a class (or classes) and select which roster info ... into a
+#    spreadsheet"           — 0334366b
+#
+# The field list ships WITH the data, the same way CLASS_REPORT_FIELDS does, so
+# the picker and the CSV cannot drift apart.
+
+# key, label, hint, default
+ROSTER_REPORT_FIELDS: List[Dict[str, Any]] = [
+    {'key': 'class_name', 'label': 'Class', 'hint': 'Which class this row is in', 'default': True},
+    {'key': 'status', 'label': 'Status', 'hint': 'Enrolled, or waiting/offered', 'default': True},
+    {'key': 'name', 'label': 'Student', 'hint': 'Full name', 'default': True},
+    {'key': 'preferred_name', 'label': 'Goes by', 'hint': 'Preferred name, if any', 'default': False},
+    {'key': 'first_name', 'label': 'First name', 'hint': 'On its own, for mail merges', 'default': False},
+    {'key': 'last_name', 'label': 'Last name', 'hint': 'On its own, for sorting', 'default': False},
+    {'key': 'age', 'label': 'Age', 'hint': 'Years, as of today', 'default': True},
+    {'key': 'date_of_birth', 'label': 'Birthdate', 'hint': 'YYYY-MM-DD', 'default': False},
+    {'key': 'student_email', 'label': 'Student email', 'hint': "The student's own login", 'default': False},
+    {'key': 'household_name', 'label': 'Family', 'hint': 'Household name', 'default': False},
+    {'key': 'guardians', 'label': 'Guardians', 'hint': 'Parent/guardian names', 'default': True},
+    {'key': 'guardian_emails', 'label': 'Guardian emails', 'hint': 'For contacting the family', 'default': True},
+    {'key': 'household_phone', 'label': 'Family phone', 'hint': 'Household phone number', 'default': True},
+    {'key': 'allergies', 'label': 'Allergies', 'hint': 'Health flag', 'default': False},
+    {'key': 'medications', 'label': 'Medical', 'hint': 'Health flag', 'default': False},
+    {'key': 'teacher', 'label': 'Teacher', 'hint': "The class's primary instructor", 'default': False},
+    {'key': 'enrolled_at', 'label': 'Enrolled', 'hint': 'When they took the seat', 'default': False},
+]
+
+ROSTER_REPORT_KEYS = [f['key'] for f in ROSTER_REPORT_FIELDS]
+ROSTER_REPORT_DEFAULTS = [f['key'] for f in ROSTER_REPORT_FIELDS if f['default']]
+
+#: Fields carrying health information. Selecting one is what makes the export an
+#: access worth logging, and it is logged per student, exactly as opening the
+#: teacher roster screen is.
+ROSTER_HEALTH_FIELDS = {'allergies', 'medications'}
+
+
+def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
+                  accessor_role: str, include_waitlist: bool = False,
+                  fields: Optional[List[str]] = None) -> Dict[str, Any]:
+    """One row per student per class, across as many classes as were asked for.
+
+    Batched deliberately: calling the single-class roster N times would be five
+    queries per class, so a twenty-class export would be a hundred round trips.
+    Every read here is `in_(class_ids)` and paged — a multi-class export is
+    exactly where PostgREST's silent 1000-row cap bites, and a roster that
+    quietly loses its tail is worse than one that fails.
+    """
+    from services import sis_catalog_service
+    from utils.access_logger import _constrained_role
+    from utils.blank_values import clean as _clean_blank
+
+    keys = [k for k in ROSTER_REPORT_KEYS if k in (fields or [])] or ROSTER_REPORT_DEFAULTS
+
+    classes = [c for c in sis_catalog_service.list_classes(
+        org_id, include_archived=True, audience='staff') if c['id'] in set(class_ids or [])]
+    if not classes:
+        return {'fields': ROSTER_REPORT_FIELDS, 'selected': keys, 'rows': []}
+    cls_by_id = {c['id']: c for c in classes}
+    ids = list(cls_by_id)
+
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, class_id, student_id, enrolled_at')
+        .in_('class_id', ids).eq('status', 'active')))
+
+    waitlist = []
+    if include_waitlist:
+        # 'waiting' and 'offered' only: promoted entries are already enrolled
+        # rows above, and expired ones are nobody the office is holding a seat
+        # for. Listing either would double-count or pad the sheet.
+        waitlist = [dict(r, student_id=r['student_user_id']) for r in fetch_all_rows(lambda: (
+            _admin().table('sis_waitlist_entries')
+            .select('id, class_id, student_user_id, status, position, created_at')
+            .in_('class_id', ids).in_('status', ['waiting', 'offered'])))]
+
+    student_ids = list({r['student_id'] for r in (enrollments + waitlist) if r.get('student_id')})
+    if not student_ids:
+        return {'fields': ROSTER_REPORT_FIELDS, 'selected': keys, 'rows': []}
+
+    users = {u['id']: u for u in fetch_all_rows(lambda: (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, preferred_name, email, '
+                'date_of_birth, allergies, medications')
+        .in_('id', student_ids)))}
+
+    households, guardians_by_hh, hh_by_student = _household_context(student_ids)
+
+    today = _org_today(org_id)
+    rows = []
+    for source, status_label, when_key in (
+            (enrollments, 'Enrolled', 'enrolled_at'),
+            (waitlist, None, 'created_at')):
+        for r in source:
+            u = users.get(r['student_id']) or {}
+            hh_id = hh_by_student.get(r['student_id'])
+            hh = households.get(hh_id) or {}
+            gs = guardians_by_hh.get(hh_id, [])
+            cls = cls_by_id.get(r['class_id']) or {}
+            rows.append({
+                'class_name': cls.get('name') or '',
+                'status': status_label or (r.get('status') or '').capitalize(),
+                'name': _person_name(u),
+                'preferred_name': u.get('preferred_name') or '',
+                'first_name': u.get('first_name') or '',
+                'last_name': u.get('last_name') or '',
+                'age': _age_years(u.get('date_of_birth'), today),
+                'date_of_birth': (u.get('date_of_birth') or '')[:10],
+                'student_email': u.get('email') or '',
+                'household_name': hh.get('name') or '',
+                'guardians': '; '.join(g['name'] for g in gs if g.get('name')),
+                'guardian_emails': '; '.join(g['email'] for g in gs if g.get('email')),
+                'household_phone': hh.get('phone') or '',
+                # Same blank-value cleaning the teacher roster uses: "None",
+                # "N/A" and "-" are how families say there is nothing to report.
+                'allergies': _clean_blank(u.get('allergies')) or '',
+                'medications': _clean_blank(u.get('medications')) or '',
+                'teacher': ((cls.get('primary_instructor') or {}).get('name')) or '',
+                'enrolled_at': str(r.get(when_key) or '')[:10],
+            })
+
+    rows.sort(key=lambda r: (r['class_name'].lower(), r['status'] != 'Enrolled',
+                             (r['last_name'] or r['name']).lower(), r['name'].lower()))
+
+    if ROSTER_HEALTH_FIELDS & set(keys):
+        _log_roster_access(rows and student_ids or [], accessor_id,
+                           _constrained_role(accessor_role), len(ids))
+
+    return {'fields': ROSTER_REPORT_FIELDS, 'selected': keys, 'rows': rows}
+
+
+def _household_context(student_ids: List[str]):
+    """(households by id, guardians by household id, household id by student)."""
+    admin = _admin()
+    hm = fetch_all_rows(lambda: (
+        admin.table('household_members').select('id, household_id, user_id')
+        .in_('user_id', student_ids).eq('relationship', 'student')))
+    hh_by_student = {m['user_id']: m['household_id'] for m in hm}
+    hh_ids = list(set(hh_by_student.values()))
+    if not hh_ids:
+        return {}, {}, hh_by_student
+
+    households = {h['id']: h for h in fetch_all_rows(lambda: (
+        admin.table('households').select('id, name, phone').in_('id', hh_ids)))}
+    g_rows = fetch_all_rows(lambda: (
+        admin.table('household_members').select('id, household_id, user_id')
+        .in_('household_id', hh_ids).eq('relationship', 'guardian')))
+    g_ids = [g['user_id'] for g in g_rows]
+    g_users = {u['id']: u for u in fetch_all_rows(lambda: (
+        admin.table('users').select('id, first_name, last_name, display_name, email')
+        .in_('id', g_ids)))} if g_ids else {}
+    guardians_by_hh: Dict[str, List[Dict[str, Any]]] = {}
+    for g in g_rows:
+        gu = g_users.get(g['user_id']) or {}
+        guardians_by_hh.setdefault(g['household_id'], []).append(
+            {'name': _person_name(gu), 'email': gu.get('email')})
+    return households, guardians_by_hh, hh_by_student
+
+
+def _log_roster_access(student_ids, accessor_id, accessor_role, class_count):
+    """One row per student, matching what opening the teacher roster writes.
+
+    An admin pulling allergy data for twelve classes is the same access as a
+    teacher opening twelve rosters, and is audited as such.
+    """
+    if not student_ids:
+        return
+    try:
+        _admin().table('student_access_logs').insert([{
+            'student_id': sid, 'accessor_id': accessor_id,
+            'accessor_role': accessor_role,
+            'data_accessed': 'class_roster_health',
+            'purpose': f'Roster report export ({class_count} class(es))',
+        } for sid in student_ids]).execute()
+    except Exception as e:  # noqa: BLE001 — the audit must not break the report
+        logger.warning(f'roster report access log failed: {e}')
+
+
+def _person_name(u: Dict[str, Any]) -> str:
+    name = ' '.join(x for x in [u.get('first_name'), u.get('last_name')] if x).strip()
+    return name or (u.get('display_name') or '')
+
+
+def _org_today(org_id: str):
+    from services.sis_staff_service import _org_now
+    return _org_now(org_id).date()
+
+
+def _age_years(dob: Optional[str], today) -> str:
+    if not dob:
+        return ''
+    try:
+        from datetime import date
+        b = date.fromisoformat(str(dob)[:10])
+    except (TypeError, ValueError):
+        return ''
+    return str(today.year - b.year - ((today.month, today.day) < (b.month, b.day)))

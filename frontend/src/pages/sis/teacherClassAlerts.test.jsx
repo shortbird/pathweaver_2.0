@@ -71,14 +71,15 @@ describe('class roster health alerts', () => {
   it('opens the detail on click rather than hiding it in a tooltip', async () => {
     render(<TeacherClassPage />)
     await screen.findAllByText('Van Stanfill')
-    // One copy exists in the print-only roster table; the on-screen card shows
-    // nothing until the badge is opened.
-    expect(screen.getAllByText(/Peanuts/)).toHaveLength(1)
+    // Nothing is shown until the badge is opened. (There used to be a second,
+    // print-only copy of the roster on this page; printing now goes through
+    // ClassRosterExportModal, so the page carries one copy of anything.)
+    expect(screen.queryAllByText(/Peanuts/)).toHaveLength(0)
     const badge = screen.getByRole('button', { name: /Alert/ })
     expect(badge).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(badge)
-    expect(screen.getAllByText(/Peanuts/)).toHaveLength(2)
-    expect(screen.getAllByText(/EpiPen/)).toHaveLength(2)
+    expect(screen.getAllByText(/Peanuts/)).toHaveLength(1)
+    expect(screen.getAllByText(/EpiPen/)).toHaveLength(1)
     expect(screen.getByRole('button', { name: /Alert/ })).toHaveAttribute('aria-expanded', 'true')
   })
 
@@ -87,6 +88,39 @@ describe('class roster health alerts', () => {
     await screen.findAllByText('Van Stanfill')
     fireEvent.click(screen.getByRole('button', { name: /Alert/ }))
     fireEvent.click(screen.getByRole('button', { name: /Alert/ }))
-    expect(screen.getAllByText(/Peanuts/)).toHaveLength(1)  // print copy only
+    expect(screen.queryAllByText(/Peanuts/)).toHaveLength(0)
+  })
+})
+
+/**
+ * iCreate, 2026-08-19: "Print Roster button on this page prints the page, not
+ * the actual roster. It should be a CSV file to download/print."
+ *
+ * The page printed itself behind a SUBTRACTIVE stylesheet — hide the sidebar,
+ * hide the controls, hope nothing else showed — so what came out depended on
+ * which tab happened to be open, and on any chrome that wasn't an <aside> or a
+ * <nav>. It now opens the same modal the admin Classes page uses: one table,
+ * everything else hidden, and a CSV download.
+ */
+describe('printing the roster', () => {
+  it('opens the roster export instead of printing whatever is on screen', async () => {
+    const printSpy = vi.fn()
+    vi.stubGlobal('print', printSpy)
+    render(<TeacherClassPage />)
+    await screen.findAllByText('Van Stanfill')
+
+    fireEvent.click(screen.getByRole('button', { name: /Print \/ export roster/ }))
+
+    expect(await screen.findByRole('dialog', { name: /Print or export the class roster/ }))
+      .toBeInTheDocument()
+    // The button no longer prints the page directly — that was the bug.
+    expect(printSpy).not.toHaveBeenCalled()
+  })
+
+  it('offers a CSV download, which is what they asked for', async () => {
+    render(<TeacherClassPage />)
+    await screen.findAllByText('Van Stanfill')
+    fireEvent.click(screen.getByRole('button', { name: /Print \/ export roster/ }))
+    expect(await screen.findByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
   })
 })

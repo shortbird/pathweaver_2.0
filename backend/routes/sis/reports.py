@@ -102,6 +102,47 @@ def classes_report(user_id):
     }})
 
 
+@bp.route('/reports/rosters', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def rosters_report(user_id):
+    """One row per student per class, for as many classes as were asked for.
+
+    iCreate asked for this four times: exporting ONE class shipped on
+    2026-08-18, and this is the rest — "download multiple class
+    rosters/waitlists into one spreadsheet".
+
+    ?class_ids=a,b,c   (required — this is a report, not a whole-org dump)
+    ?fields=name,age   a subset of ROSTER_REPORT_FIELDS; absent means defaults
+    ?include_waitlist=true  adds waiting/offered students, labelled as such
+    ?format=csv        downloads the same selection
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    class_ids = [c.strip() for c in (request.args.get('class_ids') or '').split(',') if c.strip()]
+    if not class_ids:
+        return jsonify({'success': False, 'error': 'Pick at least one class.'}), 400
+    requested = [f.strip() for f in (request.args.get('fields') or '').split(',') if f.strip()]
+    include_waitlist = request.args.get('include_waitlist') in ('1', 'true', 'True')
+
+    # The audit row has to name the capacity the viewer actually acted in —
+    # same reasoning as the teacher roster endpoint, which had this wrong and
+    # logged every unscoped caller as 'org_admin'.
+    role = (sis_service.caller_org_roles(user_id) or ['advisor'])[0]
+    report = reports.roster_report(
+        org_id, class_ids, accessor_id=user_id, accessor_role=role,
+        include_waitlist=include_waitlist, fields=requested)
+    keys = report['selected']
+    labels = {f['key']: f['label'] for f in report['fields']}
+
+    if request.args.get('format') == 'csv':
+        return _csv_response(
+            'rosters.csv',
+            [labels[k] for k in keys],
+            [[r.get(k, '') for k in keys] for r in report['rows']])
+    return jsonify({'success': True, 'report': report})
+
+
 # ── Information reports (registration data) ──────────────────────────────────
 
 def _admin():

@@ -23,6 +23,7 @@ already, and this is the same job with less typing.
 
 from flask import Blueprint, request, jsonify
 
+from app_config import Config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
@@ -32,7 +33,9 @@ logger = get_logger(__name__)
 
 bp = Blueprint('sis_quest_drafts', __name__, url_prefix='/api/sis/quest-drafts')
 
-_MAX_CONTEXT_CHARS = 20000
+# One source of truth, shared with the two prompt builders that also trim
+# source material (services/quest_ai_service, services/personalization_service).
+_MAX_CONTEXT_CHARS = Config.AI_SOURCE_MATERIAL_MAX_CHARS
 # Well under the 25MB class-materials limit on purpose: this file is parsed in
 # the web process rather than handed to storage, and PDF text extraction is the
 # kind of transient allocation that has taken the prod backend down before.

@@ -48,6 +48,27 @@ const { api } = vi.hoisted(() => {
         rows: [{ name: 'Pottery', teacher: 'Ruth Stewart', description: 'Hand building and the wheel' }],
       } } }
     }
+    if (url.includes('/reports/rosters')) {
+      return { data: { report: {
+        fields: [
+          { key: 'class_name', label: 'Class', hint: 'Which class this row is in', default: true },
+          { key: 'status', label: 'Status', hint: 'Enrolled, or waiting/offered', default: true },
+          { key: 'name', label: 'Student', hint: 'Full name', default: true },
+          { key: 'date_of_birth', label: 'Birthdate', hint: 'YYYY-MM-DD', default: false },
+        ],
+        selected: ['class_name', 'status', 'name'],
+        rows: [
+          { class_name: 'Pottery', status: 'Enrolled', name: 'Nora Candland', date_of_birth: '2014-01-09' },
+          { class_name: 'Guitar Jam', status: 'Waiting', name: 'Ryder Swenson', date_of_birth: '2017-03-02' },
+        ],
+      } } }
+    }
+    if (url.includes('/api/sis/classes')) {
+      return { data: { classes: [
+        { id: 'c1', name: 'Pottery' },
+        { id: 'c2', name: 'Guitar Jam' },
+      ] } }
+    }
     if (url.includes('/reports/registration-answers')) {
       return { data: { report: {
         question: { key: 'special_needs', label: 'Special needs', per_student: true },
@@ -147,5 +168,68 @@ describe('ReportsPage', () => {
     expect(screen.getByText('pat@example.com')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(
       expect.stringContaining('/api/sis/reports/registration-answers?question_key=special_needs'))
+  })
+})
+
+/**
+ * iCreate asked for rosters-in-a-spreadsheet four separate times — the most
+ * requested thing in their backlog. Exporting ONE class shipped on the Classes
+ * page; this is the other half: several classes in one sheet, waitlisted
+ * students included if you want them, and a column picker.
+ */
+describe('Class rosters report', () => {
+  it('will not run until a class is picked', async () => {
+    render(<ReportsPage />)
+    expect(await screen.findByLabelText('Classes')).toBeInTheDocument()
+    expect(screen.getByLabelText('View roster report')).toBeDisabled()
+    expect(screen.getByText('Choose one or more classes.')).toBeInTheDocument()
+  })
+
+  it('runs across several classes at once and shows the rows', async () => {
+    render(<ReportsPage />)
+    const picker = await screen.findByLabelText('Classes')
+    fireEvent.change(picker, { target: { value: 'c1' } })
+    fireEvent.click(screen.getByLabelText('View roster report'))
+
+    expect(await screen.findByText('Class rosters')).toBeInTheDocument()
+    expect(screen.getByText('Nora Candland')).toBeInTheDocument()
+    expect(screen.getByText('Ryder Swenson')).toBeInTheDocument()
+    // Both classes are in ONE table — that is the whole ask. (The names also
+    // appear in the picker above, hence scoping the check to table cells.)
+    const cells = [...document.querySelectorAll('td')].map((td) => td.textContent)
+    expect(cells).toContain('Pottery')
+    expect(cells).toContain('Guitar Jam')
+    expect(cells).toContain('Waiting')
+  })
+
+  it('asks the server for the waitlist when the box is ticked', async () => {
+    render(<ReportsPage />)
+    const picker = await screen.findByLabelText('Classes')
+    fireEvent.change(picker, { target: { value: 'c1' } })
+    fireEvent.click(screen.getByLabelText('Include waitlisted students'))
+    fireEvent.click(screen.getByLabelText('View roster report'))
+
+    await screen.findByText('Class rosters')
+    expect(api.get.mock.calls.map(([u]) => u))
+      .toContainEqual(expect.stringContaining('include_waitlist=true'))
+  })
+
+  it('Select all picks every class', async () => {
+    render(<ReportsPage />)
+    await screen.findByLabelText('Classes')
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+    expect(screen.getByLabelText('View roster report')).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+  })
+
+  it('a column can be added after the report is on screen', async () => {
+    render(<ReportsPage />)
+    fireEvent.change(await screen.findByLabelText('Classes'), { target: { value: 'c1' } })
+    fireEvent.click(screen.getByLabelText('View roster report'))
+    await screen.findByText('Class rosters')
+
+    expect(screen.queryByText('2014-01-09')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Birthdate'))
+    expect(screen.getByText('2014-01-09')).toBeInTheDocument()
   })
 })

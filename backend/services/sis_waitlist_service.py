@@ -272,7 +272,15 @@ def _entry(org_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _mark_offered(org_id: str, class_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
-    """Flip one entry to 'offered' with a fresh expiry and notify the family."""
+    """Flip one entry to 'offered' with a fresh expiry and notify the family.
+
+    The returned row carries `student_name`. It is an UPDATE, so what comes
+    back is the bare table row — and every caller hands it to the office as
+    "who did we just offer this to". iCreate, 2026-08-17: "Two kids were
+    offered a spot in reading workshop block 2 tuesday, but I have no idea who
+    it was because I can't see their names." The names were never missing from
+    the queue; they were missing from the answer to the action.
+    """
     now_iso = _now().isoformat()
     expires = (_now() + timedelta(hours=offer_ttl_hours(org_id))).isoformat()
     resp = (
@@ -283,8 +291,31 @@ def _mark_offered(org_id: str, class_id: str, entry_id: str) -> Optional[Dict[st
     )
     offered = resp.data[0] if resp.data else None
     if offered:
+        offered['student_name'] = _student_name(offered.get('student_user_id'))
         _notify_offer(org_id, class_id, offered)
     return offered
+
+
+def _student_name(student_user_id: Optional[str]) -> str:
+    """One student's display name, by the same rule the queue uses (preferred
+    name wins, because the office reads these out loud)."""
+    if not student_user_id:
+        return 'a student'
+    u = (
+        _admin().table('users')
+        .select('display_name, first_name, last_name, preferred_name, username, email')
+        .eq('id', student_user_id).limit(1).execute()
+    ).data
+    if not u:
+        return 'a student'
+    u = u[0]
+    pref = (u.get('preferred_name') or '').strip()
+    last = (u.get('last_name') or '').strip()
+    if pref:
+        return f'{pref} {last}' if last and not pref.lower().endswith(last.lower()) else pref
+    return (u.get('display_name')
+            or f"{u.get('first_name') or ''} {last}".strip()
+            or u.get('username') or u.get('email') or 'a student')
 
 
 def section_base_name(name: str) -> str:

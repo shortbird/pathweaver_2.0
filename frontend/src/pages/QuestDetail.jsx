@@ -628,7 +628,9 @@ const QuestDetail = () => {
                   onTaskReorder={handleTaskReorder}
                   onTaskComplete={handleTaskCompletion}
                   onTaskUpdate={handleTaskUpdate}
-                  onAddTask={() => setShowPersonalizationWizard(true)}
+                  onAddTask={quest.allow_custom_tasks === false
+                    ? undefined
+                    : () => setShowPersonalizationWizard(true)}
                   onRemoveTask={handleDropTask}
                   onClose={() => setSelectedTask(null)}
                 />

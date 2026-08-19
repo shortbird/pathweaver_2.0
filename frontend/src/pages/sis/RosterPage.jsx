@@ -17,6 +17,16 @@ import { switchSurfaceInApp } from '../../utils/appSurface'
 const INACTIVE_STATUSES = ['withdrawn', 'graduated']
 const ROLE_ORDER = { org_admin: 0, advisor: 1, parent: 2, student: 3, observer: 4 }
 
+// "Recently" is the last week, which is the window a welcome is still a
+// welcome in. Deliberately not "today": somebody who joined on Saturday should
+// still be on the list when the office opens on Monday.
+const RECENT_DAYS = 7
+const isRecent = (d) => {
+  if (!d) return false
+  const t = new Date(d).getTime()
+  return Number.isFinite(t) && Date.now() - t < RECENT_DAYS * 86400000
+}
+
 const fmtDate = (d) => {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }
@@ -36,6 +46,9 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [search, setSearch] = useState('')
   const [hideInactive, setHideInactive] = useState(true)
   const [studentsOnly, setStudentsOnly] = useState(false)
+  // iCreate, 2026-08-19: "3 or 4 families ... said they joined today and I ...
+  // have no way to know who the other ones are."
+  const [recentOnly, setRecentOnly] = useState(false)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
   const load = useCallback(() => {
@@ -102,6 +115,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     const rows = roster.filter((s) => {
       if (studentsOnly && !s.is_student) return false
       if (hideInactive && s.is_student && INACTIVE_STATUSES.includes(s.enrollment_status)) return false
+      if (recentOnly && !isRecent(s.joined_at)) return false
       if (!q) return true
       return [s.name, s.email, s.username, s.role].some((v) => (v || '').toLowerCase().includes(q))
     })
@@ -119,6 +133,8 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
         cmp = av - bv
       } else if (sort.key === 'last_active') {
         cmp = new Date(a.last_active || 0) - new Date(b.last_active || 0)
+      } else if (sort.key === 'joined_at') {
+        cmp = new Date(a.joined_at || 0) - new Date(b.joined_at || 0)
       } else if (sort.key === 'role') {
         cmp = (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
       } else {
@@ -127,7 +143,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
       if (cmp === 0) cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
       return cmp * dir
     })
-  }, [roster, search, hideInactive, studentsOnly, sort])
+  }, [roster, search, hideInactive, studentsOnly, recentOnly, sort])
 
   const hiddenCount = roster.length - visibleRoster.length
 
@@ -181,6 +197,20 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
             />
             Students only
           </label>
+          <label className="flex items-center gap-2 text-sm text-neutral-600 select-none">
+            <input
+              type="checkbox"
+              checked={recentOnly}
+              onChange={(e) => {
+                setRecentOnly(e.target.checked)
+                // Newest first, or the filter hands back a list sorted by name
+                // and the person who joined an hour ago is somewhere in the Ms.
+                if (e.target.checked) setSort({ key: 'joined_at', dir: 'desc' })
+              }}
+              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+            />
+            Joined in the last {RECENT_DAYS} days
+          </label>
         </div>
       )}
 
@@ -210,6 +240,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
                 <SortHeader label="Age" col="age" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Role" col="role" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Family" col="family" sort={sort} onSort={toggleSort} arrow={sortArrow} />
+                <SortHeader label="Joined" col="joined_at" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Last active" col="last_active" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
@@ -242,6 +273,12 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
                     {s.household_name
                       ? <span className="text-neutral-600">{s.household_name}</span>
                       : <span className="text-neutral-300" title={s.is_student ? 'Group this student into a family on the Families page' : undefined}>—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-500 whitespace-nowrap">
+                    {fmtDate(s.joined_at)}
+                    {isRecent(s.joined_at) && (
+                      <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-optio-purple/10 text-optio-purple align-middle">new</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>

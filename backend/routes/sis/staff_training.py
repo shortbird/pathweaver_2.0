@@ -165,7 +165,10 @@ def _clean_task(raw, order_index):
         'description': (raw.get('description') or '').strip(),
         'pillar': _PILLAR_ALIASES.get((raw.get('pillar') or '').strip().lower(), _DEFAULT_PILLAR),
         'xp_value': max(_MIN_XP, xp),
-        'is_required': bool(raw.get('is_required', True)),
+        # Mirrors quest_ai_service._normalize: an absent flag means the caller
+        # (usually a generated draft) did not say, and an unstated requirement
+        # is not one. The staff form always sends the checkbox either way.
+        'is_required': bool(raw.get('is_required', False)),
         'order_index': order_index,
         'ai_generated': False,
         'created_at': now,
