@@ -19,6 +19,10 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Distinguishes "caller omitted this field" from "caller set it to null" on a
+# partial update, where None is a meaningful value (clear the due date).
+_UNSET = object()
+
 DISCOUNT_RULE_TYPES = ('sibling', 'multi_class', 'promo', 'manual')
 CADENCES = ('monthly', 'semester', 'full')
 
@@ -285,7 +289,11 @@ def get_invoice(org_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
 def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     """Create a standalone charge as a 'sent' invoice + one line item. No
     registration, no discount rules — the school just records what a family owes
-    (they pay out-of-band by Zelle/scholarship and staff record the payment)."""
+    (they pay out-of-band by Zelle/scholarship and staff record the payment).
+
+    `kind` classifies the charge (registration, supply, fee...) so it can be
+    reconciled later against a payment that says only how much.
+    """
     household_id = fields.get('household_id')
     student_user_id = fields.get('student_user_id')
     description = (fields.get('description') or '').strip()
@@ -312,13 +320,49 @@ def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         }).execute()
     ).data[0]
     invoice = _assign_invoice_number(invoice)
-    _admin().table('sis_invoice_line_items').insert({
-        'invoice_id': invoice['id'],
-        'description': description,
-        'amount_cents': amount_cents,
-        'quantity': 1,
-    }).execute()
+    kind = fields.get('kind')
+    _admin().table('sis_invoice_line_items').insert(
+        _line_row(invoice['id'], {'description': description, 'amount_cents': amount_cents,
+                                  'kind': kind if kind in LINE_KINDS else None})).execute()
     return {'invoice': invoice}
+
+
+# ── Line items (shared by create + edit) ─────────────────────────────────────
+# What a line charges for. Mirrors the CHECK on sis_invoice_line_items.kind
+# (20260819000000); anything else is stored as NULL rather than rejected, so an
+# older client that doesn't send a kind still writes a valid invoice.
+LINE_KINDS = ('tuition', 'supply', 'registration', 'fee', 'other')
+
+
+def clean_line_items(line_items: List[Dict[str, Any]]) -> tuple:
+    """PURE. Validate approver-supplied line items -> (clean, error_message).
+
+    `clean` is [{description, amount_cents, class_id, kind}]; on any problem it
+    is [] and the message says which line and why. Callers must NOT drop a bad
+    line and carry on: an invoice that silently loses a charge the approver
+    typed is how the wrong amount gets emailed to a family.
+    """
+    clean: List[Dict[str, Any]] = []
+    for idx, li in enumerate(line_items or [], start=1):
+        desc = (li.get('description') or '').strip()
+        amt = li.get('amount_cents')
+        if not desc:
+            return [], f'Line {idx} needs a description'
+        if not isinstance(amt, int) or isinstance(amt, bool) or amt < 0:
+            return [], f'"{desc}" needs a whole, non-negative amount'
+        kind = li.get('kind')
+        clean.append({'description': desc, 'amount_cents': amt,
+                      'class_id': li.get('class_id'),
+                      'kind': kind if kind in LINE_KINDS else None})
+    if not clean:
+        return [], 'Add at least one line item to invoice'
+    return clean, None
+
+
+def _line_row(invoice_id: str, li: Dict[str, Any]) -> Dict[str, Any]:
+    return {'invoice_id': invoice_id, 'description': li['description'],
+            'class_id': li.get('class_id'), 'amount_cents': li['amount_cents'],
+            'kind': li.get('kind'), 'quantity': 1}
 
 
 # ── Tuition invoice (multi-line, from the CLP tuition-approver) ──────────────
@@ -337,17 +381,9 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
     total = subtotal - discount (clamped to >= 0). Status defaults to 'sent'
     ('draft' keeps it staff-only / off the family portal). Returns {'invoice': ...}
     or {'error': ...}."""
-    clean: List[Dict[str, Any]] = []
-    for li in line_items or []:
-        desc = (li.get('description') or '').strip()
-        amt = li.get('amount_cents')
-        if not desc:
-            return {'error': 'Each line item needs a description'}
-        if not isinstance(amt, int) or amt < 0:
-            return {'error': 'Each line item needs a whole, non-negative amount'}
-        clean.append({'description': desc, 'amount_cents': amt, 'class_id': li.get('class_id')})
-    if not clean:
-        return {'error': 'Add at least one line item to invoice'}
+    clean, err = clean_line_items(line_items)
+    if err:
+        return {'error': err}
     if status not in ('sent', 'draft'):
         return {'error': 'Invalid invoice status'}
     subtotal = sum(li['amount_cents'] for li in clean)
@@ -385,19 +421,108 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
         }).execute()
     ).data[0]
     invoice = _assign_invoice_number(invoice)
-    _admin().table('sis_invoice_line_items').insert([{
-        'invoice_id': invoice['id'],
-        'description': li['description'],
-        'class_id': li.get('class_id'),
-        'amount_cents': li['amount_cents'],
-        'quantity': 1,
-    } for li in clean]).execute()
+    _admin().table('sis_invoice_line_items').insert(
+        [_line_row(invoice['id'], li) for li in clean]).execute()
     _audit(org_id, invoice['id'], actor_user_id, 'tuition_invoice_created',
            {'subtotal_cents': subtotal, 'discount_cents': discount,
             'total_cents': total, 'line_count': len(clean),
             'note': (note or '').strip() or None})
     enqueue_qbo(org_id, 'invoice', invoice['id'])
     return {'invoice': invoice}
+
+
+def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
+                   line_items: Optional[List[Dict[str, Any]]] = None,
+                   discount_cents: Optional[int] = None,
+                   due_date: Any = _UNSET,
+                   processing_fee_cents: Optional[int] = None) -> Dict[str, Any]:
+    """Correct an invoice that has already been sent.
+
+    Before this existed, an invoice sent for the wrong amount could only be
+    replaced by sending a SECOND one, which left the family holding two bills
+    and the office reconciling against the wrong one. Editing keeps the invoice
+    number the family already has.
+
+    Line items are replaced wholesale when given (the editor sends the full
+    list). Totals and status are recomputed, so an edit that drops the total
+    below what has been paid settles the invoice rather than leaving it 'sent'.
+    Paid and void invoices are refused — those are a refund or a new charge,
+    not an edit. Every change is audited with the before/after totals.
+    """
+    inv = (_admin().table('sis_invoices').select('*')
+           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
+    if not inv:
+        return {'error': 'Invoice not found'}
+    inv = inv[0]
+    if inv.get('status') == 'void':
+        return {'error': 'This invoice was voided and can no longer be edited'}
+    if inv.get('status') == 'paid':
+        # Not "void it instead" — void_invoice refuses an invoice with a payment
+        # on it, so that advice sends the caller into a second refusal.
+        return {'error': 'This invoice is paid in full — editing it would no longer match the '
+                         'money received. Add a separate charge or credit instead.'}
+
+    clean = None
+    if line_items is not None:
+        clean, err = clean_line_items(line_items)
+        if err:
+            return {'error': err}
+
+    subtotal = (sum(li['amount_cents'] for li in clean) if clean is not None
+                else (inv.get('subtotal_cents') or 0))
+    discount = inv.get('discount_cents') or 0 if discount_cents is None else int(discount_cents)
+    discount = max(0, min(discount, subtotal))
+    total = subtotal - discount
+
+    patch: Dict[str, Any] = {'subtotal_cents': subtotal, 'discount_cents': discount,
+                             'total_cents': total, 'updated_at': _now()}
+    if due_date is not _UNSET:
+        patch['due_date'] = due_date or None
+    if processing_fee_cents is not None:
+        patch['processing_fee_cents'] = max(0, int(processing_fee_cents))
+
+    if clean is not None:
+        _admin().table('sis_invoice_line_items').delete().eq('invoice_id', invoice_id).execute()
+        _admin().table('sis_invoice_line_items').insert(
+            [_line_row(invoice_id, li) for li in clean]).execute()
+
+    _admin().table('sis_invoices').update(patch).eq('id', invoice_id).execute()
+    invoice = _recompute_invoice_status(invoice_id)
+    _audit(org_id, invoice_id, actor_user_id, 'invoice_edited', {
+        'from_total_cents': inv.get('total_cents') or 0,
+        'to_total_cents': total,
+        'from_processing_fee_cents': inv.get('processing_fee_cents') or 0,
+        'to_processing_fee_cents': invoice.get('processing_fee_cents') or 0,
+        'line_count': len(clean) if clean is not None else None,
+    })
+    enqueue_qbo(org_id, 'invoice', invoice_id)
+    return {'invoice': get_invoice(org_id, invoice_id)}
+
+
+def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
+                 reason: Optional[str] = None) -> Dict[str, Any]:
+    """Cancel an invoice. It stays on the record (voided, not deleted) and drops
+    off the family portal, the outstanding report and the reminder sweep.
+
+    Refused once money has been recorded against it: voiding then would orphan a
+    payment the school actually received. Record a refund or edit it instead.
+    """
+    inv = (_admin().table('sis_invoices').select('*')
+           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
+    if not inv:
+        return {'error': 'Invoice not found'}
+    inv = inv[0]
+    if inv.get('status') == 'void':
+        return {'invoice': inv}
+    if (inv.get('amount_paid_cents') or 0) > 0:
+        return {'error': 'A payment has been recorded on this invoice. Edit it instead of voiding it.'}
+    updated = (_admin().table('sis_invoices')
+               .update({'status': 'void', 'updated_at': _now()})
+               .eq('id', invoice_id).execute()).data
+    _audit(org_id, invoice_id, actor_user_id, 'invoice_voided',
+           {'total_cents': inv.get('total_cents') or 0,
+            'reason': (reason or '').strip() or None})
+    return {'invoice': (updated or [inv])[0]}
 
 
 def _household_primary_contact(household_id: Optional[str]) -> Optional[str]:
@@ -537,7 +662,10 @@ def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, A
             'description': desc,
             'total_cents': total,
             'amount_paid_cents': paid,
-            'balance_cents': total - paid,
+            # The fee travels with the row so the Record-payment dialog knows
+            # the invoice's real fee instead of assuming zero and overwriting it.
+            'processing_fee_cents': inv.get('processing_fee_cents') or 0,
+            'balance_cents': amount_due_cents(inv),
             'status': inv.get('status'),
             'due_date': inv.get('due_date'),
             'method': (latest_pay or {}).get('method'),
@@ -579,6 +707,21 @@ def create_payment_plan(org_id: str, invoice_id: str, cadence: str,
 
 
 # ── Payments ─────────────────────────────────────────────────────────────────
+def amount_due_cents(invoice: Dict[str, Any]) -> int:
+    """PURE. What is still owed on an invoice: total + processing fee - paid.
+
+    The processing fee belongs in this sum — a card payment collects it — and
+    every surface has to use the SAME sum. They did not: _recompute_invoice_status
+    and the family portal added the fee while the staff ledger and the
+    outstanding report did not, so an invoice could read "Paid" in the office and
+    still bill the family. On 2026-08-19 three iCreate invoices were saved with a
+    processing fee equal to the whole tuition, and only the families saw it.
+    """
+    return ((invoice.get('total_cents') or 0)
+            + (invoice.get('processing_fee_cents') or 0)
+            - (invoice.get('amount_paid_cents') or 0))
+
+
 def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
     inv = (
         _admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()
@@ -1025,7 +1168,7 @@ def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
         'discount_cents': inv.get('discount_cents') or 0,
         'processing_fee_cents': fee,
         'total_cents': total,
-        'amount_due_cents': total + fee - paid,
+        'amount_due_cents': amount_due_cents(inv),
         'amount_paid_cents': paid,
         'payments': inv.get('payments', []),
     }}
@@ -1734,7 +1877,7 @@ def outstanding_invoices(org_id: str) -> List[Dict[str, Any]]:
         _admin().table('sis_invoices').select('*')
         .eq('organization_id', org_id).in_('status', list(OPEN_INVOICE_STATUSES))
         .execute()
-    ).data or [] if (i.get('total_cents') or 0) > (i.get('amount_paid_cents') or 0)]
+    ).data or [] if amount_due_cents(i) > 0]
     if not invoices:
         return []
     _hydrate_invoices(invoices)
@@ -1760,7 +1903,8 @@ def outstanding_invoices(org_id: str) -> List[Dict[str, Any]]:
             'due_date': inv.get('due_date'),
             'total_cents': inv.get('total_cents') or 0,
             'amount_paid_cents': inv.get('amount_paid_cents') or 0,
-            'amount_due_cents': (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0),
+            'processing_fee_cents': inv.get('processing_fee_cents') or 0,
+            'amount_due_cents': amount_due_cents(inv),
             'days_overdue': _days_overdue(inv, unpaid, today),
             'unpaid_installments': unpaid,
             # The number is the only identifier a family recognises — it is on
@@ -1771,6 +1915,113 @@ def outstanding_invoices(org_id: str) -> List[Dict[str, Any]]:
         })
     out.sort(key=lambda r: (-r['days_overdue'], r.get('due_date') or '9999-12-31'))
     return out
+
+
+def billing_detail(org_id: str, household_id: Optional[str] = None,
+                   kind: Optional[str] = None) -> Dict[str, Any]:
+    """Every charge and every payment in the org, itemized — the reconciliation
+    report for money that arrives from outside Optio.
+
+    iCreate's families are funded through UFA, which remits a bare amount with no
+    statement of what it covers. Matching a $50 deposit to a charge meant opening
+    invoices one at a time and guessing, because the invoice summary shows one
+    total. This lists each LINE — tuition, supplies, fees — beside the payments
+    recorded against the same invoice, so a number can be looked up instead of
+    inferred.
+
+    Void and draft invoices are excluded: neither is money anyone owes.
+    `household_id` narrows to one family, `kind` to one category of charge
+    (the totals always describe the rows returned).
+    """
+    invoices = [i for i in list_invoices(org_id, household_id=household_id)
+                if i.get('status') not in ('draft', 'void')]
+    if not invoices:
+        return {'rows': [], 'payments': [], 'totals': {
+            'charged_cents': 0, 'paid_cents': 0, 'balance_cents': 0, 'by_kind': {}}}
+    by_id = {i['id']: i for i in invoices}
+    ids = list(by_id)
+
+    # Paged: an org's line items grow with every family it invoices, and a
+    # truncated read here would silently under-report what a family was charged.
+    lines = fetch_all_rows(lambda: (
+        _admin().table('sis_invoice_line_items')
+        .select('invoice_id, description, kind, amount_cents, created_at')
+        .in_('invoice_id', ids).order('created_at')))
+    payments = fetch_all_rows(lambda: (
+        _admin().table('sis_payment_records')
+        .select('invoice_id, amount_cents, method, note, external_ref, recorded_at')
+        .in_('invoice_id', ids).order('recorded_at', desc=True)))
+
+    hh_names = {}
+    hh_ids = list({i.get('household_id') for i in invoices if i.get('household_id')})
+    if hh_ids:
+        hh_names = {h['id']: h['name'] for h in (
+            _admin().table('households').select('id, name').in_('id', hh_ids).execute()
+        ).data or []}
+    students = _users_map([i.get('student_user_id') for i in invoices])
+
+    def _who(inv):
+        s = students.get(inv.get('student_user_id'))
+        return (hh_names.get(inv.get('household_id')), _display_name(s) if s else None)
+
+    rows = []
+    for li in lines:
+        inv = by_id.get(li['invoice_id'])
+        if not inv:
+            continue
+        # NULL kind is every line written before the column existed, plus manual
+        # charges. Report it as unclassified rather than guessing from the text.
+        line_kind = li.get('kind') or 'unclassified'
+        if kind and line_kind != kind:
+            continue
+        family, student = _who(inv)
+        rows.append({
+            'invoice_id': inv['id'],
+            'invoice_number': inv.get('invoice_number'),
+            'status': inv.get('status'),
+            'family_name': family,
+            'student_name': student,
+            'issued_at': inv.get('issued_at'),
+            'due_date': inv.get('due_date'),
+            'description': li.get('description'),
+            'kind': line_kind,
+            'amount_cents': li.get('amount_cents') or 0,
+            'invoice_total_cents': inv.get('total_cents') or 0,
+            'invoice_paid_cents': inv.get('amount_paid_cents') or 0,
+            'invoice_balance_cents': amount_due_cents(inv),
+        })
+    rows.sort(key=lambda r: ((r['family_name'] or '~').lower(),
+                             (r['student_name'] or '').lower(),
+                             r['invoice_number'] or '', r['description'] or ''))
+
+    pay_rows = []
+    for pay in payments:
+        inv = by_id.get(pay['invoice_id'])
+        if not inv:
+            continue
+        family, student = _who(inv)
+        pay_rows.append({
+            'invoice_id': inv['id'],
+            'invoice_number': inv.get('invoice_number'),
+            'family_name': family,
+            'student_name': student,
+            'amount_cents': pay.get('amount_cents') or 0,
+            'method': pay.get('method'),
+            'note': pay.get('note'),
+            'external_ref': pay.get('external_ref'),
+            'recorded_at': pay.get('recorded_at'),
+        })
+
+    by_kind: Dict[str, int] = {}
+    for r in rows:
+        by_kind[r['kind']] = by_kind.get(r['kind'], 0) + r['amount_cents']
+    # Invoice-level money is counted once, however many lines the filter kept.
+    shown = {r['invoice_id'] for r in rows}
+    paid = sum((by_id[i].get('amount_paid_cents') or 0) for i in shown)
+    balance = sum(amount_due_cents(by_id[i]) for i in shown)
+    return {'rows': rows, 'payments': pay_rows, 'totals': {
+        'charged_cents': sum(r['amount_cents'] for r in rows),
+        'paid_cents': paid, 'balance_cents': balance, 'by_kind': by_kind}}
 
 
 # ── Automated payment reminders ──────────────────────────────────────────────
@@ -1834,8 +2085,7 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
              .in_('status', list(OPEN_INVOICE_STATUSES)))
     if org_id:
         query = query.eq('organization_id', org_id)
-    invoices = [i for i in (query.execute().data or [])
-                if (i.get('total_cents') or 0) > (i.get('amount_paid_cents') or 0)]
+    invoices = [i for i in (query.execute().data or []) if amount_due_cents(i) > 0]
     checked = len(invoices)
     reminded = skipped = 0
     if not invoices:
@@ -1887,7 +2137,7 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
             continue
         org = orgs.get(inv['organization_id']) or {}
         org_name = org.get('name') or 'Your school'
-        amount_due = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+        amount_due = amount_due_cents(inv)
         due_date = (overdue_installment or {}).get('due_date') or inv.get('due_date')
         bodies = _reminder_bodies(org_name, amount_due, due_date)
         for g in guardians:

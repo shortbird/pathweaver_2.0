@@ -69,6 +69,7 @@ const TuitionApprovalPage = () => {
           description: li.description || '',
           amountStr: ((li.amount_cents || 0) / 100).toFixed(2),
           class_id: li.class_id || null,
+          kind: li.kind || null,
         })))
         setDiscountStr('0'); setNote(''); setDueDate('')
         if (typeof previewRef.current?.scrollIntoView === 'function') {
@@ -101,28 +102,59 @@ const TuitionApprovalPage = () => {
   }, [queue, search, sort])
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + toCents(l.amountStr), 0), [lines])
+  // Supply fees are seeded per class and are the part UFA remits as its own
+  // item, so the approver gets the number called out rather than buried in the
+  // subtotal. Recomputed from the live lines, not the preview, so editing one
+  // is reflected.
+  const supplyTotal = useMemo(
+    () => lines.filter((l) => l.kind === 'supply').reduce((s, l) => s + toCents(l.amountStr), 0),
+    [lines])
   const discountCents = Math.max(0, Math.min(toCents(discountStr), subtotal))
   const total = subtotal - discountCents
 
   const updateLine = (i, patch) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   const removeLine = (i) => setLines((ls) => ls.filter((_, idx) => idx !== i))
-  const addLine = () => setLines((ls) => [...ls, { description: '', amountStr: '0.00', class_id: null }])
+  const addLine = () => setLines((ls) => [...ls, { description: '', amountStr: '0.00', class_id: null, kind: 'fee' }])
+
+  // A line the approver hasn't started yet: no description AND no money on it.
+  // Dropping those is invisible and harmless. Dropping a line that HAS an
+  // amount is neither — see buildPayload.
+  const isBlank = (l) => !l.description.trim() && toCents(l.amountStr) === 0
 
   // The lines as the API wants them — shared by Preview and Send so the file the
   // approver checks is built from exactly what sending would submit.
-  const payload = () => ({
-    organization_id: orgId,
-    // The id reserved when this student was opened. Sent with both the preview
-    // and the send so the PDF checked here is the one the family receives —
-    // same invoice number, same pay link, both derived from this id.
-    invoice_id: preview?.provisional_invoice_id || undefined,
-    line_items: lines
-      .filter((l) => l.description.trim())
-      .map((l) => ({ description: l.description.trim(), amount_cents: toCents(l.amountStr), class_id: l.class_id })),
-    discount_cents: discountCents,
-    note: note.trim() || null,
-    due_date: dueDate || null,
-  })
+  //
+  // Returns {body} or {error}. This used to filter out every line with an empty
+  // description and carry on silently, so a supply fee typed in without a label
+  // vanished from the preview AND from the invoice that went to the family —
+  // which is how iCreate sent a wrong amount on 2026-08-19 and only found out
+  // afterwards. A line with money on it now either gets sent or stops the send.
+  const buildPayload = () => {
+    const kept = lines.filter((l) => !isBlank(l))
+    if (!kept.length) return { error: 'Add at least one line item' }
+    const unlabelled = kept.find((l) => !l.description.trim())
+    if (unlabelled) {
+      return { error: `Name the ${money(toCents(unlabelled.amountStr))} line before sending` }
+    }
+    return {
+      body: {
+        organization_id: orgId,
+        // The id reserved when this student was opened. Sent with both the
+        // preview and the send so the PDF checked here is the one the family
+        // receives — same invoice number, same pay link, both from this id.
+        invoice_id: preview?.provisional_invoice_id || undefined,
+        line_items: kept.map((l) => ({
+          description: l.description.trim(),
+          amount_cents: toCents(l.amountStr),
+          class_id: l.class_id,
+          kind: l.kind || null,
+        })),
+        discount_cents: discountCents,
+        note: note.trim() || null,
+        due_date: dueDate || null,
+      },
+    }
+  }
 
   /**
    * Open the PDF the family will receive.
@@ -133,8 +165,8 @@ const TuitionApprovalPage = () => {
    * there is nothing to GET yet), which a plain link cannot do.
    */
   const previewInvoice = async () => {
-    const body = payload()
-    if (!body.line_items.length) { toast.error('Add at least one line item'); return }
+    const { body, error } = buildPayload()
+    if (error) { toast.error(error); return }
     setPreviewing(true)
     let url
     try {
@@ -155,8 +187,8 @@ const TuitionApprovalPage = () => {
   }
 
   const send = async () => {
-    const body = payload()
-    if (!body.line_items.length) { toast.error('Add at least one line item'); return }
+    const { body, error } = buildPayload()
+    if (error) { toast.error(error); return }
     if (body.line_items.some((l) => l.amount_cents < 0)) { toast.error('Amounts must be zero or more'); return }
     setSending(true)
     try {
@@ -179,7 +211,8 @@ const TuitionApprovalPage = () => {
       </div>
       <p className="text-sm text-neutral-500 mb-6 max-w-2xl">
         Students whose CLP is done, waiting on a tuition invoice. Open one to verify the tuition
-        against their schedule, adjust it if needed, and send the invoice to the family.
+        against their schedule, adjust it if needed, and send the invoice to the family. Each
+        class&rsquo;s supply fee is added as its own line automatically — no need to look them up.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] items-start gap-6">
@@ -269,6 +302,12 @@ const TuitionApprovalPage = () => {
                     <span>{s.household_name || 'No family'}</span>
                     <span>·</span>
                     <span>{s.class_count} {s.class_count === 1 ? 'class' : 'classes'}</span>
+                    {s.supply_total_cents > 0 && (
+                      <>
+                        <span>·</span>
+                        <span>{money(s.supply_total_cents)} supplies</span>
+                      </>
+                    )}
                     {s.pay_through_ufa && (
                       <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">UFA</span>
                     )}
@@ -359,6 +398,11 @@ const TuitionApprovalPage = () => {
                 <div className="flex justify-between text-neutral-600">
                   <span>Subtotal</span><span>{money(subtotal)}</span>
                 </div>
+                {supplyTotal > 0 && (
+                  <div className="flex justify-between text-xs text-neutral-400">
+                    <span>of which class supply fees</span><span>{money(supplyTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-neutral-600">
                   <span>Discount ($)</span>
                   <input

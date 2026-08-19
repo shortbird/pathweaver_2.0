@@ -18,7 +18,8 @@ class TestSeedLineItems:
                    {'class_id': 'c2', 'name': 'Art', 'price_cents': 5000}]
         items = tuition.seed_line_items(classes, None, {}, None)
         assert len(items) == 2
-        assert items[0] == {'class_id': 'c1', 'description': 'Piano', 'amount_cents': 10000}
+        assert items[0] == {'class_id': 'c1', 'description': 'Piano',
+                            'amount_cents': 10000, 'kind': 'tuition'}
         assert sum(i['amount_cents'] for i in items) == 15000
 
     def test_missing_price_defaults_to_zero(self):
@@ -44,6 +45,50 @@ class TestSeedLineItems:
 
     def test_no_classes_no_lines(self):
         assert tuition.seed_line_items([], None, {}, None) == []
+
+    def test_supply_fee_becomes_its_own_line(self):
+        classes = [{'class_id': 'c1', 'name': 'Piano', 'price_cents': 10000,
+                    'supply_fee_cents': 4500}]
+        items = tuition.seed_line_items(classes, None, {}, None)
+        assert [i['kind'] for i in items] == ['tuition', 'supply']
+        supply = items[1]
+        assert supply['amount_cents'] == 4500
+        assert supply['class_id'] == 'c1'
+        # The class name is on the supply line too — UFA reads the same invoice
+        # and has to tell one $45 supply charge from another.
+        assert supply['description'] == 'Piano — supplies'
+        assert sum(i['amount_cents'] for i in items) == 14500
+
+    def test_classes_without_a_supply_fee_add_no_line(self):
+        classes = [{'class_id': 'c1', 'name': 'Piano', 'price_cents': 10000},
+                   {'class_id': 'c2', 'name': 'Art', 'price_cents': 5000,
+                    'supply_fee_cents': 0}]
+        items = tuition.seed_line_items(classes, None, {}, None)
+        assert len(items) == 2
+        assert all(i['kind'] == 'tuition' for i in items)
+
+    def test_flat_plan_still_bills_supplies(self):
+        """A flat plan covers tuition, not materials — the parent Schedule
+        Builder has always quoted them on top."""
+        classes = [{'class_id': 'c1', 'name': 'Piano', 'price_cents': 10000,
+                    'supply_fee_cents': 20000}]
+        block = {'ufa': {'year_cents': 475000, 'min_blocks': 5}}
+        items = tuition.seed_line_items(classes, 'ufa_academy', block, 'iCreate Academy')
+        assert [i['kind'] for i in items] == ['tuition', 'supply']
+        assert sum(i['amount_cents'] for i in items) == 495000
+
+
+@pytest.mark.unit
+class TestSupplyFeeCents:
+    """org_classes.supply_fee is numeric DOLLARS and PostgREST returns it as a
+    string; every invoice column is cents."""
+
+    @pytest.mark.parametrize('raw, expected', [
+        ('45.00', 4500), (45, 4500), (12.5, 1250), ('0.00', 0),
+        (None, 0), ('', 0), ('not a number', 0), (-5, 0),
+    ])
+    def test_conversion(self, raw, expected):
+        assert tuition.supply_fee_cents(raw) == expected
 
 
 @pytest.mark.unit

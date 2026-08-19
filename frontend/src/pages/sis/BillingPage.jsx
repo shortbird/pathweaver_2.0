@@ -17,6 +17,22 @@ const PAYMENT_METHODS = [
 ]
 const METHOD_LABEL = Object.fromEntries(PAYMENT_METHODS)
 
+// What a charge is for. 'unclassified' covers every line written before the
+// kind column existed, plus manual charges — labelled honestly rather than
+// guessed at from the description text.
+const KIND_LABEL = {
+  tuition: 'Tuition', supply: 'Supplies', registration: 'Registration',
+  fee: 'Fee', other: 'Other', unclassified: 'Unclassified',
+}
+const KIND_PILL = {
+  tuition: 'bg-indigo-100 text-indigo-700',
+  supply: 'bg-teal-100 text-teal-700',
+  registration: 'bg-amber-100 text-amber-700',
+  fee: 'bg-neutral-100 text-neutral-600',
+  other: 'bg-neutral-100 text-neutral-600',
+  unclassified: 'bg-neutral-100 text-neutral-500',
+}
+
 // Build the last 12 months (YYYY-MM) plus an "All open" option.
 const monthOptions = () => {
   const opts = [['all', 'All open']]
@@ -59,13 +75,17 @@ const Modal = ({ title, onClose, children }) => (
 
 const BillingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const [view, setView] = useState('charges') // 'charges' | 'outstanding'
+  const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'detail'
   const [month, setMonth] = useState('all')
   const [ledger, setLedger] = useState(null)
   const [households, setHouseholds] = useState([])
 
   const [outstanding, setOutstanding] = useState(null)
   const [sendingReminders, setSendingReminders] = useState(false)
+
+  const [detail, setDetail] = useState(null)
+  const [detailHousehold, setDetailHousehold] = useState('')
+  const [detailKind, setDetailKind] = useState('')
 
   const [showAdd, setShowAdd] = useState(false)
   const [payFor, setPayFor] = useState(null)      // ledger row being paid
@@ -106,6 +126,43 @@ const BillingPage = () => {
 
   useEffect(() => { if (view === 'outstanding') loadOutstanding() }, [view, loadOutstanding])
 
+  // ── Charge detail (reconciliation) ──────────────────────────────────────
+  // UFA remits an amount and no statement of what it covers, so matching a $50
+  // deposit meant opening invoices one at a time. This lists every charge line.
+  const detailPath = useCallback(() => {
+    let path = '/api/sis/billing/detail'
+    const params = []
+    if (detailHousehold) params.push(`household_id=${detailHousehold}`)
+    if (detailKind) params.push(`kind=${detailKind}`)
+    return params.length ? `${path}?${params.join('&')}` : path
+  }, [detailHousehold, detailKind])
+
+  const loadDetail = useCallback(() => {
+    if (!orgId) { setDetail(null); return }
+    setDetail(null)
+    api.get(withOrg(detailPath(), orgId))
+      .then((r) => setDetail(r.data?.report || null))
+      .catch(() => { toast.error('Failed to load charge detail'); setDetail({ rows: [], payments: [], totals: {} }) })
+  }, [orgId, detailPath])
+
+  useEffect(() => { if (view === 'detail') loadDetail() }, [view, loadDetail])
+
+  const downloadDetailCsv = useCallback(async () => {
+    try {
+      const path = detailPath()
+      const res = await api.get(withOrg(`${path}${path.includes('?') ? '&' : '?'}format=csv`, orgId),
+        { responseType: 'blob' })
+      const url = window.URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'billing-detail.csv'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch { toast.error('Failed to download CSV') }
+  }, [orgId, detailPath])
+
   const sendReminders = async () => {
     setSendingReminders(true)
     try {
@@ -141,7 +198,7 @@ const BillingPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 no-print">
-        {[['charges', 'Charges'], ['outstanding', 'Outstanding']].map(([v, label]) => (
+        {[['charges', 'Charges'], ['outstanding', 'Outstanding'], ['detail', 'Charge detail']].map(([v, label]) => (
           <button
             key={v} onClick={() => setView(v)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${view === v
@@ -278,6 +335,137 @@ const BillingPage = () => {
         </div>
       )}
 
+      {/* ── Charge detail ───────────────────────────────────────────────── */}
+      {view === 'detail' && (
+        <div>
+          <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
+            Every charge, line by line, next to the payments recorded against it. A payment that
+            arrives from UFA says only how much — this is where you look up what that amount was for.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mb-4 no-print">
+            <select
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              value={detailHousehold} onChange={(e) => setDetailHousehold(e.target.value)}
+              aria-label="Family"
+            >
+              <option value="">All families</option>
+              {households.map((h) => (
+                <option key={h.id} value={h.id}>{h.display_name || h.name || 'Unnamed family'}</option>
+              ))}
+            </select>
+            <select
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              value={detailKind} onChange={(e) => setDetailKind(e.target.value)}
+              aria-label="Charge type"
+            >
+              <option value="">All charges</option>
+              <option value="tuition">Tuition</option>
+              <option value="supply">Supply fees</option>
+              <option value="registration">Registration</option>
+              <option value="fee">Other fees</option>
+              <option value="unclassified">Unclassified</option>
+            </select>
+            <div className="flex-1" />
+            <Button size="sm" variant="secondary" onClick={downloadDetailCsv} disabled={!detail?.rows?.length}>
+              Download CSV
+            </Button>
+            <Button size="sm" variant="secondary" onClick={printArea}>Print</Button>
+          </div>
+
+          {detail === null && <p className="text-neutral-500">Loading…</p>}
+          {detail?.rows?.length === 0 && (
+            <p className="text-neutral-500">No charges match this filter.</p>
+          )}
+          {!!detail?.rows?.length && (
+            <div className="print-area space-y-6">
+              <div className="flex flex-wrap gap-4 text-sm no-print">
+                <span className="text-neutral-500">
+                  Charged <span className="font-semibold text-neutral-900">{money(detail.totals?.charged_cents)}</span>
+                </span>
+                <span className="text-neutral-500">
+                  Paid <span className="font-semibold text-green-700">{money(detail.totals?.paid_cents)}</span>
+                </span>
+                <span className="text-neutral-500">
+                  Balance <span className="font-semibold text-neutral-900">{money(detail.totals?.balance_cents)}</span>
+                </span>
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-neutral-400 border-b border-gray-200">
+                      <th className="px-4 py-2">Family</th>
+                      <th className="px-4 py-2">Student</th>
+                      <th className="px-4 py-2">Invoice</th>
+                      <th className="px-4 py-2">Charge</th>
+                      <th className="px-4 py-2">Type</th>
+                      <th className="px-4 py-2 text-right">Amount</th>
+                      <th className="px-4 py-2 text-right">Invoice balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {detail.rows.map((r, i) => (
+                      <tr key={`${r.invoice_id}-${i}`}
+                        onClick={() => setInvoiceFor(r.invoice_id)}
+                        className="cursor-pointer hover:bg-neutral-50"
+                        title="View the invoice this charge is on">
+                        <td className="px-4 py-2 font-medium text-neutral-900">{r.family_name || '—'}</td>
+                        <td className="px-4 py-2">{r.student_name || '—'}</td>
+                        <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{r.invoice_number || '—'}</td>
+                        <td className="px-4 py-2 text-neutral-600">{r.description || '—'}</td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs rounded-full px-2 py-0.5 ${KIND_PILL[r.kind] || KIND_PILL.unclassified}`}>
+                            {KIND_LABEL[r.kind] || r.kind}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium">{money(r.amount_cents)}</td>
+                        <td className="px-4 py-2 text-right text-neutral-500">{money(r.invoice_balance_cents)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {!!detail.payments?.length && (
+                <div>
+                  <h2 className="font-semibold text-neutral-900 mb-2">Payments recorded</h2>
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs uppercase tracking-wide text-neutral-400 border-b border-gray-200">
+                          <th className="px-4 py-2">Family</th>
+                          <th className="px-4 py-2">Student</th>
+                          <th className="px-4 py-2">Invoice</th>
+                          <th className="px-4 py-2">Method</th>
+                          <th className="px-4 py-2">Reference / note</th>
+                          <th className="px-4 py-2">Recorded</th>
+                          <th className="px-4 py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {detail.payments.map((pmt, i) => (
+                          <tr key={`${pmt.invoice_id}-pay-${i}`}>
+                            <td className="px-4 py-2 font-medium text-neutral-900">{pmt.family_name || '—'}</td>
+                            <td className="px-4 py-2">{pmt.student_name || '—'}</td>
+                            <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{pmt.invoice_number || '—'}</td>
+                            <td className="px-4 py-2">{METHOD_LABEL[pmt.method] || pmt.method || '—'}</td>
+                            <td className="px-4 py-2 text-neutral-600">{pmt.note || pmt.external_ref || '—'}</td>
+                            <td className="px-4 py-2 text-neutral-600">
+                              {pmt.recorded_at ? String(pmt.recorded_at).slice(0, 10) : '—'}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-green-700">{money(pmt.amount_cents)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {showAdd && (
         <AddChargeModal
           orgId={orgId} households={households}
@@ -294,7 +482,8 @@ const BillingPage = () => {
       )}
       {invoiceFor && (
         <InvoiceModal invoiceId={invoiceFor} orgId={orgId}
-          onClose={() => setInvoiceFor(null)} onPrint={printArea} />
+          onClose={() => setInvoiceFor(null)} onPrint={printArea}
+          onChanged={() => { loadLedger(); if (view === 'outstanding') loadOutstanding() }} />
       )}
       {receiptFor && (
         <ReceiptModal row={receiptFor} onClose={() => setReceiptFor(null)} onPrint={printArea} />
@@ -308,6 +497,9 @@ const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
   const [householdId, setHouseholdId] = useState('')
   const [studentId, setStudentId] = useState('')
   const [description, setDescription] = useState('')
+  // Defaults to a plain fee. Naming it here is what lets the charge-detail
+  // report answer "was that $50 a supply fee or a registration fee?" later.
+  const [kind, setKind] = useState('fee')
   const [amount, setAmount] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [saving, setSaving] = useState(false)
@@ -329,6 +521,7 @@ const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
         household_id: householdId,
         student_user_id: studentId || null,
         description: description.trim(),
+        kind,
         amount_cents,
         due_date: dueDate || null,
       })
@@ -365,6 +558,16 @@ const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
           <input className={field} placeholder="e.g. Fall tuition" value={description}
             onChange={(e) => setDescription(e.target.value)} />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Type</label>
+          <select className={field} value={kind} onChange={(e) => setKind(e.target.value)}
+            aria-label="Charge type">
+            <option value="tuition">Tuition</option>
+            <option value="supply">Supply fee</option>
+            <option value="registration">Registration fee</option>
+            <option value="fee">Other fee</option>
+          </select>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-1">Amount ($)</label>
@@ -392,21 +595,13 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
   const [method, setMethod] = useState('zelle')
   const [date, setDate] = useState(today())
   const [note, setNote] = useState('')
-  const [fee, setFee] = useState(((row.processing_fee_cents || 0) / 100).toFixed(2))
   const [saving, setSaving] = useState(false)
 
   const submit = async () => {
     const amount_cents = Math.round(parseFloat(amount) * 100)
     if (!amount_cents || amount_cents <= 0) { toast.error('Enter a valid amount'); return }
-    const fee_cents = Math.round(parseFloat(fee || '0') * 100)
     setSaving(true)
     try {
-      // Optional processing-fee override (audited) before recording the payment.
-      if (fee_cents !== (row.processing_fee_cents || 0)) {
-        await api.patch(`/api/sis/invoices/${row.invoice_id}/processing-fee`, {
-          organization_id: orgId, processing_fee_cents: Math.max(0, fee_cents),
-        })
-      }
       await api.post(`/api/sis/invoices/${row.invoice_id}/payments`, {
         organization_id: orgId,
         amount_cents,
@@ -438,17 +633,18 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-neutral-500 mb-1">Date</label>
-            <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-neutral-500 mb-1">Processing fee ($)</label>
-            <input className={field} type="number" min="0" step="0.01"
-              value={fee} onChange={(e) => setFee(e.target.value)} />
-          </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Date</label>
+          <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
+        {/* Read-only: a card fee is part of the bill, not part of recording a
+            payment against it. Editing it lives on the invoice. */}
+        {(row.processing_fee_cents || 0) > 0 && (
+          <p className="text-xs text-neutral-500">
+            This invoice carries a {money(row.processing_fee_cents)} card processing fee, included
+            in the {money(balance)} balance.
+          </p>
+        )}
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1">Note (optional)</label>
           <input className={field} placeholder="Reference #, scholarship name…"
@@ -470,17 +666,50 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
 // gave a family, an amount and nothing else. This renders the same branded
 // document the family sees in their portal, off the same endpoint, so the office
 // and the parent are looking at one artifact rather than two summaries.
-const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint }) => {
+//
+// It also edits and voids, because until 2026-08-19 an invoice sent for the
+// wrong amount could only be answered with a SECOND invoice — leaving the
+// family holding two bills for one term.
+const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(false)
 
-  useEffect(() => {
-    api.get(withOrg(`/api/sis/billing/invoices/${invoiceId}/document`, orgId))
+  const load = useCallback(() => {
+    api.get(withOrg(`/api/sis/invoices/${invoiceId}/document`, orgId))
       .then((r) => setDoc(r.data?.document || null))
       .catch((e) => setError(e?.response?.data?.error || 'Could not load the invoice'))
   }, [invoiceId, orgId])
 
+  useEffect(() => { load() }, [load])
+
   const org = doc?.organization || {}
+  // A paid invoice is settled and a void one is cancelled; changing either is a
+  // refund or a new charge, not an edit.
+  const editable = doc && !['paid', 'void'].includes(doc.status)
+  const voidable = editable && !doc.amount_paid_cents
+
+  const voidInvoice = async () => {
+    try {
+      await api.post(`/api/sis/invoices/${invoiceId}/void`, { organization_id: orgId })
+      toast.success('Invoice voided')
+      onChanged?.()
+      onClose()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not void the invoice')
+    }
+  }
+
+  if (editing && doc) {
+    return (
+      <EditInvoiceModal
+        invoiceId={invoiceId} orgId={orgId} doc={doc}
+        onCancel={() => setEditing(false)}
+        onSaved={() => { setEditing(false); setDoc(null); load(); onChanged?.() }}
+      />
+    )
+  }
+
   return (
     <Modal title={doc?.invoice_number ? `Invoice ${doc.invoice_number}` : 'Invoice'} onClose={onClose}>
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -496,7 +725,9 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint }) => {
               </div>
               <div className="text-right">
                 <div className="font-semibold text-neutral-900">{doc.student_name || '—'}</div>
-                <div className="text-xs text-neutral-500">{doc.family || '—'}</div>
+                {/* .name, not the object: the API returns {name, address} here
+                    and rendering the object itself throws in React. */}
+                <div className="text-xs text-neutral-500">{doc.family?.name || '—'}</div>
               </div>
             </div>
 
@@ -552,9 +783,136 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint }) => {
           </div>
         </div>
       )}
-      <div className="flex justify-end gap-2 pt-4 no-print">
+      <div className="flex flex-wrap justify-end gap-2 pt-4 no-print">
+        {voidable && (
+          <Button size="sm" variant="secondary" onClick={voidInvoice}>Void</Button>
+        )}
+        {editable && (
+          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit</Button>
+        )}
         <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
         <Button size="sm" onClick={onPrint} disabled={!doc}>Print</Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Correct an invoice that was already sent ─────────────────────────────────
+//
+// Same invoice number, corrected amount. The alternative the office had was to
+// send a second invoice, which is what the tuition screen warns about — two
+// bills for one term, and no way to tell which one a payment settled.
+const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
+  const [lines, setLines] = useState(() => (doc.line_items || []).map((li) => ({
+    description: li.description || '',
+    amountStr: ((li.amount_cents || 0) / 100).toFixed(2),
+    class_id: li.class_id || null,
+    kind: li.kind || null,
+  })))
+  const [discountStr, setDiscountStr] = useState(((doc.discount_cents || 0) / 100).toFixed(2))
+  const [feeStr, setFeeStr] = useState(((doc.processing_fee_cents || 0) / 100).toFixed(2))
+  const [dueDate, setDueDate] = useState(doc.due_date ? String(doc.due_date).slice(0, 10) : '')
+  const [saving, setSaving] = useState(false)
+
+  const toCents = (str) => {
+    const n = parseFloat(str)
+    return Number.isFinite(n) ? Math.round(n * 100) : 0
+  }
+  const subtotal = lines.reduce((s, l) => s + toCents(l.amountStr), 0)
+  const discount = Math.max(0, Math.min(toCents(discountStr), subtotal))
+  const fee = Math.max(0, toCents(feeStr))
+  const total = subtotal - discount
+
+  const setLine = (i, patch) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
+
+  const save = async () => {
+    const kept = lines.filter((l) => l.description.trim() || toCents(l.amountStr))
+    if (!kept.length) { toast.error('An invoice needs at least one line'); return }
+    // Same rule as the tuition approver: a line carrying money is never dropped
+    // quietly just because it has no label.
+    const unlabelled = kept.find((l) => !l.description.trim())
+    if (unlabelled) { toast.error(`Name the ${money(toCents(unlabelled.amountStr))} line first`); return }
+    setSaving(true)
+    try {
+      await api.patch(`/api/sis/invoices/${invoiceId}`, {
+        organization_id: orgId,
+        line_items: kept.map((l) => ({
+          description: l.description.trim(),
+          amount_cents: toCents(l.amountStr),
+          class_id: l.class_id,
+          kind: l.kind,
+        })),
+        discount_cents: discount,
+        processing_fee_cents: fee,
+        due_date: dueDate || null,
+      })
+      toast.success('Invoice updated')
+      onSaved()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update the invoice')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal title={`Edit ${doc.invoice_number || 'invoice'}`} onClose={onCancel}>
+      <p className="text-xs text-neutral-500 mb-3">
+        The invoice number stays the same, so the family&rsquo;s copy and yours still match.
+      </p>
+      <div className="space-y-2">
+        {lines.map((l, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              placeholder="Class or fee" value={l.description}
+              onChange={(e) => setLine(i, { description: e.target.value })}
+              aria-label={`Line ${i + 1} description`}
+            />
+            <input
+              className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              type="number" min="0" step="0.01" value={l.amountStr}
+              onChange={(e) => setLine(i, { amountStr: e.target.value })}
+              aria-label={`Line ${i + 1} amount`}
+            />
+            <button className="w-6 text-neutral-400 hover:text-red-500 text-lg"
+              onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}
+              aria-label={`Remove line ${i + 1}`}>×</button>
+          </div>
+        ))}
+        <button className="text-sm text-optio-purple font-medium hover:underline"
+          onClick={() => setLines((ls) => [...ls, { description: '', amountStr: '0.00', class_id: null, kind: 'fee' }])}>
+          + Add line
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-2 border-t border-gray-100 pt-3 text-sm">
+        <div className="flex justify-between text-neutral-600">
+          <span>Subtotal</span><span>{money(subtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 text-neutral-600">
+          <span>Discount ($)</span>
+          <input className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            type="number" min="0" step="0.01" value={discountStr}
+            onChange={(e) => setDiscountStr(e.target.value)} aria-label="Discount" />
+        </div>
+        <div className="flex items-center justify-between gap-3 text-neutral-600">
+          <span>Card processing fee ($)</span>
+          <input className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            type="number" min="0" step="0.01" value={feeStr}
+            onChange={(e) => setFeeStr(e.target.value)} aria-label="Processing fee" />
+        </div>
+        <div className="flex items-center justify-between gap-3 text-neutral-600">
+          <span>Due date</span>
+          <input className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="Due date" />
+        </div>
+        <div className="flex justify-between font-semibold text-neutral-900 pt-1">
+          <span>Total</span><span>{money(total + fee)}</span>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save invoice'}</Button>
       </div>
     </Modal>
   )

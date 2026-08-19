@@ -106,7 +106,6 @@ KNOWN_DEAD = {
     '/api/quests/__param__/rate',
     '/api/quests/__param__/rating',
     '/api/quests/__param__/user-rating',
-    '/api/sis/billing/invoices/__param__/document',
     '/api/sis/onboarding',
     '/api/sis/reports/__param__',
     '/api/sis/teacher/time/__param__',

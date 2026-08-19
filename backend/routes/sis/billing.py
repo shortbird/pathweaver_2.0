@@ -6,7 +6,7 @@ registration, generating invoices, payment plans, recording payments (collected 
 SBS), late-fee sweep, and a household billing summary for the parent portal.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
@@ -149,6 +149,96 @@ def invoice_document(user_id, invoice_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/invoices/<invoice_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_invoice(user_id, invoice_id):
+    """Correct an invoice that was already sent, keeping its number.
+
+    Body: {line_items?: [{description, amount_cents, class_id?, kind?}],
+    discount_cents?, due_date?, processing_fee_cents?}. Omitted fields are left
+    alone; `line_items` replaces the whole list. Sending a second invoice was
+    the only previous way to fix a wrong amount, which left the family with two.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    line_items = data.get('line_items')
+    if line_items is not None and (not isinstance(line_items, list) or not line_items):
+        return jsonify({'success': False, 'error': 'line_items must be a non-empty list'}), 400
+    discount = data.get('discount_cents')
+    if discount is not None and (not isinstance(discount, int) or discount < 0):
+        return jsonify({'success': False, 'error': 'discount_cents must be a non-negative integer'}), 400
+    fee = data.get('processing_fee_cents')
+    if fee is not None and (not isinstance(fee, int) or fee < 0):
+        return jsonify({'success': False, 'error': 'processing_fee_cents must be a non-negative integer'}), 400
+    result = billing.update_invoice(
+        org_id, invoice_id, actor_user_id=user_id,
+        line_items=line_items, discount_cents=discount,
+        due_date=data['due_date'] if 'due_date' in data else billing._UNSET,
+        processing_fee_cents=fee)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/invoices/<invoice_id>/void', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def void_invoice(user_id, invoice_id):
+    """Cancel an invoice. It stays on the record and drops off the family portal,
+    the outstanding report and the reminder sweep. Refused once a payment has
+    been recorded — that is an edit or a refund, not a void."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = billing.void_invoice(org_id, invoice_id, actor_user_id=user_id,
+                                 reason=(request.json or {}).get('reason'))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/billing/detail', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def billing_detail(user_id):
+    """Itemized charges + payments for reconciling money that arrives from
+    outside Optio (UFA remits an amount, not a statement of what it covers).
+
+    ?household_id= narrows to one family, ?kind=supply to one category of
+    charge, ?format=csv downloads the same rows.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    report = billing.billing_detail(
+        org_id,
+        household_id=request.args.get('household_id'),
+        kind=request.args.get('kind'))
+    if request.args.get('format') == 'csv':
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(['Family', 'Student', 'Invoice', 'Status', 'Issued', 'Due',
+                    'Charge', 'Type', 'Amount', 'Invoice total', 'Paid', 'Balance'])
+        for r in report['rows']:
+            w.writerow([
+                r['family_name'] or '', r['student_name'] or '',
+                r['invoice_number'] or '', r['status'] or '',
+                str(r['issued_at'] or '')[:10], str(r['due_date'] or '')[:10],
+                r['description'] or '', r['kind'],
+                f"{(r['amount_cents'] or 0) / 100:.2f}",
+                f"{(r['invoice_total_cents'] or 0) / 100:.2f}",
+                f"{(r['invoice_paid_cents'] or 0) / 100:.2f}",
+                f"{(r['invoice_balance_cents'] or 0) / 100:.2f}",
+            ])
+        return Response(buf.getvalue(), mimetype='text/csv', headers={
+            'Content-Disposition': 'attachment; filename=billing-detail.csv'})
+    return jsonify({'success': True, 'report': report})
+
+
 @bp.route('/invoices/<invoice_id>/audit', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def invoice_audit(user_id, invoice_id):
@@ -181,8 +271,9 @@ def set_processing_fee(user_id, invoice_id):
 @require_role(*STAFF_ROLES)
 def create_charge(user_id):
     """Create a standalone charge (invoice + one line item), no pricing engine.
-    Body: {household_id?, student_user_id?, description, amount_cents, due_date?}.
-    At least one of household_id/student_user_id is required."""
+    Body: {household_id?, student_user_id?, description, amount_cents, due_date?,
+    kind?}. At least one of household_id/student_user_id is required; `kind`
+    classifies the charge for the reconciliation report."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -196,6 +287,7 @@ def create_charge(user_id):
         'description': data.get('description'),
         'amount_cents': amount,
         'due_date': data.get('due_date'),
+        'kind': data.get('kind'),
     })
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400

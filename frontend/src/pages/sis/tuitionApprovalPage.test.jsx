@@ -23,8 +23,8 @@ const { api } = vi.hoisted(() => {
     organization: { id: 'org-1', name: 'iCreate', logo_url: null },
     classes: [],
     line_items: [
-      { class_id: 'c1', description: 'Piano', amount_cents: 10000 },
-      { class_id: 'c2', description: 'Art', amount_cents: 5000 },
+      { class_id: 'c1', description: 'Piano', amount_cents: 10000, kind: 'tuition' },
+      { class_id: 'c2', description: 'Art', amount_cents: 5000, kind: 'tuition' },
     ],
     subtotal_cents: 15000, discount_cents: 0, total_cents: 15000,
     already_invoiced: false, existing_invoice: null,
@@ -130,11 +130,66 @@ describe('TuitionApprovalPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/sis/tuition/students/s1/invoice', expect.objectContaining({
         organization_id: 'org-1',
         line_items: [
-          { description: 'Piano', amount_cents: 10000, class_id: 'c1' },
-          { description: 'Art', amount_cents: 4000, class_id: 'c2' },
+          { description: 'Piano', amount_cents: 10000, class_id: 'c1', kind: 'tuition' },
+          { description: 'Art', amount_cents: 4000, class_id: 'c2', kind: 'tuition' },
         ],
         discount_cents: 0,
       })))
+  })
+
+  // 2026-08-19: a supply-fee line typed in without a label was filtered out of
+  // BOTH the preview and the invoice with no message, so iCreate emailed a
+  // family the wrong amount and only found out afterwards.
+  it('refuses to send a line that has money on it but no description', async () => {
+    const { toast } = await import('react-hot-toast')
+    render(<TuitionApprovalPage />)
+    fireEvent.click(await screen.findByText('Robin Bowman'))
+    await screen.findByDisplayValue('Piano')
+    fireEvent.click(screen.getByRole('button', { name: '+ Add line' }))
+    const amounts = screen.getAllByDisplayValue('0.00')
+    fireEvent.change(amounts[amounts.length - 1], { target: { value: '50' } })
+    fireEvent.click(screen.getByRole('button', { name: /Send invoice/ }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('$50.00')))
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('still ignores a line nobody has typed anything into', async () => {
+    render(<TuitionApprovalPage />)
+    fireEvent.click(await screen.findByText('Robin Bowman'))
+    await screen.findByDisplayValue('Piano')
+    fireEvent.click(screen.getByRole('button', { name: '+ Add line' }))
+    fireEvent.click(screen.getByRole('button', { name: /Send invoice/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/tuition/students/s1/invoice',
+      expect.objectContaining({ line_items: expect.arrayContaining([]) })))
+    expect(api.post.mock.calls[0][1].line_items).toHaveLength(2)
+  })
+
+  it('shows the seeded supply fees as their own lines and totals them', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/preview')) {
+        return Promise.resolve({ data: {
+          student: { id: 's1', name: 'Robin Bowman' }, household_name: 'Bowman Family',
+          organization: { name: 'iCreate' }, classes: [],
+          line_items: [
+            { class_id: 'c1', description: 'Piano', amount_cents: 10000, kind: 'tuition' },
+            { class_id: 'c1', description: 'Piano — supplies', amount_cents: 4500, kind: 'supply' },
+          ],
+          subtotal_cents: 14500, total_cents: 14500, supply_total_cents: 4500,
+          already_invoiced: false, existing_invoice: null,
+        } })
+      }
+      return Promise.resolve({ data: { students: [
+        { student_id: 's1', name: 'Robin Bowman', household_name: 'Bowman Family',
+          class_count: 1, estimated_total_cents: 14500, supply_total_cents: 4500 },
+      ], count: 1 } })
+    })
+    render(<TuitionApprovalPage />)
+    fireEvent.click(await screen.findByText('Robin Bowman'))
+    expect(await screen.findByDisplayValue('Piano — supplies')).toBeInTheDocument()
+    expect(screen.getByText('of which class supply fees')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Send invoice · \$145\.00/ })).toBeInTheDocument()
   })
 
   it('shows the pay-through-UFA note for a UFA family', async () => {

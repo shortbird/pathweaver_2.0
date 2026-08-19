@@ -77,6 +77,19 @@ def _org_private_school_name(org_id: str) -> Optional[str]:
     return (cfg.get('private_school_name') or '').strip() or None
 
 
+def supply_fee_cents(supply_fee: Any) -> int:
+    """org_classes.supply_fee (numeric DOLLARS, nullable) as whole cents.
+
+    The column is dollars while every money column on an invoice is cents, and
+    PostgREST hands numerics back as strings — so the conversion is spelled out
+    once here rather than open-coded at each call site.
+    """
+    try:
+        return max(0, int(round(float(supply_fee or 0) * 100)))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _student_household(org_id: str, student_id: str):
     """(household_id, household_name, funding_source) for a student; Nones if solo."""
     hh = sis_service._household_by_user(org_id).get(student_id)
@@ -114,10 +127,37 @@ def _enrolled_classes(org_id: str, student_id: str,
             'class_id': cid,
             'name': c.get('name'),
             'price_cents': c.get('price_cents'),
+            'supply_fee_cents': supply_fee_cents(c.get('supply_fee')),
             'meetings': c.get('meetings') or [],
             'primary_instructor': pi.get('name') if isinstance(pi, dict) else None,
         })
     out.sort(key=lambda c: (c['name'] or '').lower())
+    return out
+
+
+# How a class's materials fee is described on the invoice. The class name is
+# repeated so a family (and UFA, reading the same invoice) can tell which
+# supply charge belongs to which class instead of seeing a row of bare "Supply
+# fee" lines that only differ by amount.
+SUPPLY_LINE_SUFFIX = ' — supplies'
+
+
+def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """PURE. One line item per enrolled class that charges a materials fee.
+
+    Split out from tuition rather than folded into the class's own line: the
+    office reconciles supply money separately (families pay it to UFA as its own
+    item), so it has to be a row somebody can point at.
+    """
+    out = []
+    for c in classes:
+        fee = int(c.get('supply_fee_cents') or 0)
+        if fee <= 0:
+            continue
+        out.append({'class_id': c.get('class_id'),
+                    'description': f"{c.get('name') or 'Class'}{SUPPLY_LINE_SUFFIX}",
+                    'amount_cents': fee,
+                    'kind': 'supply'})
     return out
 
 
@@ -130,6 +170,12 @@ def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
     block_pricing for that plan) bills a single annual-tuition line; everyone
     else bills per class from org_classes.price_cents. The approver can edit,
     add, or remove any line before sending.
+
+    Either way the class supply fees follow as their own lines. They are NOT
+    covered by a flat plan — the parent-facing Schedule Builder has always
+    quoted tuition + supplies (ScheduleBuilderPage `totalYearCents`), so an
+    invoice that left them off billed a number the family was never shown, and
+    the office had to open all 198 classes to find the fees by hand.
     """
     plan_key = _PLAN_PRICING_KEY.get(tuition_plan or '', tuition_plan)
     plan_cfg = (block_pricing or {}).get(plan_key) if plan_key else None
@@ -137,10 +183,14 @@ def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
     if tuition_plan and isinstance(year_cents, int) and year_cents > 0:
         label = (f"{private_school_name} annual tuition" if private_school_name
                  else 'Annual tuition')
-        return [{'class_id': None, 'description': label, 'amount_cents': year_cents}]
-    return [{'class_id': c['class_id'],
-             'description': c.get('name') or 'Class',
-             'amount_cents': int(c.get('price_cents') or 0)} for c in classes]
+        tuition = [{'class_id': None, 'description': label,
+                    'amount_cents': year_cents, 'kind': 'tuition'}]
+    else:
+        tuition = [{'class_id': c['class_id'],
+                    'description': c.get('name') or 'Class',
+                    'amount_cents': int(c.get('price_cents') or 0),
+                    'kind': 'tuition'} for c in classes]
+    return tuition + supply_line_items(classes)
 
 
 def _invoiced_student_ids(org_id: str) -> set:
@@ -219,7 +269,8 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
         u = users.get(sid, {})
         cls = [{'class_id': cid,
                 'name': (by_id.get(cid) or {}).get('name'),
-                'price_cents': (by_id.get(cid) or {}).get('price_cents')}
+                'price_cents': (by_id.get(cid) or {}).get('price_cents'),
+                'supply_fee_cents': supply_fee_cents((by_id.get(cid) or {}).get('supply_fee'))}
                for cid in classes_by_student.get(sid, []) if by_id.get(cid)]
         cls.sort(key=lambda c: (c['name'] or '').lower())
         seeds = seed_line_items(cls, u.get('sis_tuition_plan'), block_pricing, school_name)
@@ -232,6 +283,8 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
             'household_name': hh.get('household_name'),
             'class_count': len(cls),
             'estimated_total_cents': sum(li['amount_cents'] for li in seeds),
+            'supply_total_cents': sum(li['amount_cents'] for li in seeds
+                                      if li.get('kind') == 'supply'),
             'tuition_plan': u.get('sis_tuition_plan'),
             'funding_source': fs,
             'pay_through_ufa': fs in UFA_FUNDING_SOURCES,
@@ -284,6 +337,8 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
         'organization': billing._org_branding([org_id]).get(org_id) or {},
         'classes': classes,
         'line_items': line_items,
+        'supply_total_cents': sum(li['amount_cents'] for li in line_items
+                                  if li.get('kind') == 'supply'),
         'subtotal_cents': subtotal,
         'discount_cents': 0,
         'total_cents': subtotal,
