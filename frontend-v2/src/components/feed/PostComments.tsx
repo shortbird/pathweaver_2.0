@@ -13,6 +13,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { extractApiError } from '@/src/services/apiError';
+import { formatMonthDayTime } from '@/src/utils/timeAgo';
 import {
   VStack, HStack, UIText, Heading, Avatar, AvatarFallbackText,
 } from '../ui';
@@ -72,9 +73,7 @@ export function PostComments({ item }: { item: FeedItem }) {
   };
 
   const formatTime = (ts: string) => {
-    const d = new Date(ts);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-      ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return formatMonthDayTime(new Date(ts));
   };
 
   return (

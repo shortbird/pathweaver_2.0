@@ -28,6 +28,7 @@ import {
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { getFlag, setFlag, PrefsKeys } from '@/src/stores/prefsStore';
+import { formatRelativeTime } from '@/src/utils/timeAgo';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -57,21 +58,16 @@ const OPTIO_ICON_URI =
 // be — use the bundled app-icon PNG instead.
 const OPTIO_LOGO = require('@/assets/images/icon.png');
 
-function relativeTime(iso?: string | null): string {
-  if (!iso) return 'No activity yet';
-  const d = new Date(iso);
-  const ms = Date.now() - d.getTime();
-  const mins = Math.floor(ms / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 type FeedSegment = 'feed' | 'students' | 'highlights';
+
+// Hoisted so the FlatList sees the same component type / object identity on
+// every render. Inline (`() => <View/>`, `{...}`) these remounted every
+// separator and reset the content container on each screen render.
+const LIST_CONTENT_STYLE = { paddingHorizontal: 20, paddingBottom: 16 };
+function FeedSeparator() {
+  return <View className="h-3" />;
+}
+const feedKeyExtractor = (item: any) => item.id;
 
 function StudentsList({ isDesktop }: { isDesktop: boolean }) {
   const { students, loading } = useObserverStudents(true);
@@ -135,7 +131,7 @@ function StudentsList({ isDesktop }: { isDesktop: boolean }) {
                     {name}
                   </UIText>
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
-                    {s.last_active_at ? `Active ${relativeTime(s.last_active_at)}` : 'No activity yet'}
+                    {s.last_active_at ? `Active ${formatRelativeTime(s.last_active_at)}` : 'No activity yet'}
                     {hasPending ? ` · ${s.pending_count} new` : ''}
                   </UIText>
                 </VStack>
@@ -418,33 +414,184 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
 /**
  * A single feed row. Subscribes to the visibility store for its OWN id so that
  * scrolling only re-renders the handful of rows whose on-screen state changed,
- * instead of the whole list. All handlers passed in are stable (see renderItem),
- * so React.memo keeps every other row from re-rendering on a scroll.
+ * instead of the whole list.
+ *
+ * The press handler is built HERE, from a ref, rather than taken as a
+ * ready-made `() => openPost(item)` closure from renderItem. That closure was
+ * new on every render, so this row's memo failed on it and FeedCard's
+ * comparator — which checks onPress identity — bailed out immediately. The
+ * result was that any FeedScreen re-render re-rendered every mounted card.
  */
 const FeedRow = React.memo(function FeedRow({
   item,
   isDesktop,
   viewerCanModerate,
-  onPress,
+  onOpen,
   onHighlightChange,
 }: {
   item: any;
   isDesktop: boolean;
   viewerCanModerate: boolean;
-  onPress: () => void;
+  onOpen: (item: any) => void;
   onHighlightChange: (id: string, on: boolean) => void;
 }) {
   const isActive = useFeedVisibilityStore((s) => s.activeIds.has(item.id));
+  // Read the item through a ref so the handler identity survives even a change
+  // of `item` (e.g. a refetch), while still opening the CURRENT item.
+  const itemRef = useRef(item);
+  itemRef.current = item;
+  const handlePress = useCallback(() => onOpen(itemRef.current), [onOpen]);
   return (
     <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
       <FeedCard
         item={item}
         viewerCanModerate={viewerCanModerate}
         isActive={isActive}
-        onPress={onPress}
+        onPress={handlePress}
         onHighlightChange={onHighlightChange}
       />
     </View>
+  );
+});
+
+/**
+ * The feed's list header: blurb, the observer/superadmin segment bars, and the
+ * parent's per-kid filter chips.
+ *
+ * Top-level and memoized on purpose. As an inline `() => (...)` passed to
+ * `ListHeaderComponent` it was a NEW component type on every screen render, so
+ * React unmounted and remounted the whole header — including the horizontal
+ * ScrollView of kid chips — each time. FeedScreen now passes a memoized
+ * ELEMENT instead.
+ */
+const FeedListHeader = React.memo(function FeedListHeader({
+  isDesktop,
+  isObserver,
+  isParent,
+  isSuperadmin,
+  segment,
+  onSegmentChange,
+  parentKids,
+  selectedKidId,
+  onSelectKid,
+  onOpenTips,
+  iconMuted,
+}: {
+  isDesktop: boolean;
+  isObserver: boolean;
+  isParent: boolean;
+  isSuperadmin: boolean;
+  segment: FeedSegment;
+  onSegmentChange: (s: FeedSegment) => void;
+  parentKids: any[];
+  selectedKidId: string | null;
+  onSelectKid: (id: string | null) => void;
+  onOpenTips: () => void;
+  iconMuted: string;
+}) {
+  return (
+    <>
+      <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+        <HStack className="items-center justify-between">
+          <VStack>
+            {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : isParent ? 'Family activity' : 'Feed'}</Heading>}
+            <UIText size="sm" className="text-typo-500 mt-1 dark:text-dark-typo-500">
+              {isObserver
+                ? 'Stay close to the students you observe'
+                : isParent
+                  ? "What your kids have been up to"
+                  : 'Recent completions and learning moments'}
+            </UIText>
+          </VStack>
+          {(isObserver || isParent) && (
+            <Pressable
+              onPress={onOpenTips}
+              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
+            >
+              <Ionicons name="bulb-outline" size={16} color="#6D469B" />
+              <UIText size="xs" className="text-optio-purple font-poppins-medium">Tips</UIText>
+            </Pressable>
+          )}
+        </HStack>
+      </View>
+      {isObserver && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
+            {(['feed', 'students'] as FeedSegment[]).map((s) => {
+              const active = segment === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => onSegmentChange(s)}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
+                >
+                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
+                    {s === 'feed' ? 'Feed' : 'Students'}
+                  </UIText>
+                </Pressable>
+              );
+            })}
+          </HStack>
+        </View>
+      )}
+      {/* Superadmin-only Highlights segment. Gate it on !isObserver && !isParent
+       *  so it never stacks under the observer ("Feed/Students") or parent
+       *  segment when a superadmin is previewing those role shells — that double
+       *  segment bar was the "double nav tabs" bug. In the default self view
+       *  (no observer/parent preview) it renders as the single segment bar. */}
+      {isSuperadmin && !isObserver && !isParent && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
+            {(['feed', 'highlights'] as FeedSegment[]).map((s) => {
+              const active = segment === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => onSegmentChange(s)}
+                  className={`flex-1 py-2.5 rounded-lg items-center flex-row gap-1.5 justify-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
+                >
+                  {s === 'highlights' && (
+                    <Ionicons name={active ? 'star' : 'star-outline'} size={14} color={active ? '#FF9028' : iconMuted} />
+                  )}
+                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
+                    {s === 'feed' ? 'Feed' : 'Highlights'}
+                  </UIText>
+                </Pressable>
+              );
+            })}
+          </HStack>
+        </View>
+      )}
+      {/* Per-kid filter chips for parents with 2+ kids. Single-kid families
+       *  don't need the chip row — there's nothing to filter to. */}
+      {isParent && parentKids.length > 1 && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <HStack space="xs" className="items-center">
+              <Pressable onPress={() => onSelectKid(null)}>
+                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-600'}`}>
+                    All kids
+                  </UIText>
+                </View>
+              </Pressable>
+              {parentKids.map((kid: any) => {
+                const isActive = selectedKidId === kid.id;
+                return (
+                  <Pressable key={kid.id} onPress={() => onSelectKid(kid.id)}>
+                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-600'}`}>
+                        {kid.first_name || kid.display_name || 'Kid'}
+                      </UIText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </HStack>
+          </ScrollView>
+        </View>
+      )}
+    </>
   );
 });
 
@@ -561,128 +708,48 @@ export default function FeedScreen() {
     router.push(`/(app)/post/${item.id}` as any);
   }, []);
   // No `viewableIds` dependency here — that's the whole point. renderItem stays
-  // stable across scrolls, so FlatList doesn't rebuild every mounted row (and the
-  // inline onPress closures don't churn and defeat FeedCard's memo). Visibility
-  // is delivered to each row via the store inside FeedRow.
+  // stable across scrolls, so FlatList doesn't rebuild every mounted row.
+  // Visibility is delivered to each row via the store inside FeedRow, and the
+  // press handler is built there too (passing `() => openPost(item)` from here
+  // handed every card a new closure and defeated its memo).
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <FeedRow
         item={item}
         isDesktop={isDesktop}
         viewerCanModerate={canModerateItem(item)}
-        onPress={() => openPost(item)}
+        onOpen={openPost}
         onHighlightChange={setHighlighted}
       />
     ),
     [isDesktop, canModerateItem, openPost, setHighlighted],
   );
 
-  const renderHeader = () => (
-    <>
-      <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-        <HStack className="items-center justify-between">
-          <VStack>
-            {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : isParent ? 'Family activity' : 'Feed'}</Heading>}
-            <UIText size="sm" className="text-typo-500 mt-1 dark:text-dark-typo-500">
-              {isObserver
-                ? 'Stay close to the students you observe'
-                : isParent
-                  ? "What your kids have been up to"
-                  : 'Recent completions and learning moments'}
-            </UIText>
-          </VStack>
-          {(isObserver || isParent) && (
-            <Pressable
-              onPress={() => (isParent ? setParentWelcomeVisible(true) : setWelcomeVisible(true))}
-              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
-            >
-              <Ionicons name="bulb-outline" size={16} color="#6D469B" />
-              <UIText size="xs" className="text-optio-purple font-poppins-medium">Tips</UIText>
-            </Pressable>
-          )}
-        </HStack>
-      </View>
-      {isObserver && (
-        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
-            {(['feed', 'students'] as FeedSegment[]).map((s) => {
-              const active = segment === s;
-              return (
-                <Pressable
-                  key={s}
-                  onPress={() => setSegment(s)}
-                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
-                >
-                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
-                    {s === 'feed' ? 'Feed' : 'Students'}
-                  </UIText>
-                </Pressable>
-              );
-            })}
-          </HStack>
-        </View>
-      )}
-      {/* Superadmin-only Highlights segment. Gate it on !isObserver && !isParent
-       *  so it never stacks under the observer ("Feed/Students") or parent
-       *  segment when a superadmin is previewing those role shells — that double
-       *  segment bar was the "double nav tabs" bug. In the default self view
-       *  (no observer/parent preview) it renders as the single segment bar. */}
-      {isSuperadmin && !isObserver && !isParent && (
-        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
-            {(['feed', 'highlights'] as FeedSegment[]).map((s) => {
-              const active = segment === s;
-              return (
-                <Pressable
-                  key={s}
-                  onPress={() => setSegment(s)}
-                  className={`flex-1 py-2.5 rounded-lg items-center flex-row gap-1.5 justify-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
-                >
-                  {s === 'highlights' && (
-                    <Ionicons name={active ? 'star' : 'star-outline'} size={14} color={active ? '#FF9028' : c.iconMuted} />
-                  )}
-                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
-                    {s === 'feed' ? 'Feed' : 'Highlights'}
-                  </UIText>
-                </Pressable>
-              );
-            })}
-          </HStack>
-        </View>
-      )}
-      {/* Per-kid filter chips for parents with 2+ kids. Single-kid families
-       *  don't need the chip row — there's nothing to filter to. */}
-      {isParent && parentKids.length > 1 && (
-        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <HStack space="xs" className="items-center">
-              <Pressable onPress={() => setSelectedKidId(null)}>
-                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-600'}`}>
-                    All kids
-                  </UIText>
-                </View>
-              </Pressable>
-              {parentKids.map((kid: any) => {
-                const isActive = selectedKidId === kid.id;
-                return (
-                  <Pressable key={kid.id} onPress={() => setSelectedKidId(kid.id)}>
-                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-600'}`}>
-                        {kid.first_name || kid.display_name || 'Kid'}
-                      </UIText>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </HStack>
-          </ScrollView>
-        </View>
-      )}
-    </>
-  );
+  const onOpenTips = useCallback(() => {
+    if (isParent) setParentWelcomeVisible(true);
+    else setWelcomeVisible(true);
+  }, [isParent]);
 
-  const renderEmpty = () => {
+  // Pass ELEMENTS, not render functions. A `() => (...)` handed to
+  // ListHeaderComponent/ListFooterComponent is a fresh component type on every
+  // render, which unmounts and remounts the whole subtree each time.
+  const listHeader = useMemo(() => (
+    <FeedListHeader
+      isDesktop={isDesktop}
+      isObserver={isObserver}
+      isParent={isParent}
+      isSuperadmin={isSuperadmin}
+      segment={segment}
+      onSegmentChange={setSegment}
+      parentKids={parentKids}
+      selectedKidId={selectedKidId}
+      onSelectKid={setSelectedKidId}
+      onOpenTips={onOpenTips}
+      iconMuted={c.iconMuted}
+    />
+  ), [isDesktop, isObserver, isParent, isSuperadmin, segment, parentKids, selectedKidId, onOpenTips, c.iconMuted]);
+
+  const listEmpty = useMemo(() => {
     if (loading) return null;
     return (
       <View className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
@@ -699,9 +766,9 @@ export default function FeedScreen() {
         </Card>
       </View>
     );
-  };
+  }, [loading, isParent, isObserver, isDesktop, c.iconMuted]);
 
-  const renderFooter = () => {
+  const listFooter = useMemo(() => {
     if (loadingMore) {
       return (
         <View className="items-center py-6">
@@ -717,7 +784,7 @@ export default function FeedScreen() {
       );
     }
     return null;
-  };
+  }, [loadingMore, hasMore, items.length]);
 
   if (loading && items.length === 0) {
     return (
@@ -736,24 +803,24 @@ export default function FeedScreen() {
         <ScrollView
           ref={studentsScrollRef}
           className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+          contentContainerStyle={LIST_CONTENT_STYLE}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={64}
         >
-          {renderHeader()}
+          {listHeader}
           <StudentsList isDesktop={isDesktop} />
         </ScrollView>
       ) : (
         <FlatList
           ref={listRef}
           data={items}
-          keyExtractor={(item) => item.id}
+          keyExtractor={feedKeyExtractor}
           renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmpty}
-          ListFooterComponent={renderFooter}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          ListFooterComponent={listFooter}
+          contentContainerStyle={LIST_CONTENT_STYLE}
+          ItemSeparatorComponent={FeedSeparator}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           onViewableItemsChanged={onViewableItemsChanged}

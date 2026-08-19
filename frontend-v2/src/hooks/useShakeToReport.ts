@@ -15,7 +15,11 @@ import { Accelerometer } from 'expo-sensors';
 // well above this. 1.8 is high enough to avoid accidental triggers from walking.
 export const SHAKE_THRESHOLD = 1.8;
 const DEBOUNCE_MS = 1500;
-const UPDATE_INTERVAL_MS = 100;
+// 4 Hz. This listener is mounted globally for every authenticated user, so its
+// callback competes with the JS thread during every scroll. A deliberate shake
+// holds its spike for several hundred ms, so sampling this often still catches
+// one — at 40% of the wake-ups.
+const UPDATE_INTERVAL_MS = 250;
 
 export function magnitude(x: number, y: number, z: number): number {
   return Math.sqrt(x * x + y * y + z * z);

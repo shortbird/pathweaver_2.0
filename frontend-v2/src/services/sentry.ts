@@ -50,6 +50,7 @@ export function initSentry(): void {
     const release =
       (Constants.expoConfig?.version as string | undefined) ||
       (Constants.expoConfig?.extra?.appVersion as string | undefined);
+    const replayEnabled = process.env.EXPO_PUBLIC_SENTRY_REPLAY !== '0';
     Sentry.init({
       dsn,
       release,
@@ -65,9 +66,18 @@ export function initSentry(): void {
       // we don't record random sessions (PostHog covers general session replay
       // on a far larger free tier) — only sessions that hit an error, which are
       // the valuable ones and stay under the cap. Masked by default (privacy).
+      //
+      // "Error-only" is about what gets UPLOADED, not about what gets recorded:
+      // to have footage when an error fires, mobile replay records continuously
+      // into a rolling buffer, which means periodic frame capture plus a view
+      // hierarchy traversal to apply the privacy masking. That is a constant
+      // cost on every screen, scrolling ones included. Set
+      // EXPO_PUBLIC_SENTRY_REPLAY=0 in a build to turn it off and measure what
+      // it actually costs on device — it is inlined at bundle time, so the two
+      // builds differ only in this.
       replaysSessionSampleRate: 0,
-      replaysOnErrorSampleRate: 1.0,
-      integrations: [Sentry.mobileReplayIntegration()],
+      replaysOnErrorSampleRate: replayEnabled ? 1.0 : 0,
+      integrations: replayEnabled ? [Sentry.mobileReplayIntegration()] : [],
       // Last-line filter for known-benign transport noise that can still slip
       // through in a release build (e.g. a transient offline blip). Real backend
       // 5xx/regressions are unaffected — they carry a response/status.

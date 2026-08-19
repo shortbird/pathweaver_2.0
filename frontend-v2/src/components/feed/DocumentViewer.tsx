@@ -17,8 +17,15 @@ interface DocumentViewerProps {
   title?: string;
 }
 
+/** Whether this document takes the heavy PDF rendering path below (a WebView
+ *  plus up to 10 rendered pages held as base64 JPEGs). Exported so callers can
+ *  decide to defer mounting one, using the SAME test the viewer itself uses. */
+export function isPdfUrl(uri?: string | null): boolean {
+  return !!uri && uri.toLowerCase().includes('.pdf');
+}
+
 function WebDocumentViewer({ uri, title }: DocumentViewerProps) {
-  const isPdf = uri.toLowerCase().includes('.pdf');
+  const isPdf = isPdfUrl(uri);
   const [pageImages, setPageImages] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -204,7 +211,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 }
 
 function NativeDocumentViewer({ uri, title }: DocumentViewerProps) {
-  const isPdf = uri.toLowerCase().includes('.pdf');
+  const isPdf = isPdfUrl(uri);
   const [pageImages, setPageImages] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);

@@ -103,7 +103,9 @@ interface UseFeedOptions {
   highlightsOnly?: boolean;
 }
 
-/** Group the feed so a single parent-captured moment posted to several kids at
+/** Stable grouping key for a feed item.
+ *
+ *  Groups the feed so a single parent-captured moment posted to several kids at
  *  once shows as ONE card listing every tagged kid — instead of one card per kid
  *  (bug: "following all kids shows the same post for each kid; collapse into one
  *  with each kid listed").
@@ -113,54 +115,89 @@ interface UseFeedOptions {
  *  can straddle a minute boundary. The key uses the capturer id + a 5-minute
  *  absolute-time bucket (300s windows aligned to epoch) so a save that crosses
  *  a minute boundary still groups, while two distinct captures further apart
- *  stay separate. Keeps the first occurrence's order/media; `students`
- *  accumulates each distinct kid. */
-function dedupeFeed(list: FeedItem[]): FeedItem[] {
-  const byKey = new Map<string, FeedItem>();
-  const order: string[] = [];
-  for (const it of list) {
-    let key: string;
-    if (it.type === 'learning_moment') {
-      const capturer = it.moment?.posted_by?.id || it.student?.id || '';
-      const ts = it.timestamp ? new Date(it.timestamp).getTime() : 0;
-      const bucket = Math.floor(ts / 300000); // 5-minute buckets
-      key = [
-        'lm',
-        capturer,
-        it.moment?.title || '',
-        it.moment?.description || '',
-        it.evidence?.preview_text || '',
-        bucket,
-      ].join('|');
-    } else {
-      key = `${it.type}:${it.id}`;
-    }
-    // The students this occurrence carries. A raw feed event has a single
-    // `student`; an ALREADY-merged item (reprocessed when dedupeFeed runs again
-    // over `[...prev, ...newItems]` on loadMore) carries the accumulated
-    // `students` list. Seed/merge from `students` when present so a merged
-    // multi-kid card isn't collapsed back to just its primary kid when the
-    // sibling raw events aren't in the current page to re-accumulate.
-    const incoming = (it.students && it.students.length > 0)
-      ? it.students
-      : (it.student ? [it.student] : []);
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, { ...it, students: [...incoming] });
-      order.push(key);
-    } else {
-      for (const s of incoming) {
-        if (s && !(existing.students || []).some((e) => e.id === s.id)) {
-          existing.students = [...(existing.students || []), s];
-        }
-      }
-    }
+ *  stay separate. */
+export function computeFeedKey(it: FeedItem): string {
+  if (it.type === 'learning_moment') {
+    const capturer = it.moment?.posted_by?.id || it.student?.id || '';
+    const ts = it.timestamp ? new Date(it.timestamp).getTime() : 0;
+    const bucket = Math.floor(ts / 300000); // 5-minute buckets
+    return [
+      'lm',
+      capturer,
+      it.moment?.title || '',
+      it.moment?.description || '',
+      it.evidence?.preview_text || '',
+      bucket,
+    ].join('|');
   }
-  return order.map((k) => byKey.get(k)!);
+  return `${it.type}:${it.id}`;
+}
+
+/** The students a single occurrence carries. A raw feed event has one
+ *  `student`; an already-merged item carries the accumulated `students`. */
+function studentsOf(it: FeedItem): FeedStudent[] {
+  if (it.students && it.students.length > 0) return it.students;
+  return it.student ? [it.student] : [];
+}
+
+/** Merge a freshly fetched page into the list we already hold, PRESERVING the
+ *  object identity of every item that didn't change.
+ *
+ *  This runs on the JS thread at the exact moment `onEndReached` fires, so its
+ *  cost must scale with the size of the incoming page — not with how far the
+ *  user has scrolled. The previous implementation re-derived the whole list
+ *  from `[...prev, ...newItems]` and cloned every item, so page 10 rebuilt ~200
+ *  objects and handed FlatList an all-new array: every mounted card failed its
+ *  memo check and re-rendered, and the work grew with scroll depth. That is
+ *  what made the feed choppier the longer you scrolled.
+ *
+ *  Untouched items keep their reference, so `memo(FeedCard)` holds. Returns
+ *  `prev` itself when the page adds nothing, which makes the setState a no-op. */
+export function dedupeMerge(prev: FeedItem[], incoming: FeedItem[]): FeedItem[] {
+  if (incoming.length === 0) return prev;
+
+  const indexByKey = new Map<string, number>();
+  for (let i = 0; i < prev.length; i++) indexByKey.set(computeFeedKey(prev[i]), i);
+
+  let result = prev;
+  let copied = false;
+  // Copy on first write only — a page of pure duplicates leaves `prev` intact.
+  const ensureCopy = () => {
+    if (!copied) {
+      result = prev.slice();
+      copied = true;
+    }
+  };
+
+  for (const it of incoming) {
+    const key = computeFeedKey(it);
+    const idx = indexByKey.get(key);
+
+    if (idx === undefined) {
+      ensureCopy();
+      indexByKey.set(key, result.length);
+      result.push({ ...it, students: studentsOf(it) });
+      continue;
+    }
+
+    // Already have this card. Accumulate any kid it tags that we haven't seen.
+    // Never mutate the existing item — mounted cards hold that reference.
+    const existing = result[idx];
+    const known = existing.students || [];
+    const additions = studentsOf(it).filter((s) => s && !known.some((e) => e.id === s.id));
+    if (additions.length === 0) continue;
+    ensureCopy();
+    result[idx] = { ...existing, students: [...known, ...additions] };
+  }
+
+  return result;
 }
 
 export function useFeed(options: UseFeedOptions = {}) {
-  const { isAuthenticated, user } = useAuthStore();
+  // Selectors, not the whole store: `useAuthStore()` re-renders the feed screen
+  // (and with it every mounted card) on any auth write.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const userId = useAuthStore((s) => s.user?.id);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -202,9 +239,11 @@ export function useFeed(options: UseFeedOptions = {}) {
       const more = data.has_more || false;
 
       if (isLoadMore) {
-        setItems((prev) => dedupeFeed([...prev, ...newItems]));
+        // Derive from `prev` inside the updater so this stays correct after an
+        // optimistic setHighlighted/removeByLearningEventId changed the list.
+        setItems((prev) => dedupeMerge(prev, newItems));
       } else {
-        setItems(dedupeFeed(newItems));
+        setItems(dedupeMerge([], newItems));
       }
 
       cursorRef.current = nextCursor;
@@ -234,7 +273,7 @@ export function useFeed(options: UseFeedOptions = {}) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, user?.id, options.studentId, options.limit, options.highlightsOnly]);
+  }, [isAuthenticated, userId, options.studentId, options.limit, options.highlightsOnly]);
 
   useEffect(() => {
     cursorRef.current = null;

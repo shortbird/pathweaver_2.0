@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, ViewProps } from 'react-native';
+import { View, Text, ViewProps } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -23,8 +24,10 @@ const textSizes: Record<AvatarSize, string> = {
 const AvatarContext = React.createContext<{ size: AvatarSize }>({ size: 'md' });
 
 export function Avatar({ className = '', size = 'md', ...props }: AvatarProps) {
+  // Memoized: a fresh `{ size }` each render re-rendered every consumer.
+  const ctx = React.useMemo(() => ({ size }), [size]);
   return (
-    <AvatarContext.Provider value={{ size }}>
+    <AvatarContext.Provider value={ctx}>
       <View
         className={`items-center justify-center bg-optio-purple overflow-hidden ${sizeClasses[size]} ${className}`}
         {...props}
@@ -38,6 +41,19 @@ export function AvatarFallbackText({ className = '', children }: { className?: s
   return <Text className={`text-white font-poppins-bold ${textSizes[size]} ${className}`}>{children}</Text>;
 }
 
+/** Avatars are small (24-80px) but the URLs behind them are full-size uploads.
+ *  React Native's <Image> re-fetched and re-decoded those on every mount with no
+ *  disk cache on Android; expo-image caches the decode and recycles its view, so
+ *  a feed card scrolling back into place doesn't pay for the avatar twice. */
 export function AvatarImage({ source, className = '' }: { source: { uri: string }; className?: string }) {
-  return <Image source={source} className={`w-full h-full ${className}`} />;
+  return (
+    <ExpoImage
+      source={source}
+      recyclingKey={source?.uri}
+      className={`w-full h-full ${className}`}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      transition={0}
+    />
+  );
 }

@@ -5,14 +5,14 @@
  * Shows student info, content, evidence, pillar tags, and social actions.
  */
 
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useMemo } from 'react';
 import { View, Pressable, Platform, Share, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
-import { DocumentViewer } from './DocumentViewer';
+import { DocumentViewer, isPdfUrl } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
@@ -26,13 +26,19 @@ import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { formatTimeAgo } from '@/src/utils/timeAgo';
+import { getImageRatio, setImageRatio, clampRatio, DEFAULT_RATIO } from './imageRatioCache';
 
 /** Feed image that renders at its natural aspect ratio so the WHOLE image
  *  shows (bug: "Show the whole image in the feed post" — the old fixed-height
  *  cover crop hid the top/bottom). Ratio is clamped so an extreme panorama or
  *  very tall scan can't dominate the feed. */
 function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
-  const [ratio, setRatio] = useState(4 / 3);
+  // Seeded from the ratio cache so an image we've already measured renders at
+  // its final height on the FIRST frame — no post-load resize, so no scroll
+  // offset correction. Call sites key this component by uri, so the lazy
+  // initializer re-runs when the image changes.
+  const [ratio, setRatio] = useState(() => getImageRatio(uri) ?? DEFAULT_RATIO);
   // Use the SAME URL the full-screen preview uses: displayImageUrl returns the
   // original object URL for web-safe images and only routes HEIC/HEIF through
   // the Supabase render/transcode endpoint. The previous approach forced EVERY
@@ -57,7 +63,12 @@ function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
         onLoad={(e: any) => {
           const w = e?.source?.width;
           const h = e?.source?.height;
-          if (w && h) setRatio(Math.max(0.5, Math.min(2.5, w / h)));
+          if (!w || !h) return;
+          const measured = clampRatio(w, h);
+          setImageRatio(uri, measured);
+          // No-op when we were already at the right height (cache hit), which
+          // keeps the load from costing a render and a re-layout.
+          setRatio((prev) => (Math.abs(prev - measured) > 0.01 ? measured : prev));
         }}
       />
     </Pressable>
@@ -71,7 +82,10 @@ function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: strin
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
   return (
-    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View onLayout={(e) => {
+      const next = e.nativeEvent.layout.width;
+      setWidth((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+    }}>
       {width > 0 && (
         <ScrollView
           horizontal
@@ -79,8 +93,11 @@ function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: strin
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
         >
-          {uris.map((uri, i) => (
-            <View key={`carousel-${i}`} style={{ width }}>
+          {uris.map((uri) => (
+            // Keyed by URL, not index: the ratio cache is seeded in a lazy
+            // useState initializer, so a page must be a NEW instance when its
+            // image changes. `uris` is deduped upstream, so keys are unique.
+            <View key={uri} style={{ width }}>
               <FeedImage uri={uri} onPress={() => onPress(uri)} />
             </View>
           ))}
@@ -143,6 +160,7 @@ function VideoPoster({ uri, onPress }: { uri?: string | null; onPress: () => voi
       {uri ? (
         <ExpoImage
           source={{ uri }}
+          recyclingKey={uri}
           style={{ width: '100%', height: '100%' }}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -158,10 +176,30 @@ function VideoPoster({ uri, onPress }: { uri?: string | null; onPress: () => voi
   );
 }
 
-function EvidenceDisplay({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
-  const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
+interface EvidenceModel {
+  imageUrls: string[];
+  hasImage: boolean;
+  videoUrl?: string | null;
+  videoPoster: string | null;
+  textContent?: string | null;
+  documentBlocks: Array<{ type: string; content?: string; url?: string; title?: string }>;
+  linkBlocks: Array<{ type: string; content?: string; url?: string; title?: string }>;
+  audioItems: Array<{ url?: string; title?: string; duration_ms?: number }>;
+  isLink: boolean;
+  isDocument: boolean;
+}
 
-  // Collect all media items (images + videos)
+/** Derive everything the evidence section renders from the raw evidence/media.
+ *
+ *  Pure and separate from the component so it can be memoized on the two props
+ *  it reads. It walks the media list and the block list several times over and
+ *  runs a regex per URL, and it used to do all of that inline on every render of
+ *  every mounted card — which, before the feed stopped re-rendering whole pages
+ *  at a time, meant constantly. */
+export function computeEvidenceModel(
+  evidence: FeedItem['evidence'],
+  media?: FeedItem['media'],
+): EvidenceModel {
   const allMedia = media || [];
 
   // HEIC files may arrive as 'link' or 'document' type -- rescue them as images
@@ -188,7 +226,6 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
         .filter((u): u is string => !!u)
     )
   );
-  const hasImage = imageUrls.length > 0;
 
   const videoMedia = allMedia.find((m) => m.type === 'video');
   const videoUrl = videoMedia?.url ||
@@ -213,15 +250,101 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
     })),
   ].filter((a) => a.url);
 
-  // Top-level link/document: skip if HEIC (handled as image above)
-  const isLink = evidence?.type === 'link' && evidence?.url && !topLevelIsHeic;
-  const isDocument = evidence?.type === 'document' && evidence?.url && !topLevelIsHeic;
+  return {
+    imageUrls,
+    hasImage: imageUrls.length > 0,
+    videoUrl,
+    videoPoster,
+    textContent,
+    documentBlocks,
+    linkBlocks,
+    audioItems,
+    // Top-level link/document: skip if HEIC (handled as image above)
+    isLink: !!(evidence?.type === 'link' && evidence?.url && !topLevelIsHeic),
+    isDocument: !!(evidence?.type === 'document' && evidence?.url && !topLevelIsHeic),
+  };
+}
+
+/** Same-size stand-in for AudioClipPreview while its card is OFF-screen.
+ *  The real one allocates an expo-audio player per clip and subscribes to its
+ *  playback status, and it was doing that for every audio card in the render
+ *  window rather than just the visible one. Identical 56px frame, so swapping
+ *  placeholder <-> player doesn't reflow the list. */
+function AudioClipPlaceholder({ durationMs }: { durationMs?: number }) {
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#F3E8FF',
+        borderRadius: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(109, 70, 155, 0.25)',
+        height: 56,
+        minWidth: 180,
+      }}
+    >
+      <View
+        style={{
+          width: 36, height: 36, borderRadius: 18,
+          backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="play" size={18} color="#FFFFFF" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <UIText size="xs" className="text-optio-purple font-poppins-semibold">Voice note</UIText>
+        <UIText
+          size="xs"
+          className="text-typo-500 dark:text-dark-typo-500"
+          style={{ fontVariant: ['tabular-nums'] as any }}
+        >
+          0:00 / {formatClipDuration(durationMs)}
+        </UIText>
+      </View>
+    </View>
+  );
+}
+
+function formatClipDuration(ms?: number): string {
+  const total = Math.max(0, Math.round((ms || 0) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** Same-size stand-in for a PDF DocumentViewer while its card is OFF-screen.
+ *  The real one mounts a WebView and holds up to 10 rendered pages as base64
+ *  JPEG strings in state — per document card in the render window. Matches the
+ *  viewer's own loading frame (3:4, min 300) so the swap doesn't reflow. */
+function DocumentPoster({ title }: { title?: string }) {
+  const c = useThemeColors();
+  return (
+    <View className="rounded-lg overflow-hidden border border-surface-200 dark:border-dark-surface-300 bg-surface-100 dark:bg-dark-surface-200">
+      <View className="w-full items-center justify-center" style={{ aspectRatio: 3 / 4, minHeight: 300 }}>
+        <Ionicons name="document-text-outline" size={32} color={c.iconMuted} />
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-2 px-4 text-center" numberOfLines={1}>
+          {title || 'Document'}
+        </UIText>
+      </View>
+    </View>
+  );
+}
+
+function EvidenceDisplayImpl({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
+  const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
+
+  const {
+    imageUrls, hasImage, videoUrl, videoPoster, textContent,
+    documentBlocks, linkBlocks, audioItems, isLink, isDocument,
+  } = useMemo(() => computeEvidenceModel(evidence, media), [evidence, media]);
 
   return (
     <VStack space="sm">
       {/* Single image - whole image at natural ratio, tap for full screen */}
       {imageUrls.length === 1 && (
-        <FeedImage uri={imageUrls[0]} onPress={() => setModal({ type: 'image', uri: imageUrls[0] })} />
+        <FeedImage key={imageUrls[0]} uri={imageUrls[0]} onPress={() => setModal({ type: 'image', uri: imageUrls[0] })} />
       )}
 
       {/* Multiple images - swipeable carousel, each tappable for full screen */}
@@ -269,11 +392,15 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
 
       {/* Voice notes — inline audio player. Wrapped so play taps don't bubble
           to the card's onPress. */}
-      {audioItems.map((a, i) => (
-        <Pressable key={`audio-${i}`} onPress={(e) => e.stopPropagation?.()}>
-          <AudioClipPreview
-            clip={{ uri: a.url!, name: a.title || 'Voice note', fileSize: 0, durationMs: a.duration_ms || 0 }}
-          />
+      {audioItems.map((a) => (
+        <Pressable key={a.url} onPress={(e) => e.stopPropagation?.()}>
+          {isActive ? (
+            <AudioClipPreview
+              clip={{ uri: a.url!, name: a.title || 'Voice note', fileSize: 0, durationMs: a.duration_ms || 0 }}
+            />
+          ) : (
+            <AudioClipPlaceholder durationMs={a.duration_ms} />
+          )}
         </Pressable>
       ))}
 
@@ -286,8 +413,8 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
       {isLink && (
         <LinkPreviewCard url={evidence.url!} title={evidence.title} />
       )}
-      {linkBlocks.map((block, i) => (
-        <LinkPreviewCard key={`link-${i}`} url={block.url!} title={block.title} />
+      {linkBlocks.map((block) => (
+        <LinkPreviewCard key={block.url} url={block.url!} title={block.title} />
       ))}
 
       {/* Documents - tappable for full screen. stopPropagation so the tap opens
@@ -300,17 +427,25 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
           accessibilityLabel="Open document"
           onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: evidence.url!, title: evidence.title || undefined }); }}
         >
-          <DocumentViewer uri={evidence.url!} title={evidence.title || undefined} />
+          {isActive || !isPdfUrl(evidence.url) ? (
+            <DocumentViewer uri={evidence.url!} title={evidence.title || undefined} />
+          ) : (
+            <DocumentPoster title={evidence.title || undefined} />
+          )}
         </Pressable>
       )}
-      {documentBlocks.map((block, i) => (
+      {documentBlocks.map((block) => (
         <Pressable
-          key={`doc-${i}`}
+          key={block.url}
           accessibilityRole="button"
           accessibilityLabel="Open document"
           onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: block.url!, title: block.title || undefined }); }}
         >
-          <DocumentViewer uri={block.url!} title={block.title || undefined} />
+          {isActive || !isPdfUrl(block.url) ? (
+            <DocumentViewer uri={block.url!} title={block.title || undefined} />
+          ) : (
+            <DocumentPoster title={block.title || undefined} />
+          )}
         </Pressable>
       ))}
 
@@ -327,6 +462,8 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
     </VStack>
   );
 }
+
+const EvidenceDisplay = memo(EvidenceDisplayImpl);
 
 interface FeedCardProps {
   item: FeedItem;
@@ -364,15 +501,21 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const [hidden, setHidden] = useState(false);
   const [isHighlighted, setIsHighlighted] = useState(!!item.is_highlighted);
   const [togglingHighlight, setTogglingHighlight] = useState(false);
-  const { user } = useAuthStore();
+  // Selectors, not the whole store: `useAuthStore()` here re-rendered EVERY
+  // mounted card on any auth write. These are the only three fields read.
+  const userId = useAuthStore((s) => s.user?.id);
+  const userRole = useAuthStore((s) => s.user?.role);
+  const userOrgRole = useAuthStore((s) => s.user?.org_role);
   const c = useThemeColors();
-  const canHighlight = user?.role === 'superadmin';
+  const canHighlight = userRole === 'superadmin';
 
-  // FlashList recycles a cell's component instance across different feed items,
-  // so prop-seeded useState initializers (views/comments/privacy/etc.) do NOT
-  // re-run when the cell is reused for a new item — they'd show the previous
-  // item's counts/state. Re-sync them (and reset transient UI) whenever the
-  // item id changes. Keyed on item.id so it's a no-op on ordinary re-renders.
+  // A list can reuse a cell's component instance for a different feed item, and
+  // prop-seeded useState initializers (views/comments/privacy/etc.) do NOT
+  // re-run when that happens — they'd show the previous item's counts and
+  // state. Re-sync them and reset every piece of transient UI whenever the item
+  // id changes. Keyed on item.id, so it's a no-op on ordinary re-renders.
+  // (The list is a FlatList today, which keys cells by item id and so remounts
+  // rather than recycles; this keeps the card correct either way.)
   useEffect(() => {
     setViewsCount(item.views_count || 0);
     setCommentsCount(item.comments_count);
@@ -383,6 +526,12 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     setShowViewersList(false);
     setMenuOpen(false);
     setShareToast('');
+    // Transient async state — leaving these behind would show one item's
+    // viewers list under another item's header.
+    setViewers([]);
+    setLoadingViewers(false);
+    setSharing(false);
+    setTogglingHighlight(false);
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleHighlight = async () => {
@@ -405,7 +554,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   };
 
   const isTask = item.type === 'task_completed';
-  const isOwnPost = user?.id === item.student?.id;
+  const isOwnPost = userId === item.student?.id;
   const canTogglePrivacy = isOwnPost || viewerCanModerate;
   // Only surface the share button when the viewer is actually allowed to create
   // a share link (backend-determined). Undefined (older responses) is treated as
@@ -432,7 +581,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   // effective role: own post -> the Profile tab; observers -> the observer
   // student overview; everyone else (parent/superadmin) -> the parent-style
   // child profile. Org users carry their real role in org_role.
-  const effectiveRole = user?.org_role || user?.role;
+  const effectiveRole = userOrgRole || userRole;
   const goToProfile = () => {
     const sid = item.student?.id;
     if (!sid) return;
@@ -451,7 +600,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     ? feedStudents.map((s) => s.display_name || 'Student').join(', ')
     : (item.student?.display_name || 'Student');
 
-  const timeAgo = formatTimeAgo(item.timestamp);
+  const timeAgo = useMemo(() => formatTimeAgo(item.timestamp), [item.timestamp]);
 
   const handleShowViewers = async () => {
     if (showViewersList) {
@@ -787,8 +936,15 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 // P4: memoize so stable feed items don't re-render when siblings change.
 // Re-render only on identity or on the fields this card actually reads.
 export const FeedCard = memo(FeedCardImpl, (prev, next) => {
+  // Identity first — cheapest check and the one that discriminates most.
+  if (prev.item.id !== next.item.id) return false;
   if (prev.showStudent !== next.showStudent) return false;
   if (prev.onPress !== next.onPress) return false;
+  // `parentKids` loads after the first render, so this flips false -> true on a
+  // parent's own kids' posts. Not comparing it swallowed that flip and the
+  // privacy toggle never appeared until the card remounted.
+  if (prev.viewerCanModerate !== next.viewerCanModerate) return false;
+  if (prev.onHighlightChange !== next.onHighlightChange) return false;
   // isActive flips as the card scrolls in/out of view — must re-render so the
   // inline video pauses off-screen.
   if (prev.isActive !== next.isActive) return false;
@@ -805,26 +961,13 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
     if (aStudents[i]?.id !== bStudents[i]?.id) return false;
   }
   return (
-    a.id === b.id &&
     a.views_count === b.views_count &&
     a.comments_count === b.comments_count &&
     a.is_confidential === b.is_confidential &&
     a.can_share === b.can_share &&
+    // Superadmin's optimistic highlight toggle writes this through the host
+    // screen's list; without it the star didn't repaint from that path.
+    a.is_highlighted === b.is_highlighted &&
     a.timestamp === b.timestamp
   );
 });
-
-function formatTimeAgo(timestamp: string): string {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h`;
-  if (diffDays < 7) return `${diffDays}d`;
-  return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
