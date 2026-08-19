@@ -68,6 +68,23 @@ describe('SisLayout gate', () => {
     expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
   })
 
+  it('lets a teacher in when their primary role is parent', () => {
+    // iCreate, 2026-08-19: a teacher who also parents a student here is stored
+    // as ['parent', 'advisor'] — the order is whatever was written first, and
+    // it is not a statement about what she does. Gating on the primary role
+    // alone bounced her back to the web platform from the very console the
+    // sidebar launcher had just offered her.
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'parent',
+      user: { id: 'u2', role: 'org_managed', org_role: 'parent', org_roles: ['parent', 'advisor'] },
+      loading: false,
+    }
+    renderLayout()
+    expect(screen.getByText('CHILD CONTENT')).toBeInTheDocument()
+    expect(nav.goToLearningSurface).not.toHaveBeenCalled()
+  })
+
   it('lets a campus coordinator into the console', () => {
     // The coordinator runs the campus from this console — the launcher on the
     // learning sidebar is pointless if the gate here bounces them back out.

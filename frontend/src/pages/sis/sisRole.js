@@ -13,6 +13,29 @@ const orgRolesOf = (user) => {
     : [user.org_role].filter(Boolean)
 }
 
+/**
+ * Everyone who works at the school — the gate on the SIS console itself
+ * (mirrors backend `utils/sis_roles.STAFF_ROLES`). Teachers included; what
+ * they see inside is narrowed by `isSisAdmin` and by the backend's scoping.
+ *
+ * Reads EVERY role the user holds, never just the primary one. Staff are often
+ * parents of their own students, and the primary role is simply whichever
+ * entry `org_roles` happens to lead with — the order carries no meaning. A
+ * teacher stored as ['parent', 'advisor'] is exactly as much a teacher as one
+ * stored the other way round (iCreate, 2026-08-19: Ashley Schaupp teaches
+ * eight classes and was bounced back to the web platform every time she
+ * clicked "School Admin", because the gate read her primary role alone while
+ * the launcher that offered her the button read all of them).
+ */
+const STAFF_ROLES = ['org_admin', 'campus_coordinator', 'advisor', 'superadmin']
+
+export const isSisStaff = (user) => {
+  if (!user) return false
+  if (STAFF_ROLES.includes(user.role)) return true
+  if (user.is_org_admin) return true
+  return orgRolesOf(user).some((r) => STAFF_ROLES.includes(r))
+}
+
 export const isSisAdmin = (user) => {
   if (!user) return false
   if (user.role === 'superadmin' || user.role === 'org_admin') return true

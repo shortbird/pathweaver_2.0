@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import api from '../../services/api'
 import SisSidebar from './SisSidebar'
-import { isSisAdmin } from '../../pages/sis/sisRole'
+import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
 const PreviewBanner = () => {
@@ -75,7 +75,7 @@ const Spinner = () => (
  * the SIS host too).
  */
 const SisLayout = () => {
-  const { isAuthenticated, effectiveRole, user, loading } = useAuth()
+  const { isAuthenticated, user, loading } = useAuth()
   const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
 
@@ -90,12 +90,12 @@ const SisLayout = () => {
     return <Spinner />
   }
 
-  // isSisAdmin also catches a coordinator or admin whose org_roles array leads
-  // with another role (e.g. ['parent', 'campus_coordinator']), where the primary
-  // effectiveRole alone would bounce them.
-  const isStaff = ['org_admin', 'campus_coordinator', 'advisor', 'superadmin'].includes(effectiveRole)
-    || user?.is_org_admin
-    || isSisAdmin(user)
+  // isSisStaff weighs every role the user holds, not the primary one alone: a
+  // teacher who is also a parent of a student here is stored as ['parent',
+  // 'advisor'] as often as the other way round, and the leading entry is an
+  // accident of what was written first. Checking effectiveRole alone bounced
+  // those teachers out of the console the sidebar had just offered them.
+  const isStaff = isSisStaff(user)
   if (!isStaff) {
     goToLearningSurface('/')
     return <Spinner />
