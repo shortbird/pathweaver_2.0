@@ -301,7 +301,12 @@ def _python_sources():
         rel = path.relative_to(REPO_ROOT).as_posix()
         if '/tests/' in f'/{rel}' or rel.startswith('backend/tests/'):
             continue
-        if '__pycache__' in rel or '/venv/' in f'/{rel}':
+        # Skip vendored code: __pycache__, and any virtualenv in the tree.
+        # A developer's `backend/.venv` is gitignored but still walked, and
+        # storage3 itself defines get_public_url — which failed this guard
+        # locally for a call site nobody wrote.
+        parts = set(rel.split('/'))
+        if '__pycache__' in parts or parts & {'venv', '.venv', 'site-packages'}:
             continue
         yield rel, path
 

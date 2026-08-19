@@ -200,3 +200,81 @@ class TestRoutes:
                                  headers=auth_headers)
         assert resp.status_code == 409
         assert json.loads(resp.data)['blocking'] == {'attendance': 3}
+
+
+FK_ERROR = (
+    "{'message': 'update or delete on table \"users\" violates foreign key constraint "
+    "\"group_members_added_by_fkey\" on table \"group_members\"', 'code': '23503', "
+    "'hint': None, 'details': 'Key (id)=(6db04ab4) is still referenced.'}"
+)
+
+
+@contextmanager
+def person_whose_users_delete_fails(user, exc):
+    """Same shape as `person`, but the delete of the users row raises.
+
+    Every other table keeps working, so the test exercises exactly the step that
+    broke in production: children cleared, then Postgres refuses the parent.
+    """
+    tables = {}
+
+    def make(name):
+        t = Mock(name=name)
+        for chained in ('select', 'eq', 'limit', 'delete', 'update', 'upsert', 'in_'):
+            getattr(t, chained).return_value = t
+        if name == 'users':
+            calls = {'n': 0}
+
+            def execute():
+                # The reads _archive/_user perform must still work; only the
+                # DELETE that follows them raises.
+                if t.delete.called and calls['n'] == 0:
+                    calls['n'] += 1
+                    raise exc
+                return Mock(data=[user])
+            t.execute.side_effect = execute
+        else:
+            t.execute.return_value = Mock(data=[])
+        return t
+
+    client = Mock()
+    client.table.side_effect = lambda name: tables.setdefault(name, make(name))
+    with patch('services.sis_person_service._user', return_value=user), \
+         patch('services.sis_person_service._history', return_value=dict(NO_HISTORY)), \
+         patch('services.sis_person_service._release_class_seats', return_value=0), \
+         patch('services.sis_person_service._admin', return_value=client):
+        yield client, tables
+
+
+@pytest.mark.unit
+class TestDeleteBlockedByAnUnprobedForeignKey:
+    """iCreate, 2026-08-19 (Sentry OPTIO-BACKEND-6W/-6X): removal_preview said
+    the account was clean, the delete hit group_members_added_by_fkey, and the
+    admin got a 500. The account must end up archived, not half-removed."""
+
+    def test_it_archives_instead_of_raising(self):
+        with person_whose_users_delete_fails(STUDENT, Exception(FK_ERROR)):
+            result = people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')
+        assert result['archived'] is True
+        assert 'deleted' not in result
+        assert result['delete_blocked_by'] == 'group_members'
+
+    def test_the_message_names_the_records_in_plain_words(self):
+        with person_whose_users_delete_fails(STUDENT, Exception(FK_ERROR)):
+            result = people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')
+        assert 'message groups they added people to' in result['message']
+        assert 'archived' in result['message']
+        assert 'group_members_added_by_fkey' not in result['message']
+
+    def test_the_student_is_actually_marked_withdrawn(self):
+        with person_whose_users_delete_fails(STUDENT, Exception(FK_ERROR)) as (_, tables):
+            people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')
+        payload = tables['school_enrollments'].upsert.call_args[0][0]
+        assert payload['status'] == 'withdrawn'
+
+    def test_an_unrelated_failure_is_not_swallowed(self):
+        """Only a foreign-key refusal becomes an archive. A timeout is a bug and
+        must still reach Sentry."""
+        with person_whose_users_delete_fails(STUDENT, RuntimeError('connection reset')):
+            with pytest.raises(RuntimeError):
+                people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')

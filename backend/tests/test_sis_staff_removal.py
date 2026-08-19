@@ -214,3 +214,57 @@ class TestOnboardingDoesNotBlockDeletionUntilSomebodyFillsItIn:
         client.table.side_effect = RuntimeError('relation does not exist')
         with patch.object(staff, '_admin', return_value=client):
             assert staff._onboarding_with_work(ORG, STAFF) == 0
+
+
+@pytest.mark.unit
+class TestDeleteBlockedByAForeignKeyThePreviewNeverProbed:
+    """The other half of the same 2026-08-08 report, found in Sentry a fortnight
+    later (OPTIO-BACKEND-6W/-6X): _staff_history probes the SIS tables a teacher
+    touches, but a teacher is also a platform user who may have created a course
+    or added somebody to a message group. Those columns are NOT NULL, so the
+    delete is refused — and it used to be refused as a 500."""
+
+    FK = ("{'message': 'update or delete on table \"users\" violates foreign key "
+          "constraint \"courses_created_by_fkey\" on table \"courses\"', 'code': '23503'}")
+
+    def _client_failing_on_user_delete(self, calls, exc):
+        c = Mock()
+        users = _passthrough()
+        users.execute.side_effect = exc
+
+        def _table(name):
+            if name == 'sis_staff_profiles':
+                return _profiles_table([{'user_id': STAFF}], calls)
+            if name == 'users':
+                return users
+            return _passthrough()
+
+        c.table.side_effect = _table
+        return c
+
+    def test_it_archives_instead_of_raising(self):
+        calls = []
+        with patch.object(staff, '_admin',
+                          return_value=self._client_failing_on_user_delete(calls, Exception(self.FK))), \
+             patch.object(staff, 'staff_removal_preview', return_value=dict(PREVIEW)):
+            result = staff.delete_staff(ORG, STAFF, actor_id='admin-1')
+        assert result['archived'] is True
+        assert result['delete_blocked_by'] == 'courses'
+        assert 'courses they created' in result['message']
+
+    def test_the_archive_is_credited_to_the_admin_not_the_departing_staff(self):
+        calls = []
+        with patch.object(staff, '_admin',
+                          return_value=self._client_failing_on_user_delete(calls, Exception(self.FK))), \
+             patch.object(staff, 'staff_removal_preview', return_value=dict(PREVIEW)):
+            staff.delete_staff(ORG, STAFF, actor_id='admin-1')
+        archived_by = [p for kind, p in calls if 'archived_by' in p]
+        assert archived_by and archived_by[-1]['archived_by'] == 'admin-1'
+
+    def test_an_unrelated_failure_still_raises(self):
+        calls = []
+        with patch.object(staff, '_admin',
+                          return_value=self._client_failing_on_user_delete(calls, RuntimeError('boom'))), \
+             patch.object(staff, 'staff_removal_preview', return_value=dict(PREVIEW)):
+            with pytest.raises(RuntimeError):
+                staff.delete_staff(ORG, STAFF, actor_id='admin-1')
