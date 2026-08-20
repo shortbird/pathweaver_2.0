@@ -382,8 +382,20 @@ class AuthService {
       console.log('[AuthService] Token sources - hash:', !!accessToken, 'session:', !!session?.access_token)
       console.log('[AuthService] Final token present:', !!finalAccessToken)
 
-      // Exchange Supabase token for our app session
-      const response = await api.post(`/api/auth/${provider}/callback`, {
+      // Exchange Supabase token for our app session.
+      //
+      // Both paths are spelled out rather than interpolated from the provider
+      // name. backend/tests/test_client_api_paths_exist.py checks every API
+      // path a client calls against Flask's url_map, and a path with a
+      // substituted segment is unverifiable — it matches no static route, so
+      // the guard cannot tell a live endpoint from a typo. (That check reads
+      // comments too, so don't quote a substituted path in one either.)
+      // Literals keep both endpoints greppable, which is worth it on its own.
+      const endpoint = provider === 'apple'
+        ? '/api/auth/apple/callback'
+        : '/api/auth/google/callback'
+
+      const response = await api.post(endpoint, {
         access_token: finalAccessToken,
         refresh_token: finalRefreshToken
       })
