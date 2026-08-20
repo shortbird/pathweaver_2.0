@@ -1,5 +1,25 @@
 # Custom Lead-Nurture CRM (replace Brevo, send via SendGrid)
 
+## Status (2026-08-20)
+
+- **PR1 — DONE and LIVE.** The contact_type CHECK constraint was widened on the prod DB
+  via MCP (verified with an insert round-trip; test row cleaned up). Migration file:
+  supabase/migrations/20260820120000_contact_type_allow_course_purchase.sql. Catalog
+  course-interest leads are no longer being lost.
+- **PR2 — implemented, parked on branch `crm/pr2-sendgrid`, NOT merged.** SendGrid swap
+  in email_service (_send_via_sendgrid transport keeping the internal payload shape,
+  new categories/headers/custom_args kwargs, send_crm_email, Config keys, conftest
+  outbound-email guard repointed, ENV_KEYS_REFERENCE updated, new
+  tests/test_email_sendgrid_payload.py). Scoped email suites pass 44/44; the FULL
+  backend suite has NOT been run yet — run it before merging.
+  **DO NOT merge/push this branch to main or develop until SENDGRID_API_KEY is set on
+  the Render services** — deployed without the key, every outbound email fails (logged,
+  not crashed).
+- **PR3–PR7 — not started.**
+- **User prerequisites still open**: SendGrid account (Essentials) + domain auth CNAMEs
+  at GoDaddy; postal address for the CAN-SPAM footer; GCP service account + calendar
+  share for the booking poll.
+
 ## Context
 
 Optio uses Brevo for automated lead-nurture email. The automations can only be edited in
