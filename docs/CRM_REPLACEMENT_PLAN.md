@@ -6,15 +6,16 @@
   via MCP (verified with an insert round-trip; test row cleaned up). Migration file:
   supabase/migrations/20260820120000_contact_type_allow_course_purchase.sql. Catalog
   course-interest leads are no longer being lost.
-- **PR2 — implemented, parked on branch `crm/pr2-sendgrid`, NOT merged.** SendGrid swap
-  in email_service (_send_via_sendgrid transport keeping the internal payload shape,
-  new categories/headers/custom_args kwargs, send_crm_email, Config keys, conftest
+- **PR2 — ON MAIN (owner's call, 2026-08-20).** SendGrid swap in email_service
+  (_send_via_sendgrid transport keeping the internal payload shape, new
+  categories/headers/custom_args kwargs, send_crm_email, Config keys, conftest
   outbound-email guard repointed, ENV_KEYS_REFERENCE updated, new
-  tests/test_email_sendgrid_payload.py). Scoped email suites pass 44/44; the FULL
-  backend suite has NOT been run yet — run it before merging.
-  **DO NOT merge/push this branch to main or develop until SENDGRID_API_KEY is set on
-  the Render services** — deployed without the key, every outbound email fails (logged,
-  not crashed).
+  tests/test_email_sendgrid_payload.py). Scoped email suites pass 44/44; the full
+  backend suite runs in CI on this push — the prod deploy only fires if it's green.
+  **⚠ From the moment this deploys, ALL outbound email fail-logs until
+  SENDGRID_API_KEY is set on the Render backend services (prod + dev).** Setting the
+  key (SendGrid → Settings → API Keys, Mail Send permission) restores sending; domain
+  auth should follow immediately for deliverability.
 - **PR3–PR7 — not started.**
 - **User prerequisites still open**: SendGrid account (Essentials) + domain auth CNAMEs
   at GoDaddy; postal address for the CAN-SPAM footer; GCP service account + calendar
