@@ -345,7 +345,14 @@ jest.mock('react-native-screens', () => ({
 }));
 
 // ── @react-native-community/datetimepicker ──
-jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
+// Shaped as a real ES module rather than a bare string: screens that guard the
+// native import behind `Platform.OS` reach for `require(...).default`, and a
+// string module has no `.default` — the picker silently never rendered under
+// test, so no test could drive one.
+jest.mock('@react-native-community/datetimepicker', () => ({
+  __esModule: true,
+  default: 'DateTimePicker',
+}));
 
 // ── react-native-mmkv ──
 // Package was dropped from package.json; use { virtual: true } so Jest doesn't try

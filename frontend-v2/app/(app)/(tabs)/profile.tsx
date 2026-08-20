@@ -2,7 +2,7 @@
  * Profile - Student overview with XP breakdown, achievements, engagement, and settings.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch, Image, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -33,6 +33,14 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
+
+// Native-only system date picker (iOS spinner / Android dialog), used by the
+// date-of-birth field in the edit sheet. Guarded so the web bundle -- which
+// uses <input type="date"> -- never imports the native module. Same pattern as
+// the register screen.
+const DateTimePicker = Platform.OS === 'web'
+  ? null
+  : require('@react-native-community/datetimepicker').default;
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -96,6 +104,8 @@ export default function ProfileScreen() {
   const [editLast, setEditLast] = useState('');
   const [editDisplay, setEditDisplay] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
   const [otaDebugVisible, setOtaDebugVisible] = useState(false);
@@ -198,24 +208,83 @@ export default function ProfileScreen() {
     }
   };
 
+  // A date of birth is not freely editable once it has been attested through an
+  // age gate, and never by a parent-managed account. The backend is the gate
+  // (routes/users/profile.py); this only decides whether to offer the field, so
+  // a locked user reads an explanation instead of hitting a validation error.
+  const savedDob = (user?.date_of_birth || '').slice(0, 10);
+  const dobLocked = Boolean(user?.date_of_birth_locked_at) || Boolean(user?.is_dependent);
+
   const openEdit = () => {
     setEditFirst(user?.first_name || '');
     setEditLast(user?.last_name || '');
     setEditDisplay(user?.display_name || '');
     setEditBio((user as any)?.bio || '');
+    setEditDob(savedDob);
+    setShowDobPicker(false);
     setEditVisible(true);
   };
 
+  // Date-picker helpers, mirroring the register screen: maxDob caps at today,
+  // initialDob opens near a plausible birth year instead of scrolling decades.
+  const maxDob = useMemo(() => new Date(), []);
+  const initialDob = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 13);
+    return d;
+  }, []);
+  const todayIso = new Date().toISOString().split('T')[0];
+  const formatDob = (iso: string) => {
+    if (!iso) return '';
+    return new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+  const onDobChange = (event: any, selected?: Date) => {
+    // Android shows a one-shot dialog; close it on any result. iOS keeps the
+    // inline spinner open until the user taps Done.
+    if (Platform.OS === 'android') setShowDobPicker(false);
+    if (event?.type === 'dismissed' || !selected) return;
+    const y = selected.getFullYear();
+    const m = String(selected.getMonth() + 1).padStart(2, '0');
+    const dd = String(selected.getDate()).padStart(2, '0');
+    setEditDob(`${y}-${m}-${dd}`);
+  };
+
+  // COPPA: an under-13 account has to be parent-managed, so the backend refuses
+  // a self-service date that young. Say so before the round trip rather than
+  // after it.
+  const dobIsUnder13 = useMemo(() => {
+    if (!editDob) return false;
+    const birth = new Date(`${editDob}T12:00:00`);
+    if (Number.isNaN(birth.getTime())) return false;
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 13);
+    return birth > cutoff;
+  }, [editDob]);
+
   const handleSaveProfile = async () => {
+    if (!dobLocked && dobIsUnder13) {
+      Alert.alert(
+        'Parent Account Required',
+        'Accounts for children under 13 must be managed by a parent or guardian. Ask them to correct this date from their account.'
+      );
+      return;
+    }
     setSaving(true);
     try {
       // display_name is intentionally not sent — the backend derives it from
       // first + last name so there's a single source of truth.
-      await api.put('/api/users/profile', {
+      const payload: Record<string, string> = {
         first_name: editFirst.trim(),
         last_name: editLast.trim(),
         bio: editBio.trim(),
-      });
+      };
+      // Only sent when it actually changed: the backend treats date_of_birth as
+      // a gated field, so resending an unchanged value on every bio edit would
+      // put a locked account through that check for nothing.
+      if (!dobLocked && editDob !== savedDob) {
+        payload.date_of_birth = editDob;
+      }
+      await api.put('/api/users/profile', payload);
       setEditVisible(false);
       refetch();
       // Update authStore user
@@ -616,8 +685,11 @@ export default function ProfileScreen() {
       <Modal visible={editVisible} transparent animationType="none" onRequestClose={() => setEditVisible(false)}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setEditVisible(false)} />
-          <View style={{ backgroundColor: isDark ? '#1E1E36' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+          {/* maxHeight + inner scroll: with the date-of-birth field the sheet is
+              tall enough to run off a small screen once the keyboard is up. */}
+          <View style={{ backgroundColor: isDark ? '#1E1E36' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32, maxHeight: '90%' }}>
             <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <VStack space="md">
               <HStack className="items-center justify-between">
                 <Heading size="lg">Edit Profile</Heading>
@@ -653,6 +725,74 @@ export default function ProfileScreen() {
                 </VStack>
               </HStack>
               <VStack space="xs">
+                <UIText size="sm" className="font-poppins-medium">Date of Birth</UIText>
+                {dobLocked ? (
+                  <>
+                    <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4">
+                      <UIText size="sm" style={{ color: savedDob ? c.text : c.textFaint }}>
+                        {savedDob ? formatDob(savedDob) : 'Not set'}
+                      </UIText>
+                    </View>
+                    <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                      {user?.is_dependent
+                        ? 'Your parent or guardian manages your date of birth. Ask them to update it from their account.'
+                        : 'Your date of birth is on file. Ask a parent, guardian, or your school to correct it if it is wrong.'}
+                    </UIText>
+                  </>
+                ) : Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={editDob}
+                    max={todayIso}
+                    onChange={(e: any) => setEditDob(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: 'none',
+                      fontSize: 16,
+                      fontFamily: 'Poppins_400Regular, sans-serif',
+                      backgroundColor: isDark ? '#252542' : '#F7F7FB',
+                      color: editDob ? c.text : c.textFaint,
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* Tapping opens the OS date picker (iOS spinner / Android dialog) */}
+                    <Pressable
+                      testID="profile-dob-trigger"
+                      onPress={() => setShowDobPicker(true)}
+                      className="flex-row items-center bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4"
+                    >
+                      <Ionicons name="calendar-outline" size={18} color={c.iconMuted} style={{ marginRight: 8 }} />
+                      <UIText size="sm" style={{ color: editDob ? c.text : c.textFaint }}>
+                        {editDob ? formatDob(editDob) : 'Select your date of birth'}
+                      </UIText>
+                    </Pressable>
+                    {showDobPicker && DateTimePicker ? (
+                      <DateTimePicker
+                        testID="profile-dob-picker"
+                        value={editDob ? new Date(`${editDob}T12:00:00`) : initialDob}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        maximumDate={maxDob}
+                        onChange={onDobChange}
+                      />
+                    ) : null}
+                    {Platform.OS === 'ios' && showDobPicker ? (
+                      <Button size="sm" variant="outline" onPress={() => setShowDobPicker(false)} className="self-end mt-1">
+                        <ButtonText>Done</ButtonText>
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+                {!dobLocked && dobIsUnder13 ? (
+                  <UIText size="xs" className="text-red-500">
+                    Accounts for children under 13 must be managed by a parent or guardian.
+                  </UIText>
+                ) : null}
+              </VStack>
+              <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Learning Vision / Bio</UIText>
                 <TextInput
                   value={editBio}
@@ -670,6 +810,7 @@ export default function ProfileScreen() {
                 <ButtonText>Save Changes</ButtonText>
               </Button>
             </VStack>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

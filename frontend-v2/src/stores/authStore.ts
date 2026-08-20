@@ -35,6 +35,10 @@ export interface User {
   total_xp: number;
   avatar_url: string | null;
   date_of_birth: string | null;
+  /** Set once a date of birth has been attested through an age gate
+   *  (POST /api/connections/age-check). Non-null means the profile editor must
+   *  not offer to change it — the backend refuses the write either way. */
+  date_of_birth_locked_at?: string | null;
   is_dependent: boolean;
   managed_by_parent_id: string | null;
   // Partner program tag (e.g. 'opened-academy' for the OEA Diploma Plan). Null

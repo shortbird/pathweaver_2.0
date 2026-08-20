@@ -39,11 +39,12 @@ jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
 }));
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import ProfileScreen from '../profile';
 import { useProfile } from '@/src/hooks/useProfile';
 import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import api from '@/src/services/api';
 
 beforeEach(() => {
   setAuthAsStudent();
@@ -119,6 +120,91 @@ describe('ProfileScreen', () => {
 
     expect(getByText('Career & Tech')).toBeTruthy();
     expect(getByText('Physical Education')).toBeTruthy();
+  });
+
+  // ── Date of birth ──
+  //
+  // The backend gates date_of_birth (COPPA + a one-time age-gate lock), so the
+  // editor has to decide whether to offer the field at all rather than let a
+  // locked account discover the rule as a validation error.
+
+  describe('date of birth', () => {
+    const openEditSheet = () => {
+      (useProfile as jest.Mock).mockReturnValue(baseProfileMock);
+      const utils = render(<ProfileScreen />);
+      fireEvent.press(utils.getByText('Edit Profile'));
+      return utils;
+    };
+
+    it('offers a date picker seeded with the saved date', () => {
+      setAuthAsStudent({ date_of_birth: '2005-06-15' });
+      const { getByTestId, getByText } = openEditSheet();
+
+      expect(getByTestId('profile-dob-trigger')).toBeTruthy();
+      expect(getByText('June 15, 2005')).toBeTruthy();
+    });
+
+    it('leaves an unchanged date of birth out of the save payload', async () => {
+      setAuthAsStudent({ date_of_birth: '2005-06-15' });
+      const { getByText } = openEditSheet();
+
+      fireEvent.press(getByText('Save Changes'));
+
+      await waitFor(() => expect(api.put).toHaveBeenCalled());
+      expect(api.put).toHaveBeenCalledWith(
+        '/api/users/profile',
+        expect.not.objectContaining({ date_of_birth: expect.anything() })
+      );
+    });
+
+    it('sends a newly picked date of birth', async () => {
+      setAuthAsStudent({ date_of_birth: '2005-06-15' });
+      const { getByText, getByTestId } = openEditSheet();
+
+      fireEvent.press(getByTestId('profile-dob-trigger'));
+      fireEvent(getByTestId('profile-dob-picker'), 'change', { type: 'set' }, new Date(2004, 2, 2, 12));
+      fireEvent.press(getByText('Save Changes'));
+
+      await waitFor(() => expect(api.put).toHaveBeenCalled());
+      expect(api.put).toHaveBeenCalledWith(
+        '/api/users/profile',
+        expect.objectContaining({ date_of_birth: '2004-03-02' })
+      );
+    });
+
+    it('refuses to save a date that makes the account under 13', async () => {
+      const tooYoung = new Date();
+      tooYoung.setFullYear(tooYoung.getFullYear() - 8);
+      setAuthAsStudent({ date_of_birth: '2005-06-15' });
+      const { getByText, getByTestId } = openEditSheet();
+
+      fireEvent.press(getByTestId('profile-dob-trigger'));
+      fireEvent(getByTestId('profile-dob-picker'), 'change', { type: 'set' }, tooYoung);
+      fireEvent.press(getByText('Save Changes'));
+
+      expect(getByText(/must be managed by a parent or guardian/)).toBeTruthy();
+      expect(api.put).not.toHaveBeenCalled();
+    });
+
+    it('shows a read-only date with an explanation once it is locked', () => {
+      setAuthAsStudent({
+        date_of_birth: '2005-06-15',
+        date_of_birth_locked_at: '2026-08-01T00:00:00Z',
+      });
+      const { queryByTestId, getByText } = openEditSheet();
+
+      expect(queryByTestId('profile-dob-trigger')).toBeNull();
+      expect(getByText('June 15, 2005')).toBeTruthy();
+      expect(getByText(/Ask a parent, guardian, or your school/)).toBeTruthy();
+    });
+
+    it('points a parent-managed student at their parent instead', () => {
+      setAuthAsStudent({ date_of_birth: '2015-06-15', is_dependent: true });
+      const { queryByTestId, getByText } = openEditSheet();
+
+      expect(queryByTestId('profile-dob-trigger')).toBeNull();
+      expect(getByText(/Your parent or guardian manages your date of birth/)).toBeTruthy();
+    });
   });
 
   it('renders progress and pending XP badge for subject credits', () => {

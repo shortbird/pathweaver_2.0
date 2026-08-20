@@ -33,6 +33,14 @@ vi.mock('../components/auth/GoogleButton', () => ({
   )
 }))
 
+vi.mock('../components/auth/AppleButton', () => ({
+  default: ({ mode, onError, disabled }) => (
+    <button data-testid="apple-button" disabled={disabled} onClick={() => {}}>
+      {mode === 'signin' ? 'Sign in with Apple' : 'Sign up with Apple'}
+    </button>
+  )
+}))
+
 vi.mock('../services/api', () => ({
   observerAPI: {
     acceptInvitation: vi.fn()
@@ -92,6 +100,13 @@ describe('LoginPage', () => {
     it('renders Google sign-in button', () => {
       renderLoginPage()
       expect(screen.getByTestId('google-button')).toBeInTheDocument()
+    })
+
+    // Without this, an account created with Apple in the mobile app has no
+    // password and therefore no way onto the web platform at all.
+    it('renders Apple sign-in button', () => {
+      renderLoginPage()
+      expect(screen.getByTestId('apple-button')).toBeInTheDocument()
     })
 
     it('renders forgot password link', () => {
