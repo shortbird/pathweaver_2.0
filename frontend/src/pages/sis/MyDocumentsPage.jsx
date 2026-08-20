@@ -7,6 +7,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import { getPreviewTeacher, withPreview } from './teacherPreview'
 
 /**
  * MyDocumentsPage — a staff member's own documents.
@@ -16,6 +17,13 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
  * themselves. Anything else the office holds about them — background checks
  * above all — is not visible here, and the backend enforces that rather than
  * relying on this page to filter.
+ *
+ * Under the teacher-portal preview this is the teacher's page, not the admin's:
+ * every read carries ?teacher_id=. Without it the office walked the staff list
+ * and saw its OWN documents under each teacher's name — one admin's background
+ * check, nineteen times (iCreate, 2026-08-19). Sending a document in stays
+ * caller-bound, so the upload box is hidden in preview rather than filing the
+ * admin's file against the teacher.
  */
 
 const formatSize = (bytes) => {
@@ -27,21 +35,33 @@ const formatSize = (bytes) => {
 
 const MyDocumentsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const [preview] = useState(() => getPreviewTeacher())
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
   const fileRef = useRef(null)
+  const who = preview ? preview.name : null
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
     setLoading(true)
-    api.get(withOrg('/api/sis/teacher/my-documents', orgId))
-      .then((r) => setDocs(r.data?.documents || []))
-      .catch(() => toast.error('Failed to load your documents'))
+    setError(null)
+    api.get(withPreview(withOrg('/api/sis/teacher/my-documents', orgId), preview))
+      .then((r) => { setDocs(r.data?.documents || []); setError(null) })
+      .catch((err) => {
+        setDocs([])
+        // 403 is the one refusal worth spelling out: a campus coordinator
+        // previewing a teacher may not see employment paperwork, and an empty
+        // list would read as "the office never sent them anything".
+        setError(err?.response?.status === 403
+          ? (err?.response?.data?.error || 'You cannot view this person\u2019s documents.')
+          : 'Failed to load documents')
+      })
       .finally(() => setLoading(false))
-  }, [orgId])
+  }, [orgId, preview])
 
   useEffect(() => { load() }, [load])
 
@@ -69,7 +89,8 @@ const MyDocumentsPage = () => {
 
   const open = async (doc) => {
     try {
-      const r = await api.get(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId))
+      const r = await api.get(
+        withPreview(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId), preview))
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener,noreferrer')
       else toast.error('Could not open the document')
     } catch {
@@ -114,42 +135,56 @@ const MyDocumentsPage = () => {
     <div>
       <BackToDashboard className="mb-1" />
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">My Documents</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">
+          {who ? `${who}'s documents` : 'My Documents'}
+        </h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
-        Documents the school has shared with you, and anything you send back.
-        Print a contract, sign it, photograph it, and upload it here — no need to drop off paper.
+        {who
+          ? `What ${who} sees here: the documents the school has shared with them, and anything they have sent back.`
+          : 'Documents the school has shared with you, and anything you send back. '
+            + 'Print a contract, sign it, photograph it, and upload it here — no need to drop off paper.'}
       </p>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-        <p className="text-sm font-semibold text-neutral-900 mb-2">Send a document to the office</p>
-        {/* Naming it here is the whole point: the office would otherwise get
-            "IMG_4021.jpg" and have to rename it by hand. */}
-        <input value={name} onChange={(e) => setName(e.target.value)}
-          aria-label="Document name"
-          placeholder="Name this file (optional — e.g. Smith - Contract 2026)"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
-        <input value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder="What is it? (optional — e.g. signed contract)"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
-        <button onClick={() => fileRef.current?.click()} disabled={uploading || !orgId}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-          <ArrowUpTrayIcon className="w-4 h-4" />
-          {uploading ? 'Uploading…' : 'Choose a file'}
-        </button>
-        <input ref={fileRef} type="file" className="hidden" onChange={upload}
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
-        <p className="text-xs text-neutral-400 mt-2">PDF, Word, or a photo. Up to 10MB.</p>
-      </div>
+      {preview && (
+        <p className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800 mb-6">
+          Previewing {who}&apos;s documents. Sending a document in is hidden here — an upload
+          would be filed as yours, not theirs.
+        </p>
+      )}
+
+      {!preview && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+          <p className="text-sm font-semibold text-neutral-900 mb-2">Send a document to the office</p>
+          {/* Naming it here is the whole point: the office would otherwise get
+              "IMG_4021.jpg" and have to rename it by hand. */}
+          <input value={name} onChange={(e) => setName(e.target.value)}
+            aria-label="Document name"
+            placeholder="Name this file (optional — e.g. Smith - Contract 2026)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
+          <input value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="What is it? (optional — e.g. signed contract)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
+          <button onClick={() => fileRef.current?.click()} disabled={uploading || !orgId}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            <ArrowUpTrayIcon className="w-4 h-4" />
+            {uploading ? 'Uploading…' : 'Choose a file'}
+          </button>
+          <input ref={fileRef} type="file" className="hidden" onChange={upload}
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
+          <p className="text-xs text-neutral-400 mt-2">PDF, Word, or a photo. Up to 10MB.</p>
+        </div>
+      )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && (
+      {error && !loading && <p className="text-sm text-red-600">{error}</p>}
+      {!loading && !error && (
         <>
-          <List title="Shared with you" items={fromSchool}
-            empty="Nothing shared with you yet." />
-          <List title="You sent" items={fromMe}
-            empty="You haven't sent anything in yet." />
+          <List title={who ? `Shared with ${who}` : 'Shared with you'} items={fromSchool}
+            empty={who ? `Nothing shared with ${who} yet.` : 'Nothing shared with you yet.'} />
+          <List title={who ? `${who} sent` : 'You sent'} items={fromMe}
+            empty={who ? `${who} hasn't sent anything in yet.` : "You haven't sent anything in yet."} />
         </>
       )}
     </div>

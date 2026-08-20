@@ -51,21 +51,34 @@ def _org_or_error(user_id):
     return org_id, None
 
 
-def _read_target(user_id, org_id):
-    """Whose portal data a read endpoint returns. Admins may preview another
-    staff member's portal via ?teacher_id= ("View portal" on the Staff page);
-    everyone else always gets their own. Write endpoints never use this —
-    clocking in, submitting forms, and checking off items stay caller-bound."""
+def _preview_target(user_id, org_id):
+    """The OTHER staff member an admin is previewing, or None when there is no
+    preview in play (no ?teacher_id=, the caller's own id, a caller who is not
+    an admin, or a target outside this org).
+
+    Split out from _read_target because "nobody is being previewed" and "a
+    preview was asked for and refused" are not the same answer everywhere: a
+    page that may not show someone else's data has to say so rather than
+    quietly answer with the caller's own (see _documents_target).
+    """
     target = request.args.get('teacher_id') or \
         (request.get_json(silent=True) or {}).get('teacher_id')
     if not target or target == user_id or not sis_service.caller_is_admin(user_id):
-        return user_id
+        return None
     # admin client justified: cross-user read to confirm the previewed teacher belongs to the caller's org; only reached after caller_is_admin passes
     row = (get_supabase_admin_client().table('users').select('id, organization_id')
            .eq('id', target).limit(1).execute()).data
     if row and row[0].get('organization_id') == org_id:
         return target
-    return user_id
+    return None
+
+
+def _read_target(user_id, org_id):
+    """Whose portal data a read endpoint returns. Admins may preview another
+    staff member's portal via ?teacher_id= ("View portal" on the Staff page);
+    everyone else always gets their own. Write endpoints never use this —
+    clocking in, submitting forms, and checking off items stay caller-bound."""
+    return _preview_target(user_id, org_id) or user_id
 
 
 @bp.route('/dashboard', methods=['GET'])
@@ -466,28 +479,61 @@ def _clean_doc_title(value, fallback):
     return title[:_MAX_DOC_TITLE_LEN]
 
 
+def _documents_target(user_id, org_id):
+    """Whose documents to answer with: (owner_user_id, error).
+
+    The teacher-portal preview reaches this page too, and it has to: checking
+    that a contract actually landed in a teacher's portal is most of why the
+    office previews at all. Until now this endpoint ignored ?teacher_id= and
+    answered with the CALLER's own documents, so an admin who walked the staff
+    list saw the same file under every teacher's name — their own background
+    check (iCreate, 2026-08-19).
+
+    Previewing somebody else's documents is HR_ROLES only. This store holds
+    contracts and background checks, which a campus coordinator does not see
+    (utils/sis_roles.HR_ROLES), and refusing is the honest answer — falling back
+    to the caller's own documents is the bug above, wearing a different hat.
+    """
+    target = _preview_target(user_id, org_id)
+    if not target:
+        return user_id, None
+    if not sis_service.caller_sees_hr(user_id):
+        return None, (jsonify({
+            'success': False,
+            'error': "Only an administrator can view another person's documents",
+        }), 403)
+    return target, None
+
+
 @bp.route('/my-documents', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def my_documents(user_id):
-    """The caller's own documents.
+    """One staff member's documents — the caller's own, or, for an HR admin
+    previewing a teacher's portal, that teacher's (see _documents_target).
 
-    Two kinds, and only two: documents an admin has explicitly SHARED with them
-    (shared_with_owner), and documents they uploaded themselves. Everything else
-    filed about a staff member — background checks above all — stays invisible
-    here. The org filter plus the owner filter is the whole access rule; there
-    is no id-based lookup that could be walked.
+    Two kinds, and only two: documents an admin has explicitly SHARED with the
+    owner (shared_with_owner), and documents they uploaded themselves.
+    Everything else filed about a staff member — background checks above all —
+    stays invisible here. The org filter plus the owner filter is the whole
+    access rule; there is no id-based lookup that could be walked.
     """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    # admin client justified: sis_secure_documents is a service-role-only staff-records table; read filtered to owner_user_id == caller AND shared_with_owner
+    owner, err = _documents_target(user_id, org_id)
+    if err:
+        return err
+    # admin client justified: sis_secure_documents is a service-role-only staff-records table; read filtered to the resolved owner AND shared_with_owner
     rows = (get_supabase_admin_client().table('sis_secure_documents')
             .select('id, filename, title, category, note, size_bytes, created_at, '
                     'shared_with_owner, uploaded_by_owner')
-            .eq('organization_id', org_id).eq('owner_user_id', user_id)
+            .eq('organization_id', org_id).eq('owner_user_id', owner)
             .eq('shared_with_owner', True)
             .order('created_at', desc=True).execute()).data or []
-    return jsonify({'success': True, 'documents': rows})
+    # So the page can say whose documents these are rather than calling somebody
+    # else's contract "yours".
+    return jsonify({'success': True, 'documents': rows,
+                    'previewing': owner != user_id})
 
 
 @bp.route('/my-documents/upload', methods=['POST'])
@@ -567,9 +613,13 @@ def upload_my_document(user_id):
 @bp.route('/my-documents/<doc_id>/url', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def my_document_url(user_id, doc_id):
-    """Signed URL for one of the caller's own documents. Ownership and sharing
+    """Signed URL for a document belonging to whoever this portal is showing —
+    the caller, or the teacher an HR admin is previewing. Ownership and sharing
     are re-checked here, not trusted from the list call."""
     org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    owner, err = _documents_target(user_id, org_id)
     if err:
         return err
     # admin client justified: service-role-only sis_secure_documents lookup; org + owner_user_id + shared_with_owner re-checked below before any URL is issued
@@ -578,7 +628,7 @@ def my_document_url(user_id, doc_id):
             .eq('id', doc_id).limit(1).execute()).data or []
     doc = rows[0] if rows else None
     if (not doc or doc.get('organization_id') != org_id
-            or doc.get('owner_user_id') != user_id
+            or doc.get('owner_user_id') != owner
             or not doc.get('shared_with_owner')):
         return jsonify({'success': False, 'error': 'Document not found'}), 404
     try:
