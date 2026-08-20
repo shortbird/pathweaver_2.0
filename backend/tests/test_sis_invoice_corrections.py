@@ -224,3 +224,82 @@ class TestCorrectingARecordedPayment:
         assert result['unchanged'] is True
         table.update.assert_not_called()
         audit.assert_not_called()
+
+
+def _service_with_tables(rows_by_table):
+    """A supabase admin mock that answers per TABLE, so a function reading
+    several tables in one pass (like billing_ledger) gets the right rows from
+    each instead of the same list every time."""
+    def table_for(name):
+        table = Mock()
+        for chained in ('select', 'eq', 'in_', 'limit', 'order', 'update', 'insert'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=list(rows_by_table.get(name, [])))
+        return table
+
+    client = Mock()
+    client.table.side_effect = table_for
+    return client
+
+
+@pytest.mark.unit
+class TestLedgerCarriesItsPayments:
+    """iCreate, 2026-08-20: "Still not seeing where I can alter the
+    receipt/invoice if I marked the wrong payment method?"
+
+    The correction endpoint existed but the receipt could not reach it: the
+    ledger row it prints from carried the latest payment's method as a bare
+    string, with no payment id to correct and no sign of the other payments.
+    """
+
+    INVOICE = {'id': 'inv1', 'organization_id': 'org1', 'household_id': 'hh1',
+               'student_user_id': None, 'status': 'paid', 'due_date': '2026-08-01',
+               'total_cents': 4000, 'amount_paid_cents': 4000, 'processing_fee_cents': 0}
+
+    PAYMENTS = [
+        {'id': 'p2', 'invoice_id': 'inv1', 'amount_cents': 1000, 'method': 'zelle',
+         'external_ref': None, 'note': None, 'recorded_at': '2026-07-05T00:00:00Z'},
+        {'id': 'p1', 'invoice_id': 'inv1', 'amount_cents': 3000, 'method': 'check',
+         'external_ref': '1041', 'note': None, 'recorded_at': '2026-07-02T00:00:00Z'},
+    ]
+
+    def _ledger(self):
+        client = _service_with_tables({
+            'sis_invoice_line_items': [{'invoice_id': 'inv1', 'description': 'Art supplies'}],
+            'sis_payment_records': self.PAYMENTS,
+            'households': [{'id': 'hh1', 'name': 'Bowman Family'}],
+        })
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service.list_invoices', return_value=[self.INVOICE]), \
+                patch('services.sis_billing_service._users_map', return_value={}):
+            return billing.billing_ledger('org1')[0]
+
+    def test_every_payment_is_listed_newest_first(self):
+        row = self._ledger()
+        assert [p['id'] for p in row['payments']] == ['p2', 'p1']
+
+    def test_each_payment_carries_the_id_the_correction_needs(self):
+        """Without it the receipt can show a wrong method but not fix it."""
+        assert all(p['id'] for p in self._ledger()['payments'])
+
+    def test_a_second_method_is_not_hidden_behind_the_latest(self):
+        """The receipt printed the newest payment's method as though it were the
+        only one, so an invoice settled by a check and a Zelle receipted as
+        'Zelle' alone."""
+        row = self._ledger()
+        assert row['method'] == 'zelle'  # still the latest, for the status pill
+        assert {p['method'] for p in row['payments']} == {'zelle', 'check'}
+
+    def test_the_reference_travels_so_a_check_number_is_identifiable(self):
+        row = self._ledger()
+        assert next(p for p in row['payments'] if p['method'] == 'check')['external_ref'] == '1041'
+
+    def test_an_unpaid_invoice_has_an_empty_payment_list(self):
+        client = _service_with_tables({'households': [{'id': 'hh1', 'name': 'Bowman Family'}]})
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service.list_invoices',
+                      return_value=[{**self.INVOICE, 'status': 'sent', 'amount_paid_cents': 0}]), \
+                patch('services.sis_billing_service._users_map', return_value={}):
+            row = billing.billing_ledger('org1')[0]
+        assert row['payments'] == []
+        assert row['method'] is None

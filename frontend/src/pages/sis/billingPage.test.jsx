@@ -26,6 +26,11 @@ const { api } = vi.hoisted(() => {
         invoice_id: 'inv2', household_id: 'hh1', family_name: 'Bowman Family', student_name: 'Jay',
         description: 'Art supplies', total_cents: 4000, amount_paid_cents: 4000, balance_cents: 0,
         status: 'paid', due_date: '2026-07-01', method: 'zelle', paid_at: '2026-07-05',
+        payments: [
+          { id: 'pay2', method: 'zelle', amount_cents: 1000, recorded_at: '2026-07-05T00:00:00Z' },
+          { id: 'pay3', method: 'check', amount_cents: 3000, external_ref: '1041',
+            recorded_at: '2026-07-02T00:00:00Z' },
+        ],
       }] } }
     }
     if (url.includes('/api/sis/billing/outstanding')) {
@@ -44,6 +49,14 @@ const { api } = vi.hoisted(() => {
         subtotal_cents: 36500, discount_cents: 0, processing_fee_cents: 0,
         total_cents: 36500, amount_paid_cents: 0, amount_due_cents: 36500,
         funding_label: null,
+        ...(url.includes('inv2') ? {
+          invoice_number: 'INV-2026-4C1180', status: 'paid', student_name: 'Jay',
+          line_items: [{ description: 'Art supplies', amount_cents: 4000 }],
+          subtotal_cents: 4000, total_cents: 4000,
+          amount_paid_cents: 4000, amount_due_cents: 0,
+          payments: [{ id: 'pay1', method: 'cash', amount_cents: 4000,
+                       external_ref: null, recorded_at: '2026-08-10T00:00:00Z' }],
+        } : {}),
       } } }
     }
     if (url.includes('/api/sis/billing/detail')) {
@@ -368,5 +381,50 @@ describe('charge detail', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Correct payment for Bowman Family/ }))
     await screen.findByText('Correct payment')
     expect(screen.queryByLabelText('Amount ($)')).not.toBeInTheDocument()
+  })
+
+  /**
+   * iCreate, 2026-08-20: "Still not seeing where I can alter the receipt/invoice
+   * if I marked the wrong payment method?" The correction dialog was reachable
+   * only from the Charge detail tab. The next three cover the two places a wrong
+   * method is actually noticed: the receipt and the invoice.
+   */
+  it('receipts every payment, not just the latest one', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Receipt' }))
+
+    expect(await screen.findByText('Payment receipt')).toBeInTheDocument()
+    expect(screen.getByText(/^Zelle · 2026-07-05$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Check · 2026-07-02 · 1041$/)).toBeInTheDocument()
+  })
+
+  it('corrects a payment from the receipt', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Receipt' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Correct Check of \$30\.00/ }))
+
+    expect(await screen.findByText('Correct payment')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Method'), { target: { value: 'cash' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/sis/payments/pay3',
+      expect.objectContaining({ method: 'cash' })))
+    // Back to the receipt it was corrected from, reloaded.
+    expect(await screen.findByText('Payment receipt')).toBeInTheDocument()
+  })
+
+  it('corrects a payment from the invoice', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Art supplies'))
+    await screen.findByText('INV-2026-4C1180')
+    expect(screen.getByText('Payments received')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Correct Cash of \$40\.00/ }))
+    expect(await screen.findByText('Correct payment')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Method'), { target: { value: 'check' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/sis/payments/pay1',
+      expect.objectContaining({ method: 'check' })))
   })
 })
