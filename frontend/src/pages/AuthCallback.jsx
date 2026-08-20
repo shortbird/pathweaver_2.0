@@ -12,15 +12,21 @@ import TosConsentModal from '../components/auth/TosConsentModal'
  *
  * Handles OAuth callbacks from multiple providers:
  * 1. Spark SSO - Uses query param 'code' for token exchange
- * 2. Google OAuth - Uses Supabase auth with URL hash fragments
+ * 2. Google / Apple OAuth - Uses Supabase auth with URL hash fragments
  *
  * For Spark SSO (query param 'code'):
  * - Receives one-time auth code from SSO redirect
  * - Exchanges code for tokens via POST to /spark/token
  *
- * For Google OAuth (URL hash with access_token):
+ * For Supabase OAuth (URL hash with access_token):
  * - Supabase handles the OAuth flow
  * - We exchange Supabase token for app session
+ *
+ * The hash Supabase hands back is identical for both providers, so the sign-in
+ * button names the provider in the redirect query string (`?provider=apple`).
+ * When that param is missing — Google's redirect predates it, and a redirect
+ * allow-list can match on path alone — authService reads the provider off the
+ * Supabase session instead.
  */
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
@@ -76,8 +82,8 @@ export default function AuthCallback() {
       const isSupabaseOAuth = hasHashTokens || hasSupabaseSession
 
       if (isSupabaseOAuth) {
-        // Handle Google OAuth via Supabase
-        await handleGoogleOAuth()
+        // Handle Google / Apple OAuth via Supabase
+        await handleSupabaseOAuth()
       } else if (code) {
         // Handle Spark SSO
         await handleSparkSSO(code)
@@ -161,12 +167,15 @@ export default function AuthCallback() {
   }
 
   /**
-   * Handle Google OAuth callback via Supabase
+   * Handle Google / Apple OAuth callback via Supabase
    */
-  const handleGoogleOAuth = async () => {
+  const handleSupabaseOAuth = async () => {
+    // Null rather than 'google' when the param is absent: that lets the service
+    // read the provider off the Supabase session instead of assuming.
+    const providerHint = searchParams.get('provider') === 'apple' ? 'apple' : null
     try {
       // Pass pre-captured tokens to handle clock skew issues
-      const result = await authService.handleGoogleCallback(capturedTokens)
+      const result = await authService.handleOAuthCallback(providerHint, capturedTokens)
 
       if (result.success) {
         // Check if TOS acceptance is required (new users)
@@ -209,7 +218,8 @@ export default function AuthCallback() {
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath
       } else {
-        setError(result.error || 'Google authentication failed')
+        // result.error already names the provider it tried.
+        setError(result.error || 'Authentication failed')
         setStatus('error')
 
         setTimeout(() => {
@@ -217,8 +227,8 @@ export default function AuthCallback() {
         }, 3000)
       }
     } catch (err) {
-      console.error('Google OAuth failed:', err)
-      setError('Google authentication failed')
+      console.error('OAuth callback failed:', err)
+      setError('Authentication failed')
       setStatus('error')
 
       setTimeout(() => {

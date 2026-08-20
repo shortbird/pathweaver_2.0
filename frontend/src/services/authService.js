@@ -249,18 +249,82 @@ class AuthService {
   }
 
   /**
+   * Sign in with Apple OAuth
+   *
+   * Same Supabase flow as Google. The redirect carries `?provider=apple` so
+   * /auth/callback knows which backend endpoint to exchange the token at —
+   * Supabase hands both providers back through the same URL hash, and nothing
+   * in the hash says who issued it.
+   *
+   * Apple returns the user's name only on the very first authorization, and
+   * Supabase stores it in user_metadata, which is where the backend reads it
+   * from. So there is nothing extra to carry across the redirect here.
+   */
+  async signInWithApple() {
+    try {
+      logger.debug('[AuthService] Initiating Apple OAuth flow')
+
+      const redirectTo = `${window.location.origin}/auth/callback?provider=apple`
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo }
+      })
+
+      if (error) {
+        logger.error('[AuthService] Apple OAuth error:', error)
+        return { success: false, error: error.message }
+      }
+
+      return { success: true, redirecting: true }
+
+    } catch (error) {
+      logger.error('[AuthService] Apple OAuth unexpected error:', error)
+      return { success: false, error: 'Failed to initiate Apple sign-in' }
+    }
+  }
+
+  /**
    * Handle Google OAuth callback
    *
    * Called from the /auth/callback page after Google redirects back.
-   * Exchanges Supabase token for our app session.
    *
    * @param {Object|null} capturedTokens - Pre-captured tokens (workaround for clock skew)
    * @param {string} capturedTokens.accessToken - Pre-captured access token
    * @param {string} capturedTokens.refreshToken - Pre-captured refresh token
    */
   async handleGoogleCallback(capturedTokens = null) {
+    return this.handleOAuthCallback('google', capturedTokens)
+  }
+
+  /**
+   * Handle Apple OAuth callback
+   *
+   * @param {Object|null} capturedTokens - Pre-captured tokens (workaround for clock skew)
+   */
+  async handleAppleCallback(capturedTokens = null) {
+    return this.handleOAuthCallback('apple', capturedTokens)
+  }
+
+  /**
+   * Exchange a Supabase OAuth session for our app session.
+   *
+   * Provider-agnostic: /api/auth/google/callback and /api/auth/apple/callback
+   * take the same body and answer with the same shape (including the shared TOS
+   * acceptance token), so the only difference is the path.
+   *
+   * @param {'google'|'apple'|null} providerHint - From the `?provider=` query
+   *   param the sign-in button set. Null when the redirect didn't carry one, in
+   *   which case the Supabase session names the provider itself. Relying on the
+   *   hint alone would break the moment Supabase's redirect allow-list matched
+   *   the callback path without its query string.
+   * @param {Object|null} capturedTokens - Pre-captured tokens (workaround for clock skew)
+   */
+  async handleOAuthCallback(providerHint = null, capturedTokens = null) {
+    let provider = providerHint || 'google'
+    const label = () => (provider === 'apple' ? 'Apple' : 'Google')
     try {
-      logger.debug('[AuthService] Processing Google OAuth callback')
+      logger.debug(`[AuthService] Processing OAuth callback (hint: ${providerHint || 'none'})`)
 
       // First, try to use pre-captured tokens (fixes clock skew issues where Supabase rejects tokens)
       let accessToken = capturedTokens?.accessToken
@@ -294,13 +358,22 @@ class AuthService {
 
       if (sessionError) {
         logger.error('[AuthService] Failed to get Supabase session:', sessionError)
-        return { success: false, error: 'Failed to complete Google sign-in' }
+        return { success: false, error: `Failed to complete ${label()} sign-in` }
       }
 
       // Use tokens from session, or fallback to hash params
       if (!session && !accessToken) {
         logger.error('[AuthService] No session found after OAuth callback')
         return { success: false, error: 'No authentication session found' }
+      }
+
+      // The hint wins when we have one — it names the button the user actually
+      // pressed. Without it, fall back to what the session says issued the
+      // identity, which is how an Apple sign-in still reaches the Apple
+      // endpoint if the redirect lost its query string.
+      if (!providerHint && session?.user?.app_metadata?.provider === 'apple') {
+        provider = 'apple'
+        logger.debug('[AuthService] Provider resolved from session metadata: apple')
       }
 
       const finalAccessToken = session?.access_token || accessToken
@@ -310,14 +383,14 @@ class AuthService {
       console.log('[AuthService] Final token present:', !!finalAccessToken)
 
       // Exchange Supabase token for our app session
-      const response = await api.post('/api/auth/google/callback', {
+      const response = await api.post(`/api/auth/${provider}/callback`, {
         access_token: finalAccessToken,
         refresh_token: finalRefreshToken
       })
 
       // Check if TOS acceptance is required (new users)
       if (response.data.requires_tos_acceptance) {
-        logger.debug('[AuthService] TOS acceptance required for new Google user')
+        logger.debug(`[AuthService] TOS acceptance required for new ${label()} user`)
         return {
           success: true,
           requiresTosAcceptance: true,
@@ -330,16 +403,16 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ALWAYS store tokens for Google OAuth to ensure cross-origin compatibility
+      // ALWAYS store tokens for OAuth sign-in to ensure cross-origin compatibility
       // This is critical because cookies may not work reliably in cross-origin scenarios
       const appAccessToken = response.data.app_access_token
       const appRefreshToken = response.data.app_refresh_token
 
       if (appAccessToken && appRefreshToken) {
         await this.setTokens(appAccessToken, appRefreshToken)
-        logger.debug('[AuthService] Google OAuth tokens stored in IndexedDB')
+        logger.debug(`[AuthService] ${label()} OAuth tokens stored in IndexedDB`)
       } else {
-        logger.warn('[AuthService] Google OAuth: No tokens received from server')
+        logger.warn(`[AuthService] ${label()} OAuth: No tokens received from server`)
       }
 
       // Start token health monitoring
@@ -354,9 +427,9 @@ class AuthService {
       }
 
     } catch (error) {
-      logger.error('[AuthService] Google callback error:', error)
+      logger.error(`[AuthService] ${label()} callback error:`, error)
       console.error('[AuthService] Full error response:', error.response?.data)
-      const errorMessage = error.response?.data?.message || 'Failed to complete Google sign-in'
+      const errorMessage = error.response?.data?.message || `Failed to complete ${label()} sign-in`
       return { success: false, error: errorMessage }
     }
   }

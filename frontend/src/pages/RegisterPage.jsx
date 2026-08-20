@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 import GoogleButton from '../components/auth/GoogleButton'
+import AppleButton from '../components/auth/AppleButton'
 import logger from '../utils/logger'
 import toast from 'react-hot-toast'
 
@@ -17,7 +18,7 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
-  const [googleError, setGoogleError] = useState('')
+  const [socialError, setSocialError] = useState('')
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
 
@@ -106,16 +107,23 @@ const RegisterPage = () => {
           </p>
         </div>
 
-        {/* Google Sign-up Option */}
-        <div className="mt-6">
-          {googleError && (
+        {/* Social sign-up options. Both share one error slot -- only one of
+            them can be mid-flight, since either navigates away on success. */}
+        <div className="mt-6 space-y-3">
+          {socialError && (
             <div className="mb-4 bg-red-50 border-l-4 border-red-500 rounded-md p-4">
-              <p className="text-sm text-red-800">{googleError}</p>
+              <p className="text-sm text-red-800">{socialError}</p>
             </div>
           )}
           <GoogleButton
             mode="signup"
-            onError={(error) => setGoogleError(error)}
+            onError={(error) => setSocialError(error)}
+            disabled={loading}
+            invitationCode={invitationCode}
+          />
+          <AppleButton
+            mode="signup"
+            onError={(error) => setSocialError(error)}
             disabled={loading}
             invitationCode={invitationCode}
           />

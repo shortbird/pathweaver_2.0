@@ -36,6 +36,14 @@ vi.mock('../components/auth/GoogleButton', () => ({
   )
 }))
 
+vi.mock('../components/auth/AppleButton', () => ({
+  default: ({ mode, onError, disabled }) => (
+    <button data-testid="apple-button" disabled={disabled}>
+      {mode === 'signup' ? 'Sign up with Apple' : 'Sign in with Apple'}
+    </button>
+  )
+}))
+
 vi.mock('../components/auth/PasswordStrengthMeter', () => ({
   default: ({ password }) => password ? <div data-testid="password-strength">Strength meter</div> : null
 }))
@@ -113,6 +121,11 @@ describe('RegisterPage', () => {
     it('renders Google signup button', () => {
       renderRegisterPage()
       expect(screen.getByTestId('google-button')).toBeInTheDocument()
+    })
+
+    it('renders Apple signup button', () => {
+      renderRegisterPage()
+      expect(screen.getByTestId('apple-button')).toBeInTheDocument()
     })
 
     it('renders login link', () => {

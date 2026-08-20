@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
 import GoogleButton from '../components/auth/GoogleButton'
+import AppleButton from '../components/auth/AppleButton'
 import { observerAPI } from '../services/api'
 import { getPostLoginPath } from '../utils/postLoginPath'
 import { isDifferentAccountActiveElsewhere } from '../utils/sessionHint'
@@ -317,6 +318,14 @@ const LoginPage = () => {
 
           {/* Google Sign-in */}
           <GoogleButton
+            mode="signin"
+            onError={(error) => setLoginError(error)}
+            disabled={loading}
+          />
+
+          {/* Apple Sign-in. Accounts created with Apple in the mobile app have
+              no password, so without this they had no way onto the web at all. */}
+          <AppleButton
             mode="signin"
             onError={(error) => setLoginError(error)}
             disabled={loading}

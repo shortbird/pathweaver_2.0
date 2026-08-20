@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import PropTypes from 'prop-types'
 import authService from '../../services/authService'
+import { stashPendingCodes, clearPendingCodes } from './oauthPendingCodes'
 
 /**
  * Google Sign-In Button Component
@@ -22,29 +23,16 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
         onBeforeRedirect()
       }
 
-      // Store promo code before OAuth redirect (will be applied after TOS acceptance)
-      if (promoCode) {
-        localStorage.setItem('pendingPromoCode', promoCode)
-      }
-
-      // Store invitation code before OAuth redirect (will be used to link observer after auth)
-      if (invitationCode) {
-        localStorage.setItem('pendingObserverInvitation', invitationCode)
-      }
-
-      // Store org invitation code before OAuth redirect (will redirect back to invitation page)
-      if (orgInvitationCode) {
-        localStorage.setItem('pendingOrgInvitation', orgInvitationCode)
-      }
+      // Promo / observer / org invitation codes are parked in localStorage so
+      // they survive the redirect out to Google and back to /auth/callback.
+      stashPendingCodes({ promoCode, invitationCode, orgInvitationCode })
 
       const result = await authService.signInWithGoogle()
 
       if (!result.success && !result.redirecting) {
         // Only call onError if we're not redirecting
         // Clear pending codes if OAuth initiation failed
-        localStorage.removeItem('pendingPromoCode')
-        localStorage.removeItem('pendingObserverInvitation')
-        localStorage.removeItem('pendingOrgInvitation')
+        clearPendingCodes()
         onError?.(result.error || 'Failed to sign in with Google')
         setLoading(false)
       }
@@ -52,9 +40,7 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
       // Loading state will persist until redirect happens
 
     } catch (error) {
-      localStorage.removeItem('pendingPromoCode')
-      localStorage.removeItem('pendingObserverInvitation')
-      localStorage.removeItem('pendingOrgInvitation')
+      clearPendingCodes()
       onError?.(error.message || 'Failed to sign in with Google')
       setLoading(false)
     }
