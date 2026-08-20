@@ -52,3 +52,56 @@ page under a preview shows the admin's own quest progress. Lower stakes (no
 confidential content, and the endpoint auto-assigns on read, so it cannot simply be
 pointed at someone else), but it is the same shape and worth closing when the
 training pages are next touched.
+
+---
+
+# Second report, same thread: "it also assigned the background check to be the contract"
+
+Not the same bug, and this one was real in the data the teachers see.
+
+## What was happening
+
+The staff onboarding template's first item, *Review & Sign Your Contract*, names
+no document — its description says the contract will be uploaded to the portal.
+An item like that signs against a **pool**: every document the office has shared
+with that person (`sis_onboarding_service.office_documents`). Nothing in the
+store said which of those was the contract.
+
+That was survivable while a school only shared contracts. iCreate also shared
+each person's background check, so on 2026-08-19 the pool held two documents:
+
+| Who | What their item offered to sign |
+|---|---|
+| Alysa Russell, Hollie Russell, Karina Worlton, Thomas Duffany | their contract **and** their background check |
+| Molly Christensen | **only** her background check — the office never had a contract for her |
+| the other 15 | their contract only (their check was never shared) |
+
+Signing recorded every document in the pool as "what they had in front of them",
+so a signature on the contract also claimed a background check.
+
+## The fix
+
+`sis_secure_documents.requires_signature` — the office ticking **"They must sign
+this"** on the upload form, on a row in the list, or over a selection. The pool
+prefers flagged documents, and asking for a signature shares the document too
+(nobody signs what they cannot open).
+
+The interesting part is what happens when somebody has nothing flagged:
+
+- **A school that has never ticked anything keeps its whole shared pool.** No
+  school is to deploy this and have its teachers read "your document is not here
+  yet" — that is the 2026-08-18 failure, and it refuses signatures outright.
+- **Once a school uses the tick, silence means silence.** That is Molly's case:
+  she has no contract, so her item now correctly says the office has not
+  uploaded her document, instead of offering her background check.
+
+## Applied to iCreate
+
+- Migration `20260820000000_secure_document_requires_signature.sql` applied to
+  prod.
+- The 23 `Teacher Employee Agreement` rows were marked as needing a signature.
+  Nothing else was: the 11 background checks stay in their owners' portals to
+  read, and are no longer offered to sign.
+
+Verified after the backfill: the four teachers above are asked for their
+contract only, and Molly's item is empty rather than pointing at her own check.

@@ -47,6 +47,10 @@ const SecureDocumentsPage = () => {
   // (iCreate, 2026-08-18). It is on screen and unticked on every fresh load, so
   // it stays a visible choice rather than a hidden default.
   const [shareOnUpload, setShareOnUpload] = useState(false)
+  // "They must sign this" — the tick that tells a checklist signature item
+  // which of somebody's documents is the contract. Sticky for the same reason
+  // as the one above: a sitting of nineteen contracts is one decision.
+  const [signOnUpload, setSignOnUpload] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [fileKey, setFileKey] = useState(0) // reset the <input type=file> after upload
 
@@ -114,7 +118,8 @@ const SecureDocumentsPage = () => {
       if (!person) return
       form.append(person.is_student ? 'student_user_id' : 'owner_user_id', person.student_id)
     })
-    if (shareOnUpload) form.append('shared_with_owner', 'true')
+    if (shareOnUpload || signOnUpload) form.append('shared_with_owner', 'true')
+    if (signOnUpload) form.append('requires_signature', 'true')
     setUploading(true)
     try {
       const res = await api.post('/api/sis/secure-documents/upload', form)
@@ -128,7 +133,7 @@ const SecureDocumentsPage = () => {
     } finally {
       setUploading(false)
     }
-  }, [file, orgId, people, personIds, title, category, note, shareOnUpload, load])
+  }, [file, orgId, people, personIds, title, category, note, shareOnUpload, signOnUpload, load])
 
   const handleRename = useCallback(async (doc) => {
     const next = renameText.trim()
@@ -189,6 +194,24 @@ const SecureDocumentsPage = () => {
     }
   }, [orgId, docName])
 
+  // The second per-row decision: is this the document their checklist is
+  // waiting for? Turning it on shares the document as well, because an item
+  // waiting on a file its owner cannot open never completes.
+  const toggleSign = useCallback(async (doc) => {
+    const next = !doc.requires_signature
+    try {
+      await api.patch(`/api/sis/secure-documents/${doc.id}`, {
+        organization_id: orgId, requires_signature: next,
+      })
+      setDocs((prev) => prev.map((d) => (d.id === doc.id
+        ? { ...d, requires_signature: next, shared_with_owner: next || d.shared_with_owner }
+        : d)))
+      toast.success(next ? 'They will be asked to sign it' : 'No longer needs their signature')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not change that')
+    }
+  }, [orgId])
+
   // A document can only be shared with somebody it is filed against, and one
   // they sent in themselves is already theirs — both are unselectable rather
   // than silently skipped by the server.
@@ -231,6 +254,36 @@ const SecureDocumentsPage = () => {
         : `No longer shared (${n})`)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not change sharing')
+    } finally {
+      setSharingBulk(false)
+    }
+  }, [confirm, orgId, selectedDocs])
+
+  // Marking the batch as the thing to sign — the counterpart of the bulk share,
+  // and how a school that has already filed a contract per teacher tells the
+  // checklists which file that is, in one action rather than twenty-three.
+  const bulkSign = useCallback(async (sign) => {
+    const ids = selectedDocs.map((d) => d.id)
+    if (ids.length === 0) return
+    if (sign && !(await confirm(
+      `Ask for a signature on ${ids.length === 1 ? 'this document' : `these ${ids.length} documents`}? `
+      + 'It becomes what their "sign your contract" checklist item asks for, and they will be '
+      + 'able to open it.'))) return
+    setSharingBulk(true)
+    try {
+      const res = await api.patch('/api/sis/secure-documents', {
+        organization_id: orgId, document_ids: ids, requires_signature: sign,
+      })
+      const n = res.data?.updated ?? ids.length
+      setDocs((prev) => prev.map((d) => (ids.includes(d.id)
+        ? { ...d, requires_signature: sign, shared_with_owner: sign || d.shared_with_owner }
+        : d)))
+      setSelectedIds([])
+      toast.success(sign
+        ? `${n} ${n === 1 ? 'document' : 'documents'} to sign`
+        : `No longer waiting on a signature (${n})`)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not change that')
     } finally {
       setSharingBulk(false)
     }
@@ -339,9 +392,10 @@ const SecureDocumentsPage = () => {
                   <label className="flex items-start gap-2 mt-3 text-sm text-neutral-700 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={shareOnUpload}
+                      checked={shareOnUpload || signOnUpload}
+                      disabled={signOnUpload}
                       onChange={(e) => setShareOnUpload(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700 disabled:opacity-60"
                     />
                     <span>
                       Let them see it
@@ -350,6 +404,27 @@ const SecureDocumentsPage = () => {
                         something is waiting on it. Leave this off for background checks and
                         anything else they should not read. Students are never given the
                         documents filed about them.
+                      </span>
+                    </span>
+                  </label>
+                  {/* The second decision, and the one a checklist reads. An item
+                      like "Review & Sign Your Contract" names no document — it
+                      signs whatever the office has given that person — so
+                      without this tick a shared background check is offered as
+                      the contract (iCreate, 2026-08-19). */}
+                  <label className="flex items-start gap-2 mt-2 text-sm text-neutral-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={signOnUpload}
+                      onChange={(e) => setSignOnUpload(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700"
+                    />
+                    <span>
+                      They must sign this
+                      <span className="block text-xs text-neutral-400">
+                        For contracts and agreements. It becomes the document their
+                        &quot;sign your contract&quot; checklist item asks for, and they can see it
+                        either way — nobody can sign what they cannot open.
                       </span>
                     </span>
                   </label>
@@ -418,6 +493,14 @@ const SecureDocumentsPage = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => bulkSign(true)}
+                  disabled={sharingBulk}
+                  className="px-3 py-1.5 rounded-lg border border-optio-purple/40 text-sm font-medium text-optio-purple hover:bg-white disabled:opacity-50"
+                >
+                  Ask for a signature
+                </button>
+                <button
+                  type="button"
                   onClick={() => bulkShare(false)}
                   disabled={sharingBulk}
                   className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-white disabled:opacity-50"
@@ -453,6 +536,7 @@ const SecureDocumentsPage = () => {
                       <th className="py-3 px-4 font-semibold text-neutral-700">Category</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">About</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Shared</th>
+                      <th className="py-3 px-4 font-semibold text-neutral-700">To sign</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Uploaded by</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Date</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700 text-right">Actions</th>
@@ -527,6 +611,27 @@ const SecureDocumentsPage = () => {
                                 : 'Only admins can see this — click to share it with them'}
                             >
                               {d.shared_with_owner ? 'Shared with them' : 'Private'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {/* What a "sign your contract" checklist item looks for.
+                              Off means the document is theirs to read, not to sign. */}
+                          {!d.owner_user_id || d.uploaded_by_owner ? (
+                            <span className="text-xs text-neutral-400">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleSign(d)}
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                d.requires_signature
+                                  ? 'bg-optio-purple/10 text-optio-purple hover:bg-optio-purple/20'
+                                  : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}
+                              title={d.requires_signature
+                                ? 'Their checklist asks them to sign this — click to stop asking'
+                                : 'Not something they sign — click to ask for their signature'}
+                            >
+                              {d.requires_signature ? 'Needs signature' : 'No signature'}
                             </button>
                           )}
                         </td>

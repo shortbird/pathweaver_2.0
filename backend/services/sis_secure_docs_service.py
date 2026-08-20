@@ -187,6 +187,7 @@ def store_document(org_id: str, uploaded_by: str, blob: bytes, filename: str,
                    targets: List[Dict[str, Any]], *, title: Optional[str] = None,
                    category: Optional[str] = None, note: Optional[str] = None,
                    shared_with_owner: bool = False,
+                   requires_signature: bool = False,
                    sensitivity: str = 'hr') -> Dict[str, Any]:
     """Upload one file and record a row per person it is filed against.
 
@@ -230,7 +231,16 @@ def store_document(org_id: str, uploaded_by: str, blob: bytes, filename: str,
         # it is about just because it was filed against them. (Sending a
         # document FOR SIGNATURE is the caller that says otherwise — you cannot
         # sign what you cannot open.)
-        'shared_with_owner': bool(shared_with_owner),
+        #
+        # Which is also why asking for a signature implies sharing: a document
+        # somebody must sign and cannot open is an item that can never be
+        # completed, so the two are set together rather than left to disagree.
+        'shared_with_owner': bool(shared_with_owner) or bool(requires_signature),
+        # The office is asking the owner to SIGN this one — what separates the
+        # contract from the background check filed next to it, and what a
+        # checklist signature item signs against (sis_onboarding_service.
+        # office_documents).
+        'requires_signature': bool(requires_signature),
         'sensitivity': clean_sensitivity(sensitivity),
     }
     rows = [{**common, **t, 'storage_path': p} for t, p in zip(targets, paths)]

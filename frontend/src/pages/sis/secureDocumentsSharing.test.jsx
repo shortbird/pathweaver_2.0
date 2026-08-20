@@ -217,3 +217,72 @@ describe('what can be selected', () => {
     expect(screen.getByText('1 selected')).toBeInTheDocument()
   })
 })
+
+/**
+ * Which of somebody's documents their checklist actually asks them to sign.
+ *
+ * iCreate, 2026-08-19. Sharing alone could not say that: a checklist item
+ * reading "Review & Sign Your Contract" names no document, so it signs against
+ * everything the office has shared with that person. Once the background checks
+ * were shared too, the item offered a background check as the contract. The
+ * office says which is which here, where it is already standing.
+ */
+const signCheckbox = () => screen.getByRole('checkbox', { name: /They must sign this/ })
+
+describe('saying which document is the one to sign', () => {
+  it('sends the ask with the upload, and hands the document over with it', async () => {
+    await show()
+    attachFile()
+    fireEvent.click(signCheckbox())
+    fireEvent.click(screen.getByText('Upload document'))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(uploadedForm().get('requires_signature')).toBe('true')
+    // You cannot sign what you cannot open.
+    expect(uploadedForm().get('shared_with_owner')).toBe('true')
+  })
+
+  it('leaves a plain shared document alone — sharing is not asking', async () => {
+    await show()
+    attachFile()
+    fireEvent.click(shareCheckbox())
+    fireEvent.click(screen.getByText('Upload document'))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(uploadedForm().has('requires_signature')).toBe(false)
+  })
+
+  it('marks a whole selection in one request', async () => {
+    // The 23-contract case: the office tells every checklist which file is the
+    // contract in one action, rather than twenty-three row toggles.
+    await show()
+    select('Contract - Karin')
+    select('Contract - Lisa')
+    fireEvent.click(screen.getByRole('button', { name: 'Ask for a signature' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    const [url, body] = api.patch.mock.calls[0]
+    expect(url).toBe('/api/sis/secure-documents')
+    expect(body.requires_signature).toBe(true)
+    expect(body.document_ids).toEqual(['d1', 'd2'])
+  })
+
+  it('asks first, because the person is about to be told to sign something', async () => {
+    await show()
+    select('Contract - Karin')
+    fireEvent.click(screen.getByRole('button', { name: 'Ask for a signature' }))
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+  })
+
+  it('turns one row on from the list', async () => {
+    await show()
+    fireEvent.click(screen.getAllByRole('button', { name: 'No signature' })[0])
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.patch.mock.calls[0][0]).toBe('/api/sis/secure-documents/d1')
+    expect(api.patch.mock.calls[0][1].requires_signature).toBe(true)
+  })
+
+  it('offers nothing to sign on a document nobody owns', async () => {
+    // A medical file about a student has no signer, and a document somebody
+    // sent in themselves is not something the office is asking them to sign.
+    await show()
+    expect(screen.getAllByRole('button', { name: 'No signature' })).toHaveLength(2)
+  })
+})
