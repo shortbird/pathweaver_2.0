@@ -899,7 +899,8 @@ def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:
             'name': preview['staff']['name']}
 
 
-def delete_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
+def delete_staff(org_id: str, staff_id: str,
+                 actor_id: Optional[str] = None) -> Dict[str, Any]:
     """Permanently remove a staff record — only when it carries no history.
 
     This exists for the placeholder rows a school creates while hiring ("Art
@@ -919,7 +920,25 @@ def delete_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
     _detach_from_classes(preview, staff_id)
     _admin().table('sis_staff_profiles').delete() \
         .eq('organization_id', org_id).eq('user_id', staff_id).execute()
-    _admin().table('users').delete().eq('id', staff_id).eq('organization_id', org_id).execute()
+    try:
+        _admin().table('users').delete().eq('id', staff_id).eq('organization_id', org_id).execute()
+    except Exception as e:  # noqa: BLE001
+        from utils.fk_errors import fk_blocker, fk_blocker_label
+        blocker = fk_blocker(e)
+        if blocker is None:
+            raise
+        # _staff_history probes the SIS tables a teacher touches; a teacher is
+        # also a platform user who may have created a course or added someone to
+        # a message group. Those columns are NOT NULL, so the delete cannot go
+        # through — fall back to the archive the dialog already offered instead
+        # of handing the admin a 500 (iCreate, 2026-08-19).
+        logger.warning(f'[Staff] delete of {staff_id[:8]} blocked by {blocker}; archiving instead')
+        archive_staff(org_id, staff_id, actor_id=actor_id or staff_id)
+        return {'archived': True, 'classes_unassigned': len(preview['classes']),
+                'name': preview['staff']['name'], 'delete_blocked_by': blocker,
+                'message': (f"{preview['staff']['name']} could not be deleted outright because the "
+                            f'school still has {fk_blocker_label(blocker)}. They have been archived '
+                            'instead, which hides them without losing those records.')}
     return {'deleted': True, 'classes_unassigned': len(preview['classes']),
             'name': preview['staff']['name']}
 

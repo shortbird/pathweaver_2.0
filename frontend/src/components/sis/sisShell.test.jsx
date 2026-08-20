@@ -24,6 +24,7 @@ vi.mock('../../utils/appSurface', () => nav)
 
 import SisLayout from './SisLayout'
 import SisSidebar from './SisSidebar'
+import { setPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
 function renderLayout() {
   return render(
@@ -149,5 +150,23 @@ describe('SisSidebar', () => {
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.getByText('Secure Documents')).toBeInTheDocument()
+  })
+
+  it('drops My Tasks while previewing a teacher — that inbox is always the admin\u2019s own', () => {
+    // Everything else in the teacher nav follows ?teacher_id=; /api/sis/my-tasks
+    // deliberately does not, so leaving the link up puts the admin's own tasks
+    // behind the teacher's name (the shape of the iCreate 2026-08-19 report,
+    // where My Documents did exactly that with the admin's background check).
+    authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+    setPreviewTeacher({ id: 'teach-1', name: 'Ana Rogers' })
+    try {
+      render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+      expect(screen.queryByText('My Tasks')).not.toBeInTheDocument()
+      // The rest of the teacher portal is still there — it can answer for her.
+      expect(screen.getByText('My Documents')).toBeInTheDocument()
+      expect(screen.getByText('My Classes')).toBeInTheDocument()
+    } finally {
+      clearPreviewTeacher()
+    }
   })
 })

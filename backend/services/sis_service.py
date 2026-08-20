@@ -775,6 +775,23 @@ def caller_sees_pay(user_id: str) -> bool:
     return not is_campus_coordinator(_user_org_roles(ctx))
 
 
+def caller_sees_hr(user_id: str) -> bool:
+    """True for the HR tier (org_admin / superadmin) — the people who may see
+    employment paperwork: contracts, background checks, the secure-document
+    store. False for a campus coordinator, whose restriction here is
+    confidentiality rather than money (utils/sis_roles.HR_ROLES).
+
+    The route decorator is the gate on the HR store itself; this is for the
+    endpoints a coordinator legitimately reaches that can be *asked* for HR
+    content — the teacher-portal preview of someone's documents, above all.
+    """
+    from utils.sis_roles import HR_ROLES
+    ctx = get_user_org_context(user_id)
+    if ctx.get('role') == 'superadmin':
+        return True
+    return bool(set(HR_ROLES) & set(_user_org_roles(ctx)))
+
+
 def caller_may_grant(user_id: str, role: str) -> bool:
     """False when `role` is a staff role this caller may not hand out.
 

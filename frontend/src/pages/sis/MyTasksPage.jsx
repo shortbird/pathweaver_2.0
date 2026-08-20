@@ -6,6 +6,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
+import { getPreviewTeacher } from './teacherPreview'
 
 /**
  * My Tasks — everything the school is currently asking this person to do.
@@ -199,6 +200,11 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
 
 const MyTasksPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  // This inbox is always the caller's own — /api/sis/my-tasks takes no
+  // ?teacher_id= on purpose (routes/sis/tasks.py). The nav hides this page
+  // while a preview is on; anyone who deep-links in gets told whose list this
+  // is, rather than reading their own tasks as the teacher's.
+  const [preview] = useState(() => getPreviewTeacher())
   const [data, setData] = useState({ tasks: [], counts: {} })
   const [showDone, setShowDone] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -237,6 +243,12 @@ const MyTasksPage = () => {
         <p className="text-sm text-neutral-500 mt-1">
           Everything waiting on you — documents to sign, checklists, requests and policies to read.
         </p>
+        {preview && (
+          <p className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
+            These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
+            this page. Their checklist is on Onboarding, and their documents on My Documents.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

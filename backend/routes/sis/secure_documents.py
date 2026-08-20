@@ -16,7 +16,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from services import sis_secure_docs_service, sis_service
+from services import sis_notifications, sis_secure_docs_service, sis_service
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import HR_ROLES as STAFF_ROLES
@@ -35,6 +35,9 @@ bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 _SECURE_DOCS_BUCKET = sis_secure_docs_service.BUCKET
 _MAX_ATTACH_PEOPLE = sis_secure_docs_service.MAX_ATTACH_PEOPLE
 _MAX_TITLE_LEN = sis_secure_docs_service.MAX_TITLE_LEN
+# One page of the documents list, so "select all" on screen always goes through
+# in one request rather than partly succeeding.
+_MAX_BULK_SHARE = 200
 
 
 def _org_or_error(user_id):
@@ -71,6 +74,12 @@ def _field(key):
     """A single trimmed form/query value, or None."""
     v = (request.form.get(key) or request.args.get(key) or '').strip()
     return v or None
+
+
+def _flag(key):
+    """A checkbox off a multipart form. FormData sends strings, so 'false' has
+    to mean false — `bool('false')` is the bug this exists to avoid."""
+    return (_field(key) or '').lower() in ('1', 'true', 'yes', 'on')
 
 
 def _field_list(key):
@@ -161,14 +170,18 @@ def upload_secure_document(user_id):
     if problem:
         return jsonify({'success': False, 'error': problem}), 400
 
+    share = _flag('shared_with_owner')
+    # "They must sign this" — the tick that tells a checklist signature item
+    # which of somebody's documents is the contract (see office_documents).
+    # It implies sharing, in the service, because a document you must sign and
+    # cannot open is an item nobody can ever complete.
+    needs_signature = _flag('requires_signature')
     result = sis_secure_docs_service.store_document(
         org_id, user_id, blob, file.filename, ext, content_type,
         size_bytes, targets,
         title=_title_from_form(file.filename),
         category=_field('category'), note=_field('note'),
-        shared_with_owner=(request.form.get('shared_with_owner')
-                           or request.args.get('shared_with_owner')
-                           or '').strip().lower() in ('1', 'true', 'yes'),
+        shared_with_owner=share, requires_signature=needs_signature,
         # This blueprint is the HR store; the coordinator-reachable endpoints
         # pass 'general' explicitly (routes/sis/staff_admin.py).
         sensitivity=sis_secure_docs_service.clean_sensitivity(_field('sensitivity'), 'hr'),
@@ -177,6 +190,8 @@ def upload_secure_document(user_id):
         return jsonify({'success': False, 'error': result['error']}), result.get('status', 500)
 
     documents = result['documents']
+    if share or needs_signature:
+        _notify_shared(org_id, documents)
     # `document` kept alongside `documents` for the single-person callers that
     # predate multi-attach.
     return jsonify({'success': True, 'documents': documents,
@@ -274,25 +289,143 @@ def _doc_or_error(user_id, doc_id):
     return rows[0], org_id, None
 
 
+def _notify_shared(org_id, docs):
+    """Tell each owner that a document has appeared in their portal.
+
+    Sharing was silent: the office ticked the box and the person found out by
+    happening to log in and look. Sending a document FOR SIGNATURE already
+    notifies its recipients (sis_onboarding_service.send_for_signature), and
+    upload-then-share is the same event from the recipient's side, so it says so
+    too. Best-effort — sis_notifications.notify swallows its own failures, and a
+    document is still shared whether or not the notice lands.
+    """
+    owners = {d.get('owner_user_id') for d in docs if d.get('owner_user_id')}
+    if not owners:
+        return
+    # admin client justified: org_role lookup to route the notification to the
+    # right portal; ids come from documents already org-checked by the caller.
+    rows = (get_supabase_admin_client().table('users')
+            .select('id, org_role').in_('id', list(owners)).execute()).data or []
+    roles = {r['id']: (r.get('org_role') or '') for r in rows}
+    for doc in docs:
+        owner = doc.get('owner_user_id')
+        if not owner:
+            continue
+        title = doc.get('title') or doc.get('filename') or 'A document'
+        # Parents live in the family portal; staff read theirs in My Documents.
+        link = '/family/portal' if roles.get(owner) == 'parent' else '/my-documents'
+        sis_notifications.notify(
+            owner, 'A document is ready for you',
+            f'"{title}" is now in your portal.',
+            link=link, organization_id=org_id)
+
+
+@bp.route('/secure-documents', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def bulk_share_secure_documents(user_id):
+    """Share (or stop sharing) a selection of documents in one action.
+
+    JSON: organization_id, document_ids (list), shared_with_owner (bool).
+
+    A school that uploads 19 teacher contracts should not have to make 19
+    separate sharing decisions, and until each one is made the teacher sees
+    "your document is not here yet" against the signature item waiting on it
+    (iCreate, 2026-08-18 — 19 contracts, all of them private, every teacher
+    stuck). The per-document PATCH below is unchanged; this is the same
+    decision applied to a selection.
+
+    Documents with nobody attached are skipped rather than failing the batch:
+    the caller selected a set, and one unattached file in it should not undo
+    the rest.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    ids = data.get('document_ids')
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'success': False, 'error': 'Select at least one document'}), 400
+    ids = [str(i) for i in ids if i]
+    if len(ids) > _MAX_BULK_SHARE:
+        return jsonify({'success': False,
+                        'error': f'Share at most {_MAX_BULK_SHARE} documents at a time'}), 400
+    if 'shared_with_owner' not in data and 'requires_signature' not in data:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    # Either decision, or both. Asking for a signature shares the document as
+    # well — you cannot sign what you were never given — so a batch marked for
+    # signing is a batch that has been handed over.
+    needs_signature = (bool(data['requires_signature'])
+                       if 'requires_signature' in data else None)
+    share = bool(data['shared_with_owner']) if 'shared_with_owner' in data else None
+    if needs_signature:
+        share = True
+
+    # admin client justified: service-role-only sis_secure_documents; gated by
+    # @require_role(HR_ROLES), and the .eq('organization_id') on the read below
+    # is what scopes both it and the update, mirroring _doc_or_error.
+    admin = get_supabase_admin_client()
+    rows = (admin.table('sis_secure_documents')
+            .select('id, title, filename, owner_user_id, organization_id, '
+                    'shared_with_owner')
+            .in_('id', ids).eq('organization_id', org_id).execute()).data or []
+    # Sharing needs somebody to share WITH — the same rule the single-document
+    # PATCH enforces, applied per row instead of as a 400 for the whole batch.
+    targets = [r for r in rows if r.get('owner_user_id')]
+    skipped = len(ids) - len(targets)
+    if not targets:
+        return jsonify({'success': False,
+                        'error': 'None of those documents are attached to a person'}), 400
+
+    fields = {}
+    if share is not None:
+        fields['shared_with_owner'] = share
+    if needs_signature is not None:
+        fields['requires_signature'] = needs_signature
+    admin.table('sis_secure_documents').update(fields).in_(
+        'id', [r['id'] for r in targets]).execute()
+    if share:
+        # Only the rows this action actually hands over. Ticking "they must sign
+        # this" on documents somebody already holds is a correction to the
+        # office's own filing, and it must not tell nineteen teachers a second
+        # time that a document is ready for them.
+        _notify_shared(org_id, [r for r in targets if not r.get('shared_with_owner')])
+    return jsonify({'success': True, 'updated': len(targets), 'skipped': skipped,
+                    **fields})
+
+
 @bp.route('/secure-documents/<doc_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def update_secure_document(user_id, doc_id):
-    """Change a document's sharing or filing details.
+    """Change a document's sharing, signing or filing details.
 
     Sharing is the interesting one: turning `shared_with_owner` on is what makes
     a contract visible to the teacher it belongs to, in their My Documents page.
     Turning it back off hides it again — the file is not deleted.
+
+    `requires_signature` is the second decision: this is the document the
+    office is asking them to SIGN, which is what tells a checklist item
+    "Review & Sign Your Contract" that the contract is the contract and the
+    background check filed beside it is not (iCreate, 2026-08-19).
     """
     doc, _org_id, err = _doc_or_error(user_id, doc_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
     fields = {}
+    wants = ('shared_with_owner' in data and data.get('shared_with_owner')) or \
+            ('requires_signature' in data and data.get('requires_signature'))
+    if wants and not doc.get('owner_user_id'):
+        return jsonify({'success': False,
+                        'error': 'Attach this document to a person before sharing it'}), 400
     if 'shared_with_owner' in data:
-        if not doc.get('owner_user_id') and data.get('shared_with_owner'):
-            return jsonify({'success': False,
-                            'error': 'Attach this document to a person before sharing it'}), 400
         fields['shared_with_owner'] = bool(data['shared_with_owner'])
+    if 'requires_signature' in data:
+        # The tick that makes this document the one a checklist item signs
+        # (office_documents). Turning it on shares the document too: an item
+        # waiting on a document its owner cannot open never completes.
+        fields['requires_signature'] = bool(data['requires_signature'])
+        if fields['requires_signature']:
+            fields['shared_with_owner'] = True
     if 'title' in data:
         # Renaming can't blank a document: clearing the box falls back to the
         # name the file arrived under, so the list always has something to show.
@@ -305,6 +438,10 @@ def update_secure_document(user_id, doc_id):
     # admin client justified: update of service-role-only sis_secure_documents; gated by @require_role(HR_ROLES) + _doc_or_error org check above
     row = (get_supabase_admin_client().table('sis_secure_documents')
            .update(fields).eq('id', doc_id).execute()).data
+    # Only on the transition into shared: re-saving an already-shared document
+    # to rename it must not tell the owner it just arrived.
+    if fields.get('shared_with_owner') and not doc.get('shared_with_owner'):
+        _notify_shared(doc['organization_id'], [{**doc, **fields}])
     return jsonify({'success': True, 'document': (row or [doc])[0]})
 
 

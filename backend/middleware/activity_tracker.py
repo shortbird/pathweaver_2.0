@@ -17,6 +17,7 @@ from datetime import datetime
 from app_config import Config
 from database import get_supabase_admin_singleton
 from utils.logger import get_logger
+from utils.retry_handler import is_retryable_error
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
 import json
@@ -344,14 +345,38 @@ class ActivityTracker:
             if user_id:
                 insert_data['user_id'] = user_id
 
-            supabase.table('user_activity_events').insert(insert_data).execute()
+            # Retry the stale-socket case once. This runs on a long-lived
+            # background thread whose pooled connection to Supabase is usually
+            # idle, so "Server disconnected" on the first write after a lull is
+            # routine rather than exceptional (Sentry OPTIO-BACKEND-6M).
+            #
+            # Deliberately not with_connection_retry: that helper logs its own
+            # logger.error when the attempts run out, which would recreate the
+            # Sentry issue this is meant to stop.
+            try:
+                supabase.table('user_activity_events').insert(insert_data).execute()
+            except Exception as first:  # noqa: BLE001
+                if not is_retryable_error(first):
+                    raise
+                supabase.table('user_activity_events').insert(insert_data).execute()
 
             # CRM automation triggers removed (March 2026 - Feature pruning)
 
         except Exception as e:
-            # Never crash the main request if logging fails
-            # Log error but continue silently
-            logger.error(f"Activity tracking error for event {event_type}: {str(e)}", exc_info=True)
+            # Never crash the main request if logging fails. The response went
+            # out before this thread ran, so nothing here is user-visible.
+            #
+            # A dropped analytics row is not an incident, and logger.error makes
+            # it a Sentry issue with a priority the content can't justify. A
+            # transient transport failure that survived its retry is logged as a
+            # warning (breadcrumb only); anything else is a real defect in this
+            # code and keeps its error level.
+            if is_retryable_error(e):
+                logger.warning(
+                    f"Activity tracking dropped event {event_type} after retries: {e}")
+            else:
+                logger.error(
+                    f"Activity tracking error for event {event_type}: {str(e)}", exc_info=True)
 
     def _categorize_event(self, event_type: str) -> str:
         """Map event type to high-level category."""

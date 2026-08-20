@@ -670,6 +670,19 @@ def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, A
             'due_date': inv.get('due_date'),
             'method': (latest_pay or {}).get('method'),
             'paid_at': (latest_pay or {}).get('recorded_at'),
+            # Every payment on the invoice, newest first. The receipt prints
+            # from these rather than from the latest method alone -- an invoice
+            # settled by a check and a scholarship was showing only one of them
+            # -- and each carries the id the correction dialog needs, so a
+            # mis-marked method can be fixed from the receipt itself.
+            'payments': [{
+                'id': p['id'],
+                'amount_cents': p.get('amount_cents'),
+                'method': p.get('method'),
+                'external_ref': p.get('external_ref'),
+                'note': p.get('note'),
+                'recorded_at': p.get('recorded_at'),
+            } for p in pays_by_inv.get(inv['id'], [])],
         })
     # Outstanding (balance > 0) first, then by soonest due date.
     out.sort(key=lambda r: (r['balance_cents'] <= 0, str(r.get('due_date') or '9999-12-31')))

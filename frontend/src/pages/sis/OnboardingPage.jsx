@@ -92,10 +92,13 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
   }
 
   // A document the office shared to the signer's portal (item.sign_docs) — the
-  // thing a signature item signs. Same signed-URL door as My Documents.
+  // thing a signature item signs. Same signed-URL door as My Documents, preview
+  // included: an admin checking a teacher's checklist has to be able to open the
+  // contract that checklist is waiting on, not just read its name.
   const openSignDoc = async (doc) => {
     try {
-      const r = await api.get(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId))
+      const r = await api.get(
+        withPreview(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId), preview))
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
     } catch {
       toast.error('Could not open the document')

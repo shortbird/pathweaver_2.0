@@ -109,7 +109,10 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
         if (!choice) { setRemoving(false); return }
         const r = await api.delete(
           `/api/sis/staff/${staff.id}?organization_id=${orgId}&mode=delete`)
-        toast.success(`${r.data?.name || staff.name} deleted`)
+        // The delete can still be refused by a record the preview never probed,
+        // in which case the server archives them instead and explains why.
+        if (r.data?.message) toast.success(r.data.message)
+        else toast.success(`${r.data?.name || staff.name} deleted`)
       } else {
         const kinds = Object.keys(data.blocking || {}).join(', ')
         const choice = await confirm({

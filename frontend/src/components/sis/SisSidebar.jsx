@@ -80,7 +80,10 @@ const NAV_SECTIONS = [
     // Their own paths still work for deep links and old notifications.
     label: 'Tasks & Documents',
     items: [
-      { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
+      // hideInPreview: the inbox is always the CALLER's own (routes/sis/tasks.py
+      // takes no ?teacher_id=), so under a teacher preview this link would put
+      // the admin's own tasks behind the teacher's name.
+      { name: 'My Tasks', path: '/my-tasks', hideInPreview: true, d: ICONS.check },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
       { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
       { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
@@ -137,11 +140,12 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   const isSuperadmin = user?.role === 'superadmin'
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
-  const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
+  const previewing = Boolean(getPreviewTeacher())
+  const isAdmin = isSisAdmin(user) && !previewing
   // Campus coordinators run the console but not the money (iCreate, 2026-08-01)
   // and not the HR store (contracts, background checks — iCreate, 2026-08-09).
-  const seesFinance = canSeeFinance(user) && !getPreviewTeacher()
-  const seesHr = canSeeHr(user) && !getPreviewTeacher()
+  const seesFinance = canSeeFinance(user) && !previewing
+  const seesHr = canSeeHr(user) && !previewing
 
   return (
     // Below lg the sidebar is a drawer: off-canvas until the header's menu
@@ -175,6 +179,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.superadmin && !isSuperadmin) return false
             if (it.adminOnly && !isAdmin) return false
             if (it.teacherOnly && isAdmin) return false
+            // Pages that can only ever answer for the caller (see hideInPreview).
+            if (it.hideInPreview && previewing) return false
             if (it.financeOnly && !seesFinance) return false
             if (it.hrOnly && !seesHr) return false
             // Org opted out of this module (feature_flags.sis_settings.hidden_modules).

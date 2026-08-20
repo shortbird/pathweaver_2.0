@@ -305,7 +305,7 @@ def remove_staff(user_id, staff_id):
         return jsonify({'success': False, 'error': "You can't remove your own account"}), 400
     mode = (request.args.get('mode') or 'archive').strip().lower()
     if mode == 'delete':
-        result = sis_staff_service.delete_staff(org_id, staff_id)
+        result = sis_staff_service.delete_staff(org_id, staff_id, actor_id=user_id)
     else:
         result = sis_staff_service.archive_staff(org_id, staff_id, actor_id=user_id)
     if result.get('error'):

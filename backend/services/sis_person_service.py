@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from utils.fk_errors import fk_blocker, fk_blocker_label
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -162,7 +163,7 @@ def remove_person(org_id: str, target_id: str, actor_id: str,
     if is_staff(u):
         from services import sis_staff_service
         if mode == 'delete':
-            return sis_staff_service.delete_staff(org_id, target_id)
+            return sis_staff_service.delete_staff(org_id, target_id, actor_id=actor_id)
         return sis_staff_service.archive_staff(org_id, target_id, actor_id=actor_id)
 
     preview = removal_preview(org_id, target_id)
@@ -245,6 +246,25 @@ def _delete(org_id: str, target_id: str, name: str) -> Dict[str, Any]:
             .eq('organization_id', org_id).eq('student_user_id', target_id).execute()
     except Exception as e:  # noqa: BLE001
         logger.warning(f'[People] could not clear waitlist entries: {e}')
-    admin.table('users').delete().eq('id', target_id).eq('organization_id', org_id).execute()
+    try:
+        admin.table('users').delete().eq('id', target_id).eq('organization_id', org_id).execute()
+    except Exception as e:  # noqa: BLE001
+        blocker = fk_blocker(e)
+        if blocker is None:
+            raise
+        # removal_preview only probes five tables, so an account can pass the
+        # can_delete check and still be referenced by something it never looked
+        # at (iCreate, 2026-08-19: group_members.added_by, a 500 in the admin's
+        # face). The child rows above are already gone, so finish as an archive
+        # rather than leaving the person half-removed, and say so plainly.
+        label = fk_blocker_label(blocker)
+        logger.warning(f'[People] delete of {target_id[:8]} blocked by {blocker}; archiving instead')
+        u = _user(org_id, target_id) or {}
+        _archive(org_id, target_id, name, student=is_student(u))
+        return {'archived': True, 'name': name, 'seats_released': seats,
+                'delete_blocked_by': blocker,
+                'message': (f'{name} could not be deleted outright because the school still has '
+                            f'{label}. They have been archived instead, which hides them '
+                            f'without losing those records.')}
     logger.info(f'[People] deleted account {target_id[:8]} from org {org_id[:8]}')
     return {'deleted': True, 'name': name, 'seats_released': seats}

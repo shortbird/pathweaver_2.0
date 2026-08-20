@@ -91,19 +91,23 @@ const BillingPage = () => {
   const [payFor, setPayFor] = useState(null)      // ledger row being paid
   const [editPayment, setEditPayment] = useState(null) // recorded payment being corrected
   const [receiptFor, setReceiptFor] = useState(null) // ledger row for receipt print
+  const [receiptReopen, setReceiptReopen] = useState(null) // invoice id to re-show after a correction
   const [invoiceFor, setInvoiceFor] = useState(null) // invoice id whose document is open
 
   const months = useMemo(monthOptions, [])
 
   // ── Charges ledger ──────────────────────────────────────────────────────
+  // Resolves to the rows it loaded: correcting a payment from a receipt reopens
+  // that receipt, and it has to reopen on the reloaded row or it would show the
+  // method that was just fixed.
   const loadLedger = useCallback(() => {
-    if (!orgId) { setLedger([]); return }
+    if (!orgId) { setLedger([]); return Promise.resolve([]) }
     setLedger(null)
     let path = withOrg('/api/sis/billing/ledger', orgId)
     if (month !== 'all') path += `&month=${month}`
-    api.get(path)
-      .then((r) => setLedger(r.data?.ledger || []))
-      .catch(() => { toast.error('Failed to load charges'); setLedger([]) })
+    return api.get(path)
+      .then((r) => { const rows = r.data?.ledger || []; setLedger(rows); return rows })
+      .catch(() => { toast.error('Failed to load charges'); setLedger([]); return [] })
   }, [orgId, month])
 
   const loadHouseholds = useCallback(() => {
@@ -492,8 +496,17 @@ const BillingPage = () => {
       {editPayment && (
         <EditPaymentModal
           orgId={orgId} payment={editPayment}
-          onClose={() => setEditPayment(null)}
-          onSaved={() => { setEditPayment(null); loadDetail() }}
+          onClose={() => { setEditPayment(null); setReceiptReopen(null) }}
+          onSaved={() => {
+            const reopen = receiptReopen
+            setEditPayment(null)
+            setReceiptReopen(null)
+            if (view === 'detail') loadDetail()
+            else if (view === 'outstanding') loadOutstanding()
+            else loadLedger().then((rows) => {
+              if (reopen) setReceiptFor(rows.find((r) => r.invoice_id === reopen) || null)
+            })
+          }}
         />
       )}
       {invoiceFor && (
@@ -502,7 +515,12 @@ const BillingPage = () => {
           onChanged={() => { loadLedger(); if (view === 'outstanding') loadOutstanding() }} />
       )}
       {receiptFor && (
-        <ReceiptModal row={receiptFor} onClose={() => setReceiptFor(null)} onPrint={printArea} />
+        <ReceiptModal row={receiptFor} onClose={() => setReceiptFor(null)} onPrint={printArea}
+          onCorrect={(pmt) => {
+            setReceiptReopen(receiptFor.invoice_id)
+            setReceiptFor(null)
+            setEditPayment(pmt)
+          }} />
       )}
     </div>
   )
@@ -757,6 +775,10 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(false)
+  // A paid invoice has no Edit button -- settled money is not an edit. But the
+  // METHOD a payment was recorded under is a label, not money, and getting it
+  // wrong is the one thing about a settled invoice that does need fixing.
+  const [correcting, setCorrecting] = useState(null)
 
   const load = useCallback(() => {
     api.get(withOrg(`/api/sis/invoices/${invoiceId}/document`, orgId))
@@ -781,6 +803,16 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not void the invoice')
     }
+  }
+
+  if (correcting) {
+    return (
+      <EditPaymentModal
+        orgId={orgId} payment={correcting}
+        onClose={() => setCorrecting(null)}
+        onSaved={() => { setCorrecting(null); setDoc(null); load(); onChanged?.() }}
+      />
+    )
   }
 
   if (editing && doc) {
@@ -855,6 +887,35 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
                 <span>Amount due</span><span>{money(doc.amount_due_cents)}</span>
               </div>
             </div>
+
+            {!!doc.payments?.length && (
+              <div className="border-t border-gray-100 pt-2 space-y-1">
+                <div className="text-xs uppercase tracking-wide text-neutral-400">Payments received</div>
+                {doc.payments.map((pmt, i) => (
+                  <div key={pmt.id || i} className="flex justify-between gap-3">
+                    <span className="text-neutral-600 min-w-0">
+                      {METHOD_LABEL[pmt.method] || pmt.method || 'Payment'}
+                      {pmt.recorded_at ? ` · ${String(pmt.recorded_at).slice(0, 10)}` : ''}
+                      {pmt.external_ref ? ` · ${pmt.external_ref}` : ''}
+                    </span>
+                    <span className="flex items-center gap-3 shrink-0">
+                      <span className="text-green-700">{money(pmt.amount_cents)}</span>
+                      {pmt.id && (
+                        <button className="text-xs text-optio-purple hover:underline no-print"
+                          aria-label={`Correct ${METHOD_LABEL[pmt.method] || pmt.method || 'payment'} of ${money(pmt.amount_cents)}`}
+                          onClick={() => setCorrecting({
+                            ...pmt,
+                            family_name: doc.family?.name,
+                            student_name: doc.student_name,
+                          })}>
+                          Correct
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* A UFA family pays through UFA, not by card. Saying so here stops
                 somebody chasing a card payment that is never coming. */}
@@ -1002,30 +1063,75 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
 }
 
 // ── Receipt (printable) ──────────────────────────────────────────────────────
-const ReceiptModal = ({ row, onClose, onPrint }) => (
-  <Modal title="Receipt" onClose={onClose}>
-    <div className="print-area">
-      <div className="border border-gray-200 rounded-lg p-4 text-sm space-y-2">
-        <div className="text-lg font-semibold text-neutral-900">Payment receipt</div>
-        <div className="flex justify-between"><span className="text-neutral-500">Family</span><span>{row.family_name || '—'}</span></div>
-        {row.student_name && (
-          <div className="flex justify-between"><span className="text-neutral-500">Student</span><span>{row.student_name}</span></div>
-        )}
-        <div className="flex justify-between"><span className="text-neutral-500">Charge</span><span>{row.description || '—'}</span></div>
-        <div className="flex justify-between"><span className="text-neutral-500">Method</span><span>{METHOD_LABEL[row.method] || row.method || '—'}</span></div>
-        {row.paid_at && (
-          <div className="flex justify-between"><span className="text-neutral-500">Paid on</span><span>{String(row.paid_at).slice(0, 10)}</span></div>
-        )}
-        <div className="flex justify-between border-t border-gray-100 pt-2 font-medium">
-          <span>Amount paid</span><span>{money(row.amount_paid_cents || row.total_cents)}</span>
+/**
+ * The receipt the office prints for a settled invoice.
+ *
+ * iCreate, 2026-08-20: "Still not seeing where I can alter the receipt/invoice
+ * if I marked the wrong payment method?" The correction dialog existed, but only
+ * behind the Charge detail tab -- not on the receipt, which is where a wrong
+ * method is actually noticed. Every payment on the invoice is listed here now,
+ * each with its own Correct link.
+ *
+ * Listing them all also fixes what the receipt said: it printed the LATEST
+ * payment's method as though it were the only one, so an invoice settled by a
+ * scholarship and a check receipted as "Check".
+ */
+const ReceiptModal = ({ row, onClose, onPrint, onCorrect }) => {
+  // Older ledger rows (and any caller without the payments list) still have the
+  // latest method flattened onto the row -- fall back to it rather than
+  // printing a receipt with no method at all.
+  const payments = row.payments?.length
+    ? row.payments
+    : (row.method || row.paid_at
+      ? [{ method: row.method, recorded_at: row.paid_at,
+           amount_cents: row.amount_paid_cents ?? row.total_cents }]
+      : [])
+
+  return (
+    <Modal title="Receipt" onClose={onClose}>
+      <div className="print-area">
+        <div className="border border-gray-200 rounded-lg p-4 text-sm space-y-2">
+          <div className="text-lg font-semibold text-neutral-900">Payment receipt</div>
+          <div className="flex justify-between"><span className="text-neutral-500">Family</span><span>{row.family_name || '—'}</span></div>
+          {row.student_name && (
+            <div className="flex justify-between"><span className="text-neutral-500">Student</span><span>{row.student_name}</span></div>
+          )}
+          <div className="flex justify-between"><span className="text-neutral-500">Charge</span><span>{row.description || '—'}</span></div>
+
+          {payments.length === 0 && (
+            <div className="flex justify-between"><span className="text-neutral-500">Method</span><span>—</span></div>
+          )}
+          {payments.map((pmt, i) => (
+            <div key={pmt.id || i} className="flex justify-between gap-3 border-t border-gray-100 pt-2">
+              <span className="text-neutral-500">
+                {METHOD_LABEL[pmt.method] || pmt.method || 'Payment'}
+                {pmt.recorded_at ? ` · ${String(pmt.recorded_at).slice(0, 10)}` : ''}
+                {pmt.external_ref ? ` · ${pmt.external_ref}` : ''}
+              </span>
+              <span className="flex items-center gap-3 shrink-0">
+                <span>{money(pmt.amount_cents)}</span>
+                {pmt.id && onCorrect && (
+                  <button className="text-xs text-optio-purple hover:underline no-print"
+                    aria-label={`Correct ${METHOD_LABEL[pmt.method] || pmt.method || 'payment'} of ${money(pmt.amount_cents)}`}
+                    onClick={() => onCorrect({ ...pmt, family_name: row.family_name, student_name: row.student_name })}>
+                    Correct
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+
+          <div className="flex justify-between border-t border-gray-100 pt-2 font-medium">
+            <span>Amount paid</span><span>{money(row.amount_paid_cents || row.total_cents)}</span>
+          </div>
         </div>
       </div>
-    </div>
-    <div className="flex justify-end gap-2 pt-4 no-print">
-      <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
-      <Button size="sm" onClick={onPrint}>Print</Button>
-    </div>
-  </Modal>
-)
+      <div className="flex justify-end gap-2 pt-4 no-print">
+        <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
+        <Button size="sm" onClick={onPrint}>Print</Button>
+      </div>
+    </Modal>
+  )
+}
 
 export default BillingPage

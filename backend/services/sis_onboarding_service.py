@@ -342,16 +342,52 @@ def office_documents(org_id: str, user_id: str,
     names the exact document it was sent for, so signing it doesn't record every
     other paper in their portal as "what they had in front of them" — and so a
     second send can't be satisfied by a document from the first.
+
+    Otherwise the pool is narrowed by `requires_signature`: the documents the
+    office actually ticked as needing a signature. iCreate, 2026-08-19 — a
+    template item reading "Review & Sign Your Contract" signed against
+    everything shared, so once background checks were shared too, the item
+    offered a background check as the contract.
+
+    Flagged documents win. What happens when somebody has NONE flagged depends
+    on whether their school uses the tick at all:
+
+      * a school that has never ticked anything keeps its whole shared pool,
+        exactly as before. Nobody is to fall into an empty pool by upgrading —
+        an empty pool reads "your document is not here yet" against an item the
+        office believes it has already satisfied, which is the failure this
+        codebase shipped on 2026-08-18.
+      * once a school HAS ticked something, silence means what it says: this
+        person has nothing to sign. Without that, the person the office never
+        had a contract for keeps being offered whatever else is in their portal
+        — which for iCreate's own admin was her background check, the report
+        that started this.
     """
     q = (_admin().table('sis_secure_documents')
-         .select('id, title, filename')
+         .select('id, title, filename, requires_signature')
          .eq('organization_id', org_id).eq('owner_user_id', user_id)
          .eq('shared_with_owner', True).eq('uploaded_by_owner', False))
     if document_id:
         q = q.eq('id', document_id)
     rows = (q.order('created_at', desc=True).execute()).data or []
+    if not document_id:
+        flagged = [r for r in rows if r.get('requires_signature')]
+        rows = flagged if (flagged or _org_asks_for_signatures(org_id)) else rows
     return [{'id': r['id'], 'title': r.get('title') or r.get('filename') or 'Document'}
             for r in rows]
+
+
+def _org_asks_for_signatures(org_id: str) -> bool:
+    """Has this school ever ticked "they must sign this" on a document?
+
+    The one question that separates "nothing to sign" from "this school predates
+    the tick" — see office_documents. One row is enough of an answer, so it asks
+    for one.
+    """
+    rows = (_admin().table('sis_secure_documents').select('id')
+            .eq('organization_id', org_id).eq('requires_signature', True)
+            .limit(1).execute()).data
+    return bool(rows)
 
 
 def _attach_sign_docs(org_id: str, user_id: str, rows: List[Dict[str, Any]]) -> None:
@@ -434,7 +470,11 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
         targets=[{'owner_user_id': r['id'], 'student_user_id': None} for r in unique],
         title=doc_title, category='Sent for signature',
         # Shared on purpose: the whole point is that they open and sign it.
-        shared_with_owner=True, sensitivity=sensitivity,
+        # Flagged for the same reason — the send's own item names this document
+        # by id, but the office's list should show what it is, and a person's
+        # OTHER checklist items must not treat a contract sent this way as one
+        # more paper in the pool.
+        shared_with_owner=True, requires_signature=True, sensitivity=sensitivity,
     )
     if stored.get('error'):
         return stored

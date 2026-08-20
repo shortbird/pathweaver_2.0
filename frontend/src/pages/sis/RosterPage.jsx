@@ -391,9 +391,13 @@ const RemovePersonModal = ({ person, orgId, onClose, onDone }) => {
     setBusy(true)
     try {
       const { data } = await api.delete(`/api/sis/people/${person.student_id}?organization_id=${orgId}&mode=${mode}`)
-      toast.success(data?.deleted
-        ? `${person.name} deleted`
-        : `${person.name} removed from the school${data?.seats_released ? ` · ${data.seats_released} class seat(s) freed` : ''}`)
+      // A delete can still be refused by a record the preview never probed; the
+      // server archives them instead and sends back the reason to show.
+      toast.success(data?.message
+        ? data.message
+        : data?.deleted
+          ? `${person.name} deleted`
+          : `${person.name} removed from the school${data?.seats_released ? ` · ${data.seats_released} class seat(s) freed` : ''}`)
       onDone()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not remove this person')
