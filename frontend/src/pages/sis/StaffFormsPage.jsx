@@ -105,15 +105,23 @@ export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, ad
         {admin
           ? 'File a request or create a task — optionally assigned straight to a staff member.'
           : 'Submit your supply requests, incident reports, and more.'}
-        {disabled && ' Submitting is turned off while previewing.'}
+        {disabled && ' Submitting is turned off while previewing, but the list of forms is still browsable.'}
       </p>
-      <fieldset disabled={disabled} className={disabled ? 'opacity-60 space-y-3' : 'space-y-3'}>
+      {/* The type picker stays outside the disabled fieldset. An admin in
+          preview is here precisely to find out what teachers can file, and a
+          disabled <select> cannot be opened at all — so the whole list
+          collapsed to whichever option happened to be first (iCreate,
+          2026-08-20: "In the preview mode I can't really see what forms are
+          available"). Choosing a type writes nothing; Submit is the write, and
+          Submit is what preview turns off. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <select value={formType} onChange={(e) => setFormType(e.target.value)} className={inputClass}>
+        <select aria-label="Form type" value={formType} onChange={(e) => setFormType(e.target.value)} className={inputClass}>
           {Object.entries(formTypes).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title (optional)" className={inputClass} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title (optional)"
+          disabled={disabled} className={`${inputClass}${disabled ? ' opacity-60' : ''}`} />
       </div>
+      <fieldset disabled={disabled} className={disabled ? 'opacity-60 space-y-3' : 'space-y-3'}>
       <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4}
         placeholder="What happened / what do you need?" className={`${inputClass} resize-none`} />
       {admin && (
@@ -268,7 +276,7 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <h2 className="font-semibold text-neutral-900">Requests and tasks</h2>
+        <h2 className="font-semibold text-neutral-900">Forms, requests and tasks</h2>
         <div className="flex items-center gap-1" role="group" aria-label="Filter requests">
           {QUEUE_VIEWS.map(([value, label]) => {
             const n = viewCount(value)

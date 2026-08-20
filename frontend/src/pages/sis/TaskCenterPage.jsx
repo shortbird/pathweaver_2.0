@@ -39,8 +39,14 @@ const TABS = [
   ['paperwork', 'Sent paperwork'],
 ]
 
+// "form" leads the create action because it is the word staff use for these —
+// teachers submit from a page called Forms — and it appeared nowhere on the
+// admin side. The office looked at this menu, read "request or task", and
+// concluded the console could not create a form at all (iCreate, 2026-08-20:
+// "I see checklists in the task center, but no way to create a form"). Same
+// record, same component, one vocabulary.
 const CREATE_ACTIONS = [
-  ['request', 'New request or task'],
+  ['request', 'New form, request, or task'],
   ['checklist', 'Assign a checklist'],
   ['signature', 'Send a document for signature'],
 ]
@@ -155,7 +161,7 @@ const TaskCenterPage = () => {
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">
-          Requests and tasks, onboarding checklists, and documents sent out for signature.
+          Forms, requests and tasks, onboarding checklists, and documents sent out for signature.
         </p>
       </div>
 
@@ -201,9 +207,9 @@ const TaskCenterPage = () => {
       {creating === 'request' && (
         <ModalOverlay onClose={() => setCreating(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4"
-            role="dialog" aria-modal="true" aria-label="New request or task">
+            role="dialog" aria-modal="true" aria-label="New form, request, or task">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-neutral-900">New request or task</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">New form, request, or task</h2>
               <button onClick={() => setCreating(null)} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
             </div>
             <SubmitForm orgId={orgId} formTypes={formTypes} admin staff={staff} embedded

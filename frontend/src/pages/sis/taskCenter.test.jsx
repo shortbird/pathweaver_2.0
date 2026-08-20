@@ -146,7 +146,7 @@ describe('starting a piece of work', () => {
   it('offers all three from one menu', async () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /Assign or send/i }))
-    expect(await screen.findByRole('menuitem', { name: /New request or task/i })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: /New form, request, or task/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Assign a checklist/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Send a document for signature/i })).toBeInTheDocument()
   })
@@ -160,8 +160,8 @@ describe('starting a piece of work', () => {
       return Promise.resolve({ data: {} })
     })
     renderPage()
-    await chooseFromMenu(/New request or task/i)
-    const dialog = await screen.findByRole('dialog', { name: /New request or task/i })
+    await chooseFromMenu(/New form, request, or task/i)
+    const dialog = await screen.findByRole('dialog', { name: /New form, request, or task/i })
     expect(dialog).toBeInTheDocument()
   })
 
