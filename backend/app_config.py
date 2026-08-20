@@ -240,12 +240,20 @@ class Config:
     # Pexels Image API
     PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
 
-    # Brevo API key: marketing sync (services/brevo_service.py) AND all
-    # transactional email (services/email_service.py). Standard API key, NOT
-    # the MCP token. Unset = sync silently skips and email sends fail-log.
+    # Brevo API key: marketing list sync only (services/brevo_service.py),
+    # until the in-house CRM replaces it (docs/CRM_REPLACEMENT_PLAN.md PR7).
+    # Standard API key, NOT the MCP token. Unset = sync silently skips.
     BREVO_API_KEY = os.getenv('BREVO_API_KEY')
 
-    # Email sender identity (delivery goes through the Brevo API)
+    # SendGrid: ALL outbound email (services/email_service.py) — transactional
+    # and CRM funnel mail. Unset = email sends fail-log (same posture the Brevo
+    # key had). The webhook public key verifies SendGrid's signed event webhook
+    # (delivery/open/click/bounce events for CRM sends); unset = webhook
+    # endpoint rejects everything.
+    SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+    SENDGRID_WEBHOOK_PUBLIC_KEY = os.getenv('SENDGRID_WEBHOOK_PUBLIC_KEY')
+
+    # Email sender identity (delivery goes through the SendGrid API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')

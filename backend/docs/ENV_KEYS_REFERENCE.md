@@ -20,7 +20,9 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | Key | Purpose | Config Attribute | Provider |
 |-----|---------|-----------------|----------|
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
-| `BREVO_API_KEY` | Brevo: transactional email delivery + marketing sync (standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
+| `SENDGRID_API_KEY` | SendGrid: ALL outbound email (transactional + CRM funnel mail) | `Config.SENDGRID_API_KEY` | SendGrid → Settings → API Keys (Mail Send permission) |
+| `SENDGRID_WEBHOOK_PUBLIC_KEY` | Verifies SendGrid's signed event webhook (CRM delivery/open/click/bounce) | `Config.SENDGRID_WEBHOOK_PUBLIC_KEY` | SendGrid → Settings → Mail Settings → Event Webhook → Signature Verification |
+| `BREVO_API_KEY` | Brevo: marketing list sync only, until the in-house CRM replaces it (standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
 | `STRIPE_SECRET_KEY` | Payment processing | `Config.STRIPE_SECRET_KEY` | [Stripe Dashboard](https://dashboard.stripe.com/apikeys) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification | `Config.STRIPE_WEBHOOK_SECRET` | [Stripe Webhooks](https://dashboard.stripe.com/webhooks) |
 | `CRON_SECRET` | Cron job authentication | `Config.CRON_SECRET` | Self-generated (`secrets.token_hex(16)`) |
@@ -44,8 +46,9 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 
 ### Email Configuration
 
-Delivery goes through the Brevo transactional API (`BREVO_API_KEY` above);
-the `SMTP_*` keys were removed when SendGrid was dropped (2026-07-15).
+Delivery goes through the SendGrid API (`SENDGRID_API_KEY` above) as of the
+2026-08 CRM cutover (docs/CRM_REPLACEMENT_PLAN.md); before that it was Brevo,
+and before that SMTP (the `SMTP_*` keys were removed 2026-07-15).
 
 | Key | Default | Config Attribute |
 |-----|---------|-----------------|

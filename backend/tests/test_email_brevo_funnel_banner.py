@@ -39,7 +39,7 @@ def _send(brevo_funnel, text_body='Plain text body'):
     sent = []
     with patch.object(Config, 'SUPPORT_COPY_EMAILS_ENABLED', True), \
          patch.object(EmailService, '_recipient_org', return_value=None), \
-         patch.object(EmailService, '_send_via_brevo', side_effect=lambda p: sent.append(p) or True):
+         patch.object(EmailService, '_send_via_sendgrid', side_effect=lambda p: sent.append(p) or 'msg-id'):
         service.send_email(
             to_email='lead@example.com',
             subject='Your free Optio class',
@@ -84,7 +84,7 @@ class TestFunnelBanner:
         sent = []
         with patch.object(Config, 'SUPPORT_COPY_EMAILS_ENABLED', True), \
              patch.object(EmailService, '_recipient_org', return_value=None), \
-             patch.object(EmailService, '_send_via_brevo', side_effect=lambda p: sent.append(p) or True):
+             patch.object(EmailService, '_send_via_sendgrid', side_effect=lambda p: sent.append(p) or 'msg-id'):
             service.send_email(
                 to_email='lead@example.com',
                 subject='Your free Optio class',

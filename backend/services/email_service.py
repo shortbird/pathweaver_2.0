@@ -16,8 +16,8 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email'
-BREVO_TIMEOUT = 15
+SENDGRID_SEND_URL = 'https://api.sendgrid.com/v3/mail/send'
+SENDGRID_TIMEOUT = 15
 
 # Orgs whose transactional emails should NOT be copied to SUPPORT_COPY_EMAIL.
 # iCreate's system emails are high-volume and stable, so the owner asked to stop
@@ -28,9 +28,10 @@ SUPPORT_COPY_EXCLUDE_ORG_SLUGS = {'icreate'}
 
 class EmailService(BaseService):
     def __init__(self):
-        # Transactional sending goes through the Brevo API (same key as the
-        # marketing sync in brevo_service.py)
-        self.api_key = Config.BREVO_API_KEY
+        # All outbound email goes through the SendGrid API. (The Brevo key
+        # lives on in brevo_service.py for marketing list sync until the
+        # in-house CRM replaces it — docs/CRM_REPLACEMENT_PLAN.md.)
+        self.api_key = Config.SENDGRID_API_KEY
         self.sender_email = Config.SENDER_EMAIL
         self.sender_name = Config.SENDER_NAME
 
@@ -109,10 +110,13 @@ class EmailService(BaseService):
         reply_to: Optional[str] = None,
         brevo_funnel: Optional[str] = None,
         support_copy: Optional[bool] = None,
-        contains_student_records: bool = False
+        contains_student_records: bool = False,
+        categories: Optional[List[str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        custom_args: Optional[Dict[str, str]] = None
     ) -> bool:
         """
-        Send an email via the Brevo transactional API
+        Send an email via the SendGrid API
 
         Args:
             to_email: Recipient email address
@@ -124,8 +128,12 @@ class EmailService(BaseService):
             sender_email_override: From address (must be on the authenticated
                 sending domain, e.g. records@optioeducation.com)
             attachments: List of {'filename': str, 'content': bytes,
-                'mimetype': str} dicts (optional; Brevo infers the type from
-                the filename extension)
+                'mimetype': str} dicts (optional)
+            categories: SendGrid categories for filtering in the Activity
+                feed and event webhook (default ['transactional'])
+            headers: Extra SMTP headers (e.g. List-Unsubscribe)
+            custom_args: SendGrid custom_args echoed back on every webhook
+                event for this message (correlation ids)
             brevo_funnel: Name of the live Brevo automation this send hands the
                 recipient off to (e.g. 'Free Class Nurture'), or None when
                 nothing automated follows. Only affects the [COPY] to
@@ -191,12 +199,19 @@ class EmailService(BaseService):
                     {
                         'name': attachment['filename'],
                         'content': base64.b64encode(attachment['content']).decode('ascii'),
+                        'type': attachment.get('mimetype'),
                     }
                     for attachment in attachments
                 ]
+            if categories:
+                payload['categories'] = categories
+            if headers:
+                payload['headers'] = headers
+            if custom_args:
+                payload['custom_args'] = custom_args
 
             logger.info(f"Sending email: to={to_email}, cc={cc}, bcc={bcc}")
-            if not self._send_via_brevo(payload):
+            if self._send_via_sendgrid(payload) is None:
                 logger.error(f"Failed to send email to {to_email}")
                 return False
             logger.info(f"Email sent successfully to {to_email}")
@@ -259,7 +274,7 @@ class EmailService(BaseService):
                         )
                     if attachments:
                         support_payload['attachment'] = payload['attachment']
-                    if self._send_via_brevo(support_payload):
+                    if self._send_via_sendgrid(support_payload) is not None:
                         logger.info(f"Support copy sent successfully to {support_copy_email} | Subject: [COPY] {subject}")
                 except Exception as e:
                     # Don't fail the main email if support copy fails
@@ -271,30 +286,122 @@ class EmailService(BaseService):
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
 
-    def _send_via_brevo(self, payload: Dict[str, Any]) -> bool:
-        """POST one message to the Brevo transactional endpoint. Returns
-        True on acceptance; failures are logged, never raised."""
+    def _send_via_sendgrid(self, payload: Dict[str, Any]) -> Optional[str]:
+        """POST one message to the SendGrid v3 mail/send endpoint.
+
+        `payload` is the service-internal message dict (kept in the shape the
+        Brevo era established — sender/to/subject/htmlContent/... — because
+        send_email, the support-copy path, and the test suite all build it);
+        translation to SendGrid's schema happens here, at the wire.
+
+        Returns the SendGrid X-Message-Id on acceptance ('' if the header is
+        absent), None on any failure. Never raises. Callers must test
+        `is None`, not truthiness.
+        """
         if not self.api_key:
-            logger.error("BREVO_API_KEY not set; cannot send email")
-            return False
+            logger.error("SENDGRID_API_KEY not set; cannot send email")
+            return None
+
+        personalization: Dict[str, Any] = {'to': payload['to']}
+        if payload.get('cc'):
+            personalization['cc'] = payload['cc']
+        if payload.get('bcc'):
+            personalization['bcc'] = payload['bcc']
+
+        # SendGrid requires text/plain before text/html when both are present.
+        content = []
+        if payload.get('textContent'):
+            content.append({'type': 'text/plain', 'value': payload['textContent']})
+        content.append({'type': 'text/html', 'value': payload['htmlContent']})
+
+        body: Dict[str, Any] = {
+            'from': {
+                'email': payload['sender']['email'],
+                'name': payload['sender'].get('name'),
+            },
+            'personalizations': [personalization],
+            'subject': payload['subject'],
+            'content': content,
+            'categories': payload.get('categories') or ['transactional'],
+        }
+        if payload.get('replyTo'):
+            body['reply_to'] = {'email': payload['replyTo']['email']}
+        if payload.get('attachment'):
+            body['attachments'] = [
+                {
+                    'filename': attachment['name'],
+                    'content': attachment['content'],
+                    'type': attachment.get('type') or 'application/octet-stream',
+                    'disposition': 'attachment',
+                }
+                for attachment in payload['attachment']
+            ]
+        if payload.get('headers'):
+            body['headers'] = payload['headers']
+        if payload.get('custom_args'):
+            body['custom_args'] = payload['custom_args']
+
         try:
             response = requests.post(
-                BREVO_SEND_URL,
+                SENDGRID_SEND_URL,
                 headers={
-                    'api-key': self.api_key,
-                    'accept': 'application/json',
-                    'content-type': 'application/json',
+                    'Authorization': f'Bearer {self.api_key}',
+                    'Content-Type': 'application/json',
                 },
-                json=payload,
-                timeout=BREVO_TIMEOUT,
+                json=body,
+                timeout=SENDGRID_TIMEOUT,
             )
         except requests.RequestException as e:
-            logger.error(f"Brevo send request failed: {e}")
-            return False
-        if response.status_code >= 400:
-            logger.error(f"Brevo send failed ({response.status_code}): {response.text[:300]}")
-            return False
-        return True
+            logger.error(f"SendGrid send request failed: {e}")
+            return None
+        if response.status_code >= 300:
+            logger.error(f"SendGrid send failed ({response.status_code}): {response.text[:300]}")
+            return None
+        return response.headers.get('X-Message-Id') or ''
+
+    def send_crm_email(
+        self,
+        to_email: str,
+        subject: str,
+        html_body: str,
+        text_body: Optional[str] = None,
+        funnel_key: Optional[str] = None,
+        unsubscribe_url: Optional[str] = None,
+        send_id: Optional[str] = None,
+        lead_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Send one CRM funnel email; returns the provider message id, or None.
+
+        Marketing mail, not transactional: never copies SUPPORT_COPY_EMAIL and
+        skips the recipient-org Reply-To lookup (leads aren't org members).
+        Tagged ['crm', funnel_key] so the event webhook and the SendGrid
+        Activity feed can tell funnels apart, with send_id/lead_id echoed back
+        on every webhook event via custom_args. When unsubscribe_url is given
+        the message carries RFC 8058 one-click unsubscribe headers — the body
+        footer link is the caller's job (the funnel engine renders it).
+        """
+        payload: Dict[str, Any] = {
+            'sender': {'name': self.sender_name, 'email': self.sender_email},
+            'to': [{'email': to_email}],
+            'subject': subject,
+            'htmlContent': html_body,
+            'categories': ['crm'] + ([funnel_key] if funnel_key else []),
+        }
+        if text_body:
+            payload['textContent'] = text_body
+        if unsubscribe_url:
+            payload['headers'] = {
+                'List-Unsubscribe': f'<{unsubscribe_url}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+        custom_args = {}
+        if send_id:
+            custom_args['send_id'] = str(send_id)
+        if lead_id:
+            custom_args['lead_id'] = str(lead_id)
+        if custom_args:
+            payload['custom_args'] = custom_args
+        return self._send_via_sendgrid(payload)
 
     def _process_copy_strings(self, data: Any, context: Dict[str, Any]) -> Any:
         """

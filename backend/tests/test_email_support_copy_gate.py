@@ -44,11 +44,11 @@ def _send(enabled, **kwargs):
 
     def capture(payload):
         payloads.append(payload)
-        return True
+        return 'msg-id'
 
     body = kwargs.pop('html_body', '<body>Hello</body>')
     with patch.object(Config, 'SUPPORT_COPY_EMAILS_ENABLED', enabled), \
-         patch.object(EmailService, '_send_via_brevo', side_effect=capture), \
+         patch.object(EmailService, '_send_via_sendgrid', side_effect=capture), \
          patch.object(EmailService, '_recipient_org', return_value=None):
         sent = service.send_email(
             to_email='parent@example.com',

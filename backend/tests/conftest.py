@@ -55,10 +55,11 @@ def _no_outbound_email():
     rest. Every full-suite run sent another batch.
 
     Patching the individual call in that one test would fix that one test. This
-    blocks the door instead: `_send_via_brevo` is the single choke point for all
-    transactional mail, and brevo_service is the only other thing that writes to
-    the Brevo account (contact/list sync). A test that reaches either one now
-    FAILS AT TEARDOWN naming the recipient.
+    blocks the door instead: `_send_via_sendgrid` is the single choke point for
+    all outbound mail (SendGrid since 2026-08, same seam the Brevo sender was),
+    and brevo_service is the only other thing that writes to the live Brevo
+    account (contact/list sync, until the in-house CRM replaces it). A test
+    that reaches either one now FAILS AT TEARDOWN naming the recipient.
 
     Teardown, not on the spot: send_email wraps everything in `except Exception:
     return False`, so raising here would be swallowed and the guard would go
@@ -75,7 +76,7 @@ def _no_outbound_email():
         addresses = [r.get('email') for r in recipients if isinstance(r, dict)]
         attempted.append(f"{payload.get('subject') or '(no subject)'} -> "
                          f"{', '.join(a for a in addresses if a) or '(unknown)'}")
-        return False  # the caller's "email failed" path, which is always handled
+        return None  # the caller's "email failed" path (is None), always handled
 
     try:
         from services.email_service import EmailService
@@ -87,7 +88,7 @@ def _no_outbound_email():
     brevo_stub.post.side_effect = lambda *a, **k: attempted.append(f'brevo POST {a[0] if a else ""}')
     brevo_stub.put.side_effect = lambda *a, **k: attempted.append(f'brevo PUT {a[0] if a else ""}')
 
-    with patch.object(EmailService, '_send_via_brevo', _refuse_email), \
+    with patch.object(EmailService, '_send_via_sendgrid', _refuse_email), \
          patch('services.brevo_service.requests', brevo_stub):
         yield
 
