@@ -69,6 +69,23 @@ const { api } = vi.hoisted(() => {
         { id: 'c2', name: 'Guitar Jam' },
       ] } }
     }
+    if (url.includes('/reports/payments')) {
+      return { data: { report: {
+        rows: [
+          { recorded_at: '2026-08-14', family: 'Candland', student: 'Nora Candland',
+            invoice: 'INV-2', method: 'Check', amount: '$365.00', reference: '1042',
+            note: '', recorded_by: 'Molly' },
+          { recorded_at: '2026-08-12', family: 'Swenson', student: 'Ryder Swenson',
+            invoice: 'INV-1', method: 'Scholarship', amount: '$730.00', reference: '',
+            note: 'Board approved', recorded_by: 'Molly' },
+        ],
+        totals: [
+          { method: 'Scholarship', count: 1, cents: 73000, amount: '$730.00' },
+          { method: 'Check', count: 1, cents: 36500, amount: '$365.00' },
+        ],
+        total_cents: 109500,
+      } } }
+    }
     if (url.includes('/reports/registration-answers')) {
       return { data: { report: {
         question: { key: 'special_needs', label: 'Special needs', per_student: true },
@@ -114,6 +131,28 @@ describe('ReportsPage', () => {
       .not.toContainEqual(expect.stringContaining('/reports/revenue'))
     // The operational half of the page is still theirs.
     expect(screen.getByText('Students in classes')).toBeInTheDocument()
+  })
+
+  /**
+   * iCreate, 2026-08-20: "Is there a way to do a report on method of payment?"
+   * The method was on every payment row and read back nowhere, so answering it
+   * meant opening invoices one at a time.
+   */
+  it('reports payments with the split by method', async () => {
+    render(<ReportsPage />)
+    fireEvent.click(await screen.findByLabelText('View payments report'))
+    expect(await screen.findByText('Payments')).toBeInTheDocument()
+    expect(screen.getByText(/Scholarship: \$730\.00 \(1\)/)).toBeInTheDocument()
+    const cells = [...document.querySelectorAll('td')].map((td) => td.textContent)
+    expect(cells).toContain('Nora Candland')
+    expect(cells).toContain('Check')
+  })
+
+  it('does not offer the payments report to a campus coordinator', async () => {
+    authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+    render(<ReportsPage />)
+    await screen.findByText('Attendance')
+    expect(screen.queryByLabelText('View payments report')).not.toBeInTheDocument()
   })
 
   it('renders the information reports section with canned cards and the question picker', async () => {

@@ -73,6 +73,89 @@ class TestStudentsInClasses:
             assert reports.students_in_classes('org-1') == 0
 
 
+@pytest.mark.unit
+class TestPaymentsReport:
+    """iCreate, 2026-08-20: "is there a way to do a report on method of payment?"
+
+    The method has been on every payment row since the ledger existed; nothing
+    read it back except one invoice at a time.
+    """
+
+    PAYMENTS = [
+        {'id': 'p1', 'invoice_id': 'i1', 'amount_cents': 73000, 'method': 'scholarship',
+         'external_ref': None, 'note': 'Board approved', 'recorded_at': '2026-08-12T10:00:00Z',
+         'recorded_by': 'molly'},
+        {'id': 'p2', 'invoice_id': 'i2', 'amount_cents': 36500, 'method': 'check',
+         'external_ref': '1042', 'note': None, 'recorded_at': '2026-08-14T10:00:00Z',
+         'recorded_by': 'molly'},
+        {'id': 'p3', 'invoice_id': 'i2', 'amount_cents': 36500, 'method': None,
+         'external_ref': None, 'note': None, 'recorded_at': '2026-08-15T10:00:00Z',
+         'recorded_by': None},
+    ]
+    INVOICES = [
+        {'id': 'i1', 'invoice_number': 'INV-1', 'household_id': 'h1',
+         'student_user_id': 's1', 'due_date': '2026-08-01'},
+        {'id': 'i2', 'invoice_number': 'INV-2', 'household_id': 'h2',
+         'student_user_id': None, 'due_date': '2026-08-01'},
+    ]
+
+    def _report(self, payments=None):
+        pages = {
+            'sis_payment_records': payments if payments is not None else self.PAYMENTS,
+            'sis_invoices': self.INVOICES,
+            'households': [{'id': 'h1', 'name': 'Swenson'}, {'id': 'h2', 'name': 'Candland'}],
+            'users': [{'id': 's1', 'first_name': 'Ryder', 'last_name': 'Swenson',
+                       'display_name': None, 'email': None},
+                      {'id': 'molly', 'first_name': 'Molly', 'last_name': 'C',
+                       'display_name': 'Molly', 'email': None}],
+        }
+        # fetch_all_rows is handed a builder; the table it was built from is what
+        # decides which page comes back.
+        def fake_fetch(builder):
+            probe = Mock()
+            table_name = {'holder': None}
+
+            def _table(name):
+                table_name['holder'] = name
+                t = Mock()
+                for chained in ('select', 'eq', 'in_', 'order', 'limit'):
+                    getattr(t, chained).return_value = t
+                return t
+            probe.table.side_effect = _table
+            with patch('services.sis_reports_service._admin', return_value=probe):
+                builder()
+            return pages.get(table_name['holder'], [])
+
+        with patch('services.sis_reports_service.fetch_all_rows', side_effect=fake_fetch):
+            return reports.payments_report('org-1')
+
+    def test_no_payments_is_an_empty_report_not_an_error(self):
+        assert self._report(payments=[])['rows'] == []
+
+    def test_every_payment_is_a_row_newest_first(self):
+        rows = self._report()['rows']
+        assert [r['recorded_at'] for r in rows] == ['2026-08-15', '2026-08-14', '2026-08-12']
+
+    def test_a_row_carries_the_family_the_invoice_and_the_method(self):
+        row = next(r for r in self._report()['rows'] if r['invoice'] == 'INV-1')
+        assert row['family'] == 'Swenson'
+        assert row['student'] == 'Ryder Swenson'
+        assert row['method'] == 'Scholarship'
+        assert row['amount'] == '$730.00'
+        assert row['recorded_by'] == 'Molly C'
+
+    def test_a_payment_with_no_method_says_so_rather_than_going_blank(self):
+        """Blank would read as a missing row; it is a payment nobody labelled."""
+        assert any(r['method'] == 'Not recorded' for r in self._report()['rows'])
+
+    def test_the_split_by_method_is_the_point_of_the_report(self):
+        totals = {t['method']: t for t in self._report()['totals']}
+        assert totals['Scholarship']['cents'] == 73000
+        assert totals['Check']['count'] == 1
+        # Biggest first: the answer to "where is the money coming from".
+        assert self._report()['totals'][0]['method'] == 'Scholarship'
+
+
 def _admin_client_for_role(role, org_role=None):
     client = Mock()
     table = Mock()
@@ -107,6 +190,33 @@ class TestReportRoutes:
             resp = client.get('/api/sis/reports/revenue?organization_id=org-1', headers=auth_headers)
         assert resp.status_code == 200
         assert json.loads(resp.data)['report']['outstanding_cents'] == 9000
+
+    def test_payments_are_refused_to_a_campus_coordinator(self, client, auth_headers, mock_verify_token):
+        """Same tier as revenue, for the same reason: it is the money."""
+        with staff(role='org_managed', org_role='campus_coordinator'):
+            resp = client.get('/api/sis/reports/payments?organization_id=org-1', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_payments_success(self, client, auth_headers, mock_verify_token):
+        rpt = {'rows': [{'method': 'Check', 'amount': '$365.00'}],
+               'totals': [{'method': 'Check', 'count': 1, 'cents': 36500, 'amount': '$365.00'}],
+               'total_cents': 36500}
+        with staff(), patch('routes.sis.reports.reports.payments_report', return_value=rpt):
+            resp = client.get('/api/sis/reports/payments?organization_id=org-1', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['report']['total_cents'] == 36500
+
+    def test_payments_csv_carries_the_same_rows(self, client, auth_headers, mock_verify_token):
+        rpt = {'rows': [{'recorded_at': '2026-08-14', 'family': 'Candland', 'student': '',
+                         'invoice': 'INV-2', 'method': 'Check', 'amount': '$365.00',
+                         'reference': '1042', 'note': '', 'recorded_by': 'Molly'}],
+               'totals': [], 'total_cents': 36500}
+        with staff(), patch('routes.sis.reports.reports.payments_report', return_value=rpt):
+            resp = client.get('/api/sis/reports/payments?organization_id=org-1&format=csv',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.data.decode()
+        assert 'Method' in body and 'Check' in body and '1042' in body
 
     def test_revenue_is_refused_to_a_campus_coordinator(self, client, auth_headers, mock_verify_token):
         """iCreate, 2026-08-21. The coordinator role is org_admin minus the

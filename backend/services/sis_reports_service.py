@@ -107,6 +107,99 @@ def revenue_report(org_id: str) -> Dict[str, Any]:
     return aggregate_revenue(invoices)
 
 
+#: How a payment was taken. Free text on the row, so the report reports what is
+#: there rather than a list that would go stale the first time the office
+#: invents one.
+PAYMENT_METHOD_LABELS = {
+    'card': 'Card',
+    'cash': 'Cash',
+    'check': 'Check',
+    'ach': 'Bank transfer',
+    'scholarship': 'Scholarship',
+    'other': 'Other',
+}
+
+
+def _method_label(method: Optional[str]) -> str:
+    if not method:
+        return 'Not recorded'
+    return PAYMENT_METHOD_LABELS.get(method, str(method).replace('_', ' ').capitalize())
+
+
+def payments_report(org_id: str) -> Dict[str, Any]:
+    """Every payment the office has recorded, and what it was taken by.
+
+    iCreate, 2026-08-20: "Is there a way to do a report on method of payment?"
+    The method is on every payment row already; nothing read it back out except
+    one invoice at a time, so answering "how much came in by check this term"
+    meant opening invoices one by one.
+
+    Paged rather than capped: payments only accumulate, so a term's worth is
+    exactly the read PostgREST would silently truncate.
+    """
+    payments = fetch_all_rows(lambda: (
+        _admin().table('sis_payment_records')
+        .select('id, invoice_id, amount_cents, method, external_ref, note, recorded_at, recorded_by')
+        .eq('organization_id', org_id)
+    ))
+    if not payments:
+        return {'rows': [], 'totals': [], 'total_cents': 0}
+
+    invoice_ids = list({p['invoice_id'] for p in payments if p.get('invoice_id')})
+    invoices = {}
+    if invoice_ids:
+        invoices = {i['id']: i for i in fetch_all_rows(lambda: (
+            _admin().table('sis_invoices')
+            .select('id, invoice_number, household_id, student_user_id, due_date')
+            .in_('id', invoice_ids)))}
+
+    hh_ids = list({i.get('household_id') for i in invoices.values() if i.get('household_id')})
+    households = {}
+    if hh_ids:
+        households = {h['id']: h.get('name') for h in fetch_all_rows(lambda: (
+            _admin().table('households').select('id, name').in_('id', hh_ids)))}
+
+    people_ids = list({i.get('student_user_id') for i in invoices.values() if i.get('student_user_id')}
+                      | {p.get('recorded_by') for p in payments if p.get('recorded_by')})
+    people = {}
+    if people_ids:
+        people = {u['id']: u for u in fetch_all_rows(lambda: (
+            _admin().table('users')
+            .select('id, first_name, last_name, display_name, email').in_('id', people_ids)))}
+
+    rows = []
+    for p in payments:
+        inv = invoices.get(p.get('invoice_id')) or {}
+        student = people.get(inv.get('student_user_id'))
+        taker = people.get(p.get('recorded_by'))
+        rows.append({
+            'recorded_at': str(p.get('recorded_at') or '')[:10],
+            'family': households.get(inv.get('household_id')) or '',
+            'student': _person_name(student) if student else '',
+            'invoice': inv.get('invoice_number') or '',
+            'method': _method_label(p.get('method')),
+            'amount': _cents(p.get('amount_cents')),
+            'amount_cents': p.get('amount_cents') or 0,
+            'reference': p.get('external_ref') or '',
+            'note': p.get('note') or '',
+            'recorded_by': _person_name(taker) if taker else '',
+        })
+    rows.sort(key=lambda r: r['recorded_at'], reverse=True)
+
+    # What the report is actually for: the split by method.
+    by_method: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        bucket = by_method.setdefault(r['method'], {'method': r['method'], 'count': 0, 'cents': 0})
+        bucket['count'] += 1
+        bucket['cents'] += r['amount_cents']
+    totals = sorted(by_method.values(), key=lambda t: t['cents'], reverse=True)
+    for t in totals:
+        t['amount'] = _cents(t['cents'])
+
+    return {'rows': rows, 'totals': totals,
+            'total_cents': sum(r['amount_cents'] for r in rows)}
+
+
 def attendance_report(org_id: str) -> Dict[str, Any]:
     records = fetch_all_rows(lambda: (
         _admin().table('sis_attendance').select('status, class_id')

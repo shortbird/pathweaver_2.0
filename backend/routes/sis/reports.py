@@ -72,6 +72,28 @@ def revenue(user_id):
     return jsonify({'success': True, 'report': reports.revenue_report(org_id)})
 
 
+@bp.route('/reports/payments', methods=['GET'])
+@require_role(*FINANCE_ROLES)
+def payments(user_id):
+    """Every recorded payment, and the split by method.
+
+    FINANCE_ROLES for the same reason as revenue: this is the money. iCreate,
+    2026-08-20: "is there a way to do a report on method of payment?"
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    report = reports.payments_report(org_id)
+    if request.args.get('format') == 'csv':
+        header = ['Date', 'Family', 'Student', 'Invoice', 'Method', 'Amount',
+                  'Reference', 'Note', 'Recorded by']
+        keys = ['recorded_at', 'family', 'student', 'invoice', 'method', 'amount',
+                'reference', 'note', 'recorded_by']
+        return _csv_response('payments.csv', header,
+                             [[r.get(k, '') for k in keys] for r in report['rows']])
+    return jsonify({'success': True, 'report': report})
+
+
 @bp.route('/reports/attendance', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def attendance(user_id):

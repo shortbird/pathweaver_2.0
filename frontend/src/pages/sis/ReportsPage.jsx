@@ -50,6 +50,21 @@ const shapeReport = (type, data, questionLabel) => {
       ]),
     }
   }
+  if (type === 'payments') {
+    const totals = report.totals || []
+    return {
+      title: 'Payments',
+      // The split by method is the question; the rows are the working.
+      summary: totals.length
+        ? totals.map((t) => `${t.method}: ${t.amount} (${t.count})`).join(' · ')
+        : 'No payments recorded yet.',
+      columns: ['Date', 'Family', 'Student', 'Invoice', 'Method', 'Amount', 'Reference', 'Note', 'Recorded by'],
+      rows: (report.rows || []).map((r) => [
+        r.recorded_at, r.family, r.student, r.invoice, r.method, r.amount,
+        r.reference, r.note, r.recorded_by,
+      ]),
+    }
+  }
   if (type === 'allergies') {
     return {
       title: 'Allergies',
@@ -466,6 +481,15 @@ const ReportsPage = () => {
                   )}
                 </div>
               </ReportCard>
+              {seesMoney && (
+                <ReportCard
+                  title="Payments"
+                  description="Every payment you have recorded, with the split by method — card, check, cash, scholarship. Downloads as a spreadsheet."
+                >
+                  <RunButton ariaLabel="View payments report" disabled={reportLoading || !orgId}
+                    onClick={() => runReport('payments')} />
+                </ReportCard>
+              )}
               <ReportCard
                 title="Question report"
                 description="Every family's (or student's) answer to one registration question."
@@ -520,6 +544,9 @@ const ReportsPage = () => {
                     </button>
                   </div>
                 </div>
+                {report.summary && (
+                  <p className="text-sm text-neutral-600 mb-3">{report.summary}</p>
+                )}
                 {report.fields && (
                   <fieldset className="no-print mb-4 border-t border-gray-100 pt-3">
                     <legend className="sr-only">Columns</legend>
