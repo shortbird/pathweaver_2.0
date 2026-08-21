@@ -10,6 +10,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SendForSignatureModal from '../../components/sis/tasks/SendForSignatureModal'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
 import SignatureBatches from '../../components/sis/tasks/SignatureBatches'
+import FormRoutingModal from '../../components/sis/tasks/FormRoutingModal'
 import { AdminQueue, SubmitForm } from './StaffFormsPage'
 import { AdminOnboarding } from './OnboardingPage'
 
@@ -51,6 +52,22 @@ const CREATE_ACTIONS = [
   ['signature', 'Send a document for signature'],
 ]
 
+// Each tab's own create action, promoted to the button. iCreate, 2026-08-21:
+// "'new form, request or task' is still under the assign or send button. Why
+// have a button? Why not just have those be tabs like the other ones?"
+//
+// They are not tabs because a tab is somewhere you go and come back from, and
+// creating is neither — switching to a "new form" tab would take away the queue
+// you were reading. But the ask underneath is right: the action was two clicks
+// behind a label ("Assign or send") that named none of the three things it did.
+// So the primary button now says what THIS tab makes, and the other two stay
+// one click away under the caret.
+const PRIMARY_ACTION = {
+  requests: 'request',
+  checklists: 'checklist',
+  paperwork: 'signature',
+}
+
 const TaskCenterPage = () => {
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -65,6 +82,7 @@ const TaskCenterPage = () => {
   const [formTypes, setFormTypes] = useState({})
   const [creating, setCreating] = useState(null) // null | 'request' | 'checklist' | 'signature'
   const [menuOpen, setMenuOpen] = useState(false)
+  const [routing, setRouting] = useState(false)   // "Where forms go" editor
   const [refreshKey, setRefreshKey] = useState(0)
   const [counts, setCounts] = useState({})
 
@@ -116,6 +134,9 @@ const TaskCenterPage = () => {
     setSearchParams(params, { replace: true })
   }
 
+  const primaryAction = PRIMARY_ACTION[tab] || 'request'
+  const primaryLabel = (CREATE_ACTIONS.find(([a]) => a === primaryAction) || [])[1]
+
   const startCreating = (action) => {
     setMenuOpen(false)
     setCreating(action)
@@ -134,11 +155,15 @@ const TaskCenterPage = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-neutral-900">Task Center</h1>
           <div className="flex items-center gap-3">
-            <div className="relative">
+            <div className="relative flex">
+              <button onClick={() => startCreating(primaryAction)}
+                className="px-4 py-2 rounded-l-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+                {primaryLabel}
+              </button>
               <button onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
-                Assign or send
-                <span className="ml-2 text-xs" aria-hidden="true">▾</span>
+                aria-label="Other things to assign or send"
+                className="px-2 py-2 rounded-r-lg bg-gradient-to-r from-optio-pink to-optio-pink text-white text-sm font-semibold border-l border-white/30">
+                <span className="text-xs" aria-hidden="true">▾</span>
               </button>
               {menuOpen && (
                 <>
@@ -146,13 +171,17 @@ const TaskCenterPage = () => {
                   <button className="fixed inset-0 z-10 cursor-default" aria-hidden="true" tabIndex={-1}
                     onClick={() => setMenuOpen(false)} />
                   <div role="menu"
-                    className="absolute right-0 mt-1 z-20 w-64 bg-white rounded-lg border border-gray-200 shadow-lg py-1">
-                    {CREATE_ACTIONS.map(([action, label]) => (
+                    className="absolute right-0 top-full mt-1 z-20 w-64 bg-white rounded-lg border border-gray-200 shadow-lg py-1">
+                    {CREATE_ACTIONS.filter(([action]) => action !== primaryAction).map(([action, label]) => (
                       <button key={action} role="menuitem" onClick={() => startCreating(action)}
                         className="block w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-gray-50">
                         {label}
                       </button>
                     ))}
+                    <button role="menuitem" onClick={() => { setMenuOpen(false); setRouting(true) }}
+                      className="block w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-gray-50 border-t border-gray-100">
+                      Where forms go
+                    </button>
                   </div>
                 </>
               )}
@@ -216,6 +245,10 @@ const TaskCenterPage = () => {
               onSubmitted={() => afterCreate('requests')} />
           </div>
         </ModalOverlay>
+      )}
+
+      {routing && (
+        <FormRoutingModal orgId={orgId} staff={staff} onClose={() => setRouting(false)} />
       )}
 
       {creating === 'checklist' && (

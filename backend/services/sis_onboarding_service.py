@@ -362,6 +362,15 @@ def office_documents(org_id: str, user_id: str,
         had a contract for keeps being offered whatever else is in their portal
         — which for iCreate's own admin was her background check, the report
         that started this.
+
+    A document that already has its own signature task is never in the general
+    pool. iCreate, 2026-08-20: the office sent the Family Service Program form
+    and the Student Behavior Agreement out for signature at 18:27, and three
+    hours later the admin's "Review & Sign Your Contract" item was telling her
+    to read both of them first. Both are flagged for signature — they were sent
+    for signature — so the flag alone cannot separate them from her contract.
+    What separates them is that each already IS a task, named on its own
+    assignment (see _claimed_document_ids).
     """
     q = (_admin().table('sis_secure_documents')
          .select('id, title, filename, requires_signature')
@@ -371,10 +380,32 @@ def office_documents(org_id: str, user_id: str,
         q = q.eq('id', document_id)
     rows = (q.order('created_at', desc=True).execute()).data or []
     if not document_id:
+        claimed = _claimed_document_ids(org_id, user_id)
+        if claimed:
+            rows = [r for r in rows if r['id'] not in claimed]
         flagged = [r for r in rows if r.get('requires_signature')]
         rows = flagged if (flagged or _org_asks_for_signatures(org_id)) else rows
     return [{'id': r['id'], 'title': r.get('title') or r.get('filename') or 'Document'}
             for r in rows]
+
+
+def _claimed_document_ids(org_id: str, user_id: str) -> set:
+    """Documents this person already has a signature task for, by name.
+
+    A send-for-signature assignment names the exact document its single item
+    signs (`items[].document_id`). Such a document is somebody's task in its own
+    right and appears in My Tasks as one — so offering it AGAIN as reading
+    material under an unrelated checklist item is a second, wrong copy of the
+    same obligation.
+
+    Scoped to this person: the same document sent to somebody else is nothing to
+    do with what is in their portal.
+    """
+    rows = (_admin().table('sis_onboarding_assignments').select('items')
+            .eq('organization_id', org_id).eq('user_id', user_id)
+            .eq('kind', 'signature_request').execute()).data or []
+    return {i['document_id'] for r in rows for i in (r.get('items') or [])
+            if i.get('document_id')}
 
 
 def _org_asks_for_signatures(org_id: str) -> bool:

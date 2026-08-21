@@ -57,11 +57,18 @@ const BATCH = {
 const renderPage = (path = '/tasks?tab=paperwork') => render(
   <MemoryRouter initialEntries={[path]}><TaskCenterPage /></MemoryRouter>)
 
-// All three ways of asking somebody to do something live behind one header
-// menu, so nobody has to know which of the three tabs their work belongs to
-// before they can start it.
+// The tab you are on puts its own create action on the button; the other two
+// sit under the caret beside it. So starting a piece of work is one click for
+// the thing this tab is about, and two for anything else — and nobody has to
+// know which of the three tabs their work belongs to before they can start it.
 const chooseFromMenu = async (label) => {
-  fireEvent.click(await screen.findByRole('button', { name: /Assign or send/i }))
+  await screen.findByRole('button', { name: /Other things to assign or send/i })
+  const primary = screen.queryAllByRole('button', { name: label })
+  if (primary.length) {
+    fireEvent.click(primary[0])
+    return
+  }
+  fireEvent.click(screen.getByRole('button', { name: /Other things to assign or send/i }))
   fireEvent.click(await screen.findByRole('menuitem', { name: label }))
 }
 
@@ -143,12 +150,51 @@ describe('which door the page uses', () => {
  * for /forms, and assigning a checklist was buried mid-tab.
  */
 describe('starting a piece of work', () => {
-  it('offers all three from one menu', async () => {
-    renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /Assign or send/i }))
+  /**
+   * iCreate, 2026-08-21: "'new form, request or task' is still under the assign
+   * or send button. Why have a button?" Because creating is not a tab — but the
+   * action for the tab you are looking at should not be hidden behind a label
+   * that names none of the three things it does.
+   */
+  it('puts this tab\'s own action on the button', async () => {
+    renderPage('/tasks?tab=paperwork')
+    expect(await screen.findByRole('button', { name: /Send a document for signature/i })).toBeInTheDocument()
+  })
+
+  it('changes the button with the tab', async () => {
+    renderPage('/tasks?tab=requests')
+    expect(await screen.findByRole('button', { name: /New form, request, or task/i })).toBeInTheDocument()
+  })
+
+  it('keeps the other two one click away', async () => {
+    renderPage('/tasks?tab=paperwork')
+    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
     expect(await screen.findByRole('menuitem', { name: /New form, request, or task/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Assign a checklist/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /Send a document for signature/i })).toBeInTheDocument()
+    // The one already on the button is not repeated in the menu.
+    expect(screen.queryByRole('menuitem', { name: /Send a document for signature/i })).not.toBeInTheDocument()
+  })
+
+  it('opens the routing editor from the same menu', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('signature-requests')) return Promise.resolve({ data: { batches: [BATCH] } })
+      if (url.includes('/form-routing')) {
+        return Promise.resolve({ data: {
+          routing: { substitute_request: 'julia-1' },
+          form_types: { substitute_request: 'Substitute request', maintenance: 'Maintenance request' },
+        } })
+      }
+      if (url.includes('/api/sis/staff')) {
+        return Promise.resolve({ data: { staff: [{ id: 'julia-1', name: 'Julia' }] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    renderPage('/tasks?tab=requests')
+    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Where forms go/i }))
+    expect(await screen.findByRole('dialog', { name: /Where forms go/i })).toBeInTheDocument()
+    // The rule already saved comes back selected.
+    expect(await screen.findByLabelText('Who receives Substitute request')).toHaveValue('julia-1')
   })
 
   it('files a request without leaving the page', async () => {

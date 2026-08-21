@@ -99,6 +99,23 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Active classes')).toBeInTheDocument()
   })
 
+  /**
+   * iCreate, 2026-08-21: "the revenue is listed on the reports. If campus
+   * coordinators can see that page, then that should not be showing up."
+   * The backend refuses them the route; this makes sure the page never asks.
+   */
+  it('shows a campus coordinator no revenue, and does not even ask for it', async () => {
+    authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+    render(<ReportsPage />)
+    expect(await screen.findByText('Attendance')).toBeInTheDocument()
+    expect(screen.queryByText('Revenue (recorded)')).not.toBeInTheDocument()
+    expect(screen.queryByText('$230.00')).not.toBeInTheDocument()
+    expect(api.get.mock.calls.map(([u]) => u))
+      .not.toContainEqual(expect.stringContaining('/reports/revenue'))
+    // The operational half of the page is still theirs.
+    expect(screen.getByText('Students in classes')).toBeInTheDocument()
+  })
+
   it('renders the information reports section with canned cards and the question picker', async () => {
     render(<ReportsPage />)
     expect(await screen.findByText('Information reports')).toBeInTheDocument()
@@ -177,18 +194,25 @@ describe('ReportsPage', () => {
  * page; this is the other half: several classes in one sheet, waitlisted
  * students included if you want them, and a column picker.
  */
+// Ticking a class by the name the office reads, rather than by option value:
+// the picker is a list of checkboxes now, because picking eight classes out of
+// 152 by ctrl-click is a trap (iCreate, 2026-08-19).
+const pickClass = async (name) => {
+  await screen.findByRole('group', { name: 'Classes' })
+  fireEvent.click(screen.getByRole('checkbox', { name }))
+}
+
 describe('Class rosters report', () => {
   it('will not run until a class is picked', async () => {
     render(<ReportsPage />)
-    expect(await screen.findByLabelText('Classes')).toBeInTheDocument()
+    expect(await screen.findByRole('group', { name: 'Classes' })).toBeInTheDocument()
     expect(screen.getByLabelText('View roster report')).toBeDisabled()
     expect(screen.getByText('Choose one or more classes.')).toBeInTheDocument()
   })
 
   it('runs across several classes at once and shows the rows', async () => {
     render(<ReportsPage />)
-    const picker = await screen.findByLabelText('Classes')
-    fireEvent.change(picker, { target: { value: 'c1' } })
+    await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
 
     expect(await screen.findByText('Class rosters')).toBeInTheDocument()
@@ -204,8 +228,7 @@ describe('Class rosters report', () => {
 
   it('asks the server for the waitlist when the box is ticked', async () => {
     render(<ReportsPage />)
-    const picker = await screen.findByLabelText('Classes')
-    fireEvent.change(picker, { target: { value: 'c1' } })
+    await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('Include waitlisted students'))
     fireEvent.click(screen.getByLabelText('View roster report'))
 
@@ -216,7 +239,7 @@ describe('Class rosters report', () => {
 
   it('Select all picks every class', async () => {
     render(<ReportsPage />)
-    await screen.findByLabelText('Classes')
+    await screen.findByRole('group', { name: 'Classes' })
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     expect(screen.getByLabelText('View roster report')).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
@@ -224,12 +247,52 @@ describe('Class rosters report', () => {
 
   it('a column can be added after the report is on screen', async () => {
     render(<ReportsPage />)
-    fireEvent.change(await screen.findByLabelText('Classes'), { target: { value: 'c1' } })
+    await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
     await screen.findByText('Class rosters')
 
     expect(screen.queryByText('2014-01-09')).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Birthdate'))
     expect(screen.getByText('2014-01-09')).toBeInTheDocument()
+  })
+
+  it('will not let Status be unticked while the waitlist is included', async () => {
+    render(<ReportsPage />)
+    await pickClass('Pottery')
+    fireEvent.click(screen.getByLabelText('Include waitlisted students'))
+    fireEvent.click(screen.getByLabelText('View roster report'))
+    await screen.findByText('Class rosters')
+
+    // Without Status the sheet cannot say who is waiting and who is enrolled.
+    const status = screen.getByLabelText('Status')
+    expect(status).toBeDisabled()
+    fireEvent.click(status)
+    const cells = [...document.querySelectorAll('td')].map((td) => td.textContent)
+    expect(cells).toContain('Waiting')
+  })
+
+  it('says the report is stale when the settings change under it', async () => {
+    render(<ReportsPage />)
+    await pickClass('Pottery')
+    fireEvent.click(screen.getByLabelText('View roster report'))
+    await screen.findByText('Class rosters')
+    expect(screen.queryByText(/run the report again/i)).not.toBeInTheDocument()
+
+    // Ticking the waitlist after running used to change nothing on screen,
+    // which is how "include waitlist" looked like it had done nothing.
+    fireEvent.click(screen.getByLabelText('Include waitlisted students'))
+    expect(screen.getByText(/run the report again/i)).toBeInTheDocument()
+  })
+
+  it('asks for archived classes only when the box is ticked', async () => {
+    render(<ReportsPage />)
+    await screen.findByRole('group', { name: 'Classes' })
+    expect(api.get.mock.calls.map(([u]) => u))
+      .toContainEqual(expect.stringContaining('include_archived=false'))
+
+    fireEvent.click(screen.getByLabelText('Include archived classes in the list'))
+    await screen.findByRole('group', { name: 'Classes' })
+    expect(api.get.mock.calls.map(([u]) => u))
+      .toContainEqual(expect.stringContaining('/api/sis/classes?include_archived=true'))
   })
 })

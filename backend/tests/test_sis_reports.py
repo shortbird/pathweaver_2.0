@@ -73,19 +73,23 @@ class TestStudentsInClasses:
             assert reports.students_in_classes('org-1') == 0
 
 
-def _admin_client_for_role(role):
+def _admin_client_for_role(role, org_role=None):
     client = Mock()
     table = Mock()
     client.table.return_value = table
     for chained in ('select', 'eq', 'limit'):
         getattr(table, chained).return_value = table
-    table.execute.return_value = Mock(data=[{'role': role, 'org_role': None, 'org_roles': None}])
+    table.execute.return_value = Mock(data=[{
+        'role': role, 'org_role': org_role,
+        'org_roles': [org_role] if org_role else None,
+    }])
     return client
 
 
 @contextmanager
-def staff(role='org_admin', org='org-1'):
-    with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role(role)), \
+def staff(role='org_admin', org='org-1', org_role=None):
+    with patch('database.get_supabase_admin_client',
+               return_value=_admin_client_for_role(role, org_role)), \
          patch('services.sis_service.resolve_org_id', return_value=org):
         yield
 
@@ -103,6 +107,23 @@ class TestReportRoutes:
             resp = client.get('/api/sis/reports/revenue?organization_id=org-1', headers=auth_headers)
         assert resp.status_code == 200
         assert json.loads(resp.data)['report']['outstanding_cents'] == 9000
+
+    def test_revenue_is_refused_to_a_campus_coordinator(self, client, auth_headers, mock_verify_token):
+        """iCreate, 2026-08-21. The coordinator role is org_admin minus the
+        money, and this route was on the admin tier — so the school's billed,
+        collected and outstanding totals were theirs to read."""
+        with staff(role='org_managed', org_role='campus_coordinator'):
+            resp = client.get('/api/sis/reports/revenue?organization_id=org-1', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_a_coordinator_still_gets_the_operational_reports(self, client, auth_headers, mock_verify_token):
+        """The subtraction is financial, not scope-based: enrollment and
+        attendance are how a coordinator runs the campus."""
+        rpt = {'total': 3, 'by_status': {'enrolled': 3}, 'active_classes': 2}
+        with staff(role='org_managed', org_role='campus_coordinator'), \
+                patch('routes.sis.reports.reports.enrollment_report', return_value=rpt):
+            resp = client.get('/api/sis/reports/enrollment?organization_id=org-1', headers=auth_headers)
+        assert resp.status_code == 200
 
     def test_enrollment_success(self, client, auth_headers, mock_verify_token):
         rpt = {'total': 3, 'by_status': {'enrolled': 3}, 'active_classes': 2}

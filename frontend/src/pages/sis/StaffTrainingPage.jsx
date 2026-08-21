@@ -340,14 +340,25 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
       </div>
 
       {tab === 'existing' ? (
+        /* Grouped by where the quest came from and alphabetical inside each
+           group — a flat list in storage order is unsearchable once a school
+           has a few dozen (iCreate, 2026-08-19). The API sorts; this names the
+           groups. */
         <select value={questId} onChange={(e) => setQuestId(e.target.value)} className={inputClass}
           aria-label="Choose a quest">
           <option value="">Choose a quest…</option>
-          {options.map((q) => (
-            <option key={q.quest_id} value={q.quest_id}>
-              {q.title}{q.source === 'library' ? ' (Optio library)' : ''}
-            </option>
-          ))}
+          {[['organization', "Your school's quests"], ['library', 'Optio library']].map(
+            ([source, groupLabel]) => {
+              const group = options.filter((q) => q.source === source)
+              if (!group.length) return null
+              return (
+                <optgroup key={source} label={groupLabel}>
+                  {group.map((q) => (
+                    <option key={q.quest_id} value={q.quest_id}>{q.title}</option>
+                  ))}
+                </optgroup>
+              )
+            })}
         </select>
       ) : (
         <div className="space-y-3">

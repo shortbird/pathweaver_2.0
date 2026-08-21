@@ -588,8 +588,14 @@ def assignable_training_quests(user_id):
     lib_quests = _q(admin.table('quests').select('id, title, organization_id')
                     .is_('organization_id', 'null').eq('is_active', True).eq('is_public', True))
 
+    # Alphabetical within each source, and the source is what the picker groups
+    # by (iCreate, 2026-08-19: "it would be helpful if we could have
+    # subcategories, and also alphabetize them"). Unsorted, this came back in
+    # whatever order the rows happened to be stored in.
+    by_title = lambda q: (q.get('title') or '').lower()  # noqa: E731
     out, seen = [], set()
-    for source, rows in (('organization', org_quests), ('library', lib_quests)):
+    for source, rows in (('organization', sorted(org_quests, key=by_title)),
+                         ('library', sorted(lib_quests, key=by_title))):
         for q in rows:
             if q['id'] in seen or q['id'] in already:
                 continue

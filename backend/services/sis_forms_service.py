@@ -65,6 +65,50 @@ def _admin():
 ALL_FORM_TYPES = {**FORM_TYPES, **PARENT_FORM_TYPES}
 
 
+def routing(org_id: str) -> Dict[str, str]:
+    """Which form type goes to whom, by default.
+
+    iCreate, 2026-08-21: "can we set up the forms so that they automatically go
+    to the appropriate person? Substitute requests from the teachers could just
+    be set up to go right to Julia. Otherwise they come to us first."
+
+    A map of form_type -> user_id, kept in organizations.feature_flags, because
+    it is org configuration and every other piece of SIS configuration lives
+    there. When the form builder lands it inherits this map as the
+    `default_assignee_id` on each template rather than replacing it.
+    """
+    rows = (_admin().table('organizations').select('feature_flags')
+            .eq('id', org_id).limit(1).execute()).data or []
+    settings = ((rows[0].get('feature_flags') or {}) if rows else {}).get('sis_settings') or {}
+    rules = settings.get('form_routing') or {}
+    # Only rules for form types that still exist: retiring a type must not leave
+    # submissions routing to a rule nobody can see or delete.
+    return {k: v for k, v in rules.items() if k in ALL_FORM_TYPES and v}
+
+
+def set_routing(org_id: str, rules: Dict[str, Any]) -> Dict[str, Any]:
+    """Replace the routing map. An empty value clears that type's rule."""
+    if not isinstance(rules, dict):
+        return {'error': 'Routing rules must be an object'}
+    clean: Dict[str, str] = {}
+    for form_type, user_id in rules.items():
+        if form_type not in ALL_FORM_TYPES:
+            return {'error': f'Unknown form type: {form_type}'}
+        if user_id:
+            clean[form_type] = str(user_id)
+    rows = (_admin().table('organizations').select('feature_flags')
+            .eq('id', org_id).limit(1).execute()).data or []
+    if not rows:
+        return {'error': 'Organization not found'}
+    flags = rows[0].get('feature_flags') or {}
+    settings = flags.get('sis_settings') or {}
+    (_admin().table('organizations')
+     .update({'feature_flags': {**flags,
+                                'sis_settings': {**settings, 'form_routing': clean}}})
+     .eq('id', org_id).execute())
+    return {'routing': clean}
+
+
 def submit(org_id: str, user_id: str, data: Dict[str, Any],
            submitter_role: str = 'staff', allow_assign: bool = False) -> Dict[str, Any]:
     """File a form/request. With allow_assign (the admin route's privilege),
@@ -107,6 +151,14 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
         assigned_to = data.get('assigned_to') or None
         if assigned_to:
             row_fields['assigned_to'] = assigned_to
+    # Nobody named it, so the school's routing rule does — substitute requests
+    # to whoever covers classes, maintenance to whoever holds the keys. A person
+    # who DID name an assignee always wins over the rule.
+    if not assigned_to:
+        routed = routing(org_id).get(form_type)
+        if routed:
+            assigned_to = routed
+            row_fields['assigned_to'] = routed
     row = (_admin().table('sis_form_submissions').insert(row_fields).execute()).data
     submission = row[0] if row else None
     title = (submission or {}).get('title') or label

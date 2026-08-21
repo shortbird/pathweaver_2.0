@@ -224,10 +224,22 @@ const QUEUE_VIEWS = [
 // to answer "what needs attention?". Scanning and editing are different
 // activities, so they are now different states of the row.
 export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = null }) => {
+  const { user } = useAuth()
   const [rows, setRows] = useState([])
   const [counts, setCounts] = useState({})
   const [view, setView] = useState('open')
   const [notes, setNotes] = useState({})
+  // What is typed in a due-date box before it is a whole date. A native date
+  // input reports '' until the year is finished, so saving on every keystroke
+  // saved a null halfway through and reloaded the row on top of the typing —
+  // which is why the year could not be typed at all (iCreate, 2026-08-20).
+  const [dueDrafts, setDueDrafts] = useState({})
+  // Who the row belongs to. Reassigning has always worked — it is a control on
+  // the open row — but "who has this?" could only be answered by opening rows
+  // one at a time, which is what made it look like it could not be done
+  // (iCreate, 2026-08-21: "can we reassign tasks from teachers or parents once
+  // they come in?").
+  const [assignee, setAssignee] = useState('')   // '' any | 'me' | 'none' | user id
   // A request opened from the task inbox arrives with its id in the URL: expand
   // that row, so the person lands on the row they clicked rather than at the
   // top of a queue and a hunt.
@@ -268,6 +280,29 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
     }
   }
 
+  // A complete date saves as soon as it is complete (so the calendar picker
+  // still feels immediate); an emptied box saves only once you leave it.
+  const editDue = (id, value) => {
+    setDueDrafts((p) => ({ ...p, [id]: value }))
+    if (value) update(id, { due_date: value })
+  }
+  const commitDue = (id, saved) => {
+    const draft = dueDrafts[id]
+    setDueDrafts((p) => {
+      const next = { ...p }
+      delete next[id]
+      return next
+    })
+    if (draft === '' && saved) update(id, { due_date: null })
+  }
+
+  const visibleRows = rows.filter((r) => {
+    if (!assignee) return true
+    if (assignee === 'none') return !r.assigned_to
+    if (assignee === 'me') return r.assigned_to === user?.id
+    return r.assigned_to === assignee
+  })
+
   const controlClass = 'px-2 py-1.5 border border-gray-300 rounded-lg text-sm'
   const viewCount = (value) => (
     value === 'open' ? counts.open : value === 'resolved' ? counts.resolved : undefined
@@ -277,6 +312,18 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <h2 className="font-semibold text-neutral-900">Forms, requests and tasks</h2>
+        <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-xs text-neutral-500 flex items-center gap-1">
+          Assigned to
+          <select aria-label="Filter by assignee" value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm">
+            <option value="">Anyone</option>
+            <option value="me">Me</option>
+            <option value="none">Nobody yet</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
         <div className="flex items-center gap-1" role="group" aria-label="Filter requests">
           {QUEUE_VIEWS.map(([value, label]) => {
             const n = viewCount(value)
@@ -291,14 +338,17 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
             )
           })}
         </div>
+        </div>
       </div>
-      {!rows.length && (
+      {!visibleRows.length && (
         <p className="text-sm text-neutral-500">
-          {view === 'open' ? 'Nothing open — the queue is clear.' : 'No submissions.'}
+          {assignee
+            ? 'Nothing here for them.'
+            : view === 'open' ? 'Nothing open — the queue is clear.' : 'No submissions.'}
         </p>
       )}
       <ul className="divide-y divide-gray-100">
-        {rows.map((f) => {
+        {visibleRows.map((f) => {
           const expanded = openRow === f.id
           return (
             <li key={f.id}
@@ -363,8 +413,10 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                     </label>
                     <label className="text-xs text-neutral-500 flex items-center gap-1">
                       Due
-                      <input type="date" aria-label="Due date" value={f.due_date || ''}
-                        onChange={(e) => update(f.id, { due_date: e.target.value || null })}
+                      <input type="date" aria-label="Due date"
+                        value={dueDrafts[f.id] !== undefined ? dueDrafts[f.id] : (f.due_date || '')}
+                        onChange={(e) => editDue(f.id, e.target.value)}
+                        onBlur={() => commitDue(f.id, f.due_date)}
                         className={controlClass} />
                     </label>
                     <button onClick={() => setCommentsOpen((p) => ({ ...p, [f.id]: !p[f.id] }))}

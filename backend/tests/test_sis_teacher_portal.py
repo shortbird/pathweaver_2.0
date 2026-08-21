@@ -242,7 +242,12 @@ class TestFormsService:
         table = Mock()
         client.table.return_value = table
         table.insert.return_value = table
-        table.execute.return_value = Mock(data=[{'id': 'f1', 'title': 'Broken sink'}])
+        # Two reads now: the org's form-routing rules (this school has none),
+        # then the insert. See test_sis_form_routing.py.
+        for chained in ('select', 'eq', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.side_effect = [Mock(data=[{'feature_flags': {}}]),
+                                     Mock(data=[{'id': 'f1', 'title': 'Broken sink'}])]
         with patch('services.sis_forms_service.get_supabase_admin_client', return_value=client), \
              patch('services.sis_service.org_admin_ids', return_value=['a1', 'a2']), \
              patch('services.sis_forms_service.sis_notifications.notify') as notify:

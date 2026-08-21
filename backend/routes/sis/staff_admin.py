@@ -151,6 +151,35 @@ def create_form(user_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/form-routing', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_form_routing(user_id):
+    """Which form type is auto-assigned to whom.
+
+    ADMIN_ROLES, coordinators included: deciding that substitute requests go to
+    the person who covers classes is running the campus, not spending money.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'routing': forms.routing(org_id),
+                    'form_types': forms.ALL_FORM_TYPES})
+
+
+@bp.route('/form-routing', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def put_form_routing(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = forms.set_routing(org_id, data.get('routing') or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/forms/<submission_id>/comments', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_form_comments(user_id, submission_id):

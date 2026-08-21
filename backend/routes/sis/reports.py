@@ -25,6 +25,9 @@ from services import sis_service
 from services import sis_reports_service as reports
 # Admin tier: this whole module is org management, not teacher-facing.
 from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+# ...with one exception: the revenue summary is money, and money is not the
+# coordinator's (see the revenue route).
+from utils.sis_roles import FINANCE_ROLES
 
 logger = get_logger(__name__)
 
@@ -52,8 +55,17 @@ def enrollment(user_id):
 
 
 @bp.route('/reports/revenue', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def revenue(user_id):
+    """Billed / collected / outstanding for the org.
+
+    FINANCE_ROLES, not the admin tier the rest of this module uses. iCreate,
+    2026-08-21: "the revenue is listed on the reports — if campus coordinators
+    can see that page, that should not be showing up". They were right: the
+    coordinator role exists to subtract the money and nothing else
+    (utils/sis_roles.py), and this route handed them the school's totals.
+    Enrollment and attendance stay on the admin tier — they are operational.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err

@@ -118,6 +118,73 @@ describe('the task queue', () => {
     expect(api.patch.mock.calls[1][1].due_date).toBe('2026-08-15')
   })
 
+  it('does not save a half-typed due date', async () => {
+    /**
+     * iCreate, 2026-08-20: "there is a bit of a bug with the due date letting
+     * me enter that in. It wouldn't let me enter in the year." A native date
+     * input reports an empty value until the whole date is valid, so saving on
+     * every keystroke saved a null halfway through typing and reloaded the row
+     * on top of it — the year could never be finished.
+     */
+    renderPage()
+    const row = await openRow('Printer in Room 3')
+    const due = within(row).getByLabelText(/due/i)
+
+    fireEvent.change(due, { target: { value: '' } })      // mid-typing
+    expect(api.patch).not.toHaveBeenCalled()
+
+    fireEvent.change(due, { target: { value: '2026-08-15' } })   // finished
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(api.patch.mock.calls[0][1].due_date).toBe('2026-08-15')
+  })
+
+  it('clears a due date when the box is emptied and left', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/staff-admin/forms')) {
+        return Promise.resolve({ data: {
+          submissions: [{ ...SUBMISSION, due_date: '2026-08-15' }],
+          form_types: { maintenance: 'Maintenance request' },
+        } })
+      }
+      if (url.includes('/api/sis/staff')) return Promise.resolve({ data: { staff: STAFF } })
+      return Promise.resolve({ data: {} })
+    })
+    renderPage()
+    const row = await openRow('Printer in Room 3')
+    const due = within(row).getByLabelText(/due/i)
+    fireEvent.change(due, { target: { value: '' } })
+    fireEvent.blur(due)
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(api.patch.mock.calls[0][1].due_date).toBe(null)
+  })
+
+  it('filters the queue by who it is assigned to', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/staff-admin/forms')) {
+        return Promise.resolve({ data: {
+          submissions: [
+            SUBMISSION,
+            { ...SUBMISSION, id: 'f2', title: 'Cover Thursday', assigned_to: 'cc-1',
+              assigned_to_name: 'Kate Coordinator' },
+          ],
+          form_types: { maintenance: 'Maintenance request' },
+        } })
+      }
+      if (url.includes('/api/sis/staff')) return Promise.resolve({ data: { staff: STAFF } })
+      return Promise.resolve({ data: {} })
+    })
+    renderPage()
+    await screen.findByText('Cover Thursday')
+
+    fireEvent.change(screen.getByLabelText('Filter by assignee'), { target: { value: 'cc-1' } })
+    expect(screen.getByText('Cover Thursday')).toBeInTheDocument()
+    expect(screen.queryByText('Printer in Room 3')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Filter by assignee'), { target: { value: 'none' } })
+    expect(screen.getByText('Printer in Room 3')).toBeInTheDocument()
+    expect(screen.queryByText('Cover Thursday')).not.toBeInTheDocument()
+  })
+
   it('shows and posts comments on the thread', async () => {
     renderPage()
     const row = await openRow('Printer in Room 3')

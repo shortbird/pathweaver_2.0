@@ -354,6 +354,11 @@ ROSTER_REPORT_FIELDS: List[Dict[str, Any]] = [
     {'key': 'first_name', 'label': 'First name', 'hint': 'On its own, for mail merges', 'default': False},
     {'key': 'last_name', 'label': 'Last name', 'hint': 'On its own, for sorting', 'default': False},
     {'key': 'age', 'label': 'Age', 'hint': 'Years, as of today', 'default': True},
+    # Collected (and required) at iCreate registration, and already in the
+    # People export — it was simply never offered here. iCreate, 2026-08-19:
+    # "we also need a gender, because I'm not really sure if some of these are
+    # boys or girls".
+    {'key': 'gender', 'label': 'Gender', 'hint': 'As given at registration', 'default': False},
     {'key': 'date_of_birth', 'label': 'Birthdate', 'hint': 'YYYY-MM-DD', 'default': False},
     {'key': 'student_email', 'label': 'Student email', 'hint': "The student's own login", 'default': False},
     {'key': 'household_name', 'label': 'Family', 'hint': 'Household name', 'default': False},
@@ -391,6 +396,15 @@ def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
     from utils.blank_values import clean as _clean_blank
 
     keys = [k for k in ROSTER_REPORT_KEYS if k in (fields or [])] or ROSTER_REPORT_DEFAULTS
+    # A sheet that mixes enrolled and waiting students without saying which is
+    # which is worse than one that leaves the waiting students out (iCreate,
+    # 2026-08-20: "I can select include waitlist but I have no way of telling
+    # which kids are the waitlisted ones"). Status is a default column, but it
+    # can be unticked — and that choice is remembered per browser, so it can be
+    # unticked once and wrong forever after. With the waitlist in, it is not a
+    # choice.
+    if include_waitlist and 'status' not in keys:
+        keys = [k for k in ROSTER_REPORT_KEYS if k == 'status' or k in keys]
 
     classes = [c for c in sis_catalog_service.list_classes(
         org_id, include_archived=True, audience='staff') if c['id'] in set(class_ids or [])]
@@ -420,7 +434,7 @@ def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
     users = {u['id']: u for u in fetch_all_rows(lambda: (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, preferred_name, email, '
-                'date_of_birth, allergies, medications')
+                'date_of_birth, gender, allergies, medications')
         .in_('id', student_ids)))}
 
     households, guardians_by_hh, hh_by_student = _household_context(student_ids)
@@ -445,6 +459,7 @@ def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
                 'last_name': u.get('last_name') or '',
                 'age': _age_years(u.get('date_of_birth'), today),
                 'date_of_birth': (u.get('date_of_birth') or '')[:10],
+                'gender': u.get('gender') or '',
                 'student_email': u.get('email') or '',
                 'household_name': hh.get('name') or '',
                 'guardians': '; '.join(g['name'] for g in gs if g.get('name')),

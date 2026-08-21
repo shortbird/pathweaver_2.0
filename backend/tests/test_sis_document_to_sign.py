@@ -35,16 +35,17 @@ BACKGROUND_CHECK = {'id': 'bci-1', 'title': 'ABR BCI.jpg', 'filename': 'bci.jpg'
                     'requires_signature': False}
 
 
-def _pool_client(rows, org_uses_the_tick):
+def _pool_client(rows, org_uses_the_tick, claimed=()):
     """Admin client for the pool read.
 
-    Two reads go through it: this person's shared documents, and (only when none
-    of theirs is flagged) the one-row question "has this school ever ticked
-    anything?". The second is told apart by its .eq('requires_signature', True).
+    Three reads go through it: this person's shared documents, the assignments
+    that already name a document of theirs, and (only when none of theirs is
+    flagged) the one-row question "has this school ever ticked anything?". The
+    last is told apart by its .eq('requires_signature', True).
     """
     client = Mock()
 
-    def _table(_name):
+    def _table(name):
         t = Mock()
         state = {'org_question': False}
 
@@ -55,6 +56,10 @@ def _pool_client(rows, org_uses_the_tick):
         t.eq.side_effect = _eq
         for chained in ('select', 'limit', 'order', 'in_'):
             getattr(t, chained).return_value = t
+        if name == 'sis_onboarding_assignments':
+            t.execute.side_effect = lambda: Mock(
+                data=[{'items': [{'document_id': d}]} for d in claimed])
+            return t
         t.execute.side_effect = lambda: Mock(
             data=([{'id': 'any'}] if org_uses_the_tick else []) if state['org_question']
             else rows)
@@ -64,9 +69,9 @@ def _pool_client(rows, org_uses_the_tick):
     return client
 
 
-def _pool(rows, document_id=None, org_uses_the_tick=False):
+def _pool(rows, document_id=None, org_uses_the_tick=False, claimed=()):
     with patch('services.sis_onboarding_service._admin',
-               return_value=_pool_client(rows, org_uses_the_tick)):
+               return_value=_pool_client(rows, org_uses_the_tick, claimed)):
         return onboarding.office_documents('org-1', 'staff-1', document_id)
 
 
@@ -104,6 +109,29 @@ class TestWhatTheItemOffersToSign:
         sent = {'id': 'sent-1', 'title': 'Handbook', 'filename': 'h.pdf',
                 'requires_signature': False}
         assert _pool([sent], document_id='sent-1') == [
+            {'id': 'sent-1', 'title': 'Handbook'}]
+
+    def test_a_document_sent_for_signature_is_not_also_reading_for_the_contract(self):
+        """iCreate, 2026-08-20. The office sent the Family Service Program form
+        and the Student Behavior Agreement out for signature; both are flagged,
+        because being sent for signature is what flags them. Three hours later
+        the admin's "Review & Sign Your Contract" item was telling her to review
+        both of them first. Each already IS a task on its own assignment — so
+        the general pool must not offer it a second time."""
+        family_form = {'id': 'fsp-1', 'title': 'Family Service Program form',
+                       'filename': 'fsp.pdf', 'requires_signature': True}
+        behaviour = {'id': 'sba-1', 'title': 'Student Behavior Agreement',
+                     'filename': 'sba.pdf', 'requires_signature': True}
+        titles = [d['title'] for d in _pool(
+            [CONTRACT, family_form, behaviour], claimed=('fsp-1', 'sba-1'))]
+        assert titles == ['Teacher Employee Agreement - Ana Rogers.pdf']
+
+    def test_the_claimed_document_can_still_be_signed_by_the_item_that_named_it(self):
+        """Excluding it from the POOL must not make it unsignable — the send's
+        own item asks for it by id."""
+        sent = {'id': 'sent-1', 'title': 'Handbook', 'filename': 'h.pdf',
+                'requires_signature': True}
+        assert _pool([sent], document_id='sent-1', claimed=('sent-1',)) == [
             {'id': 'sent-1', 'title': 'Handbook'}]
 
     def test_a_document_with_no_title_falls_back_to_its_filename(self):

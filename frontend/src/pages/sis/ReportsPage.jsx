@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from './sisRole'
 import SisOrgPicker from './SisOrgPicker'
 
 const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
@@ -146,6 +148,11 @@ const RunButton = ({ onClick, disabled, ariaLabel, children = 'View report' }) =
 
 const ReportsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { user } = useAuth()
+  // Money is not the campus coordinator's — the same subtraction the backend
+  // makes on /reports/revenue. Asking for it as a coordinator would 403, so
+  // this decides whether to ask at all, not just whether to render.
+  const seesMoney = canSeeFinance(user)
   const [enrollment, setEnrollment] = useState(null)
   const [revenue, setRevenue] = useState(null)
   const [attendance, setAttendance] = useState(null)
@@ -162,19 +169,26 @@ const ReportsPage = () => {
   const [classList, setClassList] = useState([])
   const [rosterClassIds, setRosterClassIds] = useState([])
   const [includeWaitlist, setIncludeWaitlist] = useState(false)
+  // The roster picker's own archived switch. iCreate runs 47 archived classes
+  // against 152 active ones, and the Class report next door already had this,
+  // so its absence here read as an inconsistency (2026-08-20).
+  const [rosterArchived, setRosterArchived] = useState(false)
   const [rosterCols, setRosterCols] = useState(loadRosterCols)
+  // What the roster report on screen was actually run with, so changing the
+  // inputs afterwards can say so rather than silently disagreeing with it.
+  const [rosterRunWith, setRosterRunWith] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
     setLoading(true)
     Promise.all([
       api.get(withOrg('/api/sis/reports/enrollment', orgId)),
-      api.get(withOrg('/api/sis/reports/revenue', orgId)),
+      seesMoney ? api.get(withOrg('/api/sis/reports/revenue', orgId)) : Promise.resolve(null),
       api.get(withOrg('/api/sis/reports/attendance', orgId)),
     ])
       .then(([e, r, a]) => {
         setEnrollment(e.data?.report || null)
-        setRevenue(r.data?.report || null)
+        setRevenue(r?.data?.report || null)
         setAttendance(a.data?.report || null)
       })
       .catch(() => toast.error('Failed to load reports'))
@@ -182,13 +196,24 @@ const ReportsPage = () => {
     api.get(withOrg('/api/sis/reports/registration-questions', orgId))
       .then((res) => setQuestions(res.data?.questions || []))
       .catch(() => setQuestions([]))
-    api.get(withOrg('/api/sis/classes', orgId))
+    api.get(withOrg(`/api/sis/classes?include_archived=${rosterArchived}`, orgId))
       .then((res) => setClassList(res.data?.classes || []))
       .catch(() => setClassList([]))
-  }, [orgId])
+  }, [orgId, seesMoney, rosterArchived])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setReport(null); setQuestionKey(''); setRosterClassIds([]) }, [orgId])
+  // Unticking "include archived" must not leave an archived class selected and
+  // invisible — the report would still include it and nothing on screen would
+  // say why.
+  useEffect(() => {
+    if (!classList.length) return
+    setRosterClassIds((ids) => {
+      const live = new Set(classList.map((c) => c.id))
+      const next = ids.filter((id) => live.has(id))
+      return next.length === ids.length ? ids : next
+    })
+  }, [classList])
   // Reset the table sort whenever a different report is shown.
   useEffect(() => { setSort({ col: 0, dir: 'asc' }) }, [report?.title])
 
@@ -239,6 +264,7 @@ const ReportsPage = () => {
       if (type === 'rosters') {
         const shaped = shapeClassReport(res.data, rosterCols, 'Class rosters')
         setRosterCols(shaped.selected)
+        setRosterRunWith({ classIds: [...rosterClassIds].sort().join(','), waitlist: includeWaitlist })
         setReport({ ...shaped, kind: 'rosters', csvPath: rosterPath(shaped.selected), csvName: 'rosters.csv' })
         return
       }
@@ -255,12 +281,26 @@ const ReportsPage = () => {
     } finally {
       setReportLoading(false)
     }
-  }, [orgId, questions, attendanceDate, classCols, classPath, rosterCols, rosterPath])
+  }, [orgId, questions, attendanceDate, classCols, classPath, rosterCols, rosterPath,
+      rosterClassIds, includeWaitlist])
+
+  // Which column says Enrolled / Waiting / Offered, when there is one.
+  const statusCol = report?.kind === 'rosters' ? (report.selected || []).indexOf('status') : -1
+  const lockedCol = (key) => report?.kind === 'rosters' && includeWaitlist && key === 'status'
+
+  const rosterStale = Boolean(
+    report?.kind === 'rosters' && rosterRunWith
+    && (rosterRunWith.classIds !== [...rosterClassIds].sort().join(',')
+        || rosterRunWith.waitlist !== includeWaitlist))
 
   // Toggling a column re-shapes the rows already loaded — every field comes
   // back with the report, so changing the view never refetches.
   const toggleClassCol = useCallback((fieldKey) => {
     if (!report?.fields) return
+    // Status is what tells an enrolled student from a waiting one, so while the
+    // waitlist is included it cannot be turned off (the server forces it into
+    // the sheet either way — this keeps the picker honest about that).
+    if (report.kind === 'rosters' && includeWaitlist && fieldKey === 'status') return
     // Keep the API's field order regardless of the order columns were ticked.
     const next = report.fields.map((f) => f.key)
       .filter((k) => (k === fieldKey ? !report.selected.includes(k) : report.selected.includes(k)))
@@ -276,7 +316,7 @@ const ReportsPage = () => {
       selected: next,
       csvPath: isRoster ? rosterPath(next) : classPath(next),
     })
-  }, [report, classPath, rosterPath])
+  }, [report, classPath, rosterPath, includeWaitlist])
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
@@ -365,21 +405,29 @@ const ReportsPage = () => {
                 description="Students across as many classes as you like, in one sheet — guardians, contacts, ages. Pick the columns after you run it."
               >
                 <div className="space-y-2">
-                  <select
-                    multiple
-                    aria-label="Classes"
-                    size={Math.min(6, Math.max(3, classList.length))}
-                    value={rosterClassIds}
-                    onChange={(e) => setRosterClassIds(
-                      Array.from(e.target.selectedOptions, (o) => o.value))}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                  >
+                  {/* Tickboxes, not a multi-select: picking eight classes out
+                      of 152 by ctrl-click is a trap, and one stray click
+                      cleared the lot (iCreate, 2026-08-19). */}
+                  <div role="group" aria-label="Classes"
+                    className="max-h-44 overflow-y-auto border border-gray-300 rounded-lg p-2 space-y-1">
+                    {!classList.length && (
+                      <p className="text-xs text-neutral-400">No classes to choose from.</p>
+                    )}
                     {classList.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <label key={c.id} className="flex items-center gap-2 text-sm text-neutral-700">
+                        <input type="checkbox" className="accent-optio-purple"
+                          checked={rosterClassIds.includes(c.id)}
+                          onChange={(e) => setRosterClassIds((ids) => (
+                            e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id)))} />
+                        <span className="truncate">{c.name}</span>
+                        {c.status === 'archived' && (
+                          <span className="text-xs text-neutral-400 shrink-0">archived</span>
+                        )}
+                      </label>
                     ))}
-                  </select>
+                  </div>
                   <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <button type="button"
                         onClick={() => setRosterClassIds(
                           rosterClassIds.length === classList.length ? [] : classList.map((c) => c.id))}
@@ -393,6 +441,13 @@ const ReportsPage = () => {
                           onChange={(e) => setIncludeWaitlist(e.target.checked)} />
                         Include waitlist
                       </label>
+                      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                        <input type="checkbox" aria-label="Include archived classes in the list"
+                          className="accent-optio-purple"
+                          checked={rosterArchived}
+                          onChange={(e) => setRosterArchived(e.target.checked)} />
+                        Include archived
+                      </label>
                     </div>
                     <RunButton ariaLabel="View roster report"
                       disabled={reportLoading || !orgId || !rosterClassIds.length}
@@ -400,6 +455,14 @@ const ReportsPage = () => {
                   </div>
                   {!rosterClassIds.length && (
                     <p className="text-xs text-neutral-400">Choose one or more classes.</p>
+                  )}
+                  {/* Changing what goes IN the sheet after running it left the
+                      old sheet on screen, which is how "include waitlist" could
+                      look like it had done nothing. */}
+                  {rosterStale && (
+                    <p className="text-xs text-amber-600">
+                      Settings changed — run the report again to see them.
+                    </p>
                   )}
                 </div>
               </ReportCard>
@@ -469,6 +532,10 @@ const ReportsPage = () => {
                             aria-label={f.label}
                             className="mt-0.5 accent-optio-purple shrink-0"
                             checked={report.selected.includes(f.key)}
+                            disabled={lockedCol(f.key)}
+                            title={lockedCol(f.key)
+                              ? 'Needed while waitlisted students are included'
+                              : undefined}
                             onChange={() => toggleClassCol(f.key)}
                           />
                           <span className="leading-tight">
@@ -501,13 +568,23 @@ const ReportsPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {displayRows.map((row, i) => (
-                          <tr key={i} className="border-b border-gray-100 align-top">
-                            {row.map((cell, j) => (
-                              <td key={j} className="py-2 pr-4 text-neutral-800">{cell || ''}</td>
-                            ))}
-                          </tr>
-                        ))}
+                        {displayRows.map((row, i) => {
+                          const waiting = statusCol >= 0 && row[statusCol] && row[statusCol] !== 'Enrolled'
+                          return (
+                            <tr key={i}
+                              className={`border-b border-gray-100 align-top ${waiting ? 'bg-amber-50' : ''}`}>
+                              {row.map((cell, j) => (
+                                <td key={j} className="py-2 pr-4 text-neutral-800">
+                                  {j === statusCol && waiting ? (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                      {cell}
+                                    </span>
+                                  ) : (cell || '')}
+                                </td>
+                              ))}
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -548,15 +625,17 @@ const ReportsPage = () => {
             ) : null}
           </section>
 
-          <section>
-            <h2 className="font-semibold text-neutral-900 mb-3">Revenue (recorded)</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat label="Invoices" value={revenue?.invoice_count ?? 0} />
-              <Stat label="Billed" value={money(revenue?.billed_cents)} />
-              <Stat label="Collected" value={money(revenue?.collected_cents)} />
-              <Stat label="Outstanding" value={money(revenue?.outstanding_cents)} />
-            </div>
-          </section>
+          {seesMoney && (
+            <section>
+              <h2 className="font-semibold text-neutral-900 mb-3">Revenue (recorded)</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Stat label="Invoices" value={revenue?.invoice_count ?? 0} />
+                <Stat label="Billed" value={money(revenue?.billed_cents)} />
+                <Stat label="Collected" value={money(revenue?.collected_cents)} />
+                <Stat label="Outstanding" value={money(revenue?.outstanding_cents)} />
+              </div>
+            </section>
+          )}
 
           <section>
             <h2 className="font-semibold text-neutral-900 mb-3">Attendance</h2>
