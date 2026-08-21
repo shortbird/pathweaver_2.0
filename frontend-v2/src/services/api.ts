@@ -45,19 +45,55 @@ export const api = axios.create({
   withCredentials: Platform.OS === 'web',
 });
 
-// Track refresh state to prevent concurrent refreshes
-let isRefreshing = false;
-let refreshQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (error: unknown) => void;
-}> = [];
+// One refresh in flight at a time, for the whole app.
+//
+// The backend rotates the refresh token on every use and treats a second
+// presentation of an already-rotated token as a replay: it revokes the entire
+// token family, which silently ends every session on that chain (Sentry
+// OPTIO-BACKEND-6N, seen on iOS). It forgives a 30s grace window
+// (REPLAY_GRACE_SECONDS in backend/utils/refresh_families.py), so a two-way race
+// usually survives — but a third refresh landing in the meantime rotates the
+// chain past the loser's token and the family dies.
+//
+// So every caller must join the same refresh rather than start its own. That
+// means the 401 interceptor below AND the raw-`fetch` upload paths (axios mangles
+// RN multipart, so those bypass the interceptor and call refreshAccessToken
+// directly), which previously refreshed on their own with no shared state.
+let refreshInFlight: Promise<string> | null = null;
 
-function processQueue(error: unknown, token: string | null) {
-  refreshQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error);
-    else if (token) resolve(token);
+/** Refresh the access token, or join the refresh already running. */
+function refreshOnce(): Promise<string> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = tokenStore.getRefreshToken();
+    // Web has no in-memory refresh token after a reload — the backend reads it
+    // from the httpOnly cookie sent via withCredentials. Native must have it in
+    // SecureStore; without it the session is simply gone.
+    if (!refreshToken && Platform.OS !== 'web') {
+      throw new Error('No refresh token');
+    }
+
+    // E4: single jittered retry on transient refresh failure (network blip,
+    // 502 from Render cold start). A second 4xx still fails fast.
+    const body = refreshToken ? { refresh_token: refreshToken } : {};
+    const { data } = await postRefreshWithRetry(body, {
+      post: (path, b) => api.post(path, b),
+    });
+
+    await tokenStore.setTokens(data.access_token, data.refresh_token);
+    return data.access_token as string;
+  })();
+
+  // Free the slot once settled so the next 401 starts a fresh refresh. The
+  // caught copy keeps a failed refresh from surfacing as an unhandled rejection;
+  // every caller still sees the rejection on the promise it awaited.
+  const settled = refreshInFlight;
+  settled.catch(() => {}).then(() => {
+    if (refreshInFlight === settled) refreshInFlight = null;
   });
-  refreshQueue = [];
+
+  return refreshInFlight;
 }
 
 /**
@@ -66,26 +102,13 @@ function processQueue(error: unknown, token: string | null) {
  * access token — or null if the refresh failed.
  *
  * Shared so non-axios callers can recover from a 401 the same way the response
- * interceptor does. The in-app bug reporter posts via raw `fetch` (axios mangles
- * RN multipart), which means it bypasses the 401-refresh interceptor below; it
- * uses this helper to refresh-and-retry instead.
+ * interceptor does. The in-app bug reporter and the media uploads post via raw
+ * `fetch` (axios mangles RN multipart), which means they bypass the 401-refresh
+ * interceptor below; they use this helper to refresh-and-retry instead.
  */
 export async function refreshAccessToken(): Promise<string | null> {
   try {
-    const refreshToken = tokenStore.getRefreshToken();
-    // Web relies on the httpOnly cookie (sent via withCredentials); native must
-    // have a refresh token in SecureStore.
-    if (!refreshToken && Platform.OS !== 'web') {
-      return null;
-    }
-    const body = refreshToken ? { refresh_token: refreshToken } : {};
-    const { data } = await postRefreshWithRetry(body, {
-      post: (path, b) => api.post(path, b),
-    });
-    const newAccess = data.access_token;
-    const newRefresh = data.refresh_token;
-    await tokenStore.setTokens(newAccess, newRefresh);
-    return newAccess;
+    return await refreshOnce();
   } catch {
     return null;
   }
@@ -276,47 +299,16 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (isRefreshing) {
-      // Queue this request until refresh completes
-      return new Promise((resolve, reject) => {
-        refreshQueue.push({
-          resolve: (token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          },
-          reject,
-        });
-      });
-    }
-
     originalRequest._retry = true;
-    isRefreshing = true;
 
     try {
-      const refreshToken = tokenStore.getRefreshToken();
-      // Web has no in-memory refresh token after reload — backend reads it from the
-      // httpOnly cookie sent via withCredentials. Native must have it in SecureStore.
-      if (!refreshToken && Platform.OS !== 'web') {
-        throw new Error('No refresh token');
-      }
-
-      // E4: single jittered retry on transient refresh failure (network blip,
-      // 502 from Render cold start). A second 4xx still fails fast.
-      const body = refreshToken ? { refresh_token: refreshToken } : {};
-      const { data } = await postRefreshWithRetry(body, {
-        post: (path, b) => api.post(path, b),
-      });
-
-      const newAccess = data.access_token;
-      const newRefresh = data.refresh_token;
-      await tokenStore.setTokens(newAccess, newRefresh);
-
-      processQueue(null, newAccess);
+      // Joins the refresh already running, if there is one, so a burst of 401s
+      // costs one rotation rather than one per request.
+      const newAccess = await refreshOnce();
 
       originalRequest.headers.Authorization = `Bearer ${newAccess}`;
       return api(originalRequest);
     } catch (refreshError) {
-      processQueue(refreshError, null);
       // Tear down the session only when the refresh genuinely failed because the
       // credentials are invalid/expired — never on a transient/recoverable error.
       // This is what stops a flaky 401 (e.g. from the notifications screen) from
@@ -325,8 +317,6 @@ api.interceptors.response.use(
         await tokenStore.clearTokens();
       }
       return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
     }
   }
 );
