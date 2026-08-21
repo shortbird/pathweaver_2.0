@@ -155,6 +155,31 @@ describe('ReportsPage', () => {
     expect(screen.queryByLabelText('View payments report')).not.toBeInTheDocument()
   })
 
+  it('scrolls to the answer when a report is run', async () => {
+    /**
+     * The results table renders below eleven cards, so on a school-sized class
+     * list the answer landed off screen and the button read as broken.
+     */
+    const scrollIntoView = vi.fn()
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
+    render(<ReportsPage />)
+    fireEvent.click(await screen.findByLabelText('View payments report'))
+    await screen.findByText('Payments')
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('does not re-scroll when a column is ticked on a report already on screen', async () => {
+    render(<ReportsPage />)
+    await pickClass('Pottery')
+    fireEvent.click(screen.getByLabelText('View roster report'))
+    await screen.findByText('Class rosters')
+
+    const scrollIntoView = vi.fn()
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
+    fireEvent.click(screen.getByLabelText('Birthdate'))
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
   it('renders the information reports section with canned cards and the question picker', async () => {
     render(<ReportsPage />)
     expect(await screen.findByText('Information reports')).toBeInTheDocument()

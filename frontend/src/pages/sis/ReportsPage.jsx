@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -192,6 +192,14 @@ const ReportsPage = () => {
   // What the roster report on screen was actually run with, so changing the
   // inputs afterwards can say so rather than silently disagreeing with it.
   const [rosterRunWith, setRosterRunWith] = useState(null)
+  // The results table renders below the whole grid of cards, and the grid is
+  // eleven cards tall — taller still with a school's worth of classes in the
+  // roster picker. Running a report therefore drew the answer somewhere off
+  // screen, which reads exactly like the button doing nothing. Counting runs
+  // rather than watching `report`: toggling a column rebuilds that object, and
+  // re-scrolling the page under someone ticking columns is its own bug.
+  const [runSeq, setRunSeq] = useState(0)
+  const resultRef = useRef(null)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -267,6 +275,7 @@ const ReportsPage = () => {
     else if (type === 'classes') path = classPath(classCols)
     else if (type === 'rosters') path = rosterPath(rosterCols)
     setReportLoading(true)
+    setRunSeq((n) => n + 1)
     try {
       const res = await api.get(withOrg(path, orgId))
       if (type === 'classes') {
@@ -302,6 +311,13 @@ const ReportsPage = () => {
   // Which column says Enrolled / Waiting / Offered, when there is one.
   const statusCol = report?.kind === 'rosters' ? (report.selected || []).indexOf('status') : -1
   const lockedCol = (key) => report?.kind === 'rosters' && includeWaitlist && key === 'status'
+
+  useEffect(() => {
+    if (!runSeq) return
+    // Optional-call: jsdom has no scrollIntoView, and a missing scroll must
+    // never break the page it was meant to help.
+    resultRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [runSeq, reportLoading])
 
   const rosterStale = Boolean(
     report?.kind === 'rosters' && rosterRunWith
@@ -513,6 +529,8 @@ const ReportsPage = () => {
                 </div>
               </ReportCard>
             </div>
+
+            <div ref={resultRef} className="scroll-mt-4" />
 
             {reportLoading && <p className="text-neutral-500 mt-4">Loading report…</p>}
 
