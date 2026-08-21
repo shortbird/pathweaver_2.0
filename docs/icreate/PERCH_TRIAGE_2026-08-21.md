@@ -101,9 +101,18 @@ Nothing to build. These need a look in production and a note on the ticket.
 
 ---
 
-## 3. Ship now — branch `icreate/perch-sweep-2026-08-21`
+## 3. Built — branch `icreate/perch-sweep-2026-08-21`
 
-Ten items, all verified to a root cause. Ordered by consequence.
+Ten items, all verified to a root cause, ordered by consequence. **Built and committed on
+the branch; nothing merged, nothing deployed.** Backend 3454 passed, web 1951 passed.
+
+Three commits:
+
+| Commit | What |
+|---|---|
+| `02955486` | The ten below, §3.1 to §3.10 |
+| `9bdf7836` | Add and move students from the roster (§4 item 2, brought forward) |
+| `5738915d` | The payments report (§4 item 3, brought forward) |
 
 ### 3.1 `c8c134e2` — Revenue is showing to campus coordinators *(security)*
 
@@ -209,8 +218,8 @@ Sized and understood, but each is bigger than the sweep above. Suggested order.
 | # | Tickets | Work |
 |---|---|---|
 | 1 | `d63154c7`, `2e930120`, `857b5f70` | **Messaging: who it goes to, and whether it emails.** Today the Messaging page sends to three whole-school audiences and *always* emails every recipient ([announcement_service.py:147](../../backend/services/announcement_service.py#L147)). Needs a recipient resolver — by class (one or several), by age range, by teacher — and an explicit "email this too" tick, so an in-app note is not 300 emails. Community board posts already only email when audiences are picked, which is the model to copy. Her "overlap between community and messaging" resolves the same way: the board is the noticeboard, messaging is the send. |
-| 2 | `c3cd1747`, `f8626f75` | **Add and move students from the roster popup.** Both endpoints already exist (`POST`/`DELETE /api/sis/classes/<id>/enrollments`, ADMIN_ROLES) and the waitlist half can already move somebody into a sibling section. This is the enrolled half: an *Add student* picker on the roster (a `SearchSelect` over `/api/sis/roster`, per the platform rule for long lists) and a *Move to…* that drops and enrolls in one action, honouring the same over-capacity confirm the waitlist path uses. |
-| 3 | `1f50e9ea` | **Payments report.** `sis_payment_records.method` is already recorded (prod today: 10 scholarship, 2 card). One row per payment — family, invoice, date, method, amount, reference — with a method filter, totals by method, and CSV. Fits the existing reports pattern exactly. The "tuition trades" half is §5. |
+| 2 | `c3cd1747`, `f8626f75` | ~~**Add and move students from the roster popup.**~~ **Done — `9bdf7836`.** A student picker on the roster (`SearchSelect` over `/api/sis/roster`, per the platform rule), honouring the school-waitlist 409 the same way the student page does; and a *Move* limited to sibling sections, which is the only move that cannot change what a family is charged. Enrols into the new section before dropping the old, so a half-failure leaves the student somewhere. |
+| 3 | `1f50e9ea` | ~~**Payments report.**~~ **Done — `5738915d`.** One row per payment with the split by method above the table, FINANCE_ROLES, CSV. The "tuition trades" half stays in §5, unanswered. |
 | 4 | `b9583855` | **An onboarding item should hold several documents.** Already answered on the ticket and promised: uploading a second file offers *Replace* because the item has room for one. Needs the item's document to become a list, plus "add another" wording. Interacts with PR #94's item identity — do it after, or the reorder remaps which file belongs to which item. |
 | 5 | `f4e1589d` | **Sync assigned checklists.** Scoped and promised on the ticket (button, not automatic; merges by item; never touches completed work; reports counts). Explicitly depends on PR #94 landing first. |
 | 6 | `e9870e13` | Nothing to build beyond §1a — keep for the client note. |
@@ -248,8 +257,13 @@ answered. The build is not the hard part in any of them; the answer is.
 
 ## What is not in this plan
 
-- **Nothing is merged or deployed.** Everything in §3 lands on
+- **Nothing is merged or deployed.** Everything above sits on
   `icreate/perch-sweep-2026-08-21` for review.
+- **The messaging cluster (§4 item 1) is deliberately not built.** Recipient targeting by
+  class, age and teacher is straightforward; deciding whether an announcement should still
+  email everyone by default is not, and Molly asked it as a question ("Does that make
+  sense?"). It changes delivery for every org on the platform, so it wants an answer before
+  a commit, not after.
 - **No Perch writes.** No ticket status changed, no comment posted, no dispatcher restarted.
 - **No client copy sent.** Draft replies — the email and a line per ticket — are in
   [PERCH_CLIENT_REPLIES_2026-08-21.md](PERCH_CLIENT_REPLIES_2026-08-21.md), for Tanner to send.
