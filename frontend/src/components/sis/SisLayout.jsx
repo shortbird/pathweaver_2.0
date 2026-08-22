@@ -110,7 +110,6 @@ const SisLayout = () => {
           <Link to="/" className="font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
         </header>
         {admin && <PreviewBanner />}
-        {/* Teacher (non-admin, not previewing): nudge until onboarding is done. */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <Outlet />
         </div>

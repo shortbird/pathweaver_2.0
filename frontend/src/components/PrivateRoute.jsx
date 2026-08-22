@@ -6,6 +6,36 @@ import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 import { usePhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { roleHomePath } from '../utils/postLoginPath'
 
+// A hold that can loop is a hold that can lock a school out.
+//
+// Each gate below sends a held user to a standalone page; that page asks the
+// same endpoint again and, finding nothing to do, sends them back. If the gate
+// and the page ever disagree — a stale cache, a flag flipped mid-session, two
+// holds handing the user to each other — the two bounce forever, and because
+// the hold pages render no app chrome there is no visible way out. That is
+// exactly what happened on 2026-08-22, between /verify-phone and
+// /family/required-documents.
+//
+// So: count the redirects, and give up rather than spin. Failing OPEN matches
+// how the holds already treat a database hiccup (see phone_verification_hold),
+// and the backend middleware still refuses the actual data either way — a user
+// let through here still cannot read anything they should not.
+const HOLD_REDIRECT_LIMIT = 4
+let holdRedirects = 0
+
+const holdRedirect = (to) => {
+  holdRedirects += 1
+  if (holdRedirects > HOLD_REDIRECT_LIMIT) {
+    if (holdRedirects === HOLD_REDIRECT_LIMIT + 1) {
+      console.warn(
+        `[PrivateRoute] ${holdRedirects} hold redirects in one session; letting the ` +
+        `user through rather than looping. Last target: ${to}`)
+    }
+    return null
+  }
+  return to
+}
+
 const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
   const location = useLocation()
@@ -91,7 +121,8 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
     )
   }
   if (docsGate.blocked) {
-    return <Navigate to="/family/required-documents" replace />
+    const to = holdRedirect('/family/required-documents')
+    if (to) return <Navigate to={to} replace />
   }
 
   // Phone verification. Last of the three holds: a family still in the funnel
@@ -106,7 +137,8 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
     )
   }
   if (phoneGate.blocked) {
-    return <Navigate to="/verify-phone" replace />
+    const to = holdRedirect('/verify-phone')
+    if (to) return <Navigate to={to} replace />
   }
 
   // blockRoles: deny these effective roles and bounce them to their own home.

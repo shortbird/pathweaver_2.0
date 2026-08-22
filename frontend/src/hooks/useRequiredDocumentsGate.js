@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import api from '../services/api'
+import { isMasquerading } from '../services/masqueradeService'
 
 // Gate for school paperwork a family must sign before the platform opens.
 //
@@ -20,10 +21,14 @@ import api from '../services/api'
 // Two differences from the registration gate, both consequences of what this
 // gates:
 //
-//   - No masquerade exemption. An admin viewing as a held parent sees the
+//   - Masquerade IS exempt (corrected 2026-08-22). An admin cannot sign a
+//     family's paperwork for them, so holding them here is a flow they can
+//     never finish; combined with the phone hold it produced a redirect loop
+//     with no way out, because neither hold page renders the app chrome that
+//     carries the exit-masquerade control.
+//   - The superseded rule was: an admin viewing as a held parent sees the
 //     hold, because that is what the parent sees. The registration gate's
-//     exemption is the one deliberate divergence masquerade has (see the note
-//     in useICreateRegistrationGate) and it stays the only one.
+//     hold, because that is what the parent sees.
 //
 //   - Staff are exempt on the SERVER, not here. A parent who also teaches is
 //     not held, and the server says so by returning blocked:false — so this
@@ -39,7 +44,7 @@ export const clearRequiredDocumentsGate = () => {
 export function useRequiredDocumentsGate(user, isAuthenticated) {
   // Only org users can be sent school paperwork, so only they pay for the
   // check — and only they can ever see the spinner it costs.
-  const eligible = !!(isAuthenticated && user?.organization_id)
+  const eligible = !!(isAuthenticated && user?.organization_id && !isMasquerading())
   const cached = cache.userId === user?.id && cache.blocked !== null
   const [state, setState] = useState(() => (
     cached ? { checking: false, blocked: cache.blocked }

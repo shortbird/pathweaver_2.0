@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import api from '../services/api'
+import { isMasquerading } from '../services/masqueradeService'
 
 // Gate for the phone number an org requires its adults to verify.
 //
@@ -13,10 +14,17 @@ import api from '../services/api'
 // so this hook asks the backend rather than deciding anything itself.
 //
 // Modelled on useRequiredDocumentsGate, deliberately: one cached lookup per
-// user for the session, only org users are eligible, a failed lookup means NOT
-// blocked (the backend still holds the real line), and no masquerade
-// exemption — an admin viewing as a held adult sees the hold, because that is
-// what the adult sees.
+// user for the session, only org users are eligible, and a failed lookup means
+// NOT blocked (the backend still holds the real line).
+//
+// Masquerade IS exempt, and that is a correction rather than a convenience.
+// The original rule was "an admin viewing as a held adult sees the hold,
+// because that is what the adult sees" — but this hold can only be lifted by
+// typing a code texted to that adult's phone, which an admin does not have. So
+// the admin was held somewhere they could never finish, on pages that render no
+// app chrome and therefore no way back out (2026-08-22: a masquerade session
+// bounced between /verify-phone and /family/required-documents with no exit).
+// Seeing what the user sees is not worth a trap with no door.
 //
 // Unlike the documents gate this one is used on BOTH surfaces: PrivateRoute on
 // the learning host and SisLayout on the SIS host, because teachers and
@@ -29,8 +37,9 @@ export const clearPhoneVerificationGate = () => {
 }
 
 export function usePhoneVerificationGate(user, isAuthenticated) {
-  // Only org users can be required to verify, so only they pay for the check.
-  const eligible = !!(isAuthenticated && user?.organization_id)
+  // Only org users can be required to verify, so only they pay for the check —
+  // and never while masquerading, which cannot satisfy an SMS hold.
+  const eligible = !!(isAuthenticated && user?.organization_id && !isMasquerading())
   const cached = cache.userId === user?.id && cache.blocked !== null
   const [state, setState] = useState(() => (
     cached ? { checking: false, blocked: cache.blocked }
