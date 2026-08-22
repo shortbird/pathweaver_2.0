@@ -31,6 +31,7 @@ from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
+from services import sis_payment_profile as payment_profile
 from utils.logger import get_logger
 
 # sis_clp_service is imported lazily inside the functions that use it (same idiom
@@ -103,6 +104,19 @@ def _student_household(org_id: str, student_id: str):
     except Exception:  # noqa: BLE001 — funding is context, never a blocker
         fs = None
     return hh['household_id'], hh.get('household_name'), fs
+
+
+def _household_plan_preference(household_id: Optional[str]) -> Optional[str]:
+    """The in-full-or-monthly plan staff recorded for a family, if any."""
+    if not household_id:
+        return None
+    try:
+        row = (_admin().table('households').select('payment_plan_preference')
+               .eq('id', household_id).limit(1).execute()).data
+        return (row[0].get('payment_plan_preference') if row else None)
+    except Exception as e:  # noqa: BLE001 — context, never a blocker
+        logger.warning(f'tuition: payment plan lookup failed for {household_id[:8]}: {e}')
+        return None
 
 
 def _enrolled_classes(org_id: str, student_id: str,
@@ -259,10 +273,18 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
     hh_map = sis_service._household_by_user(org_id)
     hh_ids = list({(hh_map.get(sid) or {}).get('household_id')
                    for sid in pending if hh_map.get(sid)})
-    funding = {}
+    funding, plan_pref = {}, {}
     if hh_ids:
-        funding = {h['id']: h.get('funding_source') for h in (_admin().table('households')
-                   .select('id, funding_source').in_('id', hh_ids).execute()).data or []}
+        for h in (_admin().table('households')
+                  .select('id, funding_source, payment_plan_preference')
+                  .in_('id', hh_ids).execute()).data or []:
+            funding[h['id']] = h.get('funding_source')
+            plan_pref[h['id']] = h.get('payment_plan_preference')
+    # What the family themselves said at registration. The approver needs it
+    # here: `funding_source` is staff-set and usually blank, so without this the
+    # queue cannot answer "is this family on UFA?" — the question that decides
+    # what gets sent, and when.
+    profiles = payment_profile.profiles_for_org(org_id)
 
     students = []
     for sid in pending:
@@ -275,7 +297,9 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
         cls.sort(key=lambda c: (c['name'] or '').lower())
         seeds = seed_line_items(cls, u.get('sis_tuition_plan'), block_pricing, school_name)
         hh = hh_map.get(sid) or {}
-        fs = funding.get(hh.get('household_id'))
+        hh_id = hh.get('household_id')
+        fs = funding.get(hh_id)
+        prof = profiles.get(hh_id) or {}
         students.append({
             'student_id': sid,
             'name': _full_name(u),
@@ -288,6 +312,9 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
             'tuition_plan': u.get('sis_tuition_plan'),
             'funding_source': fs,
             'pay_through_ufa': fs in UFA_FUNDING_SOURCES,
+            'stated_payment_methods': prof.get('methods') or [],
+            'stated_ufa_private': prof.get('ufa_private'),
+            'payment_plan': plan_pref.get(hh_id) or prof.get('plan'),
         })
     students.sort(key=lambda s: (s['name'] or '').lower())
     return {'students': students, 'count': len(students)}
@@ -313,6 +340,8 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
     line_items = seed_line_items(classes, u.get('sis_tuition_plan'), block_pricing, school_name)
     subtotal = sum(li['amount_cents'] for li in line_items)
     household_id, household_name, funding = _student_household(org_id, student_id)
+    profile = payment_profile.profile_for_household(org_id, household_id)
+    plan = _household_plan_preference(household_id) or profile.get('plan')
 
     clp_finished = False
     try:
@@ -332,6 +361,9 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
         'funding_source': funding,
         'funding_label': billing._FUNDING_LABELS.get(funding) if funding else None,
         'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
+        'stated_payment_methods': profile.get('methods') or [],
+        'stated_ufa_private': profile.get('ufa_private'),
+        'payment_plan': plan,
         'tuition_plan': u.get('sis_tuition_plan'),
         'clp_finished': clp_finished,
         'organization': billing._org_branding([org_id]).get(org_id) or {},

@@ -21,6 +21,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_staff_service
+from services import sis_payment_profile
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES, ROLE_GRANT_ROLES
@@ -400,6 +401,10 @@ def list_households(user_id):
     if err:
         return err
     households = sis_service.households_with_members(org_id)
+    # What each family said at registration about how they pay. The office
+    # invoices from this list, so "are they UFA?" has to be answerable here
+    # rather than one family at a time (see services/sis_payment_profile.py).
+    sis_payment_profile.attach_to_households(org_id, households)
     # `family-images` is private; the stored image_url is a pointer, not a
     # fetchable link. Sign the whole page in one batched call.
     sign_in_place(households, ['image_url'], 'family-images')
@@ -456,7 +461,8 @@ def update_household(user_id, household_id):
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
         'registration_hold', 'registration_hold_reason', 'registration_tier',
         'directory_opt_in', 'directory_opted_out', 'carpool_interest',
-        'ufa_private', 'funding_source', 'enrolled_private_school'
+        'ufa_private', 'funding_source', 'enrolled_private_school',
+        'payment_plan_preference'
     ) if k in data}
     for flag in ('registration_hold', 'directory_opt_in', 'directory_opted_out',
                  'carpool_interest', 'ufa_private', 'enrolled_private_school'):
@@ -478,6 +484,11 @@ def update_household(user_id, household_id):
         fields['ufa_private'] = (fs == 'ufa_private')
         if fs == 'ufa_private':
             fields['enrolled_private_school'] = True
+    if 'payment_plan_preference' in fields:
+        plan = fields['payment_plan_preference'] or None
+        if plan not in (None,) + sis_payment_profile.PLAN_VALUES:
+            return jsonify({'success': False, 'error': 'invalid payment_plan_preference'}), 400
+        fields['payment_plan_preference'] = plan
     if 'registration_tier' in fields and fields['registration_tier'] is not None:
         try:
             fields['registration_tier'] = int(fields['registration_tier'])

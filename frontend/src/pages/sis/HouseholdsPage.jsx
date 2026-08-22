@@ -6,6 +6,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
+import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
@@ -138,6 +139,7 @@ const HouseholdsPage = ({ embedded = false }) => {
   const [newName, setNewName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
+  const [payFilter, setPayFilter] = useState('')
   const [selected, setSelected] = useState(null)
 
   const load = useCallback(() => {
@@ -187,13 +189,15 @@ const HouseholdsPage = ({ embedded = false }) => {
   }
 
   // Search matches the family name AND every member's name, so a kid whose
-  // last name differs from the household name is still findable.
+  // last name differs from the household name is still findable. The payment
+  // filter narrows it further — "show me the Utah Fits All families" is how the
+  // office decides who to invoice next.
   const q = search.trim().toLowerCase()
-  const visibleHouseholds = q
-    ? households.filter((h) =>
-        (h.name || '').toLowerCase().includes(q) ||
-        (h.members || []).some((m) => (m.name || '').toLowerCase().includes(q)))
-    : households
+  const visibleHouseholds = households.filter((h) => {
+    if (q && !((h.name || '').toLowerCase().includes(q)
+      || (h.members || []).some((m) => (m.name || '').toLowerCase().includes(q)))) return false
+    return matchesPaymentFilter(h, payFilter)
+  })
 
   return (
     <div>
@@ -207,12 +211,15 @@ const HouseholdsPage = ({ embedded = false }) => {
       {/* Search first — staff search far more often than they create, and a
           prominent Create button at the top led to accidental family creation. */}
       {!loading && households.length > 0 && (
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className={`${field} w-full mb-3`}
-          placeholder="Search families or any family member…"
-        />
+        <div className="flex flex-wrap gap-2 mb-3">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={`${field} flex-1 min-w-[220px]`}
+            placeholder="Search families or any family member…"
+          />
+          <PaymentFilterSelect rows={households} value={payFilter} onChange={setPayFilter} />
+        </div>
       )}
 
       {!loading && (
@@ -247,7 +254,9 @@ const HouseholdsPage = ({ embedded = false }) => {
         <p className="text-neutral-500">No families yet. Create one above to group students and guardians.</p>
       )}
       {!loading && households.length > 0 && !visibleHouseholds.length && (
-        <p className="text-neutral-500">No family or member matches "{search}".</p>
+        <p className="text-neutral-500">
+          {search ? `No family or member matches "${search}".` : 'No family matches that form of payment.'}
+        </p>
       )}
 
       {!loading && unassigned.length > 0 && (
@@ -266,6 +275,7 @@ const HouseholdsPage = ({ embedded = false }) => {
               <tr>
                 <th className="px-4 py-3 font-medium">Family</th>
                 <th className="px-4 py-3 font-medium">Members</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Pays with</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Count</th>
               </tr>
             </thead>
@@ -294,6 +304,14 @@ const HouseholdsPage = ({ embedded = false }) => {
                     </td>
                     <td className="px-4 py-3 text-neutral-500">
                       <span className="block max-w-md truncate">{memberPreview(h.members)}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <PaymentMethodPills
+                        methods={h.stated_payment_methods}
+                        ufaPrivate={h.stated_ufa_private}
+                        plan={h.payment_plan}
+                        emptyLabel="Not answered"
+                      />
                     </td>
                     <td className="px-4 py-3 text-right text-neutral-500 whitespace-nowrap">
                       {count} member{count === 1 ? '' : 's'}

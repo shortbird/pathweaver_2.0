@@ -11,6 +11,7 @@ import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { PaymentMethodPills } from './PaymentMethodPills'
 
 // Funding source options (school-of-record enrollment is tracked separately).
 const FUNDING_OPTIONS = [
@@ -23,6 +24,28 @@ const FUNDING_OPTIONS = [
 export const FUNDING_LABELS = {
   ufa: 'UFA', ufa_private: 'UFA – Private School',
   private_pay: 'Private Pay', other: 'Other',
+}
+
+// Whether the family pays tuition in one go or monthly. Recorded here so the
+// office knows before it invoices; the registration funnel fills it in when the
+// school asks the question there. Nothing prices off it yet.
+const PLAN_OPTIONS = [
+  { value: '', label: 'Not recorded' },
+  { value: 'in_full', label: 'Pays in full' },
+  { value: 'monthly', label: 'Monthly payments' },
+]
+
+// The four-value funding source a family's own answer implies. Mirrors
+// services/sis_payment_profile.derive_funding_source — conservative on purpose:
+// a family who named Utah Fits All alongside something else is 'other', because
+// this value decides whether they can pay by card.
+const suggestedFunding = (methods = [], ufaPrivate) => {
+  if (!methods.length) return ''
+  const lowered = methods.map((m) => (m || '').toLowerCase())
+  if (lowered.every((m) => m.includes('utah fits all'))) return ufaPrivate ? 'ufa_private' : 'ufa'
+  if (lowered.every((m) => m.includes('self-pay') || m.includes('self pay'))) return 'private_pay'
+  if (lowered.some((m) => m.includes('private school'))) return 'ufa_private'
+  return 'other'
 }
 
 const Avatar = ({ name, src }) => (
@@ -399,7 +422,11 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
 const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
   const [enrolled, setEnrolled] = useState(!!household.enrolled_private_school)
   const [funding, setFunding] = useState(household.funding_source || '')
+  const [plan, setPlan] = useState(household.payment_plan_preference || '')
   const [busy, setBusy] = useState(false)
+
+  const stated = household.stated_payment_methods || []
+  const suggestion = suggestedFunding(stated, household.stated_ufa_private)
 
   const save = async (fields, apply) => {
     setBusy(true)
@@ -414,14 +441,18 @@ const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
     const next = !enrolled
     save({ enrolled_private_school: next }, () => setEnrolled(next))
   }
-  const changeFunding = (e) => {
-    const next = e.target.value
+  const setFundingTo = (next) => {
     // UFA – Private School implies enrolled; reflect that immediately.
     const impliesEnrolled = next === 'ufa_private'
     save({ funding_source: next || null }, () => {
       setFunding(next)
       if (impliesEnrolled) setEnrolled(true)
     })
+  }
+  const changeFunding = (e) => setFundingTo(e.target.value)
+  const changePlan = (e) => {
+    const next = e.target.value
+    save({ payment_plan_preference: next || null }, () => setPlan(next))
   }
 
   return (
@@ -438,10 +469,34 @@ const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
           <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${enrolled ? 'translate-x-5' : 'translate-x-0.5'}`} />
         </button>
       </div>
+      {/* What the family themselves said, verbatim, above the field staff set.
+          The two are deliberately not reconciled: when they disagree, the office
+          needs to see that they disagree. */}
+      {stated.length > 0 && (
+        <div className="rounded-lg bg-neutral-50 border border-gray-200 px-3 py-2 space-y-1.5">
+          <div className="text-xs text-neutral-500">The family answered at registration:</div>
+          <PaymentMethodPills methods={stated} ufaPrivate={household.stated_ufa_private} />
+          {suggestion && suggestion !== funding && (
+            <button type="button" onClick={() => setFundingTo(suggestion)} disabled={busy}
+              className="block text-xs font-medium text-optio-purple hover:underline disabled:opacity-50">
+              Set funding source to {FUNDING_LABELS[suggestion]}
+            </button>
+          )}
+        </div>
+      )}
       <label className="text-xs text-neutral-500 block">Funding source
         <select value={funding} onChange={changeFunding} disabled={busy}
           className="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-optio-purple focus:ring-optio-purple">
           {FUNDING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <span className="mt-1 block text-[11px] text-neutral-400">
+          Decides how they are billed: UFA families are asked to pay through UFA rather than by card.
+        </span>
+      </label>
+      <label className="text-xs text-neutral-500 block">Payment plan
+        <select value={plan} onChange={changePlan} disabled={busy}
+          className="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-optio-purple focus:ring-optio-purple">
+          {PLAN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
     </>

@@ -33,11 +33,14 @@ const { api } = vi.hoisted(() => {
     if (url.includes('/api/sis/tuition/queue')) {
       return { data: { students: [
         { student_id: 's1', name: 'Robin Bowman', household_name: 'Bowman Family',
-          class_count: 2, estimated_total_cents: 15000, pay_through_ufa: false },
+          class_count: 2, estimated_total_cents: 15000, pay_through_ufa: false,
+          stated_payment_methods: ['Self-Pay'], payment_plan: 'monthly' },
         { student_id: 's2', name: 'Uma Ford', household_name: 'Ford Family',
-          class_count: 1, estimated_total_cents: 475000, pay_through_ufa: true },
+          class_count: 1, estimated_total_cents: 475000, pay_through_ufa: true,
+          stated_payment_methods: ['Utah Fits All'], stated_ufa_private: true },
         { student_id: 's3', name: 'Alex Adams', household_name: 'Adams Family',
-          class_count: 3, estimated_total_cents: 25000, pay_through_ufa: false },
+          class_count: 3, estimated_total_cents: 25000, pay_through_ufa: false,
+          stated_payment_methods: [] },
       ], count: 3 } }
     }
     if (url.includes('/preview')) return { data: preview(url) }
@@ -66,7 +69,11 @@ describe('TuitionApprovalPage', () => {
     expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
     expect(screen.getByText('Uma Ford')).toBeInTheDocument()
     expect(screen.getByText('$150.00')).toBeInTheDocument()
-    expect(screen.getByText('UFA')).toBeInTheDocument() // Uma's UFA badge
+    // What each family said at registration — the question the office is
+    // actually asking of this queue ("who is on UFA, and what do I send them?").
+    expect(screen.getByText('Utah Fits All · Private School')).toBeInTheDocument()
+    expect(screen.getAllByText('Self-Pay').length).toBeGreaterThan(0) // also a filter option
+    expect(screen.getByText('Form of payment not answered')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/tuition/queue'))
   })
 
@@ -82,9 +89,27 @@ describe('TuitionApprovalPage', () => {
     expect(screen.getByText('Uma Ford')).toBeInTheDocument()
     expect(screen.getByText('Showing 1 of 3')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Clear search'))
+    fireEvent.click(screen.getByText('Clear filters'))
     expect(screen.getByText('Robin Bowman')).toBeInTheDocument()
     expect(screen.getByText('Uma Ford')).toBeInTheDocument()
+  })
+
+  // 2026-08-21 (Marika/Molly): "I need to be able to know if they are UFA or
+  // not because that helps determine what I am sending when."
+  it('narrows the queue to one form of payment', async () => {
+    render(<TuitionApprovalPage />)
+    expect(await screen.findByText('Uma Ford')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Filter by form of payment'),
+      { target: { value: 'Utah Fits All' } })
+    expect(screen.getByText('Uma Ford')).toBeInTheDocument()
+    expect(screen.queryByText('Robin Bowman')).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 3')).toBeInTheDocument()
+  })
+
+  it('shows a family that chose monthly payments before the invoice goes out', async () => {
+    render(<TuitionApprovalPage />)
+    await screen.findByText('Robin Bowman')
+    expect(screen.getByText('Monthly')).toBeInTheDocument()
   })
 
   it('sorts students by name (A-Z) and amount (High-Low)', async () => {

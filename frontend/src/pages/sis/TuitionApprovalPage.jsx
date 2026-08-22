@@ -4,6 +4,7 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 
 /**
  * Tuition Approver — the step after a CLP meeting.
@@ -44,6 +45,7 @@ const TuitionApprovalPage = () => {
   const [previewing, setPreviewing] = useState(false)
 
   const [search, setSearch] = useState('')
+  const [payFilter, setPayFilter] = useState('')
   const [sort, setSort] = useState('default')
   const previewRef = useRef(null)
 
@@ -89,6 +91,9 @@ const TuitionApprovalPage = () => {
         (s.household_name || '').toLowerCase().includes(q)
       )
     }
+    // "Which of these are Utah Fits All?" decides what the office sends and
+    // when, so it filters the queue the same way the search box does.
+    list = list.filter((s) => matchesPaymentFilter(s, payFilter))
     if (sort === 'name_asc') {
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     } else if (sort === 'name_desc') {
@@ -99,7 +104,7 @@ const TuitionApprovalPage = () => {
       list.sort((a, b) => (a.estimated_total_cents || 0) - (b.estimated_total_cents || 0))
     }
     return list
-  }, [queue, search, sort])
+  }, [queue, search, payFilter, sort])
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + toCents(l.amountStr), 0), [lines])
   // Supply fees are seeded per class and are the part UFA remits as its own
@@ -251,15 +256,19 @@ const TuitionApprovalPage = () => {
                   <option value="amount_desc">Amount (High–Low)</option>
                   <option value="amount_asc">Amount (Low–High)</option>
                 </select>
+                <PaymentFilterSelect
+                  rows={queue} value={payFilter} onChange={setPayFilter}
+                  className="text-xs py-2"
+                />
               </div>
-              {search && (
+              {(search || payFilter) && (
                 <div className="text-xs text-neutral-500 flex items-center justify-between px-0.5">
                   <span>Showing {filteredQueue?.length || 0} of {queue.length}</span>
                   <button
-                    onClick={() => setSearch('')}
+                    onClick={() => { setSearch(''); setPayFilter('') }}
                     className="text-optio-purple hover:underline"
                   >
-                    Clear search
+                    Clear filters
                   </button>
                 </div>
               )}
@@ -275,12 +284,14 @@ const TuitionApprovalPage = () => {
             )}
             {!!queue?.length && filteredQueue?.length === 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-sm text-neutral-500">
-                <p>No students match &ldquo;{search}&rdquo;.</p>
+                <p>{search
+                  ? <>No students match &ldquo;{search}&rdquo;.</>
+                  : 'No students in the queue match that form of payment.'}</p>
                 <button
-                  onClick={() => setSearch('')}
+                  onClick={() => { setSearch(''); setPayFilter('') }}
                   className="mt-2 text-xs font-medium text-optio-purple hover:underline"
                 >
-                  Clear search
+                  Clear filters
                 </button>
               </div>
             )}
@@ -308,9 +319,17 @@ const TuitionApprovalPage = () => {
                         <span>{money(s.supply_total_cents)} supplies</span>
                       </>
                     )}
-                    {s.pay_through_ufa && (
-                      <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">UFA</span>
-                    )}
+                  </div>
+                  {/* How the family said they would pay. `pay_through_ufa` is the
+                      staff-set funding source, which is often blank; their own
+                      registration answer is what is actually on file. */}
+                  <div className="mt-1.5">
+                    <PaymentMethodPills
+                      methods={s.stated_payment_methods}
+                      ufaPrivate={s.stated_ufa_private}
+                      plan={s.payment_plan}
+                      emptyLabel={s.pay_through_ufa ? 'UFA' : 'Form of payment not answered'}
+                    />
                   </div>
                 </button>
               )
@@ -345,6 +364,14 @@ const TuitionApprovalPage = () => {
                       {preview.funding_label}
                     </span>
                   )}
+                  <div className="mt-1 flex justify-end">
+                    <PaymentMethodPills
+                      methods={preview.stated_payment_methods}
+                      ufaPrivate={preview.stated_ufa_private}
+                      plan={preview.payment_plan}
+                      emptyLabel="Form of payment not answered"
+                    />
+                  </div>
                 </div>
               </div>
 

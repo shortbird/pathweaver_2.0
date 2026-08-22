@@ -1579,7 +1579,51 @@ def submit_details(reg_id):
         'status': 'paperwork', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
+    _sync_household_payment(admin, reg, answers)
+
     return jsonify({'success': True, 'status': 'paperwork'}), 200
+
+
+def _sync_household_payment(admin, reg, answers):
+    """Record on the family what they just told us about paying.
+
+    The household is created a step earlier, before any of this is known, and
+    nothing used to come back to fill it in — which is why every iCreate family
+    reached the office with a blank funding source while their answer sat in the
+    registration row. Only ever fills a BLANK field: a staff decision on the
+    Families page outranks a form answer, and re-submitting the step must not
+    undo it.
+    """
+    from services import sis_payment_profile as payment_profile
+    try:
+        household_id = _existing_household_for_parent(
+            admin, reg['organization_id'], reg['parent_user_id'])
+        if not household_id:
+            return
+        row = (admin.table('households')
+               .select('funding_source, payment_plan_preference')
+               .eq('id', household_id).limit(1).execute()).data
+        current = row[0] if row else {}
+        fields = {}
+        if not current.get('funding_source'):
+            derived = payment_profile.derive_funding_source(answers)
+            if derived:
+                fields['funding_source'] = derived
+                # Mirror the legacy boolean the learning-day feature gates on,
+                # exactly as the Families-page PATCH does.
+                fields['ufa_private'] = (derived == 'ufa_private')
+                if derived == 'ufa_private':
+                    fields['enrolled_private_school'] = True
+        if not current.get('payment_plan_preference'):
+            plan = payment_profile.read_answers(answers).get('plan')
+            if plan:
+                fields['payment_plan_preference'] = plan
+        if fields:
+            admin.table('households').update(fields).eq('id', household_id).execute()
+            logger.info(f'iCreate details: household {household_id[:8]} payment fields '
+                        f'set from registration answers ({", ".join(sorted(fields))})')
+    except Exception as e:  # noqa: BLE001 — never fail a registration over this
+        logger.warning(f'iCreate details: household payment sync failed for {reg["id"]}: {e}')
 
 
 @bp.route('/registrations/<reg_id>/paperwork', methods=['POST'])
