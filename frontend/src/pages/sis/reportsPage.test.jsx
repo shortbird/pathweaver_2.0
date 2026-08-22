@@ -91,9 +91,9 @@ const { api } = vi.hoisted(() => {
         days: [{ key: '2', label: 'Tue' }, { key: '4', label: 'Thu' }],
         has_unscheduled: true,
         rows: [
-          { student: 'Nora Candland', family: 'Candland', days: 'Tue Thu',
+          { student: 'Nora Candland', age: '13', family: 'Candland', days: 'Tue Thu',
             by_day: { 2: 'Block 1: Pottery', 4: 'Block 2: Guitar Jam' }, unscheduled: '' },
-          { student: 'Ryder Swenson', family: 'Swenson', days: '',
+          { student: 'Ryder Swenson', age: '', family: 'Swenson', days: '',
             by_day: { 2: '', 4: '' }, unscheduled: 'Chess Club' },
         ],
       } } }
@@ -170,9 +170,11 @@ describe('ReportsPage', () => {
     expect(await screen.findByText('Block 1: Pottery')).toBeInTheDocument()
     const headers = [...document.querySelectorAll('th')].map((th) => th.textContent)
     expect(headers.join(' ')).toMatch(/Tue/)
+    expect(headers.join(' ')).toMatch(/Age/)
     expect(headers.join(' ')).toMatch(/Unscheduled classes/)
     const cells = [...document.querySelectorAll('td')].map((td) => td.textContent)
     expect(cells).toContain('Nora Candland')
+    expect(cells).toContain('13')
     expect(cells).toContain('Block 2: Guitar Jam')
     // A class with no schedule shows as unscheduled rather than vanishing,
     // and a student with no scheduled days still gets a row.
