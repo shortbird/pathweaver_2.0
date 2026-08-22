@@ -177,6 +177,30 @@ def rosters_report(user_id):
     return jsonify({'success': True, 'report': report})
 
 
+@bp.route('/reports/student-schedule', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def student_schedule(user_id):
+    """Master list of every student and which days / class blocks they come.
+
+    iCreate (Molly), 2026-08-21: "I want to get a student report of a master
+    list of all students showing which days/class blocks they come."
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    report = reports.student_schedule_report(org_id)
+    if request.args.get('format') == 'csv':
+        header = ['Student', 'Family', 'Days'] + [d['label'] for d in report['days']]
+        rows = [[r['student'], r['family'], r['days']]
+                + [r['by_day'].get(d['key'], '') for d in report['days']]
+                for r in report['rows']]
+        if report.get('has_unscheduled'):
+            header.append('Unscheduled classes')
+            rows = [row + [r['unscheduled']] for row, r in zip(rows, report['rows'])]
+        return _csv_response('student-schedule.csv', header, rows)
+    return jsonify({'success': True, 'report': report})
+
+
 # ── Information reports (registration data) ──────────────────────────────────
 
 def _admin():

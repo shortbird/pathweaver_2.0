@@ -642,3 +642,132 @@ def _age_years(dob: Optional[str], today) -> str:
     except (TypeError, ValueError):
         return ''
     return str(today.year - b.year - ((today.month, today.day) < (b.month, b.day)))
+
+
+# ── Student schedule report (master list: who comes when) ────────────────────
+# iCreate (Molly), 2026-08-21: "I want to get a student report of a master list
+# of all students showing which days/class blocks they come." One row per
+# student, one column per school day, each cell naming the block(s) each of
+# their classes fills. Blocks come from the org's configured time_blocks (the
+# same list "Block N" means on the schedule import); a school without blocks —
+# or a class meeting outside them — falls back to the raw times.
+
+#: Monday-first, the way a school week reads (day_of_week: 0=Sun .. 6=Sat).
+_SCHOOL_WEEK = [1, 2, 3, 4, 5, 6, 0]
+
+
+def _minutes(t: Optional[str]) -> Optional[int]:
+    hm = _hhmm(t)
+    if not hm:
+        return None
+    try:
+        h, m = (int(x) for x in hm.split(':'))
+    except ValueError:
+        return None
+    return h * 60 + m
+
+
+def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
+    """Name WHEN a meeting happens, in the school's own vocabulary: the
+    teaching block(s) it overlaps ('Block 2'; the block's label when it has
+    one; 'Blocks 1-3' for a span), else the raw times."""
+    ms, me = _minutes(meeting.get('start_time')), _minutes(meeting.get('end_time'))
+    if ms is None or me is None:
+        return ''
+    hits = []
+    for n, b in enumerate(blocks or [], start=1):
+        bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
+        if bs is None or be is None:
+            continue
+        if ms < be and me > bs:
+            hits.append((n, b))
+    if not hits:
+        return f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
+    names = [(b.get('label') or '').strip() or f'Block {n}' for n, b in hits]
+    if len(names) == 1:
+        return names[0]
+    numbers = [n for n, _ in hits]
+    if (numbers == list(range(numbers[0], numbers[0] + len(numbers)))
+            and all(not (b.get('label') or '').strip() for _, b in hits)):
+        return f'Blocks {numbers[0]}-{numbers[-1]}'
+    return ' + '.join(names)
+
+
+def student_schedule_report(org_id: str) -> Dict[str, Any]:
+    """Master list: every student, the days they come, and the block each of
+    their classes fills on each day.
+
+    Day columns are whichever days the org's active classes actually meet, so
+    a Tue-Thu school gets a Tue-Thu sheet, Monday-first. Students with no
+    scheduled class still get a row — a master list that dropped the kids who
+    never come would hide exactly what it exists to show. Classes with no
+    scheduled meeting land in a separate column rather than vanishing, so a
+    row's days never under-report a student the office knows attends.
+    """
+    from services import sis_catalog_service, sis_service
+    from services.sis_schedule_sync_service import teaching_blocks
+
+    classes = sis_catalog_service.list_classes(org_id, audience='staff')
+    blocks = teaching_blocks(
+        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+
+    # class_id -> [(day, minutes-for-sorting, 'Block 2: Pottery')], and apart
+    # from those the classes with no scheduled meeting at all.
+    slots_by_class: Dict[str, List] = {}
+    unscheduled_by_class: Dict[str, str] = {}
+    for c in classes:
+        name = c.get('name') or ''
+        entries = []
+        for m in (c.get('meetings') or []):
+            day = m.get('day_of_week')
+            if day is None:
+                continue
+            slot = _meeting_slot(m, blocks)
+            text = f'{slot}: {name}' if slot and name else (slot or name)
+            entries.append((day, _minutes(m.get('start_time')) or 0, text))
+        if entries:
+            slots_by_class[c['id']] = entries
+        else:
+            unscheduled_by_class[c['id']] = name
+
+    class_ids = list(slots_by_class) + list(unscheduled_by_class)
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('class_id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+
+    by_student: Dict[str, Dict[int, List]] = {}
+    unscheduled_by_student: Dict[str, List[str]] = {}
+    for e in enrollments:
+        sid = e.get('student_id')
+        if not sid:
+            continue
+        for day, at, text in slots_by_class.get(e['class_id'], ()):
+            by_student.setdefault(sid, {}).setdefault(day, []).append((at, text))
+        if e['class_id'] in unscheduled_by_class:
+            unscheduled_by_student.setdefault(sid, []).append(
+                unscheduled_by_class[e['class_id']])
+
+    days_present = sorted(
+        {d for entries in slots_by_class.values() for d, _, _ in entries},
+        key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
+
+    rows = []
+    for s in sis_service.get_roster(org_id):
+        if not s.get('is_student'):
+            continue
+        sched = by_student.get(s['student_id'], {})
+        rows.append({
+            'student': s['name'],
+            'family': s.get('household_name') or '',
+            'days': ' '.join(DOW_SHORT[d] for d in days_present if sched.get(d)),
+            'by_day': {str(d): '; '.join(t for _, t in sorted(sched.get(d, [])))
+                       for d in days_present},
+            'unscheduled': '; '.join(sorted(
+                unscheduled_by_student.get(s['student_id'], []), key=str.lower)),
+        })
+    rows.sort(key=lambda r: (r['student'] or '').lower())
+    return {
+        'days': [{'key': str(d), 'label': DOW_SHORT.get(d, '')} for d in days_present],
+        'has_unscheduled': any(r['unscheduled'] for r in rows),
+        'rows': rows,
+    }

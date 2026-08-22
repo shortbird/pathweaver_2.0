@@ -81,6 +81,20 @@ const shapeReport = (type, data, questionLabel) => {
       rows: (report.rows || []).map((r) => [r.student, r.class, r.status, r.excused, r.reason]),
     }
   }
+  if (type === 'student-schedule') {
+    const days = report.days || []
+    const unscheduled = report.has_unscheduled
+    return {
+      title: 'Student schedule',
+      columns: ['Student', 'Family', 'Days', ...days.map((d) => d.label),
+        ...(unscheduled ? ['Unscheduled classes'] : [])],
+      rows: (report.rows || []).map((r) => [
+        r.student, r.family, r.days,
+        ...days.map((d) => r.by_day?.[d.key] ?? ''),
+        ...(unscheduled ? [r.unscheduled] : []),
+      ]),
+    }
+  }
   if (type === 'media-release') {
     const questions = report.questions || []
     return {
@@ -496,6 +510,13 @@ const ReportsPage = () => {
                     </p>
                   )}
                 </div>
+              </ReportCard>
+              <ReportCard
+                title="Student schedule"
+                description="A master list of every student showing which days they come, and which class blocks they're in each day."
+              >
+                <RunButton ariaLabel="View student schedule report" disabled={reportLoading || !orgId}
+                  onClick={() => runReport('student-schedule')} />
               </ReportCard>
               {seesMoney && (
                 <ReportCard

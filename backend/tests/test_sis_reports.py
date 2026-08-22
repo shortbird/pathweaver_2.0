@@ -489,3 +489,217 @@ class TestRosterReport:
         source = inspect.getsource(reports.roster_report) + inspect.getsource(reports._household_context)
         assert '.execute()' not in source
         assert source.count('fetch_all_rows') >= 3
+
+
+class TestMeetingSlot:
+    """A meeting is named in the school's vocabulary — the block(s) it fills —
+    falling back to raw times when no block matches."""
+
+    BLOCKS = [
+        {'label': '', 'start': '09:30', 'end': '10:30'},
+        {'label': '', 'start': '10:30', 'end': '11:30'},
+        {'label': '', 'start': '11:30', 'end': '12:30'},
+        {'label': 'Open studio', 'start': '13:00', 'end': '14:00'},
+    ]
+
+    def slot(self, start, end, blocks=None):
+        return reports._meeting_slot(
+            {'start_time': start, 'end_time': end},
+            self.BLOCKS if blocks is None else blocks)
+
+    def test_one_block(self):
+        assert self.slot('10:30', '11:30') == 'Block 2'
+
+    def test_a_labelled_block_uses_its_label(self):
+        assert self.slot('13:00', '14:00') == 'Open studio'
+
+    def test_a_span_of_unlabelled_blocks_collapses(self):
+        assert self.slot('09:30', '12:30') == 'Blocks 1-3'
+
+    def test_a_span_including_a_labelled_block_names_each(self):
+        assert self.slot('11:30', '14:00') == 'Block 3 + Open studio'
+
+    def test_partial_overlap_still_counts(self):
+        assert self.slot('10:00', '11:00') == 'Blocks 1-2'
+
+    def test_outside_every_block_falls_back_to_times(self):
+        assert self.slot('16:00', '17:00') == '4:00pm-5:00pm'
+
+    def test_no_blocks_configured_falls_back_to_times(self):
+        assert self.slot('09:30:00', '10:30:00', blocks=[]) == '9:30am-10:30am'
+
+    def test_no_times_is_blank(self):
+        assert self.slot(None, '10:30') == ''
+
+
+@pytest.mark.unit
+class TestStudentScheduleReport:
+    """iCreate (Molly), 2026-08-21: "a student report of a master list of all
+    students showing which days/class blocks they come."
+
+    Worth pinning: every student gets a row (including the ones with no
+    classes), day columns are only the days classes meet (Monday-first), and a
+    class with no scheduled meeting shows up as unscheduled rather than
+    silently making its students look like they never come.
+    """
+
+    # iCreate's real block grid: Lunch is a break, so teaching blocks are 1-5.
+    TIME_BLOCKS = [
+        {'label': '', 'start': '09:30', 'end': '10:30'},
+        {'label': '', 'start': '10:30', 'end': '11:30'},
+        {'label': '', 'start': '11:30', 'end': '12:30'},
+        {'label': 'Lunch', 'start': '12:30', 'end': '13:00'},
+        {'label': '', 'start': '13:00', 'end': '14:00'},
+        {'label': '', 'start': '14:00', 'end': '15:00'},
+    ]
+    CLASSES = [
+        {'id': 'c1', 'name': 'Pottery', 'meetings': [
+            {'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30'}]},
+        {'id': 'c2', 'name': 'Guitar Jam', 'meetings': [
+            {'day_of_week': 2, 'start_time': '10:30', 'end_time': '11:30'},
+            {'day_of_week': 4, 'start_time': '10:30', 'end_time': '11:30'}]},
+        {'id': 'c3', 'name': 'Full Day', 'meetings': [
+            {'day_of_week': 3, 'start_time': '09:30', 'end_time': '15:00'}]},
+        {'id': 'c4', 'name': 'Chess Club', 'meetings': []},
+    ]
+    ROSTER = [
+        {'student_id': 's1', 'name': 'Nora Candland', 'is_student': True,
+         'household_name': 'Candland'},
+        {'student_id': 's2', 'name': 'Ryder Swenson', 'is_student': True,
+         'household_name': 'Swenson'},
+        {'student_id': 's3', 'name': 'Ada Byron', 'is_student': True,
+         'household_name': None},
+        {'student_id': 'staff-1', 'name': 'Molly C', 'is_student': False},
+    ]
+    ENROLLMENTS = [
+        {'class_id': 'c1', 'student_id': 's1'},
+        {'class_id': 'c2', 'student_id': 's1'},
+        {'class_id': 'c3', 'student_id': 's2'},
+        {'class_id': 'c4', 'student_id': 's2'},
+    ]
+
+    def _run(self, classes=None, enrollments=None, blocks=None, roster=None):
+        with patch('services.sis_catalog_service.list_classes',
+                   return_value=self.CLASSES if classes is None else classes), \
+                patch('services.sis_catalog_service.schedule_settings',
+                      return_value={'time_blocks': self.TIME_BLOCKS if blocks is None else blocks}), \
+                patch('services.sis_service.get_roster',
+                      return_value=self.ROSTER if roster is None else roster), \
+                patch('services.sis_reports_service.fetch_all_rows',
+                      return_value=self.ENROLLMENTS if enrollments is None else enrollments):
+            return reports.student_schedule_report('org-1')
+
+    def test_day_columns_are_the_days_classes_meet_monday_first(self):
+        out = self._run()
+        assert [d['label'] for d in out['days']] == ['Tue', 'Wed', 'Thu']
+
+    def test_each_day_cell_names_the_blocks_in_time_order(self):
+        out = self._run()
+        nora = next(r for r in out['rows'] if r['student'] == 'Nora Candland')
+        assert nora['by_day']['2'] == 'Block 1: Pottery; Block 2: Guitar Jam'
+        assert nora['by_day']['3'] == ''
+        assert nora['by_day']['4'] == 'Block 2: Guitar Jam'
+        assert nora['days'] == 'Tue Thu'
+        assert nora['family'] == 'Candland'
+
+    def test_a_class_spanning_the_day_reads_as_one_span_skipping_lunch(self):
+        out = self._run()
+        ryder = next(r for r in out['rows'] if r['student'] == 'Ryder Swenson')
+        assert ryder['by_day']['3'] == 'Blocks 1-5: Full Day'
+        assert ryder['days'] == 'Wed'
+
+    def test_an_unscheduled_class_is_reported_not_dropped(self):
+        out = self._run()
+        ryder = next(r for r in out['rows'] if r['student'] == 'Ryder Swenson')
+        assert ryder['unscheduled'] == 'Chess Club'
+        assert out['has_unscheduled'] is True
+
+    def test_a_student_with_no_classes_still_gets_a_row(self):
+        """A master list that drops the kids who never come hides exactly what
+        it exists to show."""
+        out = self._run()
+        ada = next(r for r in out['rows'] if r['student'] == 'Ada Byron')
+        assert ada['days'] == ''
+        assert all(v == '' for v in ada['by_day'].values())
+
+    def test_staff_are_not_students(self):
+        out = self._run()
+        assert 'Molly C' not in {r['student'] for r in out['rows']}
+
+    def test_rows_sort_by_student_name(self):
+        out = self._run()
+        names = [r['student'] for r in out['rows']]
+        assert names == sorted(names, key=str.lower)
+
+    def test_no_blocks_configured_falls_back_to_times(self):
+        out = self._run(blocks=[])
+        nora = next(r for r in out['rows'] if r['student'] == 'Nora Candland')
+        assert nora['by_day']['2'] == '9:30am-10:30am: Pottery; 10:30am-11:30am: Guitar Jam'
+
+    def test_no_classes_reads_nothing_and_lists_everyone(self):
+        """An empty `in_` list matches everything in PostgREST, so the
+        enrollment read must be skipped entirely."""
+        with patch('services.sis_catalog_service.list_classes', return_value=[]), \
+                patch('services.sis_catalog_service.schedule_settings',
+                      return_value={'time_blocks': []}), \
+                patch('services.sis_service.get_roster', return_value=self.ROSTER), \
+                patch('services.sis_reports_service.fetch_all_rows') as fetch:
+            out = reports.student_schedule_report('org-1')
+        fetch.assert_not_called()
+        assert len(out['rows']) == 3
+        assert out['days'] == []
+
+    def test_the_enrollment_read_is_paged(self):
+        import inspect
+
+        source = inspect.getsource(reports.student_schedule_report)
+        assert '.execute()' not in source
+        assert 'fetch_all_rows' in source
+
+
+@pytest.mark.unit
+class TestStudentScheduleRoute:
+    REPORT = {
+        'days': [{'key': '2', 'label': 'Tue'}, {'key': '4', 'label': 'Thu'}],
+        'has_unscheduled': False,
+        'rows': [{'student': 'Nora Candland', 'family': 'Candland', 'days': 'Tue Thu',
+                  'by_day': {'2': 'Block 1: Pottery', '4': 'Block 2: Guitar Jam'},
+                  'unscheduled': ''}],
+    }
+
+    def test_forbidden_for_student(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('student')):
+            resp = client.get('/api/sis/reports/student-schedule', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_a_coordinator_can_run_it(self, client, auth_headers, mock_verify_token):
+        """Operational, not money — the front office is who wants this list."""
+        with staff(role='org_managed', org_role='campus_coordinator'), \
+                patch('routes.sis.reports.reports.student_schedule_report',
+                      return_value=self.REPORT):
+            resp = client.get('/api/sis/reports/student-schedule?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['report']['rows'][0]['days'] == 'Tue Thu'
+
+    def test_csv_puts_each_day_in_its_own_column(self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.reports.reports.student_schedule_report',
+                            return_value=self.REPORT):
+            resp = client.get('/api/sis/reports/student-schedule?organization_id=org-1&format=csv',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.headers['Content-Disposition'] == 'attachment; filename=student-schedule.csv'
+        lines = resp.data.decode().strip().splitlines()
+        assert lines[0] == 'Student,Family,Days,Tue,Thu'
+        assert lines[1] == 'Nora Candland,Candland,Tue Thu,Block 1: Pottery,Block 2: Guitar Jam'
+
+    def test_csv_adds_the_unscheduled_column_only_when_needed(self, client, auth_headers, mock_verify_token):
+        rpt = {**self.REPORT, 'has_unscheduled': True,
+               'rows': [dict(self.REPORT['rows'][0], unscheduled='Chess Club')]}
+        with staff(), patch('routes.sis.reports.reports.student_schedule_report',
+                            return_value=rpt):
+            resp = client.get('/api/sis/reports/student-schedule?organization_id=org-1&format=csv',
+                              headers=auth_headers)
+        lines = resp.data.decode().strip().splitlines()
+        assert lines[0].endswith(',Unscheduled classes')
+        assert lines[1].endswith(',Chess Club')
