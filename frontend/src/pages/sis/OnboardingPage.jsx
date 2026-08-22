@@ -410,6 +410,33 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
     }
   }
 
+  const syncTemplate = async (t) => {
+    const assigned = await api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId))
+      .then((r) => (r.data?.assignments || []).filter((a) => a.template_id === t.id).length)
+      .catch(() => null)
+    const who = assigned === null ? 'the checklists already assigned'
+      : `${assigned} assigned checklist${assigned === 1 ? '' : 's'}`
+    if (!(await confirm(
+      `Update ${who} to match "${t.name}"? Finished checklists are left alone, and `
+      + 'nothing anyone has already done is changed.'))) return
+    try {
+      const r = await api.post(`/api/sis/staff-admin/onboarding/templates/${t.id}/sync`, {})
+      const d = r.data || {}
+      const parts = []
+      if (d.added) parts.push(`${d.added} item${d.added === 1 ? '' : 's'} added`)
+      if (d.updated) parts.push(`${d.updated} updated`)
+      if (d.removed) parts.push(`${d.removed} removed`)
+      const skipped = d.skipped_complete
+        ? `, ${d.skipped_complete} finished checklist${d.skipped_complete === 1 ? '' : 's'} left alone` : ''
+      toast.success(parts.length
+        ? `${d.synced} checklist${d.synced === 1 ? '' : 's'} updated (${parts.join(', ')})${skipped}`
+        : `Everything already matches${skipped}`)
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not sync the checklists')
+    }
+  }
+
   const deleteTemplate = async (t, { force = false } = {}) => {
     if (!force && !(await confirm(`Delete the "${t.name}" template? This can't be undone.`))) return
     try {
@@ -524,6 +551,9 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
                 <div className="ml-auto flex items-center gap-3">
                   <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
                   <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
+                  {/* Deliberately a button, not automatic on save: a half-finished
+                      edit must not go out to everyone holding the checklist. */}
+                  <button onClick={() => syncTemplate(t)} className="text-sm text-optio-purple hover:underline">Sync assigned</button>
                   <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
                 </div>
               </li>

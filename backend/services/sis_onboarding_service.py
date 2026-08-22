@@ -237,6 +237,100 @@ def duplicate_template(org_id: str, template_id: str, actor_id: str) -> Dict[str
     return {'template': row[0] if row else None}
 
 
+# The fields a template owns. Progress fields (status, document_url, documents,
+# signature, submitted_at, approved_*, admin_notes) belong to the assignment and
+# are never written by a sync.
+_TEMPLATE_ITEM_WORDING = ('title', 'description', 'link', 'due_date')
+_TEMPLATE_ITEM_RULES = ('required', 'needs_document', 'needs_signature',
+                        'needs_approval', 'document_id')
+
+
+def sync_assignments(org_id: str, template_id: str) -> Dict[str, Any]:
+    """Push a template's current items onto the checklists already assigned.
+
+    Assigning snapshots the items, so editing a template only ever changed what
+    FUTURE people received — iCreate corrected the orientation quest mid-run and
+    all 152 families kept the old copy (f4e1589d). This is the catch-up, and it
+    is a button rather than automatic-on-save so a half-finished edit never goes
+    out to everybody.
+
+    The rules, in the order they matter:
+      - Finished checklists are left alone and counted, not rewritten.
+      - Anything already done — status, uploads, signatures, approvals — is
+        never touched. Wording on a done item is corrected; the RULES on it
+        (does it need a signature, a document, approval) are not, because
+        flipping those under a completed item makes it complete and impossible
+        to complete at the same time.
+      - An item the template no longer has disappears only where it is still
+        pending. Somebody's uploaded ID does not vanish because the office
+        tidied the template.
+      - New items arrive pending, in the template's order.
+    """
+    admin = _admin()
+    rows = (admin.table('sis_onboarding_templates').select('*')
+            .eq('id', template_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Template not found', 'status': 404}
+    template = rows[0]
+    tmpl_items = template.get('items') or []
+    tmpl_keys = {i.get('key') for i in tmpl_items}
+
+    assignments = (admin.table('sis_onboarding_assignments').select('*')
+                   .eq('organization_id', org_id).eq('template_id', template_id)
+                   .eq('kind', 'checklist').execute()).data or []
+
+    added = updated = removed = synced = skipped = 0
+
+    for a in assignments:
+        if a.get('status') == 'complete':
+            skipped += 1
+            continue
+        existing = {i.get('key'): i for i in (a.get('items') or []) if isinstance(i, dict)}
+        merged: List[Dict[str, Any]] = []
+        a_added = a_updated = a_removed = 0
+
+        for t in tmpl_items:
+            cur = existing.get(t.get('key'))
+            if cur is None:
+                merged.append({**t, 'status': 'pending', 'document_url': None,
+                               'documents': [], 'submitted_at': None,
+                               'approved_by': None, 'approved_at': None,
+                               'admin_notes': None, 'signature': None})
+                a_added += 1
+                continue
+            item = dict(cur)
+            done = item.get('status') in ('complete', 'approved')
+            fields = _TEMPLATE_ITEM_WORDING if done else (
+                _TEMPLATE_ITEM_WORDING + _TEMPLATE_ITEM_RULES)
+            if any(item.get(f) != t.get(f) for f in fields):
+                a_updated += 1
+                for f in fields:
+                    item[f] = t.get(f)
+            merged.append(item)
+
+        # Items the template dropped: kept when they carry work, gone when they
+        # do not.
+        for key, item in existing.items():
+            if key in tmpl_keys:
+                continue
+            if item.get('status') == 'pending' and not item_documents(item) \
+                    and not item.get('signature'):
+                a_removed += 1
+            else:
+                merged.append(item)
+
+        if not (a_added or a_updated or a_removed):
+            continue
+        _save_items(a, merged)
+        synced += 1
+        added += a_added
+        updated += a_updated
+        removed += a_removed
+
+    return {'synced': synced, 'skipped_complete': skipped, 'assignments': len(assignments),
+            'added': added, 'updated': updated, 'removed': removed}
+
+
 def count_template_assignments(org_id: str, template_id: str) -> int:
     """How many people currently hold a checklist from this template."""
     rows = (_admin().table('sis_onboarding_assignments').select('id')

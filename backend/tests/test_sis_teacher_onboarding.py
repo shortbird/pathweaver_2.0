@@ -467,3 +467,112 @@ class TestItemDocuments:
         assert len(item['documents']) == 2
         svc._set_item_documents(item, [])
         assert item['document_url'] is None
+
+
+@pytest.mark.unit
+class TestSyncAssignments:
+    """Editing a template only ever changed what FUTURE people received: iCreate
+    corrected the orientation quest mid-run and all 152 families kept the old
+    copy (f4e1589d). Sync is the catch-up, and what it must NOT do matters more
+    than what it does."""
+
+    TEMPLATE = {
+        'id': 't1', 'organization_id': ORG, 'name': 'Employee onboarding',
+        'items': [
+            {'key': 'k1', 'title': 'Photo ID', 'required': True, 'needs_document': True},
+            {'key': 'k2', 'title': 'Signed contract', 'required': True, 'needs_signature': True},
+        ],
+    }
+
+    def _sync(self, assignment_items, status='in_progress', template=None):
+        from services import sis_onboarding_service as svc
+        assignment = {'id': 'a1', 'organization_id': ORG, 'user_id': 'u1',
+                      'status': status, 'template_id': 't1', 'kind': 'checklist',
+                      'items': assignment_items}
+        client, table = _admin_with([[template or self.TEMPLATE], [assignment]])
+        saved = {}
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, '_save_items',
+                          side_effect=lambda a, items: saved.update(items=items) or a):
+            result = svc.sync_assignments(ORG, 't1')
+        return result, saved.get('items')
+
+    def test_a_new_template_item_arrives_pending(self):
+        result, items = self._sync([
+            {'key': 'k1', 'title': 'Photo ID', 'status': 'complete'},
+        ])
+        assert result['added'] == 1
+        new = next(i for i in items if i['key'] == 'k2')
+        assert new['status'] == 'pending'
+        assert new['signature'] is None
+
+    def test_completed_work_is_never_touched(self):
+        _, items = self._sync([
+            {'key': 'k1', 'title': 'Old wording', 'status': 'complete',
+             'document_url': 'org/u1/id.pdf', 'submitted_at': '2026-08-01T00:00:00Z'},
+        ])
+        done = next(i for i in items if i['key'] == 'k1')
+        assert done['status'] == 'complete'
+        assert done['document_url'] == 'org/u1/id.pdf'
+        assert done['submitted_at'] == '2026-08-01T00:00:00Z'
+
+    def test_wording_is_corrected_even_on_a_finished_item(self):
+        _, items = self._sync([
+            {'key': 'k1', 'title': 'Old wording', 'status': 'complete'},
+        ])
+        assert next(i for i in items if i['key'] == 'k1')['title'] == 'Photo ID'
+
+    def test_the_rules_on_a_finished_item_are_left_alone(self):
+        """Flipping needs_signature under a completed item would make it
+        complete and impossible to complete at the same time."""
+        _, items = self._sync([
+            {'key': 'k2', 'title': 'Signed contract', 'status': 'complete',
+             'needs_signature': False, 'signature': None},
+        ])
+        assert next(i for i in items if i['key'] == 'k2')['needs_signature'] is False
+
+    def test_a_pending_item_the_template_dropped_disappears(self):
+        result, items = self._sync([
+            {'key': 'k1', 'title': 'Photo ID', 'status': 'pending'},
+            {'key': 'k2', 'title': 'Signed contract', 'status': 'pending'},
+            {'key': 'gone', 'title': 'Retired step', 'status': 'pending'},
+        ])
+        assert result['removed'] == 1
+        assert not [i for i in items if i['key'] == 'gone']
+
+    def test_a_dropped_item_someone_worked_on_survives(self):
+        result, items = self._sync([
+            {'key': 'k1', 'title': 'Photo ID', 'status': 'pending'},
+            {'key': 'k2', 'title': 'Signed contract', 'status': 'pending'},
+            {'key': 'gone', 'title': 'Retired step', 'status': 'pending',
+             'document_url': 'org/u1/scan.pdf'},
+        ])
+        assert result['removed'] == 0
+        assert [i for i in items if i['key'] == 'gone']
+
+    def test_a_finished_checklist_is_skipped_and_counted(self):
+        result, items = self._sync([{'key': 'k1', 'title': 'Photo ID', 'status': 'complete'}],
+                                   status='complete')
+        assert result['skipped_complete'] == 1
+        assert result['synced'] == 0
+        assert items is None
+
+    def test_a_checklist_that_already_matches_is_not_rewritten(self):
+        result, items = self._sync([
+            {'key': 'k1', 'title': 'Photo ID', 'required': True,
+             'needs_document': True, 'needs_signature': None, 'needs_approval': None,
+             'description': None, 'link': None, 'due_date': None, 'document_id': None,
+             'status': 'pending'},
+            {'key': 'k2', 'title': 'Signed contract', 'required': True,
+             'needs_signature': True, 'needs_document': None, 'needs_approval': None,
+             'description': None, 'link': None, 'due_date': None, 'document_id': None,
+             'status': 'pending'},
+        ])
+        assert result['synced'] == 0
+        assert items is None
+
+    def test_another_orgs_template_is_not_found(self):
+        from services import sis_onboarding_service as svc
+        client, _ = _admin_with([[{**self.TEMPLATE, 'organization_id': 'other'}]])
+        with patch.object(svc, '_admin', return_value=client):
+            assert svc.sync_assignments(ORG, 't1')['status'] == 404

@@ -253,6 +253,21 @@ def duplicate_template(user_id, template_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/onboarding/templates/<template_id>/sync', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def sync_template_assignments(user_id, template_id):
+    """Push this template's current items onto checklists already assigned.
+    Returns counts: what was added, updated, removed, and how many finished
+    checklists were deliberately left alone."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = onboarding.sync_assignments(org_id, template_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/onboarding/templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_template(user_id, template_id):
