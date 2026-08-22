@@ -274,3 +274,105 @@ class TestOnboardingRecipientsExcludePlaceholders:
             people = onboarding.list_recipients(ORG, 'staff')
         ids = [p['id'] for p in people]
         assert ids == ['real-1']  # placeholder omitted (can't log in to complete it)
+
+
+@pytest.mark.unit
+class TestItemIdentity:
+    """A template item's key is its identity for the life of the template:
+    progress, uploads and signatures on an assignment are recorded against it,
+    and update_item finds the row by it. The key used to fall back to the item's
+    POSITION, so adding an item at the top handed the newcomer a key an existing
+    item already held — and update_item takes the first match, leaving one of
+    the two permanently un-completable. PR #94's reorder buttons made that easy
+    to hit by accident."""
+
+    def test_a_new_item_gets_a_unique_key(self):
+        from services import sis_onboarding_service as svc
+        items = svc._clean_items([{'title': 'First'}, {'title': 'Second'}])
+        keys = [i['key'] for i in items]
+        assert len(set(keys)) == 2
+        assert all(k.startswith('item_') for k in keys)
+
+    def test_existing_keys_survive_a_reorder(self):
+        from services import sis_onboarding_service as svc
+        items = svc._clean_items([
+            {'key': 'item_2', 'title': 'Second'},
+            {'key': 'item_1', 'title': 'First'},
+        ])
+        assert [i['key'] for i in items] == ['item_2', 'item_1']
+
+    def test_a_new_item_never_collides_with_a_positional_key(self):
+        """The exact break: insert a keyless item above an existing `item_1`."""
+        from services import sis_onboarding_service as svc
+        items = svc._clean_items([
+            {'title': 'Brand new'},
+            {'key': 'item_1', 'title': 'Was already here'},
+        ])
+        assert items[1]['key'] == 'item_1'
+        assert items[0]['key'] != 'item_1'
+
+    def test_a_duplicated_key_is_re_minted(self):
+        from services import sis_onboarding_service as svc
+        items = svc._clean_items([
+            {'key': 'item_1', 'title': 'Original'},
+            {'key': 'item_1', 'title': 'Copy'},
+        ])
+        assert items[0]['key'] == 'item_1'
+        assert items[1]['key'] != 'item_1'
+
+
+@pytest.mark.unit
+class TestDuplicateTemplate:
+    """Duplicating is server-side: a client re-POST cannot see blocks_access
+    (the editor never loads it) and would copy document_id, which names ONE
+    secure document belonging to ONE person."""
+
+    def _src(self, **over):
+        row = {
+            'id': 'tmpl-1', 'organization_id': ORG, 'name': 'Employee onboarding',
+            'role_type': 'employee', 'audience': 'family', 'blocks_access': True,
+            'items': [{'key': 'item_1', 'title': 'Sign contract',
+                       'document_id': 'doc-belonging-to-ruth'}],
+        }
+        row.update(over)
+        return row
+
+    def _run(self, src):
+        from services import sis_onboarding_service as svc
+        client, table = _admin_with([[src]])
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'list_templates', return_value=[]):
+            result = svc.duplicate_template(ORG, 'tmpl-1', actor_id='admin-1')
+        return result, table
+
+    def test_the_copy_drops_the_original_document_binding(self):
+        _, table = self._run(self._src())
+        payload = table.insert.call_args[0][0]
+        assert payload['items'][0]['document_id'] is None
+
+    def test_the_copy_re_mints_item_keys(self):
+        _, table = self._run(self._src())
+        payload = table.insert.call_args[0][0]
+        assert payload['items'][0]['key'] != 'item_1'
+
+    def test_the_copy_keeps_blocks_access_and_audience(self):
+        _, table = self._run(self._src())
+        payload = table.insert.call_args[0][0]
+        assert payload['blocks_access'] is True
+        assert payload['audience'] == 'family'
+
+    def test_the_name_steps_aside_when_a_copy_already_exists(self):
+        from services import sis_onboarding_service as svc
+        client, table = _admin_with([[self._src()]])
+        existing = [{'name': 'Employee onboarding (Copy)'}]
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'list_templates', return_value=existing):
+            svc.duplicate_template(ORG, 'tmpl-1', actor_id='admin-1')
+        assert table.insert.call_args[0][0]['name'] == 'Employee onboarding (Copy) 2'
+
+    def test_another_orgs_template_is_not_found(self):
+        from services import sis_onboarding_service as svc
+        client, _ = _admin_with([[self._src(organization_id='other-org')]])
+        with patch.object(svc, '_admin', return_value=client):
+            result = svc.duplicate_template(ORG, 'tmpl-1', actor_id='admin-1')
+        assert result['status'] == 404

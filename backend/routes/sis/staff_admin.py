@@ -239,6 +239,20 @@ def update_template(user_id, template_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/onboarding/templates/<template_id>/duplicate', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_template(user_id, template_id):
+    """Copy a template under a free "(Copy)" name. Server-side so the copy keeps
+    blocks_access and drops the original's per-person document bindings."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = onboarding.duplicate_template(org_id, template_id, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), 201
+
+
 @bp.route('/onboarding/templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_template(user_id, template_id):

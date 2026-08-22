@@ -45,17 +45,32 @@ def _now():
 
 
 def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
+    """Normalise a template's items, minting a stable key for anything new.
+
+    The key is the item's identity for the life of the template: an assignment
+    records progress, uploads and signatures against it, and `update_item` finds
+    the row by it. It used to fall back to the item's POSITION (`item_3`), which
+    two edits turn into a lie — add an item at the top and the new item is handed
+    the key an existing item already holds. `update_item` takes the first match,
+    so one of the two becomes permanently un-completable. Positional keys already
+    in the data keep working; only new items get a UUID.
+    """
     if not isinstance(items, list):
         return None
     cleaned = []
-    for i, item in enumerate(items):
+    seen_keys = set()
+    for item in items:
         if not isinstance(item, dict):
             return None
         title = (item.get('title') or '').strip()
         if not title:
             return None
+        key = str(item.get('key') or '').strip()
+        if not key or key in seen_keys:
+            key = f'item_{_uuid.uuid4().hex[:12]}'
+        seen_keys.add(key)
         cleaned.append({
-            'key': item.get('key') or f'item_{i + 1}',
+            'key': key,
             'title': title,
             'description': (item.get('description') or '').strip() or None,
             'required': bool(item.get('required', True)),
@@ -121,6 +136,56 @@ def save_template(org_id: str, data: Dict[str, Any], actor_id: str,
     else:
         payload.update({'organization_id': org_id, 'created_by': actor_id})
         row = admin.table('sis_onboarding_templates').insert(payload).execute().data
+    return {'template': row[0] if row else None}
+
+
+def duplicate_template(org_id: str, template_id: str, actor_id: str) -> Dict[str, Any]:
+    """Copy a template, items and all, under a free "(Copy)" name.
+
+    Server-side rather than a client re-POST for two reasons. `document_id` on a
+    signature item names ONE secure document belonging to ONE person — copied
+    verbatim, the duplicate silently signs against the original recipient's file,
+    so it is dropped here. And `blocks_access` never reaches the editor, so a
+    client-side copy quietly downgrades a family checklist that holds access.
+    Item keys are re-minted: the copy is a separate template whose assignments
+    must not share identity with the original's.
+    """
+    admin = _admin()
+    rows = (admin.table('sis_onboarding_templates').select('*')
+            .eq('id', template_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Template not found', 'status': 404}
+    src = rows[0]
+
+    taken = {(t.get('name') or '').strip().lower() for t in list_templates(org_id)}
+    base = f"{(src.get('name') or 'Checklist').strip()} (Copy)"
+    name = base
+    n = 2
+    while name.strip().lower() in taken:
+        name = f'{base} {n}'
+        n += 1
+
+    items = []
+    for item in (src.get('items') or []):
+        if not isinstance(item, dict):
+            continue
+        copied = {k: v for k, v in item.items() if k not in ('key', 'document_id')}
+        items.append(copied)
+    cleaned = _clean_items(items)
+    if cleaned is None:
+        return {'error': 'This template has an item without a title'}
+
+    payload = {
+        'organization_id': org_id,
+        'created_by': actor_id,
+        'name': name,
+        'role_type': src.get('role_type'),
+        'audience': _clean_audience(src.get('audience')),
+        'blocks_access': bool(src.get('blocks_access')),
+        'items': cleaned,
+        'updated_at': _now(),
+    }
+    row = admin.table('sis_onboarding_templates').insert(payload).execute().data
     return {'template': row[0] if row else None}
 
 
