@@ -83,6 +83,13 @@ export const LIST_COLUMNS = [
     value: (c) => c.status === 'archived' ? 'Archived' : c.registration_status === 'open' ? 'Open' : 'Closed' },
 ]
 
+// What a class costs a family. A campus coordinator is an org admin minus the
+// money, so these two never reach their picker or their CSV.
+export const MONEY_COLUMN_IDS = ['supply_fee', 'tuition']
+
+export const columnsFor = (seesMoney) =>
+  (seesMoney ? LIST_COLUMNS : LIST_COLUMNS.filter((c) => !MONEY_COLUMN_IDS.includes(c.id)))
+
 const DEFAULT_COLS = LIST_COLUMNS.filter((c) => c.on).map((c) => c.id)
 
 export const buildListRows = (classes, colIds) => {
@@ -166,24 +173,32 @@ const DAY_OPTIONS = [
   { value: '0', label: 'Sunday' },
 ]
 
-const loadPrefs = () => {
+// `allowedIds` is what this caller may export — a coordinator's list has the
+// price columns taken out, and a pref saved before their role changed (or by an
+// admin on a shared browser) must not smuggle one back in.
+const loadPrefs = (allowedIds) => {
+  const allow = (ids) => ids.filter((id) => allowedIds.includes(id))
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY))
     return {
       format: FORMATS.some((f) => f.key === saved?.format) ? saved.format : 'list',
       cols: Array.isArray(saved?.cols) && saved.cols.length
-        ? saved.cols.filter((id) => LIST_COLUMNS.some((c) => c.id === id))
-        : DEFAULT_COLS,
+        ? allow(saved.cols)
+        : allow(DEFAULT_COLS),
       // Default ON, and `!== false` so the browsers that already hold a saved
       // pref object without this key get the new default rather than archived
       // classes back.
       excludeArchived: saved?.excludeArchived !== false,
     }
-  } catch { return { format: 'list', cols: DEFAULT_COLS, excludeArchived: true } }
+  } catch { return { format: 'list', cols: allow(DEFAULT_COLS), excludeArchived: true } }
 }
 
-const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
-  const [prefs, setPrefs] = useState(loadPrefs)
+// seesMoney comes from the page (canSeeFinance) rather than being read here, so
+// this stays a presentational component. Chrome only — the backend is the gate.
+const ClassesExportModal = ({ classes = [], orgName, onClose, seesMoney = true }) => {
+  const availableColumns = columnsFor(seesMoney)
+  const allowedIds = availableColumns.map((c) => c.id)
+  const [prefs, setPrefs] = useState(() => loadPrefs(allowedIds))
   const { format, cols, excludeArchived } = prefs
   const [selectedTeacher, setSelectedTeacher] = useState('all')
   const [selectedDay, setSelectedDay] = useState('all')
@@ -233,13 +248,16 @@ const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
   const toggleCol = (id) => save({
     ...prefs,
     // Keep LIST_COLUMNS order regardless of click order.
-    cols: LIST_COLUMNS.map((c) => c.id)
+    cols: allowedIds
       .filter((cid) => (cid === id ? !cols.includes(id) : cols.includes(cid))),
   })
 
   const exportNow = () => {
     const slug = orgName.replace(/\s+/g, '-').toLowerCase()
-    if (format === 'list') downloadCsv(buildListRows(filteredClasses, cols), `${slug}-classes.csv`)
+    // Filtered again at the door: `cols` comes from a saved pref, so this is the
+    // one place a redacted column could still reach a file.
+    const exportCols = cols.filter((id) => allowedIds.includes(id))
+    if (format === 'list') downloadCsv(buildListRows(filteredClasses, exportCols), `${slug}-classes.csv`)
     else downloadCsv(buildGridRows(filteredClasses, format, selectedDay), `${slug}-schedule-by-${format}.csv`)
     onClose()
   }
@@ -331,13 +349,13 @@ const ClassesExportModal = ({ classes = [], orgName, onClose }) => {
             <fieldset>
               <legend className="text-sm font-medium text-gray-700 mb-2">
                 Columns
-                <button type="button" onClick={() => save({ ...prefs, cols: DEFAULT_COLS })}
+                <button type="button" onClick={() => save({ ...prefs, cols: DEFAULT_COLS.filter((id) => allowedIds.includes(id)) })}
                   className="ml-2 text-xs font-normal text-optio-purple hover:underline">
                   Reset to default
                 </button>
               </legend>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                {LIST_COLUMNS.map((c) => (
+                {availableColumns.map((c) => (
                   <label key={c.id} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
                     <input type="checkbox" aria-label={c.label} className="mt-0.5 accent-optio-purple shrink-0"
                       checked={cols.includes(c.id)} onChange={() => toggleCol(c.id)} />

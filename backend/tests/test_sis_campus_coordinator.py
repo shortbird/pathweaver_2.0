@@ -19,6 +19,8 @@ Three doors to the money, and each is checked here:
   3. The staff roster CSV, which carried Pay Type and Payroll ID columns.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from utils import sis_roles
@@ -329,3 +331,44 @@ class TestTheSchoolPageAdmitsCoordinators:
         assert _archive_audience_token('campus_coordinator', None) is None
         assert _archive_audience_token('org_admin', None) is None
         assert _archive_audience_token('parent', None) == 'parents'
+
+
+@pytest.mark.unit
+class TestClassReportMoneyRedaction:
+    """The class report is ADMIN_ROLES, which includes campus coordinators — the
+    role whose whole definition is the money subtraction. Two of its price
+    columns were on by default, so a coordinator could export every class price
+    and supply fee as a spreadsheet while the revenue tile beside it was hidden
+    from them."""
+
+    CLASSES = [{'id': 'c1', 'name': 'Choir (Tuesday)', 'price_cents': 25000,
+                'supply_fee': 15, 'meetings': []}]
+
+    def _report(self, sees_money):
+        from services import sis_reports_service as reports
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
+             patch.object(reports, '_curriculum_by_class', return_value={}), \
+             patch.object(reports, '_materials_by_class', return_value={}):
+            return reports.class_report('org-1', sees_money=sees_money)
+
+    def test_an_admin_still_gets_the_price_columns(self):
+        from services import sis_reports_service as reports
+        report = self._report(True)
+        keys = {f['key'] for f in report['fields']}
+        assert set(reports.CLASS_REPORT_MONEY_KEYS) <= keys
+
+    def test_a_coordinator_is_not_offered_the_price_columns(self):
+        from services import sis_reports_service as reports
+        keys = {f['key'] for f in self._report(False)['fields']}
+        assert not (set(reports.CLASS_REPORT_MONEY_KEYS) & keys)
+
+    def test_a_coordinators_rows_do_not_carry_the_money(self):
+        from services import sis_reports_service as reports
+        for row in self._report(False)['rows']:
+            assert not (set(reports.CLASS_REPORT_MONEY_KEYS) & set(row))
+
+    def test_the_operational_columns_survive_the_redaction(self):
+        """The point of the role is the money, not the job — a coordinator still
+        runs the class report."""
+        keys = {f['key'] for f in self._report(False)['fields']}
+        assert {'name', 'teacher', 'room', 'enrolled', 'capacity'} <= keys

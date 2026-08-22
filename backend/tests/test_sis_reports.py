@@ -170,10 +170,13 @@ def _admin_client_for_role(role, org_role=None):
 
 
 @contextmanager
-def staff(role='org_admin', org='org-1', org_role=None):
+def staff(role='org_admin', org='org-1', org_role=None, sees_money=True):
+    # caller_sees_pay reads the caller's org context from the database; the
+    # class report asks it whether to include the price columns.
     with patch('database.get_supabase_admin_client',
                return_value=_admin_client_for_role(role, org_role)), \
-         patch('services.sis_service.resolve_org_id', return_value=org):
+         patch('services.sis_service.resolve_org_id', return_value=org), \
+         patch('services.sis_service.caller_sees_pay', return_value=sees_money):
         yield
 
 
@@ -361,7 +364,7 @@ class TestClassReportRoute:
                             return_value=self.REPORT) as spy:
             client.get('/api/sis/reports/classes?organization_id=org-1&include_archived=true',
                        headers=auth_headers)
-        spy.assert_called_once_with('org-1', include_archived=True)
+        spy.assert_called_once_with('org-1', include_archived=True, sees_money=True)
 
 
 @pytest.mark.unit
@@ -703,3 +706,38 @@ class TestStudentScheduleRoute:
         lines = resp.data.decode().strip().splitlines()
         assert lines[0].endswith(',Unscheduled classes')
         assert lines[1].endswith(',Chess Club')
+
+
+@pytest.mark.unit
+class TestClassReportCoordinatorRedaction:
+    """A campus coordinator runs the class report but not its price columns.
+    The route intersects the requested selection with what came back, so asking
+    for a redacted column by name cannot pull it through the CSV either."""
+
+    def _coordinator_report(self):
+        from services import sis_reports_service as svc
+        fields = [f for f in svc.CLASS_REPORT_FIELDS
+                  if f['key'] not in svc.CLASS_REPORT_MONEY_KEYS]
+        rows = [{k: v for k, v in r.items() if k not in svc.CLASS_REPORT_MONEY_KEYS}
+                for r in svc.build_class_rows(CLASSES, {}, {})]
+        return {'fields': fields, 'rows': rows}
+
+    def test_asking_for_tuition_by_name_does_not_return_it(self, client, auth_headers, mock_verify_token):
+        with staff(org_role='campus_coordinator', sees_money=False), \
+             patch('routes.sis.reports.reports.class_report', return_value=self._coordinator_report()):
+            resp = client.get('/api/sis/reports/classes?organization_id=org-1&fields=name,tuition',
+                              headers=auth_headers)
+        body = json.loads(resp.data)
+        assert resp.status_code == 200
+        assert 'tuition' not in body['report']['selected']
+        assert 'tuition' not in body['report']['rows'][0]
+
+    def test_the_csv_cannot_carry_a_redacted_column(self, client, auth_headers, mock_verify_token):
+        with staff(org_role='campus_coordinator', sees_money=False), \
+             patch('routes.sis.reports.reports.class_report', return_value=self._coordinator_report()):
+            resp = client.get(
+                '/api/sis/reports/classes?organization_id=org-1&fields=name,tuition,supply_fee&format=csv',
+                headers=auth_headers)
+        assert resp.status_code == 200
+        header = resp.data.decode().splitlines()[0]
+        assert 'Tuition' not in header and 'Supply fee' not in header

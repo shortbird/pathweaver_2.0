@@ -328,6 +328,14 @@ CLASS_REPORT_FIELDS: List[Dict[str, Any]] = [
 CLASS_REPORT_KEYS = [f['key'] for f in CLASS_REPORT_FIELDS]
 CLASS_REPORT_DEFAULTS = [f['key'] for f in CLASS_REPORT_FIELDS if f['default']]
 
+# What a class costs a family and what the school budgets against it. The class
+# report is ADMIN_ROLES, which includes campus coordinators — the role whose
+# whole definition is the money subtraction — and these three columns are the
+# money, two of them on by default. Redacted per-field rather than by withholding
+# the report, the same way an employment profile hides the pay rate and keeps the
+# emergency contact (see sis_staff_service.PAY_FIELDS).
+CLASS_REPORT_MONEY_KEYS = ('tuition', 'supply_fee', 'materials_allowance', 'billing')
+
 
 def build_class_rows(classes: List[Dict[str, Any]],
                      curriculum_by_class: Dict[str, List[str]],
@@ -412,17 +420,25 @@ def _materials_by_class(class_ids: List[str]) -> Dict[str, List[str]]:
     return out
 
 
-def class_report(org_id: str, include_archived: bool = False) -> Dict[str, Any]:
-    """Every class in the org with every reportable field filled in."""
+def class_report(org_id: str, include_archived: bool = False,
+                 sees_money: bool = True) -> Dict[str, Any]:
+    """Every class in the org with every reportable field filled in.
+
+    `sees_money=False` (a campus coordinator) drops the price columns from the
+    field list AND from the rows — the picker must not offer a column the data
+    will not contain, and the CSV builds straight off these rows.
+    """
     from services import sis_catalog_service
     classes = sis_catalog_service.list_classes(org_id, include_archived=include_archived,
                                                audience='staff')
     class_ids = [c['id'] for c in classes]
-    return {
-        'fields': CLASS_REPORT_FIELDS,
-        'rows': build_class_rows(classes, _curriculum_by_class(class_ids),
-                                 _materials_by_class(class_ids)),
-    }
+    rows = build_class_rows(classes, _curriculum_by_class(class_ids),
+                            _materials_by_class(class_ids))
+    fields = CLASS_REPORT_FIELDS
+    if not sees_money:
+        fields = [f for f in CLASS_REPORT_FIELDS if f['key'] not in CLASS_REPORT_MONEY_KEYS]
+        rows = [{k: v for k, v in r.items() if k not in CLASS_REPORT_MONEY_KEYS} for r in rows]
+    return {'fields': fields, 'rows': rows}
 
 
 # ── Roster report (many classes, one spreadsheet) ────────────────────────────

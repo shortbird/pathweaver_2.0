@@ -121,8 +121,13 @@ def classes_report(user_id):
     keys = [k for k in reports.CLASS_REPORT_KEYS if k in requested] or reports.CLASS_REPORT_DEFAULTS
     include_archived = request.args.get('include_archived') in ('1', 'true', 'True')
 
-    report = reports.class_report(org_id, include_archived=include_archived)
+    # A coordinator gets the class report without its price columns — see
+    # CLASS_REPORT_MONEY_KEYS. Selection is intersected with what came back, so
+    # ?fields=tuition cannot pull a redacted column through the CSV path.
+    report = reports.class_report(org_id, include_archived=include_archived,
+                                  sees_money=sis_service.caller_sees_pay(user_id))
     labels = {f['key']: f['label'] for f in report['fields']}
+    keys = [k for k in keys if k in labels] or [f['key'] for f in report['fields'] if f['default']]
 
     if request.args.get('format') == 'csv':
         return _csv_response(

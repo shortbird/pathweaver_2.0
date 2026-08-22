@@ -20,6 +20,8 @@ import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from './sisRole'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -71,6 +73,7 @@ const stripHtml = (html) => {
 
 const ClassesPage = () => {
   const confirm = useConfirm()
+  const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
@@ -599,7 +602,8 @@ const ClassesPage = () => {
       )}
 
       {exporting && (
-        <ClassesExportModal classes={classes} orgName={orgName} onClose={() => setExporting(false)} />
+        <ClassesExportModal classes={classes} orgName={orgName} seesMoney={canSeeFinance(user)}
+          onClose={() => setExporting(false)} />
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
