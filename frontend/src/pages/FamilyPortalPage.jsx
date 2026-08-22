@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import BackToSchool from '../components/navigation/BackToSchool'
 import ChecklistSignature from '../components/sis/ChecklistSignature'
+import { itemDocuments } from './sis/checklistDocuments'
 
 /**
  * Family portal (Learning app) — the checklists a school assigns to a guardian.
@@ -91,7 +92,11 @@ const FamilyPortalPage = () => {
     setBusyKey(`${assignmentId}:${itemKey}`)
     try {
       const r = await api.post(`/api/sis/parent/onboarding/upload?organization_id=${orgId}`, form)
-      await patchItem(assignmentId, itemKey, { document_url: r.data?.path, status: 'complete' })
+      // add_document, not document_url: the item holds a list, so a second file
+      // is an addition rather than a replacement.
+      await patchItem(assignmentId, itemKey, {
+        add_document: { path: r.data?.path, filename: file.name }, status: 'complete',
+      })
       toast.success('Document attached')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Upload failed')
@@ -227,13 +232,14 @@ const FamilyPortalPage = () => {
                           )}
                           {item.needs_document && (
                             <>
-                              {item.document_url && (
-                                <button onClick={() => openDoc(item.document_url)} className="text-sm text-optio-purple hover:underline">
-                                  View document
+                              {itemDocuments(item).map((doc) => (
+                                <button key={doc.path} onClick={() => openDoc(doc.path)}
+                                  className="text-sm text-optio-purple hover:underline">
+                                  {doc.filename || 'View document'}
                                 </button>
-                              )}
+                              ))}
                               <label className="text-sm text-optio-purple hover:underline cursor-pointer">
-                                {item.document_url ? 'Replace document' : 'Upload document'}
+                                {itemDocuments(item).length ? 'Add another document' : 'Upload document'}
                                 <input type="file" className="hidden" disabled={busy}
                                   onChange={(e) => e.target.files?.[0] && uploadDoc(a.id, item.key, e.target.files[0])} />
                               </label>

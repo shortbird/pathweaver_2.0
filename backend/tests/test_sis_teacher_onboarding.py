@@ -435,3 +435,35 @@ class TestChecklistDirections:
              patch.object(svc, 'sis_notifications'):
             svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
         assert table.insert.call_args[0][0]['description'] == 'Work top to bottom.'
+
+
+@pytest.mark.unit
+class TestItemDocuments:
+    """Ruth Stewart, teacher, could not upload her ID and her birth certificate:
+    the I-9 item held exactly one file, so the second upload offered to REPLACE
+    the first (b9583855). Items hold a list now, and `document_url` still carries
+    the first of them so in-flight checklists and older readers keep working."""
+
+    def test_the_legacy_single_path_still_reads(self):
+        from services import sis_onboarding_service as svc
+        docs = svc.item_documents({'document_url': 'org/user/a.pdf'})
+        assert [d['path'] for d in docs] == ['org/user/a.pdf']
+
+    def test_an_item_with_no_document_reads_empty(self):
+        from services import sis_onboarding_service as svc
+        assert svc.item_documents({'document_url': None}) == []
+
+    def test_the_list_wins_when_both_are_present(self):
+        from services import sis_onboarding_service as svc
+        item = {'document_url': 'org/user/a.pdf',
+                'documents': [{'path': 'org/user/a.pdf'}, {'path': 'org/user/b.pdf'}]}
+        assert len(svc.item_documents(item)) == 2
+
+    def test_setting_documents_keeps_the_legacy_field_in_step(self):
+        from services import sis_onboarding_service as svc
+        item = {}
+        svc._set_item_documents(item, [{'path': 'org/user/a.pdf'}, {'path': 'org/user/b.pdf'}])
+        assert item['document_url'] == 'org/user/a.pdf'
+        assert len(item['documents']) == 2
+        svc._set_item_documents(item, [])
+        assert item['document_url'] is None

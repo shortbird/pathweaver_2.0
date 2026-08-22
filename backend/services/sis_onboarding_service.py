@@ -44,6 +44,51 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+# The two checklist upload routes each write to their own private bucket
+# (staff_portal.py and parent.py). Removing an attachment has to reach the same
+# one the audience uploaded to.
+CHECKLIST_BUCKETS = {'staff': 'staff-documents', 'family': 'family-documents'}
+
+
+def _remove_document_blob(assignment: Dict[str, Any], path: str) -> None:
+    """Delete the stored file behind a removed attachment. Best-effort: a blob we
+    could not delete must not fail the checklist edit that removed it."""
+    bucket = CHECKLIST_BUCKETS.get(_clean_audience(assignment.get('audience')))
+    if not bucket or not path:
+        return
+    try:
+        _admin().storage.from_(bucket).remove([path])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[Onboarding] could not delete {bucket}/{path}: {e}')
+
+
+def item_documents(item: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Every document attached to a checklist item, in either shape.
+
+    An item used to hold exactly one file in `document_url`, so uploading a
+    second offered to REPLACE the first — which is what iCreate hit when they
+    asked for an ID and a birth certificate on one I-9 item and the teacher had
+    nowhere to put the second file (b9583855). Items carry a `documents` list
+    now; `document_url` is still written with the first of them so anything
+    reading the old field keeps working.
+    """
+    docs = item.get('documents')
+    if isinstance(docs, list):
+        out = [d for d in docs if isinstance(d, dict) and d.get('path')]
+        if out:
+            return out
+    path = item.get('document_url')
+    if path:
+        return [{'path': path, 'filename': None, 'uploaded_at': item.get('submitted_at')}]
+    return []
+
+
+def _set_item_documents(item: Dict[str, Any], docs: List[Dict[str, Any]]) -> None:
+    """Write both shapes: the list, and the legacy single-path field."""
+    item['documents'] = docs
+    item['document_url'] = docs[0]['path'] if docs else None
+
+
 def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
     """Normalise a template's items, minting a stable key for anything new.
 
@@ -935,8 +980,32 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     if not is_admin and status in ('approved', 'rejected'):
         return {'error': 'Only an administrator can approve this item'}
 
+    if 'add_document' in fields:
+        doc = fields.get('add_document') or {}
+        path = (str(doc.get('path') or '')).strip()
+        if not path:
+            return {'error': 'That upload did not produce a file'}
+        docs = item_documents(target)
+        if not any(d.get('path') == path for d in docs):
+            docs.append({'path': path,
+                         'filename': (str(doc.get('filename') or '')).strip() or None,
+                         'uploaded_at': _now()})
+        _set_item_documents(target, docs)
+
+    if 'remove_document' in fields:
+        path = (str(fields.get('remove_document') or '')).strip()
+        remaining = [d for d in item_documents(target) if d.get('path') != path]
+        _set_item_documents(target, remaining)
+        # The blob goes with it: a file nobody can reach from the checklist is a
+        # copy of somebody's ID sitting in a bucket with no owner.
+        if path:
+            _remove_document_blob(assignment, path)
+
     if 'document_url' in fields:
-        target['document_url'] = fields.get('document_url') or None
+        # Legacy single-document write, still used by the family portal upload.
+        url = fields.get('document_url') or None
+        _set_item_documents(target, [{'path': url, 'filename': None,
+                                      'uploaded_at': _now()}] if url else [])
 
     # Signing is what completes a signature item, so it implies status=complete
     # rather than needing the client to send both.

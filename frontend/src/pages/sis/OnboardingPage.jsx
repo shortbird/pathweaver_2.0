@@ -12,6 +12,7 @@ import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { itemDocuments } from './checklistDocuments'
 
 /**
  * OnboardingPage — role-switched.
@@ -74,12 +75,22 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
     setBusyKey(`${assignmentId}:${itemKey}`)
     try {
       const r = await api.post(withOrg('/api/sis/teacher/onboarding/upload', orgId), form)
-      await patchItem(assignmentId, itemKey, { document_url: r.data?.path, status: 'complete' })
+      // add_document, not document_url: an item holds a list now, so a second
+      // file is an addition rather than a replacement (iCreate asked for an ID
+      // and a birth certificate on one I-9 item and had nowhere to put the second).
+      await patchItem(assignmentId, itemKey, {
+        add_document: { path: r.data?.path, filename: file.name }, status: 'complete',
+      })
       toast.success('Document attached')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Upload failed')
       setBusyKey(null)
     }
+  }
+
+  const removeDoc = async (assignmentId, itemKey, doc) => {
+    if (!(await confirm(`Remove ${doc.filename || 'this document'}?`))) return
+    await patchItem(assignmentId, itemKey, { remove_document: doc.path })
   }
 
   const openDoc = async (path) => {
@@ -176,14 +187,20 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
                       />
                     )}
                     {item.needs_document && (
-                      <div className="mt-1.5 flex items-center gap-3">
-                        {item.document_url ? (
-                          <button onClick={() => openDoc(item.document_url)} className="text-sm text-optio-purple hover:underline">
-                            View document
-                          </button>
-                        ) : null}
-                        <label className={`text-sm text-optio-purple hover:underline cursor-pointer ${preview ? 'hidden' : ''}`}>
-                          {item.document_url ? 'Replace document' : 'Upload document'}
+                      <div className="mt-1.5 space-y-1">
+                        {itemDocuments(item).map((doc) => (
+                          <div key={doc.path} className="flex items-center gap-3">
+                            <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
+                              {doc.filename || 'View document'}
+                            </button>
+                            {!preview && (
+                              <button onClick={() => removeDoc(a.id, item.key, doc)}
+                                className="text-xs text-red-600 hover:underline">Remove</button>
+                            )}
+                          </div>
+                        ))}
+                        <label className={`inline-block text-sm text-optio-purple hover:underline cursor-pointer ${preview ? 'hidden' : ''}`}>
+                          {itemDocuments(item).length ? 'Add another document' : 'Upload document'}
                           <input type="file" className="hidden" disabled={busy}
                             onChange={(e) => e.target.files?.[0] && uploadDoc(a.id, item.key, e.target.files[0])} />
                         </label>
