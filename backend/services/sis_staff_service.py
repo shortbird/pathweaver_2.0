@@ -418,9 +418,19 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
 
 
 def my_onboarding_summary(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    """The person's own STAFF checklist for the teacher dashboard banner.
+
+    Both filters are load-bearing. Without `audience`, somebody who is a parent
+    as well as a teacher gets whichever assignment is newest — iCreate saw a
+    teacher dashboard reading "Finish your ALD Ordering Form Checklist", which is
+    a family checklist and lives in the family portal. Without `kind`, a document
+    sent for signature (its own row, one item) outranks the real checklist. Every
+    other read of this table filters both ways; this one did not.
+    """
     rows = (
         _admin().table('sis_onboarding_assignments').select('id, status, items, template_name')
         .eq('organization_id', org_id).eq('user_id', user_id)
+        .eq('audience', 'staff').eq('kind', 'checklist')
         .order('created_at', desc=True).limit(1).execute()
     ).data
     if not rows:

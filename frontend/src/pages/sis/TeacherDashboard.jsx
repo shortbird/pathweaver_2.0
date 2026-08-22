@@ -123,11 +123,18 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
       {/* Setup / action banners — kept up top because they gate the teacher's readiness. */}
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
-        <Link to="/my-tasks" className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
+        // /my-tasks is deliberately blind to preview — its writes would land on
+        // the admin — so an admin previewing a teacher followed this banner to
+        // their OWN tasks. /onboarding reads the previewed teacher's checklist.
+        <Link to={preview ? '/onboarding' : '/my-tasks'} className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
             Onboarding: {onboarding.done} of {onboarding.total} items complete
           </p>
-          <p className="text-sm text-amber-700">Finish your {onboarding.template_name || 'onboarding'} checklist</p>
+          <p className="text-sm text-amber-700">
+            {preview
+              ? `${preview.name || 'This teacher'} still has to finish their ${onboarding.template_name || 'onboarding'} checklist`
+              : `Finish your ${onboarding.template_name || 'onboarding'} checklist`}
+          </p>
         </Link>
       )}
 

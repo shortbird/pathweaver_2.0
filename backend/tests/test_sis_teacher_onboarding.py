@@ -376,3 +376,26 @@ class TestDuplicateTemplate:
         with patch.object(svc, '_admin', return_value=client):
             result = svc.duplicate_template(ORG, 'tmpl-1', actor_id='admin-1')
         assert result['status'] == 404
+
+
+@pytest.mark.unit
+class TestOnboardingBannerScope:
+    """The teacher dashboard's onboarding banner reads the person's own STAFF
+    checklist. It filtered on neither audience nor kind, so it showed whichever
+    assignment was newest — iCreate saw a teacher dashboard reading "Finish your
+    ALD Ordering Form Checklist", which is a FAMILY checklist belonging to the
+    same person in their parent capacity, and lives in the family portal."""
+
+    def _filters(self):
+        from services import sis_staff_service as svc
+        client, table = _admin_with([[{'id': 'a1', 'status': 'pending',
+                                       'items': [], 'template_name': 'Employee onboarding'}]])
+        with patch.object(svc, '_admin', return_value=client):
+            svc.my_onboarding_summary(ORG, 'user-1')
+        return {call[0][0]: call[0][1] for call in table.eq.call_args_list if len(call[0]) == 2}
+
+    def test_it_asks_only_for_the_staff_audience(self):
+        assert self._filters().get('audience') == 'staff'
+
+    def test_it_ignores_documents_sent_for_signature(self):
+        assert self._filters().get('kind') == 'checklist'
