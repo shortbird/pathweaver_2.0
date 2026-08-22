@@ -47,6 +47,9 @@ const TuitionApprovalPage = () => {
   const [search, setSearch] = useState('')
   const [payFilter, setPayFilter] = useState('')
   const [sort, setSort] = useState('default')
+  // The CLP used to keep a family off this page entirely. iCreate asked to see
+  // everyone (87d32ab1), so it is a filter the office chooses, not a gate.
+  const [clpFilter, setClpFilter] = useState('')
   const previewRef = useRef(null)
 
   const loadQueue = useCallback(() => {
@@ -94,6 +97,8 @@ const TuitionApprovalPage = () => {
     // "Which of these are Utah Fits All?" decides what the office sends and
     // when, so it filters the queue the same way the search box does.
     list = list.filter((s) => matchesPaymentFilter(s, payFilter))
+    if (clpFilter === 'finished') list = list.filter((s) => s.clp_finished)
+    else if (clpFilter === 'unfinished') list = list.filter((s) => !s.clp_finished)
     if (sort === 'name_asc') {
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     } else if (sort === 'name_desc') {
@@ -104,7 +109,7 @@ const TuitionApprovalPage = () => {
       list.sort((a, b) => (a.estimated_total_cents || 0) - (b.estimated_total_cents || 0))
     }
     return list
-  }, [queue, search, payFilter, sort])
+  }, [queue, search, payFilter, sort, clpFilter])
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + toCents(l.amountStr), 0), [lines])
   // Supply fees are seeded per class and are the part UFA remits as its own
@@ -260,12 +265,18 @@ const TuitionApprovalPage = () => {
                   rows={queue} value={payFilter} onChange={setPayFilter}
                   className="text-xs py-2"
                 />
+                <select value={clpFilter} onChange={(e) => setClpFilter(e.target.value)}
+                  className="text-xs py-2 border border-gray-200 rounded-lg px-2" aria-label="Learning plan">
+                  <option value="">Any learning plan</option>
+                  <option value="finished">CLP finished</option>
+                  <option value="unfinished">CLP not finished</option>
+                </select>
               </div>
-              {(search || payFilter) && (
+              {(search || payFilter || clpFilter) && (
                 <div className="text-xs text-neutral-500 flex items-center justify-between px-0.5">
                   <span>Showing {filteredQueue?.length || 0} of {queue.length}</span>
                   <button
-                    onClick={() => { setSearch(''); setPayFilter('') }}
+                    onClick={() => { setSearch(''); setPayFilter(''); setClpFilter('') }}
                     className="text-optio-purple hover:underline"
                   >
                     Clear filters
@@ -309,7 +320,10 @@ const TuitionApprovalPage = () => {
                     <span className="font-medium text-neutral-900">{s.name}</span>
                     <span className="text-sm font-semibold text-neutral-700">{money(s.estimated_total_cents)}</span>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500 flex-wrap">
+                    {!s.clp_finished && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">CLP not finished</span>
+                    )}
                     <span>{s.household_name || 'No family'}</span>
                     <span>·</span>
                     <span>{s.class_count} {s.class_count === 1 ? 'class' : 'classes'}</span>

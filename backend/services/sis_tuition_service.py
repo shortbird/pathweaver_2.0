@@ -32,6 +32,7 @@ from services import sis_service
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
 from services import sis_payment_profile as payment_profile
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 # sis_clp_service is imported lazily inside the functions that use it (same idiom
@@ -207,6 +208,29 @@ def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
     return tuition + supply_line_items(classes)
 
 
+def _enrolled_student_ids(org_id: str) -> List[str]:
+    """Every student with an active enrollment in one of this org's classes.
+
+    Paged: one row per enrollment across the whole school is exactly the read
+    that silently truncates at the PostgREST cap once an org grows, and a
+    truncated tuition queue is a family who never gets a bill.
+    """
+    class_ids = [c['id'] for c in catalog.list_classes(org_id)]
+    if not class_ids:
+        return []
+    rows = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active')
+    ))
+    seen, out = set(), []
+    for r in rows:
+        sid = r.get('student_id')
+        if sid and sid not in seen:
+            seen.add(sid)
+            out.append(sid)
+    return out
+
+
 def _invoiced_student_ids(org_id: str) -> set:
     """Student ids with any non-void invoice — they're out of the approve queue."""
     rows = (_admin().table('sis_invoices').select('student_user_id, status')
@@ -231,28 +255,36 @@ def _existing_invoice(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
 def pending_count(org_id: str) -> int:
     """How many students are waiting to be invoiced — the number without the queue.
 
+    Counts the same set tuition_queue() lists, CLP included or not; a tile that
+    disagrees with the page it links to is worse than no tile.
+
     tuition_queue() answers the same question, but to do it it prices every
     student's schedule: the catalog, their enrollments, their household and its
     funding source. That is the right work for the page and 8x the work for a
     dashboard tile, which needs one integer.
     """
-    from services import sis_clp_service as clp
-    finished = clp.finished_student_ids(org_id)
-    if not finished:
-        return 0
     invoiced = _invoiced_student_ids(org_id)
-    return len([sid for sid in finished if sid not in invoiced])
+    return len([sid for sid in _enrolled_student_ids(org_id) if sid not in invoiced])
 
 
 def tuition_queue(org_id: str) -> Dict[str, Any]:
-    """The tuition-approver queue: every CLP-finished student who has NOT yet been
-    invoiced, each with a total seeded from their finalized schedule."""
+    """The tuition-approver queue: every enrolled student not yet invoiced, each
+    with a total seeded from their schedule and a flag for whether their CLP is
+    finished.
+
+    The CLP used to be a gate — an unfinished plan meant the family did not
+    appear here at all. iCreate asked for it off ("Can I have everyone show up on
+    the tuition page whether or not they have completed their CLP, please?",
+    87d32ab1): the office knows which families are still mid-plan and would
+    rather see them and decide, than have the page silently omit them and be
+    unable to tell an empty queue from a hidden one. It rides along as
+    `clp_finished` so the page can badge and filter on it.
+    """
     from services import sis_clp_service as clp
     finished = clp.finished_student_ids(org_id)
-    if not finished:
-        return {'students': [], 'count': 0}
     invoiced = _invoiced_student_ids(org_id)
-    pending = [sid for sid in finished if sid not in invoiced]
+    enrolled = _enrolled_student_ids(org_id)
+    pending = [sid for sid in enrolled if sid not in invoiced]
     if not pending:
         return {'students': [], 'count': 0}
 
@@ -315,6 +347,7 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
             'stated_payment_methods': prof.get('methods') or [],
             'stated_ufa_private': prof.get('ufa_private'),
             'payment_plan': plan_pref.get(hh_id) or prof.get('plan'),
+            'clp_finished': sid in finished,
         })
     students.sort(key=lambda s: (s['name'] or '').lower())
     return {'students': students, 'count': len(students)}

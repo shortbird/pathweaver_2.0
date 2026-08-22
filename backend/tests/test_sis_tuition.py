@@ -5,6 +5,8 @@ Pure line-item seeding (per-class vs flat UFA plan) and the create_tuition_invoi
 validation branches, which reject bad input before ever touching the database.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 
 from services import sis_tuition_service as tuition
@@ -114,3 +116,60 @@ class TestCreateTuitionInvoiceValidation:
         assert billing.create_tuition_invoice(
             'org1', 's1', 'h1', [{'description': 'X', 'amount_cents': 100}],
             status='void')['error']
+
+
+@pytest.mark.unit
+class TestQueueShowsEveryone:
+    """iCreate: "Can I have everyone show up on the tuition page whether or not
+    they have completed their CLP, please?" (87d32ab1). The CLP was a gate, so a
+    family mid-plan was not on the page at all and an empty queue was
+    indistinguishable from a hidden one. It rides along as a flag now."""
+
+    def test_a_student_without_a_finished_clp_is_listed_and_flagged(self):
+        from services import sis_tuition_service as svc
+        with patch.object(svc, '_enrolled_student_ids', return_value=['s1', 's2']), \
+             patch.object(svc, '_invoiced_student_ids', return_value=set()), \
+             patch('services.sis_clp_service.finished_student_ids', return_value={'s1'}), \
+             patch.object(svc, '_sis_settings', return_value={}), \
+             patch.object(svc, '_org_private_school_name', return_value=None), \
+             patch.object(svc.catalog, 'list_classes', return_value=[]), \
+             patch.object(svc, '_admin') as admin, \
+             patch.object(svc.sis_service, '_household_by_user', return_value={}), \
+             patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
+            table = Mock()
+            admin.return_value.table.return_value = table
+            for chained in ('select', 'eq', 'in_', 'neq'):
+                getattr(table, chained).return_value = table
+            table.execute.return_value = Mock(data=[])
+            result = svc.tuition_queue('org-1')
+
+        by_id = {s['student_id']: s for s in result['students']}
+        assert set(by_id) == {'s1', 's2'}
+        assert by_id['s1']['clp_finished'] is True
+        assert by_id['s2']['clp_finished'] is False
+
+    def test_an_invoiced_student_still_drops_out(self):
+        from services import sis_tuition_service as svc
+        with patch.object(svc, '_enrolled_student_ids', return_value=['s1', 's2']), \
+             patch.object(svc, '_invoiced_student_ids', return_value={'s1'}), \
+             patch.object(svc, '_sis_settings', return_value={}), \
+             patch('services.sis_clp_service.finished_student_ids', return_value=set()), \
+             patch.object(svc, '_org_private_school_name', return_value=None), \
+             patch.object(svc.catalog, 'list_classes', return_value=[]), \
+             patch.object(svc, '_admin') as admin, \
+             patch.object(svc.sis_service, '_household_by_user', return_value={}), \
+             patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
+            table = Mock()
+            admin.return_value.table.return_value = table
+            for chained in ('select', 'eq', 'in_', 'neq'):
+                getattr(table, chained).return_value = table
+            table.execute.return_value = Mock(data=[])
+            result = svc.tuition_queue('org-1')
+        assert [s['student_id'] for s in result['students']] == ['s2']
+
+    def test_the_dashboard_tile_counts_what_the_page_lists(self):
+        """A tile that disagrees with the page it links to is worse than none."""
+        from services import sis_tuition_service as svc
+        with patch.object(svc, '_enrolled_student_ids', return_value=['s1', 's2', 's3']), \
+             patch.object(svc, '_invoiced_student_ids', return_value={'s3'}):
+            assert svc.pending_count('org-1') == 2

@@ -77,6 +77,10 @@ const BillingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'detail'
   const [month, setMonth] = useState('all')
+  // "I need to be able to sort the billing page by family as well to make it
+  // easier to record payments" (d406dd7a). Recording a stack of cheques means
+  // working family by family; the server order is by what is owed and when.
+  const [sortBy, setSortBy] = useState('default')
   const [ledger, setLedger] = useState(null)
   const [households, setHouseholds] = useState([])
 
@@ -95,6 +99,15 @@ const BillingPage = () => {
   const [invoiceFor, setInvoiceFor] = useState(null) // invoice id whose document is open
 
   const months = useMemo(monthOptions, [])
+
+  // Sorting is client-side: every row already carries family_name, and the
+  // server order (outstanding first, then soonest due) is the one to fall back
+  // to rather than re-implement.
+  const byFamily = (rows) => (!rows || sortBy !== 'family')
+    ? rows
+    : [...rows].sort((a, b) =>
+        (a.family_name || '').localeCompare(b.family_name || '')
+        || (a.student_name || '').localeCompare(b.student_name || ''))
 
   // ── Charges ledger ──────────────────────────────────────────────────────
   // Resolves to the rows it loaded: correcting a payment from a receipt reopens
@@ -225,6 +238,13 @@ const BillingPage = () => {
             >
               {months.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            <select
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort"
+            >
+              <option value="default">Owed first</option>
+              <option value="family">Family (A–Z)</option>
+            </select>
             <div className="flex-1" />
             <Button size="sm" onClick={() => setShowAdd(true)}>+ Add charge</Button>
           </div>
@@ -248,7 +268,7 @@ const BillingPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {ledger.map((row) => {
+                  {byFamily(ledger).map((row) => {
                     const pill = rowPill(row)
                     const balance = row.balance_cents ?? ((row.total_cents || 0) - (row.amount_paid_cents || 0))
                     return (
@@ -294,6 +314,14 @@ const BillingPage = () => {
               {sendingReminders ? 'Sending…' : 'Send payment reminders'}
             </Button>
             <Button size="sm" variant="secondary" onClick={printArea}>Print</Button>
+            <div className="flex-1" />
+            <select
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort"
+            >
+              <option value="default">Most overdue first</option>
+              <option value="family">Family (A–Z)</option>
+            </select>
           </div>
           {outstanding === null && <p className="text-neutral-500">Loading…</p>}
           {outstanding?.length === 0 && <p className="text-neutral-500">No outstanding balances. Every charge is paid up.</p>}
@@ -314,7 +342,7 @@ const BillingPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {outstanding.map((row) => (
+                  {byFamily(outstanding).map((row) => (
                     // The row opens what was actually sent. Chasing a payment
                     // starts with "what did we send them?", and reading it off a
                     // summary line is how the office and the family end up
