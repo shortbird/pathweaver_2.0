@@ -183,6 +183,9 @@ const FamilyPortalPage = () => {
                 <h2 className="font-semibold text-gray-900">{a.template_name || 'Checklist'}</h2>
                 <span className="text-sm text-gray-500">{a.done_count}/{a.total_count} complete</span>
               </div>
+              {a.description && (
+                <p className="text-sm text-gray-600 whitespace-pre-line mb-3 -mt-1">{a.description}</p>
+              )}
               <ul className="divide-y divide-gray-100">
                 {(a.items || []).map((item) => {
                   const busy = busyKey === `${a.id}:${item.key}`

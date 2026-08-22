@@ -399,3 +399,39 @@ class TestOnboardingBannerScope:
 
     def test_it_ignores_documents_sent_for_signature(self):
         assert self._filters().get('kind') == 'checklist'
+
+
+@pytest.mark.unit
+class TestChecklistDirections:
+    """iCreate: "Can we add a place to put directions at the top of the
+    checklists?" Directions are snapshotted onto the assignment like the items,
+    so editing a template never rewrites the instructions under somebody who is
+    already halfway through."""
+
+    def test_save_persists_the_directions(self):
+        from services import sis_onboarding_service as svc
+        client, table = _admin_with([[{'id': 't1'}]])
+        with patch.object(svc, '_admin', return_value=client):
+            svc.save_template(ORG, {'name': 'Employee', 'description': '  Work top to bottom.  ',
+                                    'items': [{'title': 'Sign contract'}]}, actor_id='admin-1')
+        assert table.insert.call_args[0][0]['description'] == 'Work top to bottom.'
+
+    def test_blank_directions_store_as_null(self):
+        from services import sis_onboarding_service as svc
+        client, table = _admin_with([[{'id': 't1'}]])
+        with patch.object(svc, '_admin', return_value=client):
+            svc.save_template(ORG, {'name': 'Employee', 'description': '   ',
+                                    'items': [{'title': 'Sign contract'}]}, actor_id='admin-1')
+        assert table.insert.call_args[0][0]['description'] is None
+
+    def test_assigning_snapshots_the_directions(self):
+        from services import sis_onboarding_service as svc
+        template = {'id': 't1', 'organization_id': ORG, 'name': 'Employee',
+                    'description': 'Work top to bottom.', 'audience': 'staff',
+                    'items': [{'key': 'item_1', 'title': 'Sign contract'}]}
+        client, table = _admin_with([[template], [{'id': 'a1'}]])
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'assert_recipients_in_org'), \
+             patch.object(svc, 'sis_notifications'):
+            svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
+        assert table.insert.call_args[0][0]['description'] == 'Work top to bottom.'

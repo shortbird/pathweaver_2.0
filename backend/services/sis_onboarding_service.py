@@ -121,6 +121,8 @@ def save_template(org_id: str, data: Dict[str, Any], actor_id: str,
     audience = _clean_audience(data.get('audience'))
     payload = {'name': name, 'role_type': (data.get('role_type') or '').strip() or None,
                'audience': audience,
+               # Directions shown above the items when somebody opens the list.
+               'description': (data.get('description') or '').strip() or None,
                # Family checklists only — see send_for_signature on why a staff
                # audience never carries the hold.
                'blocks_access': bool(data.get('blocks_access')) and audience == 'family',
@@ -180,6 +182,7 @@ def duplicate_template(org_id: str, template_id: str, actor_id: str) -> Dict[str
         'created_by': actor_id,
         'name': name,
         'role_type': src.get('role_type'),
+        'description': src.get('description'),
         'audience': _clean_audience(src.get('audience')),
         'blocks_access': bool(src.get('blocks_access')),
         'items': cleaned,
@@ -287,6 +290,9 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     row = (_admin().table('sis_onboarding_assignments').insert({
         'organization_id': org_id, 'user_id': user_id,
         'template_id': template_id, 'template_name': template['name'],
+        # Snapshotted like the items: a later template edit must not rewrite the
+        # directions under somebody already working through the checklist.
+        'description': template.get('description'),
         # Snapshotted alongside the items: the portal a checklist belongs to must
         # not change when someone edits or deletes the template it came from.
         'audience': 'family' if is_family else 'staff',

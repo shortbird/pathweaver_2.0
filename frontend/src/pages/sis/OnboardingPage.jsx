@@ -123,6 +123,9 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
             <h2 className="font-semibold text-neutral-900">{a.template_name || 'Onboarding'}</h2>
             <span className="text-sm text-neutral-500">{a.done_count}/{a.total_count} complete</span>
           </div>
+          {a.description && (
+            <p className="text-sm text-neutral-600 whitespace-pre-line mb-3 -mt-1">{a.description}</p>
+          )}
           <ul className="divide-y divide-gray-100">
             {(a.items || []).map((item) => {
               const busy = busyKey === `${a.id}:${item.key}`
@@ -206,6 +209,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
   const [name, setName] = useState(template?.name || '')
   const [roleType, setRoleType] = useState(template?.role_type || '')
   const [audience, setAudience] = useState(template?.audience || 'staff')
+  const [description, setDescription] = useState(template?.description || '')
   const [items, setItems] = useState(template?.items?.length ? template.items : [emptyItem()])
   const [busy, setBusy] = useState(false)
 
@@ -237,7 +241,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
     if (!cleaned.length) { toast.error('Add at least one item'); return }
     setBusy(true)
     try {
-      const body = { organization_id: orgId, name: name.trim(), role_type: roleType.trim(), audience, items: cleaned }
+      const body = { organization_id: orgId, name: name.trim(), role_type: roleType.trim(), audience, description: description.trim(), items: cleaned }
       if (template?.id) await api.put(`/api/sis/staff-admin/onboarding/templates/${template.id}`, body)
       else await api.post('/api/sis/staff-admin/onboarding/templates', body)
       toast.success('Template saved')
@@ -259,6 +263,9 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           <option value="family">For families (their portal)</option>
         </select>
       </div>
+      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+        placeholder="Directions (optional) — shown at the top, above the items"
+        className={inputClass} aria-label="Directions" />
       {items.map((it, i) => (
         <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
           <div className="flex items-center gap-2">
