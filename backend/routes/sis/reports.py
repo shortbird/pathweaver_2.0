@@ -188,15 +188,16 @@ def student_schedule(user_id):
     """Master list of every student and which days / class blocks they come.
 
     iCreate (Molly), 2026-08-21: "I want to get a student report of a master
-    list of all students showing which days/class blocks they come."
+    list of all students showing which days/class blocks they come." Ages
+    added at their request a day later.
     """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
     report = reports.student_schedule_report(org_id)
     if request.args.get('format') == 'csv':
-        header = ['Student', 'Family', 'Days'] + [d['label'] for d in report['days']]
-        rows = [[r['student'], r['family'], r['days']]
+        header = ['Student', 'Age', 'Family', 'Days'] + [d['label'] for d in report['days']]
+        rows = [[r['student'], r.get('age', ''), r['family'], r['days']]
                 + [r['by_day'].get(d['key'], '') for d in report['days']]
                 for r in report['rows']]
         if report.get('has_unscheduled'):

@@ -4,6 +4,7 @@ Unit tests for SIS reports: pure aggregators + route gating.
 
 import json
 from contextlib import contextmanager
+from datetime import date
 from unittest.mock import Mock, patch
 
 import pytest
@@ -567,13 +568,15 @@ class TestStudentScheduleReport:
     ]
     ROSTER = [
         {'student_id': 's1', 'name': 'Nora Candland', 'is_student': True,
-         'household_name': 'Candland'},
+         'household_name': 'Candland', 'date_of_birth': '2013-06-01'},
         {'student_id': 's2', 'name': 'Ryder Swenson', 'is_student': True,
-         'household_name': 'Swenson'},
+         'household_name': 'Swenson', 'date_of_birth': '2019-12-31'},
+        # No DOB on file: the row still belongs on a master list.
         {'student_id': 's3', 'name': 'Ada Byron', 'is_student': True,
          'household_name': None},
         {'student_id': 'staff-1', 'name': 'Molly C', 'is_student': False},
     ]
+    TODAY = date(2026, 8, 22)
     ENROLLMENTS = [
         {'class_id': 'c1', 'student_id': 's1'},
         {'class_id': 'c2', 'student_id': 's1'},
@@ -582,8 +585,9 @@ class TestStudentScheduleReport:
     ]
 
     def _run(self, classes=None, enrollments=None, blocks=None, roster=None):
-        with patch('services.sis_catalog_service.list_classes',
-                   return_value=self.CLASSES if classes is None else classes), \
+        with patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+                patch('services.sis_catalog_service.list_classes',
+                      return_value=self.CLASSES if classes is None else classes), \
                 patch('services.sis_catalog_service.schedule_settings',
                       return_value={'time_blocks': self.TIME_BLOCKS if blocks is None else blocks}), \
                 patch('services.sis_service.get_roster',
@@ -625,6 +629,16 @@ class TestStudentScheduleReport:
         assert ada['days'] == ''
         assert all(v == '' for v in ada['by_day'].values())
 
+    def test_every_row_carries_the_student_age(self):
+        """iCreate (Molly), 2026-08-22: ages on the master list. Counted
+        against the school's own today, and blank — not zero, not an error —
+        for a student whose birthday nobody has entered yet."""
+        out = self._run()
+        ages = {r['student']: r['age'] for r in out['rows']}
+        assert ages['Nora Candland'] == '13'
+        assert ages['Ryder Swenson'] == '6'  # birthday still to come this year
+        assert ages['Ada Byron'] == ''
+
     def test_staff_are_not_students(self):
         out = self._run()
         assert 'Molly C' not in {r['student'] for r in out['rows']}
@@ -642,7 +656,8 @@ class TestStudentScheduleReport:
     def test_no_classes_reads_nothing_and_lists_everyone(self):
         """An empty `in_` list matches everything in PostgREST, so the
         enrollment read must be skipped entirely."""
-        with patch('services.sis_catalog_service.list_classes', return_value=[]), \
+        with patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+                patch('services.sis_catalog_service.list_classes', return_value=[]), \
                 patch('services.sis_catalog_service.schedule_settings',
                       return_value={'time_blocks': []}), \
                 patch('services.sis_service.get_roster', return_value=self.ROSTER), \
@@ -665,7 +680,8 @@ class TestStudentScheduleRoute:
     REPORT = {
         'days': [{'key': '2', 'label': 'Tue'}, {'key': '4', 'label': 'Thu'}],
         'has_unscheduled': False,
-        'rows': [{'student': 'Nora Candland', 'family': 'Candland', 'days': 'Tue Thu',
+        'rows': [{'student': 'Nora Candland', 'age': '13', 'family': 'Candland',
+                  'days': 'Tue Thu',
                   'by_day': {'2': 'Block 1: Pottery', '4': 'Block 2: Guitar Jam'},
                   'unscheduled': ''}],
     }
@@ -693,8 +709,8 @@ class TestStudentScheduleRoute:
         assert resp.status_code == 200
         assert resp.headers['Content-Disposition'] == 'attachment; filename=student-schedule.csv'
         lines = resp.data.decode().strip().splitlines()
-        assert lines[0] == 'Student,Family,Days,Tue,Thu'
-        assert lines[1] == 'Nora Candland,Candland,Tue Thu,Block 1: Pottery,Block 2: Guitar Jam'
+        assert lines[0] == 'Student,Age,Family,Days,Tue,Thu'
+        assert lines[1] == 'Nora Candland,13,Candland,Tue Thu,Block 1: Pottery,Block 2: Guitar Jam'
 
     def test_csv_adds_the_unscheduled_column_only_when_needed(self, client, auth_headers, mock_verify_token):
         rpt = {**self.REPORT, 'has_unscheduled': True,

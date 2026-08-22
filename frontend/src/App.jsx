@@ -129,6 +129,7 @@ const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
 const FamilyGoalsPage = lazy(() => import('./pages/FamilyGoalsPage'))
 const FamilyStudentPage = lazy(() => import('./pages/FamilyStudentPage'))
+const FamilyStudentSchedulePage = lazy(() => import('./pages/FamilyStudentSchedulePage'))
 const FamilyBillingPage = lazy(() => import('./pages/FamilyBillingPage'))
 const KioskPage = lazy(() => import('./pages/KioskPage'))
 // Marketing pages
@@ -609,6 +610,9 @@ function App() {
                     for each child (reviewed in a meeting with school staff). */}
                 <Route path="family/goals" element={<FamilyGoalsPage />} />
                 <Route path="family/students/:studentId" element={<FamilyStudentPage />} />
+                {/* Printable class schedule — the paper copy families kept
+                    asking the office for. */}
+                <Route path="family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
                 <Route path="family/billing" element={<FamilyBillingPage />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />

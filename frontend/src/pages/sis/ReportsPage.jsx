@@ -167,10 +167,10 @@ const shapeReport = (type, data, questionLabel) => {
     const unscheduled = report.has_unscheduled
     return {
       title: 'Student schedule',
-      columns: ['Student', 'Family', 'Days', ...days.map((d) => d.label),
+      columns: ['Student', 'Age', 'Family', 'Days', ...days.map((d) => d.label),
         ...(unscheduled ? ['Unscheduled classes'] : [])],
       rows: (report.rows || []).map((r) => [
-        r.student, r.family, r.days,
+        r.student, r.age ?? '', r.family, r.days,
         ...days.map((d) => r.by_day?.[d.key] ?? ''),
         ...(unscheduled ? [r.unscheduled] : []),
       ]),
@@ -608,7 +608,7 @@ const ReportsPage = () => {
               </ReportCard>
               <ReportCard
                 title="Student schedule"
-                description="A master list of every student showing which days they come, and which class blocks they're in each day."
+                description="A master list of every student with their age, showing which days they come and which class blocks they're in each day."
               >
                 <RunButton ariaLabel="View student schedule report" disabled={reportLoading || !orgId}
                   onClick={() => runReport('student-schedule')} />

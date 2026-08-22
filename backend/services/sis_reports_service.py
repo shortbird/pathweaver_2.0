@@ -712,8 +712,8 @@ def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
 
 
 def student_schedule_report(org_id: str) -> Dict[str, Any]:
-    """Master list: every student, the days they come, and the block each of
-    their classes fills on each day.
+    """Master list: every student, their age, the days they come, and the
+    block each of their classes fills on each day.
 
     Day columns are whichever days the org's active classes actually meet, so
     a Tue-Thu school gets a Tue-Thu sheet, Monday-first. Students with no
@@ -769,6 +769,12 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         {d for entries in slots_by_class.values() for d, _, _ in entries},
         key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
 
+    # iCreate (Molly), 2026-08-22: the office wants ages on this list too —
+    # who comes when reads differently for a 5-year-old than a 15-year-old.
+    # Counted against the school's own today, like the roster report, so a
+    # birthday turns over on the school's date rather than UTC's.
+    today = _org_today(org_id)
+
     rows = []
     for s in sis_service.get_roster(org_id):
         if not s.get('is_student'):
@@ -776,6 +782,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         sched = by_student.get(s['student_id'], {})
         rows.append({
             'student': s['name'],
+            'age': _age_years(s.get('date_of_birth'), today),
             'family': s.get('household_name') or '',
             'days': ' '.join(DOW_SHORT[d] for d in days_present if sched.get(d)),
             'by_day': {str(d): '; '.join(t for _, t in sorted(sched.get(d, [])))
