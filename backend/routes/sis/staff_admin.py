@@ -23,6 +23,7 @@ from services import sis_service
 from services import sis_staff_service as staff
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
+from services import sis_form_template_service as form_templates
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import ADMIN_ROLES, FINANCE_ROLES
@@ -204,6 +205,73 @@ def add_form_comment(user_id, submission_id):
 
 
 # ── Onboarding admin ─────────────────────────────────────────────────────────
+
+# ── Form templates (the builder) ─────────────────────────────────────────────
+# ADMIN_ROLES: building a form is operational, not financial, so a campus
+# coordinator authors them like any other front-office work.
+
+@bp.route('/form-templates', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_form_templates(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'templates': form_templates.list_templates(org_id),
+                    'field_types': list(form_templates.FIELD_TYPES)})
+
+
+@bp.route('/form-templates', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_form_template(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = form_templates.save_template(org_id, request.get_json() or {}, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/form-templates/<template_id>', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def update_form_template(user_id, template_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = form_templates.save_template(org_id, request.get_json() or {},
+                                          actor_id=user_id, template_id=template_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/form-templates/<template_id>/duplicate', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_form_template(user_id, template_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = form_templates.duplicate_template(org_id, template_id, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/form-templates/<template_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_form_template(user_id, template_id):
+    """409 with submission_count when submissions exist, unless ?force=1."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    force = str(request.args.get('force', '')).lower() in ('1', 'true', 'yes')
+    result = form_templates.delete_template(org_id, template_id, force=force)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error'],
+                        'submission_count': result.get('submission_count')}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
 
 @bp.route('/onboarding/templates', methods=['GET'])
 @require_role(*ADMIN_ROLES)

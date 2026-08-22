@@ -905,6 +905,20 @@ def _user_org_roles(u: Dict[str, Any]) -> List[str]:
     return list(dict.fromkeys(roles))
 
 
+def effective_roles(user_id: str) -> List[str]:
+    """Every org role this person holds, for role-narrowed lists.
+
+    A superadmin is given the full staff set: they are not a member of the org,
+    so a visible_to_roles narrowing would otherwise hide everything from the one
+    person who is supposed to be able to see all of it.
+    """
+    ctx = get_user_org_context(user_id) or {}
+    if ctx.get('role') == 'superadmin':
+        from utils.sis_roles import TARGETABLE_STAFF_ROLES
+        return list(TARGETABLE_STAFF_ROLES)
+    return _user_org_roles(ctx)
+
+
 def _archived_staff_ids(org_id: str) -> set:
     """Staff whose profile has been archived — hidden from staff lists but still
     attached to their history (see sis_staff_service.archive_staff)."""

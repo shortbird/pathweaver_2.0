@@ -228,13 +228,19 @@ class TestTimeClockService:
 
 @pytest.mark.unit
 class TestFormsService:
+    """submit() asks whether the org has built its own form of this key before
+    falling back to the built-ins, so these mock that lookup away — an
+    org-defined form has its own path, covered in test_sis_form_templates."""
+
     def test_submit_requires_body(self):
         from services import sis_forms_service as forms
-        assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'incident', 'body': ''})
+        with patch('services.sis_form_template_service.get_template', return_value=None):
+            assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'incident', 'body': ''})
 
     def test_submit_rejects_unknown_type(self):
         from services import sis_forms_service as forms
-        assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'nope', 'body': 'x'})
+        with patch('services.sis_form_template_service.get_template', return_value=None):
+            assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'nope', 'body': 'x'})
 
     def test_submit_notifies_admins(self):
         from services import sis_forms_service as forms
@@ -249,6 +255,7 @@ class TestFormsService:
         table.execute.side_effect = [Mock(data=[{'feature_flags': {}}]),
                                      Mock(data=[{'id': 'f1', 'title': 'Broken sink'}])]
         with patch('services.sis_forms_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_service.org_admin_ids', return_value=['a1', 'a2']), \
              patch('services.sis_forms_service.sis_notifications.notify') as notify:
             result = forms.submit('org-1', 'u1', {'form_type': 'maintenance', 'body': 'Sink is broken',

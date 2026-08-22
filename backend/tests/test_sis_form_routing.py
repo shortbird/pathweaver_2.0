@@ -58,9 +58,12 @@ def _org_client(flags, inserted, updates=None):
     return client
 
 
-def _submit(flags, data, allow_assign=False, submitter=TEACHER):
+def _submit(flags, data, allow_assign=False, submitter=TEACHER, template=None):
+    """`template` is the org-defined form for this key, if any — submit() looks
+    for one before falling back to the built-in types."""
     inserted, notices = [], []
     with patch.object(forms, '_admin', return_value=_org_client(flags, inserted)), \
+         patch('services.sis_form_template_service.get_template', return_value=template), \
          patch.object(forms.sis_service, 'org_admin_ids', return_value=['office-1']), \
          patch.object(forms.sis_notifications, 'notify',
                       side_effect=lambda uid, title, body, **kw: notices.append((uid, title))):

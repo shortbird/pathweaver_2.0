@@ -290,9 +290,14 @@ def my_forms(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    from services import sis_form_template_service as form_templates
     return jsonify({'success': True,
                     'submissions': forms.list_mine(org_id, _read_target(user_id, org_id)),
-                    'form_types': forms.FORM_TYPES})
+                    'form_types': forms.FORM_TYPES,
+                    # Built-ins and the school's own forms in one list, with the
+                    # questions each one asks.
+                    'forms': form_templates.submittable_forms(
+                        org_id, 'staff', roles=sis_service.effective_roles(user_id))})
 
 
 @bp.route('/forms', methods=['POST'])

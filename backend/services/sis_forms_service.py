@@ -118,25 +118,52 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
     the submission can be created already assigned, prioritised and dated —
     that is what makes it a task ("Printer in Room 3 is not working → assign to
     the campus coordinator")."""
+    from services import sis_form_template_service as templates
+
     form_type = data.get('form_type')
-    # Staff callers use FORM_TYPES; parent callers use PARENT_FORM_TYPES.
-    allowed = PARENT_FORM_TYPES if submitter_role == 'parent' else FORM_TYPES
-    if form_type not in allowed:
-        return {'error': 'Unknown form type'}
-    label = allowed[form_type]
-    body = (data.get('body') or '').strip()
-    if not body:
-        return {'error': 'Please describe the issue or request'}
-    payload = {
-        'body': body,
-        'location': (data.get('location') or '').strip() or None,
-        'occurred_at': (data.get('occurred_at') or '').strip() or None,
-    }
+    # An org-defined form wins over a built-in of the same key: a school that
+    # builds its own "Supply request" gets its own questions, and everything
+    # already filed under that key still resolves.
+    template = templates.get_template(org_id, form_type) if form_type else None
+    if template and not template.get('is_active'):
+        return {'error': 'That form has been retired'}
+    if template:
+        wanted = 'family' if submitter_role == 'parent' else 'staff'
+        if template.get('audience') != wanted:
+            return {'error': 'That form is not available to you'}
+        label = template.get('name') or form_type
+        payload, err = templates.validate_answers(template, data.get('answers'))
+        if err:
+            return {'error': err}
+        # Column-bound answers (a student picker, a class picker) are lifted out
+        # of the payload onto the row, which is what makes a behaviour report
+        # findable from the student's record rather than prose in a queue.
+        for f in (template.get('fields') or []):
+            column = templates.COLUMN_BOUND.get(f.get('type'))
+            if column and payload.get(f['key']):
+                data.setdefault(column, payload[f['key']])
+    else:
+        # Staff callers use FORM_TYPES; parent callers use PARENT_FORM_TYPES.
+        allowed = PARENT_FORM_TYPES if submitter_role == 'parent' else FORM_TYPES
+        if form_type not in allowed:
+            return {'error': 'Unknown form type'}
+        label = allowed[form_type]
+        body = (data.get('body') or '').strip()
+        if not body:
+            return {'error': 'Please describe the issue or request'}
+        payload = {
+            'body': body,
+            'location': (data.get('location') or '').strip() or None,
+            'occurred_at': (data.get('occurred_at') or '').strip() or None,
+        }
     row_fields = {
         'organization_id': org_id,
         'submitted_by': user_id,
         'submitter_role': submitter_role,
         'form_type': form_type,
+        # Recorded, not computed at read time: once a school can rename its own
+        # form types, deriving the label would rewrite what old submissions say.
+        'form_type_label': label,
         'title': (data.get('title') or '').strip() or label,
         'payload': payload,
         'student_user_id': data.get('student_user_id') or None,
@@ -158,10 +185,15 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
     # to whoever covers classes, maintenance to whoever holds the keys. A person
     # who DID name an assignee always wins over the rule.
     if not assigned_to:
-        routed = routing(org_id).get(form_type)
+        # The form's own default first (it is the more specific rule), then the
+        # org-wide routing map. A person who named an assignee beats both.
+        routed = (template or {}).get('default_assignee_id') or routing(org_id).get(form_type)
         if routed:
             assigned_to = routed
             row_fields['assigned_to'] = routed
+    if template and template.get('default_priority') and not row_fields.get('priority'):
+        # An injury report opens at high without anyone remembering to set it.
+        row_fields['priority'] = template['default_priority']
     row = (_admin().table('sis_form_submissions').insert(row_fields).execute()).data
     submission = row[0] if row else None
     title = (submission or {}).get('title') or label
@@ -199,7 +231,10 @@ def _decorate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         r['submitted_by_name'] = names.get(r.get('submitted_by'))
         r['student_name'] = names.get(r.get('student_user_id'))
         r['assigned_to_name'] = names.get(r.get('assigned_to'))
-        r['form_type_label'] = ALL_FORM_TYPES.get(r.get('form_type'), r.get('form_type'))
+        # The stored label wins; the lookup is the fallback for rows filed
+        # before it was recorded.
+        r['form_type_label'] = (r.get('form_type_label')
+                                or ALL_FORM_TYPES.get(r.get('form_type'), r.get('form_type')))
     return rows
 
 
