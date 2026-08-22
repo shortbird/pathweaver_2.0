@@ -245,12 +245,20 @@ export default function ClassFieldsEditor({
               </select>
             </div>
           ) : (
-            <div className="flex gap-1.5">
+            /* Stacked, not side by side: in the five-across Schedule band the
+               column is ~115px, and a native time input's minimum width alone
+               fills it — the duration box next to it was squeezed invisible
+               (Gryffin, 2026-08-22: "I added a start time and I don't see
+               where duration is"). */
+            <div className="flex flex-col gap-1.5">
               <input type="time" className={cell} value={d.start_time} aria-label="Start time"
                 onChange={(e) => set({ start_time: e.target.value })} />
-              <input type="number" className={`${cell} w-20`} min={5} step={5} placeholder="min"
-                aria-label="Duration (minutes)" value={d.duration_minutes}
-                onChange={(e) => set({ duration_minutes: e.target.value })} />
+              <div className="relative">
+                <input type="number" className={`${cell} pr-10`} min={5} step={5} placeholder="Length"
+                  aria-label="Duration (minutes)" value={d.duration_minutes}
+                  onChange={(e) => set({ duration_minutes: e.target.value })} />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 pointer-events-none">min</span>
+              </div>
             </div>
           )}
         </Field>
