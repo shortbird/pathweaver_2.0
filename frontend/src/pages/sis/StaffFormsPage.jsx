@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import SearchSelect from '../../components/ui/SearchSelect'
 
 /**
  * StaffFormsPage — staff forms and the internal task system (iCreate Phase 2).
@@ -49,8 +50,106 @@ const StatusPill = ({ status }) => (
 
 // Exported: the Task Center opens this in a dialog from its "Assign or send"
 // menu, so filing a task no longer means leaving the page you track tasks on.
-export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, admin = false, staff = [], embedded = false }) => {
-  const [formType, setFormType] = useState('incident')
+/**
+ * One question on an org-defined form. The server validates what comes back —
+ * this is the affordance, not the gate.
+ */
+// The classic three fields, and everything an org-defined form asked for.
+// Reading the answers off the template would break the moment a form is edited,
+// so a submission is rendered from what it actually stored.
+const BUILTIN_PAYLOAD_KEYS = ['body', 'location', 'occurred_at']
+
+export const AnswerList = ({ payload, fields }) => {
+  const answered = Object.entries(payload || {})
+    .filter(([k]) => !BUILTIN_PAYLOAD_KEYS.includes(k))
+  if (!answered.length) return null
+  const labels = Object.fromEntries((fields || []).map((f) => [f.key, f.label]))
+  const show = (v) => (v === true ? 'Yes' : v === false ? 'No' : String(v))
+  return (
+    <dl className="text-sm space-y-1.5">
+      {answered.map(([key, value]) => (
+        <div key={key}>
+          <dt className="text-xs font-medium text-neutral-500">
+            {labels[key] || key.replace(/_/g, ' ')}
+          </dt>
+          <dd className="text-neutral-700 whitespace-pre-wrap">
+            {value == null || value === '' ? <span className="text-neutral-400">Not answered</span> : show(value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+export const FormField = ({ field, value, onChange, students = [], classes = [], staff = [] }) => {
+  const label = (
+    <span className="block text-xs font-medium text-neutral-600 mb-1">
+      {field.label}{field.required ? <span className="text-red-500"> *</span> : null}
+    </span>
+  )
+  const hint = field.help
+    ? <span className="block text-[11px] text-neutral-500 mt-0.5">{field.help}</span>
+    : null
+
+  const pick = (options, getLabel, placeholder) => (
+    <SearchSelect value={value || ''} onChange={onChange} options={options}
+      getId={(o) => o.id} getLabel={getLabel} placeholder={placeholder}
+      emptyLabel={field.required ? '' : 'Leave blank'} />
+  )
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className="flex items-start gap-2 text-sm text-neutral-700">
+        <input type="checkbox" checked={!!value} className="mt-0.5 accent-optio-purple"
+          onChange={(e) => onChange(e.target.checked)} />
+        <span>{field.label}{field.required ? <span className="text-red-500"> *</span> : null}{hint}</span>
+      </label>
+    )
+  }
+
+  return (
+    <label className="block">
+      {label}
+      {field.type === 'long_text' && (
+        <textarea rows={4} value={value || ''} onChange={(e) => onChange(e.target.value)}
+          className={`${inputClass} resize-none`} />
+      )}
+      {field.type === 'short_text' && (
+        <input value={value || ''} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      )}
+      {field.type === 'date' && (
+        <input type="date" value={value || ''} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      )}
+      {field.type === 'number' && (
+        <input type="number" value={value ?? ''} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      )}
+      {field.type === 'select' && (
+        <select value={value || ''} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+          <option value="">Choose…</option>
+          {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )}
+      {field.type === 'student' && pick(students, (s) => s.name, 'Find a student…')}
+      {field.type === 'class' && pick(classes, (c) => c.name, 'Find a class…')}
+      {field.type === 'staff' && pick(staff, (s) => s.name || s.display_name || s.email, 'Find a staff member…')}
+      {hint}
+    </label>
+  )
+}
+
+export const SubmitForm = ({ orgId, formTypes, forms = [], onSubmitted, disabled = false, admin = false, staff = [], students = [], classes = [], embedded = false }) => {
+  // `forms` carries the school's own forms alongside the built-ins, each with
+  // the questions it asks. A built-in has no fields, which is what says "render
+  // the classic body/location form".
+  const options = forms.length
+    ? forms
+    : Object.entries(formTypes || {}).map(([key, name]) => ({ key, name, fields: [] }))
+  const [formType, setFormType] = useState(options[0]?.key || 'incident')
+  const active = options.find((f) => f.key === formType) || options[0]
+  const custom = (active?.fields || []).length > 0
+
+  const [answers, setAnswers] = useState({})
+  const setAnswer = (key, value) => setAnswers((a) => ({ ...a, [key]: value }))
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [location, setLocation] = useState('')
@@ -61,14 +160,16 @@ export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, ad
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!body.trim()) { toast.error('Please describe the issue or request'); return }
+    if (!custom && !body.trim()) { toast.error('Please describe the issue or request'); return }
     setBusy(true)
     try {
-      const payload = {
-        organization_id: orgId, form_type: formType,
-        title: title.trim() || undefined, body: body.trim(),
-        location: location.trim() || undefined,
-      }
+      // The server validates either way; this only decides what to send.
+      const payload = custom
+        ? { organization_id: orgId, form_type: formType,
+            title: title.trim() || undefined, answers }
+        : { organization_id: orgId, form_type: formType,
+            title: title.trim() || undefined, body: body.trim(),
+            location: location.trim() || undefined }
       if (admin) {
         // The staff-admin create door may assign; a teacher's cannot.
         await api.post('/api/sis/staff-admin/forms', {
@@ -83,7 +184,8 @@ export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, ad
       toast.success(admin && assignTo
         ? 'Task created and assigned'
         : 'Submitted — your administrator has been notified')
-      setTitle(''); setBody(''); setLocation(''); setAssignTo(''); setPriority('normal'); setDueDate('')
+      setTitle(''); setBody(''); setLocation(''); setAnswers({})
+      setAssignTo(''); setPriority('normal'); setDueDate('')
       onSubmitted()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not submit the form')
@@ -115,15 +217,26 @@ export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, ad
           available"). Choosing a type writes nothing; Submit is the write, and
           Submit is what preview turns off. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <select aria-label="Form type" value={formType} onChange={(e) => setFormType(e.target.value)} className={inputClass}>
-          {Object.entries(formTypes).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        <select aria-label="Form type" value={formType}
+          onChange={(e) => { setFormType(e.target.value); setAnswers({}) }} className={inputClass}>
+          {options.map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
         </select>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title (optional)"
           disabled={disabled} className={`${inputClass}${disabled ? ' opacity-60' : ''}`} />
       </div>
       <fieldset disabled={disabled} className={disabled ? 'opacity-60 space-y-3' : 'space-y-3'}>
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4}
-        placeholder="What happened / what do you need?" className={`${inputClass} resize-none`} />
+      {active?.description && (
+        <p className="text-sm text-neutral-600 whitespace-pre-line">{active.description}</p>
+      )}
+      {custom ? (
+        active.fields.map((f) => (
+          <FormField key={f.key} field={f} value={answers[f.key]}
+            onChange={(v) => setAnswer(f.key, v)} students={students} classes={classes} staff={staff} />
+        ))
+      ) : (
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4}
+          placeholder="What happened / what do you need?" className={`${inputClass} resize-none`} />
+      )}
       {admin && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="text-xs text-neutral-500">
@@ -147,7 +260,9 @@ export const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, ad
         </div>
       )}
       <div className="flex items-center gap-3">
-        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location (optional)" className={inputClass} />
+        {!custom && (
+          <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location (optional)" className={inputClass} />
+        )}
         <button type="submit" disabled={busy || disabled}
           className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50 shrink-0">
           {busy ? 'Submitting…' : 'Submit'}
@@ -246,6 +361,18 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   const [openRow, setOpenRow] = useState(() => openSubmissionId || null)
   const [commentsOpen, setCommentsOpen] = useState(
     () => (openSubmissionId ? { [openSubmissionId]: true } : {}))
+  // form_type -> its questions, so a submission's stored answers can be shown
+  // under the labels they were asked under. Best-effort: a submission renders
+  // its answers with or without this.
+  const [formFieldsByType, setFormFieldsByType] = useState({})
+
+  useEffect(() => {
+    if (!orgId) return
+    api.get(withOrg('/api/sis/staff-admin/form-templates', orgId))
+      .then((r) => setFormFieldsByType(Object.fromEntries(
+        (r.data?.templates || []).map((t) => [t.key, t.fields || []]))))
+      .catch(() => setFormFieldsByType({}))
+  }, [orgId])
 
   const load = useCallback(() => {
     api.get(withOrg(`/api/sis/staff-admin/forms${view ? `?status=${view}` : ''}`, orgId))
@@ -379,8 +506,11 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
 
               {expanded && (
                 <div className="pb-3 px-2">
-                  <p className="text-sm text-neutral-600 whitespace-pre-wrap">{f.payload?.body}</p>
+                  {f.payload?.body && (
+                    <p className="text-sm text-neutral-600 whitespace-pre-wrap">{f.payload.body}</p>
+                  )}
                   {f.payload?.location && <p className="text-xs text-neutral-400 mt-0.5">Location: {f.payload.location}</p>}
+                  <AnswerList payload={f.payload} fields={formFieldsByType?.[f.form_type]} />
                   {f.resolution_notes && (
                     <p className="text-sm text-green-700 mt-1">Resolution: {f.resolution_notes}</p>
                   )}
@@ -457,12 +587,20 @@ const StaffFormsPage = () => {
   const [preview] = useState(() => (isSisAdmin(user) ? getPreviewTeacher() : null))
   const [mine, setMine] = useState([])
   const [formTypes, setFormTypes] = useState({})
+  // Built-ins and the school's own forms, each with the questions it asks.
+  const [forms, setForms] = useState([])
   const [staff, setStaff] = useState([])
+  const [students, setStudents] = useState([])
+  const [classes, setClasses] = useState([])
 
   const loadMine = useCallback(() => {
     if (!orgId) return
     api.get(withPreview(withOrg('/api/sis/teacher/forms', orgId), preview))
-      .then((r) => { setMine(r.data?.submissions || []); setFormTypes(r.data?.form_types || {}) })
+      .then((r) => {
+        setMine(r.data?.submissions || [])
+        setFormTypes(r.data?.form_types || {})
+        setForms(r.data?.forms || [])
+      })
       .catch(() => toast.error('Failed to load your submissions'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
@@ -478,6 +616,18 @@ const StaffFormsPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, admin, preview?.id])
 
+  // Rosters for the student / class questions an org-defined form can ask.
+  // Best-effort: a form that does not ask for one never notices these missing.
+  useEffect(() => {
+    if (!orgId) return
+    api.get(withOrg('/api/sis/roster', orgId))
+      .then((r) => setStudents((r.data?.roster || []).filter((p) => p.is_student)))
+      .catch(() => setStudents([]))
+    api.get(withOrg('/api/sis/classes', orgId))
+      .then((r) => setClasses(r.data?.classes || []))
+      .catch(() => setClasses([]))
+  }, [orgId])
+
   return (
     <div className="space-y-6">
       <div>
@@ -488,9 +638,10 @@ const StaffFormsPage = () => {
         </div>
       </div>
 
-      {Object.keys(formTypes).length > 0 && (
-        <SubmitForm orgId={orgId} formTypes={formTypes} onSubmitted={loadMine}
-          disabled={Boolean(preview)} admin={admin && !preview} staff={staff} />
+      {(forms.length > 0 || Object.keys(formTypes).length > 0) && (
+        <SubmitForm orgId={orgId} formTypes={formTypes} forms={forms} onSubmitted={loadMine}
+          disabled={Boolean(preview)} admin={admin && !preview}
+          staff={staff} students={students} classes={classes} />
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">

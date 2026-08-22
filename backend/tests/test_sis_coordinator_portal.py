@@ -252,6 +252,7 @@ class TestTaskSystem:
         notified = []
         with patch('services.sis_forms_service.get_supabase_admin_client',
                    return_value=client), \
+             patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_forms_service.sis_service') as svc, \
              patch('services.sis_notifications.notify',
                    side_effect=lambda uid, *a, **k: notified.append(uid)):
@@ -275,6 +276,7 @@ class TestTaskSystem:
         client, table = _stub_client([[{'id': 'f3'}]])
         with patch('services.sis_forms_service.get_supabase_admin_client',
                    return_value=client), \
+             patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_forms_service.sis_service') as svc, \
              patch('services.sis_notifications.notify'):
             svc.org_admin_ids.return_value = []

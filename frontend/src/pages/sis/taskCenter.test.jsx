@@ -261,10 +261,19 @@ describe('the tabs', () => {
       api.get.mock.calls.some(([u]) => u.includes('/api/sis/staff-admin/forms'))).toBe(true))
   })
 
-  it('switches to the checklists tab', async () => {
+  it('switches to the forms and checklists tab', async () => {
     renderPage('/tasks')
-    fireEvent.click(await screen.findByRole('button', { name: 'Checklists' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Forms & checklists' }))
     await waitFor(() => expect(
       api.get.mock.calls.some(([u]) => u.includes('/onboarding/templates'))).toBe(true))
+  })
+
+  it('builds forms on the same tab as checklists', async () => {
+    // b0d6324a: two screens to set up what is, to the office, one packet.
+    renderPage('/tasks')
+    fireEvent.click(await screen.findByRole('button', { name: 'Forms & checklists' }))
+    await waitFor(() => expect(
+      api.get.mock.calls.some(([u]) => u.includes('/form-templates'))).toBe(true))
+    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
   })
 })

@@ -12,6 +12,7 @@ import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModa
 import SignatureBatches from '../../components/sis/tasks/SignatureBatches'
 import FormRoutingModal from '../../components/sis/tasks/FormRoutingModal'
 import { AdminQueue, SubmitForm } from './StaffFormsPage'
+import FormBuilder from '../../components/sis/tasks/FormBuilder'
 import { AdminOnboarding } from './OnboardingPage'
 
 /**
@@ -36,7 +37,9 @@ import { AdminOnboarding } from './OnboardingPage'
 
 const TABS = [
   ['requests', 'Requests'],
-  ['checklists', 'Checklists'],
+  // Named for what it holds now: the school's own forms are built here too,
+  // alongside the checklists (b0d6324a, 16b736f3).
+  ['checklists', 'Forms & checklists'],
   ['paperwork', 'Sent paperwork'],
 ]
 
@@ -191,6 +194,7 @@ const TaskCenterPage = () => {
         </div>
         <p className="text-sm text-neutral-500 mt-1">
           Forms, requests and tasks, onboarding checklists, and documents sent out for signature.
+          Build your own forms and checklists under Forms & checklists.
         </p>
       </div>
 
@@ -220,7 +224,16 @@ const TaskCenterPage = () => {
           openSubmissionId={openSubmissionId} onCount={countRequests} />
       )}
       {tab === 'checklists' && (
-        <AdminOnboarding key={`chk-${refreshKey}`} orgId={orgId} onCount={countChecklists} />
+        // One place to build paperwork: the school's own forms and its
+        // checklists, side by side. They stay separate records underneath --
+        // a checklist carries signatures and per-item document review, a form
+        // carries questions and routing, and flattening them would cost both.
+        // But building them was two different screens, which is what "combine
+        // onboarding with forms" was really about (b0d6324a, 16b736f3).
+        <div className="space-y-4">
+          <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} />
+          <AdminOnboarding key={`chk-${refreshKey}`} orgId={orgId} onCount={countChecklists} />
+        </div>
       )}
       {tab === 'paperwork' && (
         <SignatureBatches
