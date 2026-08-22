@@ -46,6 +46,8 @@ const toMin = (t) => {
   return (Number.isNaN(h) ? null : h * 60 + (m || 0))
 }
 
+// Exported below as formatTime, so surfaces that list the same meetings in
+// prose (the printable family schedule) read times exactly like the grid does.
 const fmt = (t) => {
   const m = toMin(t)
   if (m == null) return ''
@@ -229,4 +231,5 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
   )
 }
 
+export { fmt as formatTime }
 export default WeeklySchedule

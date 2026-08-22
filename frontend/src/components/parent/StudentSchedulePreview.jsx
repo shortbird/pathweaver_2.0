@@ -48,14 +48,24 @@ const StudentSchedulePreview = ({ studentId }) => {
             {homeCourses.length > 0 && ` · ${homeCourses.length} at-home course${homeCourses.length === 1 ? '' : 's'}`}
           </p>
         </div>
-        {locked ? (
-          <span className="text-sm text-neutral-400">Schedule changes are handled by {orgName || 'the school'}.</span>
-        ) : (
-          <Link to="/schedule-builder"
-            className="btn-primary">
-            {classes.length ? 'Make changes' : 'Build the schedule'}
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {/* A paper copy for the fridge. Only worth offering once there is a
+              week to print. */}
+          {classes.length > 0 && (
+            <Link to={`/family/students/${studentId}/schedule`}
+              className="text-sm text-optio-purple font-medium hover:underline">
+              Print
+            </Link>
+          )}
+          {locked ? (
+            <span className="text-sm text-neutral-400">Schedule changes are handled by {orgName || 'the school'}.</span>
+          ) : (
+            <Link to="/schedule-builder"
+              className="btn-primary">
+              {classes.length ? 'Make changes' : 'Build the schedule'}
+            </Link>
+          )}
+        </div>
       </div>
 
       {classes.length > 0 ? (
