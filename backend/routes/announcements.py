@@ -75,7 +75,34 @@ def create_announcement(user_id):
         if sender_role != 'superadmin' and sender.get('organization_id') != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
-        result = announcement_service.publish(org_id, user_id, title, content, audiences)
+        # Targeting is optional and ANDed: classes, teachers, an age range.
+        # Absent all of them this is the school-wide send it has always been.
+        def _int(v):
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
+
+        class_ids = [c for c in (data.get('class_ids') or []) if c]
+        teacher_ids = [t for t in (data.get('teacher_ids') or []) if t]
+        min_age, max_age = _int(data.get('min_age')), _int(data.get('max_age'))
+        student_ids = announcement_service.targeted_student_ids(
+            org_id, class_ids=class_ids, teacher_ids=teacher_ids,
+            min_age=min_age, max_age=max_age)
+        if student_ids is not None and not student_ids:
+            return jsonify({'success': False,
+                            'error': 'Nobody matches that selection'}), 400
+
+        # Default True: every existing caller (Community Hub, scripts) keeps
+        # emailing. The SIS Messaging composer sends the flag explicitly.
+        send_email = data.get('send_email')
+        send_email = True if send_email is None else bool(send_email)
+
+        result = announcement_service.publish(
+            org_id, user_id, title, content, audiences,
+            student_ids=student_ids, send_email=send_email,
+            target_label=announcement_service.target_label(
+                audiences, class_ids, teacher_ids, min_age, max_age))
         return jsonify({'success': True, **result})
 
     except Exception as e:

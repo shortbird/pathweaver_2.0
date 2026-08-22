@@ -211,3 +211,98 @@ class TestCommunityPostCanReachFamilies:
             })
         assert out['announcement']['id'] == 'a1'
         assert 'notify_error' in out
+
+
+@pytest.mark.unit
+class TestTargetedSend:
+    """iCreate asked to aim a message at classes, teachers or an age range
+    (d63154c7, 2e930120), and to stop every in-app note also being three hundred
+    emails (857b5f70)."""
+
+    def test_no_filters_means_the_whole_school(self):
+        """None, not an empty set: "everyone" and "nobody matched" are different
+        answers and only one of them should send."""
+        from services import announcement_service as svc
+        assert svc.targeted_student_ids('org-1') is None
+
+    def test_classes_and_ages_are_anded_not_ored(self):
+        from services import announcement_service as svc
+        with patch.object(svc, '_students_in_classes', return_value={'s1', 's2'}), \
+             patch.object(svc, '_admin') as admin:
+            table = Mock()
+            admin.return_value.table.return_value = table
+            table.select.return_value = table
+            table.eq.return_value = table
+            table.execute.return_value = Mock(data=[
+                {'id': 's1', 'date_of_birth': '2016-01-01'},   # ~10
+                {'id': 's2', 'date_of_birth': '2008-01-01'},   # ~18
+            ])
+            got = svc.targeted_student_ids('org-1', class_ids=['c1'], min_age=9, max_age=12)
+        assert got == {'s1'}
+
+    def test_a_selection_matching_nobody_is_empty_not_everyone(self):
+        from services import announcement_service as svc
+        with patch.object(svc, '_students_in_classes', return_value=set()):
+            assert svc.targeted_student_ids('org-1', class_ids=['c1']) == set()
+
+    def test_recipients_narrow_to_the_targeted_students(self):
+        from services import announcement_service as svc
+        members = [
+            {'id': 's1', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 's2', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 'a1', 'role': 'org_managed', 'org_role': 'advisor'},
+        ]
+        with patch.object(svc, '_admin') as admin:
+            table = Mock()
+            admin.return_value.table.return_value = table
+            table.select.return_value = table
+            table.eq.return_value = table
+            table.execute.return_value = Mock(data=members)
+            got = svc.recipients_for('org-1', ['students'], student_ids={'s1'})
+        assert got == {'s1'}
+
+    def test_target_label_records_who_it_went_to(self):
+        from services import announcement_service as svc
+        label = svc.target_label(['parents'], class_ids=['c1', 'c2'], min_age=9, max_age=12)
+        assert '2 classes' in label and 'ages 9-12' in label
+
+    def test_target_label_is_none_when_nothing_was_narrowed(self):
+        from services import announcement_service as svc
+        assert svc.target_label(['parents']) is None
+
+
+@pytest.mark.unit
+class TestEmailIsOptional:
+    """The flag defaults True so every existing caller — the Community Hub
+    composer, scripts — keeps emailing exactly as before. Only the SIS Messaging
+    composer passes False."""
+
+    def _publish(self, **kwargs):
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        notifier = Mock()
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=notifier), \
+             patch('services.announcement_service._email_fanout') as email:
+            out = svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'], **kwargs)
+        return out, email
+
+    def test_email_still_goes_out_when_nobody_asks(self):
+        out, email = self._publish()
+        email.assert_called_once()
+        assert out['emailed'] is True
+
+    def test_email_is_skipped_when_the_box_is_unticked(self):
+        out, email = self._publish(send_email=False)
+        email.assert_not_called()
+        assert out['emailed'] is False
+
+    def test_a_targeted_send_records_who_it_reached(self):
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=Mock()), \
+             patch('services.announcement_service._email_fanout'):
+            svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
+                        target_label='parents (2 classes)')
+        assert table.insert.call_args[0][0]['target_audience'] == 'parents (2 classes)'

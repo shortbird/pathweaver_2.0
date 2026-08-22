@@ -6,13 +6,24 @@ import TemplateControls from '../../components/announcements/TemplateControls'
 import RichTextEditor from '../../components/course/outline/RichTextEditor'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import { isBlank } from '../../utils/richText'
-import { useSisOrg } from './useSisOrg'
+import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import SearchSelect from '../../components/ui/SearchSelect'
 
 /**
  * Compose an announcement to families/students/advisors. Reuses the existing
  * /api/announcements endpoint (in-app bell + push + the durable announcements
- * row); no new backend needed. "Families" maps to the parents audience.
+ * row). "Families" maps to the parents audience.
+ *
+ * Two things iCreate asked for shape this page (d63154c7, 2e930120, 857b5f70):
+ *
+ * - It can be narrowed to classes, teachers, or an age range, ANDed together.
+ *   Parents follow from the students, so "the parents of the Tuesday choir" is
+ *   one selection rather than a list somebody assembles by hand.
+ * - Email is a deliberate tick, not automatic. An in-app note to one class used
+ *   to also be three hundred emails, which is how a school teaches its families
+ *   to ignore its email. The Community board already worked this way; this is
+ *   the same rule on the send.
  */
 const AUDIENCES = [
   { key: 'parents', label: 'Families' },
@@ -20,11 +31,52 @@ const AUDIENCES = [
   { key: 'advisors', label: 'Teachers' },
 ]
 
+/** One chip list backed by the platform's type-to-filter combobox. */
+const Picker = ({ label, options, chosen, setChosen, getLabel, placeholder }) => {
+  const byId = new Map(options.map((o) => [o.id, o]))
+  const remaining = options.filter((o) => !chosen.includes(o.id))
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-neutral-500 w-16 shrink-0">{label}</span>
+        <div className="flex-1">
+          <SearchSelect
+            value=""
+            onChange={(id) => id && setChosen([...chosen, id])}
+            options={remaining}
+            getId={(o) => o.id}
+            getLabel={getLabel}
+            placeholder={placeholder}
+          />
+        </div>
+      </div>
+      {chosen.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5 ml-[4.5rem]">
+          {chosen.map((id) => (
+            <button key={id} onClick={() => setChosen(chosen.filter((x) => x !== id))}
+              className="px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple text-xs hover:bg-optio-purple/20"
+              title="Remove">
+              {byId.get(id) ? getLabel(byId.get(id)) : id} ×
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const FamilyMessagingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [audiences, setAudiences] = useState(['parents'])
+  const [classIds, setClassIds] = useState([])
+  const [teacherIds, setTeacherIds] = useState([])
+  const [minAge, setMinAge] = useState('')
+  const [maxAge, setMaxAge] = useState('')
+  const [alsoEmail, setAlsoEmail] = useState(false)
+  const [classes, setClasses] = useState([])
+  const [teachers, setTeachers] = useState([])
   const [sending, setSending] = useState(false)
   const [history, setHistory] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -44,19 +96,42 @@ const FamilyMessagingPage = () => {
 
   useEffect(() => { loadHistory() }, [loadHistory])
 
+  useEffect(() => {
+    if (!orgId) return
+    api.get(withOrg('/api/sis/classes', orgId))
+      .then((r) => setClasses(r.data?.classes || []))
+      .catch(() => setClasses([]))
+    api.get(withOrg('/api/sis/staff', orgId))
+      .then((r) => setTeachers(r.data?.staff || []))
+      .catch(() => setTeachers([]))
+  }, [orgId])
+
+  const targeted = classIds.length || teacherIds.length || minAge || maxAge
+  const clearTargeting = () => {
+    setClassIds([]); setTeacherIds([]); setMinAge(''); setMaxAge('')
+  }
+
   const send = async () => {
     if (!title.trim() || isBlank(message)) { toast.error('Title and message are required'); return }
     if (!audiences.length) { toast.error('Pick at least one audience'); return }
     if (!orgId) { toast.error('No organization selected'); return }
     setSending(true)
     try {
-      await api.post('/api/announcements', {
+      const r = await api.post('/api/announcements', {
         title: title.trim(),
         message,
         audiences,
         organization_id: orgId,
+        class_ids: classIds,
+        teacher_ids: teacherIds,
+        min_age: minAge === '' ? null : Number(minAge),
+        max_age: maxAge === '' ? null : Number(maxAge),
+        send_email: alsoEmail,
       })
-      toast.success('Announcement sent')
+      const n = r.data?.recipients
+      toast.success(n == null
+        ? 'Announcement sent'
+        : `Sent to ${n} ${n === 1 ? 'person' : 'people'}${r.data?.emailed ? ', email included' : ''}`)
       setTitle('')
       setMessage('')
       loadHistory()
@@ -78,8 +153,8 @@ const FamilyMessagingPage = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl">
         <p className="text-sm text-neutral-500 mb-5">
-          Send an announcement to {orgs.find((o) => o.id === orgId)?.name || 'your school'}. It is delivered in-app (notification bell),
-          via push, and by email to everyone in the selected audiences.
+          Send an announcement to {orgs.find((o) => o.id === orgId)?.name || 'your school'}. It arrives in-app
+          (notification bell) and as a push; tick the box below to send it by email too.
         </p>
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Audience</label>
@@ -98,6 +173,53 @@ const FamilyMessagingPage = () => {
             </button>
           ))}
         </div>
+
+        {/* Narrowing. Long lists, so the platform's type-to-filter combobox
+            rather than a native multi-select: it adds one at a time to a chip
+            list, which is also how you take one back off. */}
+        <div className="border border-gray-200 rounded-lg p-3 mb-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-neutral-500">Narrow it down (optional)</span>
+            {targeted ? (
+              <button onClick={clearTargeting} className="text-xs text-optio-purple hover:underline">
+                Clear — send to the whole school
+              </button>
+            ) : null}
+          </div>
+
+          <Picker label="Classes" options={classes} chosen={classIds} setChosen={setClassIds}
+            getLabel={(c) => c.name} placeholder="Add a class…" />
+          <Picker label="Teachers" options={teachers} chosen={teacherIds} setChosen={setTeacherIds}
+            getLabel={(t) => t.name || t.display_name || t.email} placeholder="Add a teacher…" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-neutral-500 w-16 shrink-0">Ages</span>
+            <input type="number" min="0" max="99" value={minAge} onChange={(e) => setMinAge(e.target.value)}
+              placeholder="from" aria-label="Minimum age" className={`${field} w-24`} />
+            <span className="text-xs text-neutral-400">to</span>
+            <input type="number" min="0" max="99" value={maxAge} onChange={(e) => setMaxAge(e.target.value)}
+              placeholder="to" aria-label="Maximum age" className={`${field} w-24`} />
+          </div>
+
+          {targeted ? (
+            <p className="text-xs text-neutral-500">
+              Everything you pick has to be true at once — an age range on top of a class means
+              only the children in that class who are that age. Families are included through
+              their children.
+            </p>
+          ) : null}
+        </div>
+
+        <label className="flex items-start gap-2 mb-4 cursor-pointer">
+          <input type="checkbox" checked={alsoEmail} onChange={(e) => setAlsoEmail(e.target.checked)}
+            className="mt-0.5 accent-optio-purple" />
+          <span className="text-sm text-neutral-700">
+            Email this as well
+            <span className="block text-xs text-neutral-500">
+              Off by default. Everyone gets it in the app and as a push either way.
+            </span>
+          </span>
+        </label>
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Title</label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} className={`${field} mb-4`} placeholder="Subject line" />
