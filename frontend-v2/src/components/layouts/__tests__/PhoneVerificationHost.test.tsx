@@ -69,10 +69,16 @@ describe('PhoneVerificationHost', () => {
   });
 
   it('lets them back in once they have verified on the web', async () => {
-    mockGet.mockResolvedValueOnce(HELD).mockResolvedValueOnce(CLEAR);
+    // Driven by what the server would say at the time, not by call order:
+    // chaining mockResolvedValueOnce assumes the mount effect runs exactly
+    // once, and when it ran twice the "Check again" call fell through to an
+    // undefined mock. Passed locally, failed in CI on timing alone.
+    let verifiedOnWeb = false;
+    mockGet.mockImplementation(async () => (verifiedOnWeb ? CLEAR : HELD));
     render(<PhoneVerificationHost />);
     await screen.findByText('Verify your phone number');
 
+    verifiedOnWeb = true;
     fireEvent.press(screen.getByText('Check again'));
     await waitFor(() => expect(screen.queryByText('Verify your phone number')).toBeNull());
   });
