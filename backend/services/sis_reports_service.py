@@ -222,6 +222,8 @@ def attendance_report(org_id: str) -> Dict[str, Any]:
 # so the picker and the CSV can never drift apart.
 
 DOW_SHORT = {0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat'}
+DOW_LONG = {0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday',
+            5: 'Friday', 6: 'Saturday'}
 
 
 def _hhmm(t: Optional[str]) -> str:
@@ -787,3 +789,107 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         'has_unscheduled': any(r['unscheduled'] for r in rows),
         'rows': rows,
     }
+
+
+# ── Day rosters (where every child should be, hour by hour) ──────────────────
+# iCreate (Molly), 2026-08-22: "I need to be able to print a report that shows
+# every student coming on Mondays and every student coming on Tuesdays,
+# Wednesdays and Thursdays. It needs to be able to have each day print
+# separately ... so that any staff member could look at it for that particular
+# hour and easily know where any given child should be directed to go to class.
+# If it could also list what classroom the class is [in]".
+#
+# The student schedule report above answers "when does this child come?" — one
+# row per student. This is the same data pivoted the other way, for the person
+# standing in a corridor at 10:30 holding a child: day, then block, then class,
+# then who should be in it and which room. Printing is per day because that is
+# how it gets used — one sheet per day on a clipboard, not a seven-day booklet.
+
+def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]:
+    """Every teaching day, its blocks, and the roster of each class in them.
+
+    `day` (0=Sun..6=Sat) narrows to one day; None returns them all, which is
+    what the print-each-day-separately view wants in a single fetch.
+    """
+    from services import sis_catalog_service, sis_service
+    from services.sis_schedule_sync_service import teaching_blocks
+
+    classes = sis_catalog_service.list_classes(org_id, audience='staff')
+    classes = [c for c in classes if c.get('status') != 'archived']
+    blocks = teaching_blocks(
+        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+
+    # (day, sort-minutes, slot label) -> the classes meeting in it.
+    slots: Dict[tuple, List[Dict[str, Any]]] = {}
+    for c in classes:
+        for m in (c.get('meetings') or []):
+            d = m.get('day_of_week')
+            if d is None or (day is not None and d != day):
+                continue
+            key = (d, _minutes(m.get('start_time')) or 0, _meeting_slot(m, blocks))
+            slots.setdefault(key, []).append({
+                'class_id': c['id'],
+                'name': c.get('name') or '',
+                # The meeting's own room wins: a class can sit in a different
+                # room on a different day, and this report is read in a corridor.
+                'room': (m.get('location') or c.get('location') or ''),
+                'teacher': _person(c.get('primary_instructor')),
+                'time': f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}",
+            })
+
+    class_ids = list({e['class_id'] for entries in slots.values() for e in entries})
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('class_id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+
+    roster = {s['student_id']: s for s in sis_service.get_roster(org_id)}
+    students_by_class: Dict[str, List[Dict[str, str]]] = {}
+    for e in enrollments:
+        s = roster.get(e.get('student_id'))
+        if not s or not s.get('is_student'):
+            continue
+        students_by_class.setdefault(e['class_id'], []).append({
+            'name': s['name'],
+            'family': s.get('household_name') or '',
+        })
+    for entries in students_by_class.values():
+        entries.sort(key=lambda r: (r['name'] or '').lower())
+
+    days = []
+    present = sorted({d for d, _, _ in slots},
+                     key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
+    for d in present:
+        day_slots = []
+        for (sd, at, label) in sorted((k for k in slots if k[0] == d), key=lambda k: (k[1], k[2])):
+            entries = sorted(slots[(sd, at, label)], key=lambda c: (c['name'] or '').lower())
+            for c in entries:
+                c['students'] = students_by_class.get(c['class_id'], [])
+                c['student_count'] = len(c['students'])
+            day_slots.append({'slot': label, 'classes': entries})
+        days.append({
+            'key': str(d),
+            'label': DOW_LONG.get(d, ''),
+            'slots': day_slots,
+            'student_count': len({st['name'] for sl in day_slots
+                                  for c in sl['classes'] for st in c['students']}),
+        })
+    return {'days': days}
+
+
+def day_rosters_csv_rows(report: Dict[str, Any]) -> List[List[str]]:
+    """Flatten to one row per student per class — the shape a spreadsheet sorts."""
+    rows = []
+    for d in report.get('days') or []:
+        for sl in d.get('slots') or []:
+            for c in sl.get('classes') or []:
+                if not c['students']:
+                    rows.append([d['label'], sl['slot'], c['time'], c['name'],
+                                 c['room'], c['teacher'], '', ''])
+                for st in c['students']:
+                    rows.append([d['label'], sl['slot'], c['time'], c['name'],
+                                 c['room'], c['teacher'], st['name'], st['family']])
+    return rows
+
+
+DAY_ROSTERS_CSV_HEADER = ['Day', 'Block', 'Time', 'Class', 'Room', 'Teacher',
+                          'Student', 'Family']

@@ -110,7 +110,7 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import ReportsPage from './ReportsPage'
+import ReportsPage, { DayRosters } from './ReportsPage'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -390,5 +390,46 @@ describe('Class rosters report', () => {
     await screen.findByRole('group', { name: 'Classes' })
     expect(api.get.mock.calls.map(([u]) => u))
       .toContainEqual(expect.stringContaining('/api/sis/classes?include_archived=true'))
+  })
+})
+
+describe('Day rosters', () => {
+  const DAYS = [{
+    key: '2', label: 'Tuesday', student_count: 2,
+    slots: [{
+      slot: 'Block 1',
+      classes: [{
+        class_id: 'c1', name: 'Pottery', room: 'Kiln shed', teacher: 'Ana Rogers',
+        time: '9:30am-10:25am', student_count: 2,
+        students: [{ name: 'Ada Lovelace', family: 'Lovelace' },
+                   { name: 'Bo Diddley', family: 'Diddley' }],
+      }],
+    }],
+  }]
+
+  it('lists the class, its room and everyone in it under the block', () => {
+    render(<DayRosters days={DAYS} />)
+    expect(screen.getByText('Block 1')).toBeInTheDocument()
+    expect(screen.getByText('Pottery')).toBeInTheDocument()
+    expect(screen.getByText(/Kiln shed/)).toBeInTheDocument()
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('Bo Diddley')).toBeInTheDocument()
+  })
+
+  it('prints one day on its own', () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+    render(<DayRosters days={DAYS} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Print Tuesday' }))
+    // The body class is what the print stylesheet keys off to hide the rest.
+    expect(document.body.classList.contains('printing-one-day')).toBe(true)
+    expect(print).toHaveBeenCalled()
+    window.dispatchEvent(new Event('afterprint'))
+    expect(document.body.classList.contains('printing-one-day')).toBe(false)
+    print.mockRestore()
+  })
+
+  it('says so when nothing is scheduled', () => {
+    render(<DayRosters days={[]} />)
+    expect(screen.getByText('No classes are scheduled yet.')).toBeInTheDocument()
   })
 })

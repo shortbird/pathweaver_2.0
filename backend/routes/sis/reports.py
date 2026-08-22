@@ -206,6 +206,33 @@ def student_schedule(user_id):
     return jsonify({'success': True, 'report': report})
 
 
+@bp.route('/reports/day-rosters', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def day_rosters(user_id):
+    """Every teaching day, block by block: the class, its room, and who is in it.
+
+    iCreate (Molly), 2026-08-22: "...so that any staff member could look at it
+    for that particular hour and easily know where any given child should be
+    directed to go to class." ?day=1 (0=Sun..6=Sat) narrows to one day;
+    ?format=csv flattens to one row per student per class.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    day = request.args.get('day')
+    try:
+        day = int(day) if day not in (None, '') else None
+    except ValueError:
+        day = None
+    if day is not None and day not in range(7):
+        day = None
+    report = reports.day_rosters_report(org_id, day=day)
+    if request.args.get('format') == 'csv':
+        return _csv_response('day-rosters.csv', reports.DAY_ROSTERS_CSV_HEADER,
+                             reports.day_rosters_csv_rows(report))
+    return jsonify({'success': True, 'report': report})
+
+
 # ── Information reports (registration data) ──────────────────────────────────
 
 def _admin():

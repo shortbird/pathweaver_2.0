@@ -741,3 +741,84 @@ class TestClassReportCoordinatorRedaction:
         assert resp.status_code == 200
         header = resp.data.decode().splitlines()[0]
         assert 'Tuition' not in header and 'Supply fee' not in header
+
+
+@pytest.mark.unit
+class TestDayRostersReport:
+    """iCreate (Molly), 2026-08-22: a sheet per day, block by block, naming the
+    class, its room and who is in it — "so that any staff member could look at
+    it for that particular hour and easily know where any given child should be
+    directed to go to class"."""
+
+    CLASSES = [
+        {'id': 'c1', 'name': 'Pottery', 'location': 'Art room',
+         'primary_instructor': {'name': 'Ana Rogers'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:25',
+                       'location': 'Kiln shed'}]},
+        {'id': 'c2', 'name': 'Choir', 'location': 'Hall',
+         'primary_instructor': {'name': 'Camille Wood'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:25'},
+                      {'day_of_week': 4, 'start_time': '09:30', 'end_time': '10:25'}]},
+        {'id': 'c3', 'name': 'Retired', 'status': 'archived', 'meetings': [
+            {'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:25'}]},
+    ]
+    ROSTER = [
+        {'student_id': 's1', 'name': 'Ada Lovelace', 'is_student': True, 'household_name': 'Lovelace'},
+        {'student_id': 's2', 'name': 'Bo Diddley', 'is_student': True, 'household_name': 'Diddley'},
+        {'student_id': 'staff1', 'name': 'A Teacher', 'is_student': False},
+    ]
+    ENROLLMENTS = [
+        {'class_id': 'c1', 'student_id': 's1'},
+        {'class_id': 'c2', 'student_id': 's2'},
+        {'class_id': 'c2', 'student_id': 'staff1'},
+    ]
+
+    def _report(self, day=None):
+        from services import sis_reports_service as svc
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
+             patch('services.sis_catalog_service.schedule_settings',
+                   return_value={'time_blocks': [{'start': '09:30', 'end': '10:25'}]}), \
+             patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS), \
+             patch('services.sis_service.get_roster', return_value=self.ROSTER):
+            return svc.day_rosters_report('org-1', day=day)
+
+    def test_days_come_back_named_and_monday_first(self):
+        days = self._report()['days']
+        assert [d['label'] for d in days] == ['Tuesday', 'Thursday']
+
+    def test_a_class_is_listed_under_its_block_with_its_roster(self):
+        tuesday = self._report()['days'][0]
+        pottery = next(c for sl in tuesday['slots'] for c in sl['classes'] if c['name'] == 'Pottery')
+        assert [s['name'] for s in pottery['students']] == ['Ada Lovelace']
+
+    def test_the_meetings_own_room_wins_over_the_classs(self):
+        """A class can sit in a different room on a different day, and this is
+        read in a corridor."""
+        tuesday = self._report()['days'][0]
+        pottery = next(c for sl in tuesday['slots'] for c in sl['classes'] if c['name'] == 'Pottery')
+        assert pottery['room'] == 'Kiln shed'
+
+    def test_a_class_with_no_meeting_room_falls_back_to_its_own(self):
+        thursday = self._report()['days'][1]
+        choir = next(c for sl in thursday['slots'] for c in sl['classes'] if c['name'] == 'Choir')
+        assert choir['room'] == 'Hall'
+
+    def test_staff_on_a_roster_are_not_counted_as_students(self):
+        tuesday = self._report()['days'][0]
+        choir = next(c for sl in tuesday['slots'] for c in sl['classes'] if c['name'] == 'Choir')
+        assert [s['name'] for s in choir['students']] == ['Bo Diddley']
+
+    def test_archived_classes_are_left_out(self):
+        names = {c['name'] for d in self._report()['days']
+                 for sl in d['slots'] for c in sl['classes']}
+        assert 'Retired' not in names
+
+    def test_one_day_can_be_asked_for_on_its_own(self):
+        days = self._report(day=4)['days']
+        assert [d['label'] for d in days] == ['Thursday']
+
+    def test_the_csv_is_one_row_per_student_per_class(self):
+        from services import sis_reports_service as svc
+        rows = svc.day_rosters_csv_rows(self._report(day=2))
+        assert ['Tuesday', 'Block 1', '9:30am-10:25am', 'Choir', 'Hall',
+                'Camille Wood', 'Bo Diddley', 'Diddley'] in rows

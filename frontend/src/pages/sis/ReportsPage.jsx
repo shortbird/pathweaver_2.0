@@ -25,7 +25,88 @@ const PRINT_CSS = `
   .sis-report-print { position: absolute; left: 0; top: 0; width: 100%; }
   .sis-report-print .no-print { display: none; }
 }
+/* Printing ONE day: the office wants a sheet per day on a clipboard, not a
+   seven-day booklet, so a day being printed hides its siblings. */
+@media print {
+  body.printing-one-day * { visibility: hidden; }
+  body.printing-one-day .sis-day-printing,
+  body.printing-one-day .sis-day-printing * { visibility: visible; }
+  body.printing-one-day .sis-day-printing { position: absolute; left: 0; top: 0; width: 100%; }
+  body.printing-one-day .no-print { display: none; }
+}
 `
+
+
+/**
+ * Day rosters: day -> block -> class -> who is in it. Not a table like the
+ * other reports — the person reading it is standing in a corridor at 10:30
+ * looking for one child, so the shape on the page is the shape of the question.
+ */
+export const DayRosters = ({ days }) => {
+  const printDay = (key) => {
+    const el = document.getElementById(`sis-day-${key}`)
+    if (!el) return
+    el.classList.add('sis-day-printing')
+    document.body.classList.add('printing-one-day')
+    const cleanup = () => {
+      el.classList.remove('sis-day-printing')
+      document.body.classList.remove('printing-one-day')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    window.print()
+  }
+
+  if (!days?.length) return <p className="text-neutral-500">No classes are scheduled yet.</p>
+
+  return (
+    <div className="space-y-6">
+      {days.map((d) => (
+        <section key={d.key} id={`sis-day-${d.key}`} className="break-inside-avoid">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1 mb-3">
+            <h4 className="font-semibold text-neutral-900">
+              {d.label} <span className="text-sm font-normal text-neutral-500">
+                · {d.student_count} student{d.student_count === 1 ? '' : 's'}
+              </span>
+            </h4>
+            <button type="button" onClick={() => printDay(d.key)}
+              className="no-print px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50">
+              Print {d.label}
+            </button>
+          </div>
+          {d.slots.map((sl) => (
+            <div key={sl.slot} className="mb-4">
+              <div className="text-sm font-semibold text-optio-purple mb-1">{sl.slot}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {sl.classes.map((c) => (
+                  <div key={c.class_id} className="border border-gray-200 rounded-lg p-3 break-inside-avoid">
+                    <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                      <span className="font-medium text-neutral-900">{c.name}</span>
+                      <span className="text-xs text-neutral-500">{c.time}</span>
+                    </div>
+                    <div className="text-xs text-neutral-500 mb-1.5">
+                      {[c.room || 'No room set', c.teacher].filter(Boolean).join(' · ')}
+                      {' · '}{c.student_count} student{c.student_count === 1 ? '' : 's'}
+                    </div>
+                    {c.students.length === 0 ? (
+                      <p className="text-xs text-neutral-400">Nobody enrolled.</p>
+                    ) : (
+                      <ol className="text-sm text-neutral-800 columns-2 gap-4">
+                        {c.students.map((st) => (
+                          <li key={st.name} className="break-inside-avoid">{st.name}</li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
 
 const downloadBlob = (blob, filename) => {
   const url = window.URL.createObjectURL(blob)
@@ -306,6 +387,13 @@ const ReportsPage = () => {
         setReport({ ...shaped, kind: 'rosters', csvPath: rosterPath(shaped.selected), csvName: 'rosters.csv' })
         return
       }
+      if (type === 'day-rosters') {
+        setReport({ title: 'Day rosters', kind: 'day-rosters',
+                    days: res.data?.report?.days || [],
+                    columns: [], rows: [],
+                    csvPath: path, csvName: 'day-rosters.csv' })
+        return
+      }
       const label = questions.find((q) => q.key === key)?.label
       const shaped = shapeReport(type, res.data, label)
       setReport({
@@ -512,6 +600,13 @@ const ReportsPage = () => {
                 </div>
               </ReportCard>
               <ReportCard
+                title="Day rosters"
+                description="One sheet per day: each block, the classes running in it, the room, and who should be in each. For the person who has to tell a child where to go."
+              >
+                <RunButton ariaLabel="View day rosters report" disabled={reportLoading || !orgId}
+                  onClick={() => runReport('day-rosters')} />
+              </ReportCard>
+              <ReportCard
                 title="Student schedule"
                 description="A master list of every student showing which days they come, and which class blocks they're in each day."
               >
@@ -613,7 +708,9 @@ const ReportsPage = () => {
                     </div>
                   </fieldset>
                 )}
-                {displayRows.length === 0 ? (
+                {report.kind === 'day-rosters' ? (
+                  <DayRosters days={report.days} />
+                ) : displayRows.length === 0 ? (
                   <p className="text-neutral-500">No matching records.</p>
                 ) : (
                   <div className="overflow-x-auto">
