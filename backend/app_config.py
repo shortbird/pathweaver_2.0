@@ -240,10 +240,30 @@ class Config:
     # Pexels Image API
     PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
 
-    # Brevo API key: marketing list sync only (services/brevo_service.py),
-    # until the in-house CRM replaces it (docs/CRM_REPLACEMENT_PLAN.md PR7).
-    # Standard API key, NOT the MCP token. Unset = sync silently skips.
+    # Brevo API key: marketing list sync (services/brevo_service.py) and
+    # transactional SMS (services/sms_service.py — phone verification codes).
+    # NOT email: that is SendGrid's (docs/CRM_REPLACEMENT_PLAN.md PR7).
+    # Standard API key, NOT the MCP token. Unset = sync silently skips and
+    # SMS sends fail-log.
     BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+
+    # Outbound SMS (services/sms_service.py) — phone-verification codes.
+    # SendGrid has no SMS product, so the choices are:
+    #   'twilio_verify' — Twilio's hosted OTP service. Sends AND checks the
+    #       code itself, on Twilio's pre-registered US senders, so it works
+    #       the day the account exists. Needs the three TWILIO_* keys below.
+    #   'brevo'   — Brevo transactional SMS with our own codes. Needs SMS
+    #       credits AND an approved US toll-free registration (4-6 weeks).
+    #   'console' — logs the code instead of sending; the default outside
+    #       production so local dev never texts anybody by accident.
+    SMS_PROVIDER = os.getenv('SMS_PROVIDER') or (
+        'twilio_verify' if FLASK_ENV == 'production' and os.getenv('TWILIO_ACCOUNT_SID')
+        else 'brevo' if FLASK_ENV == 'production'
+        else 'console')
+    SMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME', 'Optio')
+    TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
+    TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
+    TWILIO_VERIFY_SERVICE_SID = os.getenv('TWILIO_VERIFY_SERVICE_SID')
 
     # SendGrid: ALL outbound email (services/email_service.py) — transactional
     # and CRM funnel mail. Unset = email sends fail-log (same posture the Brevo

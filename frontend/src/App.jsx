@@ -56,6 +56,7 @@ const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
 const RequiredDocumentsPage = lazy(() => import('./pages/RequiredDocumentsPage'))
+const PhoneVerificationPage = lazy(() => import('./pages/PhoneVerificationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 // RoleHome renders each role's own home at /dashboard (it bundles the student
@@ -759,6 +760,9 @@ function App() {
                 behind PrivateRoute — PrivateRoute redirects held families here,
                 so routing it through PrivateRoute would redirect it to itself. */}
             <Route path="family/required-documents" element={<RequiredDocumentsPage />} />
+            {/* Phone verification hold. Standalone and NOT behind PrivateRoute,
+                for the same reason as required-documents directly above. */}
+            <Route path="verify-phone" element={<PhoneVerificationPage />} />
             <Route path="enroll/resume" element={<ICreateRegisterPage />} />
             <Route path="enroll/:code" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />

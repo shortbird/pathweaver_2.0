@@ -22,6 +22,7 @@ from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
 from middleware.activity_tracker import activity_tracker
 from middleware.signature_gate import signature_gate
+from middleware.phone_verification_gate import phone_verification_gate
 
 # CSRF protection is mandatory in production. In development we still tolerate
 # a missing Flask-WTF install so contributors don't hit hard failures before
@@ -111,6 +112,11 @@ activity_tracker.init_app(app)
 # except the signing flow", and an allowlist expressed once cannot be forgotten
 # on the next route somebody adds.
 signature_gate.init_app(app)
+
+# Holds an org's adults out of the platform until they verify a phone number
+# by SMS code (orgs opt in via a feature flag; iCreate, Aug 2026). Same shape
+# and same reasoning as the signature gate above.
+phone_verification_gate.init_app(app)
 
 # Configure rate limit headers for all responses
 from middleware.rate_limiter import add_rate_limit_headers

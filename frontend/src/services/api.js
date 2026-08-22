@@ -223,6 +223,18 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Same shape for the phone-verification hold
+    // (backend/middleware/phone_verification_gate.py). Both surfaces route
+    // /verify-phone, so the assign stays on whichever host the 403 hit.
+    if (error.response?.status === 403
+        && error.response?.data?.code === 'phone_verification_required') {
+      const here = window.location?.pathname
+      if (here && here !== '/verify-phone') {
+        window.location.assign('/verify-phone')
+      }
+      return Promise.reject(error)
+    }
+
     // Handle 403 responses with consent_required flag for COPPA compliance
     // This triggers the ConsentBlockedOverlay component
     if (error.response?.status === 403 && error.response?.data?.consent_required) {
@@ -437,7 +449,10 @@ const REPORTABLE = (error) => {
   const s = error.response?.status
   if (!s) return false
   if (s >= 500) return true
-  if (s === 403 && !error.response?.data?.consent_required) return true
+  if (s === 403 && !error.response?.data?.consent_required
+      // The phone-verification hold is an expected product state (handled
+      // above): every held adult's open tab 403s until they verify.
+      && error.response?.data?.code !== 'phone_verification_required') return true
   return s === 405
 }
 

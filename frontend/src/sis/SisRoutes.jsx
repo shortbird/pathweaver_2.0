@@ -112,6 +112,7 @@ const PartnerEnrollStudentPage = lazy(() => import('../pages/PartnerEnrollStuden
 const OnFireDashboard = lazy(() => import('../pages/OnFireDashboard'))
 const OrgStudentOverviewPage = lazy(() => import('../pages/admin/OrgStudentOverviewPage'))
 const AdminPage = lazy(() => import('../pages/AdminPage'))
+const PhoneVerificationPage = lazy(() => import('../pages/PhoneVerificationPage'))
 
 /**
  * Route tree for the SIS console (sis.optioeducation.com / ?app=sis).
@@ -124,6 +125,9 @@ const SisRoutes = () => (
     <Route path="invitation/:code" element={<LearningRedirect />} />
     <Route path="register/icreate/*" element={<LearningRedirect />} />
     <Route path="enroll/*" element={<LearningRedirect />} />
+    {/* Phone verification hold. Standalone: SisLayout redirects held staff
+        here, so routing it through SisLayout would redirect it to itself. */}
+    <Route path="verify-phone" element={<PhoneVerificationPage />} />
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
       <Route path="people" element={<PeoplePage />} />

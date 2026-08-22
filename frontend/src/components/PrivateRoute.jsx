@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
 import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
+import { usePhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { roleHomePath } from '../utils/postLoginPath'
 
 const PrivateRoute = ({ requiredRole, blockRoles }) => {
@@ -12,6 +13,8 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const icreateGate = useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
   // Families holding unsigned REQUIRED school paperwork are locked to signing it.
   const docsGate = useRequiredDocumentsGate(user, isAuthenticated)
+  // Adults in orgs that require a verified phone number are locked to verifying it.
+  const phoneGate = usePhoneVerificationGate(user, isAuthenticated)
 
   // Initialize graceLoading synchronously to prevent flash on first render
   const [graceLoading, setGraceLoading] = useState(() => {
@@ -89,6 +92,21 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   }
   if (docsGate.blocked) {
     return <Navigate to="/family/required-documents" replace />
+  }
+
+  // Phone verification. Last of the three holds: a family still in the funnel
+  // or holding unsigned paperwork finishes those first — the funnel collects
+  // its own phone number, and two simultaneous gates would fight over the
+  // redirect.
+  if (phoneGate.checking) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+  if (phoneGate.blocked) {
+    return <Navigate to="/verify-phone" replace />
   }
 
   // blockRoles: deny these effective roles and bounce them to their own home.

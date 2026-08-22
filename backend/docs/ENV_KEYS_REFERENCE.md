@@ -22,7 +22,12 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
 | `SENDGRID_API_KEY` | SendGrid: ALL outbound email (transactional + CRM funnel mail) | `Config.SENDGRID_API_KEY` | SendGrid → Settings → API Keys (Mail Send permission) |
 | `SENDGRID_WEBHOOK_PUBLIC_KEY` | Verifies SendGrid's signed event webhook (CRM delivery/open/click/bounce) | `Config.SENDGRID_WEBHOOK_PUBLIC_KEY` | SendGrid → Settings → Mail Settings → Event Webhook → Signature Verification |
-| `BREVO_API_KEY` | Brevo: marketing list sync only, until the in-house CRM replaces it (standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
+| `BREVO_API_KEY` | Brevo: marketing list sync + transactional SMS (phone verification). NOT email (SendGrid) — standard key, NOT the MCP token | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
+| `SMS_PROVIDER` | Outbound SMS provider: `twilio_verify` (hosted OTP, works day one), `brevo` (needs US toll-free registration, 4-6 wks), `console` (logs instead of sending) | `Config.SMS_PROVIDER` | Default: `twilio_verify` if `TWILIO_ACCOUNT_SID` is set in production, else `brevo` in production, `console` elsewhere |
+| `SMS_SENDER_NAME` | Brevo SMS sender id (alphanumeric, max 11 chars) | `Config.SMS_SENDER_NAME` | Default `Optio` |
+| `TWILIO_ACCOUNT_SID` | Twilio account for Verify (phone-verification OTP) | `Config.TWILIO_ACCOUNT_SID` | Twilio Console → Account Info |
+| `TWILIO_AUTH_TOKEN` | Twilio API auth | `Config.TWILIO_AUTH_TOKEN` | Twilio Console → Account Info |
+| `TWILIO_VERIFY_SERVICE_SID` | The Verify service (`VA...`) that sends/checks codes | `Config.TWILIO_VERIFY_SERVICE_SID` | Twilio Console → Verify → Services → Create |
 | `STRIPE_SECRET_KEY` | Payment processing | `Config.STRIPE_SECRET_KEY` | [Stripe Dashboard](https://dashboard.stripe.com/apikeys) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification | `Config.STRIPE_WEBHOOK_SECRET` | [Stripe Webhooks](https://dashboard.stripe.com/webhooks) |
 | `CRON_SECRET` | Cron job authentication | `Config.CRON_SECRET` | Self-generated (`secrets.token_hex(16)`) |

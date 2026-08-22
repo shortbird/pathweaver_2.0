@@ -6,6 +6,7 @@ import { goToLearningSurface } from '../../utils/appSurface'
 import api from '../../services/api'
 import SisSidebar from './SisSidebar'
 import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
+import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
 const PreviewBanner = () => {
@@ -78,6 +79,10 @@ const SisLayout = () => {
   const { isAuthenticated, user, loading } = useAuth()
   const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
+  // Staff in orgs that require a verified phone number are locked to verifying
+  // it. The SIS host never runs PrivateRoute, so the check lives here too —
+  // same hook, same backend answer, mirrored on both surfaces.
+  const phoneGate = usePhoneVerificationGate(user, isAuthenticated)
 
   // Close the drawer on navigation — otherwise it stays over the page you just
   // opened. (Hooks run before the auth guards below, which is why they're here.)
@@ -88,6 +93,11 @@ const SisLayout = () => {
   if (!isAuthenticated) {
     goToLearningSurface('/login')
     return <Spinner />
+  }
+
+  if (phoneGate.checking) return <Spinner />
+  if (phoneGate.blocked) {
+    return <Navigate to="/verify-phone" replace />
   }
 
   // isSisStaff weighs every role the user holds, not the primary one alone: a
