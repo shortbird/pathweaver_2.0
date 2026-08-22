@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 
 from middleware.rate_limiter import rate_limit
+from app_config import Config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import validate_uuid
@@ -123,7 +124,12 @@ def _org_logo(org_id):
 
 # Source material is capped where the drafter caps it, so what is stored is what
 # the model was actually shown (routes/sis/quest_drafts._MAX_CONTEXT_CHARS).
-_MAX_SOURCE_CHARS = 20000
+#
+# Read from Config rather than repeated: this literal was left at 20,000 when the
+# shared limit was raised to 120,000, so a handbook the model read in full was
+# still filed truncated -- the fourth copy of exactly the drift that setting
+# exists to prevent.
+_MAX_SOURCE_CHARS = Config.AI_SOURCE_MATERIAL_MAX_CHARS
 
 
 def _clean_xp_threshold(raw):

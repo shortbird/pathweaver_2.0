@@ -285,11 +285,26 @@ def test_the_source_document_is_not_kept_when_nobody_can_generate():
 
 
 def test_a_very_long_document_is_trimmed_to_what_the_model_was_shown():
+    """Sized off the cap rather than a literal: the limit is a config value now
+    (Config.AI_SOURCE_MATERIAL_MAX_CHARS), and a hardcoded length here silently
+    stops testing anything the moment somebody raises it."""
+    _, status, log = _run(training.create_training_quest, {
+        'title': 'Onboarding', 'allow_custom_tasks': True,
+        'source_material': 'x' * (training._MAX_SOURCE_CHARS + 5000),
+    })
+    assert len(_quest_insert(log)['source_material']) == training._MAX_SOURCE_CHARS
+
+
+def test_a_document_within_the_cap_is_stored_whole():
+    """iCreate's handbook: "It told me my document was too long so it only used
+    the first part of it, lol". The shared cap was raised to 120k, but this
+    route kept its own 20k literal, so what the model read in full was still
+    filed truncated."""
     _, status, log = _run(training.create_training_quest, {
         'title': 'Onboarding', 'allow_custom_tasks': True,
         'source_material': 'x' * 50000,
     })
-    assert len(_quest_insert(log)['source_material']) == training._MAX_SOURCE_CHARS
+    assert len(_quest_insert(log)['source_material']) == 50000
 
 
 # ── Drafts ────────────────────────────────────────────────────────────────────
