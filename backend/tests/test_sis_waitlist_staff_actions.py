@@ -204,6 +204,26 @@ class TestStaleEntryCleanup:
         assert result == {'already_enrolled': True}
         clear.assert_called_once()
 
+    def test_enrollment_in_a_sibling_section_does_not_bar_the_queue(self):
+        """iCreate splits two-day classes into per-day sections — "Choir
+        (Tuesday)" and "Choir (Thursday)". A family taking Tuesday may
+        legitimately queue for Thursday, so only *this* class's roster bars the
+        add. Guards the enrolled-check against being widened to siblings."""
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'in_', 'update', 'upsert'):
+            getattr(table, chained).return_value = table
+        # No active enrollment in c1 itself, and nothing already queued.
+        table.execute.return_value = Mock(data=[])
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids') as siblings:
+            result = wl.add_to_waitlist('org-1', 'c1', 's1')
+        assert result != {'already_enrolled': True}
+        # The roster check is scoped to the one class, never widened to siblings.
+        siblings.assert_not_called()
+        table.upsert.assert_called_once()
+
 
 @pytest.mark.unit
 class TestNobodyWaitingReason:

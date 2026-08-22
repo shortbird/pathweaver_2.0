@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -119,8 +120,12 @@ def _age_from_dob(dob):
 
 
 def _sibling_class_ids(org_id: str, class_id: str) -> List[str]:
-    """Returns class IDs of all sections belonging to the same course as class_id
-    (matching section_base_name), including class_id itself."""
+    """Every section of the same course as `class_id`, including itself.
+
+    Unlike `sibling_sections`, this keeps archived and full sections: a waitlist
+    entry on a full sibling is exactly the row that needs clearing. Matching is
+    `section_base_name`, the school's own `Base (Day Block)` convention.
+    """
     try:
         cls_row = (
             _admin().table('org_classes').select('name')
@@ -129,10 +134,10 @@ def _sibling_class_ids(org_id: str, class_id: str) -> List[str]:
         if cls_row and cls_row[0].get('name'):
             base = section_base_name(cls_row[0]['name'])
             if base:
-                all_classes = (
+                all_classes = fetch_all_rows(lambda: (
                     _admin().table('org_classes').select('id, name')
-                    .eq('organization_id', org_id).execute()
-                ).data or []
+                    .eq('organization_id', org_id)
+                ))
                 siblings = [
                     c['id'] for c in all_classes
                     if c.get('name') and section_base_name(c['name']) == base
@@ -147,13 +152,15 @@ def _sibling_class_ids(org_id: str, class_id: str) -> List[str]:
 def add_to_waitlist(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:
     """Append a student to a class waitlist (idempotent on class+student).
 
-    A student who is already actively enrolled in this class or any sibling
-    section of the class is never queued — a child on the roster *and* on the
-    waitlist is the state that made iCreate's counts look haunted."""
-    matching_class_ids = _sibling_class_ids(org_id, class_id)
+    A student already actively enrolled in *this* class is never queued — a child
+    on the roster *and* on the waitlist is the state that made iCreate's counts
+    look haunted. Enrollment in a *sibling* section is deliberately not a bar:
+    iCreate splits two-day classes into per-day sections ("Choir (Tuesday)" /
+    "Choir (Thursday)") and a family taking one day may legitimately queue for
+    the other."""
     active = (
         _admin().table('class_enrollments').select('id')
-        .in_('class_id', matching_class_ids).eq('student_id', student_user_id)
+        .eq('class_id', class_id).eq('student_id', student_user_id)
         .eq('status', 'active').limit(1).execute()
     ).data or []
     if active:
@@ -559,10 +566,14 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(entry['class_id'], actor_id=enrolled_by)
+    # Siblings first, then this entry explicitly: clear_entry_for_enrollment
+    # swallows its own errors by design, so the accepted entry's own status is
+    # never left to it.
     clear_entry_for_enrollment(org_id, entry['class_id'], entry['student_user_id'])
     resp = (
         _admin().table('sis_waitlist_entries')
-        .select('*').eq('id', entry_id).execute()
+        .update({'status': 'promoted', 'updated_at': _now().isoformat()})
+        .eq('id', entry_id).execute()
     )
     return {'entry': resp.data[0] if resp.data else None, 'enrolled': True}
 
