@@ -8,7 +8,13 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react-native';
+import { render, screen, waitFor, act, fireEvent, configure } from '@testing-library/react-native';
+
+// Every findBy/waitFor here waits on a Modal-wrapped SafeAreaView render, which
+// is exactly the heavy cold-start jest.config.js raised testTimeout for. That
+// raise does not reach these helpers: they have their own 1s budget. Give them
+// CI's contention headroom too — a passing assertion still returns immediately.
+configure({ asyncUtilTimeout: 10000 });
 
 const mockGet = jest.fn();
 let mockHoldListener: (() => void) | null = null;
@@ -79,8 +85,15 @@ describe('PhoneVerificationHost', () => {
     await screen.findByText('Verify your phone number');
 
     verifiedOnWeb = true;
-    fireEvent.press(screen.getByText('Check again'));
-    await waitFor(() => expect(screen.queryByText('Verify your phone number')).toBeNull());
+    // act() rather than waitFor(): this screen is a Modal wrapping a
+    // SafeAreaView, and tearing that down took longer than waitFor's 1s default
+    // under CI's worker contention — the same heavy-render flake jest.config's
+    // testTimeout comment describes. Flushing the update instead of polling for
+    // it takes the clock out of the assertion altogether.
+    await act(async () => {
+      fireEvent.press(screen.getByText('Check again'));
+    });
+    expect(screen.queryByText('Verify your phone number')).toBeNull();
   });
 
   it('does not hold anyone when the status check fails', async () => {
