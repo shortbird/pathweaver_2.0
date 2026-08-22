@@ -56,6 +56,7 @@ import { initSentry, captureException, wrapWithSentry } from '@/src/services/sen
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
 import { OtaUpdater } from '@/src/components/layouts/OtaUpdater';
+import { PhoneVerificationHost } from '@/src/components/layouts/PhoneVerificationHost';
 
 // Custom route error boundary. expo-router's default dropped the user to a bare
 // crash screen on a thrown render/navigation error — e.g. a bad deep link from a
@@ -170,6 +171,9 @@ function RootLayout() {
       <BugReportHost />
       <ToastHost />
       <OtaUpdater />
+      {/* Renders above the router when the school holds this adult for phone
+          verification, which the app cannot do yet. Points them at the web. */}
+      <PhoneVerificationHost />
     </GestureHandlerRootView>
   );
 }

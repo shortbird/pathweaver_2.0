@@ -256,9 +256,44 @@ api.interceptors.response.use(
     const status = error.response?.status ?? null;
     logApiCall(error.config, status);
     reportApiError(error, status);
+    if (status === 403
+        && (error.response?.data as { code?: string } | undefined)?.code
+           === 'phone_verification_required') {
+      notifyPhoneVerificationRequired();
+    }
     return Promise.reject(error);
   }
 );
+
+// ── The phone-verification hold ──────────────────────────────────────────────
+// An org can require its adults to verify a phone number by SMS before using
+// Optio, enforced in Flask middleware, so a held adult 403s on everything but
+// /api/auth/*. That reads here as every screen failing at once, and 403 is a
+// SILENCED_API_STATUS, so it is silent in Sentry too. The interceptor above
+// spots the marker and PhoneVerificationHost puts a screen in front of it.
+// Listeners, not a store, because this must not import the store into the API
+// client (the store imports this module).
+type PhoneHoldListener = () => void;
+const phoneHoldListeners = new Set<PhoneHoldListener>();
+
+function notifyPhoneVerificationRequired(): void {
+  phoneHoldListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // A listener that throws must not swallow the original API error.
+    }
+  });
+}
+
+/** Subscribe to "this account is held for phone verification". Returns an
+ *  unsubscribe, so it drops straight into a useEffect. */
+export function onPhoneVerificationRequired(fn: PhoneHoldListener): () => void {
+  phoneHoldListeners.add(fn);
+  return () => {
+    phoneHoldListeners.delete(fn);
+  };
+}
 
 /**
  * Decide whether a failed token refresh should tear down the session.
