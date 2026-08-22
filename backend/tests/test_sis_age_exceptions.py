@@ -127,21 +127,20 @@ class TestResolve:
     def test_approve_enrolls_and_clears_waitlist(self):
         requests = _chain([_PENDING], [{**_PENDING, 'status': 'approved'}])
         enrollments = _chain([])
-        waitlist = _chain([])
         meetings = _chain([])  # no meetings on the target class → no conflicts
         client = _client({exceptions.TABLE: requests,
                           'class_enrollments': enrollments,
-                          'class_meetings': meetings,
-                          'sis_waitlist_entries': waitlist})
+                          'class_meetings': meetings})
         with patch('services.sis_exception_service._admin', return_value=client), \
-             patch('services.class_group_sync_service.sync_class_group') as sync:
+             patch('services.class_group_sync_service.sync_class_group') as sync, \
+             patch('services.sis_waitlist_service.clear_entry_for_enrollment') as clear_waitlist:
             result = exceptions.resolve('org1', 'r1', 'approve', resolved_by='staff1')
         assert result['request']['status'] == 'approved'
         enrollments.upsert.assert_called_once_with({
             'class_id': 'class1', 'student_id': 'stu1',
             'status': 'active', 'enrolled_by': 'staff1',
         }, on_conflict='class_id,student_id')
-        waitlist.delete.assert_called_once()
+        clear_waitlist.assert_called_once_with('org1', 'class1', 'stu1')
         sync.assert_called_once_with('class1', actor_id='staff1')
         assert requests.update.call_args[0][0]['status'] == 'approved'
 
@@ -173,13 +172,15 @@ class TestResolve:
     def test_approve_with_drop_conflicting_drops_then_enrolls(self):
         tables = self._conflict_tables()
         with patch('services.sis_exception_service._admin', return_value=_client(tables)), \
-             patch('services.class_group_sync_service.sync_class_group') as sync:
+             patch('services.class_group_sync_service.sync_class_group') as sync, \
+             patch('services.sis_waitlist_service.clear_entry_for_enrollment') as clear_waitlist:
             result = exceptions.resolve('org1', 'r1', 'approve',
                                         resolved_by='staff1', drop_conflicting=True)
         assert result['request']['status'] == 'approved'
         enrollments = tables['class_enrollments']
         enrollments.update.assert_called_once_with({'status': 'dropped'})
         enrollments.upsert.assert_called_once()
+        clear_waitlist.assert_called_once_with('org1', 'class1', 'stu1')
         # both the dropped class's group and the new class's group re-sync
         assert {c.args[0] for c in sync.call_args_list} == {'other1', 'class1'}
 

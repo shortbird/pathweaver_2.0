@@ -118,15 +118,42 @@ def _age_from_dob(dob):
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _sibling_class_ids(org_id: str, class_id: str) -> List[str]:
+    """Returns class IDs of all sections belonging to the same course as class_id
+    (matching section_base_name), including class_id itself."""
+    try:
+        cls_row = (
+            _admin().table('org_classes').select('name')
+            .eq('organization_id', org_id).eq('id', class_id).limit(1).execute()
+        ).data or []
+        if cls_row and cls_row[0].get('name'):
+            base = section_base_name(cls_row[0]['name'])
+            if base:
+                all_classes = (
+                    _admin().table('org_classes').select('id, name')
+                    .eq('organization_id', org_id).execute()
+                ).data or []
+                siblings = [
+                    c['id'] for c in all_classes
+                    if c.get('name') and section_base_name(c['name']) == base
+                ]
+                if siblings:
+                    return siblings
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[Waitlist] error looking up sibling class IDs for {class_id}: {e}")
+    return [class_id]
+
+
 def add_to_waitlist(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:
     """Append a student to a class waitlist (idempotent on class+student).
 
-    A student who is already actively enrolled is never queued — a child on the
-    roster *and* on the waitlist is the state that made iCreate's counts look
-    haunted."""
+    A student who is already actively enrolled in this class or any sibling
+    section of the class is never queued — a child on the roster *and* on the
+    waitlist is the state that made iCreate's counts look haunted."""
+    matching_class_ids = _sibling_class_ids(org_id, class_id)
     active = (
         _admin().table('class_enrollments').select('id')
-        .eq('class_id', class_id).eq('student_id', student_user_id)
+        .in_('class_id', matching_class_ids).eq('student_id', student_user_id)
         .eq('status', 'active').limit(1).execute()
     ).data or []
     if active:
@@ -433,26 +460,32 @@ def offer_other_section(org_id: str, entry_id: str, class_id: str) -> Dict[str, 
 
 
 def clear_entry_for_enrollment(org_id: str, class_id: str, student_user_id: str) -> None:
-    """Mark a student's live waitlist entry for this class as promoted, because
-    they were enrolled some other way (staff added them from the roster, the CLP
-    meeting, a re-registration). Without this the family keeps seeing 'Waitlist
-    #2' in the Schedule Builder for a class their child is already in — exactly
-    the "idk what's happening here" iCreate hit on 2026-07-29."""
+    """Mark a student's live waitlist entry for this class (and all sibling sections
+    of the same class) as promoted, because they were enrolled in one section of
+    the class. Without this the family keeps seeing 'Waitlist #2' in the Schedule
+    Builder or remaining queued on other sections of a class their child is
+    already taking."""
     try:
+        matching_class_ids = _sibling_class_ids(org_id, class_id)
         rows = (
-            _admin().table('sis_waitlist_entries').select('id, status')
-            .eq('organization_id', org_id).eq('class_id', class_id)
+            _admin().table('sis_waitlist_entries').select('id, status, class_id')
+            .eq('organization_id', org_id).in_('class_id', matching_class_ids)
             .eq('student_user_id', student_user_id).execute()
         ).data or []
-        live = [r['id'] for r in rows if r.get('status') in ('waiting', 'offered')]
+        live = [r for r in rows if r.get('status') in ('waiting', 'offered')]
         if not live:
             return
+        live_ids = [r['id'] for r in live]
         (
             _admin().table('sis_waitlist_entries')
             .update({'status': 'promoted', 'updated_at': _now().isoformat()})
-            .in_('id', live).execute()
+            .in_('id', live_ids).execute()
         )
-        logger.info(f"[Waitlist] cleared {len(live)} entry(ies) for enrolled student in class {class_id}")
+        logger.info(f"[Waitlist] cleared {len(live_ids)} entry(ies) for enrolled student across sections {matching_class_ids}")
+
+        offered_class_ids = {r['class_id'] for r in live if r.get('status') == 'offered' and r.get('class_id') != class_id}
+        for cid in offered_class_ids:
+            alert_admins_seat_opened(org_id, cid)
     except Exception as e:  # noqa: BLE001 — never break an enrollment over this
         logger.warning(f"[Waitlist] could not clear entries for class {class_id}: {e}")
 
@@ -526,10 +559,10 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(entry['class_id'], actor_id=enrolled_by)
+    clear_entry_for_enrollment(org_id, entry['class_id'], entry['student_user_id'])
     resp = (
         _admin().table('sis_waitlist_entries')
-        .update({'status': 'promoted', 'updated_at': _now().isoformat()})
-        .eq('id', entry_id).execute()
+        .select('*').eq('id', entry_id).execute()
     )
     return {'entry': resp.data[0] if resp.data else None, 'enrolled': True}
 
