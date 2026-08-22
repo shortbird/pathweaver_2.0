@@ -33,6 +33,9 @@ FORM_TYPES = {
     'parent_contact': 'Parent-contact record',
     'reimbursement': 'Reimbursement request',
     'training_idea': 'Training idea',
+    # Gryffin, 2026-08-22: their insurance requires periodic employee reviews,
+    # and this queue is where the completed form gets filed.
+    'employee_review': 'Employee review',
     'task': 'Task',
     'other': 'Other',
 }
