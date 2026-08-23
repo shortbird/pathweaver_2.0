@@ -7,13 +7,14 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView, AppState } from 'react-native';
+import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { router } from 'expo-router';
-import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
+import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
+import { useRefetchOnForeground } from '@/src/hooks/useRefetchOnForeground';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
@@ -637,21 +638,8 @@ export default function FeedScreen() {
 
   // Auto-refresh the feed when the app returns to the foreground while the feed
   // tab is open (bug #4: "no way to refresh the feed when I reopen the app after
-  // a while"). Scoped to focus via useFocusEffect so switching tabs doesn't reset
-  // scroll, and so a reopen on another tab doesn't refetch here. Pull-to-refresh
-  // still covers the manual case.
-  const appStateRef = useRef(AppState.currentState);
-  useFocusEffect(
-    useCallback(() => {
-      const sub = AppState.addEventListener('change', (next) => {
-        if (appStateRef.current.match(/inactive|background/) && next === 'active') {
-          refetch();
-        }
-        appStateRef.current = next;
-      });
-      return () => sub.remove();
-    }, [refetch]),
-  );
+  // a while"). Pull-to-refresh still covers the manual case.
+  useRefetchOnForeground(refetch);
 
   // When a background media upload finishes (durable upload queue), refetch so
   // the real video/photo replaces the "Uploading…" placeholder without a manual

@@ -33,8 +33,15 @@ jest.mock('@/src/stores/actingAsStore', () => ({
 }));
 
 import { useAuthStore } from '../authStore';
-import { authAPI } from '@/src/services/api';
+import { authAPI, onSessionExpired } from '@/src/services/api';
 import { tokenStore } from '@/src/services/tokenStore';
+
+// The store subscribes to session expiry once, at module load (i.e. during the
+// imports above). Capture the callback NOW — the per-test clearAllMocks wipes
+// mock.calls, so it can't be read later.
+const sessionExpiredCb = (onSessionExpired as jest.Mock).mock.calls[0]?.[0] as
+  | (() => void)
+  | undefined;
 
 const mockUser = createMockUser();
 
@@ -389,5 +396,39 @@ describe('authStore', () => {
         useAuthStore.getState().forgotPassword('test@test.com')
       ).rejects.toThrow('Failed to send reset email');
     });
+  });
+});
+
+describe('session expiry (onSessionExpired subscription)', () => {
+  it('subscribes exactly once at module load', () => {
+    expect(sessionExpiredCb).toBeInstanceOf(Function);
+  });
+
+  it('flips an authenticated session to logged out', () => {
+    useAuthStore.setState({
+      user: mockUser,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+
+    sessionExpiredCb!();
+
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.isLoading).toBe(false);
+  });
+
+  it('is a no-op when already logged out', () => {
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+    });
+
+    expect(() => sessionExpiredCb!()).not.toThrow();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });

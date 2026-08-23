@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface Course {
   id: string;
@@ -113,6 +114,7 @@ export function useCourseCatalog() {
   }, [debouncedSearch, isSuperadmin, isAuthenticated, isLoading]);
 
   useEffect(() => { fetchCourses(); }, [fetchCourses]);
+  useRefetchOnForeground(fetchCourses);
 
   return { courses, loading, search, setSearch, refetch: fetchCourses, isSuperadmin, canCreateCourse };
 }
@@ -164,6 +166,7 @@ export function useCourseDetail(courseId: string | null) {
   };
 
   useEffect(() => { fetchCourse(); }, [fetchCourse]);
+  useRefetchOnForeground(fetchCourse);
 
   return { course, loading, error, enroll, unenroll, refetch: fetchCourse };
 }
@@ -212,6 +215,7 @@ export function useLessons(questId: string | null) {
   }, [isAuthenticated, questId]);
 
   useEffect(() => { fetchLessons(); }, [fetchLessons]);
+  useRefetchOnForeground(fetchLessons);
 
   return { lessons, loading, error, refetch: fetchLessons };
 }

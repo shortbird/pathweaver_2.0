@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface PillarXP {
   pillar: string;
@@ -151,6 +152,7 @@ export function useProfile() {
   }, [isAuthenticated, isStudent, user?.id]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
+  useRefetchOnForeground(fetchProfile);
 
   return { user, pillarXP, momentsCount, achievements, subjectXP, viewers, deletionStatus, portfolioPublic, setPortfolioPublic, portfolioSlug, loading, refetch: fetchProfile };
 }

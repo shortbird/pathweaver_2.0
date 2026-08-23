@@ -8,6 +8,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { extractApiError } from '../services/apiError';
 import { captureException } from '../services/sentry';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 // Read/write URL search params on web for persistence
 function getWebParam(key: string): string | null {
@@ -199,6 +200,7 @@ export function useQuestDiscovery() {
 
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
   useEffect(() => { fetchQuests(1, false); }, [fetchQuests]);
+  useRefetchOnForeground(() => fetchQuests(1, false));
 
   // Derive subtopics from selected topic
   const subtopics = selectedTopic ? TOPIC_TAXONOMY[selectedTopic] || [] : [];
@@ -243,6 +245,7 @@ export function useQuestDetail(questId: string | null) {
   }, [isAuthenticated, questId]);
 
   useEffect(() => { fetch(); }, [fetch]);
+  useRefetchOnForeground(fetch);
 
   return { quest, loading, error, retry: fetch };
 }

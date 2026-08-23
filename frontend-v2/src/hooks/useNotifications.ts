@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/src/services/supabaseClient';
 import api from '@/src/services/api';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 // expo-notifications isn't available on web; lazy-require on native only so a
 // missing dep on web doesn't break the bundle.
@@ -250,6 +251,8 @@ export function useNotifications(userId: string | undefined) {
     }
   }, [notifications]);
 
+  useRefetchOnForeground(load);
+
   return {
     notifications,
     unreadCount,
@@ -309,6 +312,10 @@ export function useUnreadCount(userId: string | undefined) {
   // Refetch immediately when another screen clears notifications server-side
   // (e.g. reading a message thread), instead of waiting for the next focus.
   useNotificationsRefreshSignal(refresh);
+
+  // Focus effects don't re-fire when the app itself returns to the foreground,
+  // so the badge also needs the AppState path.
+  useRefetchOnForeground(refresh);
 
   return { unreadCount: count, loading, setCount };
 }

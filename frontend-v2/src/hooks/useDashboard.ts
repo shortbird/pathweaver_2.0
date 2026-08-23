@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface EngagementDay {
   date: string;
@@ -73,6 +74,8 @@ export function useDashboard() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useRefetchOnForeground(fetchData);
 
   return { data, loading, error, refetch: fetchData };
 }

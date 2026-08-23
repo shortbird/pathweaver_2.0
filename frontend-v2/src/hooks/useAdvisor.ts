@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface AdvisorStudent {
   id: string;
@@ -53,6 +54,7 @@ export function useAdvisorStudents() {
   }, [isAuthenticated]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useRefetchOnForeground(fetchData);
 
   return { students, caseload, loading, refetch: fetchData };
 }
@@ -76,6 +78,7 @@ export function useStudentOverview(studentId: string | null) {
   }, [isAuthenticated, studentId]);
 
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
+  useRefetchOnForeground(fetchOverview);
 
   return { overview, loading, refetch: fetchOverview };
 }

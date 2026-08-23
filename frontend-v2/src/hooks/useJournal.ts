@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface EvidenceBlock {
   id?: string;
@@ -109,6 +110,7 @@ export function useUnifiedTopics(studentId?: string) {
   }, [isAuthenticated, studentId, useCache]);
 
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
+  useRefetchOnForeground(fetchTopics);
 
   return { topics, loading, refetch: fetchTopics };
 }
@@ -166,6 +168,8 @@ export function useUnassignedMoments(studentId?: string) {
     });
   }, [useCache]);
 
+  useRefetchOnForeground(fetchMoments);
+
   return { moments, loading, refetch: fetchMoments, removeMoment };
 }
 
@@ -207,6 +211,8 @@ export function useTrackMoments(trackId: string | null, studentId?: string) {
   const removeMoment = useCallback((id: string) => {
     setMoments((prev) => prev.filter((m) => m.id !== id));
   }, []);
+
+  useRefetchOnForeground(fetchTrack);
 
   return { track, moments, loading, refetch: fetchTrack, removeMoment };
 }
@@ -397,6 +403,8 @@ export function useQuestTasks(questId: string | null) {
     return data;
   };
 
+  useRefetchOnForeground(fetchTasks);
+
   return { tasks, questTitle, loading, refetch: fetchTasks, generateTasks, acceptTask };
 }
 
@@ -423,6 +431,8 @@ export function useQuestMoments(questId: string | null) {
   const removeMoment = useCallback((id: string) => {
     setMoments((prev) => prev.filter((m) => m.id !== id));
   }, []);
+
+  useRefetchOnForeground(fetchMoments);
 
   return { moments, loading, refetch: fetchMoments, removeMoment };
 }

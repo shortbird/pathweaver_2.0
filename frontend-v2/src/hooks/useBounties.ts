@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api, { bountyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface Bounty {
   id: string;
@@ -66,6 +67,7 @@ export function useBounties(pillarFilter?: string) {
   }, [isAuthenticated, pillarFilter]);
 
   useEffect(() => { fetchBounties(); }, [fetchBounties]);
+  useRefetchOnForeground(fetchBounties);
 
   return { bounties, loading, refetch: fetchBounties };
 }
@@ -89,6 +91,7 @@ export function useMyClaims() {
   }, [isAuthenticated]);
 
   useEffect(() => { fetchClaims(); }, [fetchClaims]);
+  useRefetchOnForeground(fetchClaims);
 
   return { claims, loading, refetch: fetchClaims };
 }
@@ -112,6 +115,7 @@ export function useMyPosted() {
   }, [isAuthenticated]);
 
   useEffect(() => { fetchPosted(); }, [fetchPosted]);
+  useRefetchOnForeground(fetchPosted);
 
   return { bounties, loading, refetch: fetchPosted };
 }
@@ -157,6 +161,7 @@ export function useBountyDetail(bountyId: string | null) {
   }, [isAuthenticated, bountyId]);
 
   useEffect(() => { fetchBounty(); }, [fetchBounty]);
+  useRefetchOnForeground(fetchBounty);
 
   return { bounty, loading, refetch: fetchBounty };
 }

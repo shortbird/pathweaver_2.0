@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { authAPI, api } from '../services/api';
+import { authAPI, api, onSessionExpired } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
 import { useActingAsStore } from './actingAsStore';
@@ -247,12 +247,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: true, error: null });
       try {
         const redirectTo = `${window.location.origin}/auth/callback`;
+        // No access_type/prompt queryParams: the backend never uses Google's
+        // provider tokens, and prompt:'consent' forced the full Google consent
+        // screen (and a "You shared some Google Account data" notification) on
+        // every single sign-in.
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
-          options: {
-            redirectTo,
-            queryParams: { access_type: 'offline', prompt: 'consent' },
-          },
+          options: { redirectTo },
         });
         if (error) set({ isLoading: false, error: error.message });
       } catch {
@@ -269,12 +270,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const redirectTo = 'optio://auth/callback';
+      // Same as the web path: no access_type/prompt queryParams, so a returning
+      // user re-authenticates silently instead of re-consenting every time.
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
           skipBrowserRedirect: true,
-          queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
       if (error || !data?.url) {
@@ -547,4 +549,18 @@ useAuthStore.subscribe((state, prev) => {
   if (state.user?.id !== prev.user?.id) {
     setSentryUser(state.user ? { id: state.user.id, email: state.user.email } : null);
   }
+});
+
+// When a token refresh fails because the session is genuinely gone (revoked
+// family, expired refresh token), api.ts clears SecureStore — but this store
+// kept saying isAuthenticated=true, so the app sat on dead screens where every
+// request silently 401'd until the user force-closed it ("the app won't
+// refresh"). Flip the store too: the (app) layout's auth gate then redirects to
+// the login screen immediately. No authAPI.logout() call — the session is
+// already dead server-side, and the request would just 401.
+onSessionExpired(() => {
+  const { isAuthenticated, user } = useAuthStore.getState();
+  if (!isAuthenticated && !user) return; // already logged out; nothing to tear down
+  useActingAsStore.getState().clear();
+  useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
 });

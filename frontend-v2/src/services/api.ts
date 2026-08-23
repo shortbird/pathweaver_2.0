@@ -25,7 +25,7 @@ import { captureException, captureMessage } from './sentry';
 // If the env var is missing in a native production build we fall back to prod rather
 // than a dev URL, so a bad build can't accidentally target a developer's laptop.
 const isDev = (typeof __DEV__ !== 'undefined' && __DEV__);
-const DEV_LAN_IP = 'http://10.0.0.5:5001';
+const DEV_LAN_IP = 'http://192.168.68.53:5001';
 const ANDROID_EMULATOR_HOST = 'http://10.0.2.2:5001';
 const PROD_API = 'https://api.optioeducation.com';
 const NATIVE_FALLBACK = isDev
@@ -88,10 +88,24 @@ function refreshOnce(): Promise<string> {
   // Free the slot once settled so the next 401 starts a fresh refresh. The
   // caught copy keeps a failed refresh from surfacing as an unhandled rejection;
   // every caller still sees the rejection on the promise it awaited.
+  //
+  // This side-channel is also the ONE place a genuinely dead session is torn
+  // down, so it runs once per refresh no matter how many callers joined: clear
+  // the tokens and tell the auth store (via listener — this module must not
+  // import the store). Without the notify, the store kept isAuthenticated=true
+  // after the tokens were wiped and the app sat on dead screens where every
+  // request 401'd until the user force-closed it.
   const settled = refreshInFlight;
-  settled.catch(() => {}).then(() => {
-    if (refreshInFlight === settled) refreshInFlight = null;
-  });
+  settled
+    .catch(async (err) => {
+      if (isUnrecoverableAuthFailure(err)) {
+        await tokenStore.clearTokens();
+        notifySessionExpired();
+      }
+    })
+    .then(() => {
+      if (refreshInFlight === settled) refreshInFlight = null;
+    });
 
   return refreshInFlight;
 }
@@ -295,6 +309,34 @@ export function onPhoneVerificationRequired(fn: PhoneHoldListener): () => void {
   };
 }
 
+// ── Session expiry ───────────────────────────────────────────────────────────
+// Fired (once per failed refresh, from refreshOnce's settle handler) when the
+// backend has genuinely ended the session — revoked token family, expired
+// refresh token. Listeners, not a store import, for the same reason as the
+// phone-verification hold above: the auth store imports this module.
+type SessionExpiredListener = () => void;
+const sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+function notifySessionExpired(): void {
+  sessionExpiredListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // A listener that throws must not stop the rest of the teardown.
+    }
+  });
+}
+
+/** Subscribe to "this session is dead and the tokens are gone". Returns an
+ *  unsubscribe. The auth store uses this to flip to logged-out state so the
+ *  auth gate redirects to login instead of leaving a frozen app. */
+export function onSessionExpired(fn: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(fn);
+  return () => {
+    sessionExpiredListeners.delete(fn);
+  };
+}
+
 /**
  * Decide whether a failed token refresh should tear down the session.
  *
@@ -344,13 +386,11 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${newAccess}`;
       return api(originalRequest);
     } catch (refreshError) {
-      // Tear down the session only when the refresh genuinely failed because the
-      // credentials are invalid/expired — never on a transient/recoverable error.
-      // This is what stops a flaky 401 (e.g. from the notifications screen) from
-      // logging the user out.
-      if (isUnrecoverableAuthFailure(refreshError)) {
-        await tokenStore.clearTokens();
-      }
+      // Session teardown (clear tokens + notify the auth store) happens once,
+      // in refreshOnce's settle handler, and only when the refresh genuinely
+      // failed because the credentials are invalid/expired — never on a
+      // transient/recoverable error. This is what stops a flaky 401 (e.g. from
+      // the notifications screen) from logging the user out.
       return Promise.reject(refreshError);
     }
   }
