@@ -71,6 +71,12 @@ class SecurityMiddleware:
             # IS the auth + payload — there's no JSON body to enforce.
             if (request.path or '').startswith('/lti/'):
                 should_skip = True
+            # The CRM unsubscribe POST is form-encoded by design: RFC 8058
+            # one-click unsubscribes from mail clients and the plain HTML
+            # confirm-page form both post application/x-www-form-urlencoded
+            # (the token rides the query string either way).
+            if (request.path or '') == '/api/crm/unsubscribe':
+                should_skip = True
 
             if not should_skip:
                 # Also skip if it's multipart/form-data (file upload)

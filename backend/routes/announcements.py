@@ -89,7 +89,17 @@ def create_announcement(user_id):
         student_ids = announcement_service.targeted_student_ids(
             org_id, class_ids=class_ids, teacher_ids=teacher_ids,
             min_age=min_age, max_age=max_age)
-        if student_ids is not None and not student_ids:
+        advisor_ids = announcement_service.targeted_advisor_ids(
+            org_id, class_ids=class_ids, teacher_ids=teacher_ids)
+        nobody_students = student_ids is not None and not student_ids
+        nobody_advisors = advisor_ids is not None and not advisor_ids
+        # "Nobody matches" is judged against the audiences actually chosen: a
+        # teachers-only send to a class with no students is still a real send.
+        wants_students = bool({'students', 'parents'} & set(audiences))
+        wants_advisors = 'advisors' in audiences
+        if ((not wants_advisors and nobody_students)
+                or (not wants_students and nobody_advisors)
+                or (nobody_students and nobody_advisors)):
             return jsonify({'success': False,
                             'error': 'Nobody matches that selection'}), 400
 
@@ -101,6 +111,7 @@ def create_announcement(user_id):
         result = announcement_service.publish(
             org_id, user_id, title, content, audiences,
             student_ids=student_ids, send_email=send_email,
+            advisor_ids=advisor_ids,
             target_label=announcement_service.target_label(
                 audiences, class_ids, teacher_ids, min_age, max_age))
         return jsonify({'success': True, **result})
@@ -123,11 +134,21 @@ def list_announcements(user_id):
         if not org_id:
             return jsonify({'success': True, 'announcements': []})
 
-        rows = admin.table('announcements')\
+        # Staff see everything; a student or parent calling this endpoint gets
+        # the same audience filter the archive applies — without it, a
+        # teachers-only notice was readable by any family that hit the API.
+        caller = admin.table('users').select('role, org_role, org_roles')\
+            .eq('id', user_id).single().execute().data or {}
+        audience_token = _archive_audience_token(get_effective_role(caller), None)
+        query = admin.table('announcements')\
             .select('id, title, message, target_audience, author_id, created_at')\
-            .eq('organization_id', org_id)\
-            .order('created_at', desc=True)\
-            .limit(50).execute()
+            .eq('organization_id', org_id)
+        if audience_token:
+            query = query.or_(
+                f'target_audience.eq.everyone,'
+                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%'
+            )
+        rows = query.order('created_at', desc=True).limit(50).execute()
         announcements = [
             {**row, 'content': row.get('message')}
             for row in (rows.data or [])
@@ -136,6 +157,54 @@ def list_announcements(user_id):
     except Exception as e:
         logger.error(f"Error listing announcements: {e}")
         return jsonify({'success': False, 'error': 'Failed to load announcements'}), 500
+
+
+@bp.route('/api/announcements/<announcement_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+def delete_announcement(user_id, announcement_id):
+    """Delete a sent announcement's durable row (and its bell notifications).
+
+    Until this existed there was no way to take a sent announcement down: the
+    Community Hub delete removes the sis_announcements board copy only, so the
+    row published from the Messaging page stayed in "Recent announcements" and
+    in the family archive forever (iCreate, 2026-08-22). Admin tier may delete
+    anything in their org; an advisor only their own."""
+    try:
+        # admin client justified: org-scoped delete, role + author checks below
+        admin = get_supabase_admin_client()
+        caller = admin.table('users')\
+            .select('role, org_role, org_roles, organization_id')\
+            .eq('id', user_id).single().execute().data or {}
+        effective_role = get_effective_role(caller)
+
+        row = admin.table('announcements')\
+            .select('id, organization_id, author_id')\
+            .eq('id', announcement_id).limit(1).execute().data
+        if not row:
+            return jsonify({'success': False, 'error': 'Announcement not found'}), 404
+        row = row[0]
+
+        if effective_role != 'superadmin' and \
+                row.get('organization_id') != caller.get('organization_id'):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        if effective_role not in (*ADMIN_ROLES, 'superadmin') and \
+                row.get('author_id') != user_id:
+            return jsonify({'success': False, 'error': 'Only the sender or an admin can delete this'}), 403
+
+        admin.table('announcements').delete().eq('id', announcement_id).execute()
+        # Best-effort: pull the bell notifications that point at it, so the
+        # message doesn't survive its own deletion in everyone's notification
+        # list. Failure here still leaves the announcement gone.
+        try:
+            admin.table('notifications').delete()\
+                .eq('notification_type', 'announcement')\
+                .filter('metadata->>announcement_id', 'eq', announcement_id).execute()
+        except Exception as ne:  # noqa: BLE001
+            logger.warning(f"Announcement {announcement_id} deleted but notifications not swept: {ne}")
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting announcement: {e}")
+        return jsonify({'success': False, 'error': 'Failed to delete announcement'}), 500
 
 
 _AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents'}

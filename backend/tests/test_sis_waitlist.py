@@ -238,3 +238,61 @@ class TestParentClaimRoute:
             resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
                                headers=auth_headers, json={'organization_id': 'org-1'})
         assert resp.status_code == 403
+
+
+@pytest.mark.unit
+class TestSeatHolds:
+    """A live offer HOLDS its seat: no other family-facing enrollment path may
+    hand it out (iCreate, 2026-08-22 — three families could not claim offered
+    seats because direct enrolls filled the class under the offer)."""
+
+    def _offer_rows(self, rows):
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        return client
+
+    def test_live_offers_count(self):
+        from datetime import datetime, timedelta, timezone
+        future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        rows = [
+            {'id': 'w1', 'student_user_id': 's1', 'offer_expires_at': future},
+            {'id': 'w2', 'student_user_id': 's2', 'offer_expires_at': future},
+        ]
+        with patch.object(wl, '_admin', return_value=self._offer_rows(rows)):
+            assert wl.live_offer_count('c1') == 2
+
+    def test_expired_offers_do_not_hold_seats(self):
+        from datetime import datetime, timedelta, timezone
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        rows = [
+            {'id': 'w1', 'student_user_id': 's1', 'offer_expires_at': past},
+            {'id': 'w2', 'student_user_id': 's2', 'offer_expires_at': future},
+        ]
+        with patch.object(wl, '_admin', return_value=self._offer_rows(rows)):
+            assert wl.live_offer_count('c1') == 1
+
+    def test_the_claimants_own_offer_is_excluded(self):
+        from datetime import datetime, timedelta, timezone
+        future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        rows = [{'id': 'w1', 'student_user_id': 's1', 'offer_expires_at': future}]
+        with patch.object(wl, '_admin', return_value=self._offer_rows(rows)):
+            assert wl.live_offer_count('c1', exclude_student_id='s1') == 0
+
+    def test_a_lookup_failure_holds_nothing(self):
+        boom = Mock()
+        boom.table.side_effect = RuntimeError('supabase down')
+        with patch.object(wl, '_admin', return_value=boom):
+            assert wl.live_offer_count('c1') == 0
+
+    def test_catalog_counts_held_seats_as_taken(self):
+        from services import sis_catalog_service as cat
+        assert cat.spots_left(10, 8, held=2) == 0
+        assert cat.spots_left(10, 8, held=1) == 1
+        assert cat.is_full(10, 9, held=1) is True
+        assert cat.is_full(10, 9, held=0) is False
+        assert cat.is_full(None, 9, held=5) is False  # unlimited stays unlimited

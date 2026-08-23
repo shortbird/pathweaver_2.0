@@ -83,6 +83,16 @@ def main():
     # nothing is expired, so running it each cycle is safe.
     _run("sis-waitlist-offer-sweep", f"{base}/api/sis/internal/waitlist-offer-sweep", cron_secret, failures)
 
+    # Every run: CRM funnel sweep (scheduled nurture/onboarding sends). The
+    # send window (9-19 Denver), per-lead throttle, and postal-address gate
+    # are all enforced server-side, so off-hours runs no-op cheaply.
+    _run("crm-funnel-sweep", f"{base}/api/crm/internal/funnel-sweep", cron_secret, failures)
+
+    # Hourly: Google Calendar booking poll (the "scheduled a video chat"
+    # conversion trigger). No-ops until the calendar credential is configured.
+    if now.minute < 10:
+        _run("crm-calendar-poll", f"{base}/api/crm/internal/calendar-poll", cron_secret, failures)
+
     # Daily advisor summary: DISABLED 2026-08-05 at the owner's request (too many
     # emails; the summary isn't needed). Left as a note rather than deleted so the
     # history is clear; the trigger endpoint still exists for manual/admin use.

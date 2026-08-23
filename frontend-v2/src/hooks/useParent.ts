@@ -7,6 +7,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
 import { useAddKidStore } from '../stores/addKidStore';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 import type { EngagementData } from './useDashboard';
 import type { LearningEvent, UnifiedTopic } from './useJournal';
 
@@ -158,6 +159,7 @@ export function useChildDashboard(studentId: string | null) {
   }, [isAuthenticated, studentId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useRefetchOnForeground(fetchData);
 
   return { data, loading, refetch: fetchData };
 }
@@ -187,6 +189,7 @@ export function useChildOverview(studentId: string | null) {
   }, [isAuthenticated, studentId]);
 
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
+  useRefetchOnForeground(fetchOverview);
 
   return { overview, loading, refetch: fetchOverview };
 }
@@ -250,6 +253,7 @@ export function useChildJournal(studentId: string | null) {
   }, [isAuthenticated, studentId]);
 
   useEffect(() => { fetchJournal(); }, [fetchJournal]);
+  useRefetchOnForeground(fetchJournal);
 
   return { moments, topics, loading, refetch: fetchJournal };
 }

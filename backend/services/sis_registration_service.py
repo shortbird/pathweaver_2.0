@@ -421,7 +421,14 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
         if not klass:
             continue
         enrolled = repo.active_enrollment_count(item['class_id'])
-        if elig.is_full(klass.get('capacity'), enrolled) and klass.get('waitlist_enabled', True):
+        # Seats held by other families' live waitlist offers count as taken —
+        # registration completing must not consume a seat that was promised to
+        # someone else (iCreate, 2026-08-22). The student's own offer is theirs.
+        from services import sis_waitlist_service
+        held = sis_waitlist_service.live_offer_count(item['class_id'],
+                                                     exclude_student_id=student_id)
+        if (elig.is_full(klass.get('capacity'), enrolled + held)
+                and klass.get('waitlist_enabled', True)):
             new_status = 'waitlisted'
             from services import sis_waitlist_service
             sis_waitlist_service.add_to_waitlist(org_id, item['class_id'], student_id)

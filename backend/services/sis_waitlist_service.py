@@ -32,6 +32,39 @@ def _admin():
     return get_supabase_admin_client()
 
 
+def live_offer_count(class_id: str, exclude_student_id: Optional[str] = None) -> int:
+    """Seats currently promised to families: 'offered' entries whose window has
+    not lapsed. An offered seat is HELD — no other enrollment path may hand it
+    out (iCreate, 2026-08-22: three families could not claim offered seats
+    because other enrollments filled the class under the offer). Pass
+    exclude_student_id to leave out the claimant's own hold. Best-effort: a
+    lookup failure returns 0 so enrollment never breaks over the count."""
+    try:
+        rows = (
+            _admin().table('sis_waitlist_entries')
+            .select('id, student_user_id, offer_expires_at')
+            .eq('class_id', class_id).eq('status', 'offered').execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[Waitlist] live_offer_count failed for {class_id}: {e}')
+        return 0
+    now = _now()
+    n = 0
+    for r in rows:
+        if exclude_student_id and r.get('student_user_id') == exclude_student_id:
+            continue
+        exp = r.get('offer_expires_at')
+        if exp:
+            try:
+                exp_dt = datetime.fromisoformat(str(exp).replace('Z', '+00:00'))
+                if now > exp_dt:
+                    continue  # stale — the sweep cron will mark it expired
+            except ValueError:
+                pass
+        n += 1
+    return n
+
+
 def offer_ttl_hours(org_id: str) -> int:
     """The org's offer window in hours (default 7 days). Best-effort: any lookup
     problem falls back to the default rather than failing the offer."""
@@ -386,9 +419,14 @@ def sibling_sections(org_id: str, class_id: str) -> List[Dict[str, Any]]:
             continue
         if section_base_name(c.get('name')) != base:
             continue
+        # Hold-aware: a section whose last seat is promised to another family
+        # (a live offer) has no room to offer here either.
+        if c.get('is_full'):
+            continue
         capacity = c.get('capacity')
         enrolled = c.get('enrolled_count') or 0
-        if capacity is not None and enrolled >= capacity:
+        held = c.get('seats_held') or 0
+        if capacity is not None and (enrolled + held) >= capacity:
             continue
         out.append({
             'class_id': c['id'],
@@ -605,7 +643,10 @@ def alert_admins_seat_opened(org_id: str, class_id: str) -> bool:
             .select('id', count='exact')
             .eq('class_id', class_id).eq('status', 'active').execute()
         ).count or 0
-        seats_open = None if capacity is None else max(0, capacity - active)
+        # Seats already promised to families with a live offer are not open —
+        # alerting staff to hand them out again is how a claim gets snagged.
+        held = live_offer_count(class_id)
+        seats_open = None if capacity is None else max(0, capacity - active - held)
         # A None capacity means unlimited — a "seat" is always available, so any
         # waiting student can be admitted.
         if seats_open == 0:

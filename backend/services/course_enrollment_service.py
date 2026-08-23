@@ -141,6 +141,16 @@ class CourseEnrollmentService(BaseService):
 
             logger.info(f"User {user_id} enrolled in course {course_id}, auto-enrolled in {quest_enrollments_created} quests")
 
+            # CRM conversion hook: a course enrollment (fresh or reactivated)
+            # converts a lead. One hook here covers every enrollment caller
+            # (admin, advisor bulk, SIS parent, org registration).
+            if status in ('enrolled', 'reactivated'):
+                try:
+                    from services.crm_service import record_class_start
+                    record_class_start(user_id)
+                except Exception as crm_err:  # noqa: BLE001
+                    logger.warning(f"CRM class-start sync skipped: {crm_err}")
+
             return {
                 'success': True,
                 'enrollment': enrollment,

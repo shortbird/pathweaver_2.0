@@ -60,7 +60,7 @@ def _admin_client(store):
     return client
 
 
-def _accept_tos(client, row=None, claim_won=True, brevo_funnel=None, send_succeeds=True):
+def _accept_tos(client, row=None, claim_won=True, crm_funnel=None, send_succeeds=True):
     """POST the TOS acceptance and return (email_service, update payloads)."""
     store = {
         'row': row or {'id': USER_ID, 'email': 'new@example.com',
@@ -74,7 +74,7 @@ def _accept_tos(client, row=None, claim_won=True, brevo_funnel=None, send_succee
     with patch('routes.auth.google_oauth.verify_tos_acceptance_token', return_value=USER_ID), \
          patch('routes.auth.google_oauth.get_supabase_admin_client', return_value=_admin_client(store)), \
          patch('routes.auth.google_oauth.attach_relationship_flags'), \
-         patch('routes.auth.google_oauth._sync_oauth_signup_to_brevo', return_value=brevo_funnel), \
+         patch('routes.auth.google_oauth._sync_oauth_signup_to_crm', return_value=crm_funnel), \
          patch('services.email_service.EmailService', return_value=email_service), \
          patch('routes.auth.google_oauth.session_manager.generate_access_token', return_value='at'), \
          patch('routes.auth.google_oauth.session_manager.generate_refresh_token', return_value='rt'), \
@@ -92,19 +92,19 @@ def _accept_tos(client, row=None, claim_won=True, brevo_funnel=None, send_succee
 @pytest.mark.integration
 class TestSingleOnboardingOwner:
     def test_funnelled_signup_gets_no_transactional_welcome(self, client):
-        email_service, _ = _accept_tos(client, brevo_funnel='New Account Welcome')
+        email_service, _ = _accept_tos(client, crm_funnel='New Account Welcome')
         email_service.send_welcome_email.assert_not_called()
 
     def test_signup_the_automation_skipped_still_gets_welcomed(self, client):
         """Promo-code roles, under-13, or a Brevo outage — the sync returns None
         and the transactional email is the fallback."""
-        email_service, _ = _accept_tos(client, brevo_funnel=None)
+        email_service, _ = _accept_tos(client, crm_funnel=None)
         email_service.send_welcome_email.assert_called_once()
         assert email_service.send_welcome_email.call_args.kwargs['user_email'] == 'new@example.com'
 
     def test_claim_loser_does_neither(self, client):
         """A concurrent duplicate request must not re-onboard the account."""
-        with patch('routes.auth.google_oauth._sync_oauth_signup_to_brevo') as sync:
+        with patch('routes.auth.google_oauth._sync_oauth_signup_to_crm') as sync:
             email_service, _ = _accept_tos(client, claim_won=False)
         sync.assert_not_called()
         email_service.send_welcome_email.assert_not_called()
@@ -112,19 +112,19 @@ class TestSingleOnboardingOwner:
     def test_already_onboarded_account_is_left_alone(self, client):
         row = {'id': USER_ID, 'email': 'new@example.com', 'role': 'student',
                'welcome_email_sent': True}
-        with patch('routes.auth.google_oauth._sync_oauth_signup_to_brevo') as sync:
+        with patch('routes.auth.google_oauth._sync_oauth_signup_to_crm') as sync:
             email_service, _ = _accept_tos(client, row=row)
         sync.assert_not_called()
         email_service.send_welcome_email.assert_not_called()
 
     def test_failed_transactional_send_releases_the_claim(self, client):
         """So a retry can onboard them instead of leaving them silently unwelcomed."""
-        _, updates = _accept_tos(client, brevo_funnel=None, send_succeeds=False)
+        _, updates = _accept_tos(client, crm_funnel=None, send_succeeds=False)
         assert {'welcome_email_sent': False} in updates
 
     def test_funnelled_signup_keeps_the_claim(self, client):
         """The automation owns them, so nothing should reopen onboarding."""
-        _, updates = _accept_tos(client, brevo_funnel='New Account Welcome')
+        _, updates = _accept_tos(client, crm_funnel='New Account Welcome')
         assert {'welcome_email_sent': False} not in updates
 
 

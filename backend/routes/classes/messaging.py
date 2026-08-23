@@ -1,9 +1,11 @@
 """
 Class group chat.
 
-Creates (or syncs) a group conversation from a class roster: members are the class's
-active students plus its advisors. Idempotent via group_conversations.source_class_id —
-a second call syncs membership instead of creating a duplicate group.
+Creates (or syncs) a group conversation from a class roster: members are the
+guardians of the class's active students plus its teachers (students are not in
+the class chat — they DM their teachers instead). Idempotent via
+group_conversations.source_class_id — a second call syncs membership instead of
+creating a duplicate group.
 """
 
 from flask import request, jsonify
@@ -29,7 +31,7 @@ def _user_info(user_id):
 @bp.route('/organizations/<org_id>/classes/<class_id>/messaging-group', methods=['POST'])
 @require_role('org_admin', 'advisor', 'superadmin')
 def create_class_group(user_id, org_id, class_id):
-    """Create or sync a group chat for a class (students + advisors)."""
+    """Create or sync a group chat for a class (families + teachers)."""
     try:
         effective_role, user_org_id = _user_info(user_id)
 
@@ -44,7 +46,7 @@ def create_class_group(user_id, org_id, class_id):
         group_id = sync_class_group(class_id, actor_id=user_id)
         if not group_id:
             return jsonify({'success': False,
-                            'error': 'No one to add yet — enroll a student or assign a teacher first'}), 400
+                            'error': 'No one to add yet — the chat holds the teachers and the families of enrolled students'}), 400
 
         # Ensure the requesting staff member is in the group (as admin) so they
         # land in a conversation they can manage.

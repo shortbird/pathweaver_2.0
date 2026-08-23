@@ -822,7 +822,14 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         .eq('class_id', class_id).eq('status', 'active').execute()
     ).count or 0
     capacity = klass.get('capacity')
-    if capacity is not None and enrolled_count >= capacity:
+    # Seats promised to OTHER families with a live waitlist offer are held —
+    # enrolling past them is how an offered seat gets snagged out from under
+    # the family it was offered to (iCreate, 2026-08-22). The student's own
+    # live offer is excluded: their seat is exactly the one they may take.
+    from services import sis_waitlist_service
+    held = sis_waitlist_service.live_offer_count(class_id,
+                                                 exclude_student_id=student_user_id)
+    if capacity is not None and (enrolled_count + held) >= capacity:
         if not klass.get('waitlist_enabled', True):
             return {'error': 'This class is full'}
         from services import sis_waitlist_service
@@ -905,7 +912,9 @@ def _alert_admins_blocked_claim(org_id: str, class_id: str, student_user_id: str
             roles = set(a.get('org_roles') or [])
             if a.get('org_role'):
                 roles.add(a['org_role'])
-            if 'org_admin' not in roles:
+            # Coordinators run the waitlists day to day (iCreate: Katrine), so
+            # they get the blocked-claim alert too — it is operational, not money.
+            if not roles & {'org_admin', 'campus_coordinator'}:
                 continue
             sis_notifications.notify(
                 a['id'],

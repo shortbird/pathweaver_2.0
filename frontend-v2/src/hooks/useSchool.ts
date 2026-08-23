@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useIsObserver } from '@/src/hooks/useStartSomething';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 // ── Types (server shapes, family-safe projections) ──
 
@@ -269,6 +270,8 @@ export function useSchoolHub() {
     remove: removeCarpool,
     message: messageCarpool,
   }), [feed?.carpool, canPost, canModerate, postCarpool, removeCarpool, messageCarpool]);
+
+  useRefetchOnForeground(refresh);
 
   return {
     org,

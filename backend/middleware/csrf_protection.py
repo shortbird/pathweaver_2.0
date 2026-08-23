@@ -121,6 +121,16 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'icreate_registration.upload_photo',
     'icreate_registration.schedule_done',
     'icreate_registration.appointment_done',
+    # CRM public/internal endpoints, each with its own proof: unsubscribe is
+    # gated by the opaque per-lead token (and must work for a recipient whose
+    # browser happens to carry auth cookies — same trap as the iCreate funnel
+    # above); the SendGrid webhook is Ed25519-signature-authenticated; the
+    # sweep/poll triggers require X-Cron-Secret or a superadmin session and
+    # only start a run the cron would start anyway within 10 minutes.
+    'crm.unsubscribe_perform',
+    'crm.sendgrid_events',
+    'crm.funnel_sweep',
+    'crm.calendar_poll',
 })
 
 

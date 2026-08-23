@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/src/services/api';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface ObserverStudent {
   id: string;
@@ -77,6 +78,8 @@ export function useObserverStudents(enabled: boolean = true) {
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  useRefetchOnForeground(refetch);
 
   return { students, loading, refetch };
 }

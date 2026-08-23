@@ -12,14 +12,14 @@ from unittest.mock import patch
 
 import pytest
 
-from routes.auth.google_oauth import _sync_oauth_signup_to_brevo
+from routes.auth.google_oauth import _sync_oauth_signup_to_crm
 
 
 def _run(user_data, promo_role=None, funnel='New Account Welcome'):
     """Call the sync with brevo_service stubbed; returns (result, sync, marked)."""
-    with patch('services.brevo_service.sync_new_account', return_value=funnel) as sync, \
-         patch('services.brevo_service.mark_converted') as marked:
-        result = _sync_oauth_signup_to_brevo(user_data, promo_role)
+    with patch('services.crm_service.sync_new_account', return_value=funnel) as sync, \
+         patch('services.crm_service.mark_converted') as marked:
+        result = _sync_oauth_signup_to_crm(user_data, promo_role)
     return result, sync, marked
 
 
@@ -87,9 +87,9 @@ class TestOAuthBrevoSync:
         assert sync.call_args.args[2] is None
 
     def test_brevo_failure_never_breaks_sign_in(self):
-        with patch('services.brevo_service.sync_new_account',
+        with patch('services.crm_service.sync_new_account',
                    side_effect=RuntimeError('brevo down')):
-            assert _sync_oauth_signup_to_brevo(
+            assert _sync_oauth_signup_to_crm(
                 {'email': 'new@example.com', 'role': 'student'}) is None
 
     def test_missing_email_is_a_no_op(self):

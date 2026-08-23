@@ -60,7 +60,7 @@ def verify_tos_acceptance_token(token: str):
         return None
 
 
-def _sync_oauth_signup_to_brevo(user_data, promo_role=None):
+def _sync_oauth_signup_to_crm(user_data, promo_role=None):
     """Push a completed Google/Apple signup into Brevo, mirroring the gate in
     routes/auth/registration.py: an effective role of student or parent and not
     under-13 joins Customers plus New Account Welcome (which starts the welcome
@@ -78,7 +78,7 @@ def _sync_oauth_signup_to_brevo(user_data, promo_role=None):
     if not email:
         return None
     try:
-        from services.brevo_service import mark_converted, sync_new_account
+        from services.crm_service import mark_converted, sync_new_account
         platform_role = promo_role or user_data.get('role') or 'student'
         effective_role = (
             user_data.get('org_role') if platform_role == 'org_managed' else platform_role
@@ -579,11 +579,11 @@ def accept_tos():
                     # lead who converted with Google or Apple kept receiving
                     # their nurture sequence because nothing ever marked them
                     # converted.
-                    brevo_funnel = _sync_oauth_signup_to_brevo(user_data, new_role)
+                    crm_funnel = _sync_oauth_signup_to_crm(user_data, new_role)
 
-                    if brevo_funnel:
+                    if crm_funnel:
                         logger.info(
-                            f"[OAUTH] {brevo_funnel} owns onboarding for {mask_user_id(user_id)} — "
+                            f"[OAUTH] {crm_funnel} owns onboarding for {mask_user_id(user_id)} — "
                             "skipping the transactional welcome email"
                         )
                     else:

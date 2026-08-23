@@ -29,8 +29,8 @@ SUPPORT_COPY_EXCLUDE_ORG_SLUGS = {'icreate'}
 class EmailService(BaseService):
     def __init__(self):
         # All outbound email goes through the SendGrid API. (The Brevo key
-        # lives on in brevo_service.py for marketing list sync until the
-        # in-house CRM replaces it — docs/CRM_REPLACEMENT_PLAN.md.)
+        # lives on for transactional SMS only; the in-house CRM replaced the
+        # Brevo list sync — docs/CRM_REPLACEMENT_PLAN.md.)
         self.api_key = Config.SENDGRID_API_KEY
         self.sender_email = Config.SENDER_EMAIL
         self.sender_name = Config.SENDER_NAME
@@ -70,29 +70,29 @@ class EmailService(BaseService):
             return None
 
     @staticmethod
-    def _funnel_banner(brevo_funnel: Optional[str]) -> tuple:
+    def _funnel_banner(crm_funnel: Optional[str]) -> tuple:
         """Top-of-copy banner for the [COPY] sent to SUPPORT_COPY_EMAIL, saying
-        whether a Brevo automation follows this email. Returns (html, text).
+        whether a CRM funnel sequence follows this email. Returns (html, text).
 
         Most Optio mail has no funnel behind it, so the no-funnel case is the
         default and states plainly that any reply has to be a personal one.
         """
-        if brevo_funnel:
-            name = escape(str(brevo_funnel))
+        if crm_funnel:
+            name = escape(str(crm_funnel))
             return (
                 '<div style="background: #ecfdf5; padding: 12px; margin-bottom: 8px; '
-                'border-left: 4px solid #059669;"><strong>Brevo funnel:</strong> '
+                'border-left: 4px solid #059669;"><strong>CRM funnel:</strong> '
                 f'{name}. Automated follow-up is running &mdash; no reply needed '
                 'unless they write back.</div>',
-                f"[Brevo funnel: {brevo_funnel}. Automated follow-up is running - "
+                f"[CRM funnel: {crm_funnel}. Automated follow-up is running - "
                 "no reply needed unless they write back.]",
             )
         return (
             '<div style="background: #fef2f2; padding: 12px; margin-bottom: 8px; '
-            'border-left: 4px solid #dc2626;"><strong>No Brevo funnel.</strong> '
+            'border-left: 4px solid #dc2626;"><strong>No CRM funnel.</strong> '
             'Nothing automated follows this email &mdash; if it needs a reply, '
             'reply to it yourself.</div>',
-            "[No Brevo funnel. Nothing automated follows this email - if it needs "
+            "[No CRM funnel. Nothing automated follows this email - if it needs "
             "a reply, reply to it yourself.]",
         )
 
@@ -108,7 +108,7 @@ class EmailService(BaseService):
         sender_email_override: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         reply_to: Optional[str] = None,
-        brevo_funnel: Optional[str] = None,
+        crm_funnel: Optional[str] = None,
         support_copy: Optional[bool] = None,
         contains_student_records: bool = False,
         categories: Optional[List[str]] = None,
@@ -134,13 +134,13 @@ class EmailService(BaseService):
             headers: Extra SMTP headers (e.g. List-Unsubscribe)
             custom_args: SendGrid custom_args echoed back on every webhook
                 event for this message (correlation ids)
-            brevo_funnel: Name of the live Brevo automation this send hands the
+            crm_funnel: Name of the live CRM funnel this send hands the
                 recipient off to (e.g. 'Free Class Nurture'), or None when
                 nothing automated follows. Only affects the [COPY] to
                 SUPPORT_COPY_EMAIL, which is banner-flagged either way so the
                 reader knows whether a personal reply is needed. Pass the
-                return value of the brevo_service sync that ran alongside the
-                send — it reflects whether the automation actually started for
+                return value of the crm_service sync that ran alongside the
+                send — it reflects whether the sequence actually started for
                 this recipient, not just which flow this is.
             support_copy: Force the monitoring copy on (True) or off (False).
                 None (default) keeps the automatic rule: copy unless the
@@ -250,7 +250,7 @@ class EmailService(BaseService):
                     and support_email not in cc
                     and to_email.lower() != support_copy_email.lower()):
                 try:
-                    funnel_html, funnel_text = self._funnel_banner(brevo_funnel)
+                    funnel_html, funnel_text = self._funnel_banner(crm_funnel)
                     html_context = funnel_html + f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
                     # Inject the banner INSIDE <body> when the message is a full
                     # HTML document — prepending it before <!DOCTYPE>/<head> made
@@ -436,7 +436,7 @@ class EmailService(BaseService):
         bcc: Optional[List[str]] = None,
         reply_to: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        brevo_funnel: Optional[str] = None,
+        crm_funnel: Optional[str] = None,
         contains_student_records: bool = False
     ) -> bool:
         """
@@ -454,7 +454,7 @@ class EmailService(BaseService):
                 unwatched support@ inbox.
             attachments: List of {'filename': str, 'content': bytes,
                 'mimetype': str} dicts (optional)
-            brevo_funnel: Live Brevo automation this send hands off to, if any
+            crm_funnel: Live Brevo automation this send hands off to, if any
                 (see send_email) — drives the [COPY] banner only.
             contains_student_records: Body quotes a student's education record;
                 blocks the monitoring copy outright (see send_email).
@@ -494,7 +494,7 @@ class EmailService(BaseService):
                 sender_name_override=sender_name,
                 reply_to=reply_to,
                 attachments=attachments,
-                brevo_funnel=brevo_funnel,
+                crm_funnel=crm_funnel,
                 contains_student_records=contains_student_records
             )
 
@@ -1255,7 +1255,7 @@ class EmailService(BaseService):
         user_name: str,
         user_email: str,
         organization: str = None,
-        brevo_funnel: Optional[str] = None
+        crm_funnel: Optional[str] = None
     ) -> bool:
         """
         Send demo request confirmation email to user.
@@ -1283,7 +1283,7 @@ class EmailService(BaseService):
             # The copy asks them to reply; the default sender is the unwatched
             # support@ inbox, so route replies to a watched one.
             reply_to=Config.ADMIN_EMAIL,
-            brevo_funnel=brevo_funnel
+            crm_funnel=crm_funnel
         )
 
     def send_sales_inquiry_confirmation(
@@ -1328,7 +1328,7 @@ class EmailService(BaseService):
         user_name: str,
         user_email: str,
         message: str = None,
-        brevo_funnel: Optional[str] = None
+        crm_funnel: Optional[str] = None
     ) -> bool:
         """Send family inquiry confirmation email from the for-families page."""
         return self.send_templated_email(
@@ -1339,7 +1339,7 @@ class EmailService(BaseService):
                 'name': user_name,
                 'message': message or ''
             },
-            brevo_funnel=brevo_funnel
+            crm_funnel=crm_funnel
         )
 
     def send_academy_inquiry_confirmation(
@@ -1365,7 +1365,7 @@ class EmailService(BaseService):
         first_name: str,
         cohort_name: str,
         cc: Optional[List[str]] = None,
-        brevo_funnel: Optional[str] = None
+        crm_funnel: Optional[str] = None
     ) -> bool:
         """
         Confirm a Pipe Organ Encounter interest-list signup (public /poe page).
@@ -1450,13 +1450,13 @@ class EmailService(BaseService):
             html_body=html_body,
             text_body=text_body,
             cc=cc or None,
-            brevo_funnel=brevo_funnel,
+            crm_funnel=crm_funnel,
         )
 
     def send_claim_free_class_confirmation(
         self,
         user_email: str,
-        brevo_funnel: Optional[str] = None
+        crm_funnel: Optional[str] = None
     ) -> bool:
         """
         Send confirmation email for the 'first class free' modal on /classes.
@@ -1470,7 +1470,7 @@ class EmailService(BaseService):
             subject="Your free Optio class — here's what's next",
             template_name='claim_free_class_confirmation',
             context={},
-            brevo_funnel=brevo_funnel
+            crm_funnel=crm_funnel
         )
 
     def send_promo_code_email(
@@ -1617,7 +1617,7 @@ class EmailService(BaseService):
         courses_sentence: str,
         course_count: int,
         expiry_days: int,
-        brevo_funnel: Optional[str] = None
+        crm_funnel: Optional[str] = None
     ) -> bool:
         """
         Send a welcome email when a partner org_admin registers a NEW student for
@@ -1639,7 +1639,7 @@ class EmailService(BaseService):
                 'course_word': course_word,
                 'expiry_days': expiry_days
             },
-            brevo_funnel=brevo_funnel
+            crm_funnel=crm_funnel
         )
 
     def send_org_courses_added_email(

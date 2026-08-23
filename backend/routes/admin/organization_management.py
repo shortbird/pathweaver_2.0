@@ -1661,10 +1661,10 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                 # there is no age gate here (unlike self-serve registration).
                 # Fire-and-forget; the returned automation name rides along so
                 # the [COPY] to Tanner says whether a sequence follows.
-                brevo_funnel = None
+                crm_funnel = None
                 try:
-                    from services.brevo_service import sync_course_student
-                    brevo_funnel = sync_course_student(student_email, first_name, last_name)
+                    from services.crm_service import sync_course_student
+                    crm_funnel = sync_course_student(student_email, first_name, last_name)
                 except Exception as brevo_err:
                     logger.warning(f"Brevo course-student sync failed for {student_email}: {brevo_err}")
                 # One link that both confirms the address and sets the password.
@@ -1687,7 +1687,7 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                         courses_sentence=courses_sentence,
                         course_count=len(email_titles),
                         expiry_days=INVITE_EXPIRY_DAYS,
-                        brevo_funnel=brevo_funnel
+                        crm_funnel=crm_funnel
                     )
                 else:
                     logger.error(

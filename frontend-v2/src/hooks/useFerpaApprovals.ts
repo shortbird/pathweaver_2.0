@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/src/services/api';
+import { useRefetchOnForeground } from './useRefetchOnForeground';
 
 export interface FerpaApprovalRequest {
   id: string;
@@ -49,6 +50,8 @@ export function useFerpaApprovals() {
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  useRefetchOnForeground(refetch);
 
   return { requests, loading, refetch, respond, count: requests.length };
 }
