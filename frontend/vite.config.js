@@ -21,6 +21,12 @@ const BUILD_ID = (() => {
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
 
+  // Dev API target. BACKEND_PORT lets a second working tree (a git worktree on
+  // another branch) run its own backend beside the main one without either
+  // editing this file: `BACKEND_PORT=5002 npm run dev`. Defaults to the
+  // standard :5001.
+  const apiTarget = `http://localhost:${process.env.BACKEND_PORT || 5001}`
+
   return {
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_ID),
@@ -107,18 +113,18 @@ export default defineConfig(({ mode }) => {
     allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app', '.trycloudflare.com', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: apiTarget,
         changeOrigin: true,
       },
       // Backend LTI protocol endpoints. Use a regex anchored to `/lti/` (with
       // trailing slash) so it matches `/lti/login`, `/lti/launch`, etc., but
       // NOT the iframe React routes `/lti-launch`, `/lti-deep-link`, etc.
       '^/lti/.*': {
-        target: 'http://localhost:5001',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/.well-known': {
-        target: 'http://localhost:5001',
+        target: apiTarget,
         changeOrigin: true,
       },
     }
