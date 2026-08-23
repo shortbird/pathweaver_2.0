@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { PageLoader } from '../../components/ui/Spinner';
+import OrgBlocksPanel from './OrgBlocksPanel';
 
 export default function OrganizationDashboard() {
   const [organizations, setOrganizations] = useState([]);
@@ -75,7 +76,11 @@ function OrganizationCard({ organization, onUpdate }) {
   const [savingSis, setSavingSis] = useState(false);
   const [action, setAction] = useState(null); // 'archive' | 'delete'
   const [restoring, setRestoring] = useState(false);
-  const sisEnabled = Boolean(organization.feature_flags?.sis_enabled);
+  const [showBlocks, setShowBlocks] = useState(false);
+  // Server-computed building blocks; legacy flag is the fallback for a stale row.
+  const sisEnabled = Array.isArray(organization.effective_modules)
+    ? organization.effective_modules.includes('sis')
+    : Boolean(organization.feature_flags?.sis_enabled);
   // Orgs created before archiving existed have no is_active in the payload;
   // only an explicit false means archived.
   const isArchived = organization.is_active === false;
@@ -89,8 +94,11 @@ function OrganizationCard({ organization, onUpdate }) {
   const handleToggleSis = async () => {
     setSavingSis(true);
     try {
-      await api.put(`/api/admin/organizations/${organization.id}`, {
-        feature_flags: { ...(organization.feature_flags || {}), sis_enabled: !sisEnabled }
+      // The SIS switch is the 'sis' block: written through the modules
+      // endpoint (server-side merge + legacy sis_enabled mirror), never by
+      // round-tripping the feature_flags blob from the browser.
+      await api.patch(`/api/admin/organizations/${organization.id}/modules`, {
+        sis: !sisEnabled
       });
       onUpdate();
     } catch (error) {
@@ -156,6 +164,12 @@ function OrganizationCard({ organization, onUpdate }) {
                 />
               </button>
               <span className="text-sm text-gray-700">Enable SIS</span>
+              <button
+                onClick={() => setShowBlocks(true)}
+                className="ml-3 text-sm font-semibold text-optio-purple hover:underline"
+              >
+                Blocks
+              </button>
             </div>
           )}
         </div>
@@ -208,6 +222,13 @@ function OrganizationCard({ organization, onUpdate }) {
           organization={organization}
           onClose={() => setAction(null)}
           onSuccess={() => { setAction(null); onUpdate(); }}
+        />
+      )}
+      {showBlocks && (
+        <OrgBlocksPanel
+          organization={organization}
+          onClose={() => setShowBlocks(false)}
+          onChanged={onUpdate}
         />
       )}
     </div>

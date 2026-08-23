@@ -1,5 +1,6 @@
 import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
 import { inOptioAcademy } from '../config/optioAcademy'
+import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
  * Effective role for landing decisions (resolves org_managed to org role).
@@ -51,7 +52,11 @@ export function parentHomePath(user, school = null) {
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
-  const sisEnabled = Boolean(user?.organization?.feature_flags?.sis_enabled)
+  // 'sis' is the add-on switch in the module system; /me embeds the org with
+  // its server-computed effective_modules (legacy sis_enabled is the fallback).
+  const sisEnabled = user?.organization
+    ? moduleEnabled(user.organization, 'sis')
+    : false
 
   if (role === 'parent' && inOptioAcademy({ user, school: user?.school })) {
     return parentHomePath(user)

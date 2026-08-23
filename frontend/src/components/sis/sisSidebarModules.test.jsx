@@ -14,8 +14,10 @@ vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
 import SisSidebar from './SisSidebar'
 
+// sis_enabled matters now: the module system cascades from the 'sis' block,
+// so a no-SIS org correctly shows nothing (the console never renders for one).
 const withHidden = (mods, extraSettings = {}) =>
-  ({ feature_flags: { sis_settings: { hidden_modules: mods, ...extraSettings } } })
+  ({ feature_flags: { sis_enabled: true, sis_settings: { hidden_modules: mods, ...extraSettings } } })
 
 beforeEach(() => { activeOrg = null })
 

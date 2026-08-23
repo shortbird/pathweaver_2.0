@@ -12,7 +12,7 @@ import { MemoryRouter } from 'react-router-dom'
  */
 
 let authState = { user: { id: 'a-1', role: 'org_admin', first_name: 'Ada' } }
-let orgState = { orgId: 'org-1', activeOrg: { id: 'org-1', feature_flags: {} } }
+let orgState = { orgId: 'org-1', activeOrg: { id: 'org-1', feature_flags: { sis_enabled: true } } }
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
@@ -52,7 +52,7 @@ const renderPage = (data) => {
 
 beforeEach(() => {
   authState = { user: { id: 'a-1', role: 'org_admin', first_name: 'Ada' } }
-  orgState = { orgId: 'org-1', activeOrg: { id: 'org-1', feature_flags: {} } }
+  orgState = { orgId: 'org-1', activeOrg: { id: 'org-1', feature_flags: { sis_enabled: true } } }
   vi.clearAllMocks()
 })
 
@@ -77,7 +77,7 @@ describe('the queues', () => {
   it('never renders a tile for a module the org turned off', async () => {
     orgState.activeOrg = {
       id: 'org-1',
-      feature_flags: { sis_settings: { hidden_modules: ['attendance'] } },
+      feature_flags: { sis_enabled: true, sis_settings: { hidden_modules: ['attendance'] } },
     }
     // A stale response still carrying the count must not resurrect the tile.
     renderPage({ attention: { attendance_alerts: 3, waitlist_waiting: 6 } })

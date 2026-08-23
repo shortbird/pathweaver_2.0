@@ -1,20 +1,29 @@
 /**
- * Per-org SIS module visibility.
+ * Per-org SIS module visibility — now an adapter over the building-block
+ * module system (src/modules/moduleEnabled.js, ARCHITECTURE_BLOCKS 4.1).
  *
- * Some orgs don't use every SIS module (e.g. a microschool that tracks goals
- * instead of Customized Learning Plans, and doesn't run staff timesheets). An
- * org can hide specific modules by listing their keys in
- * `organizations.feature_flags.sis_settings.hidden_modules`. Absent/empty =
- * every module shows (the default, so existing orgs are unaffected).
+ * The exported API is unchanged: nav paths map to module keys, and a path is
+ * hidden when its module is off for the active org. What changed underneath:
+ * the answer comes from the org's server-computed `effective_modules` (with a
+ * local fallback re-deriving the same veneer semantics from moduleKeys.json),
+ * so opt-out modules (`sis_settings.hidden_modules`), the opt-ins
+ * (community, prior learning, goals), and explicit `feature_flags.modules`
+ * entries all flow through ONE evaluator instead of three mechanisms.
  *
- * This is nav + route visibility only; the backend endpoints stay available.
- * Visibility follows the ACTIVE org — for a superadmin that is whichever org
- * they've selected in the picker, so the console mirrors exactly what that org's
- * admin sees. With no active org (superadmin before a selection), nothing hides.
+ * Semantics preserved from the original module map:
+ * - absent/empty config = every default-on module shows, opt-ins stay hidden;
+ * - a null org (superadmin before picking one) hides nothing — the picker,
+ *   not the guard, owns that moment;
+ * - hiding 'timesheets' hides both Timesheets and My Time; hiding 'classes'
+ *   also hides the teacher-portal class pages.
  */
 
-// Nav path -> module key. A module hidden in config removes every nav item and
-// route that maps to it (e.g. 'timesheets' hides both Timesheets and My Time).
+import { moduleEnabled } from '../../modules/moduleEnabled'
+
+// Nav path -> module key. A module that is off for the active org removes
+// every nav item and route that maps to it. Opt-in modules (community,
+// prior_learning, goals) now live in the same map as the opt-outs — the
+// evaluator knows which is which from the registry defaults.
 export const SIS_MODULE_BY_PATH = {
   '/clp': 'clp',
   '/billing': 'billing',
@@ -30,8 +39,6 @@ export const SIS_MODULE_BY_PATH = {
   '/secure-documents': 'secure_documents',
   '/timesheets': 'timesheets',
   '/time': 'timesheets',
-  // 'classes' also hides the teacher-portal class pages: with no classes
-  // there are no sections to teach or schedule.
   '/classes': 'classes',
   '/my-classes': 'classes',
   '/my-schedule': 'classes',
@@ -41,35 +48,46 @@ export const SIS_MODULE_BY_PATH = {
   '/resources': 'resources',
   '/curriculum': 'curriculum',
   '/training': 'training',
+  '/submissions': 'submissions',
+  '/registration': 'registration',
+  '/community': 'community',
+  '/prior-learning': 'prior_learning',
+  '/goals': 'goals',
 }
 
-/** The set of module keys this org has hidden (empty when unset). */
+/**
+ * The set of nav-relevant module keys that are OFF for this org (empty for a
+ * null org). Consumers (TeacherDashboard tiles) treat membership as "hide" —
+ * with the module system this now includes opt-ins the org hasn't enabled,
+ * not just the opted-out keys, which is what a tile filter actually wants.
+ */
 export function getHiddenModules(organization) {
-  const list = organization?.feature_flags?.sis_settings?.hidden_modules
-  return new Set(Array.isArray(list) ? list : [])
+  const hidden = new Set()
+  if (!organization) return hidden
+  for (const key of new Set(Object.values(SIS_MODULE_BY_PATH))) {
+    if (!moduleEnabled(organization, key)) hidden.add(key)
+  }
+  return hidden
 }
 
-/** True when `path`'s module is hidden for the active org (null org hides nothing). */
+/** True when `path`'s module is off for the active org (null org hides nothing). */
 export function isPathHidden(path, organization) {
   const mod = SIS_MODULE_BY_PATH[path]
-  return Boolean(mod) && getHiddenModules(organization).has(mod)
+  if (!mod || !organization) return false
+  return !moduleEnabled(organization, mod)
 }
 
-/**
- * Community Hub is OPT-IN (unlike the opt-out modules above): it shows only for
- * orgs that set `feature_flags.sis_settings.community_enabled === true`. This keeps
- * the experimental section off every existing org's console until they turn it on.
- * A null org (superadmin before selecting one) sees it hidden.
- */
+/** Community Hub — opt-in (registry default 'off'; legacy community_enabled). */
 export function isCommunityEnabled(organization) {
-  return organization?.feature_flags?.sis_settings?.community_enabled === true
+  return Boolean(organization) && moduleEnabled(organization, 'community')
 }
 
-/**
- * Prior Learning is OPT-IN for the same reason: it's Optio Academy's only, for
- * now. The backend gates on the same flag, so a school can never end up with a
- * review queue nobody can file into (or a family form with nowhere to land).
- */
+/** Prior Learning — opt-in; the backend gates on the same module. */
 export function isPriorLearningEnabled(organization) {
-  return organization?.feature_flags?.sis_settings?.prior_learning_enabled === true
+  return Boolean(organization) && moduleEnabled(organization, 'prior_learning')
+}
+
+/** Goals mode — opt-in alternative to CLP (legacy post_registration_flow). */
+export function isGoalsEnabled(organization) {
+  return Boolean(organization) && moduleEnabled(organization, 'goals')
 }

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 
 /**
@@ -136,7 +136,9 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   const { activeOrg } = useSisOrg()
   // Goals-mode orgs (e.g. Gryffin) set direction/subject goals after registration
   // instead of building a schedule; the Goals tab is meaningless for others.
-  const isGoalsMode = activeOrg?.feature_flags?.sis_settings?.post_registration_flow === 'goals'
+  // Answered by the module system ('goals' is an opt-in module; the legacy
+  // post_registration_flow enum is its fallback source).
+  const isGoalsMode = isGoalsEnabled(activeOrg)
   const isSuperadmin = user?.role === 'superadmin'
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
@@ -183,7 +185,9 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.hideInPreview && previewing) return false
             if (it.financeOnly && !seesFinance) return false
             if (it.hrOnly && !seesHr) return false
-            // Org opted out of this module (feature_flags.sis_settings.hidden_modules).
+            // The item's building-block module is off for this org (explicit
+            // feature_flags.modules entry, or its legacy flag) — one evaluator
+            // covers the opt-outs and the opt-ins alike.
             if (isPathHidden(it.path, activeOrg)) return false
             // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).
             if (it.goalsMode && !isGoalsMode) return false

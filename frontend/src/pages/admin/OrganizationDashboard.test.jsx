@@ -7,6 +7,7 @@ vi.mock('../../services/api', () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    patch: vi.fn(),
     delete: vi.fn()
   }
 }))
@@ -35,6 +36,7 @@ describe('OrganizationDashboard', () => {
     api.get.mockResolvedValue({ data: { organizations: mockOrganizations } })
     api.post.mockResolvedValue({ data: {} })
     api.put.mockResolvedValue({ data: {} })
+    api.patch.mockResolvedValue({ data: { modules: {} } })
     api.delete.mockResolvedValue({ data: {} })
   })
 
@@ -104,7 +106,7 @@ describe('OrganizationDashboard', () => {
       expect(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' })).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('enables SIS via PUT with merged feature_flags and refetches', async () => {
+    it('enables SIS through the modules endpoint and refetches', async () => {
       render(<OrganizationDashboard />)
       await waitFor(() => {
         expect(screen.getByText('Springfield Academy')).toBeInTheDocument()
@@ -112,9 +114,11 @@ describe('OrganizationDashboard', () => {
 
       fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' }))
 
+      // The SIS switch is the 'sis' block: a server-side merge via
+      // PATCH .../modules, never a browser round-trip of the blob.
       await waitFor(() => {
-        expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', {
-          feature_flags: { sis_enabled: true }
+        expect(api.patch).toHaveBeenCalledWith('/api/admin/organizations/org-1/modules', {
+          sis: true
         })
       })
       // initial fetch + refetch after toggle
@@ -123,7 +127,7 @@ describe('OrganizationDashboard', () => {
       })
     })
 
-    it('disables SIS while preserving other feature flags', async () => {
+    it('disables SIS without round-tripping the other feature flags', async () => {
       render(<OrganizationDashboard />)
       await waitFor(() => {
         expect(screen.getByText('Riverside School')).toBeInTheDocument()
@@ -131,15 +135,17 @@ describe('OrganizationDashboard', () => {
 
       fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' }))
 
+      // Only the toggled key travels; the server merges into the stored blob,
+      // so hide_public_bounties cannot be clobbered by this write at all.
       await waitFor(() => {
-        expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-2', {
-          feature_flags: { sis_enabled: false, hide_public_bounties: true }
+        expect(api.patch).toHaveBeenCalledWith('/api/admin/organizations/org-2/modules', {
+          sis: false
         })
       })
     })
 
     it('shows an alert when the update fails', async () => {
-      api.put.mockRejectedValue({ response: { data: { error: 'Update failed' } } })
+      api.patch.mockRejectedValue({ response: { data: { error: 'Update failed' } } })
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
 
       render(<OrganizationDashboard />)

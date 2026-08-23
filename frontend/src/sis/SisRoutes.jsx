@@ -2,36 +2,23 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../pages/sis/sisModules'
+import { isPathHidden } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
 
-// Guards a route whose module the active org has hidden (feature_flags.
-// sis_settings.hidden_modules). A hidden module bounces to the SIS dashboard so
-// a stale bookmark or typed URL can't reach a surface the org opted out of.
-// Follows the active org, so a superadmin viewing that org is bounced too —
-// mirroring exactly what the org's admin can reach. `path` is the leading-slash
-// nav path (e.g. '/clp').
-const ModuleRoute = ({ path, children }) => {
+// Guards a route whose building-block module is off for the active org —
+// opt-outs, opt-ins (community, prior learning, goals), and explicit
+// feature_flags.modules entries all answer through the one evaluator behind
+// isPathHidden (pages/sis/sisModules.js). A disabled module bounces to the
+// SIS dashboard so a stale bookmark or typed URL can't reach a surface the
+// org opted out of. Follows the active org, so a superadmin viewing that org
+// is bounced too — mirroring exactly what the org's admin can reach. `path`
+// is the leading-slash nav path (e.g. '/clp'). Replaced the former
+// ModuleRoute / CommunityRoute / PriorLearningRoute trio.
+const ModuleGate = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
   if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
-  return children
-}
-
-// Community Hub is opt-in — bounce to the dashboard for any org that hasn't
-// enabled it (feature_flags.sis_settings.community_enabled), so a typed URL or
-// stale bookmark can't reach a section the org hasn't turned on.
-const CommunityRoute = ({ children }) => {
-  const { activeOrg } = useSisOrg()
-  if (!isCommunityEnabled(activeOrg)) return <Navigate to="/" replace />
-  return children
-}
-
-// Prior Learning is opt-in per org too — same bounce, same reason as Community.
-const PriorLearningRoute = ({ children }) => {
-  const { activeOrg } = useSisOrg()
-  if (!isPriorLearningEnabled(activeOrg)) return <Navigate to="/" replace />
   return children
 }
 
@@ -136,42 +123,42 @@ const SisRoutes = () => (
       <Route path="roster" element={<Navigate to="/people" replace />} />
       <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
-      <Route path="classes" element={<ModuleRoute path="/classes"><ClassesPage /></ModuleRoute>} />
-      <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
-      <Route path="billing" element={<FinanceRoute><ModuleRoute path="/billing"><BillingPage /></ModuleRoute></FinanceRoute>} />
-      <Route path="tuition" element={<FinanceRoute><ModuleRoute path="/tuition"><TuitionApprovalPage /></ModuleRoute></FinanceRoute>} />
-      <Route path="attendance" element={<ModuleRoute path="/attendance"><AttendancePage /></ModuleRoute>} />
-      <Route path="goals" element={<GoalsReviewPage />} />
-      <Route path="submissions" element={<SubmissionsPage />} />
-      <Route path="prior-learning" element={<PriorLearningRoute><PriorLearningPage /></PriorLearningRoute>} />
-      <Route path="reports" element={<ModuleRoute path="/reports"><ReportsPage /></ModuleRoute>} />
-      <Route path="secure-documents" element={<HrRoute><ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute></HrRoute>} />
+      <Route path="classes" element={<ModuleGate path="/classes"><ClassesPage /></ModuleGate>} />
+      <Route path="clp" element={<ModuleGate path="/clp"><ClpPage /></ModuleGate>} />
+      <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
+      <Route path="tuition" element={<FinanceRoute><ModuleGate path="/tuition"><TuitionApprovalPage /></ModuleGate></FinanceRoute>} />
+      <Route path="attendance" element={<ModuleGate path="/attendance"><AttendancePage /></ModuleGate>} />
+      <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
+      <Route path="submissions" element={<ModuleGate path="/submissions"><SubmissionsPage /></ModuleGate>} />
+      <Route path="prior-learning" element={<ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate>} />
+      <Route path="reports" element={<ModuleGate path="/reports"><ReportsPage /></ModuleGate>} />
+      <Route path="secure-documents" element={<HrRoute><ModuleGate path="/secure-documents"><SecureDocumentsPage /></ModuleGate></HrRoute>} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
-      <Route path="registration" element={<RegistrationPage />} />
-      <Route path="calendar" element={<ModuleRoute path="/calendar"><CalendarPage /></ModuleRoute>} />
-      <Route path="resources" element={<ModuleRoute path="/resources"><ResourcesPage /></ModuleRoute>} />
-      <Route path="curriculum" element={<ModuleRoute path="/curriculum"><CurriculumPage /></ModuleRoute>} />
-      <Route path="training" element={<ModuleRoute path="/training"><StaffTrainingPage /></ModuleRoute>} />
-      <Route path="community" element={<CommunityRoute><CommunityPage /></CommunityRoute>} />
+      <Route path="registration" element={<ModuleGate path="/registration"><RegistrationPage /></ModuleGate>} />
+      <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
+      <Route path="resources" element={<ModuleGate path="/resources"><ResourcesPage /></ModuleGate>} />
+      <Route path="curriculum" element={<ModuleGate path="/curriculum"><CurriculumPage /></ModuleGate>} />
+      <Route path="training" element={<ModuleGate path="/training"><StaffTrainingPage /></ModuleGate>} />
+      <Route path="community" element={<ModuleGate path="/community"><CommunityPage /></ModuleGate>} />
       <Route path="settings" element={<SettingsPage />} />
 
       {/* Teacher portal */}
-      <Route path="my-classes" element={<ModuleRoute path="/my-classes"><MyClassesPage /></ModuleRoute>} />
-      <Route path="my-classes/:classId" element={<ModuleRoute path="/my-classes"><TeacherClassPage /></ModuleRoute>} />
-      <Route path="my-schedule" element={<ModuleRoute path="/my-schedule"><MySchedulePage /></ModuleRoute>} />
+      <Route path="my-classes" element={<ModuleGate path="/my-classes"><MyClassesPage /></ModuleGate>} />
+      <Route path="my-classes/:classId" element={<ModuleGate path="/my-classes"><TeacherClassPage /></ModuleGate>} />
+      <Route path="my-schedule" element={<ModuleGate path="/my-schedule"><MySchedulePage /></ModuleGate>} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
       {/* The unified surfaces. /forms and /onboarding stay mounted rather than
           redirecting: they own the deep-linked completion flows the task inbox
           links into (?submission=, ?assignment=&item=), and every notification
           sent before this shipped points at them. They are simply off the nav. */}
-      <Route path="my-tasks" element={<ModuleRoute path="/my-tasks"><MyTasksPage /></ModuleRoute>} />
-      <Route path="tasks" element={<ModuleRoute path="/tasks"><TaskCenterPage /></ModuleRoute>} />
-      <Route path="forms" element={<ModuleRoute path="/forms"><StaffFormsPage /></ModuleRoute>} />
-      <Route path="onboarding" element={<ModuleRoute path="/onboarding"><OnboardingPage /></ModuleRoute>} />
+      <Route path="my-tasks" element={<ModuleGate path="/my-tasks"><MyTasksPage /></ModuleGate>} />
+      <Route path="tasks" element={<ModuleGate path="/tasks"><TaskCenterPage /></ModuleGate>} />
+      <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
+      <Route path="onboarding" element={<ModuleGate path="/onboarding"><OnboardingPage /></ModuleGate>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />
-      <Route path="time" element={<ModuleRoute path="/time"><MyTimePage /></ModuleRoute>} />
-      <Route path="timesheets" element={<FinanceRoute><ModuleRoute path="/timesheets"><TimesheetsPage /></ModuleRoute></FinanceRoute>} />
+      <Route path="time" element={<ModuleGate path="/time"><MyTimePage /></ModuleGate>} />
+      <Route path="timesheets" element={<FinanceRoute><ModuleGate path="/timesheets"><TimesheetsPage /></ModuleGate></FinanceRoute>} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

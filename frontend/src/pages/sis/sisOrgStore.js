@@ -70,7 +70,10 @@ const preferredDefault = (orgs) =>
  * dashboard), so filtering the picker cannot strand a new school: it appears
  * the moment the flag is set.
  */
-const isSisOrg = (o) => Boolean(o?.feature_flags?.sis_enabled)
+const isSisOrg = (o) =>
+  Array.isArray(o?.effective_modules)
+    ? o.effective_modules.includes('sis')
+    : Boolean(o?.feature_flags?.sis_enabled)
 
 /** Store the fetched org list; default the selection to iCreate, else the first org. */
 export function setOrgs(list) {
