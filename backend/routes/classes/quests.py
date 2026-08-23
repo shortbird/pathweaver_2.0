@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.roles import get_effective_role
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -29,7 +30,7 @@ def get_user_info(user_id: str):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['GET'])
-@require_role('student', 'org_admin', 'advisor', 'superadmin')
+@require_role('student', *STAFF_ROLES)
 def get_class_quests(user_id, org_id, class_id):
     """
     Get all quests assigned to a class.
@@ -83,7 +84,7 @@ def get_class_quests(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['POST'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def add_class_quest(user_id, org_id, class_id):
     """
     Add a quest to a class.
@@ -181,7 +182,7 @@ def add_class_quest(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/<quest_id>', methods=['DELETE'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def remove_class_quest(user_id, org_id, class_id, quest_id):
     """
     Remove a quest from a class.
@@ -225,7 +226,7 @@ def remove_class_quest(user_id, org_id, class_id, quest_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/<quest_id>/schedule', methods=['PUT'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def set_class_quest_schedule(user_id, org_id, class_id, quest_id):
     """
     Set or clear the scheduled publish time for a quest in a class.
@@ -277,7 +278,7 @@ def set_class_quest_schedule(user_id, org_id, class_id, quest_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/<quest_id>/due-date', methods=['PUT'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def set_class_quest_due_date(user_id, org_id, class_id, quest_id):
     """
     Set or clear the due date for a quest in a class.
@@ -344,7 +345,7 @@ def get_student_agenda(user_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/reorder', methods=['PUT'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def reorder_class_quests(user_id, org_id, class_id):
     """
     Reorder quests in a class.
@@ -393,7 +394,7 @@ def reorder_class_quests(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/create', methods=['POST'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def create_and_add_class_quest(user_id, org_id, class_id):
     """
     Create a new org quest and immediately add it to a class.
@@ -497,7 +498,7 @@ def create_and_add_class_quest(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/available-quests', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def get_available_quests(user_id, org_id):
     """
     Get all quests available for adding to classes in an organization.

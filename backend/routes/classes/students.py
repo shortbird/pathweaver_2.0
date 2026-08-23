@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.roles import get_effective_role
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -28,7 +29,7 @@ def get_user_info(user_id: str):
 
 
 @bp.route('/organizations/<org_id>/students', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def list_org_students(user_id, org_id):
     """
     List an organization's students (minimal fields) for roster pickers.
@@ -85,7 +86,7 @@ def list_org_students(user_id, org_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def get_class_students(user_id, org_id, class_id):
     """
     Get all students enrolled in a class with their progress.
@@ -150,7 +151,7 @@ def get_class_students(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students', methods=['POST'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def enroll_students(user_id, org_id, class_id):
     """
     Enroll one or more students in a class.
@@ -235,7 +236,7 @@ def enroll_students(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students/<student_id>', methods=['DELETE'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def withdraw_student(user_id, org_id, class_id, student_id):
     """
     Withdraw a student from a class.
@@ -277,7 +278,7 @@ def withdraw_student(user_id, org_id, class_id, student_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def get_student_progress(user_id, org_id, class_id, student_id):
     """
     Get a specific student's progress in a class.
