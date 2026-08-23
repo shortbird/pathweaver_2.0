@@ -102,6 +102,11 @@ A structured per-org capability config, e.g.:
 Backend gates endpoints on capability, not on org identity. Frontend gates nav
 and routes the same way.
 
+> **Designed in full (2026-08-18):** [ARCHITECTURE_BLOCKS.md](ARCHITECTURE_BLOCKS.md)
+> supersedes this sketch. The adopted shape is a flat `feature_flags.modules` map
+> driven by a module registry, with a server-side gate and a superadmin Blocks
+> panel — not the nested `lms`/`sis` namespaces drawn above.
+
 ### 4b. Program registry
 
 - **Backend:** a `programs/` package. Each program is a module that declares:
@@ -232,6 +237,10 @@ separate, tracked migration — not done in this pass.
   the backend program files into `backend/programs/`, and a `core/` directory split —
   **descoped**: high churn/risk, no architectural value now the inversion is done.
 - **Phase 6 — Class/credit code disambiguation.**
+- **Phase 7 — Building blocks** — per-school module system for the SIS plus
+  LMS-core school management: [ARCHITECTURE_BLOCKS.md](ARCHITECTURE_BLOCKS.md)
+  (adopted 2026-08-18). The SIS gets the inversion treatment Phases 2–5 gave the
+  programs.
 
 ---
 
