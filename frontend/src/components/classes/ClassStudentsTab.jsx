@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import AddStudentsModal from './AddStudentsModal'
 import StudentProgressCard from './StudentProgressCard'
+import ClassInviteLink from './ClassInviteLink'
 
 /**
  * ClassStudentsTab - Manage students enrolled in a class
@@ -126,8 +127,8 @@ export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — relative so the invite-link panel can drop below it */}
+      <div className="relative flex items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -139,6 +140,7 @@ export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }
           />
         </div>
         <div className="flex items-center gap-2">
+          <ClassInviteLink orgId={orgId} classId={classId} />
           <button
             onClick={handleCreateGroupChat}
             disabled={creatingGroup || students.length === 0}

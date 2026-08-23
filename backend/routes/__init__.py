@@ -186,6 +186,9 @@ def register_all(app):
     # organization_management route file stays under its size cap.
     from routes.admin import org_modules
     app.register_blueprint(org_modules.bp, url_prefix='/api/admin/organizations')
+    # Org-scoped account enable/disable (blocks P2) — same size-cap reasoning.
+    from routes.admin import org_member_status
+    app.register_blueprint(org_member_status.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)

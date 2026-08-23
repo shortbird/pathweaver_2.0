@@ -201,6 +201,40 @@ class AdvisorService(BaseService):
                         student_ids.append(student['id'])
                         students.append(student)
 
+            # Blocks P2: the caseload is assignments ∪ class rosters. Teaching a
+            # class surfaces its students here without a per-student assignment
+            # row (ARCHITECTURE_BLOCKS §3.4 gap d). Each student is tagged with
+            # where they came from so the UI can tell the two apart.
+            for student in students:
+                student['caseload_sources'] = ['assigned']
+
+            roster_map = self._get_class_roster_map(advisor_id)
+            known_ids = set(student_ids)
+            for student in students:
+                if student['id'] in roster_map:
+                    student['caseload_sources'].append('class')
+                    student['class_names'] = sorted(set(roster_map[student['id']]))
+
+            new_ids = [sid for sid in roster_map if sid not in known_ids]
+            fields = ('id, display_name, first_name, last_name, email, level, '
+                      'avatar_url, last_active, organization_id')
+            for i in range(0, len(new_ids), 200):
+                chunk = new_ids[i:i + 200]
+                resp = self.supabase.table('users').select(fields).in_('id', chunk).execute()
+                for student in (resp.data or []):
+                    student_org_id = student.get('organization_id')
+                    if not is_superadmin and advisor_org_id is not None \
+                            and student_org_id != advisor_org_id:
+                        continue
+                    if not student.get('display_name'):
+                        student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                    if not is_superadmin:
+                        student.pop('organization_id', None)
+                    student['caseload_sources'] = ['class']
+                    student['class_names'] = sorted(set(roster_map[student['id']]))
+                    student_ids.append(student['id'])
+                    students.append(student)
+
             # Bulk fetch quest counts and XP totals for all students (prevents N+1 queries)
             if student_ids:
                 quest_counts = self._get_bulk_student_quest_counts(student_ids)
@@ -223,6 +257,30 @@ class AdvisorService(BaseService):
             print(f"Error fetching advisor students: {str(e)}", file=sys.stderr, flush=True)
             print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
             raise
+
+    def _get_class_roster_map(self, advisor_id: str) -> Dict[str, List[str]]:
+        """student_id -> class names, for every active enrollment in a class
+        this advisor teaches (primary instructor, assistant instructor, or an
+        active class_advisors row — ClassRepository.get_advisor_classes)."""
+        from repositories.class_repository import ClassRepository
+        from utils.db_fetch import fetch_all_rows
+
+        classes = ClassRepository().get_advisor_classes(advisor_id, status='active')
+        if not classes:
+            return {}
+        names = {c['id']: c.get('name') or 'Class' for c in classes}
+
+        # Row count grows with class sizes — page past the PostgREST cap.
+        rows = fetch_all_rows(lambda: (
+            self.supabase.table('class_enrollments')
+            .select('student_id, class_id')
+            .in_('class_id', list(names.keys()))
+            .eq('status', 'active')
+        ))
+        roster: Dict[str, List[str]] = {}
+        for row in rows:
+            roster.setdefault(row['student_id'], []).append(names[row['class_id']])
+        return roster
 
     def assign_student_to_advisor(self, student_id: str, advisor_id: str) -> bool:
         """

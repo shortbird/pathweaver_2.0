@@ -555,8 +555,9 @@ class ClassRepository(BaseRepository):
         if not cls:
             return False
 
-        # Org admin can access classes in their org
-        if user_role == 'org_admin' and user_org_id == cls.get('organization_id'):
+        # Org admin / campus coordinator can access classes in their org
+        # (class management is operational, not financial — sis_roles.ADMIN_ROLES)
+        if user_role in ('org_admin', 'campus_coordinator') and user_org_id == cls.get('organization_id'):
             return True
 
         # Advisors can access classes they're assigned to
