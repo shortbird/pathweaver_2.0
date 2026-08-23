@@ -867,16 +867,15 @@ def waive_household_fee(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    # Completing a funnel registration belongs to the registration route, so the
-    # service is handed the step rather than importing it (services must not
-    # import routes — tests/unit/test_import_layers).
-    from routes.icreate_registration import _finish_fee_step, _org_config
+    # Blocks P4: the shared completion step lives in
+    # services/registration_funnel_service.py — no more route-to-route import.
+    from services.registration_funnel_service import finish_fee_step, org_funnel_config
 
     def _finish(reg):
         # admin client justified: completes the family's registration record at $0 on their behalf; route gated by @require_role(FINANCE_ROLES), org resolved above
         admin = get_supabase_admin_client()
-        return _finish_fee_step(admin, reg, _org_config(admin, org_id),
-                                extra_fields={'fee_cents': 0})
+        return finish_fee_step(admin, reg, org_funnel_config(admin, org_id),
+                               extra_fields={'fee_cents': 0})
 
     result = sis_service.waive_registration_fee(org_id, household_id, actor_id=user_id,
                                                 finish_registration=_finish)

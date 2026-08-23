@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { isSimplifiedPartnerOrg } from '../../config/partnerOrgs'
+import { usesSimplifiedPartnerDashboard } from '../../config/partnerOrgs'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from '../sis/useSisOrg'
 import SisOrgPicker from '../sis/SisOrgPicker'
@@ -77,7 +77,7 @@ export default function OrganizationManagement() {
   // Simplified-partner org admins (e.g. OnFire Learning) use the focused /onfire
   // dashboard, not the full org-management UI. Superadmins still see it normally.
   const redirectToPartnerDashboard =
-    user?.org_role === 'org_admin' && isSimplifiedPartnerOrg(user?.organization_id)
+    user?.org_role === 'org_admin' && usesSimplifiedPartnerDashboard(user)
 
   const [orgData, setOrgData] = useState(null)
   const [siteSettings, setSiteSettings] = useState(null)

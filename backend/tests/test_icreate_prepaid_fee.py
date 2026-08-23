@@ -110,6 +110,7 @@ def _call(client, admin, path, reg, directive):
          patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
          patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
          patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
+         patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
          patch('routes.icreate_registration._family_directive', return_value=directive):
         return client.post(path, json={'access_token': 'tok'})
 
@@ -156,6 +157,7 @@ class TestPrepaidDirectiveFee:
              patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
              patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
              patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
+             patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
              patch('routes.icreate_registration._family_directive',
                    return_value={'fee_prepaid': True}):
             resp = client.post('/api/icreate/registrations/reg1/checkout',

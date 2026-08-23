@@ -2,11 +2,14 @@
 Shared helpers for The Treehouse program, kept out of routes/ to avoid circular
 imports (completion / bounties / personalization all need the membership check).
 
-Org gating is by organizations.slug = 'treehouse'. These read with whatever client
-is passed (routes pass the admin client).
+Org gating is by the program's org slug, owned by the program registry
+(programs/registry.py — blocks P4: one owner, no re-declared slug constants).
+These read with whatever client is passed (routes pass the admin client).
 """
 
-TREEHOUSE_SLUG = 'treehouse'
+from programs.registry import primary_org_slug
+
+TREEHOUSE_SLUG = primary_org_slug('treehouse')
 _cache = {}
 
 

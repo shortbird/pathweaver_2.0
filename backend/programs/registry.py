@@ -64,6 +64,19 @@ def is_valid_program_key(program_key: Optional[str]) -> bool:
     return program_key in _VALID_PROGRAM_KEYS
 
 
+def primary_org_slug(program_key: str) -> Optional[str]:
+    """The program's first (primary) member-org slug, or None.
+
+    Blocks P4: program modules used to re-declare their own slug constants
+    (utils/treehouse.py and routes/treehouse.py each carried TREEHOUSE_SLUG);
+    the registry is the one owner now.
+    """
+    for p in PROGRAMS:
+        if p.key == program_key:
+            return p.org_slugs[0] if p.org_slugs else None
+    return None
+
+
 def program_for_org_slug(slug: Optional[str]) -> Optional[Program]:
     """The program a member organization runs in-app, or None."""
     if not slug:

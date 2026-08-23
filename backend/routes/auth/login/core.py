@@ -34,15 +34,20 @@ logger = get_logger(__name__)
 
 
 def _school_payload(org_row):
-    """The `school` dict the frontend routes on: {'id', 'name', 'homepage'}.
+    """The `school` dict the frontend routes on: {'id', 'name', 'homepage',
+    'family_first_home'}.
 
     `homepage` is the per-org opt-in (feature_flags.sis_settings.school_homepage)
     that makes /school the front door for the school's families — iCreate,
-    2026-08-06. Reads one boolean; never emits the feature_flags blob.
+    2026-08-06. `family_first_home` (blocks P4) marks a school whose parents'
+    home IS the family dashboard (Optio Academy's shape, promoted from the
+    hardcoded org id in frontend config/optioAcademy.js). Reads two booleans;
+    never emits the feature_flags blob.
     """
     settings = ((org_row.get('feature_flags') or {}).get('sis_settings') or {})
     return {'id': org_row['id'], 'name': org_row.get('name'),
-            'homepage': bool(settings.get('school_homepage'))}
+            'homepage': bool(settings.get('school_homepage')),
+            'family_first_home': bool(settings.get('family_first_home'))}
 
 
 def _member_school(admin_client, user_id):

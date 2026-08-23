@@ -35,7 +35,9 @@ logger = get_logger(__name__)
 
 bp = Blueprint('treehouse', __name__, url_prefix='/api/treehouse')
 
-TREEHOUSE_SLUG = 'treehouse'
+# Blocks P4: the slug comes from the program registry, not a local constant.
+from programs.registry import primary_org_slug
+TREEHOUSE_SLUG = primary_org_slug('treehouse')
 PILLARS = ['art', 'stem', 'wellness', 'communication', 'civics']
 # Student-facing category labels for the five pillars.
 PILLAR_LABELS = {

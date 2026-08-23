@@ -257,6 +257,10 @@ def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str
         # its legacy card set rather than blanking the whole hub on a hiccup.
         'modules': (sorted(effective_modules_for_row(row) & surface_keys('family'))
                     if row else None),
+        # Blocks P4: the school's parents live on the family dashboard and the
+        # hub shows only its slimmed card set (promoted from the hardcoded
+        # Optio Academy org id in frontend config/optioAcademy.js).
+        'family_first_home': settings.get('family_first_home') is True,
         'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
         # Opt-in, so the Prior Learning card is absent for every school that
         # hasn't turned it on rather than present-and-403ing.

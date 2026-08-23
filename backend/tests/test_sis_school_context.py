@@ -68,6 +68,7 @@ class TestWhichSchoolAmIIn:
                                 # empty, not absent: this fixture row has no
                                 # feature_flags, so every family module is off
                                 'modules': [],
+                                'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
@@ -84,6 +85,7 @@ class TestWhichSchoolAmIIn:
                                 # empty, not absent: this fixture row has no
                                 # feature_flags, so every family module is off
                                 'modules': [],
+                                'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
@@ -269,6 +271,7 @@ class TestSuperadminPreviewListing:
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
                                   'modules': [],
+                                'family_first_home': False,
                                   'post_registration_flow': 'schedule',
                                   'prior_learning_enabled': False,
                                   'logo_url': 'data:image/png;base64,x',

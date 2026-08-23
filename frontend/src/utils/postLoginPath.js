@@ -1,4 +1,4 @@
-import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
+import { usesSimplifiedPartnerDashboard } from '../config/partnerOrgs'
 import { inOptioAcademy } from '../config/optioAcademy'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
@@ -63,7 +63,7 @@ export function getPostLoginPath(user) {
   }
 
   if (role === 'org_admin') {
-    if (isSimplifiedPartnerOrg(user.organization_id)) return '/onfire'
+    if (usesSimplifiedPartnerDashboard(user)) return '/onfire'
     if (sisEnabled) return '/sis-launch'
     return '/dashboard'
   }

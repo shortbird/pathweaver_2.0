@@ -221,7 +221,8 @@ class TestTheSchoolOnTheProfile:
     def test_a_member_gets_their_school_by_name(self):
         # `homepage` rides along for the post-login landing (school-homepage opt-in).
         assert self._school('org-1', {'id': 'org-1', 'name': 'iCreate'}) == {
-            'id': 'org-1', 'name': 'iCreate', 'homepage': False}
+            'id': 'org-1', 'name': 'iCreate', 'homepage': False,
+            'family_first_home': False}
 
     def test_no_school_means_no_school_page(self):
         assert self._school(None, None) is None

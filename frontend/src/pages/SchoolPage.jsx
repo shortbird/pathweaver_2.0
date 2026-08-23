@@ -11,7 +11,7 @@ import { useOrganization } from '../contexts/OrganizationContext'
 import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
-import { isOptioAcademyOrg } from '../config/optioAcademy'
+import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
@@ -118,12 +118,12 @@ const priorLearningCard = {
 
 export function cardsFor(org) {
   if (!org) return []
-  // Optio Academy runs almost none of the school-community surfaces (its
-  // hidden_modules turns off calendar, resources, classes, attendance and the
-  // rest), so the full card grid was a row of doors onto empty rooms — which is
-  // why its parents had this page taken out of the nav entirely. It's back for
-  // Prior Learning, and that is ALL it carries for this school.
-  if (isOptioAcademyOrg(org.organization_id)) {
+  // A family-first school (sis_settings.family_first_home — Optio Academy is
+  // the original) runs almost none of the school-community surfaces, so the
+  // full card grid was a row of doors onto empty rooms — which is why its
+  // parents had this page taken out of the nav entirely. It's back for
+  // Prior Learning, and that is ALL it carries for such a school.
+  if (isFamilyFirstHubOrg(org)) {
     return org.is_guardian && org.prior_learning_enabled ? [priorLearningCard] : []
   }
   let cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
@@ -269,7 +269,7 @@ export default function SchoolPage() {
   // Messages archive are the page for a school that talks to its families
   // here; this school doesn't, so rendering them would put an empty
   // announcements shell under the one card the page exists to carry.
-  const cardsOnly = isOptioAcademyOrg(schoolOrg?.organization_id)
+  const cardsOnly = isFamilyFirstHubOrg(schoolOrg)
 
   // The Messages section renders unless the school has literally never sent
   // one AND the board has content (then the board is the page and an empty

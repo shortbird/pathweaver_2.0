@@ -94,6 +94,8 @@ def _confirm(client, reg, stripe_fake, finish_result=None):
          patch('routes.icreate_registration._admin'), \
          patch('routes.icreate_registration._parent_row',
                return_value={'email': PARENT_EMAIL}), \
+         patch('services.registration_funnel_service._parent_row',
+               return_value={'email': PARENT_EMAIL}), \
          patch('routes.icreate_registration._org_config', return_value={}), \
          patch('routes.icreate_registration._org_stripe_key', return_value=SECRET), \
          patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
