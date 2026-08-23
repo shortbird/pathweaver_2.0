@@ -124,7 +124,7 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # CRM public/internal endpoints, each with its own proof: unsubscribe is
     # gated by the opaque per-lead token (and must work for a recipient whose
     # browser happens to carry auth cookies — same trap as the iCreate funnel
-    # above); the SendGrid webhook is Ed25519-signature-authenticated; the
+    # above); the SendGrid webhook is ECDSA-signature-authenticated; the
     # sweep/poll triggers require X-Cron-Secret or a superadmin session and
     # only start a run the cron would start anyway within 10 minutes.
     'crm.unsubscribe_perform',

@@ -1,16 +1,18 @@
 """
 CRM route-level behavior against the real app: the SendGrid webhook demands a
-valid Ed25519 signature (and refuses everything when unconfigured), the
-unsubscribe flow works end to end via token, the internal sweep endpoints
-enforce the cron-secret/superadmin dual gate, and the admin API is closed to
-the unauthenticated.
+valid ECDSA P-256 signature — the scheme SendGrid's Signed Event Webhook
+actually uses (base64 DER public key, DER signature over timestamp+payload) —
+and refuses everything when unconfigured; the unsubscribe flow works end to
+end via token; the internal sweep endpoints enforce the cron-secret/superadmin
+dual gate; and the admin API is closed to the unauthenticated.
 """
 import base64
 import json
 from unittest.mock import patch
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import (Encoding, PublicFormat)
 
 from app_config import Config
@@ -19,14 +21,15 @@ from tests.crm_fakes import make_world
 
 @pytest.fixture
 def keypair():
-    private = Ed25519PrivateKey.generate()
+    private = ec.generate_private_key(ec.SECP256R1())
     public_b64 = base64.b64encode(private.public_key().public_bytes(
-        Encoding.Raw, PublicFormat.Raw)).decode()
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).decode()
     return private, public_b64
 
 
 def _signed_headers(private, payload: bytes, timestamp='1724300000'):
-    signature = base64.b64encode(private.sign(timestamp.encode() + payload)).decode()
+    signature = base64.b64encode(private.sign(
+        timestamp.encode() + payload, ec.ECDSA(hashes.SHA256()))).decode()
     return {'X-Twilio-Email-Event-Webhook-Signature': signature,
             'X-Twilio-Email-Event-Webhook-Timestamp': timestamp,
             'Content-Type': 'application/json'}
@@ -48,7 +51,7 @@ class TestSendgridWebhook:
 
     def test_bad_signature_rejected(self, client, keypair):
         private, public_b64 = keypair
-        other = Ed25519PrivateKey.generate()
+        other = ec.generate_private_key(ec.SECP256R1())
         payload = json.dumps([]).encode()
         with patch.object(Config, 'SENDGRID_WEBHOOK_PUBLIC_KEY', public_b64):
             response = client.post(self.URL, data=payload,

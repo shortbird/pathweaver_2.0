@@ -29,7 +29,12 @@
 - **PR6 — scripts ready, not yet run**: scripts/export_brevo_contacts.py +
   scripts/import_brevo_contacts.py (position approximated from LEAD_DATE, skip-biased).
 - **PR7 (Brevo removal) — not started**; brevo_service.py is now caller-less but stays
-  until after soak. BREVO_API_KEY also powers SMS now — remove only the email parts.
+  until after soak. (Phone-verification SMS runs on Twilio Verify, not Brevo — owner
+  confirmed 2026-08-23 — so the Brevo account can be cancelled outright after PR7,
+  once the contact export is archived.)
+- **Webhook signature scheme corrected 2026-08-23**: SendGrid's Signed Event Webhook
+  is ECDSA P-256 (base64 DER key/signature), not Ed25519 as first implemented — the
+  real verification key proved it. Fixed in routes/crm.py.
 - **Remaining user prerequisites before ACTIVATING funnels**:
   1. SendGrid domain authentication (CNAMEs at GoDaddy) — key is set, domain auth
      status unverified; 2. postal address → `crm_settings.postal_address` (sweep is
@@ -196,7 +201,7 @@ OAuth refresh token.**
 - Config keys (Config class only, house rule 9): SENDGRID_API_KEY,
   SENDGRID_WEBHOOK_PUBLIC_KEY, GOOGLE_CALENDAR_SA_KEY_B64, GOOGLE_CALENDAR_ID. Update
   ENV_KEYS_REFERENCE.md. (test_secret_exposure_guard already covers SENDGRID_API_KEY.)
-- Event webhook `POST /api/crm/internal/sendgrid-events`: verify Ed25519 signature
+- Event webhook `POST /api/crm/internal/sendgrid-events`: verify ECDSA P-256 signature
   (reject unsigned), dedupe on sg_event_id, insert crm_email_events (correlate via
   custom_args.send_id); bounce/dropped/spamreport/unsubscribe → upsert crm_suppressions +
   exit membership + set lead status.

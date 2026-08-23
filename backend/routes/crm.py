@@ -12,7 +12,7 @@ Internal (X-Cron-Secret, or a signed-in superadmin for manual triggering):
   POST /api/crm/internal/calendar-poll    Google Calendar booking poll
 
 Provider callback:
-  POST /api/crm/internal/sendgrid-events  SendGrid event webhook. Ed25519
+  POST /api/crm/internal/sendgrid-events  SendGrid event webhook. ECDSA P-256
         signature verification is MANDATORY — unsigned or badly signed
         requests are rejected, and the endpoint refuses everything when
         SENDGRID_WEBHOOK_PUBLIC_KEY is unset. Events land in crm_email_events
@@ -132,11 +132,17 @@ def calendar_poll():
 
 def _verify_sendgrid_signature(public_key_b64: str, payload: bytes,
                                signature_b64: str, timestamp: str) -> bool:
+    """SendGrid's Signed Event Webhook: ECDSA P-256 over SHA-256 of
+    timestamp+payload. The dashboard's "Verification Key" is a base64 DER
+    SubjectPublicKeyInfo; the signature header is a base64 DER signature."""
     try:
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        key = Ed25519PublicKey.from_public_bytes(base64.b64decode(public_key_b64))
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives.serialization import load_der_public_key
+        key = load_der_public_key(base64.b64decode(public_key_b64))
         key.verify(base64.b64decode(signature_b64),
-                   timestamp.encode('utf-8') + payload)
+                   timestamp.encode('utf-8') + payload,
+                   ec.ECDSA(hashes.SHA256()))
         return True
     except Exception:  # noqa: BLE001  # bad key material or bad signature: reject
         return False
