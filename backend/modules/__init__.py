@@ -14,3 +14,4 @@ from modules.enabled import (  # noqa: F401
     module_enabled,
     module_enabled_for_row,
 )
+from modules.gate import module_guard, require_module  # noqa: F401
