@@ -66,7 +66,7 @@ def overview(user_id):
 
     memberships = fetch_all_rows(lambda: (
         db.table('crm_funnel_memberships')
-        .select('funnel_id, status, last_step_sent')))
+        .select('funnel_id, status, last_step_sent, exit_reason')))
     sends = fetch_all_rows(lambda: (
         db.table('crm_sends').select('id, step_id, status')))
     events = fetch_all_rows(lambda: (
@@ -113,10 +113,15 @@ def overview(user_id):
     for f in funnels:
         f_steps = steps_by_funnel.get(f['id'], [])
         f_members = [m for m in memberships if m['funnel_id'] == f['id']]
+        exited = [m for m in f_members if m['status'] == 'exited']
         totals = {
             'active': sum(1 for m in f_members if m['status'] == 'active'),
             'completed': sum(1 for m in f_members if m['status'] == 'completed'),
-            'converted': sum(1 for m in f_members if m['status'] == 'exited'),
+            'converted': sum(1 for m in exited
+                             if str(m.get('exit_reason') or '').startswith('converted')
+                             or m.get('exit_reason') == 'import_converted'),
+            'unsubscribed': sum(1 for m in exited
+                                if m.get('exit_reason') in ('unsubscribed', 'suppressed')),
         }
         step_rows = []
         active_step_orders = sorted(s['step_order'] for s in f_steps if s['is_active'])
@@ -146,6 +151,11 @@ def overview(user_id):
             'status': f['status'], 'funnel_type': f['funnel_type'],
             'entry_types': f.get('entry_types') or [],
             'totals': totals, 'steps': step_rows,
+            # The pipeline card reads these two shapes (crmApi contract).
+            'active_leads': totals['active'],
+            'exits': {'converted': totals['converted'],
+                      'completed': totals['completed'],
+                      'unsubscribed': totals['unsubscribed']},
         })
 
     return jsonify({'summary': summary, 'funnels': out,
