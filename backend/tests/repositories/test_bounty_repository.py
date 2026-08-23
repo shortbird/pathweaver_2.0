@@ -96,7 +96,7 @@ class TestBountyCRUD:
             {'id': str(uuid.uuid4()), 'title': 'Bounty 1', 'status': 'active'},
             {'id': str(uuid.uuid4()), 'title': 'Bounty 2', 'status': 'active'},
         ]
-        mock.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = mock_resp
+        mock.table.return_value.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = mock_resp
 
         bounties = repo.list_active_bounties()
         assert len(bounties) == 2
@@ -106,7 +106,7 @@ class TestBountyCRUD:
 
         mock_resp = Mock()
         mock_resp.data = [{'id': str(uuid.uuid4()), 'pillar': 'stem'}]
-        mock.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value = mock_resp
+        mock.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = mock_resp
 
         bounties = repo.list_active_bounties(pillar='stem')
         assert len(bounties) == 1
@@ -223,7 +223,7 @@ class TestBountyClaims:
 
         mock_resp = Mock()
         mock_resp.count = 5
-        mock.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_resp
+        mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = mock_resp
 
         count = repo.count_bounty_claims(bounty_id)
         assert count == 5

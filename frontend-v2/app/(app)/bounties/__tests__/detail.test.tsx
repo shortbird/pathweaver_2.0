@@ -74,8 +74,19 @@ describe('BountyDetailPage', () => {
     });
   });
 
-  it('shows bounty not found on fetch error', async () => {
-    (bountyAPI.get as jest.Mock).mockRejectedValueOnce(new Error('Not found'));
+  it('shows a retry screen on fetch error (an outage is not "not found")', async () => {
+    (bountyAPI.get as jest.Mock).mockRejectedValueOnce(new Error('Network Error'));
+
+    const { getByText } = render(<BountyDetailPage />);
+
+    await waitFor(() => {
+      expect(getByText("Couldn't load this bounty")).toBeTruthy();
+      expect(getByText('Retry')).toBeTruthy();
+    });
+  });
+
+  it('shows bounty not found on a real 404', async () => {
+    (bountyAPI.get as jest.Mock).mockRejectedValueOnce({ response: { status: 404 } });
 
     const { getByText } = render(<BountyDetailPage />);
 

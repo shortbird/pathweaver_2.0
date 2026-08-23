@@ -73,7 +73,6 @@ KNOWN_DEAD = {
     '/api/admin/services/__param__',
     '/api/advisor/student-overview',
     '/api/bounties/__param__/claims/__param__/evidence/__param__/__param__',
-    '/api/bounties/__param__/submit',
     '/api/credits/__param__',
     '/api/curriculum/__param__/reorder',
     '/api/evidence',

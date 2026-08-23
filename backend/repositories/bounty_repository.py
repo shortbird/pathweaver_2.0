@@ -51,9 +51,16 @@ class BountyRepository(BaseRepository):
                 query = query.eq('pillar', pillar)
             if bounty_type:
                 query = query.eq('bounty_type', bounty_type)
-            query = query.order('created_at', desc=True)
+            query = query.order('created_at', desc=True).limit(1000)
             response = query.execute()
-            return response.data or []
+            rows = response.data or []
+            if len(rows) >= 1000:
+                # Visibility filtering happens in Python AFTER this fetch, so a
+                # capped read silently hides bounties from users entitled to see
+                # them. Loud so it gets fixed (move filtering into Postgres)
+                # before any org grows into it.
+                logger.warning("list_active_bounties hit the 1000-row cap — results are truncated")
+            return rows
         except APIError as e:
             logger.error(f"Error listing bounties: {e}")
             raise DatabaseError("Failed to list bounties") from e
@@ -108,7 +115,8 @@ class BountyRepository(BaseRepository):
             raise DatabaseError("Failed to update moderation status") from e
 
     def delete_bounty(self, bounty_id: str) -> bool:
-        """Delete a draft bounty."""
+        """Delete a bounty. Cascades claims and reviews — callers are
+        responsible for warning affected students first."""
         try:
             response = self.client.table('bounties').delete().eq('id', bounty_id).execute()
             if not response.data:
@@ -136,8 +144,28 @@ class BountyRepository(BaseRepository):
                 raise DatabaseError("Failed to create claim")
             return response.data[0]
         except APIError as e:
+            # (bounty_id, student_id) is UNIQUE — a double-tap used to surface
+            # the raw unique violation as a 500.
+            if getattr(e, 'code', None) == '23505' or 'duplicate' in str(e).lower():
+                raise ValidationError("You've already claimed this bounty") from e
             logger.error(f"Error creating claim for bounty {bounty_id}: {e}")
-            raise DatabaseError(f"Failed to create claim: {e}") from e
+            raise DatabaseError("Failed to create claim") from e
+
+    def get_claim_by_bounty_and_student(self, bounty_id: str, student_id: str) -> Optional[Dict[str, Any]]:
+        """Get a student's claim on a bounty, if any."""
+        try:
+            response = (
+                self.client.table('bounty_claims')
+                .select('*')
+                .eq('bounty_id', bounty_id)
+                .eq('student_id', student_id)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
+        except APIError as e:
+            logger.error(f"Error fetching claim for bounty {bounty_id}/student {student_id[:8]}: {e}")
+            raise DatabaseError("Failed to fetch claim") from e
 
     def get_claim(self, claim_id: str) -> Optional[Dict[str, Any]]:
         """Get a single claim by ID."""
@@ -243,13 +271,35 @@ class BountyRepository(BaseRepository):
             logger.error(f"Error updating claim {claim_id}: {e}")
             raise DatabaseError("Failed to update claim status") from e
 
-    def count_bounty_claims(self, bounty_id: str) -> int:
-        """Count claims for a bounty."""
+    def get_claims_for_bounties(self, bounty_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """All claims for a set of bounties, grouped by bounty_id. One query
+        for the page instead of one per bounty."""
+        if not bounty_ids:
+            return {}
         try:
             response = (
                 self.client.table('bounty_claims')
-                .select('*', count='exact')
+                .select('*')
+                .in_('bounty_id', bounty_ids)
+                .order('created_at', desc=True)
+                .execute()
+            )
+            grouped: Dict[str, List[Dict[str, Any]]] = {}
+            for claim in (response.data or []):
+                grouped.setdefault(claim['bounty_id'], []).append(claim)
+            return grouped
+        except APIError as e:
+            logger.error(f"Error batch-fetching claims for {len(bounty_ids)} bounties: {e}")
+            raise DatabaseError("Failed to fetch bounty claims") from e
+
+    def count_bounty_claims(self, bounty_id: str) -> int:
+        """Count claims for a bounty. Let Postgres count — don't transfer rows."""
+        try:
+            response = (
+                self.client.table('bounty_claims')
+                .select('id', count='exact')
                 .eq('bounty_id', bounty_id)
+                .limit(1)
                 .execute()
             )
             return response.count or 0

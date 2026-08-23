@@ -25,7 +25,7 @@ export {
   useMyClaims,
   useMyPostedBounties,
   useClaimBounty,
-  useSubmitBountyEvidence,
+  useAbandonClaim,
   useCreateBounty,
   useReviewBounty,
   useToggleDeliverable,

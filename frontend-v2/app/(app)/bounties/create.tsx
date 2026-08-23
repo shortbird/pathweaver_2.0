@@ -25,6 +25,7 @@ import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { GenerateBountyModal, useAiBountyAccess, BountyIdea } from '@/src/components/bounties/GenerateBountyModal';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Input, InputField,
@@ -53,7 +54,7 @@ export default function CreateBountyPage() {
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(50);
   const [customRewards, setCustomRewards] = useState<string[]>([]);
-  const [visibility, setVisibility] = useState<'public' | 'family'>('family');
+  const [visibility, setVisibility] = useState<'public' | 'family' | 'organization'>('family');
   const [limitClaims, setLimitClaims] = useState(false);
   const [maxClaims, setMaxClaims] = useState('10');
   // Native date picker holds the deadline as a Date. Default: 30 days out at
@@ -69,6 +70,8 @@ export default function CreateBountyPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const aiAllowed = useAiBountyAccess();
 
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
@@ -96,7 +99,7 @@ export default function CreateBountyPage() {
         setXpValue(xpReward?.value || 0);
         setPillar(bounty.pillar || xpReward?.pillar || 'stem');
         setCustomRewards(rewards.filter((r: any) => r.type === 'custom').map((r: any) => r.text).filter(Boolean));
-        setVisibility(bounty.visibility === 'family' ? 'family' : 'public');
+        setVisibility(['family', 'organization'].includes(bounty.visibility) ? bounty.visibility : 'public');
         if (bounty.max_participants && bounty.max_participants > 0) {
           setLimitClaims(true);
           setMaxClaims(String(bounty.max_participants));
@@ -181,6 +184,24 @@ export default function CreateBountyPage() {
     }
   };
 
+  // An accepted AI idea lands in the same wizard fields the poster would have
+  // typed into; posting stays their own click on step 3.
+  const applyAiIdea = (idea: BountyIdea, childId: string | null) => {
+    setTitle(idea.title);
+    setDescription(idea.description);
+    setDeliverables(idea.deliverables.length ? idea.deliverables.map((d) => d.text) : ['']);
+    const xp = idea.rewards.find((r) => r.type === 'xp');
+    setXpValue(typeof xp?.value === 'number' ? xp.value : 0);
+    setPillar(idea.pillar || 'wellness');
+    setCustomRewards(idea.rewards.filter((r) => r.type === 'custom').map((r) => r.text || '').filter(Boolean));
+    if (childId) {
+      setVisibility('family');
+      setSelectedKids([childId]);
+    }
+    setFormError(null);
+    setStep(0);
+  };
+
   // Per-step validation so errors surface where they're fixable.
   const validateStep = (s: number): string | null => {
     if (s === 0) {
@@ -237,6 +258,7 @@ export default function CreateBountyPage() {
         deliverables: deliverables.filter((d) => d.trim()),
         rewards,
         allowed_student_ids: visibility === 'family' && selectedKids.length > 0 ? selectedKids : null,
+        organization_id: visibility === 'organization' ? user?.organization_id : undefined,
         deadline: deadline.toISOString(),
       };
 
@@ -292,6 +314,21 @@ export default function CreateBountyPage() {
           {/* ── Step 1: The challenge ───────────────────────────────── */}
           {step === 0 && (
             <>
+              {aiAllowed && !isEditMode && (
+                <Pressable onPress={() => setAiModalOpen(true)}>
+                  <View className="flex-row items-center gap-2 px-4 py-3 rounded-xl border border-optio-purple/30 bg-optio-purple/5">
+                    <Ionicons name="sparkles" size={18} color="#6D469B" />
+                    <VStack className="flex-1">
+                      <UIText size="sm" className="font-poppins-semibold text-optio-purple">Help me write this bounty</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                        Say what you want to happen — get a few ready-made ideas to edit.
+                      </UIText>
+                    </VStack>
+                    <Ionicons name="chevron-forward" size={16} color="#6D469B" />
+                  </View>
+                </Pressable>
+              )}
+
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Title</UIText>
                 <Input><InputField placeholder="What's the challenge?" value={title} onChangeText={setTitle} /></Input>
@@ -461,6 +498,18 @@ export default function CreateBountyPage() {
                       </VStack>
                     </Card>
                   </Pressable>
+                  {!!user?.organization_id && (
+                    <Pressable onPress={() => setVisibility('organization')} className="flex-1">
+                      <Card variant={visibility === 'organization' ? 'elevated' : 'outline'} size="sm">
+                        <VStack className="items-center" space="xs">
+                          <Ionicons name="school-outline" size={24} color={visibility === 'organization' ? '#6D469B' : c.iconMuted} />
+                          <UIText size="sm" className={visibility === 'organization' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
+                            My school
+                          </UIText>
+                        </VStack>
+                      </Card>
+                    </Pressable>
+                  )}
                 </HStack>
 
                 {visibility === 'family' && dependents.length > 1 && (
@@ -622,6 +671,14 @@ export default function CreateBountyPage() {
           )}
         </HStack>
       </View>
+
+      <GenerateBountyModal
+        visible={aiModalOpen}
+        kids={dependents}
+        childNoun={childNoun}
+        onClose={() => setAiModalOpen(false)}
+        onUse={applyAiIdea}
+      />
     </SafeAreaView>
   );
 }

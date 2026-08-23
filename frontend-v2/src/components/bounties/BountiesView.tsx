@@ -6,7 +6,7 @@
  * /bounties route).
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Pressable, Platform, Alert } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -22,6 +22,8 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { BountyHowItWorks } from '@/src/components/bounties/BountyHowItWorks';
+import { pillarKeys, getPillar } from '@/src/config/pillars';
+import { toast } from '@/src/stores/toastStore';
 
 type Tab = 'browse' | 'claims' | 'posted';
 
@@ -366,7 +368,13 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
                                     ])
                                   );
                               if (!confirmed) return;
-                              try { await deleteBounty(b.id); refetchPosted(); } catch { /* silently fail */ }
+                              try {
+                                await deleteBounty(b.id);
+                                refetchPosted();
+                                toast.success('Bounty deleted');
+                              } catch {
+                                toast.error('Could not delete the bounty. Please try again.');
+                              }
                             }}
                             hitSlop={6}
                             accessibilityLabel="Delete bounty"
@@ -423,7 +431,7 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
   );
 }
 
-export function BountiesView() {
+export function BountiesView({ onRefetchReady }: { onRefetchReady?: (fn: () => Promise<void>) => void } = {}) {
   const c = useThemeColors();
   const { isDesktop } = useBreakpoint();
   const { user } = useAuthStore();
@@ -445,10 +453,14 @@ export function BountiesView() {
   const canPost = !isStudent;
   // Students see only browse; posters get the review-queue layout.
   const [tab, setTab] = useState<Tab>('browse');
+  const [pillarFilter, setPillarFilter] = useState<string | undefined>(undefined);
 
-  const { bounties, loading: browsing } = useBounties();
-  const { claims, loading: claimsLoading, refetch: refetchClaims } = useMyClaims();
-  const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted();
+  const { bounties, loading: browsing, error: browseError, refetch: refetchBounties } = useBounties(pillarFilter);
+  // Role-gated: my-claims 403s for parents/observers and my-posted 403s for
+  // students — calling both unconditionally fired guaranteed-failing requests
+  // on every screen focus.
+  const { claims, loading: claimsLoading, refetch: refetchClaims } = useMyClaims(!isPoster);
+  const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted(canPost);
 
   // Refresh on focus so returning from a bounty detail (after approving/turning
   // in a claim) reflects the new state instead of a stale list — the "I already
@@ -460,6 +472,39 @@ export function BountiesView() {
     }, [refetchClaims, refetchPosted]),
   );
 
+  // Hand the shell one combined refetch so it can drive pull-to-refresh —
+  // every other list screen in the app has the gesture; bounties didn't.
+  const refetchAllRef = useRef(async () => {});
+  refetchAllRef.current = async () => {
+    await Promise.all([refetchBounties(), refetchClaims(), refetchPosted()]);
+  };
+  useEffect(() => {
+    onRefetchReady?.(() => refetchAllRef.current());
+  }, [onRefetchReady]);
+
+  const tabs: { key: Tab; label: string; count?: number }[] = isStudent
+    ? [{ key: 'browse', label: 'Browse' }]
+    : [
+        { key: 'browse', label: 'Browse' },
+        { key: 'claims', label: 'My Claims', count: claims.length || undefined },
+        { key: 'posted', label: 'Posted', count: posted.length || undefined },
+      ];
+
+  // Swipe between tabs: left -> next, right -> previous (clamped to the ends).
+  // Clamp by reading the current tab's index off the tabs array at fire time.
+  // NOTE: every hook in this component must run BEFORE the poster early-return
+  // below — a hook after a conditional return trips React's hook-order
+  // invariant the moment the superadmin preview role flips between parent and
+  // student while this stays mounted (see dashboard.tsx for the same rule).
+  const goToAdjacentTab = useCallback(
+    (direction: 1 | -1) => {
+      const idx = tabs.findIndex((t) => t.key === tab);
+      const next = idx + direction;
+      if (next >= 0 && next < tabs.length) setTab(tabs[next].key);
+    },
+    [tabs, tab],
+  );
+
   // Parent + observer route to the dedicated review-queue layout.
   if (isPoster) {
     return (
@@ -467,7 +512,7 @@ export function BountiesView() {
         posted={posted}
         postedLoading={postedLoading}
         refetchPosted={refetchPosted}
-        ideas={bounties}
+        ideas={bounties.filter((b: any) => b.poster_id !== user?.id)}
         ideasLoading={browsing}
         role={isObserver ? 'observer' : 'parent'}
       />
@@ -480,25 +525,6 @@ export function BountiesView() {
   const activeClaimCount = claims.filter(
     (c: any) => c.status === 'claimed' || c.status === 'submitted' || c.status === 'revision_requested'
   ).length;
-
-  const tabs: { key: Tab; label: string; count?: number }[] = isStudent
-    ? [{ key: 'browse', label: 'Browse' }]
-    : [
-        { key: 'browse', label: 'Browse' },
-        { key: 'claims', label: 'My Claims', count: claims.length || undefined },
-        { key: 'posted', label: 'Posted', count: posted.length || undefined },
-      ];
-
-  // Swipe between tabs: left -> next, right -> previous (clamped to the ends).
-  // Clamp by reading the current tab's index off the tabs array at fire time.
-  const goToAdjacentTab = useCallback(
-    (direction: 1 | -1) => {
-      const idx = tabs.findIndex((t) => t.key === tab);
-      const next = idx + direction;
-      if (next >= 0 && next < tabs.length) setTab(tabs[next].key);
-    },
-    [tabs, tab],
-  );
 
   // Only fire on a clearly horizontal fling past the threshold so it doesn't
   // fight the vertical ScrollView/FlatList content.
@@ -567,9 +593,41 @@ export function BountiesView() {
               </Pressable>
             </View>
           )}
+          {/* Pillar filter — the hook always supported it; the UI never passed it */}
+          <View className="px-5 md:px-8">
+            <View className="flex-row flex-wrap gap-2">
+              {[undefined, ...pillarKeys].map((p) => {
+                const active = pillarFilter === p;
+                const pc = p ? getPillar(p) : null;
+                return (
+                  <Pressable key={p || 'all'} onPress={() => setPillarFilter(p)}>
+                    <View style={{
+                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                      backgroundColor: active ? (pc?.color || '#6D469B') : c.surfaceMuted,
+                    }}>
+                      <UIText size="xs" style={{ color: active ? '#fff' : (pc?.color || c.textMuted), fontFamily: 'Poppins_500Medium' }}>
+                        {pc?.label || 'All'}
+                      </UIText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
           <View className="px-5 md:px-8">
             {browsing ? (
               <VStack space="sm">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-xl" />)}</VStack>
+            ) : browseError ? (
+              <Card variant="filled" size="lg" className="items-center py-10">
+                <Ionicons name="cloud-offline-outline" size={40} color={c.iconMuted} />
+                <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">Couldn't load bounties</Heading>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1 text-center">
+                  Check your connection and try again.
+                </UIText>
+                <Button size="md" className="mt-4" onPress={refetchBounties}>
+                  <ButtonText>Retry</ButtonText>
+                </Button>
+              </Card>
             ) : bounties.length > 0 ? (
               <View className={`gap-4 ${isDesktop ? 'flex flex-row flex-wrap' : ''}`}>
                 {bounties.map((b: any) => {
@@ -672,7 +730,13 @@ export function BountiesView() {
                                     ])
                                   );
                               if (!confirmed) return;
-                              try { await deleteBounty(b.id); refetchPosted(); } catch { /* silently fail */ }
+                              try {
+                                await deleteBounty(b.id);
+                                refetchPosted();
+                                toast.success('Bounty deleted');
+                              } catch {
+                                toast.error('Could not delete the bounty. Please try again.');
+                              }
                             }}
                           >
                             <Ionicons name="trash-outline" size={18} color="#EF4444" />

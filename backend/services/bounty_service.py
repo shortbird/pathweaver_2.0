@@ -7,7 +7,7 @@ completion tracking, auto-submission, review, and XP rewards.
 
 import uuid
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from services.base_service import BaseService, ValidationError
 from repositories.base_repository import NotFoundError
@@ -21,6 +21,11 @@ VALID_PILLARS = ('stem', 'art', 'communication', 'civics', 'wellness')
 VALID_BOUNTY_TYPES = ('open', 'challenge', 'family', 'org', 'sponsored')
 MIN_XP_REWARD = 25
 MAX_XP_REWARD = 200
+# The bounties.xp_reward column CHECK is <= 500. Enforcing the same ceiling here
+# turns "three 200-XP rewards" into a readable 400 instead of a Postgres 500.
+MAX_TOTAL_XP = 500
+MAX_REWARD_ENTRIES = 10
+MAX_PARTICIPANTS_CAP = 1000
 
 
 class BountyService(BaseService):
@@ -48,6 +53,11 @@ class BountyService(BaseService):
 
         Returns None for superadmin to signal "no filter — they can target
         any student." Callers should treat None as "skip the intersect."
+
+        Raises on lookup failure rather than returning an empty set: an empty
+        result would make the caller drop allowed_student_ids entirely, which
+        WIDENS a targeted bounty to every linked kid. A transient DB error must
+        fail the request, not the targeting.
         """
         try:
             client = self.repository.client
@@ -66,7 +76,81 @@ class BountyService(BaseService):
             return allowed
         except Exception as e:
             logger.warning(f"_get_posters_student_ids failed for {poster_id[:8]}: {e}")
-            return set()
+            raise ValidationError("Could not verify your linked students. Please try again.")
+
+    @staticmethod
+    def _build_rewards(rewards_raw: Any) -> Dict[str, Any]:
+        """Validate and normalize a client rewards list. Shared by create/update
+        so the two paths cannot drift. Returns {rewards, total_xp, primary_pillar}."""
+        if not isinstance(rewards_raw, list):
+            rewards_raw = []
+        if len(rewards_raw) > MAX_REWARD_ENTRIES:
+            raise ValidationError(f"A bounty can have at most {MAX_REWARD_ENTRIES} rewards")
+
+        rewards = []
+        total_xp = 0
+        primary_pillar = None
+        for r in rewards_raw:
+            if not isinstance(r, dict):
+                continue
+            if r.get('type') == 'xp':
+                try:
+                    xp_val = int(r.get('value', 0))
+                except (TypeError, ValueError):
+                    raise ValidationError("XP reward value must be a number")
+                pillar = r.get('pillar', 'stem')
+                if xp_val < MIN_XP_REWARD or xp_val > MAX_XP_REWARD:
+                    raise ValidationError(f"XP reward must be between {MIN_XP_REWARD} and {MAX_XP_REWARD}")
+                if pillar not in VALID_PILLARS:
+                    raise ValidationError(f"Invalid pillar: {pillar}")
+                rewards.append({'id': str(uuid.uuid4()), 'type': 'xp', 'value': xp_val, 'pillar': pillar})
+                total_xp += xp_val
+                if not primary_pillar:
+                    primary_pillar = pillar
+            elif r.get('type') == 'custom':
+                text = str(r.get('text', '')).strip()
+                if text:
+                    rewards.append({'id': str(uuid.uuid4()), 'type': 'custom', 'text': text[:500]})
+
+        if total_xp > MAX_TOTAL_XP:
+            raise ValidationError(f"Total XP across rewards cannot exceed {MAX_TOTAL_XP}")
+        return {'rewards': rewards, 'total_xp': total_xp, 'primary_pillar': primary_pillar}
+
+    @staticmethod
+    def _parse_deadline(value: Any) -> Optional[str]:
+        """Parse a client deadline into an ISO string, or raise a readable 400.
+        Returns None when no deadline was supplied."""
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        except (TypeError, ValueError):
+            raise ValidationError("Deadline must be a valid date")
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        if parsed <= datetime.now(timezone.utc):
+            raise ValidationError("Deadline must be in the future")
+        return parsed.isoformat()
+
+    def _validate_org_fields(self, poster_org_id: Optional[str], is_superadmin: bool,
+                             organization_id: Optional[str], cohort_class_id: Optional[str]) -> None:
+        """A poster may only attach a bounty to their own org and its classes.
+        Without this, any parent could POST visibility='organization' with
+        another school's org id and land on that school's board."""
+        if is_superadmin:
+            return
+        if organization_id and organization_id != poster_org_id:
+            raise ValidationError("You can only post bounties to your own organization")
+        if cohort_class_id:
+            if not poster_org_id:
+                raise ValidationError("Cohort-restricted bounties require an organization")
+            try:
+                row = self.repository.client.table('org_classes') \
+                    .select('id, organization_id').eq('id', cohort_class_id).execute()
+            except Exception:
+                raise ValidationError("Could not verify the selected cohort. Please try again.")
+            if not row.data or row.data[0].get('organization_id') != poster_org_id:
+                raise ValidationError("That cohort does not belong to your organization")
 
     def create_bounty(self, poster_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new bounty with deliverables. Auto-activates."""
@@ -92,31 +176,10 @@ class BountyService(BaseService):
             raise ValidationError("At least one non-empty deliverable is required")
 
         # Validate and build rewards
-        rewards_raw = data.get('rewards', [])
-        rewards = []
-        total_xp = 0
-        primary_pillar = None
-
-        if not isinstance(rewards_raw, list):
-            rewards_raw = []
-
-        for r in rewards_raw:
-            if isinstance(r, dict):
-                if r.get('type') == 'xp':
-                    xp_val = int(r.get('value', 0))
-                    pillar = r.get('pillar', 'stem')
-                    if xp_val < MIN_XP_REWARD or xp_val > MAX_XP_REWARD:
-                        raise ValidationError(f"XP reward must be between {MIN_XP_REWARD} and {MAX_XP_REWARD}")
-                    if pillar not in VALID_PILLARS:
-                        raise ValidationError(f"Invalid pillar: {pillar}")
-                    rewards.append({'id': str(uuid.uuid4()), 'type': 'xp', 'value': xp_val, 'pillar': pillar})
-                    total_xp += xp_val
-                    if not primary_pillar:
-                        primary_pillar = pillar
-                elif r.get('type') == 'custom':
-                    text = r.get('text', '').strip()
-                    if text:
-                        rewards.append({'id': str(uuid.uuid4()), 'type': 'custom', 'text': text})
+        built = self._build_rewards(data.get('rewards', []))
+        rewards = built['rewards']
+        total_xp = built['total_xp']
+        primary_pillar = built['primary_pillar']
 
         # Visibility
         visibility = data.get('visibility', 'public')
@@ -136,22 +199,54 @@ class BountyService(BaseService):
         # Build requirements text from deliverables for backwards compatibility
         requirements_text = '\n'.join(f"- {d['text']}" for d in deliverables)
 
-        # Build sponsor info from poster
+        # Field-level validation up front so a bad value is a readable 400, not
+        # a Postgres CHECK violation surfacing as a 500.
+        pillar_override = data.get('pillar')
+        if pillar_override and pillar_override not in VALID_PILLARS:
+            raise ValidationError(f"Invalid pillar: {pillar_override}")
+
+        bounty_type = data.get('bounty_type', 'open')
+        if bounty_type not in VALID_BOUNTY_TYPES:
+            raise ValidationError(f"Invalid bounty type: {bounty_type}")
+
+        try:
+            max_participants = int(data.get('max_participants', 0))
+        except (TypeError, ValueError):
+            raise ValidationError("Max participants must be a number")
+        if max_participants < 0 or max_participants > MAX_PARTICIPANTS_CAP:
+            raise ValidationError(f"Max participants must be between 0 and {MAX_PARTICIPANTS_CAP}")
+
+        deadline = self._parse_deadline(data.get('deadline'))
+        if not deadline:
+            deadline = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+
+        # Build sponsor info from poster (one lookup also serves org validation)
         OPTIO_LOGO = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
         OPTIO_USERS = ['tanner bowman']
 
+        poster_org_id = None
+        poster_is_superadmin = False
         sponsor = data.get('sponsor')
-        if not sponsor:
-            poster = self.repository.client.table('users').select('display_name, first_name, last_name, role').eq('id', poster_id).execute()
-            if poster.data:
-                user_data = poster.data[0]
+        poster = self.repository.client.table('users') \
+            .select('display_name, first_name, last_name, role, organization_id') \
+            .eq('id', poster_id).execute()
+        if poster.data:
+            user_data = poster.data[0]
+            poster_org_id = user_data.get('organization_id')
+            poster_is_superadmin = user_data.get('role') == 'superadmin'
+            if not sponsor:
                 full_name = f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
-                is_optio = user_data.get('role') == 'superadmin' or full_name.lower() in OPTIO_USERS
+                is_optio = poster_is_superadmin or full_name.lower() in OPTIO_USERS
                 if is_optio:
                     sponsor = {'name': 'Optio', 'logo_url': OPTIO_LOGO}
                 else:
                     name = user_data.get('display_name') or full_name or 'Anonymous'
                     sponsor = {'name': name}
+
+        self._validate_org_fields(
+            poster_org_id, poster_is_superadmin,
+            data.get('organization_id'), data.get('cohort_class_id'),
+        )
 
         # Allowed student IDs (for family visibility targeting specific kids).
         # Intersect with the poster's actual relationships so an observer
@@ -178,11 +273,11 @@ class BountyService(BaseService):
             'requirements': requirements_text,
             'deliverables': deliverables,
             'rewards': rewards,
-            'pillar': data.get('pillar') or primary_pillar or 'stem',
-            'bounty_type': data.get('bounty_type', 'open'),
+            'pillar': pillar_override or primary_pillar or 'stem',
+            'bounty_type': bounty_type,
             'xp_reward': total_xp,
-            'max_participants': data.get('max_participants', 0),
-            'deadline': data.get('deadline', (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat()),
+            'max_participants': max_participants,
+            'deadline': deadline,
             'status': 'active',
             'moderation_status': 'manually_approved',
             'visibility': visibility,
@@ -252,14 +347,34 @@ class BountyService(BaseService):
             updates['description'] = data['description'].strip()
 
         if 'max_participants' in data:
-            updates['max_participants'] = max(0, int(data['max_participants']))
+            try:
+                max_p = int(data['max_participants'])
+            except (TypeError, ValueError):
+                raise ValidationError("Max participants must be a number")
+            updates['max_participants'] = max(0, min(MAX_PARTICIPANTS_CAP, max_p))
+
+        if 'deadline' in data:
+            parsed = self._parse_deadline(data['deadline'])
+            if parsed:
+                updates['deadline'] = parsed
 
         if 'cohort_class_id' in data:
-            updates['cohort_class_id'] = data['cohort_class_id'] or None
+            cohort_id = data['cohort_class_id'] or None
+            if cohort_id:
+                poster_row = self.repository.client.table('users') \
+                    .select('organization_id, role').eq('id', bounty['poster_id']).execute()
+                p = (poster_row.data or [{}])[0]
+                self._validate_org_fields(p.get('organization_id'),
+                                          p.get('role') == 'superadmin', None, cohort_id)
+            updates['cohort_class_id'] = cohort_id
 
         if 'visibility' in data:
             if data['visibility'] not in ('public', 'organization', 'family'):
                 raise ValidationError(f"Invalid visibility: {data['visibility']}")
+            # Same invariant as create: a staff bounty is a school's internal
+            # business and must never leave 'organization' visibility.
+            if (bounty.get('audience') or 'students') == 'staff' and data['visibility'] != 'organization':
+                raise ValidationError("Staff bounties must use 'organization' visibility")
             updates['visibility'] = data['visibility']
 
         if 'allowed_student_ids' in data:
@@ -284,12 +399,31 @@ class BountyService(BaseService):
             if not isinstance(deliverables_raw, list) or not deliverables_raw:
                 raise ValidationError("At least one deliverable is required")
 
+            # Preserve existing deliverable IDs wherever possible. Claims key
+            # their completed-deliverable sets and evidence on these IDs, so
+            # minting fresh UUIDs on every edit silently wiped every claimant's
+            # progress and made their evidence unreachable.
+            existing = bounty.get('deliverables') or []
+            by_id = {d['id']: d for d in existing if isinstance(d, dict) and d.get('id')}
+            by_text = {d.get('text', '').strip(): d['id'] for d in existing
+                       if isinstance(d, dict) and d.get('id')}
+
             deliverables = []
             for item in deliverables_raw:
-                text = item.strip() if isinstance(item, str) else item.get('text', '').strip()
+                if isinstance(item, str):
+                    text, item_id = item.strip(), None
+                else:
+                    text = str(item.get('text', '')).strip()
+                    item_id = item.get('id')
                 if not text:
                     continue
-                deliverables.append({'id': str(uuid.uuid4()), 'text': text})
+                if item_id and item_id in by_id:
+                    keep_id = item_id
+                elif text in by_text:
+                    keep_id = by_text[text]
+                else:
+                    keep_id = str(uuid.uuid4())
+                deliverables.append({'id': keep_id, 'text': text})
 
             if not deliverables:
                 raise ValidationError("At least one non-empty deliverable is required")
@@ -298,35 +432,11 @@ class BountyService(BaseService):
             updates['requirements'] = '\n'.join(f"- {d['text']}" for d in deliverables)
 
         if 'rewards' in data:
-            rewards_raw = data['rewards']
-            if not isinstance(rewards_raw, list):
-                rewards_raw = []
-
-            rewards = []
-            total_xp = 0
-            primary_pillar = None
-            for r in rewards_raw:
-                if isinstance(r, dict):
-                    if r.get('type') == 'xp':
-                        xp_val = int(r.get('value', 0))
-                        pillar = r.get('pillar', 'stem')
-                        if xp_val < MIN_XP_REWARD or xp_val > MAX_XP_REWARD:
-                            raise ValidationError(f"XP reward must be between {MIN_XP_REWARD} and {MAX_XP_REWARD}")
-                        if pillar not in VALID_PILLARS:
-                            raise ValidationError(f"Invalid pillar: {pillar}")
-                        rewards.append({'id': str(uuid.uuid4()), 'type': 'xp', 'value': xp_val, 'pillar': pillar})
-                        total_xp += xp_val
-                        if not primary_pillar:
-                            primary_pillar = pillar
-                    elif r.get('type') == 'custom':
-                        text = r.get('text', '').strip()
-                        if text:
-                            rewards.append({'id': str(uuid.uuid4()), 'type': 'custom', 'text': text})
-
-            updates['rewards'] = rewards
-            updates['xp_reward'] = total_xp
-            if primary_pillar:
-                updates['pillar'] = primary_pillar
+            built = self._build_rewards(data['rewards'])
+            updates['rewards'] = built['rewards']
+            updates['xp_reward'] = built['total_xp']
+            if built['primary_pillar']:
+                updates['pillar'] = built['primary_pillar']
 
         # Explicit pillar override (e.g. custom-reward-only bounties)
         if 'pillar' in data and data['pillar'] in VALID_PILLARS:
@@ -351,6 +461,44 @@ class BountyService(BaseService):
         if not bounty:
             raise NotFoundError(f"Bounty {bounty_id} not found")
         return bounty
+
+    def get_bounty_for_viewer(self, bounty_id: str, viewer_id: str) -> Dict[str, Any]:
+        """Get bounty details, enforcing visibility for the viewer.
+
+        The claim path always ran _student_can_access_bounty; the read path
+        didn't, so any authenticated user could read any bounty by id —
+        including a family bounty's allowed_student_ids and moderation notes.
+        404 rather than 403, matching the claim path: an invisible bounty
+        simply isn't there.
+        """
+        bounty = self.get_bounty(bounty_id)
+        if not self._student_can_access_bounty(viewer_id, bounty):
+            raise NotFoundError(f"Bounty {bounty_id} not found")
+        return bounty
+
+    def get_bounty_detail(self, bounty_id: str, viewer_id: str) -> Dict[str, Any]:
+        """Bounty detail for a viewer: visibility-checked, and enriched with
+        claims + student names + latest reviews when the viewer is the poster
+        or a superadmin."""
+        bounty = self.get_bounty_for_viewer(bounty_id, viewer_id)
+        if bounty['poster_id'] == viewer_id or self.is_superadmin(viewer_id):
+            return self._enrich_bounties_with_claims([bounty])[0]
+        return bounty
+
+    @staticmethod
+    def _deadline_passed(bounty: Dict[str, Any]) -> bool:
+        """Whether the bounty's deadline is in the past. Malformed/missing
+        deadlines count as open — legacy rows must not vanish from boards."""
+        raw = bounty.get('deadline')
+        if not raw:
+            return False
+        try:
+            deadline = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+            return deadline < datetime.now(timezone.utc)
+        except (TypeError, ValueError):
+            return False
 
     def _get_connected_poster_ids(self, user_id: str, user_parent_id: Optional[str] = None) -> set:
         """The set of adults connected to this student — the posters whose
@@ -385,7 +533,7 @@ class BountyService(BaseService):
         # Get user info for visibility filtering (org_role too: org-managed staff
         # carry their real role there, and it decides which board they see).
         user_result = self.repository.client.table('users').select(
-            'id, role, org_role, organization_id, managed_by_parent_id'
+            'id, role, org_role, org_roles, organization_id, managed_by_parent_id'
         ).eq('id', user_id).execute()
 
         if not user_result.data:
@@ -456,6 +604,13 @@ class BountyService(BaseService):
                 or b['cohort_class_id'] in my_cohorts
             ]
 
+        # A bounty past its deadline stays visible to its poster (their review
+        # queue may still hold submissions) but leaves everyone else's board.
+        visible = [b for b in visible
+                   if not self._deadline_passed(b)
+                   or b['poster_id'] == user_id
+                   or is_superadmin]
+
         # L1 (org setting): an org can hide platform-wide "public" bounties from its
         # students so School Jobs shows only org/cohort-scoped jobs. The poster and
         # superadmin are never filtered. Bounties from the user's own org stay visible.
@@ -476,25 +631,53 @@ class BountyService(BaseService):
 
         return visible
 
-    def get_my_posted(self, poster_id: str) -> List[Dict[str, Any]]:
-        """Get bounties posted by user."""
-        return self.repository.get_poster_bounties(poster_id)
-
     def get_my_posted_with_claims(self, poster_id: str) -> List[Dict[str, Any]]:
         """Get bounties posted by user, each enriched with its claims and student info."""
         bounties = self.repository.get_poster_bounties(poster_id)
         return self._enrich_bounties_with_claims(bounties)
 
-    def get_all_bounties_with_claims(self) -> List[Dict[str, Any]]:
-        """Get ALL bounties with claims (superadmin view)."""
-        try:
-            response = self.repository.client.table('bounties')\
-                .select('*').order('created_at', desc=True).execute()
-            bounties = response.data or []
-        except Exception as e:
-            logger.error(f"Error fetching all bounties: {e}")
-            return []
-        return self._enrich_bounties_with_claims(bounties)
+    def delete_bounty(self, bounty_id: str, user_id: str) -> None:
+        """Delete a bounty (poster or superadmin). Tells students with a live
+        claim before their work disappears — deletion cascades claims and
+        reviews, and previously did so silently."""
+        bounty = self.get_bounty(bounty_id)
+        if bounty['poster_id'] != user_id and not self.is_superadmin(user_id):
+            raise ValidationError("Only the poster or superadmin can delete this bounty")
+
+        claims = self.repository.get_bounty_claims(bounty_id)
+        affected = [c['student_id'] for c in claims
+                    if c.get('status') in ('claimed', 'submitted', 'revision_requested')
+                    and c.get('student_id')]
+
+        self.repository.delete_bounty(bounty_id)
+        logger.info(f"Bounty {bounty_id[:8]} deleted by {user_id[:8]} ({len(affected)} live claims)")
+
+        if affected:
+            try:
+                import threading
+                from services.notification_service import NotificationService
+
+                def _notify():
+                    try:
+                        ns = NotificationService()
+                        for sid in affected:
+                            try:
+                                ns.create_notification(
+                                    user_id=sid,
+                                    notification_type='announcement',
+                                    title='Bounty Removed',
+                                    message=f'The bounty "{bounty["title"]}" was taken down by its poster, so it no longer needs your work.',
+                                    link='/bounties',
+                                    metadata={'bounty_id': bounty_id},
+                                )
+                            except Exception as inner:
+                                logger.warning(f"bounty-deleted notify failed for {sid[:8]}: {inner}")
+                    except Exception as e:
+                        logger.warning(f"bounty-deleted notify thread failed: {e}")
+
+                threading.Thread(target=_notify, daemon=True).start()
+            except Exception as e:
+                logger.warning(f"Failed to start bounty-deleted notify thread: {e}")
 
     # ── bounty evidence lives in `quest-evidence`, same as task evidence ─────
     #
@@ -544,11 +727,45 @@ class BountyService(BaseService):
                 PortfolioService.canonical_block_content(entry['content'])
         return entries or []
 
+    def _attach_latest_reviews(self, claims: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Attach the most recent review (decision + feedback) to each claim.
+
+        Reviewer feedback was written to bounty_reviews and then never read
+        back — the only place a student ever saw it was inside a notification
+        string. One batched query for the whole page.
+        """
+        claim_ids = [c['id'] for c in claims if c.get('id')]
+        if not claim_ids:
+            return claims
+        try:
+            rows = (self.repository.client.table('bounty_reviews')
+                    .select('claim_id, decision, feedback, created_at')
+                    .in_('claim_id', claim_ids)
+                    .order('created_at', desc=True)
+                    .execute()).data or []
+        except Exception as e:
+            logger.warning(f"Could not attach bounty reviews: {e}")
+            rows = []
+        latest: Dict[str, Dict] = {}
+        for r in rows:  # newest-first, so first wins
+            latest.setdefault(r['claim_id'], {
+                'decision': r.get('decision'),
+                'feedback': r.get('feedback'),
+                'created_at': r.get('created_at'),
+            })
+        for c in claims:
+            c['latest_review'] = latest.get(c.get('id'))
+        return claims
+
     def _enrich_bounties_with_claims(self, bounties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Enrich a list of bounties with claims and student info."""
+        # One batched claims query for the page, not one per bounty.
+        claims_by_bounty = self.repository.get_claims_for_bounties(
+            [b['id'] for b in bounties]
+        )
         all_student_ids: set = set()
         for bounty in bounties:
-            bounty['claims'] = self.repository.get_bounty_claims(bounty['id'])
+            bounty['claims'] = claims_by_bounty.get(bounty['id'], [])
             for c in bounty['claims']:
                 if c.get('student_id'):
                     all_student_ids.add(c['student_id'])
@@ -566,22 +783,28 @@ class BountyService(BaseService):
         for bounty in bounties:
             for claim in bounty['claims']:
                 claim['student'] = student_map.get(claim.get('student_id'), {})
+        all_claims = [claim for bounty in bounties for claim in bounty['claims']]
+        self._attach_latest_reviews(all_claims)
         # One signing call for every claim on the page, not one per claim.
-        self._sign_claim_evidence(
-            [claim for bounty in bounties for claim in bounty['claims']]
-        )
+        self._sign_claim_evidence(all_claims)
         return bounties
 
-    def get_my_claims(self, student_id: str) -> List[Dict[str, Any]]:
-        """Get claims by student."""
-        return self._sign_claim_evidence(self.repository.get_student_claims(student_id))
-
     def get_my_claims_with_bounties(self, student_id: str) -> List[Dict[str, Any]]:
-        """Get claims by student, each enriched with its bounty data."""
+        """Get claims by student, each enriched with its bounty data and the
+        latest review (so a student can read the reviewer's feedback)."""
         claims = self.repository.get_student_claims(student_id)
+        bounty_ids = list({c['bounty_id'] for c in claims if c.get('bounty_id')})
+        bounty_map: Dict[str, Dict] = {}
+        if bounty_ids:
+            try:
+                rows = (self.repository.client.table('bounties')
+                        .select('*').in_('id', bounty_ids).execute()).data or []
+                bounty_map = {b['id']: b for b in rows}
+            except Exception as e:
+                logger.warning(f"Batch bounty fetch failed, claims will lack bounty data: {e}")
         for claim in claims:
-            bounty = self.repository.get_bounty_by_id(claim['bounty_id'])
-            claim['bounty'] = bounty
+            claim['bounty'] = bounty_map.get(claim.get('bounty_id'))
+        self._attach_latest_reviews(claims)
         return self._sign_claim_evidence(claims)
 
     def _student_can_access_bounty(self, student_id: str, bounty: Dict[str, Any]) -> bool:
@@ -621,11 +844,21 @@ class BountyService(BaseService):
 
     @staticmethod
     def _is_staff_user(user: Dict[str, Any]) -> bool:
-        """Teacher or org admin — the people staff bounties are for. Org-managed
-        users carry their real role in org_role."""
+        """Teacher, coordinator or org admin — the people staff bounties are for.
+        Org-managed users carry their real role in org_roles (array, canonical)
+        with org_role as the legacy scalar; check both, the way
+        get_effective_roles does, or a teacher carried on org_roles alone lands
+        on the student board and can claim family bounties."""
+        STAFF = ('advisor', 'org_admin', 'campus_coordinator')
         role = user.get('role')
-        effective = user.get('org_role') if role == 'org_managed' else role
-        return effective in ('advisor', 'org_admin')
+        if role in STAFF:
+            return True
+        if role == 'org_managed':
+            org_roles = user.get('org_roles') or []
+            if user.get('org_role'):
+                org_roles = list(org_roles) + [user['org_role']]
+            return any(r in STAFF for r in org_roles)
+        return False
 
     def _audience_matches_claimer(self, claimer_id: str, bounty: Dict[str, Any]) -> bool:
         """Whether this person is who the bounty was posted for.
@@ -639,7 +872,7 @@ class BountyService(BaseService):
         user = None
         try:
             rows = (self.repository.client.table('users')
-                    .select('role, org_role').eq('id', claimer_id).execute()).data
+                    .select('role, org_role, org_roles').eq('id', claimer_id).execute()).data
             if isinstance(rows, list) and rows:
                 user = rows[0]
         except Exception:
@@ -672,6 +905,22 @@ class BountyService(BaseService):
         # 404 rather than 403: a staff bounty simply isn't on a student's board.
         if not self._audience_matches_claimer(student_id, bounty):
             raise NotFoundError(f"Bounty {bounty_id} not found")
+
+        if self._deadline_passed(bounty):
+            raise ValidationError("This bounty's deadline has passed")
+
+        # A rejected claim used to be a permanent dead end: it can't be edited
+        # or dropped, and the (bounty_id, student_id) unique constraint blocked
+        # re-claiming — the DB unique violation surfaced as a raw 500 on a
+        # double-tap. Re-open a rejected claim instead, and give everything
+        # else a readable error.
+        existing = self.repository.get_claim_by_bounty_and_student(bounty_id, student_id)
+        if existing:
+            if existing['status'] == 'rejected':
+                reopened = self.repository.update_claim_status(existing['id'], 'claimed')
+                logger.info(f"Student {student_id[:8]} re-opened rejected claim {existing['id'][:8]}")
+                return reopened
+            raise ValidationError("You've already claimed this bounty")
 
         # Check capacity (0 = unlimited)
         max_p = bounty.get('max_participants', 0)
@@ -744,9 +993,18 @@ class BountyService(BaseService):
         if deliverable_id not in all_deliverable_ids:
             raise ValidationError(f"Deliverable {deliverable_id} not found on this bounty")
 
-        # Require evidence when completing
-        if completed and (not deliverable_evidence or len(deliverable_evidence) == 0):
-            raise ValidationError("At least one piece of evidence is required to complete a deliverable")
+        # Require evidence when completing. Filter to well-formed entries first:
+        # a bare [{}] used to satisfy the check, and a dict payload would be
+        # iterated by keys and splice bare strings into the JSONB.
+        if completed:
+            if not isinstance(deliverable_evidence, list):
+                raise ValidationError("Evidence must be a list of evidence items")
+            deliverable_evidence = [
+                e for e in deliverable_evidence
+                if isinstance(e, dict) and e.get('type') and e.get('content')
+            ]
+            if not deliverable_evidence:
+                raise ValidationError("At least one piece of evidence is required to complete a deliverable")
 
         # Update completed deliverables list and evidence
         evidence = claim.get('evidence') or {}
@@ -925,25 +1183,6 @@ class BountyService(BaseService):
         logger.info(f"Deleted evidence item {evidence_index} from deliverable {deliverable_id[:8]} on claim {claim_id[:8]}")
         return self._sign_claim_evidence(updated)
 
-    def submit_evidence(self, claim_id: str, student_id: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
-        """Student submits evidence for a claimed bounty."""
-        claim = self.repository.get_claim(claim_id)
-        if not claim:
-            raise NotFoundError(f"Claim {claim_id} not found")
-
-        if claim['student_id'] != student_id:
-            raise ValidationError("You can only submit evidence for your own claims")
-
-        if claim['status'] not in ('claimed', 'revision_requested'):
-            raise ValidationError(f"Cannot submit evidence for claim with status '{claim['status']}'")
-
-        # Client-supplied evidence: reduce to canonical pointers before it is
-        # persisted, then hand back the signed twin for the render.
-        for entries in ((evidence or {}).get('deliverable_evidence') or {}).values():
-            self._canonicalize_evidence_entries(entries)
-
-        return self._sign_claim_evidence(self.repository.submit_evidence(claim_id, evidence))
-
     def review_submission(self, claim_id: str, reviewer_id: str, decision: str, feedback: Optional[str] = None) -> Dict[str, Any]:
         """Poster reviews a submission."""
         if decision not in ('approved', 'rejected', 'revision_requested'):
@@ -964,10 +1203,15 @@ class BountyService(BaseService):
             raise ValidationError("Only the bounty's poster can review this submission")
 
         # Create review record
-        self.repository.create_review(claim_id, reviewer_id, decision, feedback)
+        review = self.repository.create_review(claim_id, reviewer_id, decision, feedback)
 
         # Update claim status
         updated_claim = self.repository.update_claim_status(claim_id, decision)
+        updated_claim['latest_review'] = {
+            'decision': decision,
+            'feedback': feedback,
+            'created_at': (review or {}).get('created_at'),
+        }
 
         if decision == 'approved' and bounty:
             # Award XP per reward
@@ -984,13 +1228,20 @@ class BountyService(BaseService):
                 def send_student_notification():
                     try:
                         ns = NotificationService()
+                        # Link to the bounty DETAIL, not the board: web renders
+                        # the claim state there, and the mobile deep-link router
+                        # maps /bounties/<id> to the detail screen. The old
+                        # '/bounties?tab=active' landed mobile students on the
+                        # Browse-only tab — a dead end for the one notification
+                        # ("revise your work") that most needs a destination.
+                        detail_link = f'/bounties/{bounty["id"]}'
                         if decision == 'approved':
                             ns.create_notification(
                                 user_id=claim['student_id'],
                                 notification_type='task_approved',
                                 title='Bounty Approved!',
                                 message=f'Your submission for "{bounty["title"]}" has been approved!',
-                                link='/bounties?tab=active',
+                                link=detail_link,
                                 metadata={'bounty_id': bounty['id'], 'claim_id': claim_id},
                             )
                         elif decision == 'revision_requested':
@@ -999,16 +1250,22 @@ class BountyService(BaseService):
                                 notification_type='task_revision_requested',
                                 title='Bounty Revision Requested',
                                 message=f'The poster of "{bounty["title"]}" requested changes to your submission.' + (f' Feedback: {feedback}' if feedback else ''),
-                                link='/bounties?tab=active',
+                                link=detail_link,
                                 metadata={'bounty_id': bounty['id'], 'claim_id': claim_id},
                             )
                         elif decision == 'rejected':
+                            # task_revision_requested, not system_alert: it is in
+                            # MOBILE_PUSH_NOTIFICATION_TYPES (system_alert isn't,
+                            # so rejections never pushed), it renders with the
+                            # student-work icon, and rejection is now recoverable
+                            # (the student can re-open the claim), so "your work
+                            # needs attention" is the honest framing.
                             ns.create_notification(
                                 user_id=claim['student_id'],
-                                notification_type='system_alert',
-                                title='Bounty Submission Rejected',
+                                notification_type='task_revision_requested',
+                                title='Bounty Submission Not Accepted',
                                 message=f'Your submission for "{bounty["title"]}" was not accepted.' + (f' Feedback: {feedback}' if feedback else ''),
-                                link='/bounties?tab=active',
+                                link=detail_link,
                                 metadata={'bounty_id': bounty['id'], 'claim_id': claim_id},
                             )
                     except Exception as e:
@@ -1033,6 +1290,11 @@ class BountyService(BaseService):
         # Auto-activate approved bounties
         if moderation_status in ('ai_approved', 'manually_approved'):
             bounty = self.repository.update_bounty_status(bounty_id, 'active')
+        elif moderation_status == 'rejected':
+            # Rejection must take the bounty DOWN. It was created status=active,
+            # and writing only moderation_status left it live on every board —
+            # the moderation endpoint was cosmetic.
+            bounty = self.repository.update_bounty_status(bounty_id, 'rejected')
 
         return bounty
 
@@ -1067,9 +1329,9 @@ class BountyService(BaseService):
                 )
                 total_xp = bounty['xp_reward']
 
-            if total_xp > 0:
-                self.wallet_repository.add(student_id, total_xp)
-
+            # Note: XPService.award_xp already credits student_wallets per
+            # award — crediting again here paid every bounty out twice in
+            # spendable coin.
             logger.info(f"Awarded {total_xp} XP to student {student_id[:8]} for bounty {bounty['id'][:8]}")
         except Exception as e:
             logger.error(f"Failed to award bounty XP: {e}")

@@ -28,6 +28,9 @@ def _make_service(claimer_role=None, claimer_org_role=None):
             if claimer_role is not None else [])
     service.repository.client.table.return_value.select.return_value \
         .eq.return_value.execute.return_value.data = rows
+    # claim_bounty now checks for an existing claim (to re-open rejected ones);
+    # a bare Mock is truthy and would read as "already claimed".
+    service.repository.get_claim_by_bounty_and_student.return_value = None
     return service
 
 

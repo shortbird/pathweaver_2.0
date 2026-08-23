@@ -509,8 +509,10 @@ export const bountyAPI = {
     api.delete(`/api/bounties/${bountyId}/claims/${claimId}/evidence/${deliverableId}/${index}`),
   review: (bountyId: string, claimId: string, data: { decision: string; feedback?: string }) =>
     api.post(`/api/bounties/${bountyId}/review/${claimId}`, data),
-  uploadEvidence: (formData: FormData) =>
-    api.post('/api/uploads/evidence', formData),
+  // AI drafting outlives the 15s global axios timeout (multi-second Gemini
+  // call) — same override the quest task generator uses.
+  aiDraft: (data: { prompt: string; child_id?: string | null; child_context?: string; reward_hint?: string }) =>
+    api.post('/api/bounties/ai-draft', data, { timeout: 90000 }),
 };
 
 export interface BugReportContext {

@@ -154,6 +154,8 @@ class TestClaimVisibilityEnforcement:
 
     def _claim(self, service, bounty):
         service.repository.get_bounty_by_id.return_value = bounty
+        # No existing claim: a bare Mock is truthy and reads as "already claimed"
+        service.repository.get_claim_by_bounty_and_student.return_value = None
         service.repository.count_bounty_claims.return_value = 0
         service.repository.create_claim.return_value = {'id': 'claim-1'}
         from repositories.base_repository import NotFoundError

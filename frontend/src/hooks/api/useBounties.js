@@ -88,27 +88,23 @@ export const useClaimBounty = () => {
 }
 
 /**
- * Hook for submitting evidence for a bounty claim
+ * Hook for abandoning (dropping) a claim before it's turned in
  */
-export const useSubmitBountyEvidence = () => {
+export const useAbandonClaim = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationKey: [mutationKeys.submitBountyEvidence],
-    mutationFn: async ({ bountyId, claimId, evidence }) => {
-      const response = await api.post(`/api/bounties/${bountyId}/submit`, {
-        claim_id: claimId,
-        evidence,
-      })
+    mutationFn: async ({ bountyId, claimId }) => {
+      const response = await api.delete(`/api/bounties/${bountyId}/claims/${claimId}`)
       return response.data
     },
     onSuccess: (data, { bountyId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.myClaims })
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.detail(bountyId) })
-      toast.success('Evidence submitted!')
+      toast.success('Bounty dropped')
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to submit evidence')
+      toast.error(error.response?.data?.error || 'Failed to drop bounty')
     },
   })
 }
@@ -197,9 +193,12 @@ export const useTurnInBounty = () => {
       const response = await api.post(`/api/bounties/${bountyId}/claims/${claimId}/turn-in`, {})
       return response.data
     },
-    onSuccess: () => {
+    onSuccess: (data, { bountyId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.myClaims })
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.all })
+      // Without this, a poster sitting on the detail page doesn't see the new
+      // submission until a window refocus.
+      queryClient.invalidateQueries({ queryKey: queryKeys.bounties.detail(bountyId) })
       toast.success('Bounty turned in for review!')
     },
     onError: (error) => {
@@ -244,10 +243,21 @@ export const useReviewBounty = () => {
       })
       return response.data
     },
-    onSuccess: (data, { bountyId }) => {
+    onSuccess: (data, { bountyId, decision }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.detail(bountyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.myPosted })
-      toast.success('Review submitted!')
+      // Say what actually happened — "Review submitted!" left the poster
+      // unsure which button they'd pressed.
+      if (decision === 'approved') {
+        toast.success('Approved — rewards are on their way!')
+        import('canvas-confetti').then(({ default: confetti }) => {
+          confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 } })
+        }).catch(() => {})
+      } else if (decision === 'revision_requested') {
+        toast.success('Revision requested — the student has been notified')
+      } else {
+        toast.success('Submission not accepted — the student has been notified')
+      }
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to submit review')

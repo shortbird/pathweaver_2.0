@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal, findNodeHandle } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal, findNodeHandle, RefreshControl } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -318,6 +318,11 @@ export default function ReviewBountyPage() {
   // float to the top of the queue, highlight, and scroll into view.
   const { id, claim: highlightClaimId } = useLocalSearchParams<{ id: string; claim?: string }>();
   const { bounty, loading, refetch } = useBountyDetail(id || null);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await refetch(); } finally { setRefreshing(false); }
+  };
   const c = useThemeColors();
 
   const scrollRef = useRef<ScrollView>(null);
@@ -391,13 +396,24 @@ export default function ReviewBountyPage() {
   const claims = bounty.claims || [];
   // Float the notification-targeted submission to the front of whichever section
   // holds it (usually "awaiting review"; "all claims" if it was already reviewed).
-  const submittedClaims = floatToFront(claims.filter((c: any) => c.status === 'submitted'), highlightClaimId);
+  // Oldest first: the student who has waited longest is reviewed first.
+  const submittedClaims = floatToFront(
+    [...claims.filter((c: any) => c.status === 'submitted')]
+      .sort((a: any, z: any) => new Date(a.submitted_at || 0).getTime() - new Date(z.submitted_at || 0).getTime()),
+    highlightClaimId,
+  );
   const otherClaims = floatToFront(claims.filter((c: any) => c.status !== 'submitted'), highlightClaimId);
   const deliverableMap = buildDeliverableMap(bounty.deliverables);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
-      <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+      >
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="lg">
 
           {/* Back + Edit */}

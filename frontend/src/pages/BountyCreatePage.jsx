@@ -7,6 +7,7 @@ import { queryKeys } from '../utils/queryKeys'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
+import BountyAiDraftPanel from '../components/bounty/BountyAiDraftPanel'
 
 const PILLARS = [
   { key: 'stem', label: 'STEM' },
@@ -65,14 +66,26 @@ const BountyCreatePage = () => {
     : user?.role
   const defaultVisibility = (posterRole === 'parent' || posterRole === 'observer') ? 'family' : 'public'
 
+  // The route itself is only auth-gated; a student who deep-links here used to
+  // fill in the whole form and learn about the 403 from a red toast at the end.
+  useEffect(() => {
+    if (posterRole === 'student' && user?.role !== 'superadmin') {
+      toast.error('Only parents, teachers, and admins can post bounties')
+      navigate('/bounties', { replace: true })
+    }
+  }, [posterRole, user?.role, navigate])
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     max_participants: 0,
     visibility: defaultVisibility,
     cohort_class_id: '', // optional: limit a bounty to one cohort/class
+    deadline: '', // optional; empty = backend default (one year out)
   })
-  const [deliverables, setDeliverables] = useState([''])
+  // Deliverables keep their id through an edit: claims key completed-state and
+  // evidence on these ids, so regenerating them wiped every claimant's progress.
+  const [deliverables, setDeliverables] = useState([{ id: null, text: '' }])
   const [rewards, setRewards] = useState([])
   const [errors, setErrors] = useState({})
   const [dependents, setDependents] = useState([])
@@ -152,9 +165,12 @@ const BountyCreatePage = () => {
       max_participants: existingBounty.max_participants || 0,
       visibility: existingBounty.visibility || 'public',
       cohort_class_id: existingBounty.cohort_class_id || '',
+      deadline: existingBounty.deadline ? existingBounty.deadline.slice(0, 10) : '',
     })
-    const dels = (existingBounty.deliverables || []).map(d => d.text || d)
-    setDeliverables(dels.length > 0 ? dels : [''])
+    const dels = (existingBounty.deliverables || []).map(d => (
+      typeof d === 'string' ? { id: null, text: d } : { id: d.id || null, text: d.text || '' }
+    ))
+    setDeliverables(dels.length > 0 ? dels : [{ id: null, text: '' }])
 
     const existingRewards = existingBounty.rewards || []
     if (existingRewards.length > 0) {
@@ -185,9 +201,9 @@ const BountyCreatePage = () => {
   }
 
   // Deliverables
-  const addDeliverable = () => setDeliverables(prev => [...prev, ''])
+  const addDeliverable = () => setDeliverables(prev => [...prev, { id: null, text: '' }])
   const updateDeliverable = (i, val) => {
-    setDeliverables(prev => prev.map((d, idx) => idx === i ? val : d))
+    setDeliverables(prev => prev.map((d, idx) => idx === i ? { ...d, text: val } : d))
     if (errors.deliverables) setErrors(prev => ({ ...prev, deliverables: null }))
   }
   const removeDeliverable = (i) => {
@@ -216,12 +232,23 @@ const BountyCreatePage = () => {
     const newErrors = {}
     if (!formData.title.trim()) newErrors.title = 'Title is required'
     if (!formData.description.trim()) newErrors.description = 'Description is required'
-    const nonEmptyDels = deliverables.filter(d => d.trim())
+    const nonEmptyDels = deliverables.filter(d => d.text.trim())
     if (nonEmptyDels.length === 0) newErrors.deliverables = 'At least one deliverable is required'
 
-    // Check total XP doesn't exceed 200
+    // Flag broken rewards instead of silently dropping them at submit — a
+    // parent who typed 20 XP used to have that reward vanish with no message.
     const totalXp = rewards.filter(r => r.type === 'xp').reduce((sum, r) => sum + (r.value || 0), 0)
     if (totalXp > 200) newErrors.rewards = 'Total XP cannot exceed 200'
+    else if (rewards.some(r => r.type === 'xp' && (!r.pillar || r.value < 25 || r.value > 200))) {
+      newErrors.rewards = 'Each XP reward needs a pillar and a value between 25 and 200'
+    } else if (rewards.some(r => r.type === 'custom' && !r.text.trim())) {
+      newErrors.rewards = 'Custom rewards need a description (or remove the empty one)'
+    }
+
+    if (formData.deadline) {
+      const d = new Date(`${formData.deadline}T23:59:59`)
+      if (isNaN(d.getTime()) || d <= new Date()) newErrors.deadline = 'Deadline must be in the future'
+    }
 
     return newErrors
   }
@@ -231,11 +258,11 @@ const BountyCreatePage = () => {
     const newErrors = validate()
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      toast.error('Fix the highlighted fields to post')
       return
     }
 
     const validRewards = rewards
-      .filter(r => (r.type === 'xp' && r.value >= 25 && r.pillar) || (r.type === 'custom' && r.text.trim()))
       .map(r => r.type === 'xp' ? { type: 'xp', value: r.value, pillar: r.pillar } : { type: 'custom', text: r.text.trim() })
 
     const payload = {
@@ -243,23 +270,46 @@ const BountyCreatePage = () => {
       description: formData.description,
       max_participants: formData.max_participants,
       visibility: formData.visibility,
-      deliverables: deliverables.filter(d => d.trim()),
+      // Keep existing deliverable ids on edit so in-flight claims survive.
+      deliverables: deliverables.filter(d => d.text.trim())
+        .map(d => d.id ? { id: d.id, text: d.text.trim() } : { text: d.text.trim() }),
       rewards: validRewards,
       // Send selected kids for family visibility; empty/null = all kids
       allowed_student_ids: formData.visibility === 'family' && selectedKids.length > 0 ? selectedKids : null,
       // Optional cohort restriction (only students in this class see the bounty)
       cohort_class_id: formData.cohort_class_id || null,
     }
+    if (formData.deadline) {
+      payload.deadline = new Date(`${formData.deadline}T23:59:59`).toISOString()
+    }
+    // No deadline picked on create: the backend defaults to one year out.
 
     if (isEdit) {
       updateMutation.mutate({ id: bountyId, ...payload })
     } else {
-      payload.deadline = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
       createMutation.mutate(payload, {
         onSuccess: () => navigate(backTo),
       })
     }
   }
+
+  // An AI idea lands in the same fields the poster would have typed into;
+  // posting stays their separate click.
+  const applyAiIdea = (idea) => {
+    setFormData(prev => ({ ...prev, title: idea.title, description: idea.description }))
+    setDeliverables(idea.deliverables.length
+      ? idea.deliverables.map(text => ({ id: null, text }))
+      : [{ id: null, text: '' }])
+    setRewards(idea.rewards)
+    if (idea.childId) {
+      setFormData(prev => ({ ...prev, visibility: 'family' }))
+      setSelectedKids([idea.childId])
+    }
+    setErrors({})
+  }
+
+  const formHasContent = !!(formData.title.trim() || formData.description.trim()
+    || deliverables.some(d => d.text.trim()) || rewards.length > 0)
 
   const isPending = createMutation.isPending || updateMutation.isPending
   const hasOrg = !!user?.organization_id
@@ -289,31 +339,39 @@ const BountyCreatePage = () => {
         Create clear, objective deliverables so students know exactly what to do.
       </p>
 
+      <div className="mb-6">
+        <BountyAiDraftPanel onDrafted={applyAiIdea} hasDraft={formHasContent} kids={dependents} />
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label htmlFor="bounty-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
           <input
+            id="bounty-title"
             type="text"
             value={formData.title}
             onChange={(e) => handleChange('title', e.target.value)}
             placeholder="What's the challenge?"
+            aria-describedby={errors.title ? 'bounty-title-error' : undefined}
             className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
           />
-          {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
+          {errors.title && <p id="bounty-title-error" role="alert" className="mt-1 text-sm text-red-600">{errors.title}</p>}
         </div>
 
         {/* Description */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label htmlFor="bounty-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
           <textarea
+            id="bounty-description"
             value={formData.description}
             onChange={(e) => handleChange('description', e.target.value)}
             placeholder="What is this bounty about? Give students context."
             rows={3}
+            aria-describedby={errors.description ? 'bounty-description-error' : undefined}
             className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none ${errors.description ? 'border-red-500' : 'border-gray-300'}`}
           />
-          {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
+          {errors.description && <p id="bounty-description-error" role="alert" className="mt-1 text-sm text-red-600">{errors.description}</p>}
         </div>
 
         {/* Deliverables */}
@@ -330,9 +388,10 @@ const BountyCreatePage = () => {
                 </div>
                 <input
                   type="text"
-                  value={d}
+                  value={d.text}
                   onChange={(e) => updateDeliverable(i, e.target.value)}
                   placeholder={`Deliverable ${i + 1}...`}
+                  aria-label={`Deliverable ${i + 1}`}
                   className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
                 />
                 {deliverables.length > 1 && (
@@ -351,7 +410,7 @@ const BountyCreatePage = () => {
             </svg>
             Add deliverable
           </button>
-          {errors.deliverables && <p className="text-red-500 text-sm mt-1">{errors.deliverables}</p>}
+          {errors.deliverables && <p role="alert" className="mt-1 text-sm text-red-600">{errors.deliverables}</p>}
         </div>
 
         {/* Rewards */}
@@ -428,7 +487,7 @@ const BountyCreatePage = () => {
               Add custom reward
             </button>
           </div>
-          {errors.rewards && <p className="text-red-500 text-sm mt-1">{errors.rewards}</p>}
+          {errors.rewards && <p role="alert" className="mt-1 text-sm text-red-600">{errors.rewards}</p>}
         </div>
 
         {/* Visibility */}
@@ -524,16 +583,34 @@ const BountyCreatePage = () => {
 
         {/* Max Students */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Max Claims</label>
+          <label htmlFor="bounty-max-claims" className="block text-sm font-medium text-gray-700 mb-1">Max Claims</label>
           <input
+            id="bounty-max-claims"
             type="number"
             value={formData.max_participants}
-            onChange={(e) => handleChange('max_participants', parseInt(e.target.value) || 0)}
+            onChange={(e) => handleChange('max_participants', Math.max(0, parseInt(e.target.value) || 0))}
             min={0}
             placeholder="0 = no limit"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
           />
           <p className="text-xs text-gray-400 mt-1">{formData.max_participants === 0 ? 'No limit' : `${formData.max_participants} max`}</p>
+        </div>
+
+        {/* Deadline (optional) */}
+        <div>
+          <label htmlFor="bounty-deadline" className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
+          <input
+            id="bounty-deadline"
+            type="date"
+            value={formData.deadline}
+            onChange={(e) => handleChange('deadline', e.target.value)}
+            aria-describedby={errors.deadline ? 'bounty-deadline-error' : undefined}
+            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple ${errors.deadline ? 'border-red-500' : 'border-gray-300'}`}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            After the deadline, students can no longer start this bounty. Leave blank for a year from now.
+          </p>
+          {errors.deadline && <p id="bounty-deadline-error" role="alert" className="mt-1 text-sm text-red-600">{errors.deadline}</p>}
         </div>
 
         {/* Cohort restriction (only shown when the org has cohorts/classes) */}
@@ -550,7 +627,7 @@ const BountyCreatePage = () => {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-400 mt-1">Only students in the chosen cohort will see this job.</p>
+            <p className="text-xs text-gray-400 mt-1">Only students in the chosen cohort will see this bounty.</p>
           </div>
         )}
 

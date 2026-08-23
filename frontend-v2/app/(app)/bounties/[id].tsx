@@ -5,8 +5,8 @@
  * Poster sees: redirect to review page.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Modal } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Modal, RefreshControl } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -125,8 +125,15 @@ export default function BountyDetailPage() {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
-  const { bounty, loading, refetch } = useBountyDetail(id || null);
+  const { bounty, loading, error, refetch } = useBountyDetail(id || null);
   const { claims, refetch: refetchClaims } = useMyClaims();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetch(), refetchClaims()]);
+    setRefreshing(false);
+  }, [refetch, refetchClaims]);
 
   const [claiming, setClaiming] = useState(false);
   const [turningIn, setTurningIn] = useState(false);
@@ -228,6 +235,16 @@ export default function BountyDetailPage() {
     }
   };
 
+  const handleUncheck = async (deliverableId: string) => {
+    if (!id || !myClaim) return;
+    try {
+      await toggleDeliverable(id, myClaim.id, deliverableId, false);
+      await refetchClaims();
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update deliverable');
+    }
+  };
+
   const handleEvidenceSubmit = async (evidence: any[]) => {
     if (!id || !myClaim || !evidenceTarget) return;
     await toggleDeliverable(id, myClaim.id, evidenceTarget.deliverableId, true, evidence);
@@ -255,6 +272,26 @@ export default function BountyDetailPage() {
     );
   }
 
+  // A 500/timeout is not "this bounty was deleted" — offer a retry instead of
+  // a dead end that reads as the bounty being gone.
+  if (!bounty && error) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-8">
+        <Ionicons name="cloud-offline-outline" size={48} color={c.iconMuted} />
+        <Heading size="lg" className="text-typo-500 dark:text-dark-typo-500 mt-4">Couldn't load this bounty</Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1 text-center">
+          Check your connection and try again.
+        </UIText>
+        <Button size="md" className="mt-4" onPress={refetch}>
+          <ButtonText>Retry</ButtonText>
+        </Button>
+        <Pressable onPress={() => router.back()} className="mt-3">
+          <UIText size="sm" className="text-optio-purple font-poppins-medium">Go Back</UIText>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
   if (!bounty) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-8">
@@ -272,7 +309,12 @@ export default function BountyDetailPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+      >
         <VStack className="px-5 pt-4 max-w-3xl w-full md:mx-auto" space="lg">
 
           {/* Back button */}
@@ -294,6 +336,20 @@ export default function BountyDetailPage() {
               </HStack>
 
               <Heading size="xl">{bounty.title}</Heading>
+              {(() => {
+                const raw = (bounty as any).deadline;
+                if (!raw) return null;
+                const dl = new Date(raw);
+                if (isNaN(dl.getTime())) return null;
+                const past = dl.getTime() < Date.now();
+                // A default far-future deadline is noise; only show a real one.
+                if (!past && dl.getTime() - Date.now() > 90 * 24 * 60 * 60 * 1000) return null;
+                return (
+                  <UIText size="xs" className={past ? 'text-red-600' : 'text-typo-400 dark:text-dark-typo-400'}>
+                    {past ? 'The deadline for this bounty has passed' : `Ends ${dl.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+                  </UIText>
+                );
+              })()}
               <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{bounty.description}</UIText>
 
               {/* Rewards */}
@@ -327,7 +383,9 @@ export default function BountyDetailPage() {
                   <HStack className="items-center gap-2">
                     <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
                     <UIText size="sm" className="font-poppins-bold text-green-700">
-                      Completed! +{bounty.xp_reward} XP earned
+                      {bounty.xp_reward > 0
+                        ? `Completed! +${bounty.xp_reward} XP earned`
+                        : 'Completed! Your reward is on its way'}
                     </UIText>
                   </HStack>
                 </View>
@@ -339,7 +397,19 @@ export default function BountyDetailPage() {
               )}
               {myClaim?.status === 'rejected' && (
                 <View className="bg-red-50 p-3 rounded-xl">
-                  <UIText size="sm" className="text-red-700 text-center">This submission was rejected.</UIText>
+                  <UIText size="sm" className="text-red-700 text-center">This submission was not accepted.</UIText>
+                  {myClaim.latest_review?.feedback ? (
+                    <UIText size="sm" className="text-red-800 text-center mt-1">
+                      "{myClaim.latest_review.feedback}"
+                    </UIText>
+                  ) : null}
+                  {bounty.status === 'active' && (
+                    <Pressable onPress={handleClaim} disabled={claiming} className="mt-2 items-center">
+                      <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                        {claiming ? 'Reopening…' : 'Try this bounty again'}
+                      </UIText>
+                    </Pressable>
+                  )}
                 </View>
               )}
               {myClaim?.status === 'revision_requested' && (
@@ -350,6 +420,11 @@ export default function BountyDetailPage() {
                       Revision requested. Update your evidence and turn in again.
                     </UIText>
                   </HStack>
+                  {myClaim.latest_review?.feedback ? (
+                    <UIText size="sm" className="text-amber-900 mt-1.5">
+                      Their feedback: {myClaim.latest_review.feedback}
+                    </UIText>
+                  ) : null}
                 </View>
               )}
             </VStack>
@@ -413,17 +488,28 @@ export default function BountyDetailPage() {
 
                       {/* Upload button */}
                       {isClaimEditable && (
-                        <Pressable
-                          onPress={() => setEvidenceTarget({ deliverableId: d.id, text: d.text })}
-                          className="bg-optio-purple/10 px-3 py-2 rounded-lg"
-                        >
-                          <HStack className="items-center gap-1">
-                            <Ionicons name="cloud-upload-outline" size={16} color="#6D469B" />
-                            <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                              {isCompleted ? 'Add' : 'Upload'}
-                            </UIText>
-                          </HStack>
-                        </Pressable>
+                        <HStack className="items-center gap-1.5">
+                          {isCompleted && (
+                            <Pressable
+                              onPress={() => handleUncheck(d.id)}
+                              className="px-2 py-2"
+                              accessibilityLabel={`Mark "${d.text}" incomplete`}
+                            >
+                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Undo</UIText>
+                            </Pressable>
+                          )}
+                          <Pressable
+                            onPress={() => setEvidenceTarget({ deliverableId: d.id, text: d.text })}
+                            className="bg-optio-purple/10 px-3 py-2 rounded-lg"
+                          >
+                            <HStack className="items-center gap-1">
+                              <Ionicons name="cloud-upload-outline" size={16} color="#6D469B" />
+                              <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                                {isCompleted ? 'Add' : 'Upload'}
+                              </UIText>
+                            </HStack>
+                          </Pressable>
+                        </HStack>
                       )}
                     </HStack>
 
