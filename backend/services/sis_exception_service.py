@@ -220,7 +220,7 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         if conflicts and not drop_conflicting:
             return {'conflicts': conflicts}
         if conflicts:
-            _admin().table('class_enrollments').update({'status': 'dropped'}) \
+            _admin().table('class_enrollments').update({'status': 'withdrawn'}) \
                 .eq('student_id', req['student_user_id']) \
                 .in_('class_id', [c['class_id'] for c in conflicts]) \
                 .eq('status', 'active').execute()
