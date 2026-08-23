@@ -135,7 +135,7 @@ export function TaskPickerSheet({
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
           {loading ? (
             <View className="py-8 items-center">
-              <ActivityIndicator color="#6D469B" />
+              <ActivityIndicator color={c.brand} />
             </View>
           ) : quests.length === 0 ? (
             <View className="py-8 items-center">
@@ -165,7 +165,7 @@ export function TaskPickerSheet({
                       <Ionicons
                         name={expanded ? 'chevron-up' : 'chevron-down'}
                         size={18}
-                        color="#6D469B"
+                        color={c.brand}
                       />
                     </Pressable>
 
@@ -181,9 +181,9 @@ export function TaskPickerSheet({
                             style={{ opacity: addingQuestId === quest.id ? 0.5 : 1 }}
                           >
                             {addingQuestId === quest.id ? (
-                              <ActivityIndicator size="small" color="#6D469B" />
+                              <ActivityIndicator size="small" color={c.brand} />
                             ) : (
-                              <Ionicons name="add-circle-outline" size={18} color="#6D469B" />
+                              <Ionicons name="add-circle-outline" size={18} color={c.brand} />
                             )}
                             <UIText size="sm" className="text-optio-purple font-poppins-semibold">
                               Add as new task in this quest
@@ -226,12 +226,12 @@ export function TaskPickerSheet({
                                 </HStack>
                               </VStack>
                               {isPicking ? (
-                                <ActivityIndicator size="small" color="#6D469B" />
+                                <ActivityIndicator size="small" color={c.brand} />
                               ) : (
                                 <Ionicons
                                   name={isCurrent ? 'checkmark-circle' : 'chevron-forward'}
                                   size={18}
-                                  color={isCurrent ? '#6D469B' : c.iconMuted}
+                                  color={isCurrent ? c.brand : c.iconMuted}
                                 />
                               )}
                             </Pressable>

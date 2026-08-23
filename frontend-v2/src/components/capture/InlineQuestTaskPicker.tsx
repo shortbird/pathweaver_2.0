@@ -80,7 +80,7 @@ export function InlineQuestTaskPicker({
   if (loading) {
     return (
       <View className="py-6 items-center">
-        <ActivityIndicator color="#6D469B" />
+        <ActivityIndicator color={c.brand} />
       </View>
     );
   }
@@ -129,7 +129,7 @@ export function InlineQuestTaskPicker({
               <Ionicons
                 name={expanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#6D469B"
+                color={c.brand}
               />
             </Pressable>
 
@@ -150,7 +150,7 @@ export function InlineQuestTaskPicker({
                       style={{ minHeight: 44, opacity: occupied ? 0.55 : 1 }}
                     >
                       <View className="w-5 h-5 rounded-full items-center justify-center"
-                            style={{ borderWidth: 1.5, borderColor: isSelected ? '#6D469B' : c.border, backgroundColor: isSelected ? '#6D469B' : 'transparent' }}>
+                            style={{ borderWidth: 1.5, borderColor: isSelected ? c.brand : c.border, backgroundColor: isSelected ? c.brand : 'transparent' }}>
                         {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                       </View>
                       <VStack className="flex-1 min-w-0">
@@ -184,14 +184,14 @@ export function InlineQuestTaskPicker({
                     className="w-5 h-5 rounded-full items-center justify-center"
                     style={{
                       borderWidth: 1.5,
-                      borderColor: selectedNewTaskQuestId === quest.id ? '#6D469B' : c.border,
-                      backgroundColor: selectedNewTaskQuestId === quest.id ? '#6D469B' : 'transparent',
+                      borderColor: selectedNewTaskQuestId === quest.id ? c.brand : c.border,
+                      backgroundColor: selectedNewTaskQuestId === quest.id ? c.brand : 'transparent',
                     }}
                   >
                     {selectedNewTaskQuestId === quest.id ? (
                       <Ionicons name="checkmark" size={12} color="#FFFFFF" />
                     ) : (
-                      <Ionicons name="add" size={14} color="#6D469B" />
+                      <Ionicons name="add" size={14} color={c.brand} />
                     )}
                   </View>
                   <UIText size="sm" className="text-optio-purple font-poppins-semibold">

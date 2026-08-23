@@ -3,6 +3,13 @@
  * reward labels (XP vs custom), claim progress bars.
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import BountiesScreen from '../bounties';
+import { useBounties, useMyClaims, useMyPosted } from '@/src/hooks/useBounties';
+import { setAuthAsStudent, setAuthAsParent, setAuthAsObserver, setAuthState, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockBounty, createMockClaim, createMockUser } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -17,13 +24,6 @@ jest.mock('@/src/hooks/useBounties', () => ({
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import BountiesScreen from '../bounties';
-import { useBounties, useMyClaims, useMyPosted } from '@/src/hooks/useBounties';
-import { setAuthAsStudent, setAuthAsParent, setAuthAsObserver, setAuthState, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockBounty, createMockClaim, createMockUser } from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();

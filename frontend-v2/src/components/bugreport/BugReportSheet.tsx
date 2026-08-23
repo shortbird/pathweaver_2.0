@@ -7,15 +7,18 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, Image, Platform, Alert } from 'react-native';
+import { View, TextInput, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet, VStack, HStack, Heading, UIText, Button, ButtonText } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { bugReportAPI } from '@/src/services/api';
 import { collectDiagnostics } from '@/src/services/diagnostics';
 import { captureBugReport, captureException } from '@/src/services/sentry';
 
 export function BugReportSheet() {
+  const c = useThemeColors();
   const { visible, screenshotUri, close } = useBugReportStore();
   const [message, setMessage] = useState('');
   const [steps, setSteps] = useState('');
@@ -36,7 +39,7 @@ export function BugReportSheet() {
   const handleSubmit = async () => {
     const trimmed = message.trim();
     if (!trimmed) {
-      Alert.alert('Add a description', 'Tell us what went wrong so we can fix it.');
+      showAlert('Add a description', 'Tell us what went wrong so we can fix it.');
       return;
     }
     setSubmitting(true);
@@ -84,20 +87,20 @@ export function BugReportSheet() {
         } catch (err2) {
           captureException(err2, { stage: 'bug-report-submit-retry' });
           setSubmitting(false);
-          Alert.alert('Could not send', 'Something went wrong sending your report. Please try again.');
+          showAlert('Could not send', 'Something went wrong sending your report. Please try again.');
           return;
         }
       } else {
         captureException(err, { stage: 'bug-report-submit' });
         setSubmitting(false);
-        Alert.alert('Could not send', 'Something went wrong sending your report. Please try again.');
+        showAlert('Could not send', 'Something went wrong sending your report. Please try again.');
         return;
       }
     }
 
     reset();
     close();
-    Alert.alert('Thank you!', 'Your report was sent. We appreciate the help making Optio better.');
+    showAlert('Thank you!', 'Your report was sent. We appreciate the help making Optio better.');
   };
 
   return (
@@ -105,11 +108,19 @@ export function BugReportSheet() {
       <VStack space="md" className="px-5 pt-4 pb-2">
         <HStack className="items-center justify-between">
           <HStack className="items-center gap-2">
-            <Ionicons name="bug-outline" size={20} color="#6D469B" />
+            <Ionicons name="bug-outline" size={20} color={c.brand} />
             <Heading size="lg">Report a bug</Heading>
           </HStack>
           {!submitting && (
-            <Ionicons name="close" size={22} color="#9CA3AF" onPress={handleClose} />
+            <Ionicons
+              name="close"
+              size={22}
+              color={c.textFaint}
+              onPress={handleClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={8}
+            />
           )}
         </HStack>
 
@@ -121,7 +132,7 @@ export function BugReportSheet() {
           value={message}
           onChangeText={setMessage}
           placeholder="Describe the problem..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={c.textFaint}
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -134,7 +145,7 @@ export function BugReportSheet() {
           value={steps}
           onChangeText={setSteps}
           placeholder="Steps to reproduce (optional)"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={c.textFaint}
           multiline
           numberOfLines={2}
           textAlignVertical="top"
@@ -152,7 +163,7 @@ export function BugReportSheet() {
             />
           ) : (
             <View className="w-11 h-11 rounded-lg bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
-              <Ionicons name="document-text-outline" size={20} color="#9CA3AF" />
+              <Ionicons name="document-text-outline" size={20} color={c.textFaint} />
             </View>
           )}
           <UIText size="xs" className="text-typo-400 flex-1">

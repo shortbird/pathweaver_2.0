@@ -3,6 +3,12 @@
  * pillars, date, topic assignment, and AI suggestions.
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { EditMomentModal } from '../EditMomentModal';
+import { updateLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
+import { createMockLearningEvent, createMockTopic } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -12,12 +18,6 @@ jest.mock('@/src/hooks/useJournal', () => ({
   updateLearningEvent: jest.fn(),
   assignMomentToTopic: jest.fn(),
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { EditMomentModal } from '../EditMomentModal';
-import { updateLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
-import { createMockLearningEvent, createMockTopic } from '@/src/__tests__/utils/mockFactories';
 
 const mockOnClose = jest.fn();
 const mockOnSaved = jest.fn();

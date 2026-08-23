@@ -2,6 +2,14 @@
  * Bounty detail screen tests - rendering, evidence display, status banners.
  */
 
+import React from 'react';
+import { render, waitFor } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
+import BountyDetailPage from '../[id]';
+import api, { bountyAPI } from '@/src/services/api';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockBounty, createMockClaim } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () => {
   const base = require('@/src/__tests__/utils/mockApi').mockApiModule();
   base.bountyAPI = {
@@ -30,15 +38,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
-import { useLocalSearchParams } from 'expo-router';
-import BountyDetailPage from '../[id]';
-import { bountyAPI } from '@/src/services/api';
-import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockBounty, createMockClaim } from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();

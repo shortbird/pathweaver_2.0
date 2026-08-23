@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, Animated } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
+import { confirmAlert } from '@/src/utils/alerts';
 import {
   useConversationMessages,
   sendDirectMessage,
@@ -183,14 +184,12 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   };
 
   const handleDelete = async (msg: Message) => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Delete this message?')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert('Delete Message', 'Delete this message?', [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-          ]);
-        });
+    const confirmed = await confirmAlert({
+      title: 'Delete Message',
+      message: 'Delete this message?',
+      confirmText: 'Delete',
+      destructive: true,
+    });
     if (!confirmed) return;
     try {
       await deleteDirectMessage(msg.id);
@@ -292,8 +291,8 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       style={isMobile ? { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 8 } : undefined}
     >
       {isMobile && (
-        <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color="#6D469B" />
+        <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <Ionicons name="chevron-back" size={24} color={c.brand} />
         </Pressable>
       )}
       <Avatar size="md">
@@ -348,7 +347,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     borderRadius: 18,
                     ...(isMine
                       ? {
-                          backgroundColor: '#6D469B',
+                          backgroundColor: c.brand,
                           borderBottomRightRadius: 4,
                         }
                       : {
@@ -425,7 +424,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                               ? 'rgba(255,255,255,0.8)'
                               : 'rgba(255,255,255,0.5)'
                             : msg.read_at
-                              ? '#6D469B'
+                              ? c.brand
                               : c.textFaint
                         }
                       />
@@ -490,7 +489,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="attach" size={22} color="#6D469B" />
+              <Ionicons name="attach" size={22} color={c.brand} />
             </Pressable>
           )}
           <TextInput
@@ -512,8 +511,11 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           <Pressable
             onPress={handleSend}
             disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={editing ? 'Save edit' : 'Send message'}
+            hitSlop={8}
             style={{
-              backgroundColor: canSend ? '#6D469B' : c.border,
+              backgroundColor: canSend ? c.brand : c.border,
               width: 36,
               height: 36,
               borderRadius: 18,

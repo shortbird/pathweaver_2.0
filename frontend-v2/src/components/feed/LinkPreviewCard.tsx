@@ -108,7 +108,7 @@ export function LinkPreviewCard({ url, title }: Props) {
     <Pressable onPress={() => openUrl(url)}>
       <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
         <HStack className="items-center gap-2">
-          <Ionicons name="link-outline" size={16} color="#6D469B" />
+          <Ionicons name="link-outline" size={16} color={c.brand} />
           <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
             {title || url}
           </UIText>

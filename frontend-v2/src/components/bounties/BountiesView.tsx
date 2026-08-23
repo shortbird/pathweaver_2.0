@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Pressable, Platform, Alert } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { router, useFocusEffect } from 'expo-router';
@@ -16,6 +16,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useBounties, useMyClaims, useMyPosted, deleteBounty, turnInBounty } from '@/src/hooks/useBounties';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, PillarBadge,
@@ -135,7 +136,7 @@ function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void 
     try {
       await turnInBounty(claim.bounty_id, claim.id);
       onTurnedIn?.();
-    } catch { Alert.alert('Error', 'Failed to turn in bounty'); }
+    } catch { showAlert('Error', 'Failed to turn in bounty'); }
     finally { setTurningIn(false); }
   };
 
@@ -183,7 +184,7 @@ function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void 
                     size={14}
                     color={completedIds.has(d.id) ? '#16A34A' : c.iconMuted}
                   />
-                  <UIText size="xs" className={completedIds.has(d.id) ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-600'} numberOfLines={1}>
+                  <UIText size="xs" className={completedIds.has(d.id) ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-500 dark:text-dark-typo-500'} numberOfLines={1}>
                     {d.text}
                   </UIText>
                 </HStack>
@@ -351,22 +352,21 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
                               e.stopPropagation?.();
                               router.push(`/bounties/create?edit=${b.id}`);
                             }}
-                            hitSlop={6}
+                            hitSlop={8}
+                            accessibilityRole="button"
                             accessibilityLabel="Edit bounty"
                           >
-                            <Ionicons name="create-outline" size={18} color="#6D469B" />
+                            <Ionicons name="create-outline" size={18} color={c.brand} />
                           </Pressable>
                           <Pressable
                             onPress={async (e) => {
                               e.stopPropagation?.();
-                              const confirmed = Platform.OS === 'web'
-                                ? window.confirm(`Delete "${b.title}"?`)
-                                : await new Promise<boolean>((resolve) =>
-                                    Alert.alert('Delete Bounty', `Delete "${b.title}"?`, [
-                                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                                      { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-                                    ])
-                                  );
+                              const confirmed = await confirmAlert({
+                                title: 'Delete Bounty',
+                                message: `Delete "${b.title}"?`,
+                                confirmText: 'Delete',
+                                destructive: true,
+                              });
                               if (!confirmed) return;
                               try {
                                 await deleteBounty(b.id);
@@ -376,7 +376,8 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
                                 toast.error('Could not delete the bounty. Please try again.');
                               }
                             }}
-                            hitSlop={6}
+                            hitSlop={8}
+                            accessibilityRole="button"
                             accessibilityLabel="Delete bounty"
                           >
                             <Ionicons name="trash-outline" size={18} color="#EF4444" />
@@ -603,7 +604,7 @@ export function BountiesView({ onRefetchReady }: { onRefetchReady?: (fn: () => P
                   <Pressable key={p || 'all'} onPress={() => setPillarFilter(p)}>
                     <View style={{
                       paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-                      backgroundColor: active ? (pc?.color || '#6D469B') : c.surfaceMuted,
+                      backgroundColor: active ? (pc?.color || c.brand) : c.surfaceMuted,
                     }}>
                       <UIText size="xs" style={{ color: active ? '#fff' : (pc?.color || c.textMuted), fontFamily: 'Poppins_500Medium' }}>
                         {pc?.label || 'All'}
@@ -715,20 +716,21 @@ export function BountiesView({ onRefetchReady }: { onRefetchReady?: (fn: () => P
                               e.stopPropagation?.();
                               router.push(`/bounties/create?edit=${b.id}`);
                             }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Edit bounty"
                           >
-                            <Ionicons name="create-outline" size={18} color="#6D469B" />
+                            <Ionicons name="create-outline" size={18} color={c.brand} />
                           </Pressable>
                           <Pressable
                             onPress={async (e) => {
                               e.stopPropagation?.();
-                              const confirmed = Platform.OS === 'web'
-                                ? window.confirm(`Delete "${b.title}"?`)
-                                : await new Promise<boolean>((resolve) =>
-                                    Alert.alert('Delete Bounty', `Delete "${b.title}"?`, [
-                                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                                      { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-                                    ])
-                                  );
+                              const confirmed = await confirmAlert({
+                                title: 'Delete Bounty',
+                                message: `Delete "${b.title}"?`,
+                                confirmText: 'Delete',
+                                destructive: true,
+                              });
                               if (!confirmed) return;
                               try {
                                 await deleteBounty(b.id);
@@ -738,6 +740,9 @@ export function BountiesView({ onRefetchReady }: { onRefetchReady?: (fn: () => P
                                 toast.error('Could not delete the bounty. Please try again.');
                               }
                             }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Delete bounty"
                           >
                             <Ionicons name="trash-outline" size={18} color="#EF4444" />
                           </Pressable>

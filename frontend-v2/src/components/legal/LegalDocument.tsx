@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, Heading, UIText, Card, Divider } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { LegalBlock, LegalDocument as LegalDocumentType, RichText, InlineNode } from '@legal/types';
 
 function openHref(href: string) {
@@ -23,7 +24,7 @@ function openHref(href: string) {
 function Inline({ node }: { node: InlineNode }) {
   if (typeof node === 'string') return <>{node}</>;
   if ('bold' in node) {
-    return <UIText className="font-poppins-semibold text-typo-700 dark:text-dark-typo-200">{node.bold}</UIText>;
+    return <UIText className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">{node.bold}</UIText>;
   }
   return (
     <UIText className="text-optio-purple font-poppins-medium" onPress={() => openHref(node.href)}>
@@ -33,7 +34,7 @@ function Inline({ node }: { node: InlineNode }) {
 }
 
 function InlineText({ value, className }: { value: RichText; className?: string }) {
-  const base = className ?? 'text-typo-600 dark:text-dark-typo-300 leading-6';
+  const base = className ?? 'text-typo-500 dark:text-dark-typo-300 leading-6';
   if (typeof value === 'string') {
     return <UIText size="sm" className={base}>{value}</UIText>;
   }
@@ -52,7 +53,7 @@ function BulletList({ items }: { items: RichText[] }) {
       {items.map((item, i) => (
         <HStack key={i} className="items-start gap-2">
           <UIText size="sm" className="text-optio-purple">•</UIText>
-          <InlineText value={item} className="text-typo-600 dark:text-dark-typo-300 leading-6 flex-1" />
+          <InlineText value={item} className="text-typo-500 dark:text-dark-typo-300 leading-6 flex-1" />
         </HStack>
       ))}
     </VStack>
@@ -62,12 +63,12 @@ function BulletList({ items }: { items: RichText[] }) {
 function Block({ block }: { block: LegalBlock }) {
   switch (block.type) {
     case 'subheading':
-      return <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-200">{block.text}</UIText>;
+      return <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">{block.text}</UIText>;
     case 'paragraph':
       return (
         <InlineText
           value={block.text}
-          className={`text-typo-600 dark:text-dark-typo-300 leading-6${block.emphasis ? ' font-poppins-semibold' : ''}`}
+          className={`text-typo-500 dark:text-dark-typo-300 leading-6${block.emphasis ? ' font-poppins-semibold' : ''}`}
         />
       );
     case 'list':
@@ -81,7 +82,7 @@ function Block({ block }: { block: LegalBlock }) {
         <Card variant="outline" size="md" className={tone}>
           <VStack space="xs">
             {block.title && (
-              <UIText size="sm" className="font-poppins-semibold text-typo-900">{block.title}</UIText>
+              <UIText size="sm" className="font-poppins-semibold text-typo dark:text-dark-typo">{block.title}</UIText>
             )}
             {block.blocks.map((inner, i) => (
               <Block key={i} block={inner} />
@@ -94,7 +95,7 @@ function Block({ block }: { block: LegalBlock }) {
       return (
         <VStack space="xs" className="ml-2">
           {block.lines.map((line, i) => (
-            <InlineText key={i} value={line} className="text-typo-600 dark:text-dark-typo-300" />
+            <InlineText key={i} value={line} className="text-typo-500 dark:text-dark-typo-300" />
           ))}
         </VStack>
       );
@@ -104,14 +105,21 @@ function Block({ block }: { block: LegalBlock }) {
 }
 
 export default function LegalDocument({ document }: { document: LegalDocumentType }) {
+  const c = useThemeColors();
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 py-6 pb-16" showsVerticalScrollIndicator={false}>
         <VStack space="lg" className="max-w-3xl w-full md:mx-auto">
 
           {/* Back button */}
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/(auth)/login'))} className="flex-row items-center gap-1">
-            <Ionicons name="arrow-back" size={18} color="#6D469B" />
+          <Pressable
+            onPress={() => (router.canGoBack() ? router.back() : router.push('/(auth)/login'))}
+            className="flex-row items-center gap-1"
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="arrow-back" size={18} color={c.brand} />
             <UIText size="sm" className="text-optio-purple font-poppins-medium">Back</UIText>
           </Pressable>
 

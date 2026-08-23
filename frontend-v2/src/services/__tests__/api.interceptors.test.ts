@@ -5,6 +5,8 @@
  * so we mock tokenStore and axios adapter rather than the api module itself.
  */
 
+import { tokenStore } from '@/src/services/tokenStore';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -14,10 +16,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn().mockReturnValue('old-refresh-token'),
   },
 }));
-
-import { api } from '@/src/services/api';
-import { tokenStore } from '@/src/services/tokenStore';
-import axios from 'axios';
 
 // We need to test the interceptor behavior with controlled responses
 // Use axios mock adapter pattern

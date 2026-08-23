@@ -92,7 +92,7 @@ export function BountyHowItWorks({ role }: { role?: string }) {
         accessibilityLabel={collapsed ? 'Show how bounties work' : 'Hide how bounties work'}
       >
         <HStack className="items-center gap-2">
-          <Ionicons name="information-circle-outline" size={18} color="#6D469B" />
+          <Ionicons name="information-circle-outline" size={18} color={c.brand} />
           <UIText size="sm" className="font-poppins-semibold text-optio-purple flex-1">
             How bounties work
           </UIText>
@@ -102,7 +102,7 @@ export function BountyHowItWorks({ role }: { role?: string }) {
 
       {!collapsed && (
         <VStack space="sm" className="mt-3">
-          <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
             {content.intro}
           </UIText>
           <VStack space="xs">
@@ -111,7 +111,7 @@ export function BountyHowItWorks({ role }: { role?: string }) {
                 <View className="w-5 h-5 rounded-full bg-optio-purple/15 items-center justify-center mt-0.5">
                   <UIText size="xs" className="text-optio-purple font-poppins-bold">{i + 1}</UIText>
                 </View>
-                <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 flex-1">
                   {step}
                 </UIText>
               </HStack>

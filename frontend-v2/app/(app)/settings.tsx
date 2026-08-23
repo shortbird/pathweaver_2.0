@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, Pressable, Switch, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
+import { requestAccountDeletion, cancelAccountDeletion } from '@/src/utils/accountDeletion';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
 } from '@/src/components/ui';
@@ -55,46 +56,20 @@ export default function SettingsScreen() {
 
   useEffect(() => { loadDeletionStatus(); }, []);
 
-  const handleRequestDeletion = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will schedule your account for permanent deletion in 30 days. You can cancel within the grace period.\n\nAll your data will be permanently deleted after 30 days. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete My Account', style: 'destructive', onPress: async () => {
-            setDeletionRequesting(true);
-            try {
-              await api.post('/api/users/delete-account', { reason: 'User requested deletion' });
-              Alert.alert('Scheduled', 'Account deletion scheduled. You have 30 days to cancel.');
-              loadDeletionStatus();
-            } catch (err: any) {
-              Alert.alert('Error', err.response?.data?.error || 'Failed to request account deletion');
-            } finally {
-              setDeletionRequesting(false);
-            }
-          },
-        },
-      ]
-    );
-  };
+  const handleRequestDeletion = () =>
+    requestAccountDeletion({
+      onRequestingChange: setDeletionRequesting,
+      onScheduled: loadDeletionStatus,
+    });
 
-  const handleCancelDeletion = async () => {
-    try {
-      await api.post('/api/users/cancel-deletion', {});
-      Alert.alert('Cancelled', 'Account deletion has been cancelled.');
-      loadDeletionStatus();
-    } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to cancel deletion');
-    }
-  };
+  const handleCancelDeletion = () => cancelAccountDeletion(loadDeletionStatus);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100">
         <Pressable onPress={() => router.back()} className="mr-2 p-1" hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color="#6D469B" />
+          <Ionicons name="chevron-back" size={24} color={c.brand} />
         </Pressable>
         <Heading size="md">Settings</Heading>
       </View>
@@ -121,7 +96,7 @@ export default function SettingsScreen() {
                   applyColorScheme(mode);
                   saveTheme(mode);
                 }}
-                trackColor={{ false: c.border, true: '#6D469B' }}
+                trackColor={{ false: c.border, true: c.brand }}
                 thumbColor="#FFFFFF"
               />
             </HStack>
@@ -176,8 +151,8 @@ export default function SettingsScreen() {
         <Pressable onPress={() => useBugReportStore.getState().open()}>
           <Card variant="elevated" size="md">
             <HStack className="items-center gap-3">
-              <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="bug-outline" size={22} color="#6D469B" />
+              <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: `${c.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="bug-outline" size={22} color={c.brand} />
               </View>
               <VStack className="flex-1">
                 <UIText size="sm" className="font-poppins-medium">Report a bug</UIText>

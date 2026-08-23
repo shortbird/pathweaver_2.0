@@ -2,7 +2,7 @@
  * Journal hooks - fetches learning events, interest tracks, and unified topics.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
@@ -35,7 +35,7 @@ export interface LearningEvent {
   /** Display name of the capturer when it wasn't the student (parent view). */
   captured_by_name?: string;
   evidence_blocks: EvidenceBlock[];
-  topics: Array<{ type: string; id: string; name: string; color?: string }>;
+  topics: { type: string; id: string; name: string; color?: string }[];
   track_id?: string;
   quest_id?: string;
   attached_task_id?: string | null;
@@ -228,7 +228,7 @@ export async function updateLearningEvent(eventId: string, updates: {
   description?: string;
   pillars?: string[];
   track_id?: string | null;
-  topics?: Array<{ type: string; id: string }>;
+  topics?: { type: string; id: string }[];
   event_date?: string | null;
 }) {
   const { data } = await api.put(`/api/learning-events/${eventId}`, updates);
@@ -274,7 +274,7 @@ export async function updateChildLearningEvent(childId: string, eventId: string,
   title?: string | null;
   description?: string;
   event_date?: string | null;
-  topics?: Array<{ type: string; id: string }>;
+  topics?: { type: string; id: string }[];
 }) {
   const { data } = await api.put(`/api/parent/children/${childId}/learning-moments/${eventId}`, updates);
   return data;
@@ -358,7 +358,7 @@ export function useQuestTasks(questId: string | null) {
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   // Personalization session management
-  const sessionRef = { current: null as string | null };
+  const sessionRef = useRef<string | null>(null);
 
   const ensureSession = async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current;

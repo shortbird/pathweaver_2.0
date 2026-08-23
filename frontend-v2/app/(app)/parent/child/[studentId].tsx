@@ -8,7 +8,7 @@
  * via useChildOverview.
  */
 import React from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,7 +95,7 @@ export default function ChildProfileScreen() {
 
       {loading && !overview ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       ) : !overview ? (
         <View className="flex-1 items-center justify-center px-8">
@@ -197,7 +197,7 @@ export default function ChildProfileScreen() {
                         className="flex-row items-center gap-1.5 px-3 py-2 rounded-full bg-surface-100 dark:bg-dark-surface-200"
                         style={{ minHeight: 36 }}
                       >
-                        <Ionicons name={(t.icon as any) || 'bookmark-outline'} size={14} color={t.color || '#6D469B'} />
+                        <Ionicons name={(t.icon as any) || 'bookmark-outline'} size={14} color={t.color || c.brand} />
                         <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{t.name}</UIText>
                       </Pressable>
                     ))}

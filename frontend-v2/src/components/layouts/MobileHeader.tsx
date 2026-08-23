@@ -12,6 +12,13 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { useAddKidStore } from '@/src/stores/addKidStore';
+import { useUnreadCount } from '@/src/hooks/useNotifications';
+import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
+import { useIsObserver } from '@/src/hooks/useStartSomething';
+import { useSchool } from '@/src/hooks/useSchool';
+import { UIText, Heading } from '../ui';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const PREVIEW_ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -20,6 +27,7 @@ const PREVIEW_ROLE_LABEL: Record<string, string> = {
 };
 
 function PreviewRolePill() {
+  const c = useThemeColors();
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
@@ -31,6 +39,8 @@ function PreviewRolePill() {
   return (
     <Pressable
       onPress={() => setPreviewRole(null)}
+      accessibilityRole="button"
+      accessibilityLabel="Exit role preview"
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -38,7 +48,7 @@ function PreviewRolePill() {
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 999,
-        backgroundColor: '#6D469B',
+        backgroundColor: c.brand,
       }}
     >
       <Ionicons name="eye-outline" size={12} color="#FFFFFF" />
@@ -49,13 +59,6 @@ function PreviewRolePill() {
     </Pressable>
   );
 }
-import { useUnreadCount } from '@/src/hooks/useNotifications';
-import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
-import { useIsObserver } from '@/src/hooks/useStartSomething';
-import { useSchool } from '@/src/hooks/useSchool';
-import { VStack, UIText, Heading } from '../ui';
-import { useBreakpoint } from '@/src/hooks/useBreakpoint';
-import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface MenuItem {
   key: string;
@@ -137,16 +140,19 @@ function AvatarMenu() {
     <>
       <Pressable
         onPress={() => setMenuOpen(true)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Account menu"
         style={{
           width: 34,
           height: 34,
           borderRadius: 17,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: menuOpen ? '#6D469B15' : 'transparent',
+          backgroundColor: menuOpen ? `${c.brand}15` : 'transparent',
         }}
       >
-        <Ionicons name="ellipsis-vertical" size={20} color={menuOpen ? '#6D469B' : c.icon} />
+        <Ionicons name="ellipsis-vertical" size={20} color={menuOpen ? c.brand : c.icon} />
       </Pressable>
 
       <Modal
@@ -223,15 +229,15 @@ function AvatarMenu() {
                     <Pressable
                       key={`preview-${opt.role}`}
                       onPress={() => handlePreviewSelect(opt.role)}
-                      style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: active ? '#6D469B0F' : 'transparent' }}
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: active ? `${c.brand}0F` : 'transparent' }}
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <Ionicons name={opt.icon} size={18} color={active ? '#6D469B' : c.icon} />
-                        <UIText size="sm" style={{ color: active ? '#6D469B' : c.text, fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                        <Ionicons name={opt.icon} size={18} color={active ? c.brand : c.icon} />
+                        <UIText size="sm" style={{ color: active ? c.brand : c.text, fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
                           {opt.label}
                         </UIText>
                         {active && (
-                          <Ionicons name="checkmark" size={16} color="#6D469B" style={{ marginLeft: 'auto' }} />
+                          <Ionicons name="checkmark" size={16} color={c.brand} style={{ marginLeft: 'auto' }} />
                         )}
                       </View>
                     </Pressable>
@@ -268,8 +274,8 @@ function AvatarMenu() {
                 style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.surfaceMuted }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Ionicons name="arrow-back" size={18} color="#6D469B" />
-                  <UIText size="sm" style={{ color: '#6D469B' }} className="font-poppins-semibold">
+                  <Ionicons name="arrow-back" size={18} color={c.brand} />
+                  <UIText size="sm" style={{ color: c.brand }} className="font-poppins-semibold">
                     End Masquerade
                   </UIText>
                 </View>
@@ -311,6 +317,9 @@ function NotificationBell() {
     <Pressable
       onPress={() => router.push('/(app)/notifications' as any)}
       style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
     >
       <Ionicons name="notifications-outline" size={22} color={c.icon} />
       {unreadCount > 0 && (
@@ -329,10 +338,10 @@ function NotificationBell() {
   );
 }
 
-// Messages moved out of the student tab bar (it's notification-driven, not a
-// browse destination) into this header icon, sitting next to the bell. The
-// unread badge moved with it. Only rendered in the student shell — parents keep
-// Messages as a tab, and observers have no messaging surface (see PageHeader).
+// Messages moved out of the tab bars (it's notification-driven, not a browse
+// destination) into this header icon, sitting next to the bell. The unread
+// badge moved with it. Rendered for students and (since 2026-08-18) parents —
+// observers have no messaging surface (see PageHeader's showMessages).
 function MessagesButton() {
   const c = useThemeColors();
   const { count } = useUnreadMessages();
@@ -416,6 +425,7 @@ function MasqueradeBadge() {
 }
 
 export function PageHeader({ title }: PageHeaderProps) {
+  const c = useThemeColors();
   const { isDesktop } = useBreakpoint();
   const isObserver = useIsObserver();
   // Messages lives in the header for everyone who has it, which since
@@ -452,9 +462,9 @@ export function PageHeader({ title }: PageHeaderProps) {
           height: 3,
           borderRadius: 1.5,
           marginTop: 10,
-          backgroundColor: '#6D469B',
+          backgroundColor: c.brand,
           ...(Platform.OS === 'web'
-            ? { backgroundImage: 'linear-gradient(90deg, #6D469B 0%, #EF597B 100%)' }
+            ? { backgroundImage: `linear-gradient(90deg, ${c.brand} 0%, ${c.brandPink} 100%)` }
             : {}),
           width: 40,
         }}

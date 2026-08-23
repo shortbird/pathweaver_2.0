@@ -9,6 +9,7 @@ import React from 'react';
 import { View, Platform } from 'react-native';
 import { Heading } from './heading';
 import { UIText } from './text';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface BrandHeaderProps {
   title: string;
@@ -17,6 +18,7 @@ interface BrandHeaderProps {
 }
 
 export function BrandHeader({ title, subtitle, compact }: BrandHeaderProps) {
+  const c = useThemeColors();
   const py = compact ? 12 : 16;
 
   return (
@@ -25,10 +27,10 @@ export function BrandHeader({ title, subtitle, compact }: BrandHeaderProps) {
         paddingHorizontal: 20,
         paddingTop: py,
         paddingBottom: py,
-        backgroundColor: '#6D469B',
+        backgroundColor: c.brand,
         // Approximate the gradient on web; solid purple on native (no expo-linear-gradient)
         ...(Platform.OS === 'web'
-          ? { backgroundImage: 'linear-gradient(135deg, #6D469B 0%, #8058AC 60%, #EF597B 100%)' }
+          ? { backgroundImage: `linear-gradient(135deg, ${c.brand} 0%, #8058AC 60%, ${c.brandPink} 100%)` }
           : {}),
       }}
     >

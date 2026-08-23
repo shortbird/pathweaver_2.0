@@ -166,7 +166,7 @@ export default function SchoolCommunity({ feed }: { feed: SchoolFeed | null }) {
                   <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{fmtDate(r.created_at)}</UIText>
                 </HStack>
                 {r.message ? (
-                  <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 mt-2">{r.message}</UIText>
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2">{r.message}</UIText>
                 ) : null}
               </View>
             ))}

@@ -20,14 +20,14 @@ import api, { bountyAPI } from '@/src/services/api';
 export interface BountyIdea {
   title: string;
   description: string;
-  deliverables: Array<{ text: string }>;
+  deliverables: { text: string }[];
   pillar: string;
-  rewards: Array<{ type: string; value?: number; pillar?: string; text?: string }>;
+  rewards: { type: string; value?: number; pillar?: string; text?: string }[];
 }
 
 interface Props {
   visible: boolean;
-  kids: Array<{ id: string; display_name?: string }>;
+  kids: { id: string; display_name?: string }[];
   childNoun: string; // "kid" | "student"
   onClose: () => void;
   onUse: (idea: BountyIdea, childId: string | null) => void;
@@ -135,7 +135,7 @@ export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }
             <View className="px-5 pb-3 border-b border-surface-200 dark:border-dark-surface-300">
               <HStack className="items-center justify-between">
                 <HStack className="items-center gap-2">
-                  <Ionicons name="sparkles" size={18} color="#6D469B" />
+                  <Ionicons name="sparkles" size={18} color={c.brand} />
                   <Heading size="md">Help me write this bounty</Heading>
                 </HStack>
                 <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
@@ -183,7 +183,7 @@ export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }
                             <Pressable key={k.id} onPress={() => setChildId(selected ? null : k.id)}>
                               <View style={{
                                 paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                                backgroundColor: selected ? '#6D469B' : c.surfaceMuted,
+                                backgroundColor: selected ? c.brand : c.surfaceMuted,
                               }}>
                                 <UIText size="sm" style={{ color: selected ? '#fff' : c.textMuted, fontFamily: 'Poppins_500Medium' }}>
                                   {k.display_name || 'Student'}
@@ -203,7 +203,7 @@ export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }
                         <Pressable key={key} onPress={() => setRewardHint(key)}>
                           <View style={{
                             paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                            backgroundColor: rewardHint === key ? '#6D469B' : c.surfaceMuted,
+                            backgroundColor: rewardHint === key ? c.brand : c.surfaceMuted,
                           }}>
                             <UIText size="sm" style={{ color: rewardHint === key ? '#fff' : c.textMuted, fontFamily: 'Poppins_500Medium' }}>
                               {label}
@@ -246,8 +246,8 @@ export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }
                       <VStack space="xs" className="mt-1">
                         {idea.deliverables.map((d, i) => (
                           <HStack key={i} className="items-start gap-2">
-                            <Ionicons name="checkbox-outline" size={15} color="#6D469B" style={{ marginTop: 2 }} />
-                            <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1">{d.text}</UIText>
+                            <Ionicons name="checkbox-outline" size={15} color={c.brand} style={{ marginTop: 2 }} />
+                            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 flex-1">{d.text}</UIText>
                           </HStack>
                         ))}
                       </VStack>

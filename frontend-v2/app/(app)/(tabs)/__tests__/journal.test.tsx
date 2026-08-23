@@ -2,6 +2,16 @@
  * Journal screen tests - renders topics sidebar and unassigned moments.
  */
 
+import React from 'react';
+import { render } from '@testing-library/react-native';
+import JournalScreen from '../journal';
+import {
+  useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
+} from '@/src/hooks/useJournal';
+import { useFeed } from '@/src/hooks/useFeed';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockTopic, createMockLearningEvent } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -44,16 +54,6 @@ jest.mock('@/src/hooks/useFeed', () => ({
 jest.mock('@/src/components/feed/FeedCard', () => ({
   FeedCard: () => null,
 }));
-
-import React from 'react';
-import { render } from '@testing-library/react-native';
-import JournalScreen from '../journal';
-import {
-  useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
-} from '@/src/hooks/useJournal';
-import { useFeed } from '@/src/hooks/useFeed';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockTopic, createMockLearningEvent } from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();

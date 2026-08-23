@@ -7,6 +7,11 @@
  * transcript_subject server-side.
  */
 
+import React from 'react';
+import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
+import { CreateClassSheet } from '../CreateClassSheet';
+import api from '@/src/services/api';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -15,11 +20,6 @@ const mockRouterPush = jest.fn();
 jest.mock('expo-router', () => ({
   router: { push: (...args: any[]) => mockRouterPush(...args), back: jest.fn(), replace: jest.fn() },
 }));
-
-import React from 'react';
-import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
-import { CreateClassSheet } from '../CreateClassSheet';
-import api from '@/src/services/api';
 
 describe('CreateClassSheet', () => {
   beforeEach(() => {

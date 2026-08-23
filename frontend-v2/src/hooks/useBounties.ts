@@ -20,14 +20,14 @@ export interface Bounty {
   //   custom -> { id, type: 'custom', text }
   // `value` was typed as a string and `text` was missing entirely, so a custom
   // reward could not be described at all (found by the typecheck, 2026-08-18).
-  rewards: Array<{
+  rewards: {
     id?: string;
     type: string;
     value?: string | number;
     pillar?: string;
     text?: string;
-  }>;
-  deliverables: Array<{ id: string; text: string }>;
+  }[];
+  deliverables: { id: string; text: string }[];
   status: string;
   claims_count?: number;
   // The detail/review endpoint (useBountyDetail) embeds the full claim list;

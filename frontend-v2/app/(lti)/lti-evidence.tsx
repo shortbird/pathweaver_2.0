@@ -174,7 +174,7 @@ export default function LtiEvidence() {
                 <HStack className="items-center justify-between">
                   <UIText
                     size="md"
-                    className="font-poppins-semibold text-typo-900 flex-1"
+                    className="font-poppins-semibold text-typo dark:text-dark-typo flex-1"
                   >
                     {task.title}
                   </UIText>

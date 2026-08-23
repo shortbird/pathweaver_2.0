@@ -155,7 +155,7 @@ export function UserChatLogs({ user }: { user: AdminUser }) {
           <Card variant="outline" size="sm">
             <HStack className="items-center gap-3">
               <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#6D469B" />
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={c.brand} />
               </View>
               <VStack className="flex-1 min-w-0" space="xs">
                 <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>

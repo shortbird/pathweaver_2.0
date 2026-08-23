@@ -3,6 +3,13 @@
  * per-step validation, unified pillar, edit mode.
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import CreateBountyPage from '../create';
+import api, { bountyAPI } from '@/src/services/api';
+import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockBounty } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () => {
   const base = require('@/src/__tests__/utils/mockApi').mockApiModule();
   base.bountyAPI = {
@@ -38,13 +45,6 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => mockSearchParams,
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import CreateBountyPage from '../create';
-import api, { bountyAPI } from '@/src/services/api';
-import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockBounty } from '@/src/__tests__/utils/mockFactories';
 
 const DESC_PLACEHOLDER = 'What should they do, and why is it worth doing?';
 

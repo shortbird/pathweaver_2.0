@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/src/services/api';
-import { View, ScrollView, Pressable, Platform, TextInput, Alert, Image } from 'react-native';
+import { View, ScrollView, Pressable, Platform, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -280,7 +280,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
               {memberSince && <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">Member since {memberSince}</UIText>}
             </VStack>
           </HStack>
-          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200" accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
@@ -572,6 +572,7 @@ function UsersPanel() {
 // ── Quests Tab ──
 
 function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any; onSelect: () => void; isSelected: boolean; orgName?: string }) {
+  const c = useThemeColors();
   const imageUrl = quest.header_image_url || quest.image_url;
 
   return (
@@ -583,7 +584,7 @@ function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any;
               <Image source={{ uri: imageUrl }} style={{ width: 36, height: 36, borderRadius: 8 }} resizeMode="cover" />
             ) : (
               <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
-                <Ionicons name="rocket-outline" size={16} color="#6D469B" />
+                <Ionicons name="rocket-outline" size={16} color={c.brand} />
               </View>
             )}
           </View>
@@ -619,6 +620,7 @@ function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any;
 }
 
 function QuestCardMobile({ quest, onDelete, onSelect }: { quest: any; onDelete: () => void; onSelect?: () => void }) {
+  const c = useThemeColors();
   const imageUrl = quest.header_image_url || quest.image_url;
 
   return (
@@ -629,7 +631,7 @@ function QuestCardMobile({ quest, onDelete, onSelect }: { quest: any; onDelete: 
             <Image source={{ uri: imageUrl }} className="w-14 h-14 rounded-lg flex-shrink-0" resizeMode="cover" />
           ) : (
             <View className="w-14 h-14 rounded-lg bg-optio-purple/10 items-center justify-center flex-shrink-0">
-              <Ionicons name="rocket-outline" size={24} color="#6D469B" />
+              <Ionicons name="rocket-outline" size={24} color={c.brand} />
             </View>
           )}
           <VStack className="flex-1 min-w-0" space="xs">
@@ -693,7 +695,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
               <Image source={{ uri: imageUrl }} style={{ width: 48, height: 48, borderRadius: 10 }} resizeMode="cover" />
             ) : (
               <View className="w-12 h-12 rounded-xl bg-optio-purple/10 items-center justify-center">
-                <Ionicons name="rocket-outline" size={22} color="#6D469B" />
+                <Ionicons name="rocket-outline" size={22} color={c.brand} />
               </View>
             )}
             <VStack className="flex-1 min-w-0">
@@ -708,7 +710,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
               </HStack>
             </VStack>
           </HStack>
-          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200" accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
@@ -799,7 +801,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
               onPress={() => router.push(`/(app)/quests/${quest.id}` as any)}
               className="flex-row items-center gap-3 px-4 py-3 bg-optio-purple/5 rounded-xl active:bg-optio-purple/10"
             >
-              <Ionicons name="open-outline" size={20} color="#6D469B" />
+              <Ionicons name="open-outline" size={20} color={c.brand} />
               <VStack>
                 <UIText size="sm" className="font-poppins-medium text-optio-purple">View Quest</UIText>
                 <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Open the student-facing quest page</UIText>
@@ -1075,7 +1077,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
       <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
         {orgTabs.map((t) => (
           <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
-            <Ionicons name={t.icon} size={14} color={orgTab === t.key ? '#6D469B' : c.iconMuted} />
+            <Ionicons name={t.icon} size={14} color={orgTab === t.key ? c.brand : c.iconMuted} />
             <UIText size="xs" className={orgTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
           </Pressable>
         ))}
@@ -1593,7 +1595,7 @@ export default function AdminScreen() {
               {tabs.filter((t) => VISIBLE_TAB_KEYS.includes(t.key)).map((t) => (
                 <Pressable key={t.key} onPress={() => setActiveTab(t.key)}>
                   <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
-                    <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : c.iconMuted} />
+                    <Ionicons name={t.icon} size={16} color={activeTab === t.key ? c.brand : c.iconMuted} />
                     <UIText size="sm" className={activeTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                       {t.label}
                     </UIText>

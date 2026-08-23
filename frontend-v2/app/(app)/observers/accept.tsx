@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Alert, TextInput } from 'react-native';
+import { View, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import {
   VStack, Heading, UIText, Card, Button, ButtonText,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 export default function AcceptInvitationScreen() {
   const c = useThemeColors();
@@ -43,7 +44,7 @@ export default function AcceptInvitationScreen() {
       setStudentName(data.student?.display_name || 'the student');
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to accept invitation. The code may be invalid or expired.';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setAccepting(false);
     }
@@ -79,7 +80,7 @@ export default function AcceptInvitationScreen() {
           <VStack space="md">
             <VStack className="items-center" space="sm">
               <View className="w-14 h-14 rounded-full bg-optio-purple/10 items-center justify-center">
-                <Ionicons name="people" size={28} color="#6D469B" />
+                <Ionicons name="people" size={28} color={c.brand} />
               </View>
               <Heading size="lg">Accept Invitation</Heading>
               <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">

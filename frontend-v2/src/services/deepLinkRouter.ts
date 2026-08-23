@@ -27,7 +27,7 @@ const WEB_ONLY_PREFIXES = [
 
 /** Legacy/web paths → mobile equivalents. Matched against the path only (query
  *  string stripped first), so `/bounties?tab=active` still resolves here. */
-const REMAP: Array<[RegExp, string]> = [
+const REMAP: [RegExp, string][] = [
   [/^\/parent-dashboard\/?$/, '/(app)/(tabs)/family'],
   [/^\/feedback\/?$/, '/(app)/(tabs)/feed'],
   [/^\/connections\/?$/, '/(app)/(tabs)/feed'],

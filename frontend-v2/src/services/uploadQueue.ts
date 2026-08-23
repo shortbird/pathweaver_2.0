@@ -46,7 +46,7 @@ interface UploadJob {
    *  media in the SAME evidence POST. The evidence endpoint replaces a moment's
    *  blocks, so a link must ride along with the media or one would clobber the
    *  other. */
-  extraBlocks?: Array<Record<string, unknown>>;
+  extraBlocks?: Record<string, unknown>[];
   attempts: number;
   createdAt: number;
 }
@@ -93,7 +93,7 @@ export function usePendingUploadCount(): number {
 let FileSystem: typeof import('expo-file-system/legacy') | null = null;
 try {
   if (Platform.OS !== 'web') {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     FileSystem = require('expo-file-system/legacy');
   }
 } catch {
@@ -167,7 +167,7 @@ function fallbackExt(t: QueuedMediaType): string {
  * backend side: the evidence endpoint replaces a moment's blocks, so a retry
  * after a partial failure re-uploads and re-attaches cleanly.
  */
-async function runJob(job: { eventId: string; studentId?: string; items: QueuedMediaItem[]; extraBlocks?: Array<Record<string, unknown>> }): Promise<void> {
+async function runJob(job: { eventId: string; studentId?: string; items: QueuedMediaItem[]; extraBlocks?: Record<string, unknown>[] }): Promise<void> {
   const { eventId, studentId, items, extraBlocks } = job;
   const initPath = studentId
     ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-init`
@@ -189,7 +189,7 @@ async function runJob(job: { eventId: string; studentId?: string; items: QueuedM
   };
 
   try {
-    const blocks: Array<Record<string, unknown>> = [];
+    const blocks: Record<string, unknown>[] = [];
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
       const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
@@ -242,7 +242,7 @@ export function enqueueUpload(args: {
   eventId: string;
   studentId?: string;
   items: QueuedMediaItem[];
-  extraBlocks?: Array<Record<string, unknown>>;
+  extraBlocks?: Record<string, unknown>[];
 }): Promise<void> {
   // .then(run, run) so a rejected earlier enqueue doesn't block later ones.
   const next = enqueueChain.then(() => _enqueueUploadImpl(args), () => _enqueueUploadImpl(args));
@@ -255,7 +255,7 @@ async function _enqueueUploadImpl(args: {
   eventId: string;
   studentId?: string;
   items: QueuedMediaItem[];
-  extraBlocks?: Array<Record<string, unknown>>;
+  extraBlocks?: Record<string, unknown>[];
 }): Promise<void> {
   if (!args.items.length && !args.extraBlocks?.length) return;
 

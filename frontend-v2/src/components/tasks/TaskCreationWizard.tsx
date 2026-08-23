@@ -377,7 +377,7 @@ export function TaskCreationWizard({
                     >
                       <VStack className="items-center" space="sm">
                         <View className="w-12 h-12 rounded-xl bg-optio-purple/10 items-center justify-center">
-                          <Ionicons name="sparkles" size={24} color="#6D469B" />
+                          <Ionicons name="sparkles" size={24} color={c.brand} />
                         </View>
                         <UIText size="sm" className="font-poppins-bold text-center">AI Generate</UIText>
                         <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">Get personalized suggestions</UIText>
@@ -443,7 +443,7 @@ export function TaskCreationWizard({
                               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{t.xp_value || 0} XP</UIText>
                             </HStack>
                           </VStack>
-                          <Ionicons name="add-circle-outline" size={22} color="#6D469B" />
+                          <Ionicons name="add-circle-outline" size={22} color={c.brand} />
                         </HStack>
                       </Pressable>
                     );
@@ -591,7 +591,7 @@ export function TaskCreationWizard({
                               >
                                 <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
                                   <UIText size="sm">{chip.icon}</UIText>
-                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
+                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                     {chip.label}
                                   </UIText>
                                 </View>
@@ -640,7 +640,7 @@ export function TaskCreationWizard({
                               >
                                 <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
                                   <UIText size="sm">{chip.icon}</UIText>
-                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
+                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                     {chip.label}
                                   </UIText>
                                 </View>
@@ -696,7 +696,7 @@ export function TaskCreationWizard({
                         return (
                           <Pressable key={level.id} onPress={() => setChallengeLevel(level.id)}>
                             <View className={`px-3 py-2 rounded-xl border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
-                              <UIText size="xs" className={`font-poppins-semibold ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
+                              <UIText size="xs" className={`font-poppins-semibold ${selected ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                 {level.label}
                               </UIText>
                               <UIText size="xs" className={selected ? 'text-white/80' : 'text-typo-400 dark:text-dark-typo-400'}>
@@ -773,7 +773,7 @@ export function TaskCreationWizard({
                           {currentTask.success_criteria.map((criterion: string, i: number) => (
                             <HStack key={i} className="items-start gap-2">
                               <Ionicons name="checkmark-circle-outline" size={15} color="#22c55e" style={{ marginTop: 1 }} />
-                              <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1 leading-5">{criterion}</UIText>
+                              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 flex-1 leading-5">{criterion}</UIText>
                             </HStack>
                           ))}
                         </VStack>

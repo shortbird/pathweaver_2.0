@@ -87,7 +87,7 @@ export function PhoneVerificationHost() {
 
   return (
     <Modal visible animationType="fade" transparent={false} onRequestClose={() => {}}>
-      <SafeAreaView className="flex-1 bg-white dark:bg-surface-dark">
+      <SafeAreaView className="flex-1 bg-white dark:bg-dark-surface">
         <View className="flex-1 justify-center px-7">
           <UIText className="text-2xl font-bold text-neutral-900 dark:text-white">
             Verify your phone number

@@ -10,6 +10,8 @@
 import React from 'react';
 import { render, screen, waitFor, act, fireEvent, configure } from '@testing-library/react-native';
 
+import { PhoneVerificationHost } from '../PhoneVerificationHost';
+
 // Every findBy/waitFor here waits on a Modal-wrapped SafeAreaView render, which
 // is exactly the heavy cold-start jest.config.js raised testTimeout for. That
 // raise does not reach these helpers: they have their own 1s budget. Give them
@@ -35,8 +37,6 @@ let mockAuthState = { isAuthenticated: true, user: { id: 'u-1' }, logout: mockLo
 jest.mock('@/src/stores/authStore', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) => selector(mockAuthState),
 }));
-
-import { PhoneVerificationHost } from '../PhoneVerificationHost';
 
 const HELD = { data: { required: true, verified: false } };
 const CLEAR = { data: { required: false, verified: false } };

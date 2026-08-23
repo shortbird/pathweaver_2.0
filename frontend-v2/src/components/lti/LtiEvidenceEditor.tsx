@@ -24,7 +24,7 @@ import { Platform, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import {
-  VStack, HStack, UIText, Card, Button, ButtonText, Input, InputField, Badge, BadgeText,
+  VStack, HStack, UIText, Button, ButtonText, Input, InputField, Badge, BadgeText,
 } from '@/src/components/ui';
 
 export interface EvidenceBlockDraft {
@@ -169,7 +169,7 @@ export function LtiEvidenceEditor({
                     style={{ width: 32, height: 32, borderRadius: 4 }}
                   />
                 ) : (
-                  <UIText size="xs" className="text-typo-600 flex-1" numberOfLines={1}>
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>
                     {b.type === 'text'
                       ? String(b.content.text)
                       : b.type === 'link'

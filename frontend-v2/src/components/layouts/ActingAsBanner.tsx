@@ -17,8 +17,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { UIText } from '../ui/text';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export function ActingAsBanner() {
+  const c = useThemeColors();
   const { target, isActive, mode, switching, stopActingAs } = useActingAsStore();
   const user = useAuthStore((s) => s.user);
   const insets = useSafeAreaInsets();
@@ -47,7 +49,7 @@ export function ActingAsBanner() {
   return (
     <View
       style={{
-        backgroundColor: '#6D469B',
+        backgroundColor: c.brand,
         paddingHorizontal: 16,
         paddingTop: insets.top + 10,
         paddingBottom: 10,
@@ -63,6 +65,8 @@ export function ActingAsBanner() {
       <Pressable
         onPress={handleSwitchBack}
         disabled={switching}
+        accessibilityRole="button"
+        accessibilityLabel="Switch back to your account"
         style={{
           backgroundColor: 'rgba(255,255,255,0.2)',
           paddingHorizontal: 12,

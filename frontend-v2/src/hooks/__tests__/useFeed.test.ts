@@ -2,10 +2,6 @@
  * useFeed hook tests - role-based feed routing, views, comment actions.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useFeed, recordViews, getViewers, postComment, dedupeMerge, computeFeedKey } from '../useFeed';
 import api from '@/src/services/api';
@@ -13,6 +9,10 @@ import {
   setAuthAsStudent, setAuthAsParent, setAuthAsObserver, clearAuthState,
 } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   jest.clearAllMocks();

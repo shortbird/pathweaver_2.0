@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { View, ScrollView, Pressable, Platform, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +49,8 @@ export default function ObserverStudentOverviewScreen() {
           <Pressable
             onPress={() => router.back()}
             className="w-10 h-10 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="chevron-back" size={20} color={c.icon} />
           </Pressable>

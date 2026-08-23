@@ -3,8 +3,6 @@
  * message archive pager (useSchoolArchive), and absences (useSchoolAbsences).
  */
 
-jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
-
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -15,6 +13,8 @@ import {
   useSchoolAbsences,
   __resetSchoolPreviewCache,
 } from '../useSchool';
+
+jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 
 const setUser = (user: any) => {
   act(() => {

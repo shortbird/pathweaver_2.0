@@ -111,7 +111,7 @@ export function MessageActionsSheet({
       accessibilityRole="button"
       accessibilityLabel={a.label}
     >
-      <Ionicons name={a.icon} size={20} color={a.destructive ? '#EF4444' : '#6D469B'} />
+      <Ionicons name={a.icon} size={20} color={a.destructive ? '#EF4444' : c.brand} />
       <UIText
         size="md"
         className={a.destructive ? 'text-red-500 font-poppins-medium' : 'font-poppins-medium'}
@@ -148,9 +148,9 @@ export function MessageActionsSheet({
                   borderRadius: 22,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: active ? '#EDE9F0' : c.surfaceMuted,
+                  backgroundColor: active ? c.brandSurface : c.surfaceMuted,
                   borderWidth: active ? 1 : 0,
-                  borderColor: '#6D469B',
+                  borderColor: c.brand,
                 }}
               >
                 {/* lineHeight must clear the glyph box — UIText's `text-base`

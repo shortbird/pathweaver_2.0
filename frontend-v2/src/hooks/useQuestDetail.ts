@@ -3,7 +3,7 @@
  * Provides actions: enroll, complete task, create task, generate tasks.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -64,8 +64,6 @@ export function useQuestDetail(questId: string | null) {
     try {
       setLoading(true);
       const { data } = await api.get(`/api/quests/${questId}`);
-      console.log('[QuestDetail] API response keys:', Object.keys(data));
-      console.log('[QuestDetail] title:', data.title, 'quest.title:', data.quest?.title);
       setQuest(data.quest || data);
       setError(null);
     } catch (err: any) {
@@ -107,7 +105,7 @@ export function useQuestDetail(questId: string | null) {
   };
 
   // Personalization session management
-  const sessionRef = { current: null as string | null };
+  const sessionRef = useRef<string | null>(null);
 
   const ensureSession = async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current;

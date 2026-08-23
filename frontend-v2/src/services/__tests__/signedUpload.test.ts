@@ -5,6 +5,9 @@
  * synchronously without a real network.
  */
 
+import { api } from '@/src/services/api';
+import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+
 jest.mock('@/src/services/api', () => ({
   api: { post: jest.fn() },
 }));
@@ -12,9 +15,6 @@ jest.mock('@/src/services/api', () => ({
 jest.mock('react-native', () => ({
   Platform: { OS: 'web', select: (o: { web?: unknown; default?: unknown }) => o.web ?? o.default },
 }));
-
-import { api } from '@/src/services/api';
-import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 
 const apiPost = api.post as jest.MockedFunction<typeof api.post>;
 

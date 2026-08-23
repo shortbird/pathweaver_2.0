@@ -9,13 +9,14 @@
  */
 
 import React, { useState } from 'react';
-import { View, Pressable, Alert } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Badge, BadgeText, BottomSheet, Button, ButtonText, HStack, Heading,
   Input, InputField, UIText, VStack, toast,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { confirmAlert } from '@/src/utils/alerts';
 import type { CarpoolPost } from '@/src/hooks/useSchool';
 import { SchoolSection } from './SchoolSection';
 import { fmtDate } from './format';
@@ -66,22 +67,21 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
     }
   };
 
-  const confirmRemove = (id: string) => {
-    Alert.alert('Remove this post?', 'It comes off the board for everyone.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await onRemove(id);
-            toast.success('Post removed');
-          } catch (err: any) {
-            toast.error(err?.response?.data?.error || 'Could not remove the post');
-          }
-        },
-      },
-    ]);
+  const confirmRemove = async (id: string) => {
+    const confirmed = await confirmAlert({
+      title: 'Remove this post?',
+      message: 'It comes off the board for everyone.',
+      confirmText: 'Remove',
+      cancelText: 'Keep it',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await onRemove(id);
+      toast.success('Post removed');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Could not remove the post');
+    }
   };
 
   const sendMessage = async () => {
@@ -171,7 +171,7 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
           onPress={() => setComposerOpen(true)}
           testID="carpool-open-composer"
         >
-          <Ionicons name="add" size={16} color="#6D469B" />
+          <Ionicons name="add" size={16} color={c.brand} />
           <ButtonText className="text-optio-purple">Post to the board</ButtonText>
         </Button>
       )}

@@ -2,6 +2,13 @@
  * Feed screen tests - renders FlatList of feed items.
  */
 
+import React from 'react';
+import { render, waitFor } from '@testing-library/react-native';
+import FeedScreen from '../feed';
+import { useFeed } from '@/src/hooks/useFeed';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -18,13 +25,6 @@ jest.mock('@/src/components/feed/FeedCard', () => ({
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));
-
-import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
-import FeedScreen from '../feed';
-import { useFeed } from '@/src/hooks/useFeed';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();

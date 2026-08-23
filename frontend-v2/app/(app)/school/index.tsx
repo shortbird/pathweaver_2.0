@@ -32,6 +32,7 @@ function DoorCard({ icon, title, description, onPress, testID }: {
   onPress: () => void;
   testID?: string;
 }) {
+  const c = useThemeColors();
   return (
     <Pressable
       onPress={onPress}
@@ -39,7 +40,7 @@ function DoorCard({ icon, title, description, onPress, testID }: {
       className="flex-1 flex-row items-center gap-3 bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded-xl px-3.5 py-3 active:opacity-70"
     >
       <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
-        <Ionicons name={icon} size={18} color="#6D469B" />
+        <Ionicons name={icon} size={18} color={c.brand} />
       </View>
       <View className="flex-1">
         <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{title}</UIText>
@@ -64,7 +65,7 @@ export default function SchoolScreen() {
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top']}>
       {/* Header: back + the school's own name */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8, gap: 8 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="school-back">
+        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="school-back" accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={c.text} />
         </Pressable>
         <Heading size="xl" style={{ flex: 1 }} numberOfLines={1}>{name}</Heading>
@@ -72,7 +73,7 @@ export default function SchoolScreen() {
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       ) : (
         <ScrollView
@@ -80,7 +81,7 @@ export default function SchoolScreen() {
           contentContainerClassName="px-5 pt-2 pb-12 max-w-3xl w-full md:mx-auto"
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6D469B" />
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={c.brand} />
           }
         >
           {/* Letterhead: the org's own mark when it has one, never a broken image */}

@@ -2,15 +2,15 @@
  * useJournal hook tests - topics, unassigned moments, create moment/topic.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useUnifiedTopics, useUnassignedMoments } from '../useJournal';
 import api from '@/src/services/api';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockTopic, createMockLearningEvent } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   setAuthAsStudent();

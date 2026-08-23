@@ -2,14 +2,14 @@
  * useProfile hook tests - parallel data fetch, profile editing.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useProfile } from '../useProfile';
 import api from '@/src/services/api';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   setAuthAsStudent();

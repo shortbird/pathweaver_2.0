@@ -15,9 +15,8 @@ import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { UIText } from '@/src/components/ui/text';
-import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
+import { hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
-import { useUnreadCount } from '@/src/hooks/useMessages';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
@@ -27,7 +26,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const optioIcon = require('@/assets/images/icon.png');
 
 /** Minimal header for observers on web — logo + sign out, no sidebar */
@@ -62,8 +61,6 @@ export default function TabsLayout() {
   // Quest detail screens publish their quest into this store while focused, so
   // the global Capture button can open the sheet pre-scoped to that quest.
   const questCaptureContext = useCaptureContextStore((s) => s.quest);
-  // Unread DM count -> badge on the Messages tab icon.
-  const { count: unreadMessages } = useUnreadCount();
 
   // Restore persisted preview state on entry. Passing the real role lets a
   // superadmin default into the Student shell when they have no stored choice.
@@ -87,7 +84,7 @@ export default function TabsLayout() {
           initialRouteName="feed"
           screenOptions={{
             headerShown: false,
-            tabBarActiveTintColor: '#6D469B',
+            tabBarActiveTintColor: c.brand,
             tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
@@ -97,8 +94,8 @@ export default function TabsLayout() {
             tabBarItemStyle: {
               paddingHorizontal: 2,
             },
-            tabBarStyle: isDesktop
-              ? { display: 'none' }
+            tabBarStyle: isDesktop || tabBarHidden
+              ? { display: 'none' as const }
               : {
                   height: 85,
                   paddingBottom: 20,
@@ -128,7 +125,7 @@ export default function TabsLayout() {
                           height: 52,
                           borderRadius: 26,
                           marginTop: -20,
-                          boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
+                          boxShadow: `0 3px 6px ${c.brand}40`,
                         }}
                       >
                         <Image
@@ -149,7 +146,6 @@ export default function TabsLayout() {
                 name={item.key}
                 options={{
                   title: item.label,
-                  tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                   tabBarIcon: ({ color, size }) => (
                     <Ionicons name={item.icon} size={size} color={color} />
                   ),
@@ -202,7 +198,7 @@ export default function TabsLayout() {
     );
   }
 
-  // ── Mobile parent: family + feed + center capture + bounties + messages ──
+  // ── Mobile parent: family + journal + center capture + bounties + feed ──
   if (isParent) {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
@@ -211,7 +207,7 @@ export default function TabsLayout() {
           initialRouteName="family"
           screenOptions={{
             headerShown: false,
-            tabBarActiveTintColor: '#6D469B',
+            tabBarActiveTintColor: c.brand,
             tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
@@ -256,7 +252,7 @@ export default function TabsLayout() {
                           height: 52,
                           borderRadius: 26,
                           marginTop: -20,
-                          boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
+                          boxShadow: `0 3px 6px ${c.brand}40`,
                         }}
                       >
                         <Image
@@ -278,7 +274,6 @@ export default function TabsLayout() {
                 name={item.key}
                 options={{
                   title: item.label,
-                  tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                   tabBarIcon: ({ color, size }) => (
                     <Ionicons name={item.icon} size={size} color={color} />
                   ),
@@ -315,7 +310,7 @@ export default function TabsLayout() {
         initialRouteName="dashboard"
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#6D469B',
+          tabBarActiveTintColor: c.brand,
           tabBarInactiveTintColor: c.iconMuted,
           tabBarLabelStyle: {
             fontFamily: 'Poppins_500Medium',
@@ -359,7 +354,7 @@ export default function TabsLayout() {
                         height: 52,
                         borderRadius: 26,
                         marginTop: -20,
-                        boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
+                        boxShadow: `0 3px 6px ${c.brand}40`,
                       }}
                     >
                       <Image
@@ -382,7 +377,6 @@ export default function TabsLayout() {
               name={item.key}
               options={{
                 title: item.label,
-                tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name={item.icon} size={size} color={color} />
                 ),

@@ -5,7 +5,6 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { HStack } from './hstack';
 import { UIText } from './text';
 import { getPillar } from '@/src/config/pillars';
 

@@ -2,11 +2,7 @@
  * useMessages hook tests - conversations, messages, contacts, groups, send, mark read.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
-import { renderHook, waitFor, act } from '@testing-library/react-native';
+import { renderHook, waitFor } from '@testing-library/react-native';
 import {
   useConversations,
   useConversationMessages,
@@ -37,6 +33,10 @@ import {
   createMockContact,
   createMockGroup,
 } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   setAuthAsStudent();

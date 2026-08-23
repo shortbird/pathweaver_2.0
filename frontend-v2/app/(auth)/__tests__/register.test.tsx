@@ -11,6 +11,12 @@
  * - Error object rendering (backend returns {code, message} not string)
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import RegisterScreen from '../register';
+import { useAuthStore } from '@/src/stores/authStore';
+import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -23,12 +29,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import RegisterScreen from '../register';
-import { useAuthStore } from '@/src/stores/authStore';
-import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 beforeEach(() => {
   clearAuthState();

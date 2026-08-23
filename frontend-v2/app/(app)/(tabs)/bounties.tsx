@@ -1,9 +1,6 @@
 /**
- * Bounties - Standalone route for browsing/claiming/posting bounties.
- *
- * The same content also appears as a segment inside the Quests tab
- * on mobile. This route stays for direct URL access (e.g., back nav
- * from a bounty detail page) and for desktop sidebar navigation.
+ * Bounties - Browse/claim/post bounties. A first-class tab on mobile
+ * (mobileTabOrder) and a sidebar destination on desktop.
  */
 
 import React, { useRef, useState, useCallback } from 'react';
@@ -13,8 +10,10 @@ import { useScrollToTop } from '@react-navigation/native';
 import { VStack, Heading } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { BountiesView } from '@/src/components/bounties/BountiesView';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export default function BountiesScreen() {
+  const c = useThemeColors();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
   const refetchRef = useRef<null | (() => Promise<void>)>(null);
@@ -30,7 +29,7 @@ export default function BountiesScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />}
       >
         <VStack className="max-w-5xl w-full md:mx-auto">
           <PageHeader title="Bounties" />

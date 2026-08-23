@@ -8,6 +8,9 @@
  * errors (4xx) must NOT be retried.
  */
 
+import axios from 'axios';
+import { isRetriableTransient } from '@/src/services/api';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -25,9 +28,6 @@ jest.mock('@/src/services/sentry', () => ({
   setSentryUser: jest.fn(),
   wrapWithSentry: (c: unknown) => c,
 }));
-
-import axios from 'axios';
-import { isRetriableTransient } from '@/src/services/api';
 
 function axiosErr(status: number | null, method = 'get') {
   return {

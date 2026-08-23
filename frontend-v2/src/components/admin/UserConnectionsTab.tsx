@@ -4,19 +4,18 @@
  * UserConnectionsTab (frontend/src/components/admin/UserConnectionsTab.jsx) and
  * calls the same admin endpoints.
  *
- * Admin panel is web-only, so window.confirm() is used for destructive actions
- * (consistent with the rest of admin.tsx).
+ * Destructive actions confirm via confirmAlert (cross-platform).
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
-import { toast } from '@/src/components/ui';
-import { useThemeColors } from '@/src/hooks/useThemeColors';
-import {
+import { confirmAlert } from '@/src/utils/alerts';
+import { toast ,
   VStack, HStack, UIText, Card, Button, ButtonText, Input, InputField, InputSlot, InputIcon, Skeleton,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { AdminUser } from '@/src/hooks/useAdmin';
 
 type AddType = 'advisor' | 'parent' | 'student' | 'observer';
@@ -189,8 +188,7 @@ export function UserConnectionsTab({ user }: { user: AdminUser }) {
       : conn.direction === 'observing' ? `Remove observer access to ${name}?`
       : conn.direction === 'observed_by' ? `Remove ${name} as observer?`
       : `Remove ${name} as advisor?`;
-    // eslint-disable-next-line no-alert
-    if (typeof confirm === 'function' && !confirm(msg)) return;
+    if (!(await confirmAlert({ title: msg, confirmText: 'Remove', destructive: true }))) return;
 
     try {
       if (conn.type === 'observer') {
@@ -390,7 +388,7 @@ export function UserConnectionsTab({ user }: { user: AdminUser }) {
                         onPress={() => toggleSelection(cand.id)}
                         className={`flex-row items-center gap-2.5 p-2.5 ${selected ? 'bg-optio-purple/5' : 'active:bg-surface-100 dark:active:bg-dark-surface-200'}`}
                       >
-                        <View className={`w-5 h-5 rounded items-center justify-center ${selected ? 'bg-optio-purple' : 'border-2 border-surface-300 dark:border-dark-surface-400'}`}>
+                        <View className={`w-5 h-5 rounded items-center justify-center ${selected ? 'bg-optio-purple' : 'border-2 border-surface-300 dark:border-dark-surface-300'}`}>
                           {selected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
                         </View>
                         <VStack className="flex-1 min-w-0">

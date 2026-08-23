@@ -22,7 +22,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Image, RefreshControl, Alert, Platform } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,8 +32,9 @@ import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { useChildEngagement } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import {
-  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Skeleton,
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge,
 } from '@/src/components/ui';
 
@@ -110,7 +111,7 @@ function EvidenceBlockRow({ block }: { block: EvidenceBlock }) {
               'text-outline'
             }
             size={16}
-            color="#6D469B"
+            color={c.brand}
           />
         </View>
         <VStack className="flex-1 min-w-0" space="xs">
@@ -132,17 +133,17 @@ function EvidenceBlockRow({ block }: { block: EvidenceBlock }) {
             </UIText>
           )}
           {type === 'video' && (
-            <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600" numberOfLines={1}>
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
               {content.filename || 'Video'}
             </UIText>
           )}
           {type === 'audio' && (
-            <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600" numberOfLines={1}>
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
               {content.filename || 'Audio note'}
             </UIText>
           )}
           {type === 'document' && (
-            <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600" numberOfLines={2}>
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
               {content.title || content.filename || 'Document'}
             </UIText>
           )}
@@ -172,37 +173,29 @@ function TaskCard({
    *  tasks can't be deleted, so the control hides once the task is done. */
   onDelete?: () => void;
 }) {
+  const c = useThemeColors();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [completing, setCompleting] = useState(false);
 
-  const handleMarkComplete = () => {
-    const doComplete = async () => {
-      setCompleting(true);
-      try {
-        // The complete endpoint requires an evidence payload; the parent's
-        // confirmation is recorded as a text block. Awards XP to the child.
-        const form = new FormData();
-        form.append('acting_as_dependent_id', studentId);
-        form.append('evidence_type', 'text');
-        form.append('text_content', 'Marked complete by parent');
-        form.append('is_confidential', 'false');
-        await api.post(`/api/tasks/${task.id}/complete`, form);
-        onEvidenceAdded();
-      } catch (e: any) {
-        Alert.alert('Could not complete', e?.response?.data?.error?.message || e?.response?.data?.error || 'Failed to mark this task complete.');
-      } finally {
-        setCompleting(false);
-      }
-    };
+  const handleMarkComplete = async () => {
     const msg = `Mark "${task.title}" complete? They'll earn ${task.xp_value} XP.`;
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
-      if (typeof confirm !== 'function' || confirm(msg)) doComplete();
-    } else {
-      Alert.alert('Mark complete?', msg, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Mark complete', onPress: doComplete },
-      ]);
+    const ok = await confirmAlert({ title: 'Mark complete?', message: msg, confirmText: 'Mark complete' });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      // The complete endpoint requires an evidence payload; the parent's
+      // confirmation is recorded as a text block. Awards XP to the child.
+      const form = new FormData();
+      form.append('acting_as_dependent_id', studentId);
+      form.append('evidence_type', 'text');
+      form.append('text_content', 'Marked complete by parent');
+      form.append('is_confidential', 'false');
+      await api.post(`/api/tasks/${task.id}/complete`, form);
+      onEvidenceAdded();
+    } catch (e: any) {
+      showAlert('Could not complete', e?.response?.data?.error?.message || e?.response?.data?.error || 'Failed to mark this task complete.');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -320,7 +313,7 @@ function TaskCard({
               className="self-start"
             >
               <HStack className="items-center gap-2">
-                <Ionicons name="add" size={14} color="#6D469B" />
+                <Ionicons name="add" size={14} color={c.brand} />
                 <ButtonText>Add evidence</ButtonText>
               </HStack>
             </Button>
@@ -396,7 +389,7 @@ export default function ParentQuestViewPage() {
   if (loading && !data) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center" edges={['top', 'left', 'right']}>
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }
@@ -406,7 +399,7 @@ export default function ParentQuestViewPage() {
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="px-5 pt-4">
           <Pressable onPress={() => router.back()} className="flex-row items-center gap-2">
-            <Ionicons name="arrow-back" size={22} color="#6D469B" />
+            <Ionicons name="arrow-back" size={22} color={c.brand} />
             <UIText size="sm" className="text-optio-purple font-poppins-medium">Back</UIText>
           </Pressable>
         </View>
@@ -439,26 +432,17 @@ export default function ParentQuestViewPage() {
 
   // Delete a task from the CHILD's quest enrollment (parent on-behalf-of).
   // Completed tasks can't be deleted (backend rejects). Confirms first.
-  const handleDeleteTask = (task: Task) => {
-    const doDelete = async () => {
-      try {
-        await api.delete(`/api/family/quests/${questId}/tasks/${task.id}`, {
-          params: { child_id: studentId },
-        });
-        await fetchData();
-      } catch (e: any) {
-        Alert.alert('Could not remove', e?.response?.data?.error || 'Failed to remove this task.');
-      }
-    };
+  const handleDeleteTask = async (task: Task) => {
     const msg = `Remove "${task.title}"? This can't be undone.`;
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
-      if (typeof confirm !== 'function' || confirm(msg)) doDelete();
-    } else {
-      Alert.alert('Remove task?', msg, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: doDelete },
-      ]);
+    const ok = await confirmAlert({ title: 'Remove task?', message: msg, confirmText: 'Remove', destructive: true });
+    if (!ok) return;
+    try {
+      await api.delete(`/api/family/quests/${questId}/tasks/${task.id}`, {
+        params: { child_id: studentId },
+      });
+      await fetchData();
+    } catch (e: any) {
+      showAlert('Could not remove', e?.response?.data?.error || 'Failed to remove this task.');
     }
   };
 
@@ -489,24 +473,15 @@ export default function ParentQuestViewPage() {
 
   // Remove (un-enroll) the quest from the child. The enrollment-delete route
   // accepts ?student_id= for parent/advisor delegation and reverses the XP.
-  const handleRemoveQuest = () => {
-    const doRemove = async () => {
-      try {
-        await api.delete(`/api/quests/${questId}/enrollment`, { params: { student_id: studentId } });
-        router.back();
-      } catch (e: any) {
-        Alert.alert('Could not remove', e?.response?.data?.error || 'Failed to remove this quest. Try again.');
-      }
-    };
+  const handleRemoveQuest = async () => {
     const msg = 'Remove this quest from your kid? Their progress and XP for it will be removed. This cannot be undone.';
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
-      if (typeof confirm !== 'function' || confirm(msg)) doRemove();
-    } else {
-      Alert.alert('Remove quest?', msg, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: doRemove },
-      ]);
+    const ok = await confirmAlert({ title: 'Remove quest?', message: msg, confirmText: 'Remove', destructive: true });
+    if (!ok) return;
+    try {
+      await api.delete(`/api/quests/${questId}/enrollment`, { params: { student_id: studentId } });
+      router.back();
+    } catch (e: any) {
+      showAlert('Could not remove', e?.response?.data?.error || 'Failed to remove this quest. Try again.');
     }
   };
 
@@ -515,12 +490,12 @@ export default function ParentQuestViewPage() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />}
       >
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="md">
           {/* Back */}
           <Pressable onPress={() => router.back()} className="flex-row items-center gap-2">
-            <Ionicons name="arrow-back" size={22} color="#6D469B" />
+            <Ionicons name="arrow-back" size={22} color={c.brand} />
             <UIText size="sm" className="text-optio-purple font-poppins-medium">Back</UIText>
           </Pressable>
 
@@ -576,7 +551,7 @@ export default function ParentQuestViewPage() {
                 className="self-start mt-1"
               >
                 <HStack className="items-center gap-2">
-                  <Ionicons name="add" size={16} color="#6D469B" />
+                  <Ionicons name="add" size={16} color={c.brand} />
                   <ButtonText>Add a task</ButtonText>
                 </HStack>
               </Button>

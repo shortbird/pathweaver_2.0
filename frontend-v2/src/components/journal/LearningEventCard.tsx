@@ -5,7 +5,7 @@
  */
 
 import React, { memo, useState } from 'react';
-import { View, Pressable, Alert, Platform, TextInput } from 'react-native';
+import { View, Pressable, Platform, TextInput } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, PillarBadge, ActionSheet, type ActionSheetAction } from '../ui';
@@ -19,6 +19,7 @@ import { DocumentViewer } from '../feed/DocumentViewer';
 import { MediaModal } from '../feed/MediaModal';
 import { safeOpenURL } from '@/src/utils/linking';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl } from '@/src/services/imageUrl';
 
@@ -71,7 +72,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setTaskPickerVisible(false);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to attach moment to task.');
+      showAlert('Error', 'Failed to attach moment to task.');
     }
   };
 
@@ -81,7 +82,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setTaskPickerVisible(false);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to detach moment.');
+      showAlert('Error', 'Failed to detach moment.');
     }
   };
 
@@ -94,7 +95,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setTaskPickerVisible(false);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to add the moment as a new task.');
+      showAlert('Error', 'Failed to add the moment as a new task.');
     }
   };
 
@@ -208,7 +209,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setShowTopicMenu(false);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to create topic.');
+      showAlert('Error', 'Failed to create topic.');
     } finally {
       setCreatingTopic(false);
     }
@@ -228,7 +229,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setShowTopicMenu(false);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to assign to topic.');
+      showAlert('Error', 'Failed to assign to topic.');
     } finally {
       setAssigning(false);
     }
@@ -241,21 +242,19 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       await assignMomentToTopic(event.id, 'quest', questId, action);
       await onAssigned?.();
     } catch {
-      Alert.alert('Error', 'Failed to assign to quest.');
+      showAlert('Error', 'Failed to assign to quest.');
     } finally {
       setAssigning(false);
     }
   };
 
   const handleDelete = async () => {
-    const doDelete = Platform.OS === 'web'
-      ? window.confirm('Delete this learning moment? This cannot be undone.')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert('Delete Moment', 'This cannot be undone.', [
-            { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
-            { text: 'Delete', onPress: () => resolve(true), style: 'destructive' },
-          ]);
-        });
+    const doDelete = await confirmAlert({
+      title: 'Delete Moment',
+      message: 'This cannot be undone.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
 
     if (!doDelete) return;
     setDeleting(true);
@@ -266,7 +265,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       // Surface the server's actual reason (the API interceptor also reports it
       // to Sentry) instead of a generic message.
       const msg = err?.response?.data?.error || err?.message || 'Failed to delete moment.';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setDeleting(false);
     }
@@ -350,7 +349,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
           // look like the attachment failed (covers image/audio/doc/video).
           <View className="-mx-3 -mt-3 mb-3">
             <View className="w-full h-40 bg-surface-100 dark:bg-dark-surface-200 rounded-t-xl items-center justify-center">
-              <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
+              <Ionicons name="cloud-upload-outline" size={28} color={c.brand} />
               <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
                 Uploading… {uploadingPct}%
               </UIText>
@@ -386,7 +385,12 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-2 border border-surface-200 dark:border-dark-surface-300">
                 <HStack className="items-center justify-between px-2 pb-1">
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">Assign to topic</UIText>
-                  <Pressable onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(false); }} hitSlop={10}>
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(false); }}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close topic picker"
+                  >
                     <Ionicons name="close" size={16} color={c.iconMuted} />
                   </Pressable>
                 </HStack>
@@ -407,7 +411,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                     >
                       <View
                         className="w-4 h-4 rounded"
-                        style={{ backgroundColor: (t.color || '#6D469B') + '30' }}
+                        style={{ backgroundColor: (t.color || c.brand) + '30' }}
                       />
                       <UIText size="xs" className={currentTopicId === t.id ? 'font-poppins-medium text-optio-purple' : 'text-typo dark:text-dark-typo'}>
                         {t.name}
@@ -435,7 +439,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                         accessibilityLabel="Create topic"
                         style={{ opacity: !newTopicName.trim() || creatingTopic ? 0.4 : 1 }}
                       >
-                        <Ionicons name="checkmark-circle" size={22} color="#6D469B" />
+                        <Ionicons name="checkmark-circle" size={22} color={c.brand} />
                       </Pressable>
                       <Pressable
                         onPress={(e) => { e.stopPropagation?.(); setShowNewTopic(false); setNewTopicName(''); }}
@@ -451,7 +455,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                       onPress={(e) => { e.stopPropagation?.(); setShowNewTopic(true); }}
                       className="flex-row items-center gap-2 px-2 py-1.5 rounded"
                     >
-                      <Ionicons name="add-circle-outline" size={14} color="#6D469B" />
+                      <Ionicons name="add-circle-outline" size={14} color={c.brand} />
                       <UIText size="xs" className="text-optio-purple font-poppins-medium">New Topic</UIText>
                     </Pressable>
                   )}
@@ -477,7 +481,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                             <Ionicons
                               name={assigned ? 'checkmark-circle' : 'flag-outline'}
                               size={14}
-                              color={assigned ? '#6D469B' : c.iconMuted}
+                              color={assigned ? c.brand : c.iconMuted}
                             />
                             <UIText size="xs" className={assigned ? 'font-poppins-medium text-optio-purple' : 'text-typo dark:text-dark-typo'} numberOfLines={1}>
                               {q.name}
@@ -502,7 +506,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               the description; the full text is in the moment's edit/detail
               sheet, which renders every block. */}
           {evidenceText ? (
-            <UIText size="xs" className="text-typo-600 dark:text-dark-typo-700" numberOfLines={4}>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-700" numberOfLines={4}>
               {evidenceText}
             </UIText>
           ) : null}
@@ -577,7 +581,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               quest (or is hidden) to avoid repeating it. */}
           {taskChipText ? (
             <HStack className="items-center gap-1.5 px-2 py-1 rounded-lg bg-optio-purple/5 border border-optio-purple/20 self-start">
-              <Ionicons name="flag" size={12} color="#6D469B" />
+              <Ionicons name="flag" size={12} color={c.brand} />
               <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1}>
                 {taskChipText}
               </UIText>

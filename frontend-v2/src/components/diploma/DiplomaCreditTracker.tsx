@@ -87,7 +87,7 @@ export function DiplomaCreditTracker() {
       <VStack space="md">
         {/* Header */}
         <HStack className="items-center gap-2">
-          <Ionicons name="school-outline" size={20} color="#6D469B" />
+          <Ionicons name="school-outline" size={20} color={c.brand} />
           <UIText size="md" className="font-poppins-bold">Diploma Credit Tracker</UIText>
           {growCount > 0 ? (
             <Badge action="info"><BadgeText>{growCount} to revise</BadgeText></Badge>
@@ -164,11 +164,11 @@ export function DiplomaCreditTracker() {
                             {/* Subject breakdown */}
                             {subjectEntries.length > 0 && (
                               <VStack space="xs">
-                                <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Subject Credits:</UIText>
+                                <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Subject Credits:</UIText>
                                 <HStack className="flex-wrap gap-1">
                                   {subjectEntries.map(([subject, xp]) => (
                                     <View key={subject} className="px-2 py-0.5 bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded">
-                                      <UIText size="xs" className="text-typo-600 dark:text-dark-typo-600">
+                                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                                         {subject.replace(/_/g, ' ')}: {xp} XP
                                       </UIText>
                                     </View>

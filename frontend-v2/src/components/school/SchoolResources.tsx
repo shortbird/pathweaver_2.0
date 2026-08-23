@@ -10,7 +10,7 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { UIText, VStack, HStack } from '@/src/components/ui';
+import { UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SchoolSection } from './SchoolSection';
@@ -40,7 +40,7 @@ function ResourceRow({ resource }: { resource: SchoolResource }) {
       className={`flex-row items-center gap-3 bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded-xl px-3.5 py-3 ${url ? 'active:opacity-70' : 'opacity-60'}`}
     >
       <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
-        <Ionicons name={iconFor(url)} size={18} color="#6D469B" />
+        <Ionicons name={iconFor(url)} size={18} color={c.brand} />
       </View>
       <VStack className="flex-1 min-w-0">
         <UIText size="sm" className="font-poppins-semibold">{resource.title}</UIText>

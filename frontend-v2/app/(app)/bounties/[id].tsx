@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Modal, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator, Image, Modal, RefreshControl } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -17,9 +17,10 @@ import { useBountyDetail, useMyClaims, claimBounty, abandonBounty, toggleDeliver
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { displayImageUrl } from '@/src/services/imageUrl';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  PillarBadge, Divider,
+  PillarBadge,
 } from '@/src/components/ui';
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
@@ -63,7 +64,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   if (url) safeOpenURL(url);
                 }}>
                   <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
-                    <Ionicons name="videocam" size={16} color="#6D469B" />
+                    <Ionicons name="videocam" size={16} color={c.brand} />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
                       {item.content?.items?.[0]?.caption || 'Video'}
                     </UIText>
@@ -86,8 +87,8 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   if (url) safeOpenURL(url);
                 }}>
                   <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
-                    <Ionicons name="document-text" size={14} color="#6D469B" />
-                    <UIText size="xs" className="text-typo-600 dark:text-dark-typo-600 flex-1" numberOfLines={1}>
+                    <Ionicons name="document-text" size={14} color={c.brand} />
+                    <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>
                       {item.content?.filename || 'Document'}
                     </UIText>
                   </HStack>
@@ -95,7 +96,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
               )}
             </View>
             {canDelete && onDelete && (
-              <Pressable onPress={() => onDelete(idx)} className="mt-1">
+              <Pressable onPress={() => onDelete(idx)} className="mt-1" accessibilityRole="button" accessibilityLabel="Delete evidence" hitSlop={8}>
                 <Ionicons name="trash-outline" size={16} color="#EF4444" />
               </Pressable>
             )}
@@ -109,7 +110,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
             style={{ backgroundColor: 'rgba(0,0,0,0.9)' }}
             onPress={() => setImageModal(null)}
           >
-            <Pressable onPress={() => setImageModal(null)} className="absolute top-12 right-4 z-10 p-2">
+            <Pressable onPress={() => setImageModal(null)} className="absolute top-12 right-4 z-10 p-2" accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={28} color="#fff" />
             </Pressable>
             <Image source={{ uri: imageModal }} style={{ width: '92%', height: '70%' }} resizeMode="contain" />
@@ -187,7 +188,7 @@ export default function BountyDetailPage() {
       await refetch();
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to claim bounty';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setClaiming(false);
     }
@@ -200,10 +201,10 @@ export default function BountyDetailPage() {
       await turnInBounty(id, myClaim.id);
       await refetchClaims();
       await refetch();
-      Alert.alert('Submitted', 'Your bounty has been turned in for review.');
+      showAlert('Submitted', 'Your bounty has been turned in for review.');
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to turn in bounty';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setTurningIn(false);
     }
@@ -211,15 +212,12 @@ export default function BountyDetailPage() {
 
   const handleDrop = async () => {
     if (!id || !myClaim) return;
-    const confirmed = await new Promise<boolean>((resolve) => {
-      Alert.alert(
-        'Drop this bounty?',
-        'Your progress on this bounty will be removed. You can start it again later.',
-        [
-          { text: 'Keep it', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Drop bounty', style: 'destructive', onPress: () => resolve(true) },
-        ],
-      );
+    const confirmed = await confirmAlert({
+      title: 'Drop this bounty?',
+      message: 'Your progress on this bounty will be removed. You can start it again later.',
+      confirmText: 'Drop bounty',
+      cancelText: 'Keep it',
+      destructive: true,
     });
     if (!confirmed) return;
     setDropping(true);
@@ -229,7 +227,7 @@ export default function BountyDetailPage() {
       await refetch();
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to drop bounty';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setDropping(false);
     }
@@ -241,7 +239,7 @@ export default function BountyDetailPage() {
       await toggleDeliverable(id, myClaim.id, deliverableId, false);
       await refetchClaims();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to update deliverable');
+      showAlert('Error', err.response?.data?.error || 'Failed to update deliverable');
     }
   };
 
@@ -260,14 +258,14 @@ export default function BountyDetailPage() {
       await refetch();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to delete evidence';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     }
   };
 
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }
@@ -313,13 +311,13 @@ export default function BountyDetailPage() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />}
       >
         <VStack className="px-5 pt-4 max-w-3xl w-full md:mx-auto" space="lg">
 
           {/* Back button */}
           <Pressable onPress={() => router.back()} className="flex-row items-center gap-2">
-            <Ionicons name="arrow-back" size={22} color="#6D469B" />
+            <Ionicons name="arrow-back" size={22} color={c.brand} />
             <UIText size="sm" className="text-optio-purple font-poppins-medium">Bounties</UIText>
           </Pressable>
 
@@ -357,7 +355,7 @@ export default function BountyDetailPage() {
                 {(bounty.rewards || []).map((r: any, i: number) => (
                   r.type === 'xp' ? (
                     <HStack key={i} className="items-center gap-1.5 bg-optio-purple/10 px-3 py-1.5 rounded-full">
-                      <Ionicons name="star" size={14} color="#6D469B" />
+                      <Ionicons name="star" size={14} color={c.brand} />
                       <UIText size="sm" className="font-poppins-bold text-optio-purple">+{r.value} XP</UIText>
                       {r.pillar && <PillarBadge pillar={r.pillar} size="sm" />}
                     </HStack>
@@ -371,7 +369,7 @@ export default function BountyDetailPage() {
                 ))}
                 {(!bounty.rewards || bounty.rewards.length === 0) && bounty.xp_reward > 0 && (
                   <HStack className="items-center gap-1.5 bg-optio-purple/10 px-3 py-1.5 rounded-full">
-                    <Ionicons name="star" size={14} color="#6D469B" />
+                    <Ionicons name="star" size={14} color={c.brand} />
                     <UIText size="sm" className="font-poppins-bold text-optio-purple">+{bounty.xp_reward} XP</UIText>
                   </HStack>
                 )}
@@ -503,7 +501,7 @@ export default function BountyDetailPage() {
                             className="bg-optio-purple/10 px-3 py-2 rounded-lg"
                           >
                             <HStack className="items-center gap-1">
-                              <Ionicons name="cloud-upload-outline" size={16} color="#6D469B" />
+                              <Ionicons name="cloud-upload-outline" size={16} color={c.brand} />
                               <UIText size="xs" className="text-optio-purple font-poppins-medium">
                                 {isCompleted ? 'Add' : 'Upload'}
                               </UIText>

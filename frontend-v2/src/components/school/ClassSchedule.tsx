@@ -38,12 +38,12 @@ function ClassRow({ cls }: { cls: ScheduledClass }) {
             return (
               <HStack key={i} className="items-center gap-2 flex-wrap">
                 <Ionicons name="time-outline" size={13} color={c.iconMuted} />
-                <UIText size="xs" className="text-typo-600 dark:text-dark-typo-400">
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-400">
                   {[day, time].filter(Boolean).join(' · ')}
                 </UIText>
                 {room ? (
                   <HStack className="items-center gap-1 px-1.5 py-0.5 rounded bg-optio-purple/10">
-                    <Ionicons name="location-outline" size={11} color="#6D469B" />
+                    <Ionicons name="location-outline" size={11} color={c.brand} />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">{room}</UIText>
                   </HStack>
                 ) : null}
@@ -59,7 +59,7 @@ function ClassRow({ cls }: { cls: ScheduledClass }) {
           </UIText>
           {cls.location ? (
             <HStack className="items-center gap-1 px-1.5 py-0.5 rounded bg-optio-purple/10">
-              <Ionicons name="location-outline" size={11} color="#6D469B" />
+              <Ionicons name="location-outline" size={11} color={c.brand} />
               <UIText size="xs" className="text-optio-purple font-poppins-medium">{cls.location}</UIText>
             </HStack>
           ) : null}

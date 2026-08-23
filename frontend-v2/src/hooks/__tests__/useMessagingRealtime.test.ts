@@ -3,6 +3,17 @@
  * state-patching helpers shared by ChatWindow/GroupChatWindow.
  */
 
+import { renderHook, act } from '@testing-library/react-native';
+import {
+  useMessagingRealtime,
+  appendRealtimeMessage,
+  patchMessageReactions,
+  patchMessageEdited,
+  patchMessageDeleted,
+} from '../useMessagingRealtime';
+import type { Message } from '../useMessages';
+import * as supabaseClientModule from '@/src/services/supabaseClient';
+
 jest.mock('@/src/services/supabaseClient', () => {
   const listeners: Record<string, (arg: any) => void> = {};
   const channel: any = {
@@ -18,17 +29,6 @@ jest.mock('@/src/services/supabaseClient', () => {
   };
   return { __esModule: true, supabase, default: supabase, __mock: { listeners, channel, supabase } };
 });
-
-import { renderHook, act } from '@testing-library/react-native';
-import {
-  useMessagingRealtime,
-  appendRealtimeMessage,
-  patchMessageReactions,
-  patchMessageEdited,
-  patchMessageDeleted,
-} from '../useMessagingRealtime';
-import type { Message } from '../useMessages';
-import * as supabaseClientModule from '@/src/services/supabaseClient';
 
 const { listeners, channel, supabase } = (supabaseClientModule as any).__mock;
 

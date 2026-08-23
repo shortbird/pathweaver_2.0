@@ -2,6 +2,12 @@
  * Pathway selection screen tests - loads pathways, preselects current enrollment,
  * and saves a choice (then navigates back).
  */
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import SelectPathwayScreen from '../select-pathway';
+import { oeaAPI } from '@/src/services/api';
+import { router } from 'expo-router';
+
 jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 
 const mockSearchParams = { studentId: 'stu-1', studentName: 'Ada' };
@@ -9,12 +15,6 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) },
   useLocalSearchParams: () => mockSearchParams,
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import SelectPathwayScreen from '../select-pathway';
-import { oeaAPI } from '@/src/services/api';
-import { router } from 'expo-router';
 
 const PATHWAYS = [
   {

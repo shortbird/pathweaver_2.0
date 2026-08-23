@@ -3,6 +3,13 @@
  * lesson cards, suggested tasks carousel, task creation wizard integration.
  */
 
+import React from 'react';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
+import CourseDetailScreen from '../[id]';
+import api from '@/src/services/api';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -18,13 +25,6 @@ jest.mock('@/src/services/tokenStore', () => ({
 jest.mock('@/src/services/supabaseClient', () => ({
   supabase: { auth: { signInWithOAuth: jest.fn() } },
 }));
-
-import React from 'react';
-import { render, waitFor, fireEvent } from '@testing-library/react-native';
-import { useLocalSearchParams } from 'expo-router';
-import CourseDetailScreen from '../[id]';
-import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 const mockCourse = {
   id: 'course-1',

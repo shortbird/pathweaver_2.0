@@ -40,7 +40,7 @@ function NavLink({ item }: { item: NavItem }) {
       <Ionicons
         name={isActive ? item.iconActive : item.icon}
         size={22}
-        color={isActive ? '#6D469B' : c.icon}
+        color={isActive ? c.brand : c.icon}
       />
       <UIText
         size="sm"
@@ -71,7 +71,7 @@ function SidebarNotificationLink() {
         <Ionicons
           name={isActive ? 'notifications' : 'notifications-outline'}
           size={18}
-          color={isActive ? '#6D469B' : c.icon}
+          color={isActive ? c.brand : c.icon}
         />
         {unreadCount > 0 && (
           <View style={{

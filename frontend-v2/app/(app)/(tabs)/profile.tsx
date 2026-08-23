@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useRef, useMemo } from 'react';
-import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch, Image, Share } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Image, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
@@ -12,21 +12,19 @@ import { useColorScheme } from 'nativewind';
 import * as Updates from 'expo-updates';
 import { UpdateDiagnosticsModal } from '@/src/components/debug/UpdateDiagnosticsModal';
 import * as Application from 'expo-application';
-import Svg, { Circle as SvgCircle } from 'react-native-svg';
-import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
+import { requestAccountDeletion, cancelAccountDeletion } from '@/src/utils/accountDeletion';
 import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
 import { useIsParent } from '@/src/hooks/useStartSomething';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import { pillars as pillarConfig } from '@/src/config/pillars';
 import {
-  VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Badge, BadgeText, Divider, Avatar, AvatarFallbackText, AvatarImage,
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider, Avatar, AvatarFallbackText, AvatarImage,
   Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
@@ -144,7 +142,7 @@ export default function ProfileScreen() {
       if (body?.error === 'parent_required' && body?.message) {
         setInviteNotice(body.message);
       } else {
-        Alert.alert('Error', body?.error || 'Could not create an invite link');
+        showAlert('Error', body?.error || 'Could not create an invite link');
       }
     } finally {
       setInvitingObserver(false);
@@ -157,56 +155,30 @@ export default function ProfileScreen() {
     setInviteNotice(null);
   };
 
-  const handleRemoveObserver = (linkId: string, name: string) => {
-    Alert.alert('Remove Observer', `Remove ${name} from your observers?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: async () => {
-          try {
-            await api.delete(`/api/observers/${linkId}/remove`);
-            Alert.alert('Removed', `${name} has been removed as an observer.`);
-            refetch();
-          } catch {
-            Alert.alert('Error', 'Failed to remove observer');
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleRequestDeletion = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will schedule your account for permanent deletion in 30 days. You can cancel within the grace period.\n\nAll your data will be permanently deleted after 30 days. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete My Account', style: 'destructive', onPress: async () => {
-            setDeletionRequesting(true);
-            try {
-              await api.post('/api/users/delete-account', { reason: 'User requested deletion' });
-              Alert.alert('Scheduled', 'Account deletion scheduled. You have 30 days to cancel.');
-              refetch();
-            } catch (err: any) {
-              Alert.alert('Error', err.response?.data?.error || 'Failed to request account deletion');
-            } finally {
-              setDeletionRequesting(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleCancelDeletion = async () => {
+  const handleRemoveObserver = async (linkId: string, name: string) => {
+    const confirmed = await confirmAlert({
+      title: 'Remove Observer',
+      message: `Remove ${name} from your observers?`,
+      confirmText: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
-      await api.post('/api/users/cancel-deletion', {});
-      Alert.alert('Cancelled', 'Account deletion has been cancelled.');
+      await api.delete(`/api/observers/${linkId}/remove`);
+      showAlert('Removed', `${name} has been removed as an observer.`);
       refetch();
-    } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to cancel deletion');
+    } catch {
+      showAlert('Error', 'Failed to remove observer');
     }
   };
+
+  const handleRequestDeletion = () =>
+    requestAccountDeletion({
+      onRequestingChange: setDeletionRequesting,
+      onScheduled: refetch,
+    });
+
+  const handleCancelDeletion = () => cancelAccountDeletion(refetch);
 
   // A date of birth is not freely editable once it has been attested through an
   // age gate, and never by a parent-managed account. The backend is the gate
@@ -263,7 +235,7 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!dobLocked && dobIsUnder13) {
-      Alert.alert(
+      showAlert(
         'Parent Account Required',
         'Accounts for children under 13 must be managed by a parent or guardian. Ask them to correct this date from their account.'
       );
@@ -290,7 +262,7 @@ export default function ProfileScreen() {
       // Update authStore user
       useAuthStore.getState().loadUser();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to update profile');
+      showAlert('Error', err.response?.data?.error || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -353,7 +325,7 @@ export default function ProfileScreen() {
                 <Heading size="xl">{user?.display_name || `${user?.first_name} ${user?.last_name}`}</Heading>
                 {memberSince && <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">Member since {memberSince}</UIText>}
                 <Pressable onPress={openEdit} className="flex-row items-center gap-1 mt-1">
-                  <Ionicons name="pencil-outline" size={14} color="#6D469B" />
+                  <Ionicons name="pencil-outline" size={14} color={c.brand} />
                   <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit Profile</UIText>
                 </Pressable>
                 {(user as any)?.bio ? (
@@ -428,7 +400,7 @@ export default function ProfileScreen() {
                       const pc = pillarConfig[pillar];
                       return (
                         <HStack key={`${pillar}-${idx}`} className="items-center gap-1.5">
-                          <Ionicons name={pc?.iconFilled || 'ellipse'} size={14} color={pc?.color || '#6D469B'} />
+                          <Ionicons name={pc?.iconFilled || 'ellipse'} size={14} color={pc?.color || c.brand} />
                           <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">{pc?.label || pillar}</UIText>
                           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp.toLocaleString()}</UIText>
                         </HStack>
@@ -473,7 +445,7 @@ export default function ProfileScreen() {
                   <Pressable
                     onPress={async () => {
                       if (!portfolioPublic) {
-                        Alert.alert('Private Portfolio', 'Make your portfolio public first to share it.');
+                        showAlert('Private Portfolio', 'Make your portfolio public first to share it.');
                         return;
                       }
                       const slug = portfolioSlug || (user as any)?.portfolio_slug || user?.id;
@@ -506,7 +478,7 @@ export default function ProfileScreen() {
                     <Ionicons
                       name={portfolioCopied ? 'checkmark-circle' : 'share-outline'}
                       size={16}
-                      color={portfolioCopied ? '#16A34A' : portfolioPublic ? '#6D469B' : c.iconMuted}
+                      color={portfolioCopied ? '#16A34A' : portfolioPublic ? c.brand : c.iconMuted}
                     />
                     <UIText size="xs" className={`font-poppins-medium ${
                       portfolioCopied ? 'text-green-700' : portfolioPublic ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'
@@ -590,8 +562,8 @@ export default function ProfileScreen() {
             <Pressable onPress={() => router.push('/(app)/(tabs)/family' as any)}>
               <Card variant="elevated" size="md">
                 <HStack className="items-center gap-3">
-                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="people" size={22} color="#6D469B" />
+                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: `${c.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="people" size={22} color={c.brand} />
                   </View>
                   <VStack className="flex-1">
                     <UIText size="sm" className="font-poppins-semibold">Family Dashboard</UIText>
@@ -638,8 +610,8 @@ export default function ProfileScreen() {
                 // A minor asking: the server names the parent to ask, so say
                 // that plainly rather than showing a failure.
                 <HStack className="items-start gap-2 p-3 rounded-xl bg-surface-50 dark:bg-dark-surface-50">
-                  <Ionicons name="information-circle-outline" size={18} color="#6D469B" style={{ marginTop: 1 }} />
-                  <UIText size="sm" className="flex-1 text-typo-600 dark:text-dark-typo-400">
+                  <Ionicons name="information-circle-outline" size={18} color={c.brand} style={{ marginTop: 1 }} />
+                  <UIText size="sm" className="flex-1 text-typo-500 dark:text-dark-typo-400">
                     {inviteNotice}
                   </UIText>
                 </HStack>
@@ -650,7 +622,7 @@ export default function ProfileScreen() {
                     works once, and expires in 7 days.
                   </UIText>
                   <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4">
-                    <UIText size="sm" className="text-typo-600 dark:text-dark-typo-400" selectable>
+                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-400" selectable>
                       {inviteLink}
                     </UIText>
                   </View>
@@ -839,7 +811,7 @@ export default function ProfileScreen() {
                     { icon: 'globe-outline' as const, text: 'Your profile name and skill progress' },
                   ].map((item, idx) => (
                     <HStack key={idx} className="items-center gap-3">
-                      <Ionicons name={item.icon} size={16} color="#6D469B" />
+                      <Ionicons name={item.icon} size={16} color={c.brand} />
                       <UIText size="xs" className="text-typo-500 flex-1 dark:text-dark-typo-500">{item.text}</UIText>
                     </HStack>
                   ))}
@@ -882,7 +854,7 @@ export default function ProfileScreen() {
                         setPortfolioPublic(true);
                         setShowFerpaConsent(false);
                       } catch (err: any) {
-                        Alert.alert('Error', err.response?.data?.message || 'Failed to make portfolio public');
+                        showAlert('Error', err.response?.data?.message || 'Failed to make portfolio public');
                       } finally {
                         setMakingPublic(false);
                       }

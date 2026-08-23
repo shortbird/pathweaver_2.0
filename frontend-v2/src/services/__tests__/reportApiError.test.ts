@@ -8,6 +8,9 @@
  * collapse into one unactionable bucket.
  */
 
+import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
+import { captureException, captureMessage } from '@/src/services/sentry';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -25,9 +28,6 @@ jest.mock('@/src/services/sentry', () => ({
   setSentryUser: jest.fn(),
   wrapWithSentry: (c: unknown) => c,
 }));
-
-import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
-import { captureException, captureMessage } from '@/src/services/sentry';
 
 function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get') {
   return {

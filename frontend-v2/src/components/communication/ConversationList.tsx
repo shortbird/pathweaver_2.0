@@ -114,19 +114,20 @@ const ContactRow = React.memo(function ContactRow({
   iconMuted,
   onPress,
 }: ContactRowProps) {
+  const c = useThemeColors();
   const name = contact.is_support ? 'Optio Support' : getDisplayName(contact);
-  const relColor = contact.is_support ? '#6D469B' : (relationshipColors[contact.relationship] || '#6B7280');
+  const relColor = contact.is_support ? c.brand : (relationshipColors[contact.relationship] || c.textMuted);
 
   return (
     <Pressable
       onPress={() => onPress(contact)}
       className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
-      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
+      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: c.brand } : undefined}
     >
       {contact.is_support ? (
         <View
           className="w-12 h-12 rounded-full items-center justify-center"
-          style={{ backgroundColor: '#6D469B' }}
+          style={{ backgroundColor: c.brand }}
         >
           <Ionicons name="headset" size={22} color="#fff" />
         </View>
@@ -144,7 +145,7 @@ const ContactRow = React.memo(function ContactRow({
           <View className="flex-row items-center gap-2 flex-1">
             <UIText
               size="sm"
-              className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
+              className={`font-poppins-semibold ${contact.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
               numberOfLines={1}
             >
               {name}
@@ -203,15 +204,16 @@ const GroupRow = React.memo(function GroupRow({
   iconMuted,
   onPress,
 }: GroupRowProps) {
+  const c = useThemeColors();
   return (
     <Pressable
       onPress={() => onPress(group)}
       className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
-      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
+      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: c.brand } : undefined}
     >
       <View
         className="w-12 h-12 rounded-full items-center justify-center"
-        style={{ backgroundColor: '#6D469B' }}
+        style={{ backgroundColor: c.brand }}
       >
         <Ionicons name="people" size={22} color="#fff" />
       </View>
@@ -219,7 +221,7 @@ const GroupRow = React.memo(function GroupRow({
         <View className="flex-row items-center justify-between">
           <UIText
             size="sm"
-            className={`font-poppins-semibold ${group.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
+            className={`font-poppins-semibold ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
             numberOfLines={1}
           >
             {group.name}
@@ -388,8 +390,8 @@ export function ConversationList({
               </UIText>
             </View>
             {canCreateGroups && (
-              <Pressable onPress={onCreateGroup} className="p-1">
-                <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+              <Pressable onPress={onCreateGroup} className="p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Create group">
+                <Ionicons name="add-circle-outline" size={20} color={c.brand} />
               </Pressable>
             )}
           </View>
@@ -413,7 +415,7 @@ export function ConversationList({
           className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 active:bg-surface-100 dark:active:bg-dark-surface-200"
         >
           <View className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10">
-            <Ionicons name="people-circle-outline" size={22} color="#6D469B" />
+            <Ionicons name="people-circle-outline" size={22} color={c.brand} />
           </View>
           <View className="flex-1 ml-3">
             <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">
@@ -462,8 +464,8 @@ export function ConversationList({
         <View className="p-4 border-b border-surface-200 dark:border-dark-surface-300 flex-row items-center justify-between">
           <Heading size="lg">Messages</Heading>
           {onCompose && (
-            <Pressable onPress={onCompose} accessibilityLabel="New message" hitSlop={8} className="p-1">
-              <Ionicons name="create-outline" size={22} color="#6D469B" />
+            <Pressable onPress={onCompose} accessibilityRole="button" accessibilityLabel="New message" hitSlop={8} className="p-1">
+              <Ionicons name="create-outline" size={22} color={c.brand} />
             </Pressable>
           )}
         </View>
@@ -494,7 +496,7 @@ export function ConversationList({
             hitSlop={8}
             className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10 active:bg-optio-purple/20"
           >
-            <Ionicons name="create-outline" size={20} color="#6D469B" />
+            <Ionicons name="create-outline" size={20} color={c.brand} />
           </Pressable>
         )}
       </View>

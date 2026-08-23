@@ -3,15 +3,15 @@
  * Tests: camera, file picker (multi-select), save (JSON create + shared upload), close reset.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { CaptureSheet } from '../CaptureSheet';
 import api from '@/src/services/api';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 const mockOnClose = jest.fn();
 const mockOnCaptured = jest.fn();

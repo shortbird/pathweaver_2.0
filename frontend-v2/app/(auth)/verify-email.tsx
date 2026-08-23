@@ -70,7 +70,7 @@ export default function VerifyEmailScreen() {
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="lg" className="items-center py-4">
             <View className="w-16 h-16 rounded-full bg-optio-purple/10 items-center justify-center">
-              <Ionicons name="mail-outline" size={32} color="#6D469B" />
+              <Ionicons name="mail-outline" size={32} color={c.brand} />
             </View>
             <VStack space="sm" className="items-center">
               <Heading size="xl" className="text-center">Check Your Email</Heading>
@@ -99,7 +99,7 @@ export default function VerifyEmailScreen() {
       <Card variant="elevated" size="lg" className="max-w-md w-full">
         <VStack space="lg" className="items-center py-4">
           <View className="w-16 h-16 rounded-full bg-optio-purple/10 items-center justify-center">
-            <Ionicons name="mail-outline" size={32} color="#6D469B" />
+            <Ionicons name="mail-outline" size={32} color={c.brand} />
           </View>
 
           <VStack space="sm" className="items-center">

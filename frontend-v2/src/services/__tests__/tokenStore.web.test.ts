@@ -8,11 +8,11 @@
  * Native behavior is covered by tokenStore.test.ts.
  */
 
+import * as SecureStore from 'expo-secure-store';
+
 jest.mock('react-native', () => ({
   Platform: { OS: 'web', select: (obj: any) => obj.web ?? obj.default },
 }));
-
-import * as SecureStore from 'expo-secure-store';
 
 // Load tokenStore lazily inside isolated module registries so we can seed
 // localStorage *before* the module's top-level purge runs.

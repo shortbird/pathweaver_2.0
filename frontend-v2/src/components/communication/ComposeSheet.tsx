@@ -54,7 +54,7 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
 
   const renderItem = ({ item }: { item: Contact }) => {
     const name = item.is_support ? 'Optio Support' : getDisplayName(item);
-    const relColor = item.is_support ? '#6D469B' : (relationshipColors[item.relationship] || '#6B7280');
+    const relColor = item.is_support ? c.brand : (relationshipColors[item.relationship] || c.textMuted);
     return (
       <Pressable
         onPress={() => { onSelect(item); }}
@@ -63,7 +63,7 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
         {item.is_support ? (
           <View
             className="w-12 h-12 rounded-full items-center justify-center"
-            style={{ backgroundColor: '#6D469B' }}
+            style={{ backgroundColor: c.brand }}
           >
             <Ionicons name="headset" size={22} color="#fff" />
           </View>

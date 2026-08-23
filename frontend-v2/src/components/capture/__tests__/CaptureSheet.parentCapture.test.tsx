@@ -3,14 +3,14 @@
  * Uses JSON POST (not FormData) to create moments, then shared upload endpoint for files.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { CaptureSheet } from '../CaptureSheet';
 import api from '@/src/services/api';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   jest.clearAllMocks();

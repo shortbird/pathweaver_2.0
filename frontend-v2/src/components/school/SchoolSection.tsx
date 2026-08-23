@@ -43,7 +43,7 @@ export function SchoolSection({ title, icon, count, intro, children }: SchoolSec
       >
         <HStack className={`items-center gap-2.5 ${collapsed ? '' : 'mb-3'}`}>
           <View className="w-8 h-8 rounded-lg bg-optio-purple/10 items-center justify-center">
-            <Ionicons name={icon} size={17} color="#6D469B" />
+            <Ionicons name={icon} size={17} color={c.brand} />
           </View>
           <Heading size="sm" className="flex-1">{title}{count ? ` (${count})` : ''}</Heading>
           <Ionicons

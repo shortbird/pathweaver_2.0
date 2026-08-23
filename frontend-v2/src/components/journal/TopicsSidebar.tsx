@@ -138,7 +138,7 @@ function TopicCard({
 }) {
   const c = useThemeColors();
   const iconName = iconMap[topic.icon || 'default'] || iconMap.default;
-  const tint = topic.color || '#6D469B';
+  const tint = topic.color || c.brand;
   return (
     <View style={{ width: '48%' }}>
       <Pressable
@@ -199,7 +199,7 @@ function QuestTile({
   onPress: () => void;
 }) {
   const c = useThemeColors();
-  const tint = '#6D469B';
+  const tint = c.brand;
   const iconName = iconMap[topic.icon || 'flag'] || iconMap.flag;
   return (
     <View style={{ width: '48%' }}>
@@ -310,7 +310,7 @@ export function TopicsSidebar({
                   accessibilityLabel="New topic"
                   className="w-7 h-7 rounded-full bg-optio-purple/10 items-center justify-center active:bg-optio-purple/20"
                 >
-                  <Ionicons name="add" size={16} color="#6D469B" />
+                  <Ionicons name="add" size={16} color={c.brand} />
                 </Pressable>
               )}
             </HStack>

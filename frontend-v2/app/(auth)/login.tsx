@@ -5,8 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import {
-  VStack, HStack, Heading, UIText, Button, ButtonText,
-  Card, Input, InputField, InputSlot, InputIcon, Divider,
+  VStack, Heading, UIText, Button, ButtonText,
+  Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 
 const LOGO_URI =

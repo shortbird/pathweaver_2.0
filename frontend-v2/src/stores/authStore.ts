@@ -74,6 +74,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  /** Set when an OAuth sign-up needs the user to accept the Terms of Service
+   *  before the account is created. Drives the /(auth)/accept-terms screen. */
+  pendingTosToken: string | null;
 
   // Actions
   loadUser: () => Promise<void>;
@@ -100,6 +103,10 @@ interface AuthState {
   }) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<string>;
+  /** Accept the pending OAuth TOS and finish creating the session. */
+  acceptPendingTos: () => Promise<void>;
+  /** Abandon the pending OAuth sign-up (no account/session is created). */
+  declinePendingTos: () => void;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -109,6 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   error: null,
+  pendingTosToken: null,
 
   loadUser: async () => {
     try {
@@ -324,19 +332,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (data.requires_tos_acceptance) {
-        // For now, auto-accept TOS (can add modal later)
-        const tosRes = await api.post('/api/auth/google/accept-tos', {
-          tos_acceptance_token: data.tos_acceptance_token,
-          accepted_tos: true,
-          accepted_privacy: true,
-        });
-        await tokenStore.setTokens(tosRes.data.app_access_token, tosRes.data.app_refresh_token);
-        set({
-          user: tosRes.data.user,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
+        // New user: the backend won't mint a session until they accept the
+        // Terms of Service. Park the acceptance token and send them to the
+        // consent screen — never accept on their behalf.
+        set({ pendingTosToken: data.tos_acceptance_token, isLoading: false, error: null });
+        router.replace('/(auth)/accept-terms' as any);
         return;
       }
 
@@ -352,6 +352,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: message });
       throw err;
     }
+  },
+
+  acceptPendingTos: async () => {
+    const token = get().pendingTosToken;
+    if (!token) return;
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await api.post('/api/auth/google/accept-tos', {
+        tos_acceptance_token: token,
+        accepted_tos: true,
+        accepted_privacy: true,
+      });
+      await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
+      set({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        pendingTosToken: null,
+      });
+      router.replace(landingRouteForUser(data.user) as any);
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Could not finish signing in');
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  declinePendingTos: () => {
+    set({ pendingTosToken: null, isLoading: false, error: null });
   },
 
   appleLoginWeb: async () => {
@@ -382,19 +412,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (data.requires_tos_acceptance) {
-        // Reuse the same TOS acceptance endpoint as Google (shared helper).
-        const tosRes = await api.post('/api/auth/google/accept-tos', {
-          tos_acceptance_token: data.tos_acceptance_token,
-          accepted_tos: true,
-          accepted_privacy: true,
-        });
-        await tokenStore.setTokens(tosRes.data.app_access_token, tosRes.data.app_refresh_token);
-        set({
-          user: tosRes.data.user,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
+        // Same consent flow as Google — acceptPendingTos posts to the shared
+        // accept-tos endpoint.
+        set({ pendingTosToken: data.tos_acceptance_token, isLoading: false, error: null });
+        router.replace('/(auth)/accept-terms' as any);
         return;
       }
 

@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { View, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge, Divider } from '../ui';
+import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Props {

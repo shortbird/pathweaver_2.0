@@ -2,6 +2,15 @@
  * useNotifications hook tests - fetch, mark read, delete, unread count.
  */
 
+import api from '@/src/services/api';
+import {
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+  markAllRead,
+  deleteNotification,
+} from '../useNotifications';
+
 jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
@@ -23,16 +32,6 @@ jest.mock('@/src/services/supabaseClient', () => ({
     removeChannel: jest.fn(),
   },
 }));
-
-import { renderHook, act, waitFor } from '@testing-library/react-native';
-import api from '@/src/services/api';
-import {
-  fetchNotifications,
-  fetchUnreadCount,
-  markNotificationRead,
-  markAllRead,
-  deleteNotification,
-} from '../useNotifications';
 
 const mockNotifications = [
   { id: 'n1', user_id: 'u1', type: 'task_approved', title: 'Task Approved!', message: '+50 XP', is_read: false, created_at: '2026-03-31T10:00:00Z', link: '/quests', metadata: null, organization_id: null },

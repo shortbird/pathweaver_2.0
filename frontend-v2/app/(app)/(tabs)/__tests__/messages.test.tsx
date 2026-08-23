@@ -2,6 +2,17 @@
  * Messages screen tests - mobile UX (list → chat → back) and desktop split-panel.
  */
 
+import React from 'react';
+import { Platform } from 'react-native';
+import { render, fireEvent } from '@testing-library/react-native';
+import MessagesScreen from '../messages';
+import { useConversations, useContacts, useGroups, useChildren } from '@/src/hooks/useMessages';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import {
+  createMockContact,
+  createMockGroup,
+} from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -86,18 +97,6 @@ jest.mock('@/src/stores/uiStore', () => ({
     return selector(state);
   },
 }));
-
-import React from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
-import { render, fireEvent } from '@testing-library/react-native';
-import MessagesScreen from '../messages';
-import { useConversations, useContacts, useGroups, useChildren } from '@/src/hooks/useMessages';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import {
-  createMockContact,
-  createMockConversation,
-  createMockGroup,
-} from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();

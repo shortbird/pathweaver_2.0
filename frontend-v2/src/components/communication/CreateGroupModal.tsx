@@ -25,6 +25,9 @@ function getDisplayName(c: Contact) {
 
 export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
   const c = useThemeColors();
+  // The contact .map() callbacks below shadow `c` with a Contact, so hoist the
+  // brand color where those callbacks can still reach it.
+  const brandColor = c.brand;
   const { contacts } = useContacts();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -157,8 +160,8 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">
                       {getDisplayName(c)}
                     </UIText>
-                    <Pressable onPress={() => toggle(c)}>
-                      <Ionicons name="close-circle" size={16} color="#6D469B" />
+                    <Pressable onPress={() => toggle(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${getDisplayName(c)}`}>
+                      <Ionicons name="close-circle" size={16} color={brandColor} />
                     </Pressable>
                   </View>
                 ))}
@@ -201,10 +204,10 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
                               <AvatarFallbackText>{cName.charAt(0).toUpperCase()}</AvatarFallbackText>
                             )}
                           </Avatar>
-                          <UIText size="sm" className="flex-1 ml-2 text-typo-900">
+                          <UIText size="sm" className="flex-1 ml-2 text-typo dark:text-dark-typo">
                             {cName}
                           </UIText>
-                          {isSelected && <Ionicons name="checkmark-circle" size={20} color="#6D469B" />}
+                          {isSelected && <Ionicons name="checkmark-circle" size={20} color={brandColor} />}
                         </Pressable>
                       );
                     })
@@ -223,7 +226,7 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
           {/* Footer */}
           <View className="flex-row justify-end gap-3 px-5 py-4 border-t border-surface-200 dark:border-dark-surface-300">
             <Pressable onPress={handleClose} className="px-4 py-2.5 rounded-lg">
-              <UIText size="sm" className="text-typo-600 font-poppins-medium">Cancel</UIText>
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">Cancel</UIText>
             </Pressable>
             <Button
               size="md"

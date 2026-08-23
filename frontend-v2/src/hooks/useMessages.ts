@@ -3,11 +3,10 @@
  * Follows the same useState/useEffect pattern as useBounties.ts.
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { messageAPI, groupAPI, type MessageAttachment, type SendMessageExtras } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppActive } from './useAppActive';
-import { captureException } from '../services/sentry';
 
 // ── Types ──
 
@@ -102,7 +101,7 @@ export interface Group {
   unread_count: number;
   // Matches GET /api/groups/:id — each member row carries its `role` in the
   // group ('admin' | 'member') plus a hydrated `user` object.
-  members?: Array<{
+  members?: {
     id: string;
     user_id: string;
     role: string;
@@ -119,7 +118,7 @@ export interface Group {
     first_name?: string;
     last_name?: string;
     avatar_url?: string | null;
-  }>;
+  }[];
 }
 
 // ── Hooks ──

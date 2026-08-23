@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, Alert, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Skeleton,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
@@ -40,7 +41,7 @@ function ApprovalCard({ request, onApprove, onDeny }: {
     try {
       await onApprove();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to approve');
+      showAlert('Error', err.response?.data?.error || 'Failed to approve');
     } finally {
       setResponding(false);
     }
@@ -53,7 +54,7 @@ function ApprovalCard({ request, onApprove, onDeny }: {
       setDenyOpen(false);
       setDenyReason('');
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to deny');
+      showAlert('Error', err.response?.data?.error || 'Failed to deny');
     } finally {
       setResponding(false);
     }
@@ -144,6 +145,8 @@ export default function ApprovalsScreen() {
           <Pressable
             onPress={() => router.back()}
             className="w-10 h-10 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="chevron-back" size={20} color={c.icon} />
           </Pressable>

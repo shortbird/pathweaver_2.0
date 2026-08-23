@@ -219,6 +219,7 @@ const bump = { 1: 22, 2: 19, 3: 17, 4: 15 } as const;
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
 function Runs({ runs, baseSize, color }: { runs: RichRun[]; baseSize: number; color: string }) {
+  const c = useThemeColors();
   return (
     <>
       {runs.map((r, i) => (
@@ -229,7 +230,7 @@ function Runs({ runs, baseSize, color }: { runs: RichRun[]; baseSize: number; co
             fontStyle: r.italic ? 'italic' : 'normal',
             textDecorationLine: r.underline && r.strike ? 'underline line-through'
               : r.underline ? 'underline' : r.strike ? 'line-through' : 'none',
-            color: r.href ? '#6D469B' : color,
+            color: r.href ? c.brand : color,
             fontSize: baseSize,
           }}
           onPress={r.href ? () => Linking.openURL(r.href!).catch(() => {}) : undefined}
@@ -280,7 +281,7 @@ export default function RichBody({ text, size = 14 }: RichBodyProps) {
             );
           case 'quote':
             return (
-              <View key={i} style={{ borderLeftWidth: 3, borderLeftColor: '#6D469B55', paddingLeft: 10 }}>
+              <View key={i} style={{ borderLeftWidth: 3, borderLeftColor: `${c.brand}55`, paddingLeft: 10 }}>
                 <Text style={{ fontSize: size, lineHeight: size * 1.5 }}>
                   <Runs runs={b.runs} baseSize={size} color={c.textMuted} />
                 </Text>

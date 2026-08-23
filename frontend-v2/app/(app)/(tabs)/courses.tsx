@@ -14,6 +14,7 @@ import api from '@/src/services/api';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon, Badge, BadgeText,
+  toast,
 } from '@/src/components/ui';
 
 const statusBadgeConfig: Record<string, { action: string; label: string }> = {
@@ -42,7 +43,7 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
           </View>
         ) : (
           <View className="-mx-3 -mt-3 mb-3 h-40 bg-optio-purple/10 items-center justify-center rounded-t-xl">
-            <Ionicons name="school-outline" size={40} color="#6D469B" />
+            <Ionicons name="school-outline" size={40} color={c.brand} />
             {canManage && statusConfig && (
               <View className="absolute top-2 right-2">
                 <Badge action={statusConfig.action as any}><BadgeText>{statusConfig.label}</BadgeText></Badge>
@@ -89,7 +90,7 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
           >
             <ButtonText>
               <HStack className="items-center gap-1">
-                <Ionicons name="eye-outline" size={14} color="#6D469B" />
+                <Ionicons name="eye-outline" size={14} color={c.brand} />
                 <UIText size="xs" className="font-poppins-medium text-optio-purple"> View</UIText>
               </HStack>
             </ButtonText>
@@ -102,7 +103,7 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
           >
             <ButtonText>
               <HStack className="items-center gap-1">
-                <Ionicons name="create-outline" size={14} color="#6D469B" />
+                <Ionicons name="create-outline" size={14} color={c.brand} />
                 <UIText size="xs" className="font-poppins-medium text-optio-purple"> Edit</UIText>
               </HStack>
             </ButtonText>
@@ -115,6 +116,10 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
 
 export default function CoursesScreen() {
   const tc = useThemeColors();
+  const { courses, loading, search, setSearch, isSuperadmin, canCreateCourse } = useCourseCatalog();
+  const user = useAuthStore((s) => s.user);
+  const canManageCourses = isSuperadmin || canCreateCourse;
+
   if (Platform.OS !== 'web') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
@@ -124,10 +129,6 @@ export default function CoursesScreen() {
       </SafeAreaView>
     );
   }
-
-  const { courses, loading, search, setSearch, isSuperadmin, canCreateCourse } = useCourseCatalog();
-  const user = useAuthStore((s) => s.user);
-  const canManageCourses = isSuperadmin || canCreateCourse;
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
@@ -148,9 +149,11 @@ export default function CoursesScreen() {
                     const { data } = await api.post('/api/courses', { title: 'Untitled Course' });
                     if (data?.course?.id) {
                       router.push(`/(app)/courses/${data.course.id}/edit` as any);
+                    } else {
+                      toast.error('Could not create course');
                     }
-                  } catch {
-                    // Error creating course
+                  } catch (err: any) {
+                    toast.error(err?.response?.data?.error || 'Could not create course');
                   }
                 }}
               >

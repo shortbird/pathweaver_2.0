@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, Pressable, RefreshControl, Platform, useWindowDimensions, Modal, TextInput, Alert } from 'react-native';
+import { View, ScrollView, Pressable, RefreshControl, Platform, useWindowDimensions, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,9 +12,10 @@ import { useNotifications } from '@/src/hooks/useNotifications';
 import { resolveDeepLink } from '@/src/services/deepLinkRouter';
 import api from '@/src/services/api';
 import {
-  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -29,13 +30,13 @@ const TYPE_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; color: 
   observer_added: { name: 'person-add-outline', color: '#6D469B' },
   parent_approval_required: { name: 'shield-checkmark-outline', color: '#FF9028' },
   message_received: { name: 'mail-outline', color: '#2469D1' },
-  bounty_posted: { name: 'flag-outline', color: '#E85D8A' },
+  bounty_posted: { name: 'flag-outline', color: '#EF597B' },
   bounty_claimed: { name: 'checkmark-circle-outline', color: '#16A34A' },
   bounty_submission: { name: 'cloud-upload-outline', color: '#6D469B' },
 };
 
-function getIcon(type: string) {
-  return TYPE_ICONS[type] || { name: 'notifications-outline' as const, color: '#6B7280' };
+function getIcon(type: string, fallbackColor: string) {
+  return TYPE_ICONS[type] || { name: 'notifications-outline' as const, color: fallbackColor };
 }
 
 function timeAgo(dateStr: string): string {
@@ -64,7 +65,7 @@ function NotificationCard({
   onDelete: () => void;
 }) {
   const c = useThemeColors();
-  const icon = getIcon(notification.type);
+  const icon = getIcon(notification.type, c.textMuted);
   const isAnnouncement = notification.type === 'announcement';
   const fullContent = notification.metadata?.full_content;
   const [expanded, setExpanded] = useState(false);
@@ -91,7 +92,7 @@ function NotificationCard({
             <HStack className="items-center justify-between">
               <UIText
                 size="sm"
-                className={`font-poppins-semibold flex-1 ${notification.is_read ? 'text-typo-400 dark:text-dark-typo-400' : 'text-typo-900 dark:text-dark-typo'}`}
+                className={`font-poppins-semibold flex-1 ${notification.is_read ? 'text-typo-400 dark:text-dark-typo-400' : 'text-typo dark:text-dark-typo'}`}
                 numberOfLines={1}
               >
                 {notification.title}
@@ -130,6 +131,9 @@ function NotificationCard({
           <Pressable
             onPress={(e) => { e.stopPropagation?.(); onDelete(); }}
             style={{ padding: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel="Delete notification"
+            hitSlop={8}
           >
             <Ionicons name="close" size={16} color={c.iconMuted} />
           </Pressable>
@@ -204,7 +208,7 @@ export default function NotificationsScreen() {
 
   const handleBroadcast = useCallback(async () => {
     if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
-      Alert.alert('Error', 'Title and message are required');
+      showAlert('Error', 'Title and message are required');
       return;
     }
     setBroadcasting(true);
@@ -214,13 +218,13 @@ export default function NotificationsScreen() {
         message: broadcastMessage.trim(),
         target_audience: [broadcastAudience],
       });
-      Alert.alert('Sent', `Notification sent to ${data.notifications_sent} users`);
+      showAlert('Sent', `Notification sent to ${data.notifications_sent} users`);
       setBroadcastTitle('');
       setBroadcastMessage('');
       setShowBroadcast(false);
       refetch();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to send notification');
+      showAlert('Error', err.response?.data?.error || 'Failed to send notification');
     } finally {
       setBroadcasting(false);
     }
@@ -234,7 +238,7 @@ export default function NotificationsScreen() {
       {/* Mobile header with back button */}
       {!isDesktop && (
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8, gap: 8 }}>
-          <Pressable onPress={() => router.back()} style={{ padding: 4 }}>
+          <Pressable onPress={() => router.back()} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={c.text} />
           </Pressable>
           <Heading size="xl" style={{ flex: 1 }}>Notifications</Heading>
@@ -251,7 +255,7 @@ export default function NotificationsScreen() {
         <View className="px-5 md:px-8 pt-6 pb-2 max-w-3xl w-full md:mx-auto">
           <HStack className="items-center justify-between">
             <HStack className="items-center gap-3">
-              <Pressable onPress={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-surface-100 dark:active:bg-dark-surface-200">
+              <Pressable onPress={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-surface-100 dark:active:bg-dark-surface-200" accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8}>
                 <Ionicons name="arrow-back" size={20} color={c.icon} />
               </Pressable>
               <VStack>
@@ -309,7 +313,7 @@ export default function NotificationsScreen() {
         contentContainerClassName="px-5 md:px-8 pt-3 pb-12 max-w-3xl w-full md:mx-auto"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />
         }
       >
         {/* Inline error banner — a failed fetch shows here instead of bouncing
@@ -318,7 +322,7 @@ export default function NotificationsScreen() {
           <Card variant="filled" size="sm" className="mb-3 bg-error-50 dark:bg-dark-surface-100 border-l-4 border-l-error-500">
             <HStack className="items-center gap-2">
               <Ionicons name="warning-outline" size={18} color="#E65C5C" />
-              <UIText size="xs" className="flex-1 text-typo-600 dark:text-dark-typo-500">
+              <UIText size="xs" className="flex-1 text-typo-500 dark:text-dark-typo-500">
                 {error}
               </UIText>
               <Pressable onPress={() => refetch(filter === 'unread')} hitSlop={8}>
@@ -374,7 +378,7 @@ export default function NotificationsScreen() {
             <VStack space="md">
               <HStack className="items-center justify-between">
                 <Heading size="lg">Send Notification</Heading>
-                <Pressable onPress={() => setShowBroadcast(false)}>
+                <Pressable onPress={() => setShowBroadcast(false)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
                   <Ionicons name="close" size={24} color={c.icon} />
                 </Pressable>
               </HStack>

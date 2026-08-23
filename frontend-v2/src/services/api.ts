@@ -7,6 +7,7 @@
 
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
 import { recordApiCall } from './diagnostics';
@@ -15,17 +16,20 @@ import { captureException, captureMessage } from './sentry';
 // In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits a
 // platform-appropriate host loopback / LAN IP:
 //   - Web              → http://localhost:5001 (browser on the dev machine)
-//   - iOS simulator    → LAN IP (sim shares the host's network)
+//   - iOS sim / device → the Metro bundler's host (the dev machine's LAN IP,
+//     read from Constants.expoConfig.hostUri so it works on any dev machine)
 //   - Android emulator → 10.0.2.2:5001 (Android emulator can't see the host's
 //     LAN IP from inside the VM; 10.0.2.2 is the magic alias that points back
 //     to the host loopback)
-//   - Physical device  → set EXPO_PUBLIC_API_URL explicitly (or override LAN IP)
+//   - Physical device  → set EXPO_PUBLIC_API_URL explicitly (or Metro's hostUri)
 //
 // In production builds, EAS injects EXPO_PUBLIC_API_URL=https://api.optioeducation.com.
 // If the env var is missing in a native production build we fall back to prod rather
 // than a dev URL, so a bad build can't accidentally target a developer's laptop.
 const isDev = (typeof __DEV__ !== 'undefined' && __DEV__);
-const DEV_LAN_IP = 'http://192.168.68.53:5001';
+// hostUri looks like "192.168.68.53:8081" — same machine serves Metro and Flask.
+const metroHost = Constants.expoConfig?.hostUri?.split(':')[0];
+const DEV_LAN_IP = metroHost ? `http://${metroHost}:5001` : 'http://localhost:5001';
 const ANDROID_EMULATOR_HOST = 'http://10.0.2.2:5001';
 const PROD_API = 'https://api.optioeducation.com';
 const NATIVE_FALLBACK = isDev

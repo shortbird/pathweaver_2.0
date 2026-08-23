@@ -2,6 +2,13 @@
  * Quest detail screen tests - renders quest, task list, add task button.
  */
 
+import React from 'react';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
+import QuestDetailScreen from '../[id]';
+import api from '@/src/services/api';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -14,13 +21,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { useLocalSearchParams } from 'expo-router';
-import QuestDetailScreen from '../[id]';
-import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 const mockQuest = {
   id: 'quest-1',

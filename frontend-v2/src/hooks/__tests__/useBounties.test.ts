@@ -2,15 +2,15 @@
  * useBounties hook tests - browse, claims, posted, claim/submit actions.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useBounties, useMyClaims, useMyPosted } from '../useBounties';
 import api from '@/src/services/api';
 import { setAuthAsStudent, setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockBounty, createMockClaim } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   setAuthAsStudent();

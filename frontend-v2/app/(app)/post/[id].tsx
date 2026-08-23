@@ -26,8 +26,8 @@ export default function PostDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top']}>
       <View className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100">
-        <Pressable onPress={() => router.back()} hitSlop={8} className="mr-2 p-1" accessibilityLabel="Back">
-          <Ionicons name="chevron-back" size={24} color="#6D469B" />
+        <Pressable onPress={() => router.back()} hitSlop={8} className="mr-2 p-1" accessibilityRole="button" accessibilityLabel="Back">
+          <Ionicons name="chevron-back" size={24} color={c.brand} />
         </Pressable>
         <Heading size="md">Post</Heading>
       </View>
@@ -49,7 +49,7 @@ export default function PostDetailScreen() {
                   className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
                   style={{ minHeight: 44 }}
                 >
-                  <Ionicons name="person-circle-outline" size={18} color="#6D469B" />
+                  <Ionicons name="person-circle-outline" size={18} color={c.brand} />
                   <UIText size="sm" className="text-optio-purple font-poppins-semibold">
                     View {item.student.display_name || 'student'}'s portfolio
                   </UIText>

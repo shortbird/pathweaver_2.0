@@ -10,6 +10,7 @@ import { ScrollView, ActivityIndicator, RefreshControl, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heading } from '../ui/heading';
 import { UIText } from '../ui/text';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface ScrollPageLayoutProps {
   children: React.ReactNode;
@@ -40,11 +41,12 @@ export function ScrollPageLayout({
   contentClassName = '',
   maxWidth = 'max-w-5xl',
 }: ScrollPageLayoutProps) {
+  const c = useThemeColors();
   if (loading) {
     return (
       <SafeAreaView className={`flex-1 bg-surface-50 dark:bg-dark-surface ${className}`}>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       </SafeAreaView>
     );
@@ -61,7 +63,7 @@ export function ScrollPageLayout({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#6D469B"
+              tintColor={c.brand}
             />
           ) : undefined
         }

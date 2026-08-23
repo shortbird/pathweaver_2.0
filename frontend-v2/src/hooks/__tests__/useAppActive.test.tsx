@@ -14,7 +14,7 @@ function Probe() {
 }
 
 describe('useAppActive', () => {
-  let listeners: Array<(status: AppStateStatus) => void> = [];
+  let listeners: ((status: AppStateStatus) => void)[] = [];
 
   beforeEach(() => {
     listeners = [];

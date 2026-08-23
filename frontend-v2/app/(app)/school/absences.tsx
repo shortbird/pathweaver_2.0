@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { View, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ import {
   Button, ButtonText, Card, HStack, Heading, Input, InputField, UIText, VStack, toast,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { confirmAlert } from '@/src/utils/alerts';
 import { useSchoolAbsences } from '@/src/hooks/useSchool';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -100,28 +101,27 @@ export default function AbsencesScreen() {
     }
   };
 
-  const confirmCancel = (id: string) => {
-    Alert.alert('Cancel this absence?', 'The office will see it as withdrawn.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Cancel absence',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancel(id);
-            toast.success('Absence cancelled');
-          } catch {
-            toast.error('Could not cancel absence');
-          }
-        },
-      },
-    ]);
+  const confirmCancel = async (id: string) => {
+    const ok = await confirmAlert({
+      title: 'Cancel this absence?',
+      message: 'The office will see it as withdrawn.',
+      confirmText: 'Cancel absence',
+      cancelText: 'Keep it',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await cancel(id);
+      toast.success('Absence cancelled');
+    } catch {
+      toast.error('Could not cancel absence');
+    }
   };
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top']}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8, gap: 8 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="absences-back">
+        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="absences-back" accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={c.text} />
         </Pressable>
         <Heading size="xl" style={{ flex: 1 }}>Report an absence</Heading>
@@ -129,7 +129,7 @@ export default function AbsencesScreen() {
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       ) : !students.length ? (
         <VStack className="items-center px-8 pt-20 gap-3">

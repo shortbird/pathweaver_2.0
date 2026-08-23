@@ -7,13 +7,14 @@
  */
 
 import React, { useState } from 'react';
-import { Pressable, TextInput, Alert, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 interface AddKidSheetProps {
   visible: boolean;
@@ -65,7 +66,7 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
       reset();
       onClose();
       onCreated?.();
-      Alert.alert('Added', `${name.trim()}'s profile was created.`);
+      showAlert('Added', `${name.trim()}'s profile was created.`);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message
         || err.response?.data?.error
@@ -86,6 +87,8 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>

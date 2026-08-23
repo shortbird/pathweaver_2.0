@@ -81,7 +81,7 @@ function QuarterChecklist({ compliance, deadline }: { compliance?: QuarterCompli
               size={15}
               color={item.done ? '#16A34A' : '#D4D4D4'}
             />
-            <UIText size="xs" className={item.done ? 'text-green-700' : 'text-typo-600'}>
+            <UIText size="xs" className={item.done ? 'text-green-700' : 'text-typo-500 dark:text-dark-typo-500'}>
               {item.label}
             </UIText>
           </HStack>
@@ -254,8 +254,8 @@ export default function CreditsScreen() {
         {!progress ? (
           <Card variant="outline" size="md">
             <VStack space="md" className="items-center">
-              <Ionicons name="git-branch-outline" size={28} color="#6D469B" />
-              <UIText size="sm" className="text-typo-600 text-center">
+              <Ionicons name="git-branch-outline" size={28} color={tc.brand} />
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 Choose a diploma pathway first to start tracking credits.
               </UIText>
               <Button size="md" onPress={() => router.push({
@@ -314,13 +314,13 @@ export default function CreditsScreen() {
                 parents need to be told what to do here and what's required). */}
             <Card variant="outline" size="md">
               <VStack space="sm">
-                <UIText size="sm" className="text-typo-600">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                   Use this page to enter the courses {studentName || 'your student'} is
                   currently working on — pick a subject below and add each course. Tap a
                   course to record grades or add work evidence and learning logs.
                 </UIText>
                 {data?.minimums_text && (
-                  <UIText size="sm" className="text-typo-600">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                     Each course needs at least {data.minimums_text} every quarter
                     {data?.current_quarter && data?.current_quarter_end
                       ? ` — Quarter ${data.current_quarter} ends ${formatDeadline(data.current_quarter_end)}`
@@ -332,7 +332,7 @@ export default function CreditsScreen() {
                 {data?.help_video_url && (
                   <Pressable onPress={() => safeOpenURL(data.help_video_url!)}>
                     <HStack className="items-center" space="xs">
-                      <Ionicons name="play-circle" size={18} color="#6D469B" />
+                      <Ionicons name="play-circle" size={18} color={tc.brand} />
                       <UIText size="sm" className="text-optio-purple font-poppins-medium">Watch the tutorial video</UIText>
                     </HStack>
                   </Pressable>
@@ -374,7 +374,7 @@ export default function CreditsScreen() {
 
                     <Pressable onPress={() => openAdd(req)} className="pt-1">
                       <HStack className="items-center" space="xs">
-                        <Ionicons name="add-circle-outline" size={18} color="#6D469B" />
+                        <Ionicons name="add-circle-outline" size={18} color={tc.brand} />
                         <UIText size="sm" className="text-optio-purple font-poppins-medium">Add course</UIText>
                       </HStack>
                     </Pressable>
@@ -494,7 +494,7 @@ export default function CreditsScreen() {
               >
                 <HStack className="items-center justify-between">
                   <HStack className="items-center flex-1 pr-2" space="sm">
-                    <Ionicons name="rocket-outline" size={18} color="#6D469B" />
+                    <Ionicons name="rocket-outline" size={18} color={tc.brand} />
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo">
                         {openingQuest ? 'Opening…' : 'Add work evidence & learning logs'}

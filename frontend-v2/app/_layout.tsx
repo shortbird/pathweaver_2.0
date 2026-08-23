@@ -5,6 +5,22 @@ import { useColorScheme } from 'nativewind';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
+import { useAuthStore } from '@/src/stores/authStore';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { loadPersistedTheme, applyColorScheme } from '@/src/stores/themeStore';
+import { initSentry, captureException, wrapWithSentry } from '@/src/services/sentry';
+import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
+import { ToastHost } from '@/src/components/ui';
+import { OtaUpdater } from '@/src/components/layouts/OtaUpdater';
+import { PhoneVerificationHost } from '@/src/components/layouts/PhoneVerificationHost';
 
 // S4: Suppress React Native Web warnings for native-only props. Match exact,
 // known-benign warning prefixes rather than substrings so genuine errors that
@@ -41,22 +57,6 @@ if (Platform.OS === 'web') {
     originalConsoleWarn(...args);
   };
 }
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import {
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-import { useAuthStore } from '@/src/stores/authStore';
-import { useActingAsStore } from '@/src/stores/actingAsStore';
-import { loadPersistedTheme, applyColorScheme } from '@/src/stores/themeStore';
-import { initSentry, captureException, wrapWithSentry } from '@/src/services/sentry';
-import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
-import { ToastHost } from '@/src/components/ui';
-import { OtaUpdater } from '@/src/components/layouts/OtaUpdater';
-import { PhoneVerificationHost } from '@/src/components/layouts/PhoneVerificationHost';
 
 // Custom route error boundary. expo-router's default dropped the user to a bare
 // crash screen on a thrown render/navigation error — e.g. a bad deep link from a

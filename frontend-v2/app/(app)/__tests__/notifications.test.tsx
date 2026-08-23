@@ -2,6 +2,12 @@
  * Notifications page tests - rendering, filter tabs, empty state, broadcast modal.
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import NotificationsScreen from '../notifications';
+import api from '@/src/services/api';
+import { useAuthStore } from '@/src/stores/authStore';
+
 jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
@@ -25,12 +31,6 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => ({}),
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import NotificationsScreen from '../notifications';
-import api from '@/src/services/api';
-import { useAuthStore } from '@/src/stores/authStore';
 
 const mockNotifications = [
   { id: 'n1', type: 'task_approved', title: 'Task Approved!', message: '+50 XP', is_read: false, created_at: '2026-03-31T10:00:00Z', link: '/quests', metadata: null },

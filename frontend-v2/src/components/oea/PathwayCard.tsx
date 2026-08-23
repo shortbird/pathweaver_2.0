@@ -56,7 +56,7 @@ export function PathwayCard({ pathway, selected, saving, onSelect }: PathwayCard
           <CreditPill label="Total" value={pathway.total_credits} />
         </HStack>
 
-        <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600">{pathway.description}</UIText>
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{pathway.description}</UIText>
 
         <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-3">
           <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">BEST FOR</UIText>

@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +25,7 @@ import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 import { GenerateBountyModal, useAiBountyAccess, BountyIdea } from '@/src/components/bounties/GenerateBountyModal';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -107,7 +108,7 @@ export default function CreateBountyPage() {
         if (bounty.deadline) setDeadline(new Date(bounty.deadline));
         setSelectedKids(bounty.allowed_student_ids || []);
       } catch {
-        Alert.alert('Error', 'Failed to load bounty');
+        showAlert('Error', 'Failed to load bounty');
         router.back();
       } finally {
         setLoadingEdit(false);
@@ -278,7 +279,7 @@ export default function CreateBountyPage() {
   if (loadingEdit) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }
@@ -290,12 +291,12 @@ export default function CreateBountyPage() {
       {/* Header */}
       <View className="px-5 pt-3 pb-2">
         <Pressable onPress={() => router.back()} className="flex-row items-center gap-2 mb-2" hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color="#6D469B" />
+          <Ionicons name="arrow-back" size={22} color={c.brand} />
           <UIText size="sm" className="text-optio-purple font-poppins-medium">Cancel</UIText>
         </Pressable>
         <Heading size="xl">{isEditMode ? 'Edit bounty' : 'Post a bounty'}</Heading>
         <HStack className="items-center gap-1.5 mt-0.5">
-          <Ionicons name={STEP_ICONS[step]} size={15} color="#6D469B" />
+          <Ionicons name={STEP_ICONS[step]} size={15} color={c.brand} />
           <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
             Step {step + 1} of 3 · {STEP_TITLES[step]}
           </UIText>
@@ -317,14 +318,14 @@ export default function CreateBountyPage() {
               {aiAllowed && !isEditMode && (
                 <Pressable onPress={() => setAiModalOpen(true)}>
                   <View className="flex-row items-center gap-2 px-4 py-3 rounded-xl border border-optio-purple/30 bg-optio-purple/5">
-                    <Ionicons name="sparkles" size={18} color="#6D469B" />
+                    <Ionicons name="sparkles" size={18} color={c.brand} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold text-optio-purple">Help me write this bounty</UIText>
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                         Say what you want to happen — get a few ready-made ideas to edit.
                       </UIText>
                     </VStack>
-                    <Ionicons name="chevron-forward" size={16} color="#6D469B" />
+                    <Ionicons name="chevron-forward" size={16} color={c.brand} />
                   </View>
                 </Pressable>
               )}
@@ -355,7 +356,7 @@ export default function CreateBountyPage() {
                   </VStack>
                   <Pressable onPress={addDeliverable} hitSlop={8}>
                     <HStack className="items-center gap-1">
-                      <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+                      <Ionicons name="add-circle-outline" size={20} color={c.brand} />
                       <UIText size="sm" className="text-optio-purple font-poppins-medium">Add</UIText>
                     </HStack>
                   </Pressable>
@@ -451,7 +452,7 @@ export default function CreateBountyPage() {
                   </VStack>
                   <Pressable onPress={addCustomReward} hitSlop={8}>
                     <HStack className="items-center gap-1">
-                      <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+                      <Ionicons name="add-circle-outline" size={20} color={c.brand} />
                       <UIText size="sm" className="text-optio-purple font-poppins-medium">Add</UIText>
                     </HStack>
                   </Pressable>
@@ -481,7 +482,7 @@ export default function CreateBountyPage() {
                   <Pressable onPress={() => setVisibility('public')} className="flex-1">
                     <Card variant={visibility === 'public' ? 'elevated' : 'outline'} size="sm">
                       <VStack className="items-center" space="xs">
-                        <Ionicons name="globe-outline" size={24} color={visibility === 'public' ? '#6D469B' : c.iconMuted} />
+                        <Ionicons name="globe-outline" size={24} color={visibility === 'public' ? c.brand : c.iconMuted} />
                         <UIText size="sm" className={visibility === 'public' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                           Everyone
                         </UIText>
@@ -491,7 +492,7 @@ export default function CreateBountyPage() {
                   <Pressable onPress={() => setVisibility('family')} className="flex-1">
                     <Card variant={visibility === 'family' ? 'elevated' : 'outline'} size="sm">
                       <VStack className="items-center" space="xs">
-                        <Ionicons name="people-outline" size={24} color={visibility === 'family' ? '#6D469B' : c.iconMuted} />
+                        <Ionicons name="people-outline" size={24} color={visibility === 'family' ? c.brand : c.iconMuted} />
                         <UIText size="sm" className={visibility === 'family' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                           {isObserver ? 'My students' : 'My kids'}
                         </UIText>
@@ -502,7 +503,7 @@ export default function CreateBountyPage() {
                     <Pressable onPress={() => setVisibility('organization')} className="flex-1">
                       <Card variant={visibility === 'organization' ? 'elevated' : 'outline'} size="sm">
                         <VStack className="items-center" space="xs">
-                          <Ionicons name="school-outline" size={24} color={visibility === 'organization' ? '#6D469B' : c.iconMuted} />
+                          <Ionicons name="school-outline" size={24} color={visibility === 'organization' ? c.brand : c.iconMuted} />
                           <UIText size="sm" className={visibility === 'organization' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                             My school
                           </UIText>
@@ -524,7 +525,7 @@ export default function CreateBountyPage() {
                           <Pressable key={kid.id} onPress={() => toggleKid(kid.id)}>
                             <View style={{
                               paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                              backgroundColor: selected ? '#6D469B' : c.surfaceMuted,
+                              backgroundColor: selected ? c.brand : c.surfaceMuted,
                             }}>
                               <UIText size="sm" style={{ color: selected ? '#fff' : c.textMuted, fontFamily: 'Poppins_500Medium' }}>
                                 {kid.display_name || kid.first_name || 'Student'}
@@ -569,7 +570,7 @@ export default function CreateBountyPage() {
                       <UIText size="md" className="font-poppins-medium text-typo dark:text-dark-typo">
                         {deadline.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </UIText>
-                      <Ionicons name="calendar-outline" size={20} color="#6D469B" />
+                      <Ionicons name="calendar-outline" size={20} color={c.brand} />
                     </Pressable>
                     {showDatePicker && (
                       <DateTimePicker
@@ -606,7 +607,7 @@ export default function CreateBountyPage() {
                     </VStack>
                     <View style={{
                       width: 48, height: 28, borderRadius: 14, padding: 2,
-                      backgroundColor: limitClaims ? '#6D469B' : c.surfaceMuted,
+                      backgroundColor: limitClaims ? c.brand : c.surfaceMuted,
                       alignItems: limitClaims ? 'flex-end' : 'flex-start',
                     }}>
                       <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' }} />
@@ -649,7 +650,7 @@ export default function CreateBountyPage() {
                 width: i === step ? 18 : 6,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: i === step ? '#6D469B' : c.border,
+                backgroundColor: i === step ? c.brand : c.border,
               }}
             />
           ))}

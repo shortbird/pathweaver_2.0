@@ -8,6 +8,7 @@ export default function AuthLayout() {
       <Stack.Screen name="signup" />
       <Stack.Screen name="reset-password" />
       <Stack.Screen name="verify-email" />
+      <Stack.Screen name="accept-terms" />
       <Stack.Screen name="org-login/[slug]" />
     </Stack>
   );

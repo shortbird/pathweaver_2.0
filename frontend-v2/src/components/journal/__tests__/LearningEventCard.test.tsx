@@ -2,6 +2,12 @@
  * LearningEventCard tests - rendering, actions (edit, delete, assign to topic).
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { LearningEventCard } from '../LearningEventCard';
+import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
+import { createMockLearningEvent, createMockTopic } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -11,12 +17,6 @@ jest.mock('@/src/hooks/useJournal', () => ({
   deleteLearningEvent: jest.fn(),
   assignMomentToTopic: jest.fn(),
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { LearningEventCard } from '../LearningEventCard';
-import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
-import { createMockLearningEvent, createMockTopic } from '@/src/__tests__/utils/mockFactories';
 
 const mockOnDeleted = jest.fn();
 const mockOnEdit = jest.fn();

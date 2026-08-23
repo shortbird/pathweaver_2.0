@@ -6,11 +6,11 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { View, ScrollView, useWindowDimensions, Platform, Pressable, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, ScrollView, useWindowDimensions, Platform, Pressable, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider, Skeleton,
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Skeleton,
   ActionSheet, type ActionSheetAction,
 } from '@/src/components/ui';
 import { TopicsSidebar } from '@/src/components/journal/TopicsSidebar';
@@ -33,6 +33,8 @@ import api from '@/src/services/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -52,6 +54,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const isParent = !!studentId;
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const c = useThemeColors();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ViewType>('unassigned');
@@ -96,7 +99,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       setNewTopicVisible(false);
       refetchTopics();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to create topic');
+      showAlert('Error', err.response?.data?.error || 'Failed to create topic');
     } finally {
       setCreatingTopic(false);
     }
@@ -152,9 +155,11 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
   const handleEvolve = async () => {
     if (!selectedId) return;
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Evolve this topic into a quest? Your moments will be linked to the new quest.')
-      : true; // Mobile could use Alert, but for now proceed
+    const confirmed = await confirmAlert({
+      title: 'Evolve Topic',
+      message: 'Evolve this topic into a quest? Your moments will be linked to the new quest.',
+      confirmText: 'Evolve',
+    });
     if (!confirmed) return;
     try {
       const result = await evolveTrackToQuest(selectedId);
@@ -163,20 +168,18 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         router.push(`/(app)/quests/${result.quest_id}`);
       }
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to evolve topic');
+      showAlert('Error', err.response?.data?.error || 'Failed to evolve topic');
     }
   };
 
   const handleDeleteTopic = async () => {
     if (!selectedId || !track) return;
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(`Delete "${track.name}"? Moments will become unassigned.`)
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert('Delete Topic', `Delete "${track.name}"? Moments will become unassigned.`, [
-            { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
-            { text: 'Delete', onPress: () => resolve(true), style: 'destructive' },
-          ]);
-        });
+    const confirmed = await confirmAlert({
+      title: 'Delete Topic',
+      message: `Delete "${track.name}"? Moments will become unassigned.`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
     if (!confirmed) return;
     try {
       await deleteInterestTrack(selectedId);
@@ -185,7 +188,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       refetchTopics();
       refetchUnassigned();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to delete topic');
+      showAlert('Error', err.response?.data?.error || 'Failed to delete topic');
     }
   };
 
@@ -242,7 +245,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       refetchTopics();
       refetchTrack();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to rename topic');
+      showAlert('Error', err.response?.data?.error || 'Failed to rename topic');
     }
   };
 
@@ -326,7 +329,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           <HStack className="items-center justify-between">
             {!isDesktop && (
               <Pressable onPress={handleHeaderBack} className="mr-3" accessibilityLabel={cameFromHome ? 'Back to Home' : 'Back to topics'}>
-                <Ionicons name="arrow-back" size={22} color="#6D469B" />
+                <Ionicons name="arrow-back" size={22} color={c.brand} />
               </Pressable>
             )}
             <VStack className="flex-1">
@@ -345,11 +348,11 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                   accessibilityRole="button"
                   accessibilityLabel="Topic actions"
                 >
-                  <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
+                  <Ionicons name="ellipsis-horizontal" size={18} color={c.textMuted} />
                 </Pressable>
               ) : null}
-              <Pressable onPress={refetchCurrentView} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+              <Pressable onPress={refetchCurrentView} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center" accessibilityRole="button" accessibilityLabel="Refresh">
+                <Ionicons name="refresh-outline" size={16} color={c.textMuted} />
               </Pressable>
             </HStack>
           </HStack>
@@ -412,7 +415,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
             <Card variant="filled" size="sm" className="mt-3">
               <HStack className="items-center gap-3">
                 <View className="w-8 h-8 rounded-full bg-optio-purple/10 items-center justify-center">
-                  <Ionicons name="sparkles" size={16} color="#6D469B" />
+                  <Ionicons name="sparkles" size={16} color={c.brand} />
                 </View>
                 <VStack className="flex-1">
                   <UIText size="sm" className="font-poppins-medium">Ready to evolve!</UIText>
@@ -431,7 +434,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         {/* Loading */}
         {activeLoading && (
           <View className="items-center py-8">
-            <ActivityIndicator size="large" color="#6D469B" />
+            <ActivityIndicator size="large" color={c.brand} />
           </View>
         )}
 
@@ -482,7 +485,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
             <Ionicons
               name={selectedType === 'unassigned' ? 'checkmark-circle-outline' : 'sparkles-outline'}
               size={40}
-              color="#9CA3AF"
+              color={c.textFaint}
             />
             <Heading size="sm" className="text-typo-500 mt-3">
               {selectedType === 'unassigned' ? 'Nothing to organize' : 'Capture your first moment'}
@@ -511,8 +514,10 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                 <Pressable
                   onPress={refetchCurrentView}
                   className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh"
                 >
-                  <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+                  <Ionicons name="refresh-outline" size={16} color={c.textMuted} />
                 </Pressable>
                 {!isParent && (
                   <Pressable
@@ -560,14 +565,14 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         {/* New Topic Modal (desktop) */}
         <Modal visible={newTopicVisible} transparent animationType="none" onRequestClose={() => setNewTopicVisible(false)}>
           <Pressable className="flex-1 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setNewTopicVisible(false)}>
-            <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: 400, maxWidth: '90%' }}>
+            <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: c.card, borderRadius: 16, padding: 24, width: 400, maxWidth: '90%' }}>
               <VStack space="md">
                 <Heading size="lg">New Topic</Heading>
                 <TextInput
                   value={newTopicName}
                   onChangeText={setNewTopicName}
                   placeholder="Topic name (e.g. Robotics Club)"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                   className="bg-surface-50 rounded-xl p-4 text-base"
                   style={{ fontFamily: 'Poppins_400Regular' }}
                 />
@@ -581,13 +586,13 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                         onPress={() => setSelectedIcon(item.key)}
                         style={{
                           width: 36, height: 36, borderRadius: 10,
-                          backgroundColor: selectedIcon === item.key ? selectedColor + '20' : '#F3F4F6',
+                          backgroundColor: selectedIcon === item.key ? selectedColor + '20' : c.surfaceMuted,
                           borderWidth: selectedIcon === item.key ? 2 : 0,
                           borderColor: selectedColor,
                           alignItems: 'center', justifyContent: 'center',
                         }}
                       >
-                        <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : '#6B7280'} />
+                        <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : c.textMuted} />
                       </Pressable>
                     ))}
                   </HStack>
@@ -604,7 +609,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                           width: 32, height: 32, borderRadius: 16,
                           backgroundColor: color,
                           borderWidth: selectedColor === color ? 3 : 0,
-                          borderColor: '#1F2937',
+                          borderColor: c.text,
                           alignItems: 'center', justifyContent: 'center',
                         }}
                       >
@@ -701,7 +706,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                 </VStack>
               ) : (
                 <Card variant="filled" size="md" className="items-center py-8">
-                  <Ionicons name="newspaper-outline" size={32} color="#9CA3AF" />
+                  <Ionicons name="newspaper-outline" size={32} color={c.textFaint} />
                   <UIText size="sm" className="text-typo-400 mt-2">No recent activity yet</UIText>
                 </Card>
               )}
@@ -729,13 +734,13 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       <Modal visible={newTopicVisible} transparent animationType="none" onRequestClose={() => setNewTopicVisible(false)}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setNewTopicVisible(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
             <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
               <HStack className="items-center justify-between">
                 <Heading size="lg">New Topic</Heading>
-                <Pressable onPress={() => setNewTopicVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={18} color="#6B7280" />
+                <Pressable onPress={() => setNewTopicVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center" accessibilityRole="button" accessibilityLabel="Close">
+                  <Ionicons name="close" size={18} color={c.textMuted} />
                 </Pressable>
               </HStack>
               <UIText size="sm" className="text-typo-500">
@@ -745,7 +750,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                 value={newTopicName}
                 onChangeText={setNewTopicName}
                 placeholder="Topic name (e.g. Robotics Club)"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
                 className="bg-surface-50 rounded-xl p-4 text-base"
                 style={{ fontFamily: 'Poppins_400Regular' }}
               />
@@ -759,13 +764,13 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                       onPress={() => setSelectedIcon(item.key)}
                       style={{
                         width: 36, height: 36, borderRadius: 10,
-                        backgroundColor: selectedIcon === item.key ? selectedColor + '20' : '#F3F4F6',
+                        backgroundColor: selectedIcon === item.key ? selectedColor + '20' : c.surfaceMuted,
                         borderWidth: selectedIcon === item.key ? 2 : 0,
                         borderColor: selectedColor,
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >
-                      <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : '#6B7280'} />
+                      <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : c.textMuted} />
                     </Pressable>
                   ))}
                 </HStack>
@@ -782,7 +787,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                         width: 32, height: 32, borderRadius: 16,
                         backgroundColor: color,
                         borderWidth: selectedColor === color ? 3 : 0,
-                        borderColor: '#1F2937',
+                        borderColor: c.text,
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >

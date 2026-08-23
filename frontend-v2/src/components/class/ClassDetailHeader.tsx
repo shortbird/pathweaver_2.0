@@ -5,9 +5,10 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
+import { showAlert } from '@/src/utils/alerts';
 import {
   Card, HStack, VStack, UIText, Heading, Button, ButtonText, Skeleton,
 } from '../ui';
@@ -55,14 +56,11 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
     setSubmitting(true);
     try {
       await api.post(`/api/quests/${questId}/submit-class-for-review`, {});
-      Alert.alert(
-        'Submitted for review',
-        'Optio will review your class and award credit if everything looks good. You can keep working in the meantime.',
-      );
+      showAlert('Submitted for review', 'Optio will review your class and award credit if everything looks good. You can keep working in the meantime.');
       await fetchProgress();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || 'Could not submit class.';
-      Alert.alert('Submit failed', msg);
+      showAlert('Submit failed', msg);
     } finally {
       setSubmitting(false);
     }
