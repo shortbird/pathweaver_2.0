@@ -582,6 +582,15 @@ def create_user_quest(user_id: str):
             if not verification:
                 raise DatabaseError("Enrollment verification failed - record not found after creation")
 
+            # CRM conversion hook: creating a class is the moment the /classes
+            # funnel promises ("your first class free") — exit any nurture.
+            if quest_data['quest_type'] == 'class':
+                try:
+                    from services.crm_service import record_class_start
+                    record_class_start(user_id)
+                except Exception as crm_err:  # noqa: BLE001
+                    logger.warning(f"CRM class-start sync skipped: {crm_err}")
+
         except Exception as enrollment_error:
             # CRITICAL: If enrollment fails, rollback quest creation
             logger.error(f"CRITICAL: Failed to enroll user {user_id[:8]} in quest {quest_id[:8]}: {enrollment_error}", exc_info=True)

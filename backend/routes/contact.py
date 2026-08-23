@@ -94,12 +94,12 @@ def submit_contact():
         # The returned automation name (None when nothing was started) rides
         # along to the confirmation email so the [COPY] to Tanner says whether
         # this lead still needs a personal reply.
-        brevo_funnel = None
+        crm_funnel = None
         try:
             existing_user = supabase.table('users').select('id').ilike('email', email).limit(1).execute()
             if not existing_user.data:
-                from services.brevo_service import sync_lead
-                brevo_funnel = sync_lead(email, contact_type, name=name)
+                from services.crm_service import sync_lead
+                crm_funnel = sync_lead(email, contact_type, name=name)
         except Exception as brevo_err:
             logger.warning(f"Brevo lead sync skipped: {brevo_err}")
 
@@ -110,7 +110,7 @@ def submit_contact():
                     user_name=name,
                     user_email=email,
                     organization=organization,
-                    brevo_funnel=brevo_funnel
+                    crm_funnel=crm_funnel
                 )
                 if email_sent:
                     logger.info(f"Demo confirmation email sent to {email}")
@@ -127,7 +127,7 @@ def submit_contact():
                     user_name=name,
                     user_email=email,
                     message=message,
-                    brevo_funnel=brevo_funnel
+                    crm_funnel=crm_funnel
                 )
                 if email_sent:
                     logger.info(f"Family inquiry confirmation email sent to {email}")
@@ -156,7 +156,7 @@ def submit_contact():
             try:
                 email_sent = email_service.send_claim_free_class_confirmation(
                     user_email=email,
-                    brevo_funnel=brevo_funnel
+                    crm_funnel=crm_funnel
                 )
                 if email_sent:
                     logger.info(f"Free class confirmation email sent to {email}")

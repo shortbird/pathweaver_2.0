@@ -61,6 +61,10 @@ def register_all(app):
     from routes.contact import bp as contact_bp
     app.register_blueprint(contact_bp, url_prefix='/api')
 
+    # ── CRM (public unsubscribe + internal sweep/webhook endpoints) ───────────
+    from routes.crm import bp as crm_bp
+    app.register_blueprint(crm_bp)
+
     from routes.demo import bp as demo_bp
     app.register_blueprint(demo_bp)
 
@@ -160,6 +164,7 @@ def register_all(app):
         ai_prompts,
         ai_costs,
         audit_logs,
+        crm as admin_crm,
     )
     app.register_blueprint(user_management.bp)
     app.register_blueprint(user_observer_links.observer_links_bp)
@@ -193,6 +198,7 @@ def register_all(app):
     app.register_blueprint(ai_prompts.ai_prompts_bp, url_prefix='/api/admin/ai')
     app.register_blueprint(ai_costs.ai_costs_bp, url_prefix='/api/admin/ai')
     app.register_blueprint(audit_logs.bp, url_prefix='/api/admin/audit-logs')
+    app.register_blueprint(admin_crm.bp)
 
     # ── Organization classes (classroom mgmt) ─────────────────────────────────
     from routes.classes import bp as classes_bp

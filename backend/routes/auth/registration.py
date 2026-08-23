@@ -461,7 +461,7 @@ def register():
             # conversion-marked so any nurture sequence they were in exits
             # without new marketing. Fire-and-forget either way.
             try:
-                from services.brevo_service import mark_converted, sync_new_account
+                from services.crm_service import mark_converted, sync_new_account
                 platform_role = user_data.get('role', 'student')
                 effective_role = user_data.get('org_role') if platform_role == 'org_managed' else platform_role
                 if requires_parental_consent or effective_role not in ('student', 'parent'):

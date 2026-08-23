@@ -273,6 +273,12 @@ class Config:
     SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
     SENDGRID_WEBHOOK_PUBLIC_KEY = os.getenv('SENDGRID_WEBHOOK_PUBLIC_KEY')
 
+    # CRM "scheduled a video chat" conversion trigger: a GCP service account
+    # (base64 of its JSON key) that the owner's Google Calendar is shared with
+    # ("See all event details"), polled hourly by cron. Unset = poll no-ops.
+    GOOGLE_CALENDAR_SA_KEY_B64 = os.getenv('GOOGLE_CALENDAR_SA_KEY_B64')
+    GOOGLE_CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID')
+
     # Email sender identity (delivery goes through the SendGrid API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')

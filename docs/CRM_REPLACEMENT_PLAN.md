@@ -16,10 +16,31 @@
   SENDGRID_API_KEY is set on the Render backend services (prod + dev).** Setting the
   key (SendGrid → Settings → API Keys, Mail Send permission) restores sending; domain
   auth should follow immediately for deliverability.
-- **PR3–PR7 — not started.**
-- **User prerequisites still open**: SendGrid account (Essentials) + domain auth CNAMEs
-  at GoDaddy; postal address for the CAN-SPAM footer; GCP service account + calendar
-  share for the booking poll.
+- **PR3+PR4+PR5 — BUILT (2026-08-22), one combined push.** Schema live on prod
+  (migration 20260822090000_crm_core_tables.sql applied via MCP), engine + routes +
+  trigger repoint + admin console all in. Funnels seeded from the Brevo HTML archive
+  (scripts/seed_crm_funnels.py — 5 funnels, 21 steps, images rehosted to
+  frontend/public/email-assets/) and sitting PAUSED. From this deploy, new marketing
+  leads land in crm_leads and Brevo receives nothing new; no nurture sends happen
+  until funnels are activated, and the sweep refuses to send while
+  crm_settings.postal_address is empty. Suites: backend 3730 passed, web 2086 passed;
+  lead lifecycle verified end-to-end on localhost (form → lead+membership → sweep
+  window gate → unsubscribe → suppression), test rows cleaned up.
+- **PR6 — scripts ready, not yet run**: scripts/export_brevo_contacts.py +
+  scripts/import_brevo_contacts.py (position approximated from LEAD_DATE, skip-biased).
+- **PR7 (Brevo removal) — not started**; brevo_service.py is now caller-less but stays
+  until after soak. BREVO_API_KEY also powers SMS now — remove only the email parts.
+- **Remaining user prerequisites before ACTIVATING funnels**:
+  1. SendGrid domain authentication (CNAMEs at GoDaddy) — key is set, domain auth
+     status unverified; 2. postal address → `crm_settings.postal_address` (sweep is
+     hard-gated on it); 3. SendGrid Event Webhook configured to POST
+     https://api.optioeducation.com/api/crm/internal/sendgrid-events with signature
+     verification on, public key → SENDGRID_WEBHOOK_PUBLIC_KEY env; 4. GCP service
+     account + calendar share, key → GOOGLE_CALENDAR_SA_KEY_B64 + GOOGLE_CALENDAR_ID
+     (poll no-ops until set); 5. SENDGRID_API_KEY added to backend/.env locally for
+     local send testing (currently Render-only).
+- **Cutover remaining**: run export → import → deactivate Brevo automations → set
+  postal address → activate funnels via console → watch first sweeps.
 
 ## Context
 

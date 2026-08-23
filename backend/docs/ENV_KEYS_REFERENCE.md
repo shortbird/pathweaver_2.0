@@ -22,6 +22,8 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
 | `SENDGRID_API_KEY` | SendGrid: ALL outbound email (transactional + CRM funnel mail) | `Config.SENDGRID_API_KEY` | SendGrid → Settings → API Keys (Mail Send permission) |
 | `SENDGRID_WEBHOOK_PUBLIC_KEY` | Verifies SendGrid's signed event webhook (CRM delivery/open/click/bounce) | `Config.SENDGRID_WEBHOOK_PUBLIC_KEY` | SendGrid → Settings → Mail Settings → Event Webhook → Signature Verification |
+| `GOOGLE_CALENDAR_SA_KEY_B64` | CRM video-chat conversion trigger: base64 of the GCP service-account JSON key whose email the owner's calendar is shared with | `Config.GOOGLE_CALENDAR_SA_KEY_B64` | GCP Console → IAM → Service Accounts → Keys (`base64 -i key.json`) |
+| `GOOGLE_CALENDAR_ID` | The polled calendar's id (the owner's gmail address) | `Config.GOOGLE_CALENDAR_ID` | Google Calendar → Settings → Integrate calendar |
 | `BREVO_API_KEY` | Brevo: marketing list sync + transactional SMS (phone verification). NOT email (SendGrid) — standard key, NOT the MCP token | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
 | `SMS_PROVIDER` | Outbound SMS provider: `twilio_verify` (hosted OTP, works day one), `brevo` (needs US toll-free registration, 4-6 wks), `console` (logs instead of sending) | `Config.SMS_PROVIDER` | Default: `twilio_verify` if `TWILIO_ACCOUNT_SID` is set in production, else `brevo` in production, `console` elsewhere |
 | `SMS_SENDER_NAME` | Brevo SMS sender id (alphanumeric, max 11 chars) | `Config.SMS_SENDER_NAME` | Default `Optio` |
