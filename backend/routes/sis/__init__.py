@@ -1011,77 +1011,139 @@ def roster_csv(user_id):
 
 
 def register_sis_routes(app):
-    """Register the SIS blueprints (MVP + catalog/programs+classes)."""
-    app.register_blueprint(bp)
+    """Register the SIS blueprints and attach the module gate to each.
+
+    The gate (modules/gate.py, log-only until P3 flips a tier) is attached
+    HERE, centrally, rather than as one line in each route file: this touches
+    one file instead of thirty, several of which carry active backlog work
+    (freeze-week discipline, 2026-08). The mapping below is the blueprint ->
+    module ownership table; tests/unit/test_module_coverage.py fails when a
+    new SIS blueprint is neither mapped nor on the exemption list.
+
+    Deliberate exemptions (per-route tags come with P3's family gating):
+      pay_bp        -- unauthenticated by design; the signed token is the
+                       authorization, and it settles invoices that existed
+                       when billing was on (see services/sis_pay_links.py)
+      school_bp     -- the discovery endpoint that REPORTS the module set;
+                       gating it would hide the answer to "what is on?"
+      parent_bp, parent_forms_bp, parent_prior_learning_bp
+                    -- family surface: callers are platform parents with no
+                       organization_id, so org resolution here would no-op;
+                       they gate per-route via the family relationship in P3
+      staff_portal_bp, staff_admin_bp
+                    -- span several modules (classes/timesheets/tasks/forms/
+                       onboarding); per-route tags in P3
+    """
+    from modules.gate import module_guard
+
     from routes.sis.catalog import bp as catalog_bp
-    app.register_blueprint(catalog_bp)
     from routes.sis.registration import bp as registration_bp
-    app.register_blueprint(registration_bp)
     from routes.sis.waitlist import bp as waitlist_bp
-    app.register_blueprint(waitlist_bp)
     from routes.sis.clp import bp as clp_bp
-    app.register_blueprint(clp_bp)
     from routes.sis.billing import bp as billing_bp
-    app.register_blueprint(billing_bp)
     from routes.sis.tuition import bp as tuition_bp
-    app.register_blueprint(tuition_bp)
-    # The pay link from an emailed invoice. Unauthenticated by design — the
-    # signed token is the authorization (see services/sis_pay_links.py).
     from routes.sis.pay import bp as pay_bp
-    app.register_blueprint(pay_bp)
     from routes.sis.attendance import bp as attendance_bp
-    app.register_blueprint(attendance_bp)
     from routes.sis.reports import bp as reports_bp
-    app.register_blueprint(reports_bp)
     from routes.sis.parent import bp as parent_bp
-    app.register_blueprint(parent_bp)
     from routes.sis.school import bp as school_bp
-    app.register_blueprint(school_bp)
     from routes.sis.resources import bp as resources_bp
-    app.register_blueprint(resources_bp)
     from routes.sis.events import bp as events_bp
-    app.register_blueprint(events_bp)
     from routes.sis.schedule_ai import bp as schedule_ai_bp
-    app.register_blueprint(schedule_ai_bp)
     from routes.sis.schedule_sync import bp as schedule_sync_bp
-    app.register_blueprint(schedule_sync_bp)
     from routes.sis.staff_portal import bp as staff_portal_bp
-    app.register_blueprint(staff_portal_bp)
     from routes.sis.staff_admin import bp as staff_admin_bp
-    app.register_blueprint(staff_admin_bp)
     from routes.sis.coordinator import bp as coordinator_bp
-    app.register_blueprint(coordinator_bp)
     from routes.sis.submissions import bp as submissions_bp
-    app.register_blueprint(submissions_bp)
     from routes.sis.class_discussions import bp as class_discussions_bp
-    app.register_blueprint(class_discussions_bp)
     from routes.sis.class_materials import bp as class_materials_bp
-    app.register_blueprint(class_materials_bp)
     from routes.sis.class_quests import bp as class_quests_bp
-    app.register_blueprint(class_quests_bp)
     from routes.sis.curriculum import bp as sis_curriculum_bp
-    app.register_blueprint(sis_curriculum_bp)
     from routes.sis.quest_drafts import bp as quest_drafts_bp
-    app.register_blueprint(quest_drafts_bp)
     from routes.sis.staff_training import bp as staff_training_bp
-    app.register_blueprint(staff_training_bp)
     from routes.sis.secure_documents import bp as secure_documents_bp
-    app.register_blueprint(secure_documents_bp)
     from routes.sis.parent_forms import bp as parent_forms_bp
-    app.register_blueprint(parent_forms_bp)
     from routes.sis.tasks import bp as sis_tasks_bp
-    app.register_blueprint(sis_tasks_bp)
     from routes.sis.parent_prior_learning import bp as parent_prior_learning_bp
-    app.register_blueprint(parent_prior_learning_bp)
     from routes.sis.prior_learning import bp as prior_learning_bp
-    app.register_blueprint(prior_learning_bp)
     from routes.sis.gradebook import bp as gradebook_bp
-    app.register_blueprint(gradebook_bp)
     from routes.sis.engagement import bp as engagement_bp
-    app.register_blueprint(engagement_bp)
     from routes.sis.goals import bp as goals_bp
-    app.register_blueprint(goals_bp)
     from routes.sis.student_records import bp as student_records_bp
-    app.register_blueprint(student_records_bp)
     from routes.sis.community import bp as community_bp
+
+    for blueprint, module_key in (
+        (bp, 'sis'),                        # people/households/roster core
+        (catalog_bp, 'classes'),
+        (registration_bp, 'registration'),
+        (waitlist_bp, 'registration'),
+        (clp_bp, 'clp'),
+        (billing_bp, 'billing'),
+        (tuition_bp, 'billing'),
+        (attendance_bp, 'attendance'),
+        (reports_bp, 'reports'),
+        (resources_bp, 'resources'),
+        (events_bp, 'calendar'),
+        (schedule_ai_bp, 'classes'),
+        (schedule_sync_bp, 'classes'),
+        (coordinator_bp, 'sis'),
+        (submissions_bp, 'submissions'),
+        (class_discussions_bp, 'classes'),
+        (class_materials_bp, 'classes'),
+        (class_quests_bp, 'classes'),
+        (sis_curriculum_bp, 'curriculum'),
+        (quest_drafts_bp, 'curriculum'),
+        (staff_training_bp, 'training'),
+        (secure_documents_bp, 'secure_documents'),
+        (sis_tasks_bp, 'tasks'),
+        # prior_learning and community keep their bespoke enforced checks
+        # (already live); the gate rides alongside so they join the same
+        # telemetry and the bespoke checks can retire at P3.
+        (prior_learning_bp, 'prior_learning'),
+        (gradebook_bp, 'classes'),
+        (engagement_bp, 'classes'),
+        (goals_bp, 'goals'),
+        (student_records_bp, 'sis'),
+        (community_bp, 'community'),
+    ):
+        module_guard(blueprint, module_key)
+
+    # Registration order preserved exactly -- Flask dispatches duplicate rules
+    # to whichever blueprint registered first, so reordering is a behavior
+    # change even when nothing else moved (CLAUDE.md: one route, one owner).
+    app.register_blueprint(bp)
+    app.register_blueprint(catalog_bp)
+    app.register_blueprint(registration_bp)
+    app.register_blueprint(waitlist_bp)
+    app.register_blueprint(clp_bp)
+    app.register_blueprint(billing_bp)
+    app.register_blueprint(tuition_bp)
+    app.register_blueprint(pay_bp)
+    app.register_blueprint(attendance_bp)
+    app.register_blueprint(reports_bp)
+    app.register_blueprint(parent_bp)
+    app.register_blueprint(school_bp)
+    app.register_blueprint(resources_bp)
+    app.register_blueprint(events_bp)
+    app.register_blueprint(schedule_ai_bp)
+    app.register_blueprint(schedule_sync_bp)
+    app.register_blueprint(staff_portal_bp)
+    app.register_blueprint(staff_admin_bp)
+    app.register_blueprint(coordinator_bp)
+    app.register_blueprint(submissions_bp)
+    app.register_blueprint(class_discussions_bp)
+    app.register_blueprint(class_materials_bp)
+    app.register_blueprint(class_quests_bp)
+    app.register_blueprint(sis_curriculum_bp)
+    app.register_blueprint(quest_drafts_bp)
+    app.register_blueprint(staff_training_bp)
+    app.register_blueprint(secure_documents_bp)
+    app.register_blueprint(parent_forms_bp)
+    app.register_blueprint(sis_tasks_bp)
+    app.register_blueprint(parent_prior_learning_bp)
+    app.register_blueprint(prior_learning_bp)
+    app.register_blueprint(gradebook_bp)
+    app.register_blueprint(engagement_bp)
+    app.register_blueprint(goals_bp)
+    app.register_blueprint(student_records_bp)
     app.register_blueprint(community_bp)

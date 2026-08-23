@@ -131,9 +131,14 @@ def _org_settings(org_id: str) -> Dict[str, Any]:
     }
 
 
-def _hidden_modules(settings: Dict[str, Any]) -> set:
-    value = settings.get('hidden_modules')
-    return set(value) if isinstance(value, list) else set()
+def _disabled_modules(org_id: str) -> set:
+    """SIS modules that are OFF for this org, in the vocabulary _build_jobs
+    skips by. Answered by the module system (modules/enabled.py) so explicit
+    feature_flags.modules entries and the legacy sis_settings.hidden_modules
+    agree by construction -- this was the one backend hidden_modules reader."""
+    from modules import MODULES, enabled_set
+    enabled = enabled_set(org_id)
+    return {k for k, m in MODULES.items() if m.parent == 'sis' and k not in enabled}
 
 
 # ── The individual sources ───────────────────────────────────────────────────
@@ -298,7 +303,7 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
     meta = _safe('org', lambda: _org_settings(org_id),
                  {'organization': {'id': org_id}, 'settings': {}}) or {}
     settings: Dict[str, Any] = meta.get('settings') or {}
-    hidden = _hidden_modules(settings)
+    hidden = _safe('modules', lambda: _disabled_modules(org_id), set()) or set()
 
     roles = set(_safe('roles', lambda: sis_service.caller_org_roles(caller_id), []) or [])
     is_full_admin = bool(roles & {'org_admin', 'superadmin'})

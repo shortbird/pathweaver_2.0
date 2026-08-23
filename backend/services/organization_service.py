@@ -22,8 +22,16 @@ class OrganizationService(BaseService):
 
         Active only by default; the superadmin dashboard opts in to archived
         ones so they can be restored or deleted.
+
+        Each row carries its server-computed `effective_modules` so the SIS
+        org picker and the Blocks panel consume the answer instead of
+        re-deriving gating semantics (ARCHITECTURE_BLOCKS section 4.1).
         """
-        return self.org_repo.get_all(include_archived=include_archived)
+        from modules import effective_modules_list
+        organizations = self.org_repo.get_all(include_archived=include_archived)
+        for org in organizations:
+            org['effective_modules'] = effective_modules_list(org)
+        return organizations
 
     def create_organization(
         self,
@@ -101,6 +109,12 @@ class OrganizationService(BaseService):
         """
 
         org = self.org_repo.find_by_id(org_id)
+        # Server-computed building blocks, from the unredacted row (finance
+        # redaction strips prices, never gates, so the answer is identical for
+        # every caller tier).
+        from modules import effective_modules_list
+        if isinstance(org, dict):
+            org['effective_modules'] = effective_modules_list(org)
         if not include_finance:
             from utils.org_finance_flags import redact_org_finance
             org = redact_org_finance(org)

@@ -187,7 +187,7 @@ def register_routes(bp):
                     if response_data.get('organization_id'):
                         try:
                             org_data = admin_client.table('organizations')\
-                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags')\
+                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags, ai_features_enabled')\
                                 .eq('id', response_data['organization_id'])\
                                 .maybe_single()\
                                 .execute()
@@ -197,6 +197,12 @@ def register_routes(bp):
                                 org_row['feature_flags'] = strip_secrets_from_feature_flags(
                                     org_row.get('feature_flags')
                                 )
+                                # The org's effective building blocks, computed
+                                # server-side so the frontend consumes the answer
+                                # instead of re-deriving gating semantics
+                                # (ARCHITECTURE_BLOCKS section 4.1).
+                                from modules import effective_modules_list
+                                org_row['effective_modules'] = effective_modules_list(org_row)
                                 response_data['organization'] = org_row
                                 # `school` is derived from the STRIPPED row, not
                                 # the raw one, so the credential-removal above

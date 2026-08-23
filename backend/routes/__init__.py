@@ -177,6 +177,10 @@ def register_all(app):
     app.register_blueprint(course_refine.bp)
     app.register_blueprint(plan_mode.bp)
     app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')
+    # The Blocks panel API (building-block toggles) — its own file so the
+    # organization_management route file stays under its size cap.
+    from routes.admin import org_modules
+    app.register_blueprint(org_modules.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)
