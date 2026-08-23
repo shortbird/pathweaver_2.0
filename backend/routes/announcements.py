@@ -85,6 +85,26 @@ def create_announcement(user_id):
 
         class_ids = [c for c in (data.get('class_ids') or []) if c]
         teacher_ids = [t for t in (data.get('teacher_ids') or []) if t]
+
+        # An advisor sends to their OWN classes, nothing wider. The sidebar
+        # hides the Messaging page from teachers but the route and this POST
+        # were reachable, and the send was unscoped — any advisor could email
+        # the whole school. class_scope is the same fence every other
+        # teacher-facing SIS read uses: None means unrestricted (admin tier);
+        # a list means "these classes and no others". Targeting other teachers
+        # stays an admin move.
+        scope = sis_service.class_scope(user_id, org_id) \
+            if sender_role != 'superadmin' else None
+        if scope is not None:
+            if teacher_ids:
+                return jsonify({'success': False,
+                                'error': 'Only the front office can message other teachers'}), 403
+            if not class_ids:
+                return jsonify({'success': False,
+                                'error': 'Pick one of your classes to message'}), 403
+            if not set(class_ids) <= set(scope):
+                return jsonify({'success': False,
+                                'error': 'You can only message classes you teach'}), 403
         min_age, max_age = _int(data.get('min_age')), _int(data.get('max_age'))
         student_ids = announcement_service.targeted_student_ids(
             org_id, class_ids=class_ids, teacher_ids=teacher_ids,

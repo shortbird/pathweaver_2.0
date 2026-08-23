@@ -7,6 +7,8 @@ import RichTextEditor from '../../components/course/outline/RichTextEditor'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import { isBlank } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -71,6 +73,12 @@ const Picker = ({ label, options, chosen, setChosen, getLabel, placeholder }) =>
 
 const FamilyMessagingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { user } = useAuth()
+  // A teacher sends to their own classes, nothing wider — the backend enforces
+  // this (POST /api/announcements refuses an advisor send with no class, a
+  // class they don't teach, or teacher targeting), so everything here is
+  // chrome: require a class up front, hide the whole-school affordances.
+  const admin = isSisAdmin(user)
   const confirm = useConfirm()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
@@ -131,6 +139,7 @@ const FamilyMessagingPage = () => {
     if (!title.trim() || isBlank(message)) { toast.error('Title and message are required'); return }
     if (!audiences.length) { toast.error('Pick at least one audience'); return }
     if (!orgId) { toast.error('No organization selected'); return }
+    if (!admin && !classIds.length) { toast.error('Pick one of your classes to message'); return }
     setSending(true)
     try {
       const r = await api.post('/api/announcements', {
@@ -169,8 +178,11 @@ const FamilyMessagingPage = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl">
         <p className="text-sm text-neutral-500 mb-5">
-          Send an announcement to {orgs.find((o) => o.id === orgId)?.name || 'your school'}. It arrives in-app
-          (notification bell) and as a push; tick the box below to send it by email too.
+          {admin
+            ? <>Send an announcement to {orgs.find((o) => o.id === orgId)?.name || 'your school'}. It arrives in-app
+              (notification bell) and as a push; tick the box below to send it by email too.</>
+            : <>Send an announcement to the families and students of a class you teach. It arrives in-app
+              (notification bell) and as a push; tick the box below to send it by email too.</>}
         </p>
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Audience</label>
@@ -195,8 +207,10 @@ const FamilyMessagingPage = () => {
             list, which is also how you take one back off. */}
         <div className="border border-gray-200 rounded-lg p-3 mb-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-neutral-500">Narrow it down (optional)</span>
-            {targeted ? (
+            <span className="text-xs font-medium text-neutral-500">
+              {admin ? 'Narrow it down (optional)' : 'Your classes — pick at least one'}
+            </span>
+            {admin && targeted ? (
               <button onClick={clearTargeting} className="text-xs text-optio-purple hover:underline">
                 Clear — send to the whole school
               </button>
@@ -205,8 +219,10 @@ const FamilyMessagingPage = () => {
 
           <Picker label="Classes" options={classes} chosen={classIds} setChosen={setClassIds}
             getLabel={(c) => c.name} placeholder="Add a class…" />
-          <Picker label="Teachers" options={teachers} chosen={teacherIds} setChosen={setTeacherIds}
-            getLabel={(t) => t.name || t.display_name || t.email} placeholder="Add a teacher…" />
+          {admin && (
+            <Picker label="Teachers" options={teachers} chosen={teacherIds} setChosen={setTeacherIds}
+              getLabel={(t) => t.name || t.display_name || t.email} placeholder="Add a teacher…" />
+          )}
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-neutral-500 w-16 shrink-0">Ages</span>
@@ -253,16 +269,20 @@ const FamilyMessagingPage = () => {
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <Button onClick={send} loading={sending}>Send announcement</Button>
-          <TemplateControls
-            key={orgId || 'no-org'}
-            orgId={orgId}
-            title={title}
-            body={message}
-            onApply={({ title: t, body: b }) => {
-              setTitle(t)
-              setMessage(b)
-            }}
-          />
+          {/* Templates live in org settings, which the templates endpoints
+              gate to the admin tier — a teacher would only get a 403. */}
+          {admin && (
+            <TemplateControls
+              key={orgId || 'no-org'}
+              orgId={orgId}
+              title={title}
+              body={message}
+              onApply={({ title: t, body: b }) => {
+                setTitle(t)
+                setMessage(b)
+              }}
+            />
+          )}
         </div>
       </div>
 

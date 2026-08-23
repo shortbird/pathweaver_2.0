@@ -97,7 +97,10 @@ const NAV_SECTIONS = [
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
       { name: 'Training', path: '/training', d: ICONS.check },
-      { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
+      // Teachers get it too (2026-08-23): an advisor's send is scoped to their
+      // own classes by the backend, and this is their email path to a class's
+      // families — the class chat is in-app only.
+      { name: 'Messaging', path: '/messaging', d: ICONS.chat },
     ],
   },
   {

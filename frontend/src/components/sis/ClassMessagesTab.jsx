@@ -21,8 +21,11 @@ import { withOrg } from '../../pages/sis/useSisOrg'
  * reactions, edit/delete, pins and announcement-only all work here with no
  * second implementation to keep in sync.
  *
- * Students reach the same conversations from their own /messages page — the
- * class chat is in their group list and their teachers are messaging contacts.
+ * The class chat is between the ADULTS (2026-08-22): its members are the
+ * guardians of the enrolled students plus the class's teachers — students are
+ * deliberately not in it. Students still reach their teachers one-to-one from
+ * their own /messages page, and one-to-one is how a teacher reaches a student
+ * here too.
  */
 const ClassMessagesTab = ({ classId, orgId, className }) => {
   const { user } = useAuth()
@@ -117,8 +120,8 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
   return (
     <div>
       <p className="text-sm text-neutral-500 mb-3">
-        Message the whole class at once, or a student one-to-one. Students see these in
-        the Optio app under Messages, and parents can see their own student&apos;s messages.
+        The class chat reaches the parents of everyone enrolled — it&apos;s between the
+        adults, and students aren&apos;t in it. To reach a student, message them one-to-one below.
       </p>
 
       <div className="flex h-[70vh] min-h-[420px] bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -161,7 +164,7 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
                 <div className="min-w-0 text-left">
                   <p className="text-sm font-semibold text-neutral-900 truncate">Class chat</p>
                   <p className="text-xs text-neutral-500 truncate">
-                    Everyone in {className || 'this class'}
+                    Parents and teachers of {className || 'this class'}
                     {group.announcement_only ? ' · Announcement-only' : ''}
                   </p>
                 </div>
