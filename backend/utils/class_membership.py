@@ -174,3 +174,61 @@ def shares_class(teacher_id: str, student_id: str) -> bool:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'shares_class failed ({teacher_id} / {student_id}): {e}')
     return False
+
+
+def parents_of_students(student_ids) -> Set[str]:
+    """Every guardian of these students, through both link types the platform
+    has: users.managed_by_parent_id (dependent accounts) and an approved
+    parent_student_links row (independent accounts). Best-effort like the rest
+    of this module — a lookup failure returns what was found so far."""
+    wanted = [sid for sid in set(student_ids or []) if sid]
+    out: Set[str] = set()
+    if not wanted:
+        return out
+    try:
+        admin = _admin()
+        for chunk in _chunks(wanted):
+            rows = (admin.table('users').select('id, managed_by_parent_id')
+                    .in_('id', chunk).execute()).data or []
+            out.update(r['managed_by_parent_id'] for r in rows
+                       if r.get('managed_by_parent_id'))
+            links = (admin.table('parent_student_links')
+                     .select('parent_user_id, student_user_id')
+                     .in_('student_user_id', chunk)
+                     .eq('status', 'approved').execute()).data or []
+            out.update(l['parent_user_id'] for l in links if l.get('parent_user_id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'parents_of_students failed: {e}')
+    return out
+
+
+def children_of_parent(parent_id: str) -> Set[str]:
+    """Every student this guardian is linked to (managed_by_parent_id or an
+    approved parent_student_links row)."""
+    out: Set[str] = set()
+    if not parent_id:
+        return out
+    try:
+        admin = _admin()
+        rows = (admin.table('users').select('id')
+                .eq('managed_by_parent_id', parent_id).execute()).data or []
+        out.update(r['id'] for r in rows if r.get('id'))
+        links = (admin.table('parent_student_links').select('student_user_id')
+                 .eq('parent_user_id', parent_id)
+                 .eq('status', 'approved').execute()).data or []
+        out.update(l['student_user_id'] for l in links if l.get('student_user_id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'children_of_parent failed for {parent_id}: {e}')
+    return out
+
+
+def teaches_child_of(teacher_id: str, guardian_id: str) -> bool:
+    """True when any child of `guardian_id` is actively enrolled in a class
+    `teacher_id` teaches. Directional (teacher first); callers check both
+    orders, like shares_class."""
+    if not teacher_id or not guardian_id or teacher_id == guardian_id:
+        return False
+    children = children_of_parent(guardian_id)
+    if not children:
+        return False
+    return bool(children & students_taught_by(teacher_id))

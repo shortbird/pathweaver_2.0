@@ -118,6 +118,14 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)
                 return True
 
+            # Class families (2026-08-22): the class chat holds guardians and
+            # teachers, so the 1:1 surface matches — a teacher and the guardian
+            # of a student they teach can DM each other.
+            if class_membership.teaches_child_of(user_id, target_id) or \
+               class_membership.teaches_child_of(target_id, user_id):
+                print(f"[can_message_user] ALLOWED: Teacher-guardian via class roster", file=sys.stderr, flush=True)
+                return True
+
             # Friendship check removed (March 2026 - Feature pruning)
             # Students can no longer DM each other directly
 

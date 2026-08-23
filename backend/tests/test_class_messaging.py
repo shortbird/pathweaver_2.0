@@ -104,6 +104,8 @@ TEACHER = 'teacher-1'
 ASSISTANT = 'assistant-1'
 ADVISOR = 'advisor-1'
 STUDENT = 'student-1'
+PARENT = 'parent-1'
+LINKED_PARENT = 'parent-2'
 OUTSIDER = 'student-9'
 CLASS = 'class-1'
 
@@ -127,6 +129,17 @@ def _rows(**over):
         ],
         'group_conversations': [],
         'group_members': [],
+        'users': [
+            {'id': STUDENT, 'managed_by_parent_id': PARENT},
+            {'id': 'dropped-1', 'managed_by_parent_id': 'parent-of-dropped'},
+            {'id': OUTSIDER, 'managed_by_parent_id': None},
+        ],
+        'parent_student_links': [
+            {'id': 'psl1', 'student_user_id': STUDENT,
+             'parent_user_id': LINKED_PARENT, 'status': 'approved'},
+            {'id': 'psl2', 'student_user_id': STUDENT,
+             'parent_user_id': 'parent-unapproved', 'status': 'pending'},
+        ],
     }
     base.update(over)
     return base
@@ -196,8 +209,27 @@ class TestClassTeachers:
 
 
 @pytest.mark.unit
+class TestGuardiansOfStudents:
+    def test_both_link_types_count_and_pending_links_do_not(self):
+        from utils import class_membership as m
+        admin = _FakeAdmin(_rows())
+        with _membership(admin):
+            assert m.parents_of_students({STUDENT}) == {PARENT, LINKED_PARENT}
+
+    def test_no_students_no_guardians(self):
+        from utils import class_membership as m
+        admin = _FakeAdmin(_rows())
+        with _membership(admin):
+            assert m.parents_of_students(set()) == set()
+
+
+@pytest.mark.unit
 class TestClassGroupSync:
-    def test_primary_instructor_joins_the_class_chat_as_admin(self):
+    """The class chat holds the adults: teachers (admin) + guardians of active
+    students (member). Students are deliberately not in it (2026-08-22) — they
+    DM their teachers instead."""
+
+    def test_chat_is_teachers_plus_guardians_never_students(self):
         from utils import class_membership as m
         from services import class_group_sync_service as sync
 
@@ -210,10 +242,13 @@ class TestClassGroupSync:
         assert members[TEACHER] == 'admin'
         assert members[ASSISTANT] == 'admin'
         assert members[ADVISOR] == 'admin'
-        assert members[STUDENT] == 'member'
-        assert 'dropped-1' not in members
+        assert members[PARENT] == 'member'
+        assert members[LINKED_PARENT] == 'member'
+        assert STUDENT not in members
+        assert 'parent-unapproved' not in members
+        assert 'parent-of-dropped' not in members
 
-    def test_existing_group_gains_the_missing_teachers(self):
+    def test_existing_group_sheds_students_and_gains_the_adults(self):
         from utils import class_membership as m
         from services import class_group_sync_service as sync
 
@@ -227,9 +262,27 @@ class TestClassGroupSync:
 
         assert group_id == 'g1'
         added = {p['user_id'] for t, p in admin.inserts if t == 'group_members'}
-        assert added == {TEACHER, ASSISTANT, ADVISOR}
-        # The student who was already there is neither re-added nor removed.
-        assert not admin.deletes
+        assert added == {TEACHER, ASSISTANT, ADVISOR, PARENT, LINKED_PARENT}
+        # The student from the old membership model is swept out on resync.
+        assert [r['user_id'] for t, r in admin.deletes if t == 'group_members'] == [STUDENT]
+
+    def test_a_guardian_who_teaches_the_class_is_admin_not_member(self):
+        from utils import class_membership as m
+        from services import class_group_sync_service as sync
+
+        rows = _rows()
+        # The primary teacher is also the student's guardian.
+        rows['users'] = [
+            {'id': STUDENT, 'managed_by_parent_id': TEACHER},
+            {'id': 'dropped-1', 'managed_by_parent_id': None},
+        ]
+        rows['parent_student_links'] = []
+        admin = _FakeAdmin(rows)
+        with _membership(admin), patch.object(sync, '_admin', return_value=admin):
+            sync.sync_class_group(CLASS, actor_id=TEACHER)
+
+        members = {p['user_id']: p['role'] for t, p in admin.inserts if t == 'group_members'}
+        assert members[TEACHER] == 'admin'
 
 
 @pytest.mark.unit
@@ -340,3 +393,26 @@ class TestDirectMessagePermission:
         svc, client_patch = self._service(admin)
         with client_patch, patch.object(m, '_admin', return_value=admin):
             assert svc.can_message_user(TEACHER, OUTSIDER) is False
+
+    def test_a_teacher_and_their_students_guardian_can_dm(self):
+        from utils import class_membership as m
+        admin = self._blank_admin()
+        admin.rows['users'].append(
+            {'id': PARENT, 'role': 'parent', 'org_role': None, 'organization_id': 'org1'})
+        # STUDENT (in TEACHER's class) is managed by PARENT.
+        for u in admin.rows['users']:
+            if u['id'] == STUDENT:
+                u['managed_by_parent_id'] = PARENT
+        svc, client_patch = self._service(admin)
+        with client_patch, patch.object(m, '_admin', return_value=admin):
+            assert svc.can_message_user(TEACHER, PARENT) is True
+            assert svc.can_message_user(PARENT, TEACHER) is True
+
+    def test_a_guardian_with_no_child_in_the_class_is_denied(self):
+        from utils import class_membership as m
+        admin = self._blank_admin()
+        admin.rows['users'].append(
+            {'id': 'stranger-parent', 'role': 'parent', 'org_role': None, 'organization_id': 'org1'})
+        svc, client_patch = self._service(admin)
+        with client_patch, patch.object(m, '_admin', return_value=admin):
+            assert svc.can_message_user(TEACHER, 'stranger-parent') is False

@@ -6,6 +6,7 @@ import TemplateControls from '../../components/announcements/TemplateControls'
 import RichTextEditor from '../../components/course/outline/RichTextEditor'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import { isBlank } from '../../utils/richText'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -19,7 +20,10 @@ import SearchSelect from '../../components/ui/SearchSelect'
  *
  * - It can be narrowed to classes, teachers, or an age range, ANDed together.
  *   Parents follow from the students, so "the parents of the Tuesday choir" is
- *   one selection rather than a list somebody assembles by hand.
+ *   one selection rather than a list somebody assembles by hand. The narrowing
+ *   applies to teachers too: audience "Teachers" + two picked teachers reaches
+ *   those two, not the whole faculty (16c6e39e — a teachers-only note used to
+ *   fan out to every advisor, three of whom are also parents).
  * - Email is a deliberate tick, not automatic. An in-app note to one class used
  *   to also be three hundred emails, which is how a school teaches its families
  *   to ignore its email. The Community board already worked this way; this is
@@ -67,6 +71,7 @@ const Picker = ({ label, options, chosen, setChosen, getLabel, placeholder }) =>
 
 const FamilyMessagingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const confirm = useConfirm()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [audiences, setAudiences] = useState(['parents'])
@@ -105,6 +110,17 @@ const FamilyMessagingPage = () => {
       .then((r) => setTeachers(r.data?.staff || []))
       .catch(() => setTeachers([]))
   }, [orgId])
+
+  const removeAnnouncement = async (a) => {
+    if (!(await confirm(`Delete "${a.title}"? It disappears from families' announcement pages and notifications too.`))) return
+    try {
+      await api.delete(`/api/announcements/${a.id}`)
+      setHistory((h) => h.filter((x) => x.id !== a.id))
+      toast.success('Announcement deleted')
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to delete announcement')
+    }
+  }
 
   const targeted = classIds.length || teacherIds.length || minAge || maxAge
   const clearTargeting = () => {
@@ -262,8 +278,17 @@ const FamilyMessagingPage = () => {
               <div key={a.id} className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-medium text-neutral-900">{a.title}</h3>
-                  <span className="text-xs text-neutral-400 whitespace-nowrap">
+                  <span className="text-xs text-neutral-400 whitespace-nowrap flex items-center gap-2">
                     {new Date(a.created_at).toLocaleString()}
+                    <button
+                      type="button"
+                      onClick={() => removeAnnouncement(a)}
+                      className="text-neutral-400 hover:text-red-600"
+                      aria-label={`Delete announcement ${a.title}`}
+                      title="Delete announcement"
+                    >
+                      &#x2715;
+                    </button>
                   </span>
                 </div>
                 <AnnouncementBody text={a.content} className="text-sm text-neutral-600 mt-1" />

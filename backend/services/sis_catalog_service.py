@@ -46,18 +46,24 @@ def _classes_repo() -> SisClassRepository:
     return SisClassRepository(client=_admin())
 
 
-def spots_left(capacity: Optional[int], enrolled: int) -> Optional[int]:
-    """Remaining seats, or None when capacity is unlimited (null)."""
+def spots_left(capacity: Optional[int], enrolled: int, held: int = 0) -> Optional[int]:
+    """Remaining CLAIMABLE seats, or None when capacity is unlimited (null).
+
+    `held` is the number of seats promised to families with a live waitlist
+    offer — those are spoken for, so they are not "left" for anyone else
+    (iCreate, 2026-08-22: offered seats kept being snagged by direct enrolls
+    because every surface counted them as open)."""
     if capacity is None:
         return None
-    return max(0, capacity - enrolled)
+    return max(0, capacity - enrolled - max(0, held))
 
 
-def is_full(capacity: Optional[int], enrolled: int) -> bool:
-    """A class is full only when it has a finite capacity that is met or exceeded."""
+def is_full(capacity: Optional[int], enrolled: int, held: int = 0) -> bool:
+    """Full when the finite capacity is consumed by enrollments plus seats held
+    by live offers."""
     if capacity is None:
         return False
-    return enrolled >= capacity
+    return (enrolled + max(0, held)) >= capacity
 
 
 def _full_name(u: Dict[str, Any]) -> str:
@@ -143,6 +149,7 @@ def list_classes(org_id: str, include_archived: bool = False,
         enrolled = enrollment_counts.get(c['id'], 0)
         cap = c.get('capacity')
         wl = waitlist_breakdown.get(c['id']) or {'waiting': 0, 'offered': 0}
+        held = wl['offered']
         out.append(_for_audience({
             **c,
             'enrolled_count': enrolled,
@@ -151,8 +158,11 @@ def list_classes(org_id: str, include_archived: bool = False,
             # class can show a waitlist and still have nobody to offer to.
             'waitlist_waiting': wl['waiting'],
             'waitlist_offered': wl['offered'],
-            'spots_left': spots_left(cap, enrolled),
-            'is_full': is_full(cap, enrolled),
+            # Seats promised to families with an offer out. spots_left/is_full
+            # already subtract them; surfaced so staff UIs can say "2 held".
+            'seats_held': held,
+            'spots_left': spots_left(cap, enrolled, held),
+            'is_full': is_full(cap, enrolled, held),
             'meetings': meetings_by_class.get(c['id'], []),
             'primary_instructor': instructors.get(c.get('primary_instructor_id')),
             'assistant_instructors': _visible_assistants(c, instructors, audience),
@@ -174,9 +184,12 @@ def get_class_detail(org_id: str, class_id: str,
         return None
     enrolled = repo.active_enrollment_count(class_id)
     cap = cls.get('capacity')
+    from services import sis_waitlist_service
+    held = sis_waitlist_service.live_offer_count(class_id)
     cls['enrolled_count'] = enrolled
-    cls['spots_left'] = spots_left(cap, enrolled)
-    cls['is_full'] = is_full(cap, enrolled)
+    cls['seats_held'] = held
+    cls['spots_left'] = spots_left(cap, enrolled, held)
+    cls['is_full'] = is_full(cap, enrolled, held)
     cls['meetings'] = repo.list_meetings(class_id)
     cls['prerequisites'] = repo.list_prerequisites(class_id)
     all_ids = [cls.get('primary_instructor_id')] + list(cls.get('assistant_instructor_ids') or [])

@@ -117,7 +117,8 @@ def targeted_student_ids(org_id: str, class_ids: Optional[List[str]] = None,
 
 def recipients_for(org_id: str, audiences: Iterable[str],
                    exclude_user_id: Optional[str] = None,
-                   student_ids: Optional[Set[str]] = None) -> Set[str]:
+                   student_ids: Optional[Set[str]] = None,
+                   advisor_ids: Optional[Set[str]] = None) -> Set[str]:
     """Every user id that should receive an announcement for these audiences.
 
     Parents are resolved per student, so a platform parent (no organization_id
@@ -133,6 +134,13 @@ def recipients_for(org_id: str, audiences: Iterable[str],
     # so "the parents of the Tuesday choir" needs no separate parent query.
     if student_ids is not None:
         students = [m for m in students if m['id'] in student_ids]
+    # ...and to these teachers. Before this, picking two teachers and audience
+    # "Teachers" notified EVERY advisor in the org — the filter only ever
+    # narrowed students (iCreate, 2026-08-22: "sent a message to just the
+    # teachers ... it came through to the parents too" — three of the org's
+    # advisors are also parents, and all thirty advisors were messaged).
+    if advisor_ids is not None:
+        advisors = [m for m in advisors if m['id'] in advisor_ids]
 
     recipient_ids: Set[str] = set()
     if 'students' in audiences:
@@ -151,6 +159,23 @@ def recipients_for(org_id: str, audiences: Iterable[str],
                 logger.warning(f"Could not resolve parents for student {s['id']}: {e}")
     recipient_ids.discard(exclude_user_id)
     return recipient_ids
+
+
+def targeted_advisor_ids(org_id: str, class_ids: Optional[List[str]] = None,
+                         teacher_ids: Optional[List[str]] = None) -> Optional[Set[str]]:
+    """The advisors a targeted send is aimed at, or None for "all advisors".
+
+    Picking teachers means those teachers; picking classes means the teachers
+    of those classes. Age filters don't narrow teachers — ages describe
+    students. Mirrors targeted_student_ids' None-vs-empty contract."""
+    if not (class_ids or teacher_ids):
+        return None
+    ids: Set[str] = set(teacher_ids or [])
+    if class_ids:
+        from utils import class_membership
+        for cid in class_ids:
+            ids |= class_membership.class_teacher_ids(cid)
+    return ids
 
 
 def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
@@ -182,7 +207,8 @@ def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
 
 def publish(org_id: str, author_id: str, title: str, content: str,
             audiences: List[str], student_ids: Optional[Set[str]] = None,
-            send_email: bool = True, target_label: Optional[str] = None) -> Dict[str, Any]:
+            send_email: bool = True, target_label: Optional[str] = None,
+            advisor_ids: Optional[Set[str]] = None) -> Dict[str, Any]:
     """Store the announcement and fan it out (notifications + optional email).
 
     `send_email` defaults to True so every existing caller keeps behaving
@@ -222,7 +248,8 @@ def publish(org_id: str, author_id: str, title: str, content: str,
         logger.warning(f"Announcement row insert failed (continuing): {e}")
 
     recipient_ids = recipients_for(org_id, audiences, exclude_user_id=author_id,
-                                   student_ids=student_ids)
+                                   student_ids=student_ids,
+                                   advisor_ids=advisor_ids)
 
     from services.notification_service import NotificationService
     notifier = NotificationService()

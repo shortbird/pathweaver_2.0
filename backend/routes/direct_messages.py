@@ -449,10 +449,20 @@ def get_contacts(user_id: str):
                             'relationship': 'student'
                         })
 
-            # SIS classes: everyone on the roster of a class this teacher teaches.
+            # SIS classes: everyone on the roster of a class this teacher teaches,
+            # and — since the class chat holds the adults (2026-08-22) — the
+            # guardians of those students.
+            taught = class_membership.students_taught_by(user_id)
             _add_class_contacts(
-                supabase, contacts, class_membership.students_taught_by(user_id),
+                supabase, contacts, taught,
                 'student', user_id, user_org_id
+            )
+            # user_org_id deliberately None: guardians are usually platform
+            # parents (organization_id NULL), and the roster link — their child
+            # in this teacher's class — is already the authorization.
+            _add_class_contacts(
+                supabase, contacts, class_membership.parents_of_students(taught),
+                'parent', user_id, None
             )
 
         # For parents: their children, the advisors of those children, AND all
@@ -487,6 +497,17 @@ def get_contacts(user_id: str):
                                 continue
                             advisor.pop('organization_id', None)
                             contacts.append({**advisor, 'relationship': 'advisor'})
+
+                # SIS classes: the teachers of every class those children are
+                # enrolled in. Class chats hold guardians and teachers, so the
+                # 1:1 surface has to offer the same adults (2026-08-22).
+                class_teacher_ids = set()
+                for cid in child_ids:
+                    class_teacher_ids |= class_membership.teachers_of_student(cid)
+                _add_class_contacts(
+                    supabase, contacts, class_teacher_ids,
+                    'advisor', user_id, user_org_id
+                )
 
                 # All observers linked to those children
                 obs_links = supabase.table('observer_student_links').select(
