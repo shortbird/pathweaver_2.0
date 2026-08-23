@@ -248,6 +248,65 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 })
 
 
+// Quests a teacher assigned through an org class that the student hasn't
+// started yet. The backend has always sent assigned_class_quests; until now
+// only the mobile app rendered it, so on web newly assigned schoolwork was
+// invisible unless the student found the Classes page. Clicking through opens
+// the quest detail with its enroll CTA.
+const AssignedClassQuests = memo(({ assignments }) => {
+  const items = (assignments || []).filter(a => a?.quest?.id)
+  if (items.length === 0) return null
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-gray-900 mb-2">From Your Classes</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Your teachers picked these quests for you. Open one to get started.
+      </p>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="space-y-3">
+          {items.map(({ quest, class_name: className, due_date: dueDate }) => (
+            <Link
+              key={quest.id}
+              to={`/quests/${quest.id}`}
+              className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
+            >
+              <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-200">
+                {(quest.image_url || quest.header_image_url) ? (
+                  <img
+                    src={quest.image_url || quest.header_image_url}
+                    alt={quest.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <ClipboardDocumentListIcon className="w-8 h-8" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate">
+                  {quest.title}
+                </h3>
+                <p className="text-sm text-gray-600 truncate">
+                  {className}
+                  {dueDate && (
+                    <span className="text-gray-500">
+                      {' '}&middot; due {new Date(dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+})
+
+
 const DashboardPage = () => {
   const { user } = useAuth()
   const { actingAsDependent } = useActingAs()
@@ -368,6 +427,9 @@ const DashboardPage = () => {
         </button>
         */}
       </div>
+
+      {/* Schoolwork first: quests teachers assigned that aren't started yet */}
+      <AssignedClassQuests assignments={dashboardData?.assigned_class_quests} />
 
       {/* Active Quests Panel */}
       <div className="mb-8">

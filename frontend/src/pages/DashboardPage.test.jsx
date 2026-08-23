@@ -332,6 +332,63 @@ describe('DashboardPage', () => {
     })
   })
 
+  // --- Assigned class quests ---
+  describe('assigned class quests', () => {
+    it('renders quests a teacher assigned that the student has not started', () => {
+      dashboardHookData = {
+        data: {
+          active_quests: [],
+          enrolled_courses: [],
+          stats: {},
+          assigned_class_quests: [
+            {
+              class_id: 'cls-1',
+              class_name: 'Marine Biology',
+              due_date: '2026-09-01',
+              quest: { id: 'q-assigned', title: 'Tide Pool Field Guide', image_url: null, header_image_url: null }
+            }
+          ]
+        },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.getByText('From Your Classes')).toBeInTheDocument()
+      expect(screen.getByText('Tide Pool Field Guide')).toBeInTheDocument()
+      expect(screen.getByText(/Marine Biology/)).toBeInTheDocument()
+      expect(screen.getByText('Tide Pool Field Guide').closest('a'))
+        .toHaveAttribute('href', '/quests/q-assigned')
+    })
+
+    it('renders nothing when there are no assignments', () => {
+      dashboardHookData = {
+        data: { active_quests: [], enrolled_courses: [], stats: {}, assigned_class_quests: [] },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.queryByText('From Your Classes')).not.toBeInTheDocument()
+    })
+
+    it('skips malformed assignments without a quest', () => {
+      dashboardHookData = {
+        data: {
+          active_quests: [],
+          enrolled_courses: [],
+          stats: {},
+          assigned_class_quests: [{ class_id: 'cls-1', class_name: 'Orphaned', quest: null }]
+        },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.queryByText('From Your Classes')).not.toBeInTheDocument()
+    })
+  })
+
   // --- Recently completed ---
   describe('recently completed', () => {
     it('renders Completed Quests section when present', () => {
