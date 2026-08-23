@@ -57,6 +57,18 @@ def _context_payload(user_id, requested_org, view_as):
     return ctx
 
 
+@bp.route('/my-schedule', methods=['GET'])
+@require_auth
+def get_my_schedule(user_id):
+    """The caller's own class schedule — the hub's schedule section for a
+    student (a dependent resolves here too: acting-as substitutes the child's
+    id, and the child's own users row carries the org). Membership is the
+    authorization: the service resolves the org from the caller and returns
+    empty for anyone without one, so staff and guardians simply get no rows
+    rather than an error."""
+    return jsonify({'success': True, **parent.my_schedule(user_id)})
+
+
 @bp.route('/context', methods=['GET'])
 @require_auth
 def get_school_context(user_id):

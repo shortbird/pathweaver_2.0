@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
 import { isOptioAcademyOrg } from '../config/optioAcademy'
+import WeeklySchedule, { meetingsText } from '../components/schedule/WeeklySchedule'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { FeedSection, hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
@@ -129,6 +130,67 @@ export function cardsFor(org) {
   const cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
   if (org.prior_learning_enabled) cards.push(priorLearningCard)
   return org.is_guardian ? cards : cards.filter((c) => !c.guardianOnly)
+}
+
+/**
+ * The viewer's own week — for the students, who until now had no schedule
+ * anywhere (every schedule card above is guardianOnly, and the guardian
+ * endpoints 403 a student asking about themselves). Reads the self-scoped
+ * /api/sis/school/my-schedule, which returns classes only for the caller's own
+ * active enrollments — so guardians, teachers and staff get no rows and the
+ * section renders nothing for them, same pattern as the parent dashboard's
+ * StudentSchedulePreview. Not rendered in the superadmin preview: there is no
+ * real student behind view_as=student.
+ */
+export function MyScheduleSection() {
+  const [schedule, setSchedule] = useState(null)
+  useEffect(() => {
+    let active = true
+    api.get('/api/sis/school/my-schedule')
+      .then(({ data }) => { if (active && data?.success) setSchedule(data) })
+      .catch(() => { /* no schedule for this user */ })
+    return () => { active = false }
+  }, [])
+
+  const classes = schedule?.classes || []
+  if (classes.length === 0) return null
+
+  return (
+    <section aria-label="My schedule" className="mt-6 bg-white border border-gray-200 rounded-xl px-3.5 py-3 sm:px-5 sm:py-4">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+          <TableCellsIcon className="w-5 h-5 text-optio-purple" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-gray-900">My schedule</h2>
+          <p className="text-xs text-gray-500">Your classes this week.</p>
+        </div>
+      </div>
+      <WeeklySchedule classes={classes} timeBlocks={schedule.time_blocks || []} compact />
+      <div className="overflow-x-auto mt-3">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+              <th className="py-2 pr-3 font-medium">Class</th>
+              <th className="py-2 pr-3 font-medium">When</th>
+              <th className="py-2 pr-3 font-medium">Teacher</th>
+              <th className="py-2 font-medium">Where</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {classes.map((c) => (
+              <tr key={c.id}>
+                <td className="py-2 pr-3 text-gray-800">{c.name}</td>
+                <td className="py-2 pr-3 text-gray-500">{meetingsText(c.meetings) || 'Not scheduled'}</td>
+                <td className="py-2 pr-3 text-gray-500">{c.primary_instructor?.name || ''}</td>
+                <td className="py-2 text-gray-500">{c.location || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
 }
 
 export default function SchoolPage() {
@@ -443,6 +505,10 @@ export default function SchoolPage() {
           ))}
         </nav>
       )}
+
+      {/* The student's own week — renders nothing for guardians, staff, and
+          the superadmin preview (no real student behind view_as=student). */}
+      {!previewOrgId && <MyScheduleSection />}
 
       {/* The section tab bar — the shared glass pill rail (GlassTabBar was
           extracted from this page's inline version, 2026-08-10). Sticks just

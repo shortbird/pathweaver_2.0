@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
-import WeeklySchedule, { formatTime } from '../components/schedule/WeeklySchedule'
+import WeeklySchedule, { meetingsText } from '../components/schedule/WeeklySchedule'
 
 /**
  * A printable copy of one student's class schedule.
@@ -15,27 +15,6 @@ import WeeklySchedule, { formatTime } from '../components/schedule/WeeklySchedul
  * readable: the weekly picture, then a plain list with teacher and room. The
  * list also catches weekend meetings, which the Mon-Fri grid cannot show.
  */
-
-const DAY_NAMES = {
-  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
-  4: 'Thursday', 5: 'Friday', 6: 'Saturday',
-}
-const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // Monday-first, the way a school week reads
-
-/** "Mon 9:30am-10:30am; Wed 1pm-2pm", Monday-first. */
-const meetingsText = (meetings) => {
-  const sorted = [...(meetings || [])].sort((a, b) => {
-    const da = DAY_ORDER.indexOf(a.day_of_week)
-    const db = DAY_ORDER.indexOf(b.day_of_week)
-    if (da !== db) return da - db
-    return String(a.start_time || '').localeCompare(String(b.start_time || ''))
-  })
-  return sorted.map((m) => {
-    const day = (DAY_NAMES[m.day_of_week] || '').slice(0, 3)
-    const time = [formatTime(m.start_time), formatTime(m.end_time)].filter(Boolean).join('-')
-    return [day, time].filter(Boolean).join(' ')
-  }).filter(Boolean).join('; ')
-}
 
 const Card = ({ title, children }) => (
   <section className="bg-white rounded-xl border border-gray-200 p-5 mb-5 break-inside-avoid">

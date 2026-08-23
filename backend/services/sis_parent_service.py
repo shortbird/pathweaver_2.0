@@ -601,6 +601,44 @@ def drop_course(user_id: str, org_id: str, student_user_id: str, course_id: str)
     return {'ok': True}
 
 
+def _enrolled_classes(org_id: str, student_user_id: str,
+                      all_classes: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """The family-audience class payloads for a student's active enrollments."""
+    enrolled_ids = {
+        r['class_id'] for r in (
+            _admin().table('class_enrollments').select('class_id, status')
+            .eq('student_id', student_user_id).eq('status', 'active').execute()
+        ).data or []
+    }
+    if all_classes is None:
+        all_classes = catalog.list_classes(org_id, audience='family')
+    return [c for c in all_classes if c['id'] in enrolled_ids]
+
+
+def my_schedule(user_id: str) -> Dict[str, Any]:
+    """The caller's OWN schedule — the self-scoped read behind the school hub's
+    schedule section. student_schedule() authorizes guardian→student and its
+    payload carries household money (tuition plan, block pricing, registration
+    holds), so a student could never call it for themselves; this one
+    authorizes by membership (the caller's own users.organization_id) and
+    returns only what a student may see about their own week: each class's
+    name, meetings, teacher and room, plus the org's time blocks."""
+    org_id = sis_service.member_org_id(user_id)
+    if not org_id or not org_has_feature(org_id, 'sis_enabled'):
+        return {'classes': [], 'time_blocks': []}
+    classes = [{
+        'id': c['id'],
+        'name': c.get('name'),
+        'image_url': c.get('image_url'),
+        'location': c.get('location'),
+        'meetings': c.get('meetings') or [],
+        'primary_instructor': c.get('primary_instructor'),
+        'assistant_instructors': c.get('assistant_instructors') or [],
+    } for c in _enrolled_classes(org_id, user_id)]
+    settings = _sis_settings(org_id)
+    return {'classes': classes, 'time_blocks': settings.get('time_blocks') or []}
+
+
 def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
     """The student's current schedule: active class enrollments (with meetings)
     plus live waitlist entries, at-home Optio courses, and whether self-service
@@ -608,14 +646,8 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     if not _can_register(user_id, org_id, student_user_id):
         return {'error': 'Not authorized for this student'}
 
-    enrolled_ids = {
-        r['class_id'] for r in (
-            _admin().table('class_enrollments').select('class_id, status')
-            .eq('student_id', student_user_id).eq('status', 'active').execute()
-        ).data or []
-    }
     all_classes = catalog.list_classes(org_id, audience='family')
-    classes = [c for c in all_classes if c['id'] in enrolled_ids]
+    classes = _enrolled_classes(org_id, student_user_id, all_classes)
 
     waitlist_rows = (
         _admin().table('sis_waitlist_entries').select('*')

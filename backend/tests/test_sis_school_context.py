@@ -315,6 +315,57 @@ class TestContextRouteSuperadminFallback:
 
 
 @pytest.mark.unit
+class TestMySchedule:
+    """/api/sis/school/my-schedule — the self-scoped schedule read. A student
+    could never call student_schedule() (it authorizes guardian→student and
+    carries household money), so the hub's schedule section reads this instead:
+    membership-authorized, and stripped to what a student may see about their
+    own week."""
+
+    FAMILY_CLASS = {
+        'id': 'cls-1', 'name': 'Choir (Tuesday)', 'image_url': None,
+        'location': 'Music Conservatory',
+        'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30'}],
+        'primary_instructor': {'id': 't-1', 'name': 'Ms. Reed'},
+        'assistant_instructors': [],
+        # family-audience extras that must NOT reach the student payload
+        'price_cents': 50000, 'spots_left': 3, 'enrolled_count': 9,
+        'waitlist_count': 2, 'capacity': 12,
+    }
+
+    def _schedule(self, member_org='org-1', sis_enabled=True, classes=None,
+                  settings=None):
+        with patch('services.sis_service.member_org_id', return_value=member_org), \
+             patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
+             patch.object(parent, '_enrolled_classes',
+                          return_value=list(classes or [])), \
+             patch.object(parent, '_sis_settings', return_value=settings or {}):
+            return parent.my_schedule('student-1')
+
+    def test_a_student_gets_their_classes_and_time_blocks(self):
+        out = self._schedule(classes=[self.FAMILY_CLASS],
+                             settings={'time_blocks': [{'start': '09:30', 'end': '10:30'}]})
+        assert [c['name'] for c in out['classes']] == ['Choir (Tuesday)']
+        assert out['classes'][0]['meetings'][0]['start_time'] == '09:30'
+        assert out['classes'][0]['primary_instructor']['name'] == 'Ms. Reed'
+        assert out['time_blocks'] == [{'start': '09:30', 'end': '10:30'}]
+
+    def test_the_payload_is_trimmed_to_schedule_fields(self):
+        """The family catalog entry carries seats and pricing; none of it
+        belongs on a student's own schedule."""
+        cls = self._schedule(classes=[self.FAMILY_CLASS])['classes'][0]
+        for leaked in ('price_cents', 'spots_left', 'enrolled_count',
+                       'waitlist_count', 'capacity'):
+            assert leaked not in cls
+
+    def test_someone_with_no_school_gets_an_empty_schedule(self):
+        assert self._schedule(member_org=None) == {'classes': [], 'time_blocks': []}
+
+    def test_a_non_sis_school_gets_an_empty_schedule(self):
+        assert self._schedule(sis_enabled=False) == {'classes': [], 'time_blocks': []}
+
+
+@pytest.mark.unit
 class TestGuardianOnlySurfacesDidNotWiden:
     """The point of a separate membership check is that it did NOT leak into the
     surfaces that act on a family. A student is a member of the school; that must

@@ -231,5 +231,28 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
   )
 }
 
+// Meeting prose to pair with the grid: "Mon 9:30am-10:30am; Wed 1pm-2pm",
+// Monday-first the way a school week reads. Lives beside the grid so every
+// surface that lists the same meetings in text (the printable family schedule,
+// the school hub's schedule section) words them identically.
+const MEETING_DAY_NAMES = {
+  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
+  4: 'Thursday', 5: 'Friday', 6: 'Saturday',
+}
+const MEETING_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+export const meetingsText = (meetings) => {
+  const sorted = [...(meetings || [])].sort((a, b) => {
+    const da = MEETING_DAY_ORDER.indexOf(a.day_of_week)
+    const db = MEETING_DAY_ORDER.indexOf(b.day_of_week)
+    if (da !== db) return da - db
+    return String(a.start_time || '').localeCompare(String(b.start_time || ''))
+  })
+  return sorted.map((m) => {
+    const day = (MEETING_DAY_NAMES[m.day_of_week] || '').slice(0, 3)
+    const time = [fmt(m.start_time), fmt(m.end_time)].filter(Boolean).join('-')
+    return [day, time].filter(Boolean).join(' ')
+  }).filter(Boolean).join('; ')
+}
+
 export { fmt as formatTime }
 export default WeeklySchedule

@@ -139,6 +139,45 @@ describe('what a student or teacher gets', () => {
   })
 })
 
+describe('the student schedule section', () => {
+  // Every schedule card above is guardianOnly, so this section is the ONLY
+  // schedule a student gets. It reads the self-scoped my-schedule endpoint;
+  // anyone the backend hands no classes (guardians, teachers, staff) gets no
+  // section at all rather than an empty grid.
+  const CHOIR = {
+    id: 'cls-1', name: 'Choir (Tuesday)', location: 'Music Conservatory',
+    meetings: [{ day_of_week: 2, start_time: '09:30', end_time: '10:30' }],
+    primary_instructor: { id: 't-1', name: 'Ms. Reed' },
+  }
+  let mySchedule
+
+  beforeEach(() => {
+    schoolContext = { success: true, orgs: [MEMBER_ORG], is_guardian: false }
+    mySchedule = { success: true, classes: [CHOIR], time_blocks: [] }
+    get.mockImplementation((url) => {
+      if (url.startsWith('/api/sis/school/my-schedule')) return Promise.resolve({ data: mySchedule })
+      return defaultGet(url)
+    })
+  })
+
+  it('shows a student their classes with teacher and room', async () => {
+    renderPage()
+    const section = await screen.findByRole('region', { name: /My schedule/i })
+    // The name appears twice by design: once in the weekly grid, once in the list.
+    expect(within(section).getAllByText('Choir (Tuesday)').length).toBeGreaterThan(0)
+    expect(within(section).getByText('Ms. Reed')).toBeInTheDocument()
+    expect(within(section).getByText('Music Conservatory')).toBeInTheDocument()
+    expect(within(section).getByText(/Tue 9:30am-10:30am/)).toBeInTheDocument()
+  })
+
+  it('renders nothing for someone with no enrollments of their own', async () => {
+    mySchedule = { success: true, classes: [], time_blocks: [] }
+    renderPage()
+    await screen.findByRole('navigation', { name: /school/i })
+    expect(screen.queryByRole('region', { name: /My schedule/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('a school that is not on the SIS', () => {
   it('is still just its announcements', async () => {
     // Hearthwood, Treehouse, Gryffin: a school page with nothing behind it.
