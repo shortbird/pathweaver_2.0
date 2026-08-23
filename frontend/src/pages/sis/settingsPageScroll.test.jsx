@@ -18,6 +18,9 @@ describe('SettingsPage scroll position behavior', () => {
     name: 'iCreate Academy',
     slug: 'icreate',
     feature_flags: {
+      // sis_enabled matters since the settings registry (blocks P3): the
+      // module-gated cards cascade from the 'sis' block.
+      sis_enabled: true,
       sis_settings: {
         rooms: [{ name: 'Room 101', description: 'Main hall' }],
       },

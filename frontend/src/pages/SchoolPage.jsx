@@ -65,31 +65,31 @@ const PAGE_SIZE = 20
 const SCHOOL_CARDS = [
   {
     name: 'Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
-    description: 'Field trips, showcases and closures.',
+    description: 'Field trips, showcases and closures.', module: 'calendar',
   },
   {
     name: 'Resources', path: '/resources', Icon: BookOpenIcon,
-    description: 'Guidebooks, contracts and forms to refer back to.',
+    description: 'Guidebooks, contracts and forms to refer back to.', module: 'resources',
   },
   {
     name: 'Directory', path: '/family-directory', Icon: UsersIcon,
-    description: 'Contact details for families who opted in.',
+    description: 'Contact details for families who opted in.', module: 'community',
   },
   {
     name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
-    description: 'Your balance, invoices and receipts.', guardianOnly: true,
+    description: 'Your balance, invoices and receipts.', guardianOnly: true, module: 'billing',
   },
   {
     name: 'Absences', path: '/absences', Icon: CalendarIcon,
-    description: 'Let us know when your child will be out.', guardianOnly: true,
+    description: 'Let us know when your child will be out.', guardianOnly: true, module: 'attendance',
   },
   {
     name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
-    description: 'Checklists assigned to your family.', guardianOnly: true,
+    description: 'Checklists assigned to your family.', guardianOnly: true, module: 'onboarding',
   },
   {
     name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
-    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true,
+    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true, module: 'forms',
   },
 ]
 
@@ -99,12 +99,12 @@ const flowCard = (postRegistrationFlow) => (
     ? {
       name: 'Goal Setting', path: '/family/goals', Icon: CheckCircleIcon,
       description: 'Set a direction and per-subject goals for each child.',
-      guardianOnly: true,
+      guardianOnly: true, module: 'goals',
     }
     : {
       name: 'Schedule Builder', path: '/schedule-builder', Icon: TableCellsIcon,
       description: 'Build and change your children’s class schedules.',
-      guardianOnly: true,
+      guardianOnly: true, module: 'classes',
     }
 )
 
@@ -113,7 +113,7 @@ const flowCard = (postRegistrationFlow) => (
 const priorLearningCard = {
   name: 'Prior Learning', path: '/family/prior-learning', Icon: AcademicCapIcon,
   description: 'Submit learning done before Optio for high-school credit.',
-  guardianOnly: true,
+  guardianOnly: true, module: 'prior_learning',
 }
 
 export function cardsFor(org) {
@@ -126,8 +126,14 @@ export function cardsFor(org) {
   if (isOptioAcademyOrg(org.organization_id)) {
     return org.is_guardian && org.prior_learning_enabled ? [priorLearningCard] : []
   }
-  const cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
+  let cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
   if (org.prior_learning_enabled) cards.push(priorLearningCard)
+  // Blocks P3: the server names which family-surface modules this school runs
+  // (school_context orgs[].modules); a card whose module is off disappears.
+  // An older payload without the list keeps the previous behavior.
+  if (Array.isArray(org.modules)) {
+    cards = cards.filter((c) => !c.module || org.modules.includes(c.module))
+  }
   return org.is_guardian ? cards : cards.filter((c) => !c.guardianOnly)
 }
 

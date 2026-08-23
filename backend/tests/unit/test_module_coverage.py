@@ -16,11 +16,16 @@ import pytest
 EXEMPT_BLUEPRINTS = {
     'sis_pay': 'unauthenticated by design; the signed token is the authorization',
     'sis_school': 'the discovery endpoint that reports the module set',
-    'sis_parent': 'family surface; per-route @require_module tags land with P3',
-    'sis_parent_forms': 'family surface; P3',
-    'sis_parent_prior_learning': 'family surface; P3 (service already gates)',
-    'sis_staff_portal': 'spans classes/timesheets/tasks; per-route tags in P3',
-    'sis_staff_admin': 'spans staff/onboarding/forms/timesheets; per-route tags in P3',
+}
+
+# Individual rules deliberately left ungated on an otherwise-tagged blueprint
+# (parent.py's module docstring carries the same list with the reasons).
+EXEMPT_RULES = {
+    '/api/sis/parent/context': 'reports the module set; asked pre-render',
+    '/api/sis/parent/required-documents': 'access gate; asked pre-render',
+    '/api/sis/parent/photo': 'profile basics (sis people core)',
+    '/api/sis/parent/students/<student_id>/photo': 'profile basics (sis people core)',
+    '/api/sis/parent/quests': 'school-wide family engagement; no single module owns it',
 }
 
 
@@ -45,6 +50,8 @@ def test_every_sis_rule_is_module_owned_or_exempt(flask_app):
         if getattr(view, '_module_keys', None):
             continue
         if blueprint in EXEMPT_BLUEPRINTS:
+            continue
+        if path in EXEMPT_RULES:
             continue
         uncovered.append(f'{path}  ({rule.endpoint})')
 

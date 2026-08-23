@@ -1020,19 +1020,20 @@ def register_sis_routes(app):
     module ownership table; tests/unit/test_module_coverage.py fails when a
     new SIS blueprint is neither mapped nor on the exemption list.
 
-    Deliberate exemptions (per-route tags come with P3's family gating):
+    Deliberate exemptions:
       pay_bp        -- unauthenticated by design; the signed token is the
                        authorization, and it settles invoices that existed
                        when billing was on (see services/sis_pay_links.py)
       school_bp     -- the discovery endpoint that REPORTS the module set;
                        gating it would hide the answer to "what is on?"
-      parent_bp, parent_forms_bp, parent_prior_learning_bp
-                    -- family surface: callers are platform parents with no
-                       organization_id, so org resolution here would no-op;
-                       they gate per-route via the family relationship in P3
-      staff_portal_bp, staff_admin_bp
-                    -- span several modules (classes/timesheets/tasks/forms/
-                       onboarding); per-route tags in P3
+      parent_bp     -- spans a dozen modules, so it tags per-route with
+                       @require_module (P3); the handful of deliberately
+                       ungated routes are named in its module docstring
+
+    staff_portal_bp / staff_admin_bp carry a blueprint-level 'sis' baseline
+    here PLUS per-route @require_module tags for the specific feature
+    (classes/forms/tasks/onboarding/timesheets/secure_documents) -- both
+    gates run, so a route needs its own module AND the sis parent on.
     """
     from modules.gate import module_guard
 
@@ -1105,6 +1106,13 @@ def register_sis_routes(app):
         (goals_bp, 'goals'),
         (student_records_bp, 'sis'),
         (community_bp, 'community'),
+        # P3: the staff surfaces get the 'sis' baseline (their per-feature
+        # tags are on the routes); the two single-module family blueprints
+        # join the table outright.
+        (staff_portal_bp, 'sis'),
+        (staff_admin_bp, 'sis'),
+        (parent_forms_bp, 'forms'),
+        (parent_prior_learning_bp, 'prior_learning'),
     ):
         module_guard(blueprint, module_key)
 

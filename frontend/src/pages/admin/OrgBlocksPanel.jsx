@@ -58,7 +58,36 @@ export default function OrgBlocksPanel({ organization, onClose, onChanged }) {
     return () => { alive = false }
   }, [organization.id])
 
+  // v2: name the consequences BEFORE a turn-off, not in the 409 after.
+  // Dependents come from the rows themselves (requires / requires_any);
+  // the open-invoice count rides in on the billing row.
+  const turnOffWarning = (key, row) => {
+    const warnings = []
+    const dependents = Object.entries(modules || {})
+      .filter(([k, r]) => r.effective && (
+        r.requires.includes(key)
+        || (r.requires_any?.length > 0 && r.requires_any.includes(key)
+            && !r.requires_any.some((alt) => alt !== key && modules[alt]?.effective))
+      ))
+      .map(([, r]) => r.name)
+    if (dependents.length > 0) {
+      warnings.push(`${dependents.join(' and ')} depend${dependents.length === 1 ? 's' : ''} on it`)
+    }
+    if (key === 'billing' && row.open_invoices > 0) {
+      warnings.push(`${row.open_invoices} invoice${row.open_invoices === 1 ? ' is' : 's are'} still collecting payment`)
+    }
+    return warnings
+  }
+
   const toggle = async (key, row) => {
+    if (row.effective) {
+      const warnings = turnOffWarning(key, row)
+      if (warnings.length > 0 && !confirm(
+        `Turn off ${row.name} for ${organization.name}?\n\n${warnings.join('\n')}`
+      )) {
+        return
+      }
+    }
     setSavingKey(key)
     setError(null)
     try {

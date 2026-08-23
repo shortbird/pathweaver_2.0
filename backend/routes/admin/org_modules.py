@@ -66,6 +66,24 @@ def _requires_violations(org_row):
     return out
 
 
+def _open_invoice_count(org_id):
+    """How many invoices are still collecting money — the number a superadmin
+    should see before turning billing off (v2 of the panel). Count-only and
+    best-effort: a billing hiccup must not break the toggle."""
+    try:
+        from database import get_supabase_admin_client
+        from services.sis_billing_service import OPEN_INVOICE_STATUSES
+        # admin client justified: superadmin-only route; a count for a warning
+        return (get_supabase_admin_client().table('sis_invoices')
+                .select('id', count='exact')
+                .eq('organization_id', org_id)
+                .in_('status', list(OPEN_INVOICE_STATUSES))
+                .execute().count or 0)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[Blocks] open-invoice count failed for {org_id}: {e}')
+        return None
+
+
 def _mirror_legacy_flags(flags, sis_settings, changes):
     """Transition-window mirroring (dropped in P4): these keys have legacy
     flags with live readers not yet on the module system (sis_enabled sweeps
@@ -99,7 +117,12 @@ def get_organization_modules(superadmin_user_id, org_id):
         org = OrganizationRepository().find_by_id(org_id)
         if not org:
             return jsonify({'error': 'Organization not found'}), 404
-        return jsonify({'success': True, 'modules': _module_rows(org)}), 200
+        rows = _module_rows(org)
+        # Blocks panel v2: name the consequence before the superadmin turns
+        # billing off — families mid-payment lose their portal view of these.
+        if rows.get('billing', {}).get('effective'):
+            rows['billing']['open_invoices'] = _open_invoice_count(org_id)
+        return jsonify({'success': True, 'modules': rows}), 200
     except Exception as e:
         logger.error(f"Error reading modules for org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
@@ -153,7 +176,10 @@ def patch_organization_modules(superadmin_user_id, org_id):
 
         logger.info(f"[Blocks] superadmin {superadmin_user_id} set modules for "
                     f"org {org_id}: {changes}")
-        return jsonify({'success': True, 'modules': _module_rows(updated or post)}), 200
+        rows = _module_rows(updated or post)
+        if rows.get('billing', {}).get('effective'):
+            rows['billing']['open_invoices'] = _open_invoice_count(org_id)
+        return jsonify({'success': True, 'modules': rows}), 200
     except Exception as e:
         logger.error(f"Error updating modules for org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500

@@ -205,6 +205,13 @@ def _defs() -> Tuple[ModuleDef, ...]:
 MODULES: Dict[str, ModuleDef] = {m.key: m for m in _defs()}
 
 
+def surface_keys(surface: str) -> frozenset:
+    """Module keys declared on a surface ('family', 'console', ...). Family
+    payloads intersect the effective set with surface_keys('family') so a page
+    only ever learns about modules it could render."""
+    return frozenset(k for k, m in MODULES.items() if surface in m.surfaces)
+
+
 def _validate() -> None:
     """Fail at import on a mis-wired registry; the full checks live in
     tests/unit/test_module_registry.py."""

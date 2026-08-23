@@ -126,7 +126,6 @@ const BASELINE = [
   'src/components/organization/CreateUsernameStudentModal.jsx',
   'src/components/organization/OverviewTab.jsx',
   'src/components/organization/PeopleTab.jsx',
-  'src/components/organization/SettingsTab.jsx',
   'src/components/organization/UsersTab.jsx',
   'src/components/organization/people/EditUserModal.jsx',
   'src/components/overview/QuestAccordionGallery.jsx',

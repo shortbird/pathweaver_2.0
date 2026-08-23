@@ -13,6 +13,7 @@ import uuid as _uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from modules.gate import require_module
 from utils.logger import get_logger
 from utils import class_membership as membership
 from services import sis_service
@@ -93,6 +94,7 @@ def dashboard(user_id):
 
 @bp.route('/classes', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('classes')
 def my_classes(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -103,6 +105,7 @@ def my_classes(user_id):
 
 @bp.route('/classes/<class_id>/roster', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('classes')
 def class_roster(user_id, class_id):
     """Roster with guardian contacts + health/safety alerts. Access is limited
     to the class's own teachers (and admins) and every view is access-logged."""
@@ -135,6 +138,7 @@ def class_roster(user_id, class_id):
 
 @bp.route('/classes/<class_id>/messaging', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('classes')
 def class_messaging(user_id, class_id):
     """Everything the class Messages tab needs: the class group chat and the
     people a teacher can message one-to-one (students on the roster, plus any
@@ -235,6 +239,7 @@ def class_messaging(user_id, class_id):
 
 @bp.route('/schedule', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('classes')
 def schedule(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -286,6 +291,7 @@ def update_my_profile(user_id):
 
 @bp.route('/forms', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('forms')
 def my_forms(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -302,6 +308,7 @@ def my_forms(user_id):
 
 @bp.route('/forms', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_module('forms')
 def submit_form(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -314,6 +321,7 @@ def submit_form(user_id):
 
 @bp.route('/tasks', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('tasks')
 def my_tasks(user_id):
     """Open requests/tasks assigned to the caller — any staff member can be an
     assignee ("Family requests can be assigned to any staff member")."""
@@ -328,6 +336,7 @@ def my_tasks(user_id):
 
 @bp.route('/onboarding', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('onboarding')
 def my_onboarding(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -342,6 +351,7 @@ def my_onboarding(user_id):
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
+@require_module('onboarding')
 def update_onboarding_item(user_id, assignment_id, item_key):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -359,6 +369,7 @@ def update_onboarding_item(user_id, assignment_id, item_key):
 
 @bp.route('/onboarding/upload', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_module('onboarding')
 def upload_onboarding_doc(user_id):
     """Upload an onboarding document to the PRIVATE staff-documents bucket.
     Returns a storage path; reads go through signed URLs (below)."""
@@ -401,6 +412,7 @@ def upload_onboarding_doc(user_id):
 
 @bp.route('/onboarding/doc-url', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('onboarding')
 def onboarding_doc_url(user_id):
     """Signed (1h) URL for a staff document. Teachers can only open their own
     files; admins can open any file in their org."""
@@ -428,6 +440,7 @@ def onboarding_doc_url(user_id):
 
 @bp.route('/time/clock-in', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_module('timesheets')
 def clock_in(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -442,6 +455,7 @@ def clock_in(user_id):
 
 @bp.route('/time/clock-out', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_module('timesheets')
 def clock_out(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -455,6 +469,7 @@ def clock_out(user_id):
 
 @bp.route('/time/entries', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('timesheets')
 def my_time_entries(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -512,6 +527,7 @@ def _documents_target(user_id, org_id):
 
 @bp.route('/my-documents', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('secure_documents')
 def my_documents(user_id):
     """One staff member's documents — the caller's own, or, for an HR admin
     previewing a teacher's portal, that teacher's (see _documents_target).
@@ -543,6 +559,7 @@ def my_documents(user_id):
 
 @bp.route('/my-documents/upload', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_module('secure_documents')
 def upload_my_document(user_id):
     """Send a document in to the school — a signed contract, a certificate.
 
@@ -617,6 +634,7 @@ def upload_my_document(user_id):
 
 @bp.route('/my-documents/<doc_id>/url', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_module('secure_documents')
 def my_document_url(user_id, doc_id):
     """Signed URL for a document belonging to whoever this portal is showing —
     the caller, or the teacher an HR admin is previewing. Ownership and sharing
