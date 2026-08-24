@@ -251,6 +251,44 @@ describe('RosterImportPage', () => {
     expect(screen.getByText(/will be added to this organization/)).toBeInTheDocument()
   })
 
+  it('shows a student with no email as a parent-managed profile', async () => {
+    api.post.mockImplementation(url => Promise.resolve({
+      data: url.endsWith('/preview')
+        ? {
+            ...PREVIEW,
+            students: [student(2, 'Noah', null, { dependent: true }),
+                       student(3, 'Ava', '29ahennessy@dsdmail.net')],
+            warnings: ['1 student(s) have no email and will be created as parent-managed ' +
+                       'profiles. They will not get an invite email; their parent signs in ' +
+                       'and manages them.'],
+            counts: { ...PREVIEW.counts, students_new: 2, dependents_new: 1 },
+          }
+        : {
+            ...COMMIT,
+            counts: { ...COMMIT.counts, invited: 2 },
+            results: [COMMIT.results[0],
+                      { row: 2, kind: 'student', email: null, name: 'Noah Hennessy',
+                        status: 'created', invited: false, dependent: true,
+                        linked_to: 'mhennessy@opened.co' },
+                      COMMIT.results[2]],
+          },
+    }))
+    await renderPage()
+    pasteRoster()
+    await previewIt()
+
+    // The row says what it becomes, the counts say how many, and the warning
+    // says no invite is coming for them.
+    expect(within(cell('Student first', 1).closest('tr')).getByText('managed profile'))
+      .toBeInTheDocument()
+    expect(screen.getByText('Managed profiles').previousSibling).toHaveTextContent('1')
+    expect(screen.getByText(/will not get an invite email/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Create 3 accounts/ }))
+    expect(await screen.findByText('managed profile — no email, parent signs in'))
+      .toBeInTheDocument()
+  })
+
   it('warns when new accounts were created but not emailed', async () => {
     api.post.mockImplementation(url => Promise.resolve({
       data: url.endsWith('/preview') ? PREVIEW

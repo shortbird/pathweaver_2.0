@@ -224,7 +224,9 @@ export default function RosterImportPage() {
         For schools that enroll families offline and send a roster instead of using the signup
         links. Each row creates a student account and a parent account, links them together, and
         emails each new account a link to set their own password. Anyone who already has an Optio
-        account is linked, not recreated, and is not emailed.
+        account is linked, not recreated, and is not emailed. A student with no email of their own
+        is created as a parent-managed profile instead: the parent signs in and manages them, and
+        no invite is sent for the student.
       </p>
 
       <div>
@@ -251,7 +253,8 @@ export default function RosterImportPage() {
             <p className="text-xs text-gray-500 mt-0.5">
               Paste straight from the spreadsheet into any cell and the whole roster fills in.
               Header rows and extra columns such as User ID are handled. Cells stay editable, so a
-              typo gets fixed here rather than back in the sheet.
+              typo gets fixed here rather than back in the sheet. Student email may be left blank
+              when the row has a parent email — that student becomes a parent-managed profile.
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -302,6 +305,9 @@ export default function RosterImportPage() {
                       {preview && (
                         <td className="py-1 px-2 whitespace-nowrap space-x-1">
                           {student && <StatusPill status={student.status} />}
+                          {student?.dependent && (
+                            <span className="text-xs text-gray-500">managed profile</span>
+                          )}
                           {parent && student && (
                             <span className="text-xs text-gray-500">
                               parent: {{ create: 'new', adopt: 'joins org' }[parent.status] || 'exists'}
@@ -356,6 +362,9 @@ export default function RosterImportPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Count label="New students" value={counts.students_new} />
             <Count label="New parents" value={counts.parents_new} />
+            {counts.dependents_new > 0 && (
+              <Count label="Managed profiles" value={counts.dependents_new} />
+            )}
             <Count label="Already exist" value={counts.students_existing + counts.parents_existing} />
             <Count label="Joining this org" value={counts.adopted} />
             <Count label="Parent links" value={counts.links} />
@@ -440,10 +449,14 @@ export default function RosterImportPage() {
             </thead>
             <tbody>
               {outcome.results.map(result => (
-                <tr key={`${result.kind}-${result.email}`} className="border-b last:border-0">
+                <tr key={`${result.kind}-${result.row}-${result.email || result.name}`}
+                    className="border-b last:border-0">
                   <td className="py-2">
                     {result.name} <span className="text-xs text-gray-500">({result.kind})</span>
-                    <div className="text-xs text-gray-500">{result.email}</div>
+                    <div className="text-xs text-gray-500">
+                      {result.email
+                        || (result.dependent ? 'managed profile — no email, parent signs in' : '')}
+                    </div>
                   </td>
                   <td className="py-2 space-x-2">
                     <StatusPill status={result.status} />
