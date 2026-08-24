@@ -26,6 +26,7 @@ import {
   toggleDmReaction,
   editDirectMessage,
   deleteDirectMessage,
+  forwardMessageToSchool,
   type Contact,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -199,6 +200,23 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     }
   };
 
+  // Superadmin (Optio Support): hand a member's message off to their school's
+  // shared inbox. The member gets an automatic note that the school will follow up.
+  const handleForwardToSchool = async (msg: Message) => {
+    const confirmed = await confirmAlert({
+      title: 'Forward to school inbox',
+      message: "Forward this message to the sender's school? They'll be told the school will get back to them.",
+      confirmText: 'Forward',
+    });
+    if (!confirmed) return;
+    try {
+      const res = await forwardMessageToSchool(msg.id);
+      toast.success(`Forwarded to ${res?.organization?.name || 'the school'}`);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Could not forward this message');
+    }
+  };
+
   const handleSend = async () => {
     const content = input.trim();
 
@@ -295,16 +313,27 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           <Ionicons name="chevron-back" size={24} color={c.brand} />
         </Pressable>
       )}
-      <Avatar size="md">
-        {contact.avatar_url ? (
-          <AvatarImage source={{ uri: contact.avatar_url }} />
-        ) : (
-          <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
-        )}
-      </Avatar>
+      {contact.is_school ? (
+        <View
+          className="w-12 h-12 rounded-full items-center justify-center"
+          style={{ backgroundColor: c.brand }}
+        >
+          <Ionicons name="school" size={22} color="#fff" />
+        </View>
+      ) : (
+        <Avatar size="md">
+          {contact.avatar_url ? (
+            <AvatarImage source={{ uri: contact.avatar_url }} />
+          ) : (
+            <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
+          )}
+        </Avatar>
+      )}
       <View className="ml-3 flex-1">
         <Heading size="sm">{name}</Heading>
-        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
+        <UIText size="xs" className={`text-typo-400 dark:text-dark-typo-400 ${contact.is_school ? '' : 'capitalize'}`}>
+          {contact.is_school ? "Goes to the school's front office" : (contact.relationship || contact.role)}
+        </UIText>
       </View>
     </View>
   );
@@ -546,6 +575,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       }}
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDelete(actionsFor)}
+      onForward={isSuperadmin ? () => actionsFor && handleForwardToSchool(actionsFor) : undefined}
     />
   );
 

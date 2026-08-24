@@ -101,6 +101,7 @@ function contactRowEqual(a: ContactRowProps, b: ContactRowProps) {
     x.avatar_url === y.avatar_url &&
     x.relationship === y.relationship &&
     x.is_support === y.is_support &&
+    x.is_school === y.is_school &&
     x.unread_count === y.unread_count &&
     x.last_message_at === y.last_message_at &&
     x.last_message_preview === y.last_message_preview
@@ -116,7 +117,9 @@ const ContactRow = React.memo(function ContactRow({
 }: ContactRowProps) {
   const c = useThemeColors();
   const name = contact.is_support ? 'Optio Support' : getDisplayName(contact);
-  const relColor = contact.is_support ? c.brand : (relationshipColors[contact.relationship] || c.textMuted);
+  const relColor = contact.is_support || contact.is_school
+    ? c.brand
+    : (relationshipColors[contact.relationship] || c.textMuted);
 
   return (
     <Pressable
@@ -130,6 +133,13 @@ const ContactRow = React.memo(function ContactRow({
           style={{ backgroundColor: c.brand }}
         >
           <Ionicons name="headset" size={22} color="#fff" />
+        </View>
+      ) : contact.is_school ? (
+        <View
+          className="w-12 h-12 rounded-full items-center justify-center"
+          style={{ backgroundColor: c.brand }}
+        >
+          <Ionicons name="school" size={22} color="#fff" />
         </View>
       ) : (
         <Avatar size="md">
@@ -172,7 +182,9 @@ const ContactRow = React.memo(function ContactRow({
           numberOfLines={1}
         >
           {contact.last_message_preview ||
-            (contact.is_support ? 'Questions? Message the Optio team' : 'Start a conversation')}
+            (contact.is_support ? 'Questions? Message the Optio team'
+              : contact.is_school ? 'Message the school'
+              : 'Start a conversation')}
         </UIText>
       </View>
       {contact.unread_count > 0 && (
@@ -309,6 +321,7 @@ export function ConversationList({
           role: c.other_user.role,
           relationship: contact?.relationship || '',
           is_support: contact?.is_support || false,
+          is_school: contact?.is_school || c.other_user.is_school || false,
           last_message_at: c.last_message_at,
           last_message_preview: c.last_message_preview,
           unread_count: c.unread_count || 0,
@@ -325,8 +338,25 @@ export function ConversationList({
       return 0;
     });
 
-    // Pin Optio Support to the top even without a thread, so support is always
-    // one tap away. Only possible once contacts has loaded.
+    // Pin the school's shared inbox, then Optio Support above it, even without
+    // a thread — both always one tap away. Only possible once contacts loaded.
+    const school = contacts.find((c) => c.is_school);
+    if (school && !items.some((i) => i.is_school)) {
+      items.unshift({
+        id: school.id,
+        display_name: school.display_name,
+        first_name: school.first_name,
+        last_name: school.last_name,
+        avatar_url: school.avatar_url,
+        role: school.role,
+        relationship: school.relationship,
+        is_school: true,
+        last_message_at: null,
+        last_message_preview: null,
+        unread_count: 0,
+        conversation_id: school.id,
+      });
+    }
     const support = contacts.find((c) => c.is_support);
     const hasSupportThread = items.some((i) => i.is_support);
     if (support && !hasSupportThread) {

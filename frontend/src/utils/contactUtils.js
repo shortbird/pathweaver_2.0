@@ -10,6 +10,7 @@
  * Lower number = higher priority
  */
 const RELATIONSHIP_PRIORITY = {
+  school: 0,
   advisor: 1,
   student: 2,
   child: 3,
@@ -21,6 +22,12 @@ const RELATIONSHIP_PRIORITY = {
  * Relationship badge configuration
  */
 export const RELATIONSHIP_CONFIG = {
+  school: {
+    label: 'School',
+    bgColor: 'bg-optio-purple/10',
+    textColor: 'text-optio-purple',
+    borderColor: 'border-optio-purple/20'
+  },
   advisor: {
     label: 'Teacher',
     bgColor: 'bg-blue-100',
@@ -119,7 +126,9 @@ export function normalizeContact(contact, source) {
       lastName = otherUser.last_name
       avatarUrl = otherUser.avatar_url
       role = otherUser.role
-      relationshipType = contact.type || 'friend'
+      // A thread with the school's shared inbox keeps the school identity even
+      // before the contacts list (which carries relationship: 'school') loads.
+      relationshipType = contact.type || (otherUser.is_school ? 'school' : 'friend')
       break
 
     default:

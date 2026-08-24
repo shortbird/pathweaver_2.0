@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { toast } from 'react-hot-toast'
+import { AcademicCapIcon, ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useConversationMessages,
   useSendMessage,
@@ -15,6 +18,7 @@ import MessageInput from './MessageInput'
 
 const ChatWindow = ({ conversation, onBack }) => {
   const { user } = useAuth()
+  const confirm = useConfirm()
   const [replyTo, setReplyTo] = useState(null)
 
   // Determine chat type
@@ -109,6 +113,25 @@ const ChatWindow = ({ conversation, onBack }) => {
     })
   }
 
+  // Superadmin (Optio Support): hand a member's message off to their school's
+  // shared inbox. The member gets an automatic note that the school will follow
+  // up, so nothing else is needed here.
+  const canForwardToSchool = user?.role === 'superadmin'
+  const handleForwardToSchool = async (message) => {
+    const ok = await confirm(
+      "Forward this message to the sender's school inbox? They'll be told the school will get back to them."
+    )
+    if (!ok) return
+    try {
+      const r = await api.post(`/api/messages/${message.id}/forward-to-school`, {})
+      const orgName = r.data?.data?.organization?.name
+      toast.success(`Forwarded to ${orgName || 'the school'}`)
+      refetchMessages()
+    } catch (error) {
+      toast.error(error?.response?.data?.error || 'Could not forward this message')
+    }
+  }
+
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
@@ -123,9 +146,11 @@ const ChatWindow = ({ conversation, onBack }) => {
     )
   }
 
-  // Render advisor / support / friend chat
+  // Render advisor / support / school / friend chat
   const isAdvisor = chatType === 'advisor'
   const isSupport = chatType === 'support' || conversation?.relationshipTypes?.includes('support')
+  const isSchool = chatType === 'school' || conversation?.relationshipTypes?.includes('school') ||
+    otherUser?.is_school
   const displayName = `${otherUser?.first_name || ''} ${otherUser?.last_name || ''}`.trim() || otherUser?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
   const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
@@ -150,6 +175,10 @@ const ChatWindow = ({ conversation, onBack }) => {
               alt="Optio Support"
               className="w-10 h-10 rounded-full object-contain bg-white border border-gray-100"
             />
+          ) : isSchool ? (
+            <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+              <AcademicCapIcon className="w-5 h-5 text-white" />
+            </div>
           ) : otherUser?.avatar_url ? (
             <img
               src={otherUser.avatar_url}
@@ -164,7 +193,10 @@ const ChatWindow = ({ conversation, onBack }) => {
           <div>
             <h2 className="text-base font-semibold text-gray-900">{displayName}</h2>
             <p className="text-sm text-gray-500">
-              {isAdvisor ? 'Your teacher' : isSupport ? 'We usually reply within a day' : 'Direct message'}
+              {isAdvisor ? 'Your teacher'
+                : isSupport ? 'We usually reply within a day'
+                : isSchool ? "Goes to the school's front office"
+                : 'Direct message'}
             </p>
           </div>
         </div>
@@ -192,6 +224,7 @@ const ChatWindow = ({ conversation, onBack }) => {
           onReply={(message) => setReplyTo(buildReplyPreview(message))}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          onForward={canForwardToSchool ? handleForwardToSchool : undefined}
         />
       )}
 

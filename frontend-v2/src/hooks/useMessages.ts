@@ -20,6 +20,9 @@ export interface Contact {
   relationship: string;
   // True for the always-present "Optio Support" alias (routes to superadmin).
   is_support?: boolean;
+  // True for the "{School Name}" contact — the org's shared inbox, read and
+  // answered by the front office.
+  is_school?: boolean;
 }
 
 export interface Child {
@@ -289,6 +292,13 @@ export async function editGroupMessage(groupId: string, messageId: string, conte
 
 export async function deleteDirectMessage(messageId: string) {
   const { data } = await messageAPI.deleteMessage(messageId);
+  return data.data || data;
+}
+
+/** Superadmin: forward a support-thread message to the sender's school inbox.
+ *  Returns { organization: { id, name }, ... } for the confirmation toast. */
+export async function forwardMessageToSchool(messageId: string) {
+  const { data } = await messageAPI.forwardToSchool(messageId);
   return data.data || data;
 }
 

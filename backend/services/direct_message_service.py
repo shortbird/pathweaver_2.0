@@ -76,6 +76,16 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
                 return True
 
+            # School inbox (2026-08-24): a member may DM their own org's
+            # "{School Name}" account, and that account (staff replying from the
+            # shared inbox) may DM the org's members. Checked early because the
+            # inbox account is a platform user (organization_id NULL), so none
+            # of the org/relationship rules below would ever match it.
+            from services import school_inbox_service
+            if school_inbox_service.can_message_school(user_id, target_id):
+                print(f"[can_message_user] ALLOWED: School inbox <-> org member", file=sys.stderr, flush=True)
+                return True
+
             # ORG_ADMIN: Can message anyone in the same organization
             sender_effective_role = get_effective_role(sender.data) if sender.data else None
             sender_org_id = sender.data.get('organization_id') if sender.data else None
@@ -324,6 +334,14 @@ class DirectMessageService(BaseService):
                 # Non-fatal: fall back to the cached counters already set above.
                 print(f"Unread recount failed (using cached counters): {recount_err}", file=sys.stderr, flush=True)
 
+            # Threads with a school inbox render as the school, not as the
+            # observer account that backs it (other_user.is_school).
+            try:
+                from services import school_inbox_service
+                school_inbox_service.mark_school_conversations(all_conversations)
+            except Exception as school_err:  # noqa: BLE001
+                print(f"School conversation flagging failed: {school_err}", file=sys.stderr, flush=True)
+
             # Sort by last_message_at descending
             all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
 
@@ -357,10 +375,14 @@ class DirectMessageService(BaseService):
     # ==================== Message Operations ====================
 
     def send_message(self, sender_id: str, recipient_id: str, content: str,
-                     reply_to_message_id: str = None, attachments: list = None) -> Dict[str, Any]:
+                     reply_to_message_id: str = None, attachments: list = None,
+                     sent_by_user_id: str = None) -> Dict[str, Any]:
         """
         Send a message from one user to another. Supports replying to a message
         and attachments ([{url, type, name, size}], pre-uploaded).
+
+        sent_by_user_id: set only by the school-inbox route — the staff member
+        who wrote a message the school account is sending.
 
         Returns:
             Created message record (enriched with reply preview)
@@ -392,6 +414,7 @@ class DirectMessageService(BaseService):
                 'message_content': content,
                 'reply_to_message_id': reply_to_message_id,
                 'attachments': clean_atts,
+                'sent_by_user_id': sent_by_user_id,
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -436,6 +459,18 @@ class DirectMessageService(BaseService):
                 f"{sender_info.get('first_name', '')} {sender_info.get('last_name', '')}".strip() or
                 'Someone'
             )
+
+            # A message TO the school inbox has no human behind the recipient
+            # account — notify the front office (admins + campus coordinators)
+            # instead, pointing at the shared inbox in the SIS console.
+            from services import school_inbox_service
+            inbox_org = school_inbox_service.org_for_inbox_user(recipient_id)
+            if inbox_org:
+                preview = content[:50] + '...' if len(content) > 50 else content
+                school_inbox_service.notify_admins_of_member_message(
+                    inbox_org, sender_id, sender_name, preview
+                )
+                return
 
             # Get recipient's organization for notification
             supabase = self._get_client()

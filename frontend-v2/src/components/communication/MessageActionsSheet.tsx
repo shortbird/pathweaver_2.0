@@ -33,6 +33,8 @@ interface Props {
   onEdit?: () => void;
   onDelete: () => void;
   onPin?: () => void;
+  /** Superadmin support threads only: forward to the sender's school inbox. */
+  onForward?: () => void;
 }
 
 interface Row {
@@ -56,6 +58,7 @@ export function MessageActionsSheet({
   onEdit,
   onDelete,
   onPin,
+  onForward,
 }: Props) {
   const c = useThemeColors();
   // Run the chosen action only AFTER the Modal has fully closed (iOS: a second
@@ -85,6 +88,14 @@ export function MessageActionsSheet({
         Clipboard.setString(message.message_content);
         toast.success('Copied');
       },
+    });
+  }
+  if (!isOwn && onForward) {
+    rows.push({
+      key: 'forward',
+      label: 'Forward to school inbox',
+      icon: 'arrow-redo-outline',
+      onPress: onForward,
     });
   }
   if (isOwn && onEdit) {

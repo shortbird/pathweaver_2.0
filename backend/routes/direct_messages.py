@@ -104,6 +104,26 @@ def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, use
             contacts.append({**row, 'relationship': relationship})
 
 
+def _append_school_contact(contacts, user_id):
+    """
+    Append the caller's "{School Name}" contact — the org's shared inbox. Every
+    member of an org gets it (students/staff via organization_id, platform
+    parents by proxy of their children). Appends in place; never raises.
+    """
+    from services import school_inbox_service
+    try:
+        org = school_inbox_service.member_org(user_id)
+        if not org:
+            return
+        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
+        if not inbox_user_id or inbox_user_id == user_id:
+            return
+        contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
+        contacts.append(school_inbox_service.school_contact(org, inbox_user_id))
+    except Exception as e:
+        logger.warning(f"Could not append school contact for {user_id}: {str(e)}")
+
+
 def _append_support_contact(supabase, contacts, user_id):
     """
     Deduplicate contacts by id (first relationship wins) and always append the
@@ -315,6 +335,95 @@ def check_can_message(user_id: str, target_user_id: str):
             status_code=500,
             error_code="internal_error"
         )
+
+
+@bp.route('/<message_id>/forward-to-school', methods=['POST'])
+@require_auth
+def forward_to_school(user_id: str, message_id: str):
+    """
+    Superadmin-only: forward a message a member sent to Optio Support into that
+    member's school inbox, so the school's front office handles it instead.
+
+    Two messages result: the member's original lands in their school thread
+    (prefixed so everyone can see where it came from, front office notified as
+    usual), and Optio Support sends the member a courtesy note that the school
+    will follow up.
+    """
+    try:
+        from database import get_supabase_admin_client
+        from utils.roles import get_effective_role
+        from services import school_inbox_service
+
+        # admin client justified: superadmin-only cross-thread action, role verified below
+        supabase = get_supabase_admin_client()
+        caller = supabase.table('users').select('role, org_role, organization_id') \
+            .eq('id', user_id).single().execute()
+        if not caller.data or get_effective_role(caller.data) != 'superadmin':
+            return error_response('Superadmin access required', status_code=403,
+                                  error_code='forbidden')
+
+        msg = supabase.table('direct_messages').select('*').eq('id', message_id) \
+            .limit(1).execute()
+        if not msg.data:
+            return error_response('Message not found', status_code=404, error_code='not_found')
+        msg = msg.data[0]
+        if msg.get('is_deleted'):
+            return error_response('This message was deleted', status_code=400,
+                                  error_code='validation_error')
+
+        # Only the support flow: the message must have been sent TO a superadmin
+        # (the account behind the Optio Support alias), by a non-staff member.
+        recipient = supabase.table('users').select('role').eq('id', msg['recipient_id']) \
+            .single().execute()
+        if not recipient.data or recipient.data.get('role') != 'superadmin':
+            return error_response('Only messages sent to Optio Support can be forwarded',
+                                  status_code=400, error_code='validation_error')
+
+        member_id = msg['sender_id']
+        org = school_inbox_service.member_org(member_id)
+        if not org:
+            return error_response("This person isn't a member of any school",
+                                  status_code=400, error_code='validation_error')
+        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
+        if not inbox_user_id:
+            return error_response('School inbox is unavailable', status_code=500,
+                                  error_code='internal_error')
+
+        # The member's words, into their school thread. Sent as the member so
+        # the school replies to them directly; the prefix keeps the provenance
+        # honest on every surface, and sent_by_user_id records who forwarded it.
+        original = (msg.get('message_content') or '').strip()
+        forwarded = message_service.send_message(
+            member_id, inbox_user_id,
+            f"Forwarded from Optio Support:\n\n{original}" if original
+            else "Forwarded from Optio Support (attachment)",
+            attachments=msg.get('attachments') or [],
+            sent_by_user_id=user_id,
+        )
+
+        # Courtesy note back in the support thread, from the support account.
+        ack_text = (f"Your message has been sent to {org['name']} — "
+                    "they'll get back to you here on Optio.")
+        try:
+            message_service.send_message(msg['recipient_id'], member_id, ack_text)
+        except Exception as ack_err:
+            # The forward itself succeeded; a failed ack shouldn't undo it.
+            logger.warning(f"Forward ack failed for message {message_id}: {ack_err}")
+
+        return success_response({
+            'forwarded_message_id': forwarded['id'],
+            'conversation_id': forwarded['conversation_id'],
+            'organization': {'id': org['id'], 'name': org['name']},
+        })
+
+    except ValueError as e:
+        # send_message permission refusal (e.g. inactive org).
+        logger.warning(f"Forward to school refused: {str(e)}")
+        return error_response(str(e), status_code=403, error_code='forbidden')
+    except Exception as e:
+        logger.error(f"Error forwarding message to school: {str(e)}")
+        return error_response('Failed to forward message', status_code=500,
+                              error_code='internal_error')
 
 
 @bp.route('/contacts', methods=['GET'])
@@ -541,6 +650,9 @@ def get_contacts(user_id: str):
                             continue
                         student.pop('organization_id', None)
                         contacts.append({**student, 'relationship': 'student'})
+
+        # Every org member gets their school's shared-inbox contact.
+        _append_school_contact(contacts, user_id)
 
         # Always include the "Optio Support" contact (dedupes by id too).
         contacts = _append_support_contact(supabase, contacts, user_id)

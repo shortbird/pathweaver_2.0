@@ -271,6 +271,10 @@ def register_all(app):
     app.register_blueprint(direct_messages.bp)
     app.register_blueprint(group_messages.bp)
 
+    # ── School inbox (staff side of the "{School Name}" contact) ──────────────
+    from routes import school_inbox
+    app.register_blueprint(school_inbox.bp)
+
     from routes import student_ai_assistance
     app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')
 

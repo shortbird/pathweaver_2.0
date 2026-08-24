@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef } from 'react'
-import { MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, observerAPI } from '../../services/api'
@@ -143,10 +143,15 @@ const ConversationList = ({
   }, [advisor, advisorMatchesSearch, searchedContacts, filteredGroups])
 
   // Contacts directory: people you can message but have no active thread with.
+  // The school's shared inbox leads the list (then the pinned teacher above it).
   const directoryRows = useMemo(() => {
-    const rows = searchedContacts
+    const mapped = searchedContacts
       .filter(c => !c.lastMessageAt)
       .map(contactToConversation)
+    const rows = [
+      ...mapped.filter(r => r.type === 'school'),
+      ...mapped.filter(r => r.type !== 'school')
+    ]
     if (advisor && advisorMatchesSearch && !advisor.last_message_at) rows.unshift(advisor)
     return rows
   }, [searchedContacts, advisor, advisorMatchesSearch])
@@ -182,6 +187,8 @@ const ConversationList = ({
     const isSelected = selectedConversation?.id === conversation.id && selectedConversation?.type !== 'group'
     const isPinned = conversation.type === 'advisor'
     const isSupport = conversation.type === 'support' || conversation.relationshipTypes?.includes('support')
+    const isSchool = conversation.type === 'school' || conversation.relationshipTypes?.includes('school') ||
+      conversation.other_user?.is_school
     const hasThread = !!conversation.last_message_at
     const isUnread = conversation.unread_count > 0
     const displayName = `${conversation.other_user?.first_name || ''} ${conversation.other_user?.last_name || ''}`.trim() ||
@@ -205,6 +212,10 @@ const ConversationList = ({
               alt="Optio Support"
               className="w-10 h-10 rounded-full object-contain bg-white border border-gray-100"
             />
+          ) : isSchool ? (
+            <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+              <AcademicCapIcon className="w-5 h-5 text-white" />
+            </div>
           ) : conversation.other_user?.avatar_url ? (
             <img
               src={conversation.other_user.avatar_url}

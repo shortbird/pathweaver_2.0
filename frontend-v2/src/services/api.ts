@@ -656,6 +656,9 @@ export const messageAPI = {
     api.delete(`/api/messages/${messageId}`),
   markRead: (messageId: string) =>
     api.put(`/api/messages/${messageId}/read`, {}),
+  // Superadmin only: hand a support-thread message off to the sender's school inbox.
+  forwardToSchool: (messageId: string) =>
+    api.post(`/api/messages/${messageId}/forward-to-school`, {}),
   unreadCount: () => api.get('/api/messages/unread-count'),
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>
