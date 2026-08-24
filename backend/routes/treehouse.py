@@ -838,7 +838,7 @@ def _verify_cohort_in_org(repo, class_id, org_id):
 @require_auth
 @validate_uuid_param('class_id')
 def delete_cohort(user_id, class_id):
-    """Archive a cohort (soft delete — enrollments/history kept, cohort hidden everywhere)."""
+    """Archive a cohort (soft delete — history kept, active enrollments withdrawn, cohort hidden everywhere)."""
     ctx = _context(user_id)
     if not _is_admin(ctx):
         return jsonify({'success': False, 'error': 'Admin access required'}), 403

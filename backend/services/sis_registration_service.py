@@ -188,7 +188,16 @@ def _student_existing_meetings(student_user_id: str, exclude_class_id: Optional[
     class_ids = [e['class_id'] for e in enr if e['class_id'] != exclude_class_id]
     if not class_ids:
         return []
-    return _classes_repo().meetings_for_classes(class_ids)
+    # An archived class no longer meets — a stale active enrollment in one must
+    # not read as "busy at this time" (phantom Expressions conflict, iCreate
+    # 2026-08-24). Archive paths withdraw enrollments now, but old rows exist.
+    live = (
+        _admin().table('org_classes').select('id')
+        .in_('id', class_ids).neq('status', 'archived').execute()
+    ).data or []
+    if not live:
+        return []
+    return _classes_repo().meetings_for_classes([c['id'] for c in live])
 
 
 def evaluate_eligibility(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:

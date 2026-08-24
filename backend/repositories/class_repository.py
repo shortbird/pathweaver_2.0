@@ -95,7 +95,16 @@ class ClassRepository(BaseRepository):
         return response.data[0]
 
     def archive_class(self, class_id: str) -> Dict[str, Any]:
-        """Archive a class (soft delete)"""
+        """Archive a class (soft delete). Withdraws its active enrollments too:
+        an archived class is hidden from families, so an enrollment left active
+        in one reads as "busy at this time" to schedule-conflict checks while
+        the family sees nothing to drop (phantom Expressions conflict,
+        iCreate 2026-08-24). Rows are kept (withdrawn), not deleted."""
+        self.admin_client.table('class_enrollments')\
+            .update({'status': 'withdrawn'})\
+            .eq('class_id', class_id)\
+            .eq('status', 'active')\
+            .execute()
         return self.update_class(class_id, {'status': 'archived'})
 
     def restore_class(self, class_id: str) -> Dict[str, Any]:

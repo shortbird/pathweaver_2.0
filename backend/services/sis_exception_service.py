@@ -189,12 +189,14 @@ def _same_time_conflicts(student_user_id: str, class_id: str) -> List[Dict[str, 
     })
     if not conflict_ids:
         return []
+    # An archived class no longer meets — a stale active enrollment in one must
+    # not count as a conflict (phantom Expressions conflict, iCreate 2026-08-24).
     names = {
         c['id']: c.get('name') or 'Class' for c in (
-            admin.table('org_classes').select('id, name').in_('id', conflict_ids).execute()
-        ).data or []
+            admin.table('org_classes').select('id, name, status').in_('id', conflict_ids).execute()
+        ).data or [] if c.get('status') != 'archived'
     }
-    return [{'class_id': cid, 'class_name': names.get(cid, 'Class')} for cid in conflict_ids]
+    return [{'class_id': cid, 'class_name': name} for cid, name in names.items()]
 
 
 def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
