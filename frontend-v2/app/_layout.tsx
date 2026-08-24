@@ -21,6 +21,7 @@ import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
 import { OtaUpdater } from '@/src/components/layouts/OtaUpdater';
 import { PhoneVerificationHost } from '@/src/components/layouts/PhoneVerificationHost';
+import { PaperworkHost } from '@/src/components/layouts/PaperworkHost';
 
 // S4: Suppress React Native Web warnings for native-only props. Match exact,
 // known-benign warning prefixes rather than substrings so genuine errors that
@@ -174,6 +175,9 @@ function RootLayout() {
       {/* Renders above the router when the school holds this adult for phone
           verification, which the app cannot do yet. Points them at the web. */}
       <PhoneVerificationHost />
+      {/* Same, for the paperwork hold: a required document the guardian has
+          not signed. Signing lives on the web; this points them there. */}
+      <PaperworkHost />
     </GestureHandlerRootView>
   );
 }

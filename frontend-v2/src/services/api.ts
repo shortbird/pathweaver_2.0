@@ -274,10 +274,12 @@ api.interceptors.response.use(
     const status = error.response?.status ?? null;
     logApiCall(error.config, status);
     reportApiError(error, status);
-    if (status === 403
-        && (error.response?.data as { code?: string } | undefined)?.code
-           === 'phone_verification_required') {
+    const holdCode = (error.response?.data as { code?: string } | undefined)?.code;
+    if (status === 403 && holdCode === 'phone_verification_required') {
       notifyPhoneVerificationRequired();
+    }
+    if (status === 403 && holdCode === 'signature_required') {
+      notifySignatureRequired();
     }
     return Promise.reject(error);
   }
@@ -310,6 +312,34 @@ export function onPhoneVerificationRequired(fn: PhoneHoldListener): () => void {
   phoneHoldListeners.add(fn);
   return () => {
     phoneHoldListeners.delete(fn);
+  };
+}
+
+// ── The paperwork (signature) hold ───────────────────────────────────────────
+// A school can send a family a document marked REQUIRED; until the guardian
+// signs it they 403 with `signature_required` on everything except /api/auth/*
+// and the signing flow (backend/middleware/signature_gate.py). Signing only
+// exists on the web app, so PaperworkHost puts a screen in front of the app
+// pointing them there. Same listener shape as the phone hold above, for the
+// same import-cycle reason.
+const signatureHoldListeners = new Set<PhoneHoldListener>();
+
+function notifySignatureRequired(): void {
+  signatureHoldListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // A listener that throws must not swallow the original API error.
+    }
+  });
+}
+
+/** Subscribe to "this account is held for unsigned required paperwork".
+ *  Returns an unsubscribe, so it drops straight into a useEffect. */
+export function onSignatureRequired(fn: PhoneHoldListener): () => void {
+  signatureHoldListeners.add(fn);
+  return () => {
+    signatureHoldListeners.delete(fn);
   };
 }
 

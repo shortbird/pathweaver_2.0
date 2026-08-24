@@ -32,6 +32,7 @@ export function mockApiModule() {
     // authStore subscribes at module scope; must return an unsubscribe.
     onSessionExpired: jest.fn().mockReturnValue(() => {}),
     onPhoneVerificationRequired: jest.fn().mockReturnValue(() => {}),
+    onSignatureRequired: jest.fn().mockReturnValue(() => {}),
     refreshAccessToken: jest.fn().mockResolvedValue(null),
     authAPI: {
       login: jest.fn().mockResolvedValue({ data: {} }),
