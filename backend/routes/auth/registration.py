@@ -113,7 +113,9 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 # ============================================================================
 
 @bp.route('/register', methods=['POST'])
-@rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
+# Limit lives in config/rate_limits.py (auth_register). It must stay generous:
+# schools register many students from one NAT IP (OPTIO-BACKEND-74).
+@rate_limit('auth_register')
 def register():
     try:
         logger.info(f"[REGISTRATION] Starting registration process")
@@ -571,7 +573,10 @@ def register():
 
 
 @bp.route('/verify-email-otp', methods=['POST'])
-@rate_limit(max_requests=10, window_seconds=300)  # 10 attempts per 5 minutes
+# Per-IP like /register, so a school office verifying many students shares one
+# bucket — must keep pace with auth_register or the school hits this wall next.
+# OTP brute force is still bounded: codes are per-email and expire.
+@rate_limit(max_requests=60, window_seconds=300)  # 60 attempts per 5 minutes per IP
 def verify_email_otp():
     """Confirm a signup with the 6-digit code emailed to the user (mobile flow).
 
@@ -642,7 +647,9 @@ def verify_email_otp():
 
 
 @bp.route('/resend-verification', methods=['POST'])
-@rate_limit(max_requests=3, window_seconds=600)  # 3 resends per 10 minutes
+# Per-IP: 3 resends per 10 min locked out a school office resending for several
+# students. Kept tighter than /register since each call sends an email.
+@rate_limit(max_requests=15, window_seconds=600)  # 15 resends per 10 minutes per IP
 def resend_verification():
     """Resend verification email to user"""
     try:
