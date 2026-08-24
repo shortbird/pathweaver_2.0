@@ -1418,16 +1418,20 @@ def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, 
 
 
 def create_absence(user_id: str, org_id: str, student_user_id: str, absence_date: str,
-                   class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
+                   class_id: Optional[str] = None, reason: Optional[str] = None,
+                   end_date: Optional[str] = None) -> Dict[str, Any]:
     if not _can_register(user_id, org_id, student_user_id):
         return {'error': 'Not authorized for this student'}
     return absences.create(org_id, student_user_id, reported_by=user_id,
-                           absence_date=absence_date, class_id=class_id, reason=reason)
+                           absence_date=absence_date, class_id=class_id, reason=reason,
+                           end_date=end_date)
 
 
 def create_absences(user_id: str, org_id: str, student_user_ids: List[str], absence_date: str,
-                    class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
-    """Report the same absence for several children at once.
+                    class_id: Optional[str] = None, reason: Optional[str] = None,
+                    end_date: Optional[str] = None) -> Dict[str, Any]:
+    """Report the same absence — one day or a date range — for several children
+    at once.
 
     Each child is authorized and written independently, so a duplicate report
     for one sibling doesn't block the others. Returns the rows that were
@@ -1437,11 +1441,11 @@ def create_absences(user_id: str, org_id: str, student_user_ids: List[str], abse
     errors: Dict[str, str] = {}
     for sid in student_user_ids:
         result = create_absence(user_id, org_id, sid, absence_date,
-                                class_id=class_id, reason=reason)
+                                class_id=class_id, reason=reason, end_date=end_date)
         if result.get('error'):
             errors[sid] = result['error']
         else:
-            created.append(result['absence'])
+            created.extend(result.get('absences') or [result['absence']])
     return {'absences': created, 'errors': errors}
 
 
@@ -1452,3 +1456,27 @@ def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
     if not _can_register(user_id, row['organization_id'], row['student_user_id']):
         return {'error': 'Not authorized for this student'}
     return {'ok': absences.cancel(absence_id, row['organization_id'])}
+
+
+def cancel_absences(user_id: str, absence_ids: List[str]) -> Dict[str, Any]:
+    """Cancel several reports at once — the UI shows a date range as one row.
+
+    All-or-nothing on authorization: if any id isn't the caller's to cancel,
+    nothing is cancelled. Rows are grouped per (org, student, class) so each
+    group's office notification covers its span, not one per day.
+    """
+    ids = [i for i in dict.fromkeys(absence_ids) if i]
+    rows = absences.get_many(ids)
+    if not rows:
+        return {'error': 'Absence not found'}
+    for row in rows:
+        if not _can_register(user_id, row['organization_id'], row['student_user_id']):
+            return {'error': 'Not authorized for this student'}
+    groups: Dict[tuple, List[str]] = {}
+    for row in rows:
+        key = (row['organization_id'], row['student_user_id'], row.get('class_id'))
+        groups.setdefault(key, []).append(row['id'])
+    cancelled = 0
+    for (org_id, _sid, _cid), group_ids in groups.items():
+        cancelled += absences.cancel_many(group_ids, org_id)
+    return {'cancelled': cancelled}

@@ -21,6 +21,39 @@ const meetingText = (meetings = []) => meetings
   .map((m) => `${m.day_of_week != null ? DAYS[m.day_of_week] : m.specific_date} ${m.start_time}–${m.end_time}`)
   .join(', ')
 
+// Timezone-safe day increment for YYYY-MM-DD strings (Date('YYYY-MM-DD') is UTC).
+const nextDay = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const t = new Date(y, m - 1, d + 1)
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * A range report is stored one row per day; fold consecutive days with the
+ * same child, class, and reason back into one display row so a two-week trip
+ * is one line with one Cancel, not fourteen.
+ */
+const groupRuns = (list) => {
+  const sorted = [...list].sort((a, b) => (
+    (a.student_name || '').localeCompare(b.student_name || '')
+    || a.absence_date.localeCompare(b.absence_date)
+  ))
+  const runs = []
+  for (const a of sorted) {
+    const prev = runs[runs.length - 1]
+    if (prev && prev.student_name === a.student_name
+        && (prev.class_id || null) === (a.class_id || null)
+        && (prev.reason || null) === (a.reason || null)
+        && nextDay(prev.end_date) === a.absence_date) {
+      prev.end_date = a.absence_date
+      prev.ids.push(a.id)
+    } else {
+      runs.push({ ...a, end_date: a.absence_date, ids: [a.id] })
+    }
+  }
+  return runs.sort((x, y) => x.absence_date.localeCompare(y.absence_date))
+}
+
 const AbsenceReportingPage = () => {
   const [loading, setLoading] = useState(true)
   const [orgs, setOrgs] = useState([])
@@ -29,7 +62,7 @@ const AbsenceReportingPage = () => {
   // {student_id: {absences: [], classes: []}} for every child in the org, so
   // toggling children never waits on a fetch.
   const [byStudent, setByStudent] = useState({})
-  const [form, setForm] = useState({ absence_date: today(), class_id: '', reason: '' })
+  const [form, setForm] = useState({ absence_date: today(), end_date: '', class_id: '', reason: '' })
   const [busy, setBusy] = useState(false)
 
   const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId])
@@ -103,26 +136,33 @@ const AbsenceReportingPage = () => {
   const report = async () => {
     if (!form.absence_date) { toast.error('Pick a date'); return }
     if (!studentIds.length) { toast.error('Select at least one child'); return }
+    if (form.end_date && form.end_date < form.absence_date) {
+      toast.error('The last day cannot be before the first day')
+      return
+    }
     setBusy(true)
     try {
       const r = await api.post('/api/sis/parent/absences', {
         organization_id: orgId,
         student_user_ids: studentIds,
         absence_date: form.absence_date,
+        end_date: form.end_date && form.end_date !== form.absence_date ? form.end_date : null,
         class_id: form.class_id || null,
         reason: form.reason || null,
       })
       const errors = r.data?.errors || {}
       const created = r.data?.absences || []
-      if (created.length) {
-        toast.success(`Absence reported for ${created.length === 1
-          ? studentName(created[0].student_user_id)
-          : `${created.length} children`} — ${org?.organization_name || 'the office'} has been notified`)
+      // A range writes one row per day, so count children, not rows.
+      const reportedFor = [...new Set(created.map((a) => a.student_user_id))]
+      if (reportedFor.length) {
+        toast.success(`Absence reported for ${reportedFor.length === 1
+          ? studentName(reportedFor[0])
+          : `${reportedFor.length} children`} — ${org?.organization_name || 'the office'} has been notified`)
       }
       Object.entries(errors).forEach(([sid, msg]) => {
         toast.error(`${studentName(sid)}: ${msg}`)
       })
-      setForm({ absence_date: today(), class_id: '', reason: '' })
+      setForm({ absence_date: today(), end_date: '', class_id: '', reason: '' })
       loadAbsences()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not report absence')
@@ -131,9 +171,11 @@ const AbsenceReportingPage = () => {
     }
   }
 
-  const cancel = async (id) => {
+  // One call for the whole run — a cancelled two-week trip is one office
+  // notification, not fourteen.
+  const cancel = async (ids) => {
     try {
-      await api.delete(`/api/sis/parent/absences/${id}`)
+      await api.post('/api/sis/parent/absences/cancel', { absence_ids: ids })
       toast.success('Absence cancelled')
       loadAbsences()
     } catch {
@@ -146,11 +188,10 @@ const AbsenceReportingPage = () => {
     return Object.fromEntries(all.map((c) => [c.class_id, c.name]))
   }, [byStudent])
 
-  // Upcoming absences across every selected child, soonest first.
-  const absences = useMemo(() => (
-    studentIds
-      .flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({ ...a, student_name: studentName(sid) })))
-      .sort((a, b) => a.absence_date.localeCompare(b.absence_date))
+  // Upcoming absences across every selected child, consecutive days folded
+  // into one range row, soonest first.
+  const absences = useMemo(() => groupRuns(
+    studentIds.flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({ ...a, student_name: studentName(sid) }))),
   ), [studentIds, byStudent, studentName])
 
   if (loading) {
@@ -215,9 +256,15 @@ const AbsenceReportingPage = () => {
         <h2 className="font-semibold text-gray-900 mb-3">New absence</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-sm">
-            <span className="block text-gray-500 mb-1">Date</span>
+            <span className="block text-gray-500 mb-1">First day</span>
             <input type="date" min={today()} value={form.absence_date}
               onChange={(e) => setForm({ ...form, absence_date: e.target.value })}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-500 mb-1">Last day (optional)</span>
+            <input type="date" min={form.absence_date || today()} value={form.end_date}
+              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
           </label>
           <label className="text-sm">
@@ -253,14 +300,16 @@ const AbsenceReportingPage = () => {
       {!absences.length && <p className="text-sm text-gray-400">None reported.</p>}
       <div className="space-y-2">
         {absences.map((a) => (
-          <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between text-sm">
+          <div key={a.ids[0]} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between text-sm">
             <div>
-              <span className="font-medium text-gray-900">{a.absence_date}</span>
+              <span className="font-medium text-gray-900">
+                {a.absence_date}{a.end_date !== a.absence_date && ` – ${a.end_date}`}
+              </span>
               {students.length > 1 && <span className="text-gray-700"> · {a.student_name}</span>}
               <span className="text-gray-500"> · {a.class_id ? (a.class_name || classNameById[a.class_id] || 'A class') : 'Whole day'}</span>
               {a.reason && <span className="text-gray-400"> — {a.reason}</span>}
             </div>
-            <button onClick={() => cancel(a.id)} className="text-red-500 hover:underline">Cancel</button>
+            <button onClick={() => cancel(a.ids)} className="text-red-500 hover:underline">Cancel</button>
           </div>
         ))}
       </div>

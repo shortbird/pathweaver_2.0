@@ -359,6 +359,7 @@ def create_absence(user_id):
     result = parent.create_absences(
         user_id, org_id, student_ids, absence_date,
         class_id=data.get('class_id'), reason=data.get('reason'),
+        end_date=data.get('end_date'),
     )
     if not result['absences']:
         error = next(iter(result['errors'].values()))
@@ -378,6 +379,22 @@ def cancel_absence(user_id, absence_id):
         code = 404 if result['error'] == 'Absence not found' else 403
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True})
+
+
+@bp.route('/absences/cancel', methods=['POST'])
+@require_auth
+def cancel_absences(user_id):
+    """Cancel several absence reports in one call. The UI shows a reported
+    date range as one row; cancelling it is one action and one office
+    notification covering the span, not one per day. Body: {absence_ids: []}."""
+    ids = (request.json or {}).get('absence_ids') or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'success': False, 'error': 'absence_ids is required'}), 400
+    result = parent.cancel_absences(user_id, ids)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Absence not found' else 403
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
 
 
 # ── Schedule builder: add/drop/waitlist until the first day of school ─────────

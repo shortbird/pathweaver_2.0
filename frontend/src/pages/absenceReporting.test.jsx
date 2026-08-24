@@ -9,7 +9,7 @@
  * total success.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, within } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
@@ -129,6 +129,46 @@ describe('AbsenceReportingPage multi-child selection', () => {
     expect(rows[0]).toContain('Linus')
     expect(rows[1]).toContain('2026-08-30')
     expect(rows[1]).toContain('Ada')
+  })
+
+  it('sends the end date when a last day is picked', async () => {
+    mockPage()
+    api.post.mockResolvedValue({
+      data: { absences: [{ id: 'n1', student_user_id: 'kid-1' }], errors: {} },
+    })
+    render(<AbsenceReportingPage />)
+    await screen.findByRole('button', { name: 'Ada' })
+    fireEvent.change(screen.getByLabelText(/first day/i), { target: { value: '2026-09-01' } })
+    fireEvent.change(screen.getByLabelText(/last day/i), { target: { value: '2026-09-05' } })
+    await userEvent.click(screen.getByRole('button', { name: /report absence/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({ absence_date: '2026-09-01', end_date: '2026-09-05' })))
+  })
+
+  it('shows a stored range as one row and cancels it with one call', async () => {
+    const range = ['2026-08-25', '2026-08-26', '2026-08-27'].map((d, i) => (
+      { id: `r${i}`, student_user_id: 'kid-1', absence_date: d, class_id: null, reason: 'trip' }))
+    api.get.mockImplementation((url) => {
+      if (url.includes('/parent/context')) return Promise.resolve(CONTEXT)
+      if (url.includes('/parent/absences')) {
+        const sid = url.split('student_user_id=')[1]
+        return Promise.resolve({ data: sid === 'kid-1'
+          ? { absences: range, classes: [] }
+          : { absences: [], classes: [] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    api.post.mockResolvedValue({ data: { success: true } })
+    render(<AbsenceReportingPage />)
+
+    // Three stored rows, one displayed line, one Cancel.
+    await waitFor(() => expect(screen.getByText('2026-08-25 – 2026-08-27')).toBeInTheDocument())
+    const cancels = screen.getAllByRole('button', { name: 'Cancel' })
+    expect(cancels).toHaveLength(1)
+    await userEvent.click(cancels[0])
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences/cancel',
+      { absence_ids: ['r0', 'r1', 'r2'] }))
   })
 
   it('a duplicate for one sibling is reported per child, not as total success', async () => {

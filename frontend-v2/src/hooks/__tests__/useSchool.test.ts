@@ -383,19 +383,35 @@ describe('useSchoolAbsences', () => {
       organization_id: 'org-1',
       student_user_ids: ['s1', 's2'],
       absence_date: '2026-08-20',
+      end_date: null,
       class_id: null,
       reason: 'dentist',
     });
   });
 
-  it('cancel deletes the absence', async () => {
+  it('report sends the end date for a range', async () => {
     primeGets();
-    (api.delete as jest.Mock).mockResolvedValue({ data: { success: true } });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => { await result.current.cancel('ab1'); });
-    expect(api.delete).toHaveBeenCalledWith('/api/sis/parent/absences/ab1');
+    await act(async () => {
+      await result.current.report({ absence_date: '2026-08-20', end_date: '2026-08-22', class_id: null, reason: null });
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({ absence_date: '2026-08-20', end_date: '2026-08-22' }));
+  });
+
+  it('cancel posts the whole run in one batch call', async () => {
+    primeGets();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const { result } = renderHook(() => useSchoolAbsences());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.cancel(['ab1', 'ab9']); });
+    expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences/cancel',
+      { absence_ids: ['ab1', 'ab9'] });
   });
 
   it('selecting a second child merges absences and narrows classes to shared ones', async () => {
@@ -411,6 +427,24 @@ describe('useSchoolAbsences', () => {
     expect(result.current.absences.map((a: any) => a.student_name)).toEqual(['Milo', 'Jane']);
     // Only the class both take survives the intersection.
     expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
+  });
+
+  it('folds a stored range (one row per day) into one display run', async () => {
+    const { groupAbsenceRuns } = require('../useSchool');
+    const runs = groupAbsenceRuns([
+      // Three consecutive whole days + one detached day, same child.
+      { id: 'r1', absence_date: '2026-08-25', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r2', absence_date: '2026-08-26', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r3', absence_date: '2026-08-27', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r4', absence_date: '2026-08-31', class_id: null, reason: null, student_name: 'Jane' },
+      // A sibling's overlapping day stays their own row.
+      { id: 'm1', absence_date: '2026-08-26', class_id: null, reason: 'trip', student_name: 'Milo' },
+    ]);
+    expect(runs.map((r: any) => [r.absence_date, r.end_date, r.ids])).toEqual([
+      ['2026-08-25', '2026-08-27', ['r1', 'r2', 'r3']],
+      ['2026-08-26', '2026-08-26', ['m1']],
+      ['2026-08-31', '2026-08-31', ['r4']],
+    ]);
   });
 
   it('toggling a child off returns to their sibling alone', async () => {

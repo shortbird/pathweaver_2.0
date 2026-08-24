@@ -113,6 +113,45 @@ export interface AbsenceClass {
   name: string;
 }
 
+/** One display row: a run of consecutive reported days for one child. */
+export interface AbsenceRun extends Absence {
+  end_date: string;
+  ids: string[];
+}
+
+// Timezone-safe day increment for YYYY-MM-DD strings (Date('YYYY-MM-DD') is UTC).
+const nextDay = (iso: string): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(y, m - 1, d + 1);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * A range report is stored one row per day; fold consecutive days with the
+ * same child, class, and reason back into one display row so a two-week trip
+ * is one line with one Cancel, not fourteen.
+ */
+export const groupAbsenceRuns = (list: Absence[]): AbsenceRun[] => {
+  const sorted = [...list].sort((a, b) => (
+    (a.student_name || '').localeCompare(b.student_name || '')
+    || a.absence_date.localeCompare(b.absence_date)
+  ));
+  const runs: AbsenceRun[] = [];
+  for (const a of sorted) {
+    const prev = runs[runs.length - 1];
+    if (prev && prev.student_name === a.student_name
+        && (prev.class_id || null) === (a.class_id || null)
+        && (prev.reason || null) === (a.reason || null)
+        && nextDay(prev.end_date) === a.absence_date) {
+      prev.end_date = a.absence_date;
+      prev.ids.push(a.id);
+    } else {
+      runs.push({ ...a, end_date: a.absence_date, ids: [a.id] });
+    }
+  }
+  return runs.sort((x, y) => x.absence_date.localeCompare(y.absence_date));
+};
+
 /** True when the board holds anything a family can see. */
 export const hasCommunityContent = (feed: SchoolFeed | null): boolean => Boolean(
   feed && (['announcements', 'lost_found', 'recognition', 'events', 'carpool'] as const)
@@ -482,21 +521,23 @@ export function useSchoolAbsences() {
     return lists[0].filter((c) => lists.every((l) => l.some((x) => x.class_id === c.class_id)));
   }, [studentIds, byStudent]);
 
-  // Upcoming absences across every selected child, soonest first.
-  const absences = useMemo(() => (
-    studentIds
-      .flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({
-        ...a,
-        student_name: students.find((s) => s.student_id === sid)?.name,
-      })))
-      .sort((a, b) => a.absence_date.localeCompare(b.absence_date))
+  // Upcoming absences across every selected child, consecutive days folded
+  // into one range row, soonest first.
+  const absences = useMemo(() => groupAbsenceRuns(
+    studentIds.flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({
+      ...a,
+      student_name: students.find((s) => s.student_id === sid)?.name,
+    }))),
   ), [studentIds, byStudent, students]);
 
-  const report = useCallback(async (form: { absence_date: string; class_id: string | null; reason: string | null }) => {
+  const report = useCallback(async (form: {
+    absence_date: string; end_date?: string | null; class_id: string | null; reason: string | null;
+  }) => {
     const r = await api.post('/api/sis/parent/absences', {
       organization_id: orgId,
       student_user_ids: studentIds,
       absence_date: form.absence_date,
+      end_date: form.end_date && form.end_date !== form.absence_date ? form.end_date : null,
       class_id: form.class_id || null,
       reason: form.reason || null,
     });
@@ -504,8 +545,10 @@ export function useSchoolAbsences() {
     return r.data;
   }, [orgId, studentIds, loadAbsences]);
 
-  const cancel = useCallback(async (id: string) => {
-    await api.delete(`/api/sis/parent/absences/${id}`);
+  // One call for the whole run — a cancelled two-week trip is one office
+  // notification, not fourteen.
+  const cancel = useCallback(async (ids: string[]) => {
+    await api.post('/api/sis/parent/absences/cancel', { absence_ids: ids });
     await loadAbsences();
   }, [loadAbsences]);
 

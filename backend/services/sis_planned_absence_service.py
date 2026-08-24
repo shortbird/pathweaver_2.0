@@ -11,8 +11,12 @@ sis_parent_service (mirrors how catalog/registration services are wrapped). Admi
 client throughout (SIS tables are RLS-locked to backend-only).
 """
 
-from datetime import datetime, timezone, date as _date
+from datetime import datetime, timedelta, timezone, date as _date
 from typing import Dict, List, Any, Optional
+
+# A report can cover an inclusive date range; cap it so a typo'd year doesn't
+# insert thousands of rows (and thousands of admin notifications).
+MAX_SPAN_DAYS = 31
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -166,16 +170,49 @@ def get(absence_id: str) -> Optional[Dict[str, Any]]:
     return rows[0] if rows else None
 
 
-def create(org_id: str, student_user_id: str, reported_by: str, absence_date: str,
-           class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
-    """Report a planned absence. Date must be today or later; class (if given) must
-    belong to the org. Returns {'absence': row} or {'error': msg}."""
+def get_many(absence_ids: List[str]) -> List[Dict[str, Any]]:
+    if not absence_ids:
+        return []
+    return (
+        _admin().table('student_planned_absences').select('*')
+        .in_('id', absence_ids).execute()
+    ).data or []
+
+
+def _parse_span(absence_date: str, end_date: Optional[str]):
+    """Validate a single date or inclusive range. Returns (start, end, error)."""
     try:
-        parsed = _date.fromisoformat(absence_date)
+        start = _date.fromisoformat(absence_date)
     except (TypeError, ValueError):
-        return {'error': 'absence_date must be YYYY-MM-DD'}
-    if parsed < _today():
-        return {'error': 'absence_date cannot be in the past'}
+        return None, None, 'absence_date must be YYYY-MM-DD'
+    if end_date:
+        try:
+            end = _date.fromisoformat(end_date)
+        except (TypeError, ValueError):
+            return None, None, 'end_date must be YYYY-MM-DD'
+    else:
+        end = start
+    if start < _today():
+        return None, None, 'absence_date cannot be in the past'
+    if end < start:
+        return None, None, 'end_date cannot be before absence_date'
+    if (end - start).days + 1 > MAX_SPAN_DAYS:
+        return None, None, f'Absences can cover at most {MAX_SPAN_DAYS} days at a time'
+    return start, end, None
+
+
+def create(org_id: str, student_user_id: str, reported_by: str, absence_date: str,
+           class_id: Optional[str] = None, reason: Optional[str] = None,
+           end_date: Optional[str] = None) -> Dict[str, Any]:
+    """Report a planned absence for one date or an inclusive date range
+    (end_date). Dates must be today or later; class (if given) must belong to
+    the org. One row is written per day — the roster reads stay per-date — but
+    the admin team gets ONE notification covering the span, not one per day.
+    A day already reported is skipped, not fatal. Returns {'absence': first
+    row, 'absences': rows, 'skipped_dates': [...]} or {'error': msg}."""
+    start, end, err = _parse_span(absence_date, end_date)
+    if err:
+        return {'error': err}
 
     if class_id:
         cls = (
@@ -185,26 +222,34 @@ def create(org_id: str, student_user_id: str, reported_by: str, absence_date: st
         if not cls or cls[0].get('organization_id') != org_id:
             return {'error': 'Class not found'}
 
-    payload = {
-        'organization_id': org_id,
-        'student_user_id': student_user_id,
-        'class_id': class_id,
-        'absence_date': absence_date,
-        'reason': (reason or '').strip() or None,
-        'reported_by': reported_by,
-        'status': 'active',
-        'updated_at': _now(),
-    }
-    try:
-        resp = _admin().table('student_planned_absences').insert(payload).execute()
-    except Exception as e:
-        # Unique partial index → a matching active report already exists.
-        logger.info(f"planned absence insert rejected (likely duplicate): {e}")
+    created: List[Dict[str, Any]] = []
+    skipped: List[str] = []
+    day = start
+    while day <= end:
+        payload = {
+            'organization_id': org_id,
+            'student_user_id': student_user_id,
+            'class_id': class_id,
+            'absence_date': day.isoformat(),
+            'reason': (reason or '').strip() or None,
+            'reported_by': reported_by,
+            'status': 'active',
+            'updated_at': _now(),
+        }
+        try:
+            resp = _admin().table('student_planned_absences').insert(payload).execute()
+            if resp.data:
+                created.append(resp.data[0])
+        except Exception as e:
+            # Unique partial index → a matching active report already exists.
+            logger.info(f"planned absence insert rejected (likely duplicate): {e}")
+            skipped.append(day.isoformat())
+        day += timedelta(days=1)
+    if not created:
         return {'error': 'This absence has already been reported'}
-    row = resp.data[0] if resp.data else None
-    if row:
-        _notify_admins_of_report(org_id, student_user_id, absence_date, class_id)
-    return {'absence': row}
+    _notify_admins_of_report(org_id, student_user_id, start.isoformat(), class_id,
+                             end_date=end.isoformat() if end != start else None)
+    return {'absence': created[0], 'absences': created, 'skipped_dates': skipped}
 
 
 def cancel(absence_id: str, org_id: str) -> bool:
@@ -227,32 +272,60 @@ def cancel(absence_id: str, org_id: str) -> bool:
     return bool(resp.data)
 
 
+def cancel_many(absence_ids: List[str], org_id: str) -> int:
+    """Cancel several of one student's reports at once — the UI shows a
+    reported date range as one row, and cancelling it must be one office
+    notification (covering the span), not one per day. Same active-only filter
+    as cancel(), so repeats are quiet. Returns how many rows were cancelled."""
+    if not absence_ids:
+        return 0
+    resp = (
+        _admin().table('student_planned_absences')
+        .update({'status': 'cancelled', 'updated_at': _now()})
+        .in_('id', absence_ids).eq('organization_id', org_id)
+        .eq('status', 'active').execute()
+    )
+    rows = resp.data or []
+    if rows:
+        dates = sorted(r['absence_date'] for r in rows)
+        _notify_admins_of_cancellation(
+            org_id, rows[0].get('student_user_id'), dates[0],
+            rows[0].get('class_id'),
+            end_date=dates[-1] if dates[-1] != dates[0] else None)
+    return len(rows)
+
+
 def _notify_admins_of_report(org_id: str, student_user_id: str, absence_date: str,
-                             class_id: Optional[str]) -> None:
+                             class_id: Optional[str],
+                             end_date: Optional[str] = None) -> None:
     """Tell the org admin team a guardian reported a planned absence. Best-effort."""
     _notify_admin_team(
         org_id, student_user_id, absence_date, class_id,
         title='Absence reported',
-        template='A guardian reported {name} will be out of {scope} on {date}.',
+        template='A guardian reported {name} will be out of {scope} {when}.',
+        end_date=end_date,
     )
 
 
 def _notify_admins_of_cancellation(org_id: str, student_user_id: str,
                                    absence_date: str,
-                                   class_id: Optional[str]) -> None:
+                                   class_id: Optional[str],
+                                   end_date: Optional[str] = None) -> None:
     """Tell the same admin team the report was cancelled. Best-effort."""
     _notify_admin_team(
         org_id, student_user_id, absence_date, class_id,
         title='Absence report cancelled',
         template="A guardian cancelled {name}'s absence report for {scope} "
-                 'on {date} — they are expected after all.',
+                 '{when} — they are expected after all.',
         extra_metadata={'cancelled': True},
+        end_date=end_date,
     )
 
 
 def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
                        class_id: Optional[str], title: str, template: str,
-                       extra_metadata: Optional[Dict[str, Any]] = None) -> None:
+                       extra_metadata: Optional[Dict[str, Any]] = None,
+                       end_date: Optional[str] = None) -> None:
     """Notify every org_admin/campus_coordinator about an absence event."""
     from services import sis_notifications
 
@@ -271,9 +344,11 @@ def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
             _admin().table('org_classes').select('name').eq('id', class_id).limit(1).execute()
         ).data
         scope = (cls[0].get('name') if cls else None) or 'a class'
+    when = f'from {absence_date} to {end_date}' if end_date else f'on {absence_date}'
     metadata = {'student_id': student_user_id, 'date': absence_date,
-                'class_id': class_id, **(extra_metadata or {})}
-    message = template.format(name=name, scope=scope, date=absence_date)
+                'class_id': class_id, **({'end_date': end_date} if end_date else {}),
+                **(extra_metadata or {})}
+    message = template.format(name=name, scope=scope, when=when)
     for admin_id in admin_ids:
         sis_notifications.notify(
             admin_id, title, message,
