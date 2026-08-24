@@ -312,33 +312,50 @@ describe('useSchoolAbsences', () => {
       }],
     },
   };
-  const absencesPayload = {
-    data: {
-      success: true,
-      absences: [{ id: 'ab1', absence_date: '2026-08-15', class_id: null, reason: 'trip' }],
-      classes: [{ class_id: 'cl1', name: 'Pottery' }],
+  // Per-child payloads: Jane and Milo share Choir; only Jane takes Pottery.
+  const absencesByStudent: Record<string, any> = {
+    s1: {
+      data: {
+        success: true,
+        absences: [{ id: 'ab1', absence_date: '2026-08-15', class_id: null, reason: 'trip' }],
+        classes: [{ class_id: 'cl1', name: 'Pottery' }, { class_id: 'cl2', name: 'Choir' }],
+      },
+    },
+    s2: {
+      data: {
+        success: true,
+        absences: [{ id: 'ab2', absence_date: '2026-08-14', class_id: null, reason: null }],
+        classes: [{ class_id: 'cl2', name: 'Choir' }],
+      },
     },
   };
 
   const primeGets = () => {
     (api.get as jest.Mock).mockImplementation((url: string) => {
       if (url.startsWith('/api/sis/parent/context')) return Promise.resolve(parentContext);
-      if (url.startsWith('/api/sis/parent/absences')) return Promise.resolve(absencesPayload);
+      if (url.startsWith('/api/sis/parent/absences')) {
+        const sid = url.split('student_user_id=')[1];
+        return Promise.resolve(absencesByStudent[sid] || { data: {} });
+      }
       return Promise.resolve({ data: {} });
     });
   };
 
-  it('loads guardian context, defaults to the first child, and fetches their absences', async () => {
+  it('loads guardian context, defaults to the first child, and fetches every child', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.students.map((s: any) => s.student_id)).toEqual(['s1', 's2']);
-    expect(result.current.studentId).toBe('s1');
+    expect(result.current.studentIds).toEqual(['s1']);
+    // Only the selected child's absences show, but data is prefetched for both.
     await waitFor(() => expect(result.current.absences).toHaveLength(1));
-    expect(result.current.classes).toHaveLength(1);
+    expect(result.current.classes).toHaveLength(2);
     expect(api.get).toHaveBeenCalledWith(
       '/api/sis/parent/absences?organization_id=org-1&student_user_id=s1',
+    );
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/sis/parent/absences?organization_id=org-1&student_user_id=s2',
     );
   });
 
@@ -350,20 +367,21 @@ describe('useSchoolAbsences', () => {
     expect(result.current.absences).toEqual([]);
   });
 
-  it('report posts the absence and reloads the list', async () => {
+  it('report posts every selected child and reloads the list', async () => {
     primeGets();
-    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
     await waitFor(() => expect(result.current.absences).toHaveLength(1));
 
+    await act(async () => { result.current.toggleStudent('s2'); });
     await act(async () => {
       await result.current.report({ absence_date: '2026-08-20', class_id: null, reason: 'dentist' });
     });
 
     expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences', {
       organization_id: 'org-1',
-      student_user_id: 's1',
+      student_user_ids: ['s1', 's2'],
       absence_date: '2026-08-20',
       class_id: null,
       reason: 'dentist',
@@ -380,15 +398,31 @@ describe('useSchoolAbsences', () => {
     expect(api.delete).toHaveBeenCalledWith('/api/sis/parent/absences/ab1');
   });
 
-  it('switching students refetches their absences', async () => {
+  it('selecting a second child merges absences and narrows classes to shared ones', async () => {
+    primeGets();
+    const { result } = renderHook(() => useSchoolAbsences());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.absences).toHaveLength(1));
+
+    await act(async () => { result.current.toggleStudent('s2'); });
+
+    // Both children's absences, soonest first, labeled by name.
+    await waitFor(() => expect(result.current.absences.map((a: any) => a.id)).toEqual(['ab2', 'ab1']));
+    expect(result.current.absences.map((a: any) => a.student_name)).toEqual(['Milo', 'Jane']);
+    // Only the class both take survives the intersection.
+    expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
+  });
+
+  it('toggling a child off returns to their sibling alone', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => { result.current.setStudentId('s2'); });
+    await act(async () => { result.current.toggleStudent('s2'); });
+    await act(async () => { result.current.toggleStudent('s1'); });
 
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
-      '/api/sis/parent/absences?organization_id=org-1&student_user_id=s2',
-    ));
+    await waitFor(() => expect(result.current.studentIds).toEqual(['s2']));
+    expect(result.current.absences.map((a: any) => a.id)).toEqual(['ab2']);
+    expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
   });
 });

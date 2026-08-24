@@ -104,6 +104,8 @@ export interface Absence {
   class_id: string | null;
   class_name?: string | null;
   reason: string | null;
+  /** Hydrated client-side so a multi-child list can say whose absence it is. */
+  student_name?: string;
 }
 
 export interface AbsenceClass {
@@ -410,9 +412,10 @@ export function useSchoolArchive(options?: { organizationId?: string }) {
 export function useSchoolAbsences() {
   const [orgs, setOrgs] = useState<any[]>([]);
   const [orgId, setOrgId] = useState<string>('');
-  const [studentId, setStudentId] = useState<string>('');
-  const [absences, setAbsences] = useState<Absence[]>([]);
-  const [classes, setClasses] = useState<AbsenceClass[]>([]);
+  const [studentIds, setStudentIds] = useState<string[]>([]);
+  // Per-child data for every child in the org, so toggling a chip never waits
+  // on a fetch. {student_id: {absences, classes}}.
+  const [byStudent, setByStudent] = useState<Record<string, { absences: Absence[]; classes: AbsenceClass[] }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -425,7 +428,7 @@ export function useSchoolAbsences() {
         setOrgs(list);
         if (list.length) {
           setOrgId(list[0].organization_id);
-          if (list[0].students?.length) setStudentId(list[0].students[0].student_id);
+          if (list[0].students?.length) setStudentIds([list[0].students[0].student_id]);
         }
       })
       .catch(() => { if (active) setError('Could not load absences'); })
@@ -434,31 +437,72 @@ export function useSchoolAbsences() {
   }, []);
 
   const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId]);
-  const students: AbsenceStudent[] = org?.students || [];
+  // Memoized: loadAbsences depends on this, and a fresh [] every render would
+  // re-run its effect (and setState) in a loop.
+  const students: AbsenceStudent[] = useMemo(() => org?.students || [], [org]);
+
+  // Keep the selection valid when the org changes.
+  useEffect(() => {
+    if (!students.length) return;
+    setStudentIds((prev) => {
+      const valid = prev.filter((sid) => students.some((s) => s.student_id === sid));
+      return valid.length ? valid : [students[0].student_id];
+    });
+  }, [students]);
 
   const loadAbsences = useCallback(async () => {
-    if (!orgId || !studentId) { setAbsences([]); setClasses([]); return; }
+    if (!orgId || !students.length) { setByStudent({}); return; }
     try {
-      const r = await api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${studentId}`);
-      setAbsences(r.data?.absences || []);
-      setClasses(r.data?.classes || []);
+      const entries = await Promise.all(students.map(async (s) => {
+        const r = await api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${s.student_id}`);
+        return [s.student_id, {
+          absences: r.data?.absences || [],
+          classes: r.data?.classes || [],
+        }] as const;
+      }));
+      setByStudent(Object.fromEntries(entries));
     } catch {
       setError('Could not load absences');
     }
-  }, [orgId, studentId]);
+  }, [orgId, students]);
 
   useEffect(() => { loadAbsences(); }, [loadAbsences]);
 
+  const toggleStudent = useCallback((sid: string) => {
+    setStudentIds((prev) => (
+      prev.includes(sid) ? prev.filter((id) => id !== sid) : [...prev, sid]
+    ));
+  }, []);
+
+  // Classes every selected child is enrolled in — a class-specific absence for
+  // several children only makes sense when they share the class.
+  const classes = useMemo(() => {
+    const lists = studentIds.map((sid) => byStudent[sid]?.classes || []);
+    if (!lists.length) return [];
+    return lists[0].filter((c) => lists.every((l) => l.some((x) => x.class_id === c.class_id)));
+  }, [studentIds, byStudent]);
+
+  // Upcoming absences across every selected child, soonest first.
+  const absences = useMemo(() => (
+    studentIds
+      .flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({
+        ...a,
+        student_name: students.find((s) => s.student_id === sid)?.name,
+      })))
+      .sort((a, b) => a.absence_date.localeCompare(b.absence_date))
+  ), [studentIds, byStudent, students]);
+
   const report = useCallback(async (form: { absence_date: string; class_id: string | null; reason: string | null }) => {
-    await api.post('/api/sis/parent/absences', {
+    const r = await api.post('/api/sis/parent/absences', {
       organization_id: orgId,
-      student_user_id: studentId,
+      student_user_ids: studentIds,
       absence_date: form.absence_date,
       class_id: form.class_id || null,
       reason: form.reason || null,
     });
     await loadAbsences();
-  }, [orgId, studentId, loadAbsences]);
+    return r.data;
+  }, [orgId, studentIds, loadAbsences]);
 
   const cancel = useCallback(async (id: string) => {
     await api.delete(`/api/sis/parent/absences/${id}`);
@@ -467,7 +511,7 @@ export function useSchoolAbsences() {
 
   return {
     orgs, orgId, setOrgId,
-    students, studentId, setStudentId,
+    students, studentIds, toggleStudent,
     absences, classes,
     orgName: org?.organization_name || null,
     loading, error,

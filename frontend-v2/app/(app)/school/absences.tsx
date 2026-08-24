@@ -1,15 +1,17 @@
 /**
- * Absence reporting — a guardian tells the school ahead of time that a child
- * will be out, for a whole day or one scheduled class. Distinct from the
- * teacher's attendance roster; the office is notified when one is added.
- * Backed by /api/sis/parent/absences (authorized by family relationship).
+ * Absence reporting — a guardian tells the school ahead of time that one or
+ * more children will be out, for a whole day or one scheduled class. The child
+ * chips multi-select so "all three are out Friday" is one report, not three.
+ * Distinct from the teacher's attendance roster; the office is notified when
+ * one is added. Backed by /api/sis/parent/absences (authorized by family
+ * relationship).
  *
  * Date selection is a horizontal strip of the next 28 days on every platform —
  * no native date-picker modal, so the web preview and the native app behave
  * identically, and "out sick tomorrow" is two taps.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -70,7 +72,7 @@ const chipText = (selected: boolean) =>
 export default function AbsencesScreen() {
   const c = useThemeColors();
   const {
-    orgs, orgId, setOrgId, students, studentId, setStudentId,
+    orgs, orgId, setOrgId, students, studentIds, toggleStudent,
     absences, classes, orgName, loading, report, cancel,
   } = useSchoolAbsences();
 
@@ -85,12 +87,29 @@ export default function AbsencesScreen() {
     [classes],
   );
 
+  const studentName = (sid: string) => students.find((s) => s.student_id === sid)?.name || 'A student';
+
+  // Deselect a class that stopped being shared by everyone selected.
+  useEffect(() => {
+    if (classId && !classes.some((cl) => cl.class_id === classId)) setClassId(null);
+  }, [classes, classId]);
+
   const submit = async () => {
-    if (!studentId || busy) return;
+    if (!studentIds.length || busy) return;
     setBusy(true);
     try {
-      await report({ absence_date: date, class_id: classId, reason: reason.trim() || null });
-      toast.success(`Absence reported — ${orgName || 'the office'} has been notified`);
+      const result = await report({ absence_date: date, class_id: classId, reason: reason.trim() || null });
+      const created = result?.absences || [];
+      const errors: Record<string, string> = result?.errors || {};
+      if (created.length) {
+        const who = created.length === 1
+          ? studentName(created[0].student_user_id)
+          : `${created.length} children`;
+        toast.success(`Absence reported for ${who} — ${orgName || 'the office'} has been notified`);
+      }
+      Object.entries(errors).forEach(([sid, msg]) => {
+        toast.error(`${studentName(sid)}: ${msg}`);
+      });
       setDate(days[0].iso);
       setClassId(null);
       setReason('');
@@ -148,7 +167,7 @@ export default function AbsencesScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mb-4">
-            Let {orgName || 'the office'} know ahead of time when your child will be out.
+            Let {orgName || 'the office'} know ahead of time when your children will be out.
           </UIText>
 
           {/* Org picker — only for the rare family enrolled in two orgs. The
@@ -168,18 +187,20 @@ export default function AbsencesScreen() {
             </View>
           )}
 
-          {/* Child */}
+          {/* Children — multi-select so one report covers every sibling who's out */}
           <View className="mb-4">
-            <UIText size="xs" className="font-poppins-medium text-typo-400 dark:text-dark-typo-400 mb-2">Child</UIText>
+            <UIText size="xs" className="font-poppins-medium text-typo-400 dark:text-dark-typo-400 mb-2">
+              {students.length > 1 ? 'Children — select everyone who will be out' : 'Child'}
+            </UIText>
             <HStack space="sm" className="flex-wrap">
               {students.map((s) => (
                 <Chip
                   key={s.student_id}
-                  selected={s.student_id === studentId}
-                  onPress={() => setStudentId(s.student_id)}
+                  selected={studentIds.includes(s.student_id)}
+                  onPress={() => toggleStudent(s.student_id)}
                   testID={`absence-student-${s.student_id}`}
                 >
-                  <UIText size="xs" className={chipText(s.student_id === studentId)}>{s.name}</UIText>
+                  <UIText size="xs" className={chipText(studentIds.includes(s.student_id))}>{s.name}</UIText>
                 </Chip>
               ))}
             </HStack>
@@ -222,6 +243,11 @@ export default function AbsencesScreen() {
                 </Chip>
               ))}
             </HStack>
+            {studentIds.length > 1 && !classes.length ? (
+              <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300 mt-2">
+                Only whole-day absences can be reported for multiple children unless they share a class.
+              </UIText>
+            ) : null}
           </View>
 
           {/* Reason */}
@@ -238,7 +264,7 @@ export default function AbsencesScreen() {
             </Input>
           </View>
 
-          <Button onPress={submit} disabled={busy || !studentId} testID="absence-submit">
+          <Button onPress={submit} disabled={busy || !studentIds.length} testID="absence-submit">
             <ButtonText>{busy ? 'Reporting…' : 'Report absence'}</ButtonText>
           </Button>
 
@@ -254,6 +280,9 @@ export default function AbsencesScreen() {
                     <View className="flex-1">
                       <UIText size="sm" className="font-poppins-medium">
                         {a.absence_date}
+                        {students.length > 1 && a.student_name ? (
+                          <UIText size="sm" className="font-poppins-regular">{'  ·  '}{a.student_name}</UIText>
+                        ) : null}
                         <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 font-poppins-regular">
                           {'  ·  '}{a.class_id ? (a.class_name || classNameById[a.class_id] || 'A class') : 'Whole day'}
                         </UIText>

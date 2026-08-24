@@ -198,3 +198,51 @@ class TestLifecycleAuthorization:
                    return_value={'id': 'reg1', 'guardian_user_id': 'g1', 'status': 'in_progress', 'items': []}):
             result = parent.submit('g1', 'org1', 'reg1')
         assert result.get('error')
+
+
+@pytest.mark.unit
+class TestCreateAbsencesMultiChild:
+    """One report can cover several siblings. Each child is authorized and
+    written independently, so a duplicate or an unauthorized id in the batch
+    never blocks the siblings that are fine."""
+
+    @staticmethod
+    def _row(org_id, sid, **kw):
+        return {'absence': {'id': f'abs-{sid}', 'student_user_id': sid,
+                            'organization_id': org_id, **kw}}
+
+    def _run(self, student_ids, can=lambda sid: True, create=None):
+        create = create or (lambda org_id, sid, **kw: self._row(org_id, sid))
+        with patch.object(parent, '_can_register',
+                          side_effect=lambda _u, _o, sid: can(sid)), \
+             patch.object(parent.absences, 'create',
+                          side_effect=create) as create_mock:
+            result = parent.create_absences('g1', 'org1', student_ids,
+                                            '2026-09-01', class_id=None,
+                                            reason='trip')
+        return result, create_mock
+
+    def test_creates_one_row_per_child(self):
+        result, create = self._run(['stu1', 'stu2'])
+        assert [a['student_user_id'] for a in result['absences']] == ['stu1', 'stu2']
+        assert result['errors'] == {}
+        assert create.call_count == 2
+        _, kwargs = create.call_args
+        assert kwargs['reported_by'] == 'g1'
+        assert kwargs['absence_date'] == '2026-09-01'
+
+    def test_unauthorized_child_fails_alone_not_the_batch(self):
+        result, create = self._run(['stu1', 'not-mine'],
+                                   can=lambda sid: sid == 'stu1')
+        assert [a['student_user_id'] for a in result['absences']] == ['stu1']
+        assert result['errors'] == {'not-mine': 'Not authorized for this student'}
+        create.assert_called_once()
+
+    def test_duplicate_for_one_sibling_does_not_block_the_other(self):
+        def create(org_id, sid, **kw):
+            if sid == 'stu1':
+                return {'error': 'This absence has already been reported'}
+            return self._row(org_id, sid)
+        result, _ = self._run(['stu1', 'stu2'], create=create)
+        assert [a['student_user_id'] for a in result['absences']] == ['stu2']
+        assert result['errors'] == {'stu1': 'This absence has already been reported'}

@@ -1425,6 +1425,26 @@ def create_absence(user_id: str, org_id: str, student_user_id: str, absence_date
                            absence_date=absence_date, class_id=class_id, reason=reason)
 
 
+def create_absences(user_id: str, org_id: str, student_user_ids: List[str], absence_date: str,
+                    class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
+    """Report the same absence for several children at once.
+
+    Each child is authorized and written independently, so a duplicate report
+    for one sibling doesn't block the others. Returns the rows that were
+    created plus per-student errors for the ones that weren't.
+    """
+    created: List[Dict[str, Any]] = []
+    errors: Dict[str, str] = {}
+    for sid in student_user_ids:
+        result = create_absence(user_id, org_id, sid, absence_date,
+                                class_id=class_id, reason=reason)
+        if result.get('error'):
+            errors[sid] = result['error']
+        else:
+            created.append(result['absence'])
+    return {'absences': created, 'errors': errors}
+
+
 def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
     row = absences.get(absence_id)
     if not row:

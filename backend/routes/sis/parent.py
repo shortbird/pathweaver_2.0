@@ -340,21 +340,34 @@ def list_absences(user_id):
 @bp.route('/absences', methods=['POST'])
 @require_auth
 def create_absence(user_id):
+    """Report an absence for one child (student_user_id) or several at once
+    (student_user_ids). Each child is written independently; the response lists
+    what was created plus per-student errors, so one duplicate doesn't block a
+    sibling."""
     data = request.json or {}
     org_id = _org(request)
-    student_user_id = data.get('student_user_id')
+    raw_ids = data.get('student_user_ids')
+    if raw_ids is None:
+        raw_ids = [data.get('student_user_id')]
+    if not isinstance(raw_ids, list):
+        raw_ids = [raw_ids]
+    student_ids = [s for s in dict.fromkeys(raw_ids) if isinstance(s, str) and s]
     absence_date = data.get('absence_date')
-    if not org_id or not student_user_id or not absence_date:
+    if not org_id or not student_ids or not absence_date:
         return jsonify({'success': False,
-                        'error': 'organization_id, student_user_id and absence_date are required'}), 400
-    result = parent.create_absence(
-        user_id, org_id, student_user_id, absence_date,
+                        'error': 'organization_id, student_user_id(s) and absence_date are required'}), 400
+    result = parent.create_absences(
+        user_id, org_id, student_ids, absence_date,
         class_id=data.get('class_id'), reason=data.get('reason'),
     )
-    if result.get('error'):
-        code = 403 if result['error'] == 'Not authorized for this student' else 400
-        return jsonify({'success': False, 'error': result['error']}), code
-    return jsonify({'success': True, 'absence': result['absence']}), 201
+    if not result['absences']:
+        error = next(iter(result['errors'].values()))
+        code = 403 if error == 'Not authorized for this student' else 400
+        return jsonify({'success': False, 'error': error, 'errors': result['errors']}), code
+    return jsonify({'success': True,
+                    'absence': result['absences'][0],
+                    'absences': result['absences'],
+                    'errors': result['errors']}), 201
 
 
 @bp.route('/absences/<absence_id>', methods=['DELETE'])
