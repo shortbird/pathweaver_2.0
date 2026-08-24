@@ -1,11 +1,11 @@
 /**
- * The school's documents on the mobile school page — guidebooks, agreements,
- * waivers, learning-day guides.
+ * The school's documents — guidebooks, agreements, waivers, learning-day
+ * guides — grouped under their category headings.
  *
  * Exists because the orientation quest sends families here by name and the
- * section did not exist on mobile (iCreate, 2026-08-18). Rendered as a
- * SchoolSection so it carries the same header, toggle and closed-on-arrival
- * default as everything else on the page.
+ * section did not exist on mobile (iCreate, 2026-08-18). Since the 2026-08-23
+ * redesign the list lives on its own screen (the hub's Documents chip), so
+ * this module exports the list itself rather than a hub section.
  */
 import React from 'react';
 import { View, Pressable } from 'react-native';
@@ -13,8 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { safeOpenURL } from '@/src/utils/linking';
-import { SchoolSection } from './SchoolSection';
-import { useSchoolResources, groupByCategory, type SchoolResource } from '@/src/hooks/useSchoolResources';
+import { groupByCategory, type SchoolResource } from '@/src/hooks/useSchoolResources';
 
 /** A stored document versus a link out — worth distinguishing, because one
  *  opens a PDF and the other leaves the app. */
@@ -60,30 +59,20 @@ function ResourceRow({ resource }: { resource: SchoolResource }) {
   );
 }
 
-export default function SchoolResources({ organizationId }: { organizationId?: string | null }) {
-  const { resources, loading } = useSchoolResources(organizationId);
-
-  // A school with no documents gets no empty heading.
-  if (loading || resources.length === 0) return null;
-
+export function ResourceList({ resources }: { resources: SchoolResource[] }) {
   const groups = groupByCategory(resources);
-
   return (
-    <View testID="school-resources">
-      <SchoolSection title="Documents" icon="folder-open-outline" count={resources.length}>
-        <VStack space="md">
-          {groups.map((g) => (
-            <VStack key={g.category ?? '__none__'} space="xs">
-              {g.category ? (
-                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
-                  {g.category}
-                </UIText>
-              ) : null}
-              {g.items.map((r) => <ResourceRow key={r.id} resource={r} />)}
-            </VStack>
-          ))}
+    <VStack space="md" testID="school-resources">
+      {groups.map((g) => (
+        <VStack key={g.category ?? '__none__'} space="xs">
+          {g.category ? (
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
+              {g.category}
+            </UIText>
+          ) : null}
+          {g.items.map((r) => <ResourceRow key={r.id} resource={r} />)}
         </VStack>
-      </SchoolSection>
-    </View>
+      ))}
+    </VStack>
   );
 }

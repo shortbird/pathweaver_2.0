@@ -446,3 +446,45 @@
 .docs-prose > *:first-child {
   margin-top: 0 !important;
 }
+
+/* Rich message bodies (AnnouncementBody) — staff-written newsletter HTML.
+   Preflight zeroes every margin and the base layer sizes bare h1/h2/h3 as
+   page titles (text-5xl/3xl/xl), so unscoped a newsletter renders as giant
+   headings over run-together paragraphs. Feed-scale headings and a paragraph
+   rhythm, scoped to the body. (The `prose` class next to it carries only the
+   hand-rolled list styles above — the typography plugin is not installed.) */
+.rich-body h1 {
+  @apply text-xl font-bold tracking-tight mt-5 mb-1.5;
+}
+
+.rich-body h2 {
+  @apply text-lg font-bold tracking-tight mt-4 mb-1;
+}
+
+.rich-body h3 {
+  @apply text-base font-semibold tracking-tight mt-3 mb-1;
+}
+
+.rich-body h4 {
+  @apply text-sm font-semibold mt-3 mb-1;
+}
+
+.rich-body p {
+  @apply my-2;
+}
+
+.rich-body blockquote {
+  @apply border-l-2 border-optio-purple/30 pl-3 my-2 text-gray-600;
+}
+
+.rich-body hr {
+  @apply my-4 border-gray-200;
+}
+
+.rich-body > :first-child {
+  margin-top: 0;
+}
+
+.rich-body > :last-child {
+  margin-bottom: 0;
+}

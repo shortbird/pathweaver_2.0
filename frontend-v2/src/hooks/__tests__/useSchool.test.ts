@@ -96,24 +96,58 @@ describe('useSchoolHub', () => {
     },
   };
 
+  const archivePayload = {
+    data: {
+      success: true,
+      announcements: [
+        { id: 'm1', title: 'Fall Newsletter', content: 'Welcome back.', created_at: '2026-08-02T00:00:00Z' },
+        { id: 'm2', title: 'Picture Day', content: 'Thursday.', created_at: '2026-08-01T00:00:00Z' },
+      ],
+      total: 2,
+      organization_name: 'iCreate',
+    },
+  };
+
   const primeGets = () => {
     (api.get as jest.Mock).mockImplementation((url: string) => {
       if (url.startsWith('/api/sis/school/context')) return Promise.resolve(contextPayload);
       if (url.startsWith('/api/sis/community/feed')) return Promise.resolve(feedPayload);
+      if (url.startsWith('/api/announcements/archive')) return Promise.resolve(archivePayload);
       return Promise.resolve({ data: {} });
     });
   };
 
-  it('loads school context and the community feed together', async () => {
+  it('loads school context, the community feed and the sent messages together', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolHub());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.org?.organization_id).toBe('org-1');
     expect(result.current.feed?.announcements).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(2);
     expect(result.current.carpool.canPost).toBe(true);
     expect(result.current.carpool.canModerate).toBe(false);
     expect(result.current.schoolName).toBe('iCreate');
+  });
+
+  it('reports the fetched messages as read only when the hub screen asks (markRead)', async () => {
+    primeGets();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const { result } = renderHook(() => useSchoolHub({ markRead: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/announcements/mark-read', {
+      announcement_ids: ['m1', 'm2'],
+    }));
+  });
+
+  it('never reports reads without markRead — the carpool screen reuses this hook', async () => {
+    primeGets();
+    const { result } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect((api.post as jest.Mock).mock.calls.filter(([u]) => String(u).includes('mark-read')))
+      .toHaveLength(0);
   });
 
   it('degrades to an empty hub when the feed call fails', async () => {
@@ -182,12 +216,23 @@ describe('useSchoolHub', () => {
         expect(config?.params).toEqual({ organization_id: 'org-1', view_as: 'parent' });
         return Promise.resolve(feedPayload);
       }
+      if (url.startsWith('/api/announcements/archive')) {
+        // Same rule for the archive read — and previewing must never write
+        // read receipts (asserted below by the absence of api.post calls).
+        expect(config?.params).toEqual({ limit: 20, offset: 0, organization_id: 'org-1', view_as: 'parent' });
+        return Promise.resolve(archivePayload);
+      }
       return Promise.resolve({ data: {} });
     });
-    const { result } = renderHook(() => useSchoolHub());
+    const { result } = renderHook(() => useSchoolHub({ markRead: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.feed?.announcements).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(2);
     expect(result.current.org?.organization_id).toBe('org-1');
+    // Read receipts are per-person facts — a preview writes none even with
+    // markRead on.
+    expect((api.post as jest.Mock).mock.calls.filter(([u]) => String(u).includes('mark-read')))
+      .toHaveLength(0);
   });
 });
 

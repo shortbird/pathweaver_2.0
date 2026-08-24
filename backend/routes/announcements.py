@@ -161,7 +161,8 @@ def list_announcements(user_id):
             .eq('id', user_id).single().execute().data or {}
         audience_token = _archive_audience_token(get_effective_role(caller), None)
         query = admin.table('announcements')\
-            .select('id, title, message, target_audience, author_id, created_at')\
+            .select('id, title, message, target_audience, author_id, created_at, '
+                    'last_nudged_at')\
             .eq('organization_id', org_id)
         if audience_token:
             query = query.or_(
@@ -173,6 +174,25 @@ def list_announcements(user_id):
             {**row, 'content': row.get('message')}
             for row in (rows.data or [])
         ]
+        # Read stats, for the staff view only (audience_token is None exactly
+        # for the staff tiers + superadmin). One query against the aggregate
+        # view for the whole page — never a count per row, never raw read rows
+        # into Python. recipient_count is None for sends that predate the
+        # snapshot; the UI shows those as "no data", not "nobody".
+        if audience_token is None and announcements:
+            stats = {}
+            try:
+                srows = admin.table('announcement_read_stats')\
+                    .select('announcement_id, recipient_count, read_count')\
+                    .in_('announcement_id', [a['id'] for a in announcements])\
+                    .execute().data or []
+                stats = {s['announcement_id']: s for s in srows}
+            except Exception as se:  # noqa: BLE001 — stats must not sink the list
+                logger.warning(f"Announcement read stats unavailable: {se}")
+            for a in announcements:
+                s = stats.get(a['id']) or {}
+                a['read_count'] = s.get('read_count') or 0
+                a['recipient_count'] = s.get('recipient_count')
         return jsonify({'success': True, 'announcements': announcements})
     except Exception as e:
         logger.error(f"Error listing announcements: {e}")
@@ -225,6 +245,104 @@ def delete_announcement(user_id, announcement_id):
     except Exception as e:
         logger.error(f"Error deleting announcement: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete announcement'}), 500
+
+
+@bp.route('/api/announcements/mark-read', methods=['POST'])
+@require_role(*STAFF_ROLES, 'student', 'parent')
+def mark_announcements_read(user_id):
+    """Record that the caller has read these announcements. Idempotent.
+
+    Body: {announcement_ids: [uuid, ...]} — at most 50 per call. Same role
+    gate and org resolution as the archive (member_org_id, so a platform
+    parent counts through their children); ids outside the caller's org are
+    silently dropped rather than erroring, since a stale id in a batch should
+    not lose the rest.
+    """
+    try:
+        data = request.json or {}
+        raw_ids = data.get('announcement_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return jsonify({'success': False,
+                            'error': 'announcement_ids must be a non-empty list'}), 400
+        if len(raw_ids) > 50:
+            return jsonify({'success': False,
+                            'error': 'At most 50 announcement_ids per call'}), 400
+        ids = []
+        for raw in raw_ids:
+            try:
+                ids.append(str(uuid.UUID(str(raw))))
+            except (TypeError, ValueError, AttributeError):
+                continue  # not a uuid — drop it, don't fail the batch
+        if not ids:
+            return jsonify({'success': False,
+                            'error': 'No valid announcement ids'}), 400
+
+        # admin client justified: announcement_reads is deny-all RLS (backend
+        # only); the caller writes only rows keyed to their own user_id, and
+        # ids are fenced to their org first.
+        admin = get_supabase_admin_client()
+        caller = admin.table('users').select('role, org_role, org_roles')\
+            .eq('id', user_id).single().execute().data or {}
+
+        query = admin.table('announcements').select('id').in_('id', ids)
+        if get_effective_role(caller) != 'superadmin':
+            org_id = sis_service.member_org_id(user_id)
+            if not org_id:
+                return jsonify({'success': True, 'marked': 0})
+            query = query.eq('organization_id', org_id)
+        valid = [r['id'] for r in (query.execute().data or [])]
+
+        if valid:
+            admin.table('announcement_reads').upsert(
+                [{'announcement_id': aid, 'user_id': user_id} for aid in valid],
+                on_conflict='announcement_id,user_id', ignore_duplicates=True,
+            ).execute()
+        return jsonify({'success': True, 'marked': len(valid)})
+    except Exception as e:
+        logger.error(f"Error marking announcements read: {e}")
+        return jsonify({'success': False, 'error': 'Failed to mark as read'}), 500
+
+
+@bp.route('/api/announcements/<announcement_id>/nudge', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def nudge_announcement(user_id, announcement_id):
+    """Remind everyone who was sent this announcement and hasn't read it.
+
+    Admin tier (org_admin, campus_coordinator, superadmin) may nudge any of
+    the org's sends; an advisor only their own — the same ownership fence as
+    DELETE. The service refuses (409) inside a 24h cooldown or when no
+    recipient snapshot exists (messages sent before read receipts)."""
+    try:
+        # admin client justified: org-scoped fan-out; role + author checks below
+        admin = get_supabase_admin_client()
+        caller = admin.table('users')\
+            .select('role, org_role, org_roles, organization_id')\
+            .eq('id', user_id).single().execute().data or {}
+        effective_role = get_effective_role(caller)
+
+        row = admin.table('announcements')\
+            .select('id, organization_id, author_id, title, message, last_nudged_at')\
+            .eq('id', announcement_id).limit(1).execute().data
+        if not row:
+            return jsonify({'success': False, 'error': 'Announcement not found'}), 404
+        row = row[0]
+
+        if effective_role != 'superadmin' and \
+                row.get('organization_id') != caller.get('organization_id'):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        if effective_role not in (*ADMIN_ROLES, 'superadmin') and \
+                row.get('author_id') != user_id:
+            return jsonify({'success': False,
+                            'error': 'Only the sender or an admin can send reminders for this'}), 403
+
+        result = announcement_service.nudge(row)
+        if result.get('error'):
+            return jsonify({'success': False, 'error': result['error']}), \
+                result.get('status', 400)
+        return jsonify({'success': True, **result})
+    except Exception as e:
+        logger.error(f"Error nudging announcement: {e}")
+        return jsonify({'success': False, 'error': 'Failed to send reminders'}), 500
 
 
 _AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents'}

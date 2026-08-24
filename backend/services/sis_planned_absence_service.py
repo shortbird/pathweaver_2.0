@@ -49,10 +49,27 @@ def _student_name(u: Dict[str, Any]) -> str:
 
 
 def _org_admin_ids(org_id: str) -> List[str]:
-    rows = (
+    """The front-office team absence reports go to: org_admins AND campus
+    coordinators.
+
+    Coordinators run attendance day to day — matching only 'org_admin' here
+    meant a school whose front desk is a coordinator (iCreate's Kate) never
+    heard about a guardian-reported absence. Scoped deliberately: this helper
+    is used only by this module's absence notifications, so widening it widens
+    nothing else (sis_attendance_service and routes/sis/goals.py keep their own
+    helpers).
+
+    Paged: this reads every user in the org, which grows past the PostgREST cap
+    as families join — and a truncated read is an admin who silently stops
+    being notified.
+    """
+    from utils.db_fetch import fetch_all_rows
+    from utils.sis_roles import CAMPUS_COORDINATOR
+
+    rows = fetch_all_rows(lambda: (
         _admin().table('users').select('id, org_role, org_roles')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+        .eq('organization_id', org_id)))
+    wanted = {'org_admin', CAMPUS_COORDINATOR}
     admins = []
     for u in rows:
         roles = set()
@@ -60,7 +77,7 @@ def _org_admin_ids(org_id: str) -> List[str]:
             roles.add(u['org_role'])
         if isinstance(u.get('org_roles'), list):
             roles.update(u['org_roles'])
-        if 'org_admin' in roles:
+        if roles & wanted:
             admins.append(u['id'])
     return admins
 
@@ -191,17 +208,52 @@ def create(org_id: str, student_user_id: str, reported_by: str, absence_date: st
 
 
 def cancel(absence_id: str, org_id: str) -> bool:
+    # `status = active` makes the cancel idempotent for notifications: only the
+    # transition out of 'active' matches, so a repeated DELETE updates nothing
+    # and the admin team is not told about the same cancellation twice.
     resp = (
         _admin().table('student_planned_absences')
         .update({'status': 'cancelled', 'updated_at': _now()})
-        .eq('id', absence_id).eq('organization_id', org_id).execute()
+        .eq('id', absence_id).eq('organization_id', org_id)
+        .eq('status', 'active').execute()
     )
+    row = resp.data[0] if resp.data else None
+    if row:
+        # An admin who read "out on Friday" and never hears otherwise plans
+        # around an absence that is no longer happening.
+        _notify_admins_of_cancellation(
+            org_id, row.get('student_user_id'), row.get('absence_date'),
+            row.get('class_id'))
     return bool(resp.data)
 
 
 def _notify_admins_of_report(org_id: str, student_user_id: str, absence_date: str,
                              class_id: Optional[str]) -> None:
     """Tell the org admin team a guardian reported a planned absence. Best-effort."""
+    _notify_admin_team(
+        org_id, student_user_id, absence_date, class_id,
+        title='Absence reported',
+        template='A guardian reported {name} will be out of {scope} on {date}.',
+    )
+
+
+def _notify_admins_of_cancellation(org_id: str, student_user_id: str,
+                                   absence_date: str,
+                                   class_id: Optional[str]) -> None:
+    """Tell the same admin team the report was cancelled. Best-effort."""
+    _notify_admin_team(
+        org_id, student_user_id, absence_date, class_id,
+        title='Absence report cancelled',
+        template="A guardian cancelled {name}'s absence report for {scope} "
+                 'on {date} — they are expected after all.',
+        extra_metadata={'cancelled': True},
+    )
+
+
+def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
+                       class_id: Optional[str], title: str, template: str,
+                       extra_metadata: Optional[Dict[str, Any]] = None) -> None:
+    """Notify every org_admin/campus_coordinator about an absence event."""
     from services import sis_notifications
 
     admin_ids = _org_admin_ids(org_id)
@@ -219,12 +271,13 @@ def _notify_admins_of_report(org_id: str, student_user_id: str, absence_date: st
             _admin().table('org_classes').select('name').eq('id', class_id).limit(1).execute()
         ).data
         scope = (cls[0].get('name') if cls else None) or 'a class'
+    metadata = {'student_id': student_user_id, 'date': absence_date,
+                'class_id': class_id, **(extra_metadata or {})}
+    message = template.format(name=name, scope=scope, date=absence_date)
     for admin_id in admin_ids:
         sis_notifications.notify(
-            admin_id,
-            'Absence reported',
-            f"A guardian reported {name} will be out of {scope} on {absence_date}.",
+            admin_id, title, message,
             link='/attendance',
             organization_id=org_id,
-            metadata={'student_id': student_user_id, 'date': absence_date, 'class_id': class_id},
+            metadata=metadata,
         )

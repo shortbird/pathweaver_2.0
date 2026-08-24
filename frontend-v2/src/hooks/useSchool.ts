@@ -117,6 +117,13 @@ export const hasCommunityContent = (feed: SchoolFeed | null): boolean => Boolean
     .some((k) => (feed[k] || []).length > 0),
 );
 
+/** True when the school page has anything to show — board content OR sent
+ *  messages (the unified feed draws on both). */
+export const hasSchoolContent = (
+  feed: SchoolFeed | null,
+  messages: ArchivedMessage[],
+): boolean => hasCommunityContent(feed) || messages.length > 0;
+
 // ── The gate ──
 
 // The superadmin preview's org name, resolved once per session from the
@@ -171,10 +178,20 @@ export function useSchool() {
 
 // ── The hub: school context + community feed + carpool actions ──
 
-export function useSchoolHub() {
+/**
+ * `markRead` — only the hub screen itself reports read receipts (the feed is
+ * on that screen); the carpool screen reuses this hook for the board and must
+ * not mark messages nobody looked at.
+ */
+export function useSchoolHub(opts?: { markRead?: boolean }) {
+  const markRead = Boolean(opts?.markRead);
   const [org, setOrg] = useState<SchoolOrg | null>(null);
   const [feed, setFeed] = useState<SchoolFeed | null>(null);
+  const [messages, setMessages] = useState<ArchivedMessage[]>([]);
   const [orgName, setOrgName] = useState<string | null>(null);
+  // Archive ids already reported as read this mount — read receipts are
+  // per-person facts, so nothing is reported from the superadmin preview.
+  const markedRef = useRef<Set<string>>(new Set());
   const [canPost, setCanPost] = useState(false);
   const [canModerate, setCanModerate] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -216,6 +233,33 @@ export function useSchoolHub() {
     }
   }, []);
 
+  // The most recent sent messages, folded into the unified feed alongside the
+  // board. First page only — the archive screen owns search and older pages.
+  const fetchMessages = useCallback(async (params?: Record<string, string> | null) => {
+    try {
+      const { data } = await api.get('/api/announcements/archive', {
+        params: { limit: 20, offset: 0, ...(params || {}) },
+      });
+      if (data?.success) {
+        const items: ArchivedMessage[] = data.announcements || [];
+        setMessages(items);
+        if (data.organization_name) setOrgName(data.organization_name);
+        // Read receipts: report what reached this member's screen, once.
+        // Never from the superadmin preview (params names a previewed org).
+        if (markRead && !params) {
+          const ids = items.map((m) => m.id).filter((id) => !markedRef.current.has(id));
+          if (ids.length) {
+            ids.forEach((id) => markedRef.current.add(id));
+            api.post('/api/announcements/mark-read', { announcement_ids: ids.slice(0, 50) })
+              .catch(() => { /* receipts are best-effort */ });
+          }
+        }
+      }
+    } catch {
+      // The board still stands without the archive.
+    }
+  }, [markRead]);
+
   const loadAll = useCallback(async () => {
     if (isSuperadmin) {
       // Sequential on purpose: the feed read can't be issued until the
@@ -224,11 +268,16 @@ export function useSchoolHub() {
       feedParamsRef.current = first
         ? { organization_id: first.organization_id, view_as: 'parent' }
         : null;
-      if (first) await fetchFeed(feedParamsRef.current);
+      if (first) {
+        await Promise.all([
+          fetchFeed(feedParamsRef.current),
+          fetchMessages(feedParamsRef.current),
+        ]);
+      }
     } else {
-      await Promise.all([fetchContext(), fetchFeed()]);
+      await Promise.all([fetchContext(), fetchFeed(), fetchMessages()]);
     }
-  }, [isSuperadmin, fetchContext, fetchFeed]);
+  }, [isSuperadmin, fetchContext, fetchFeed, fetchMessages]);
 
   useEffect(() => {
     let active = true;
@@ -276,6 +325,7 @@ export function useSchoolHub() {
   return {
     org,
     feed,
+    messages,
     carpool,
     loading,
     refreshing,

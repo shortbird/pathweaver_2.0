@@ -161,7 +161,7 @@ export default function AnnouncementBody({ text, className = '' }) {
   if (html !== null) {
     return (
       <div
-        className={`prose prose-sm max-w-none ${className}`}
+        className={`prose rich-body max-w-none ${className}`}
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(html, LINK_BUTTON_CONFIG) }}
       />
     )

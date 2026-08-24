@@ -35,9 +35,11 @@ interface CarpoolBoardProps {
   onPost: (form: typeof EMPTY_FORM) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   onMessage: (id: string, message: string) => Promise<void>;
+  /** Open on arrival — the dedicated carpool screen, where the board is the page. */
+  defaultOpen?: boolean;
 }
 
-export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRemove, onMessage }: CarpoolBoardProps) {
+export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRemove, onMessage, defaultOpen }: CarpoolBoardProps) {
   const c = useThemeColors();
   const [composerOpen, setComposerOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -101,7 +103,7 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
   };
 
   return (
-    <SchoolSection title="Carpool board" icon="car-outline">
+    <SchoolSection title="Carpool board" icon="car-outline" defaultOpen={defaultOpen}>
       {posts.length === 0 ? (
         <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
           No posts yet. Offering seats or looking for a ride? Start the board.

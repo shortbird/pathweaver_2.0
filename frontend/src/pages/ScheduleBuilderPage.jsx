@@ -505,9 +505,13 @@ const ScheduleBuilderPage = () => {
     return <div className="flex justify-center py-20"><Spinner size="lg" /></div>
   }
   if (!ctx?.orgs?.length) {
+    // The empty state still needs the way back — a superadmin previewing the
+    // school page, or a member without a family here, lands on this branch.
+    // Not in preview: that route is public and its viewer has no school page.
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Schedule Builder</h1>
+        {!previewCode && <div className="text-left mb-6"><BackToSchool /></div>}
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Schedule</h1>
         <p className="text-gray-500">
           {previewCode
             ? 'Could not load the schedule preview — check that the registration link is still active.'
@@ -521,7 +525,7 @@ const ScheduleBuilderPage = () => {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       {previewCode && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          <span className="font-semibold">Preview mode</span> — this is the Schedule Builder parents
+          <span className="font-semibold">Preview mode</span> — this is the Schedule page parents
           use after registering, with your school's real classes and a sample student. Adds and
           drops here aren't saved.
         </div>
@@ -530,7 +534,7 @@ const ScheduleBuilderPage = () => {
           registration funnel, and its viewer has no school page to go back to. */}
       {!previewCode && <BackToSchool className="mb-3" />}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">Schedule Builder</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
         <div className="flex items-center gap-2">
           {org?.scheduling_url && (
             <a href={org.scheduling_url} target="_blank" rel="noreferrer"

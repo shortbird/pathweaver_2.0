@@ -341,7 +341,7 @@ describe('the school hub card is opt-in', () => {
     it('drops the cards this school does not run — the reason the page was pulled', () => {
       const cards = names(academy({ prior_learning_enabled: true }))
       for (const gone of ['Calendar', 'Resources', 'Directory', 'Billing',
-        'Absences', 'Portal', 'Requests', 'Goal Setting', 'Schedule Builder']) {
+        'Absences', 'Portal', 'Requests', 'Goal Setting', 'Schedule']) {
         expect(cards).not.toContain(gone)
       }
     })

@@ -102,8 +102,9 @@ class TestPublish:
                               ['parents'])
         assert out['sent'] == 2
         assert out['announcement_id'] == 'ann-1'
-        # The durable row is what the family-facing page reads.
-        payload = table.insert.call_args[0][0]
+        # The durable row is what the family-facing page reads. First insert:
+        # the recipient snapshot lands on the same mock table afterwards.
+        payload = table.insert.call_args_list[0][0][0]
         assert payload['title'] == 'Early dismissal'
         assert payload['message'] == 'Friday at noon'
         assert payload['target_audience'] == 'parents'
@@ -305,4 +306,5 @@ class TestEmailIsOptional:
              patch('services.announcement_service._email_fanout'):
             svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
                         target_label='parents (2 classes)')
-        assert table.insert.call_args[0][0]['target_audience'] == 'parents (2 classes)'
+        # First insert is the announcements row; the recipient snapshot follows.
+        assert table.insert.call_args_list[0][0][0]['target_audience'] == 'parents (2 classes)'

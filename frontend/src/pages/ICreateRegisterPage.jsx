@@ -1320,7 +1320,7 @@ const ICreateRegisterPage = () => {
               <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
               <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
               <p className="text-neutral-500 mb-5">
-                Your account has been created. Next, use the Schedule Builder to create your
+                Your account has been created. Next, use the Schedule page to create your
                 family's schedule for the coming school year.
               </p>
               {/* Preview mode opens the staff walkthrough of the builder (real
@@ -1329,7 +1329,7 @@ const ICreateRegisterPage = () => {
               <a href={previewMode ? `/schedule-builder/preview/${code}` : '/schedule-builder'}
                 target={previewMode ? '_blank' : undefined} rel={previewMode ? 'noreferrer' : undefined}
                 className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                Open the Schedule Builder
+                Open your Schedule
               </a>
               <div className="border-t border-gray-100 mt-7 pt-6">
                 <p className="text-neutral-500 mb-5">
@@ -1349,7 +1349,7 @@ const ICreateRegisterPage = () => {
             </div>
             <p className="text-sm text-neutral-400">
               Registration is complete. You can sign in at any time with your email and password —
-              the Schedule Builder also has a Book appointment button if you need it later.
+              the Schedule page also has a Book appointment button if you need it later.
             </p>
           </div>
         )}

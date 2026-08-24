@@ -25,12 +25,16 @@ interface SchoolSectionProps {
   icon: keyof typeof Ionicons.glyphMap;
   count?: number;
   intro?: string;
+  /** Open on arrival — for a section that IS the screen (the dedicated
+   *  carpool/documents screens), where closed-by-default would be a click
+   *  for nothing. The hub keeps the closed default. */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
-export function SchoolSection({ title, icon, count, intro, children }: SchoolSectionProps) {
+export function SchoolSection({ title, icon, count, intro, defaultOpen = false, children }: SchoolSectionProps) {
   const c = useThemeColors();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(!defaultOpen);
 
   return (
     <Card className="mb-3 bg-white dark:bg-dark-surface-100">

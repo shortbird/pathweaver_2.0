@@ -1,22 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
- * The school's Community board, on the family side of the app.
+ * The unified school feed on /school.
  *
- * iCreate, 2026-08-01: "I can't see the shoutouts or lost and found or other
- * things from the non-admin side of things." — and, on what lost & found holds:
- * "just the item that was lost so parents can see it and know to come pick it
- * up."
- *
- * It lives on the school's own page (/school, titled with the school's name)
- * behind a glass tab bar — one tab per section, the first section as the
- * default (2026-08-10; the stacked one-feed layout of 2026-08-06 buried the
- * lower sections a few viewports down). A tab exists only when the school has
- * actually used its section; with fewer than two sections there is no bar and
- * everything stacks. Someone who is in no school never reaches this page at
- * all — see schoolPageAccess.test.jsx.
+ * Board announcements (sis_announcements) and sent messages (the announcements
+ * archive) are two backend systems doing one job from a family's point of
+ * view. The tabbed layout that kept them apart had a parent reporting the page
+ * broken because her posts were "on the wrong tab" (iCreate, 2026-08-06);
+ * since 2026-08-23 there is ONE stream — pinned posts first, then everything
+ * newest-first, with shout-outs and lost & found folded in as typed items.
+ * Events sit in a slim "Coming up" strip under the feed.
  */
 
 vi.mock('../contexts/OrganizationContext', () => ({
@@ -25,7 +20,7 @@ vi.mock('../contexts/OrganizationContext', () => ({
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
 }))
-vi.mock('../services/api', () => ({ default: { get: vi.fn() } }))
+vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 import api from '../services/api'
 import SchoolPage from './SchoolPage'
 
@@ -56,72 +51,94 @@ const FEED = {
 
 const EMPTY_FEED = { announcements: [], lost_found: [], recognition: [], events: [] }
 
-const archive = {
-  data: {
-    success: true, total: 1, organization_name: 'iCreate', limit: 20, offset: 0,
-    announcements: [{ id: 'ann-1', title: 'Fall Newsletter', content: 'Welcome back.',
-                      message: 'Welcome back.', target_audience: 'everyone',
-                      created_at: '2026-07-01T12:00:00Z' }],
-  },
+const ARCHIVE_MESSAGE = {
+  id: 'ann-1', title: 'Fall Newsletter', content: 'Welcome back.',
+  message: 'Welcome back.', target_audience: 'everyone',
+  created_at: '2026-07-01T12:00:00Z',
 }
+
+let archiveMessages = [ARCHIVE_MESSAGE]
 
 const mockApi = (feed) => {
   api.get.mockImplementation((url) => (
     url.includes('/api/sis/community/feed')
       ? Promise.resolve({ data: { success: true, feed, organization_name: 'iCreate' } })
-      : Promise.resolve(archive)
+      : Promise.resolve({ data: {
+        success: true, total: archiveMessages.length, organization_name: 'iCreate',
+        limit: 20, offset: 0, announcements: archiveMessages,
+      } })
   ))
+  api.post.mockResolvedValue({ data: { success: true } })
 }
 
 const renderPage = () => render(
   <MemoryRouter initialEntries={['/announcements']}><SchoolPage /></MemoryRouter>,
 )
 
-beforeEach(() => { vi.clearAllMocks(); mockApi(FEED) })
+beforeEach(() => {
+  vi.clearAllMocks()
+  archiveMessages = [ARCHIVE_MESSAGE]
+  mockApi(FEED)
+})
 
-describe('the school community feed', () => {
-  it('opens on the board announcements — the archive waits behind its tab', async () => {
+describe('the unified school feed', () => {
+  it('shows board posts and sent messages in ONE stream — no tabs', async () => {
     renderPage()
     expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
-    expect(screen.queryByText('Fall Newsletter')).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Messages' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
-  })
-
-  it('swaps the panel to a section when its tab is tapped', async () => {
-    renderPage()
-    expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Events' }))
-    expect(screen.queryByText('Early dismissal')).not.toBeInTheDocument()
-    expect(screen.getByText('Open house')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Messages' }))
-    expect(screen.queryByText('Open house')).not.toBeInTheDocument()
     expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
 
-  it('is simply the announcements when the school posts nothing to the board', async () => {
+  it('puts pinned board posts first, everything else newest-first', async () => {
+    renderPage()
+    const pinnedTitle = await screen.findByText('Early dismissal')
+    const shout = await screen.findByText('Van S.')
+    const message = await screen.findByText('Fall Newsletter')
+    // Pinned (Aug 1) leads; the shout-out (Jul 30) predates it anyway; the
+    // archive message (Jul 1) is oldest and last.
+    // eslint-disable-next-line no-bitwise
+    expect(pinnedTitle.compareDocumentPosition(shout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // eslint-disable-next-line no-bitwise
+    expect(shout.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows a board post exactly once when its notify-copy is also in the archive', async () => {
+    // A board post created with "notify" writes a second row into the
+    // announcements archive. Same title, same day = the same words twice;
+    // the board copy wins (it carries pinned/urgent).
+    archiveMessages = [
+      { id: 'ann-dup', title: 'Early dismissal', content: 'Friday at noon',
+        message: 'Friday at noon', target_audience: 'everyone',
+        created_at: '2026-08-01T15:00:00Z' },
+    ]
+    mockApi(FEED)
+    renderPage()
+    expect(await screen.findAllByText('Early dismissal')).toHaveLength(1)
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+  })
+
+  it('is simply the messages when the school posts nothing to the board', async () => {
     mockApi(EMPTY_FEED)
     renderPage()
-    const btn = await screen.findByRole('button', { name: /Messages/i })
-    fireEvent.click(btn)
     expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
     expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })
 
-  it('hides the board when the user has no feed permission', async () => {
+  it('still shows the messages when the user has no feed permission', async () => {
     api.get.mockImplementation((url) => (
       url.includes('/api/sis/community/feed')
         ? Promise.reject(new Error('403'))
-        : Promise.resolve(archive)
+        : Promise.resolve({ data: {
+          success: true, total: 1, organization_name: 'iCreate',
+          limit: 20, offset: 0, announcements: [ARCHIVE_MESSAGE],
+        } })
     ))
+    api.post.mockResolvedValue({ data: { success: true } })
     renderPage()
-    const btn = await screen.findByRole('button', { name: /Messages/i })
-    fireEvent.click(btn)
     expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
-    expect(screen.queryByText(/Noticeboard/)).not.toBeInTheDocument()
   })
 
-  it('shows the noticeboard post, formatting and all', async () => {
+  it('shows a board post, formatting and all', async () => {
     const { container } = renderPage()
     expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
     expect(screen.getByText('Pinned')).toBeInTheDocument()
@@ -129,53 +146,42 @@ describe('the school community feed', () => {
     expect(container.querySelector('strong')).toHaveTextContent('noon')
   })
 
-  it('shows a lost item by what it is and where to collect it', async () => {
+  it('folds a lost item into the feed — what it is, and to collect it from the office', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: /Lost & found/ }))
     expect(await screen.findByText('Blue water bottle')).toBeInTheDocument()
-    expect(screen.getByText(/Collect it from the office/)).toBeInTheDocument()
+    expect(screen.getByText('Lost & found')).toBeInTheDocument()
     expect(screen.getByText(/found at Gym/)).toBeInTheDocument()
+    expect(screen.getByText(/collect it from the office/)).toBeInTheDocument()
     // The clock is the useful part: unclaimed items get donated.
     expect(screen.getByText('Donated in 10 days')).toBeInTheDocument()
   })
 
-  it('shows shout-outs', async () => {
+  it('folds shout-outs into the feed', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: 'Shout-outs' }))
     expect(await screen.findByText('Van S.')).toBeInTheDocument()
     expect(screen.getByText('Student spotlight')).toBeInTheDocument()
     expect(screen.getByText('Built the whole robot arm himself.')).toBeInTheDocument()
   })
 
-  it('shows upcoming events', async () => {
+  it('shows events in the Coming up strip, not in the feed', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: 'Events' }))
-    expect(await screen.findByText('Upcoming events')).toBeInTheDocument()
+    expect(await screen.findByText('Coming up')).toBeInTheDocument()
     expect(screen.getByText('Open house')).toBeInTheDocument()
     expect(screen.getByText('Main hall')).toBeInTheDocument()
   })
 
   it('keeps an all-day event on its own calendar day, year included across New Year', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('tab', { name: 'Events' }))
     await screen.findByText('Classes resume')
     // Jan 11 2027 00:00 UTC: local formatting showed "Jan 10" (previous
     // evening) and, with no year, January read as out of order under December.
     expect(screen.getByText(/Jan 11, 2027 · all day/)).toBeInTheDocument()
   })
 
-  it('leaves out a section the school has not used', async () => {
+  it('leaves out what the school has not used', async () => {
     mockApi({ ...FEED, recognition: [] })
     renderPage()
     await screen.findByText('Early dismissal')
-    expect(screen.queryByText('Shout-outs')).not.toBeInTheDocument()
-  })
-
-  it('keeps Messages as the last tab — timely sections first, paginated last', async () => {
-    renderPage()
-    await screen.findByText('Early dismissal')
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs[0]).toHaveTextContent('Announcements')
-    expect(tabs[tabs.length - 1]).toHaveTextContent('Messages')
+    expect(screen.queryByText('Student spotlight')).not.toBeInTheDocument()
   })
 })

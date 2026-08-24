@@ -149,6 +149,7 @@ const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 const SchoolPage = lazy(() => import('./pages/SchoolPage'))
+const CarpoolPage = lazy(() => import('./pages/CarpoolPage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 // Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
@@ -644,6 +645,8 @@ function App() {
                     notifications sent before the rename link to it. */}
                 <Route path="school" element={<SchoolPage />} />
                 <Route path="announcements" element={<SchoolPage />} />
+                {/* The carpool board's own door — the same board /school holds. */}
+                <Route path="carpool" element={<CarpoolPage />} />
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* Observer pages */}

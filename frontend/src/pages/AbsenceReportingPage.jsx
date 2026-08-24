@@ -106,8 +106,11 @@ const AbsenceReportingPage = () => {
   }
 
   if (!orgs.length) {
+    // The empty state still needs the way back — a superadmin previewing the
+    // school page, or a member without a family here, lands on this branch.
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-left mb-6"><BackToSchool /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Report an absence</h1>
         <p className="text-gray-500">
           Absence reporting isn’t available for your family yet. If your school uses Optio to

@@ -119,6 +119,22 @@ const FamilyMessagingPage = () => {
       .catch(() => setTeachers([]))
   }, [orgId])
 
+  const [nudging, setNudging] = useState(null)
+  const nudge = async (a) => {
+    if (!(await confirm(`Nudge everyone who hasn't opened "${a.title}"? They get one reminder notification.`))) return
+    setNudging(a.id)
+    try {
+      const r = await api.post(`/api/announcements/${a.id}/nudge`, {})
+      const n = r.data?.notified ?? 0
+      toast.success(n === 0 ? 'Everyone has already seen it' : `Nudged ${n} ${n === 1 ? 'person' : 'people'}`)
+      loadHistory()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to nudge')
+    } finally {
+      setNudging(null)
+    }
+  }
+
   const removeAnnouncement = async (a) => {
     if (!(await confirm(`Delete "${a.title}"? It disappears from families' announcement pages and notifications too.`))) return
     try {
@@ -312,9 +328,32 @@ const FamilyMessagingPage = () => {
                   </span>
                 </div>
                 <AnnouncementBody text={a.content} className="text-sm text-neutral-600 mt-1" />
-                <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-optio-purple/10 text-optio-purple rounded capitalize">
-                  {(a.target_audience || '').replace(/,/g, ', ')}
-                </span>
+                <div className="flex items-center gap-3 flex-wrap mt-2">
+                  <span className="inline-block px-2 py-0.5 text-xs font-medium bg-optio-purple/10 text-optio-purple rounded capitalize">
+                    {(a.target_audience || '').replace(/,/g, ', ')}
+                  </span>
+                  {/* Read receipts (announcement_reads via the archive's
+                      mark-read). recipient_count null = sent before receipts
+                      existed — say nothing rather than "0 of 0". */}
+                  {typeof a.recipient_count === 'number' && (
+                    <>
+                      <span className="text-xs text-neutral-500">
+                        Seen by {a.read_count ?? 0} of {a.recipient_count}
+                      </span>
+                      {(a.read_count ?? 0) < a.recipient_count && (
+                        <button
+                          type="button"
+                          onClick={() => nudge(a)}
+                          disabled={nudging === a.id}
+                          className="text-xs font-medium text-optio-purple hover:underline disabled:opacity-40"
+                          title="One reminder notification to everyone who hasn't opened it (once per 24 hours)"
+                        >
+                          {nudging === a.id ? 'Nudging…' : 'Nudge the rest'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>

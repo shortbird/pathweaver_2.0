@@ -12,7 +12,6 @@ import EmptyState from '../../components/ui/EmptyState'
 import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 import { htmlToText } from '../../utils/richText'
 import { inOptioAcademy } from '../../config/optioAcademy'
-import { cardsFor } from '../SchoolPage'
 import {
   useFamilyChildren, useChildActivity, useFamilyAttention, useSchoolSection, weekXpFrom,
 } from './FamilyHomeData'
@@ -129,14 +128,16 @@ function ChildCard({ child }) {
 }
 
 /**
- * The in-page school digest: the same link-button cards SchoolPage offers
- * (cardsFor — guardian cards included when the school context says this
- * viewer is a guardian) plus the latest sent messages, with /school a click
- * away for the rest. Renders nothing until there is something to show.
+ * The in-page school digest: the school's latest messages, with /school a
+ * click away for everything else. It used to also duplicate SchoolPage's
+ * whole card grid — the same eight buttons on home AND on /school, back to
+ * back for exactly the orgs that render this section first (2026-08-23
+ * redesign). The cards live on /school now; home keeps the messages, which
+ * are the thing that changes day to day. Renders nothing until there is
+ * something to show.
  */
-function SchoolSection({ schoolName, schoolOrg, announcements }) {
-  const cards = cardsFor(schoolOrg)
-  if (!cards.length && !announcements.length) return null
+function SchoolSection({ schoolName, announcements }) {
+  if (!announcements.length) return null
 
   const formatDate = (iso) => {
     try {
@@ -158,30 +159,8 @@ function SchoolSection({ schoolName, schoolOrg, announcements }) {
         </Link>
       </div>
 
-      {cards.length > 0 && (
-        <nav aria-label="School surfaces" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {cards.map(({ name, path, description, Icon }) => (
-            <Link
-              key={path}
-              to={path}
-              className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all"
-            >
-              <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary transition-colors">
-                <Icon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">
-                  {name}
-                </span>
-                <span className="block text-xs text-gray-500 truncate">{description}</span>
-              </span>
-            </Link>
-          ))}
-        </nav>
-      )}
-
       {announcements.length > 0 && (
-        <div className={`space-y-2 ${cards.length > 0 ? 'mt-3' : ''}`}>
+        <div className="space-y-2">
           {announcements.map((a) => (
             <article key={a.id} className="border border-gray-100 bg-gray-50/60 rounded-lg p-3">
               <div className="flex items-start justify-between gap-3">
@@ -226,7 +205,6 @@ export default function FamilyHome() {
   const schoolSection = inSchool ? (
     <SchoolSection
       schoolName={school?.name || schoolOrg?.name}
-      schoolOrg={schoolOrg}
       announcements={announcements}
     />
   ) : null
