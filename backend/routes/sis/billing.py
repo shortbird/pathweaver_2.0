@@ -348,6 +348,34 @@ def record_payment(user_id, invoice_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/invoices/<invoice_id>/refunds', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def record_refund(user_id, invoice_id):
+    """Record money returned to the family, as a reversing entry.
+
+    The amount arrives positive and is stored negative, so the ledger, the
+    receipt and the invoice balance all move together. It reopens that much of
+    the balance — if the family no longer owes it, the invoice also needs an
+    edit or a void.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    amount = data.get('amount_cents')
+    if not isinstance(amount, int) or amount <= 0:
+        return jsonify({'success': False, 'error': 'amount_cents must be a positive integer'}), 400
+    result = billing.record_refund(
+        org_id, invoice_id, amount,
+        method=data.get('method'), external_ref=data.get('external_ref'),
+        recorded_by=user_id, note=data.get('note'),
+    )
+    if result.get('error'):
+        status = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
+    return jsonify({'success': True, **result}), 201
+
+
 @bp.route('/payments/<payment_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def correct_payment(user_id, payment_id):

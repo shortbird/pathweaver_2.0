@@ -794,6 +794,54 @@ def record_payment(org_id: str, invoice_id: str, amount_cents: int,
     return {'payment': record, 'invoice': invoice, 'auto_enrolled': auto}
 
 
+def record_refund(org_id: str, invoice_id: str, amount_cents: int,
+                  method: Optional[str], external_ref: Optional[str],
+                  recorded_by: Optional[str],
+                  note: Optional[str] = None) -> Dict[str, Any]:
+    """Money returned to the family, stored as a NEGATIVE payment record.
+
+    A reversing entry rather than an edit (see PAYMENT_CORRECTABLE_FIELDS for
+    why): the original payment row keeps matching the receipt the family has,
+    and the refund is its own line with its own date, method and note. The
+    invoice's paid total and status recompute from the sum, so the refunded
+    amount reopens on the balance — if the family no longer owes it, the
+    invoice needs an edit or a void as well.
+
+    `amount_cents` arrives positive; capped at what has actually been recorded
+    as paid, so the ledger can never show a family below zero.
+    """
+    inv = (
+        _admin().table('sis_invoices').select('id')
+        .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()
+    ).data
+    if not inv:
+        return {'error': 'Invoice not found'}
+    payments = (
+        _admin().table('sis_payment_records').select('amount_cents')
+        .eq('invoice_id', invoice_id).execute()
+    ).data or []
+    paid = sum(p['amount_cents'] for p in payments)
+    if amount_cents > paid:
+        return {'error': f'Refund exceeds the {_money(paid)} recorded as paid on this invoice'}
+    record = (
+        _admin().table('sis_payment_records').insert({
+            'organization_id': org_id,
+            'invoice_id': invoice_id,
+            'amount_cents': -amount_cents,
+            'method': method,
+            'external_ref': external_ref,
+            'recorded_by': recorded_by,
+            'note': note,
+        }).execute()
+    ).data[0]
+    invoice = _recompute_invoice_status(invoice_id)
+    enqueue_qbo(org_id, 'payment', record['id'])
+    _audit(org_id, invoice_id, recorded_by, 'refund_recorded', {
+        'amount_cents': amount_cents, 'method': method,
+        'external_ref': external_ref, 'note': note})
+    return {'refund': record, 'invoice': invoice}
+
+
 #: What a correction is allowed to touch. Deliberately none of the money.
 #:
 #: iCreate, 2026-08-14: "I accidentally chose the wrong form of payment for

@@ -8,7 +8,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
+const money = (cents) => (cents == null ? '—' : `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toFixed(2)}`)
 const today = () => new Date().toISOString().slice(0, 10)
 
 const PAYMENT_METHODS = [
@@ -16,6 +16,10 @@ const PAYMENT_METHODS = [
   ['check', 'Check'], ['other', 'Other'],
 ]
 const METHOD_LABEL = Object.fromEntries(PAYMENT_METHODS)
+
+// A negative payment record is a refund — label it as one wherever payments list.
+const payLabel = (pmt) => `${(pmt.amount_cents || 0) < 0 ? 'Refund — ' : ''}${METHOD_LABEL[pmt.method] || pmt.method || 'Payment'}`
+const payAmountCls = (pmt) => ((pmt.amount_cents || 0) < 0 ? 'text-red-700' : 'text-green-700')
 
 // What a charge is for. 'unclassified' covers every line written before the
 // kind column existed, plus manual charges — labelled honestly rather than
@@ -93,6 +97,7 @@ const BillingPage = () => {
 
   const [showAdd, setShowAdd] = useState(false)
   const [payFor, setPayFor] = useState(null)      // ledger row being paid
+  const [refundFor, setRefundFor] = useState(null) // ledger row being refunded
   const [editPayment, setEditPayment] = useState(null) // recorded payment being corrected
   const [receiptFor, setReceiptFor] = useState(null) // ledger row for receipt print
   const [receiptReopen, setReceiptReopen] = useState(null) // invoice id to re-show after a correction
@@ -295,6 +300,10 @@ const BillingPage = () => {
                             <button className="text-neutral-500 hover:underline"
                               onClick={() => setReceiptFor(row)}>Receipt</button>
                           )}
+                          {(row.amount_paid_cents || 0) > 0 && (
+                            <button className="ml-3 text-neutral-500 hover:underline"
+                              onClick={() => setRefundFor(row)}>Refund</button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -482,12 +491,12 @@ const BillingPage = () => {
                             <td className="px-4 py-2 font-medium text-neutral-900">{pmt.family_name || '—'}</td>
                             <td className="px-4 py-2">{pmt.student_name || '—'}</td>
                             <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{pmt.invoice_number || '—'}</td>
-                            <td className="px-4 py-2">{METHOD_LABEL[pmt.method] || pmt.method || '—'}</td>
+                            <td className="px-4 py-2">{payLabel(pmt)}</td>
                             <td className="px-4 py-2 text-neutral-600">{pmt.note || pmt.external_ref || '—'}</td>
                             <td className="px-4 py-2 text-neutral-600">
                               {pmt.recorded_at ? String(pmt.recorded_at).slice(0, 10) : '—'}
                             </td>
-                            <td className="px-4 py-2 text-right font-medium text-green-700">{money(pmt.amount_cents)}</td>
+                            <td className={`px-4 py-2 text-right font-medium ${payAmountCls(pmt)}`}>{money(pmt.amount_cents)}</td>
                             <td className="px-4 py-2 text-right">
                               {pmt.id && (
                                 <button className="text-xs text-optio-purple hover:underline"
@@ -519,6 +528,13 @@ const BillingPage = () => {
           orgId={orgId} row={payFor}
           onClose={() => setPayFor(null)}
           onSaved={() => { setPayFor(null); loadLedger() }}
+        />
+      )}
+      {refundFor && (
+        <RecordRefundModal
+          orgId={orgId} row={refundFor}
+          onClose={() => setRefundFor(null)}
+          onSaved={() => { setRefundFor(null); loadLedger() }}
         />
       )}
       {editPayment && (
@@ -788,6 +804,73 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
   )
 }
 
+// ── Record refund ────────────────────────────────────────────────────────────
+// iCreate, 2026-08-20: "If I gave someone a tuition refund, how would I notate
+// that?" A refund is a reversing entry — a negative payment record — so the
+// ledger, the receipt and the balance all move together and the original
+// payment row keeps matching the receipt the family already has.
+const RecordRefundModal = ({ orgId, row, onClose, onSaved }) => {
+  const paid = row.amount_paid_cents || 0
+  const [amount, setAmount] = useState((paid / 100).toFixed(2))
+  const [method, setMethod] = useState('zelle')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    const amount_cents = Math.round(parseFloat(amount) * 100)
+    if (!amount_cents || amount_cents <= 0) { toast.error('Enter a valid amount'); return }
+    setSaving(true)
+    try {
+      await api.post(`/api/sis/invoices/${row.invoice_id}/refunds`, {
+        organization_id: orgId,
+        amount_cents,
+        method,
+        note: note.trim() || null,
+      })
+      toast.success('Refund recorded')
+      onSaved()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not record the refund') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <Modal title="Record refund" onClose={onClose}>
+      <p className="text-sm text-neutral-500 mb-3">
+        {row.family_name || 'Family'}{row.student_name ? ` · ${row.student_name}` : ''} — {row.description || 'Charge'}
+        {' · '}{money(paid)} paid
+      </p>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Amount returned ($)</label>
+            <input className={field} type="number" min="0" step="0.01"
+              value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Method</label>
+            <select className={field} value={method} onChange={(e) => setMethod(e.target.value)}>
+              {PAYMENT_METHODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Note (optional)</label>
+          <input className={field} placeholder="Why the money went back…"
+            value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <p className="text-xs text-neutral-500">
+          The refunded amount reopens on the invoice balance. If the family no longer owes it,
+          also edit or void the invoice so it doesn't show as outstanding.
+        </p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button size="sm" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Record refund'}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── The invoice the family was sent ──────────────────────────────────────────
 //
 // Chasing a payment starts with "what did we actually send them?", and until
@@ -922,12 +1005,12 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
                 {doc.payments.map((pmt, i) => (
                   <div key={pmt.id || i} className="flex justify-between gap-3">
                     <span className="text-neutral-600 min-w-0">
-                      {METHOD_LABEL[pmt.method] || pmt.method || 'Payment'}
+                      {payLabel(pmt)}
                       {pmt.recorded_at ? ` · ${String(pmt.recorded_at).slice(0, 10)}` : ''}
                       {pmt.external_ref ? ` · ${pmt.external_ref}` : ''}
                     </span>
                     <span className="flex items-center gap-3 shrink-0">
-                      <span className="text-green-700">{money(pmt.amount_cents)}</span>
+                      <span className={payAmountCls(pmt)}>{money(pmt.amount_cents)}</span>
                       {pmt.id && (
                         <button className="text-xs text-optio-purple hover:underline no-print"
                           aria-label={`Correct ${METHOD_LABEL[pmt.method] || pmt.method || 'payment'} of ${money(pmt.amount_cents)}`}
@@ -1132,7 +1215,7 @@ const ReceiptModal = ({ row, onClose, onPrint, onCorrect }) => {
           {payments.map((pmt, i) => (
             <div key={pmt.id || i} className="flex justify-between gap-3 border-t border-gray-100 pt-2">
               <span className="text-neutral-500">
-                {METHOD_LABEL[pmt.method] || pmt.method || 'Payment'}
+                {payLabel(pmt)}
                 {pmt.recorded_at ? ` · ${String(pmt.recorded_at).slice(0, 10)}` : ''}
                 {pmt.external_ref ? ` · ${pmt.external_ref}` : ''}
               </span>
