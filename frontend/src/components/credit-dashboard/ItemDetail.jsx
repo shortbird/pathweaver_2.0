@@ -581,6 +581,13 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           the full panel width on mobile. */}
       {canOrgAdminAct && (
         <div className="md:static sticky bottom-0 z-10 bg-white border-t border-gray-200 pt-3 pb-3 md:pb-0 space-y-3 -mx-3 px-3 md:mx-0 md:px-0">
+          {!isSuperadmin && (
+            <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              Your school reviews this request first. Approving sends it to Optio
+              for final credit approval — credit is awarded once Optio approves.
+              Use Grow This to return it to the student with feedback instead.
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-gray-600">
               Feedback for student
