@@ -110,7 +110,7 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import ReportsPage, { DayRosters } from './ReportsPage'
+import ReportsPage, { BlockRosters, DayRosters } from './ReportsPage'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -432,6 +432,78 @@ describe('Day rosters', () => {
 
   it('says so when nothing is scheduled', () => {
     render(<DayRosters days={[]} />)
+    expect(screen.getByText('No classes are scheduled yet.')).toBeInTheDocument()
+  })
+})
+
+describe('Block rosters', () => {
+  const cls = (id, name, room, students) => ({
+    class_id: id, name, room, teacher: 'Ana Rogers', time: '9:30am-10:30am',
+    student_count: students.length, students,
+  })
+  const DAYS = [
+    {
+      key: '2',
+      label: 'Tuesday',
+      blocks: [
+        { key: 'block-1', label: 'Block 1', time: '9:30am-10:30am', student_count: 2,
+          classes: [cls('c1', 'Pottery', 'Kiln shed',
+            [{ name: 'Ada Lovelace', age: '13' }, { name: 'Bo Diddley', age: '6' }])] },
+        { key: 'block-2', label: 'Block 2', time: '10:30am-11:30am', student_count: 0,
+          classes: [cls('c2', 'Choir', '', [])] },
+      ],
+    },
+    { key: '4', label: 'Thursday', blocks: [
+      { key: 'block-1', label: 'Block 1', time: '9:30am-10:30am', student_count: 1,
+        classes: [cls('c3', 'Lego Lab', 'Jr Makerspace', [{ name: 'Cy Twombly', age: '9' }])] },
+    ] },
+  ]
+
+  it('lists each class in the block with its room and every age', () => {
+    render(<BlockRosters days={DAYS} day="2" onDayChange={() => {}} />)
+    expect(screen.getByText('Pottery')).toBeInTheDocument()
+    expect(screen.getByText(/Kiln shed/)).toBeInTheDocument()
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    // The age beside the name is the whole reason she was doing this by hand.
+    expect(screen.getByText('13')).toBeInTheDocument()
+  })
+
+  it('shows one day at a time', () => {
+    render(<BlockRosters days={DAYS} day="2" onDayChange={() => {}} />)
+    expect(screen.queryByText('Lego Lab')).not.toBeInTheDocument()
+  })
+
+  it('switches day when a day tab is picked', () => {
+    const onDayChange = vi.fn()
+    render(<BlockRosters days={DAYS} day="2" onDayChange={onDayChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Thursday' }))
+    expect(onDayChange).toHaveBeenCalledWith('4')
+  })
+
+  it('falls back to the first day when the chosen one is not there', () => {
+    render(<BlockRosters days={DAYS} day="9" onDayChange={() => {}} />)
+    expect(screen.getByText('Pottery')).toBeInTheDocument()
+  })
+
+  it('prints one block on its own', () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+    render(<BlockRosters days={DAYS} day="2" onDayChange={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Print Block 1' }))
+    expect(document.body.classList.contains('printing-one-day')).toBe(true)
+    expect(print).toHaveBeenCalled()
+    window.dispatchEvent(new Event('afterprint'))
+    expect(document.body.classList.contains('printing-one-day')).toBe(false)
+    print.mockRestore()
+  })
+
+  it('says so when a class has nobody in it', () => {
+    render(<BlockRosters days={DAYS} day="2" onDayChange={() => {}} />)
+    expect(screen.getByText('Nobody enrolled.')).toBeInTheDocument()
+    expect(screen.getByText(/No room set/)).toBeInTheDocument()
+  })
+
+  it('says so when nothing is scheduled', () => {
+    render(<BlockRosters days={[]} day="" onDayChange={() => {}} />)
     expect(screen.getByText('No classes are scheduled yet.')).toBeInTheDocument()
   })
 })

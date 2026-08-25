@@ -838,3 +838,117 @@ class TestDayRostersReport:
         rows = svc.day_rosters_csv_rows(self._report(day=2))
         assert ['Tuesday', 'Block 1', '9:30am-10:25am', 'Choir', 'Hall',
                 'Camille Wood', 'Bo Diddley', 'Diddley'] in rows
+
+
+@pytest.mark.unit
+class TestBlockRostersReport:
+    """iCreate (Marika), 2026-08-24: the day roster pivoted once more — one
+    sheet per block, classes across the page, ages beside the names, "great for
+    Tuesdays and Thursdays Blocks 1-5"."""
+
+    TODAY = date(2026, 8, 24)
+    BLOCKS = {'time_blocks': [
+        {'start': '09:30', 'end': '10:30', 'label': ''},
+        {'start': '10:30', 'end': '11:30', 'label': ''},
+        {'start': '11:30', 'end': '12:30', 'label': ''},
+        {'start': '12:30', 'end': '13:00', 'label': 'Lunch'},
+        {'start': '13:00', 'end': '14:00', 'label': ''},
+    ]}
+    CLASSES = [
+        {'id': 'c1', 'name': 'Pottery', 'location': 'Art room',
+         'primary_instructor': {'name': 'Ana Rogers'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30',
+                       'location': 'Kiln shed'}]},
+        # 9:30-12:30 — the case that sent her to Excel: this spans blocks 1-3,
+        # and its children are in the building at 9:30.
+        {'id': 'c2', 'name': 'Kinder Nature', 'location': 'Story room',
+         'primary_instructor': {'name': 'Camille Wood'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '12:30'}]},
+        {'id': 'c3', 'name': 'Retired', 'status': 'archived', 'meetings': [
+            {'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30'}]},
+        # Outside every configured block — must still appear somewhere.
+        {'id': 'c4', 'name': 'Early Birds', 'location': 'The Commons',
+         'meetings': [{'day_of_week': 2, 'start_time': '08:00', 'end_time': '09:00'}]},
+    ]
+    ROSTER = [
+        {'student_id': 's1', 'name': 'Ada Lovelace', 'is_student': True,
+         'date_of_birth': '2013-06-01'},
+        {'student_id': 's2', 'name': 'Bo Diddley', 'is_student': True,
+         'date_of_birth': '2019-12-31'},
+        {'student_id': 'staff1', 'name': 'A Teacher', 'is_student': False},
+    ]
+    ENROLLMENTS = [
+        {'class_id': 'c1', 'student_id': 's1'},
+        {'class_id': 'c2', 'student_id': 's2'},
+        {'class_id': 'c2', 'student_id': 'staff1'},
+    ]
+
+    def _report(self, day=None):
+        from services import sis_reports_service as svc
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
+             patch('services.sis_catalog_service.schedule_settings', return_value=self.BLOCKS), \
+             patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+             patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS), \
+             patch('services.sis_service.get_roster', return_value=self.ROSTER):
+            return svc.block_rosters_report('org-1', day=day)
+
+    def _block(self, label, day=2):
+        days = self._report(day=day)['days']
+        return next(b for b in days[0]['blocks'] if b['label'] == label)
+
+    def test_blocks_are_numbered_past_the_lunch_break(self):
+        """'Block 4' is the fourth TEACHING block, not the fourth row of the
+        org's time_blocks — lunch does not get a number."""
+        labels = [b['label'] for b in self._report(day=2)['days'][0]['blocks']]
+        assert 'Lunch' not in labels
+        assert [l for l in labels if l.startswith('Block')] == ['Block 1', 'Block 2', 'Block 3']
+
+    def test_a_class_appears_under_every_block_it_spans(self):
+        for label in ('Block 1', 'Block 2', 'Block 3'):
+            assert 'Kinder Nature' in {c['name'] for c in self._block(label)['classes']}
+
+    def test_students_carry_their_age(self):
+        pottery = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Pottery')
+        assert pottery['students'] == [{'name': 'Ada Lovelace', 'age': '13'}]
+
+    def test_the_meetings_own_room_wins_over_the_classs(self):
+        pottery = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Pottery')
+        assert pottery['room'] == 'Kiln shed'
+
+    def test_staff_on_a_roster_are_not_counted_as_students(self):
+        kinder = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Kinder Nature')
+        assert [s['name'] for s in kinder['students']] == ['Bo Diddley']
+
+    def test_archived_classes_are_left_out(self):
+        names = {c['name'] for d in self._report()['days']
+                 for b in d['blocks'] for c in b['classes']}
+        assert 'Retired' not in names
+
+    def test_a_class_outside_every_block_still_gets_a_page(self):
+        """Dropping it would hide children from the sheet that exists to find
+        them, so its own times become a block of one — and it sorts first."""
+        blocks = self._report(day=2)['days'][0]['blocks']
+        assert blocks[0]['label'] == '8:00am-9:00am'
+        assert [c['name'] for c in blocks[0]['classes']] == ['Early Birds']
+
+    def test_a_blocks_student_count_does_not_double_count(self):
+        assert self._block('Block 1')['student_count'] == 2
+
+    def test_the_csv_is_a_grid_of_classes_across_and_students_down(self):
+        from services import sis_reports_service as svc
+        rows = svc.block_rosters_csv_rows(self._report(day=2))
+        assert ['Tuesday - Block 1 (9:30am-10:30am)'] in rows
+        i = rows.index(['Tuesday - Block 1 (9:30am-10:30am)'])
+        assert rows[i + 1] == ['Kinder Nature', '', '', 'Pottery', '', '']
+        assert rows[i + 2] == ['Story room', '', '', 'Kiln shed', '', '']
+        assert rows[i + 3] == ['Student', 'Age', '', 'Student', 'Age', '']
+        assert rows[i + 4] == ['Bo Diddley', '6', '', 'Ada Lovelace', '13', '']
+
+    def test_the_csv_wraps_to_a_new_band_past_three_classes(self):
+        from services import sis_reports_service as svc
+        report = {'days': [{'label': 'Tuesday', 'blocks': [{
+            'label': 'Block 1', 'time': '9:30am-10:30am',
+            'classes': [{'name': f'C{n}', 'room': 'R', 'students': []} for n in range(4)]}]}]}
+        rows = svc.block_rosters_csv_rows(report)
+        assert ['C0', '', '', 'C1', '', '', 'C2', '', ''] in rows
+        assert ['C3', '', ''] in rows

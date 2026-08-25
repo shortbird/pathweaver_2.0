@@ -25,8 +25,9 @@ const PRINT_CSS = `
   .sis-report-print { position: absolute; left: 0; top: 0; width: 100%; }
   .sis-report-print .no-print { display: none; }
 }
-/* Printing ONE day: the office wants a sheet per day on a clipboard, not a
-   seven-day booklet, so a day being printed hides its siblings. */
+/* Printing ONE day (or one block): the office wants a sheet per day on a
+   clipboard, not a seven-day booklet, so the section being printed hides its
+   siblings. sis-day-printing marks whichever section that is. */
 @media print {
   body.printing-one-day * { visibility: hidden; }
   body.printing-one-day .sis-day-printing,
@@ -34,7 +35,26 @@ const PRINT_CSS = `
   body.printing-one-day .sis-day-printing { position: absolute; left: 0; top: 0; width: 100%; }
   body.printing-one-day .no-print { display: none; }
 }
+/* Printing every block at once: one block per page, the way they are read. */
+@media print {
+  .sis-block + .sis-block { break-before: page; }
+}
 `
+
+// Print one section of a report on its own, siblings hidden.
+const printSection = (id) => {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.classList.add('sis-day-printing')
+  document.body.classList.add('printing-one-day')
+  const cleanup = () => {
+    el.classList.remove('sis-day-printing')
+    document.body.classList.remove('printing-one-day')
+    window.removeEventListener('afterprint', cleanup)
+  }
+  window.addEventListener('afterprint', cleanup)
+  window.print()
+}
 
 
 /**
@@ -43,19 +63,7 @@ const PRINT_CSS = `
  * looking for one child, so the shape on the page is the shape of the question.
  */
 export const DayRosters = ({ days }) => {
-  const printDay = (key) => {
-    const el = document.getElementById(`sis-day-${key}`)
-    if (!el) return
-    el.classList.add('sis-day-printing')
-    document.body.classList.add('printing-one-day')
-    const cleanup = () => {
-      el.classList.remove('sis-day-printing')
-      document.body.classList.remove('printing-one-day')
-      window.removeEventListener('afterprint', cleanup)
-    }
-    window.addEventListener('afterprint', cleanup)
-    window.print()
-  }
+  const printDay = (key) => printSection(`sis-day-${key}`)
 
   if (!days?.length) return <p className="text-neutral-500">No classes are scheduled yet.</p>
 
@@ -104,6 +112,88 @@ export const DayRosters = ({ days }) => {
           ))}
         </section>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Block rosters: one day at a time, one section per block, every class in that
+ * block laid out across the page with its room and each student's age.
+ *
+ * iCreate (Marika), 2026-08-24, having built these by hand in Excel out of the
+ * class roster page, the day roster page and the room assignments: "something
+ * like the attached would be great for Tuesdays and Thursdays Blocks 1-5."
+ * The day roster next door answers the same question a day at a time; this one
+ * is the sheet you carry for one hour, so it is a day picker and a page per
+ * block rather than a scroll.
+ */
+export const BlockRosters = ({ days, day, onDayChange }) => {
+  if (!days?.length) return <p className="text-neutral-500">No classes are scheduled yet.</p>
+  const current = days.find((d) => d.key === day) || days[0]
+
+  return (
+    <div>
+      <div className="no-print flex items-center gap-1 flex-wrap border-b border-gray-200 mb-4 pb-2">
+        {days.map((d) => (
+          <button key={d.key} type="button" onClick={() => onDayChange(d.key)}
+            className={`px-3 py-1.5 rounded-lg text-sm ${d.key === current.key
+              ? 'bg-optio-purple/10 text-optio-purple font-medium'
+              : 'text-neutral-600 hover:bg-gray-50'}`}>
+            {d.label}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-8">
+        {current.blocks.map((b) => (
+          <section key={b.key} id={`sis-block-${current.key}-${b.key}`} className="sis-block">
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1 mb-3">
+              <h4 className="font-semibold text-neutral-900">
+                {current.label} · {b.label}
+                <span className="text-sm font-normal text-neutral-500">
+                  {' '}· {b.time} · {b.student_count} student{b.student_count === 1 ? '' : 's'}
+                </span>
+              </h4>
+              <button type="button"
+                onClick={() => printSection(`sis-block-${current.key}-${b.key}`)}
+                className="no-print px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50">
+                Print {b.label}
+              </button>
+            </div>
+            {b.classes.length === 0 ? (
+              <p className="text-sm text-neutral-400">No classes in this block.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                {b.classes.map((c) => (
+                  <div key={c.class_id} className="break-inside-avoid">
+                    <div className="font-medium text-neutral-900 leading-tight">{c.name}</div>
+                    <div className="text-xs text-neutral-500 mb-1.5">
+                      {[c.room || 'No room set', c.teacher].filter(Boolean).join(' · ')}
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b border-gray-200 text-xs text-neutral-500">
+                          <th className="font-medium py-0.5">Student</th>
+                          <th className="font-medium py-0.5 text-right w-10">Age</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {c.students.length === 0 ? (
+                          <tr><td colSpan={2} className="py-1 text-xs text-neutral-400">Nobody enrolled.</td></tr>
+                        ) : c.students.map((st) => (
+                          <tr key={st.name} className="border-b border-gray-100">
+                            <td className="py-0.5 text-neutral-800">{st.name}</td>
+                            <td className="py-0.5 text-right text-neutral-600">{st.age || ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
     </div>
   )
 }
@@ -336,6 +426,9 @@ const ReportsPage = () => {
   // rather than watching `report`: toggling a column rebuilds that object, and
   // re-scrolling the page under someone ticking columns is its own bug.
   const [runSeq, setRunSeq] = useState(0)
+  // Which day the block rosters are showing. It drives the CSV too, so
+  // downloading gives you the day on screen rather than the whole week.
+  const [blockDay, setBlockDay] = useState('')
   const resultRef = useRef(null)
 
   const load = useCallback(() => {
@@ -449,6 +542,17 @@ const ReportsPage = () => {
                     csvPath: path, csvName: 'day-rosters.csv' })
         return
       }
+      if (type === 'block-rosters') {
+        const days = res.data?.report?.days || []
+        // Land on the day with the most classes: at iCreate that is Tuesday or
+        // Thursday, which is what these sheets are for.
+        setBlockDay((prev) => (days.some((d) => d.key === prev) ? prev
+          : (days.slice().sort((a, b) => b.blocks.length - a.blocks.length)[0]?.key || '')))
+        setReport({ title: 'Block rosters', kind: 'block-rosters', days,
+                    columns: [], rows: [],
+                    csvPath: path, csvName: 'block-rosters.csv' })
+        return
+      }
       const label = questions.find((q) => q.key === key)?.label
       const shaped = shapeReport(type, res.data, label)
       setReport({
@@ -508,14 +612,20 @@ const ReportsPage = () => {
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
+    // Block rosters download the day you are looking at — a whole week of
+    // grids in one file is not the sheet anyone asked for.
+    const blockLabel = report.kind === 'block-rosters'
+      ? report.days?.find((d) => d.key === blockDay)?.label : null
+    const path = blockLabel ? `${report.csvPath}?day=${blockDay}` : report.csvPath
+    const name = blockLabel ? `block-rosters-${blockLabel.toLowerCase()}.csv` : report.csvName
     try {
-      const sep = report.csvPath.includes('?') ? '&' : '?'
-      const res = await api.get(withOrg(`${report.csvPath}${sep}format=csv`, orgId), { responseType: 'blob' })
-      downloadBlob(res.data, report.csvName)
+      const sep = path.includes('?') ? '&' : '?'
+      const res = await api.get(withOrg(`${path}${sep}format=csv`, orgId), { responseType: 'blob' })
+      downloadBlob(res.data, name)
     } catch {
       toast.error('Failed to download CSV')
     }
-  }, [report, orgId])
+  }, [report, orgId, blockDay])
 
   return (
     <div>
@@ -661,6 +771,16 @@ const ReportsPage = () => {
                 <RunButton ariaLabel="View day rosters report" disabled={reportLoading || !orgId}
                   onClick={() => runReport('day-rosters')} />
               </ReportCard>
+              {/* iCreate (Marika), 2026-08-24 — she was building this by hand
+                  in Excel from the class roster page, the day rosters and the
+                  room assignments. */}
+              <ReportCard
+                title="Block rosters"
+                description="One page per block: every class running in it side by side, with its room and each student's age. Pick a day, print a block, or download the grid."
+              >
+                <RunButton ariaLabel="View block rosters report" disabled={reportLoading || !orgId}
+                  onClick={() => runReport('block-rosters')} />
+              </ReportCard>
               <ReportCard
                 title="Student schedule"
                 description="A master list of every student with their age, showing which days they come and which class blocks they're in each day."
@@ -765,6 +885,8 @@ const ReportsPage = () => {
                 )}
                 {report.kind === 'day-rosters' ? (
                   <DayRosters days={report.days} />
+                ) : report.kind === 'block-rosters' ? (
+                  <BlockRosters days={report.days} day={blockDay} onDayChange={setBlockDay} />
                 ) : displayRows.length === 0 ? (
                   <p className="text-neutral-500">No matching records.</p>
                 ) : (
