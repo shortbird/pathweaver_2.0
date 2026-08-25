@@ -371,6 +371,58 @@ def test_partial_failure_leaves_the_account_retryable(fake_db):
     assert len(fake_db.tables['account_deletion_log']) == 1
 
 
+def test_a_blocked_auth_delete_names_the_row_holding_the_account(fake_db):
+    """GoTrue reports every blocking foreign key as the same opaque "Database
+    error deleting user". Attributing one to a single column cost a full schema
+    investigation (Sentry OPTIO-BACKEND-75/76) — the failure has to say which.
+    """
+    fake_db.fail_auth = True
+    fake_db.tables['curriculum_lessons'] = [
+        {'id': 'lesson1', 'created_by': 'due-user'},
+        {'id': 'lesson2', 'created_by': 'due-user'},
+        {'id': 'lesson3', 'created_by': 'someone-else'},
+    ]
+
+    with pytest.raises(AccountDeletionError) as err:
+        purge_user('due-user', admin=fake_db)
+
+    message = str(err.value)
+    assert 'curriculum_lessons.created_by' in message
+    assert '2 rows' in message, 'the count is what tells an operator how big the cleanup is'
+
+
+def test_an_auth_failure_with_nothing_blocking_reports_only_the_error(fake_db):
+    """The diagnostic explains a failure; it must never invent one. An auth
+    outage with no blocking rows must not name a table."""
+    fake_db.fail_auth = True
+
+    with pytest.raises(AccountDeletionError) as err:
+        purge_user('due-user', admin=fake_db)
+
+    assert 'blocked by' not in str(err.value)
+
+
+def test_a_parents_own_enrollment_stamps_no_longer_block_them(fake_db):
+    """Self-service registration sets class_enrollments.enrolled_by to the PARENT,
+    so before the 20260825 migration every family-portal parent was undeletable.
+    It is an anonymized reference now, not a blocker."""
+    assert ('class_enrollments', 'enrolled_by') in svc.ANONYMIZE_REFS
+    assert ('class_enrollments', 'enrolled_by') not in svc.BLOCKING_REFS
+
+    fake_db.tables['class_enrollments'] = [
+        {'id': 'e1', 'student_id': 'child1', 'enrolled_by': 'due-user'},
+        {'id': 'e2', 'student_id': 'child2', 'enrolled_by': 'other-parent'},
+    ]
+
+    purge_user('due-user', admin=fake_db)
+
+    rows = {r['id']: r for r in fake_db.tables['class_enrollments']}
+    # The enrollment survives with its subject intact; only the actor goes blank.
+    assert rows['e1']['student_id'] == 'child1'
+    assert rows['e1']['enrolled_by'] is None
+    assert rows['e2']['enrolled_by'] == 'other-parent'
+
+
 def test_storage_failure_alone_blocks_completion(fake_db):
     """Files are part of the erasure: if they can't be removed, the account is
     not deleted."""
