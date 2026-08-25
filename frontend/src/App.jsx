@@ -54,7 +54,7 @@ const CourseWelcomePage = lazy(() => import('./pages/CourseWelcomePage'))
 const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
-const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
+const RegisterFunnelPage = lazy(() => import('./pages/RegisterFunnelPage'))
 const RequiredDocumentsPage = lazy(() => import('./pages/RequiredDocumentsPage'))
 const PhoneVerificationPage = lazy(() => import('./pages/PhoneVerificationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
@@ -770,10 +770,10 @@ function App() {
             {/* Phone verification hold. Standalone and NOT behind PrivateRoute,
                 for the same reason as required-documents directly above. */}
             <Route path="verify-phone" element={<PhoneVerificationPage />} />
-            <Route path="enroll/resume" element={<ICreateRegisterPage />} />
-            <Route path="enroll/:code" element={<ICreateRegisterPage />} />
-            <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />
-            <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
+            <Route path="enroll/resume" element={<RegisterFunnelPage />} />
+            <Route path="enroll/:code" element={<RegisterFunnelPage />} />
+            <Route path="register/icreate/resume" element={<RegisterFunnelPage />} />
+            <Route path="register/icreate/:code" element={<RegisterFunnelPage />} />
             {/* Staff walkthrough of the parent Schedule Builder (nothing saved),
                 reached from the registration funnel preview's final step. */}
             <Route path="schedule-builder/preview/:previewCode" element={<ScheduleBuilderPage />} />

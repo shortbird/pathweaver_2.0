@@ -6,6 +6,8 @@
  * so a room is never silently dropped: when the meeting has none the class's
  * own location is used, and when neither is recorded the row simply carries
  * the time rather than an empty "Room" label pretending to be information.
+ *
+ * Laid out day by day, in time order, since 2026-08-25 — see StudentDays.
  */
 import React from 'react';
 import { View } from 'react-native';
@@ -14,58 +16,66 @@ import { UIText, VStack, HStack } from '@/src/components/ui';
 import { SchoolSection } from './SchoolSection';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
-  useClassSchedule, dayName, meetingTime,
-  type ScheduledClass, type StudentSchedule,
+  useClassSchedule, meetingsByDay, meetingTime,
+  type ScheduledClass, type ClassMeeting, type StudentSchedule,
 } from '@/src/hooks/useClassSchedule';
 
-function ClassRow({ cls }: { cls: ScheduledClass }) {
+function MeetingRow({ cls, meeting }: { cls: ScheduledClass; meeting: ClassMeeting | null }) {
   const c = useThemeColors();
+  // The meeting's own room wins over the class default: a class that moves
+  // rooms on one day would otherwise send a family to the wrong door.
+  const room = meeting?.location || cls.location;
+  const time = meeting ? meetingTime(meeting) : '';
   return (
-    <View className="bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded-xl px-3.5 py-3">
-      <UIText size="sm" className="font-poppins-semibold">{cls.name}</UIText>
-      {cls.teacher_name ? (
-        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
-          {cls.teacher_name}
+    <View className="bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded-xl px-3.5 py-2.5">
+      <HStack className="items-baseline gap-2 flex-wrap">
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-400 font-poppins-medium">
+          {time || 'Time not posted'}
         </UIText>
-      ) : null}
-
-      {cls.meetings.length > 0 ? (
-        <VStack space="xs" className="mt-2">
-          {cls.meetings.map((m, i) => {
-            const day = dayName(m.day_of_week) || m.specific_date || '';
-            const time = meetingTime(m);
-            const room = m.location || cls.location;
-            return (
-              <HStack key={i} className="items-center gap-2 flex-wrap">
-                <Ionicons name="time-outline" size={13} color={c.iconMuted} />
-                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-400">
-                  {[day, time].filter(Boolean).join(' · ')}
-                </UIText>
-                {room ? (
-                  <HStack className="items-center gap-1 px-1.5 py-0.5 rounded bg-optio-purple/10">
-                    <Ionicons name="location-outline" size={11} color={c.brand} />
-                    <UIText size="xs" className="text-optio-purple font-poppins-medium">{room}</UIText>
-                  </HStack>
-                ) : null}
-              </HStack>
-            );
-          })}
-        </VStack>
-      ) : (
-        <HStack className="items-center gap-2 mt-2">
-          <Ionicons name="time-outline" size={13} color={c.iconMuted} />
+        <UIText size="sm" className="font-poppins-semibold flex-1">{cls.name}</UIText>
+      </HStack>
+      <HStack className="items-center gap-2 flex-wrap mt-1">
+        {cls.teacher_name ? (
           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-            Meeting times not posted yet
+            {cls.teacher_name}
           </UIText>
-          {cls.location ? (
-            <HStack className="items-center gap-1 px-1.5 py-0.5 rounded bg-optio-purple/10">
-              <Ionicons name="location-outline" size={11} color={c.brand} />
-              <UIText size="xs" className="text-optio-purple font-poppins-medium">{cls.location}</UIText>
-            </HStack>
-          ) : null}
-        </HStack>
-      )}
+        ) : null}
+        {room ? (
+          <HStack className="items-center gap-1 px-1.5 py-0.5 rounded bg-optio-purple/10">
+            <Ionicons name="location-outline" size={11} color={c.brand} />
+            <UIText size="xs" className="text-optio-purple font-poppins-medium">{room}</UIText>
+          </HStack>
+        ) : null}
+      </HStack>
     </View>
+  );
+}
+
+/**
+ * One student's week, day by day, each day in time order.
+ *
+ * Was a card per class with its meetings listed inside, which answered "when
+ * does Pottery meet?" but not the question families actually arrive with —
+ * "where is she at 10:30 on Tuesday?" (iCreate parent, 2026-08-25). Day
+ * headings with time-ordered rows put the answer where they look for it.
+ */
+function StudentDays({ classes }: { classes: ScheduledClass[] }) {
+  const days = meetingsByDay(classes);
+  return (
+    <VStack space="md">
+      {days.map((day) => (
+        <VStack key={day.key} space="xs">
+          <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase">
+            {day.label}
+          </UIText>
+          <VStack space="xs">
+            {day.rows.map((row, i) => (
+              <MeetingRow key={`${row.cls.id}-${i}`} cls={row.cls} meeting={row.meeting} />
+            ))}
+          </VStack>
+        </VStack>
+      ))}
+    </VStack>
   );
 }
 
@@ -95,9 +105,7 @@ export default function ClassSchedule({ organizationId }: { organizationId?: str
           icon="time-outline"
           count={s.classes.length}
         >
-          <VStack space="sm">
-            {s.classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}
-          </VStack>
+          <StudentDays classes={s.classes} />
         </SchoolSection>
       ))}
     </View>

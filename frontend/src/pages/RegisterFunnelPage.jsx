@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import { compressImage } from '../utils/compressImage'
-import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 // Presentational funnel pieces are shared with the SIS Registration setup
 // editor, which renders these exact components with the config editable.
 import {
@@ -12,6 +12,8 @@ import {
   QuestionField, PhotoPicker, VerticalStepper, MobileStepper,
   Section, PasswordInput, PrimaryButton,
 } from '../components/registration/funnelUi'
+import GoogleButton from '../components/auth/GoogleButton'
+import AppleButton from '../components/auth/AppleButton'
 
 // Branded multi-step parent registration for the iCreate microschool.
 // Reached only for iCreate parent registration links (AcceptInvitationPage
@@ -134,7 +136,7 @@ const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually mean
 // all live in components/registration/funnelUi.jsx, shared with the SIS setup
 // editor.)
 
-const ICreateRegisterPage = () => {
+const RegisterFunnelPage = () => {
   const { code } = useParams()
   // ?preview=1 — staff walkthrough: step through the whole funnel with sample
   // data and NO writes (no accounts, no emails, no charges). Safe on a public
@@ -166,6 +168,13 @@ const ICreateRegisterPage = () => {
   const [account, setAccount] = useState({ first_name: '', last_name: '', email: '', password: '', confirm: '' })
   const [pendingVerify, setPendingVerify] = useState(null) // { registration_id, email }
   const [otp, setOtp] = useState('')
+  // Standing note above the account step: either "your account signs in with
+  // Apple, use the button" (from /login's oauth_account refusal) or a guardrail
+  // refusal handed back by /auth/callback after a failed attach. Sticky rather
+  // than a toast — both need to stay readable while the parent acts on them.
+  const [accountNotice, setAccountNotice] = useState(
+    () => new URLSearchParams(window.location.search).get('attach_error') || '',
+  )
 
   // family step
   const [family, setFamily] = useState({ phone: '', address_line1: '', address_line2: '', city: '', state: '', postal_code: '' })
@@ -198,14 +207,14 @@ const ICreateRegisterPage = () => {
     let alive = true
     if (code) {
       // Fresh visit from the registration link.
-      api.get(`/api/icreate/config/${code}`)
+      api.get(`/api/registration/config/${code}`)
         .then((r) => { if (alive) setConfig(r.data) })
         .catch((e) => { if (alive) setFatal(e.response?.data?.error || 'This registration link is not valid.') })
         .finally(() => { if (alive) setLoading(false) })
     } else {
       // /enroll/resume — logged-in continuation of an unfinished
       // registration (PrivateRoute forces iCreate parents here).
-      api.get('/api/icreate/my-registration')
+      api.get('/api/registration/my-registration')
         .then((r) => {
           if (!alive) return
           const regData = r.data?.registration
@@ -263,6 +272,17 @@ const ICreateRegisterPage = () => {
 
   // Always start each step at the top of the page.
   useEffect(() => { window.scrollTo(0, 0) }, [step])
+
+  // The refusal handed back by /auth/callback has been read into state; drop it
+  // from the URL so a reload doesn't resurrect a stale error (and so it can't
+  // ride along into the ?preview / ?payment params the funnel also reads).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('attach_error')) return
+    params.delete('attach_error')
+    const q = params.toString()
+    window.history.replaceState({}, '', `${window.location.pathname}${q ? `?${q}` : ''}`)
+  }, [])
 
   // Preview mode: prefill every step with sample data so the form reads like a
   // real registration without typing anything.
@@ -381,7 +401,7 @@ const ICreateRegisterPage = () => {
     form.append('file', file)
     form.append('access_token', reg.access_token)
     form.append('target_user_id', targetUserId)
-    return api.post(`/api/icreate/registrations/${reg.registration_id}/photo`, form)
+    return api.post(`/api/registration/registrations/${reg.registration_id}/photo`, form)
   }
 
   const pickParentPhoto = async (f) => {
@@ -437,7 +457,7 @@ const ICreateRegisterPage = () => {
     if (account.password !== account.confirm) return toast.error('Passwords do not match')
     setSubmitting(true)
     try {
-      const { data } = await api.post('/api/icreate/start', {
+      const { data } = await api.post('/api/registration/start', {
         code,
         first_name: account.first_name.trim(), last_name: account.last_name.trim(),
         email: account.email.trim(), password: account.password,
@@ -459,7 +479,12 @@ const ICreateRegisterPage = () => {
   // "build your schedule" step can open the Schedule Builder without another
   // sign-in. The wizard itself keeps working off the funnel access_token, so a
   // failure here is invisible.
+  // Log the parent into the app proper alongside the funnel, so leaving mid-way
+  // lands them signed in. Password-only by design: accounts that arrive through
+  // the Google/Apple buttons already hold a session from /auth/callback, and
+  // there is no password to replay for them.
   const establishSession = async (email, password) => {
+    if (!password) return
     try { await api.post('/api/auth/login', { email, password }) } catch { /* wizard works without it */ }
   }
 
@@ -467,7 +492,7 @@ const ICreateRegisterPage = () => {
     if (!/^\d{6}$/.test(otp.trim())) return toast.error('Enter the 6-digit code from your email')
     setSubmitting(true)
     try {
-      const { data } = await api.post('/api/icreate/verify', {
+      const { data } = await api.post('/api/registration/verify', {
         registration_id: pendingVerify.registration_id, code: otp.trim(),
       })
       setReg({ registration_id: pendingVerify.registration_id, access_token: data.access_token })
@@ -482,7 +507,7 @@ const ICreateRegisterPage = () => {
 
   const resendCode = async () => {
     try {
-      const { data } = await api.post('/api/icreate/resend-code', { registration_id: pendingVerify.registration_id })
+      const { data } = await api.post('/api/registration/resend-code', { registration_id: pendingVerify.registration_id })
       if (data.sent === false) toast.error('We could not send the code — please try again in a moment.')
       else toast.success('We emailed you a new code')
     } catch (e) {
@@ -495,8 +520,9 @@ const ICreateRegisterPage = () => {
     if (!EMAIL_RE.test(account.email)) return toast.error('Enter a valid email')
     if (!account.password) return toast.error('Enter your password')
     setSubmitting(true)
+    setAccountNotice('')
     try {
-      const { data } = await api.post('/api/icreate/login', {
+      const { data } = await api.post('/api/registration/login', {
         code, email: account.email.trim(), password: account.password,
       })
       setReg({ registration_id: data.registration_id, access_token: data.access_token })
@@ -512,7 +538,12 @@ const ICreateRegisterPage = () => {
       setStep(data.status || 'family')
       applyDraft(data.registration_id, data.status || 'family')
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not sign in')
+      const err = e.response?.data
+      // oauth_account: there is no password on this account to get wrong. A
+      // toast would scroll away; keep the instruction pinned next to the button
+      // it is telling them to press.
+      if (err?.code === 'oauth_account') setAccountNotice(err.error)
+      else toast.error(err?.error || 'Could not sign in')
     } finally {
       setSubmitting(false)
     }
@@ -580,7 +611,7 @@ const ICreateRegisterPage = () => {
     }
     setSubmitting(true)
     try {
-      const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/family`, {
+      const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/family`, {
         access_token: reg.access_token,
         phone: fam.phone.trim(),
         address_line1: fam.address_line1.trim(), address_line2: fam.address_line2.trim(),
@@ -624,7 +655,7 @@ const ICreateRegisterPage = () => {
     if (qErr) return toast.error(qErr)
     setSubmitting(true)
     try {
-      await api.post(`/api/icreate/registrations/${reg.registration_id}/details`, {
+      await api.post(`/api/registration/registrations/${reg.registration_id}/details`, {
         access_token: reg.access_token,
         emergency_contacts: validContacts.map((c) => ({
           name: c.name.trim(), relationship: c.relationship, phone: c.phone.trim(),
@@ -651,7 +682,7 @@ const ICreateRegisterPage = () => {
     }
     setSubmitting(true)
     try {
-      const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/paperwork`, {
+      const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/paperwork`, {
         access_token: reg.access_token,
         acknowledgements: items.map((it) => ({ key: it.key, signed_name: signatures[it.key].trim() })),
       })
@@ -669,11 +700,11 @@ const ICreateRegisterPage = () => {
     if (previewMode) return previewFinish()
     setSubmitting(true)
     try {
-      const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/fee`, {
+      const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/fee`, {
         access_token: reg.access_token,
       })
       setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
-      clearICreateRegistrationGate()  // fee settled — the app no longer redirects here
+      clearRegistrationGate()  // fee settled — the app no longer redirects here
       sessionStorage.removeItem('icreate_funnel')
       setStep('done')
     } catch (e) {
@@ -702,7 +733,7 @@ const ICreateRegisterPage = () => {
   useEffect(() => {
     if (step !== 'fee' || !reg || previewMode) return
     let alive = true
-    api.post(`/api/icreate/registrations/${reg.registration_id}/fee-status`, {
+    api.post(`/api/registration/registrations/${reg.registration_id}/fee-status`, {
       access_token: reg.access_token,
     })
       .then(({ data }) => {
@@ -722,7 +753,7 @@ const ICreateRegisterPage = () => {
       // isn't allowed) so staff sees exactly what families navigate.
       setSubmitting(true)
       try {
-        const { data } = await api.post('/api/icreate/preview-checkout', {
+        const { data } = await api.post('/api/registration/preview-checkout', {
           code, return_url: `${window.location.origin}${window.location.pathname}?preview=1`,
         })
         window.location.href = data.checkout_url
@@ -735,10 +766,13 @@ const ICreateRegisterPage = () => {
     setSubmitting(true)
     try {
       // Persist the funnel identity across the redirect to Stripe and back.
+      // Key deliberately keeps its old name through the 2026-08-25 rename (as
+      // does the icreate_draft_* one below): these hold live browser state, and
+      // renaming them would strand whoever is at the Stripe page right now.
       sessionStorage.setItem('icreate_funnel', JSON.stringify({
         registration_id: reg.registration_id, access_token: reg.access_token, fee_cents: feeCents,
       }))
-      const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/checkout`, {
+      const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/checkout`, {
         access_token: reg.access_token,
         return_url: window.location.origin + window.location.pathname,
         waitlist_ack: waitlistAck,
@@ -758,12 +792,12 @@ const ICreateRegisterPage = () => {
     if (!r) return
     setSubmitting(true)
     try {
-      const { data } = await api.post(`/api/icreate/registrations/${r.registration_id}/confirm-payment`, {
+      const { data } = await api.post(`/api/registration/registrations/${r.registration_id}/confirm-payment`, {
         access_token: r.access_token,
       })
       if (['schedule', 'appointment', 'completed'].includes(data.status)) {
         setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
-        clearICreateRegistrationGate()
+        clearRegistrationGate()
         sessionStorage.removeItem('icreate_funnel')
         setStep('done')
       }
@@ -861,6 +895,39 @@ const ICreateRegisterPage = () => {
         {step === 'account' && !pendingVerify && (
           <div className="space-y-6">
             <Section title="Your account" subtitle="Registration starts with your parent account.">
+              {accountNotice && (
+                <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {accountNotice}
+                </div>
+              )}
+
+              {/* Google/Apple come FIRST, and serve both modes: an account made
+                  with either has no password at all, so a parent who starts by
+                  typing one is walking into a dead end — "create" says the email
+                  is taken, "sign in" says the password is wrong. The buttons
+                  route through /auth/callback, which posts this code to
+                  /api/registration/attach and returns them to the funnel. Hidden in
+                  preview mode, which must never leave the page or write. */}
+              {!previewMode && (
+                <div className="space-y-3 mb-5">
+                  <GoogleButton
+                    mode={mode === 'create' ? 'signup' : 'signin'}
+                    registrationCode={code}
+                    onError={(m) => setAccountNotice(m)}
+                  />
+                  <AppleButton
+                    mode={mode === 'create' ? 'signup' : 'signin'}
+                    registrationCode={code}
+                    onError={(m) => setAccountNotice(m)}
+                  />
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="h-px flex-1 bg-gray-200" />
+                    <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">or use email</span>
+                    <div className="h-px flex-1 bg-gray-200" />
+                  </div>
+                </div>
+              )}
+
               <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-neutral-50 mb-5">
                 <button onClick={() => setMode('create')}
                   className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${mode === 'create' ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}>
@@ -894,7 +961,13 @@ const ICreateRegisterPage = () => {
                     <input type="email" className={field} value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></div>
                   <div><label className="block text-xs font-medium text-neutral-500 mb-1">Password</label>
                     <PasswordInput value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && submitSignin()} /></div>
+                      onKeyDown={(e) => e.key === 'Enter' && submitSignin()} />
+                    {/* Also the way in for the org-imported parents whose
+                        accounts were created without a password. */}
+                    <a href="/forgot-password" target="_blank" rel="noopener noreferrer"
+                      className="inline-block mt-2 text-sm text-optio-purple font-medium hover:underline">
+                      Forgot password?
+                    </a></div>
                 </div>
               )}
             </Section>
@@ -1359,4 +1432,4 @@ const ICreateRegisterPage = () => {
   )
 }
 
-export default ICreateRegisterPage
+export default RegisterFunnelPage

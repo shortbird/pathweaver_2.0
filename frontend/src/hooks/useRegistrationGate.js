@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { isMasquerading } from '../services/masqueradeService'
 
-// Gate for iCreate registration funnel completion.
+// Gate for parent registration funnel completion.
 //
 // Two policies share one cached lookup of "does this user have an unfinished
 // registration run":
-//   - useICreateRegistrationGate: a PURE iCreate parent (primary effective role
+//   - useRegistrationGate: a PURE parent (primary effective role
 //     'parent') is locked to the funnel from every authenticated route (applied
 //     globally in PrivateRoute).
-//   - useParentClassRegistrationGate: any guardian — INCLUDING parent+teacher
-//     staff whose primary role is advisor — must finish the full registration
+//   - useParentClassRegistrationGate: any guardian — INCLUDING staff whose
+//     primary role is a staff one (advisor, campus_coordinator, org_admin;
+//     they gain 'parent' in org_roles) — must finish the full registration
 //     (and its fee) before the Schedule Builder opens for their kids. This gates
 //     only the parent class-registration surface, so staff keep their teacher
 //     features reachable while their registration is still pending.
@@ -26,11 +27,11 @@ const BLOCKING_STATUSES = new Set(['verify', 'family', 'details', 'paperwork', '
 
 let cache = { userId: null, incomplete: null, promise: null }
 
-export const clearICreateRegistrationGate = () => {
+export const clearRegistrationGate = () => {
   cache = { userId: null, incomplete: null, promise: null }
 }
 
-// Core lookup: has this org user got an unfinished iCreate registration run?
+// Core lookup: has this org user got an unfinished registration run?
 // Cached per user for the session so route changes don't refetch.
 function useRegistrationIncomplete(user, isAuthenticated) {
   const eligible = !!(isAuthenticated && user?.organization_id)
@@ -49,7 +50,7 @@ function useRegistrationIncomplete(user, isAuthenticated) {
     if (!cache.promise || cache.userId !== user.id) {
       cache.userId = user.id
       cache.incomplete = null
-      cache.promise = api.get('/api/icreate/my-registration')
+      cache.promise = api.get('/api/registration/my-registration')
         .then((r) => {
           cache.incomplete = BLOCKING_STATUSES.has(r.data?.registration?.status)
           return cache.incomplete
@@ -70,10 +71,10 @@ const hasParentRole = (user) => (
   (Array.isArray(user?.org_roles) && user.org_roles.includes('parent'))
 )
 
-// Global gate: a pure iCreate parent is bounced to the funnel from everywhere.
-// Dual-role parent+teacher staff (primary role advisor) are intentionally NOT
-// blocked wholesale here — see useParentClassRegistrationGate.
-export function useICreateRegistrationGate(user, isAuthenticated, effectiveRole) {
+// Global gate: a pure parent is bounced to the funnel from everywhere.
+// Dual-role staff (any staff role primary, 'parent' alongside it) are
+// intentionally NOT blocked wholesale — see useParentClassRegistrationGate.
+export function useRegistrationGate(user, isAuthenticated, effectiveRole) {
   const { checking, incomplete } = useRegistrationIncomplete(user, isAuthenticated)
   // Only a pure parent can be globally gated, so only they wait on the check —
   // non-parent org users (students, advisors, admins) never see the spinner.

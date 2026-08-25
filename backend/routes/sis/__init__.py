@@ -870,7 +870,7 @@ def waive_household_fee(user_id, household_id):
     # Completing a funnel registration belongs to the registration route, so the
     # service is handed the step rather than importing it (services must not
     # import routes — tests/unit/test_import_layers).
-    from routes.icreate_registration import _finish_fee_step, _org_config
+    from routes.registration_funnel import _finish_fee_step, _org_config
 
     def _finish(reg):
         # admin client justified: completes the family's registration record at $0 on their behalf; route gated by @require_role(FINANCE_ROLES), org resolved above

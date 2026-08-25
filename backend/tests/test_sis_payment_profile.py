@@ -4,7 +4,7 @@ Unit tests for how a family's stated form of payment reaches staff.
 iCreate's office could not see, anywhere they invoice from, whether a family was
 on Utah Fits All: `households.funding_source` is staff-set and had never been
 filled in for any of their 91 families, while the answer the families gave in
-the registration funnel sat unread in `icreate_registrations.answers`.
+the registration funnel sat unread in `registrations.answers`.
 
 These cover the reading of that answer, the conservative funding_source it
 implies (this value gates card payment, so a multi-select must not silently turn

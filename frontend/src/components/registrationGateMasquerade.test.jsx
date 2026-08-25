@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import PrivateRoute from './PrivateRoute'
-import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 
 // A parent stuck mid-funnel is locked to /enroll/resume — that is the point of
 // the gate, and their own login must keep hitting it. An admin masquerading as
@@ -33,7 +33,7 @@ const renderApp = () => render(
 
 beforeEach(() => {
   vi.clearAllMocks()
-  clearICreateRegistrationGate()
+  clearRegistrationGate()
   authState = {
     isAuthenticated: true, loading: false, user: STUCK_PARENT, effectiveRole: 'parent',
   }

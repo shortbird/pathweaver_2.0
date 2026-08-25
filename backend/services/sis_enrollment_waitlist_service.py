@@ -11,7 +11,7 @@ guardian. Turning a band back to open only affects future registrants —
 existing rows stay waiting until released (Marika's "only allow the 9").
 
 Fee deferral: when every kid in a funnel registration was gated, the funnel
-completed without payment (icreate_registrations.fee_deferred). The FIRST
+completed without payment (registrations.fee_deferred). The FIRST
 release for that family reopens the registration at the fee step and puts the
 household on a registration hold until the fee is settled, so the released
 student picks classes only after paying.
@@ -575,7 +575,7 @@ def _process_refund(entry: Dict[str, Any]) -> Dict[str, Any]:
     if not guardian_id:
         return {'refund_cents': 0}
     regs = (
-        admin.table('icreate_registrations')
+        admin.table('registrations')
         .select('id, fee_cents, refunded_cents, kids, stripe_payment_ref')
         .eq('parent_user_id', guardian_id)
         .eq('organization_id', entry['organization_id'])
@@ -605,7 +605,7 @@ def _process_refund(entry: Dict[str, Any]) -> Dict[str, Any]:
             logger.error(f'enrollment waitlist: refund failed for entry {entry["id"]}: {e}')
             return {'refund_cents': 0, 'error': 'Refund could not be processed — refund this family manually.'}
 
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'refunded_cents': already + refund_cents,
         'updated_at': datetime.now(timezone.utc).isoformat(),
     }).eq('id', reg['id']).execute()
@@ -675,7 +675,7 @@ def _reopen_deferred_fee(entry: Dict[str, Any]) -> int:
     if not guardian_id:
         return 0
     regs = (
-        admin.table('icreate_registrations').select('id, status, fee_cents, fee_deferred')
+        admin.table('registrations').select('id, status, fee_cents, fee_deferred')
         .eq('parent_user_id', guardian_id)
         .eq('organization_id', entry['organization_id'])
         .eq('fee_deferred', True)
@@ -686,7 +686,7 @@ def _reopen_deferred_fee(entry: Dict[str, Any]) -> int:
     reg = regs[0]
     fee_cents = int(reg.get('fee_cents') or 0)
     now = datetime.now(timezone.utc).isoformat()
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'status': 'fee', 'fee_deferred': False, 'completed_at': None,
         'fee_recorded_at': None, 'updated_at': now,
     }).eq('id', reg['id']).execute()

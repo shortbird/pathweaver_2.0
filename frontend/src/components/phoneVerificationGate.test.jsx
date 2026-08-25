@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import PrivateRoute from './PrivateRoute'
 import { clearPhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { clearRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
-import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 
 /**
  * The router half of the phone-verification hold.
@@ -59,7 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   clearPhoneVerificationGate()
   clearRequiredDocumentsGate()
-  clearICreateRegistrationGate()
+  clearRegistrationGate()
   authState = { isAuthenticated: true, loading: false, user: PARENT, effectiveRole: 'parent' }
 })
 

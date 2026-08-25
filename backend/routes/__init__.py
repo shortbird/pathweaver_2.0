@@ -310,9 +310,17 @@ def register_all(app):
     from routes import announcements
     app.register_blueprint(announcements.bp)
 
-    # ── iCreate branded parent registration funnel (iCreate org only) ──────────
-    from routes import icreate_registration
-    app.register_blueprint(icreate_registration.bp)
+    # ── Branded parent registration funnel (any org that turns it on) ─────────
+    # Registered twice on purpose. /api/registration is canonical; /api/icreate
+    # is the DEPRECATED alias it was served under until 2026-08-25, kept alive
+    # because the web frontend deploys as its own Render service — without it,
+    # whichever of the two deploys second breaks the funnel for the families
+    # mid-registration at that moment. Delete the alias (and its CSRF_ALIAS_*
+    # entries) once prod has been on the new build for a release or two.
+    from routes import registration_funnel
+    app.register_blueprint(registration_funnel.bp)
+    app.register_blueprint(registration_funnel.bp,
+                           name='icreate_registration', url_prefix='/api/icreate')
 
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp

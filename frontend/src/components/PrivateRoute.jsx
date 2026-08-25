@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { useRegistrationGate } from '../hooks/useRegistrationGate'
 import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 import { usePhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { roleHomePath } from '../utils/postLoginPath'
@@ -40,7 +40,7 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
   const location = useLocation()
   // iCreate parents with an unfinished registration funnel are locked to it.
-  const icreateGate = useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
+  const registrationGate = useRegistrationGate(user, isAuthenticated, effectiveRole)
   // Families holding unsigned REQUIRED school paperwork are locked to signing it.
   const docsGate = useRequiredDocumentsGate(user, isAuthenticated)
   // Adults in orgs that require a verified phone number are locked to verifying it.
@@ -99,14 +99,14 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   }
 
   // iCreate parents must finish the registration funnel before using Optio.
-  if (icreateGate.checking) {
+  if (registrationGate.checking) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
-  if (icreateGate.mustRegister) {
+  if (registrationGate.mustRegister) {
     return <Navigate to="/enroll/resume" replace />
   }
 

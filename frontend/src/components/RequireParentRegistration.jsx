@@ -1,14 +1,15 @@
 import React from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useParentClassRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { useParentClassRegistrationGate } from '../hooks/useRegistrationGate'
 
 // Route guard for the parent class-registration surface (Schedule Builder).
 //
-// A guardian — including parent+teacher staff whose primary role is advisor —
-// must complete the iCreate registration funnel and pay its fee before enrolling
+// A guardian — including staff whose primary role is a staff one (advisor,
+// campus_coordinator, org_admin), who gain 'parent' alongside it when they
+// register — must complete the registration funnel and pay its fee before enrolling
 // their children in classes. This gates ONLY these routes, so staff keep their
-// teacher/advisor features reachable while their own family registration is
+// staff features reachable while their own family registration is
 // still pending. Pure parents are already locked to the funnel globally by
 // PrivateRoute; this catches the dual-role case the global gate skips.
 const RequireParentRegistration = () => {

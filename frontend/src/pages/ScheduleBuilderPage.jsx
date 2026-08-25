@@ -150,7 +150,7 @@ const ScheduleBuilderPage = () => {
   useEffect(() => {
     if (previewCode) {
       // Staff preview: the org's real catalog with a sample student, no auth.
-      api.get(`/api/icreate/schedule-preview/${previewCode}`)
+      api.get(`/api/registration/schedule-preview/${previewCode}`)
         .then((r) => {
           setCtx({ orgs: [{
             organization_id: 'preview', organization_name: r.data?.organization_name,

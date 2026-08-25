@@ -7,7 +7,7 @@ plus the per-student question answers and the post-registration flow config.
 
 import pytest
 
-from routes.icreate_registration import _public_config, _validate_answers
+from routes.registration_funnel import _public_config, _validate_answers
 
 ORG = {'id': 'org1', 'name': 'iCreate', 'slug': 'icreate', 'branding_config': {}}
 CFG = {

@@ -24,10 +24,10 @@ from flask import Flask
 def client():
     """Minimal app with only the iCreate blueprint (avoids importing app.py,
     which pulls in optional Swagger deps not needed for this route)."""
-    from routes import icreate_registration
+    from routes import registration_funnel
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.register_blueprint(icreate_registration.bp)
+    app.register_blueprint(registration_funnel.bp)
     return app.test_client()
 
 
@@ -104,25 +104,25 @@ _KEY = _CFG['stripe_secret_key']
 
 def _call(client, admin, path, reg, directive):
     # Stripe key now lives in organization_secrets, not feature_flags -- AUDIT.md C1.
-    with patch('routes.icreate_registration._admin', return_value=admin), \
-         patch('routes.icreate_registration._load_registration', return_value=reg), \
-         patch('routes.icreate_registration._org_config', return_value=_CFG), \
-         patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
-         patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
-         patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
-         patch('routes.icreate_registration._family_directive', return_value=directive):
+    with patch('routes.registration_funnel._admin', return_value=admin), \
+         patch('routes.registration_funnel._load_registration', return_value=reg), \
+         patch('routes.registration_funnel._org_config', return_value=_CFG), \
+         patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
+         patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
+         patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+         patch('routes.registration_funnel._family_directive', return_value=directive):
         return client.post(path, json={'access_token': 'tok'})
 
 
 def _fee_updates(admin):
-    return [p for t, p in admin.updates if t == 'icreate_registrations' and 'fee_cents' in p]
+    return [p for t, p in admin.updates if t == 'registrations' and 'fee_cents' in p]
 
 
 @pytest.mark.unit
 class TestPrepaidDirectiveFee:
     def test_without_directive_card_is_still_required(self, client):
         admin = _FakeAdmin()
-        resp = _call(client, admin, '/api/icreate/registrations/reg1/fee', _reg(), None)
+        resp = _call(client, admin, '/api/registration/registrations/reg1/fee', _reg(), None)
         assert resp.status_code == 402
         body = resp.get_json()
         assert 'card' in body['error'].lower()
@@ -134,7 +134,7 @@ class TestPrepaidDirectiveFee:
 
     def test_prepaid_directive_completes_without_card(self, client):
         admin = _FakeAdmin()
-        resp = _call(client, admin, '/api/icreate/registrations/reg1/fee',
+        resp = _call(client, admin, '/api/registration/registrations/reg1/fee',
                      _reg(), {'fee_prepaid': True})
         assert resp.status_code == 200
         assert resp.get_json()['status'] == 'completed'
@@ -143,22 +143,22 @@ class TestPrepaidDirectiveFee:
 
     def test_directive_without_prepaid_flag_changes_nothing(self, client):
         admin = _FakeAdmin()
-        resp = _call(client, admin, '/api/icreate/registrations/reg1/fee',
+        resp = _call(client, admin, '/api/registration/registrations/reg1/fee',
                      _reg(), {'fee_prepaid': False, 'registration_hold': True})
         assert resp.status_code == 402
         assert not _fee_updates(admin)
 
     def test_checkout_refuses_to_charge_a_prepaid_family(self, client):
         admin = _FakeAdmin()
-        with patch('routes.icreate_registration._admin', return_value=admin), \
-             patch('routes.icreate_registration._load_registration', return_value=_reg()), \
-             patch('routes.icreate_registration._org_config', return_value=_CFG), \
-             patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
-             patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
-             patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
-             patch('routes.icreate_registration._family_directive',
+        with patch('routes.registration_funnel._admin', return_value=admin), \
+             patch('routes.registration_funnel._load_registration', return_value=_reg()), \
+             patch('routes.registration_funnel._org_config', return_value=_CFG), \
+             patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
+             patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
+             patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+             patch('routes.registration_funnel._family_directive',
                    return_value={'fee_prepaid': True}):
-            resp = client.post('/api/icreate/registrations/reg1/checkout',
+            resp = client.post('/api/registration/registrations/reg1/checkout',
                                json={'access_token': 'tok', 'return_url': 'https://x/return'})
         assert resp.status_code == 400
         assert 'no registration fee' in resp.get_json()['error'].lower()
@@ -168,7 +168,7 @@ class TestPrepaidDirectiveFee:
 @pytest.mark.unit
 class TestApplyPrepaidDirectiveHelper:
     def test_completed_and_zero_fee_rows_are_untouched(self):
-        from routes.icreate_registration import _apply_prepaid_directive
+        from routes.registration_funnel import _apply_prepaid_directive
         admin = _FakeAdmin()
         done = {'id': 'r', 'status': 'completed', 'fee_cents': 12500}
         free = {'id': 'r', 'status': 'fee', 'fee_cents': 0}

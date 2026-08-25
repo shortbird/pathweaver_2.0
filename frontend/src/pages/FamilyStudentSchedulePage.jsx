@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
-import WeeklySchedule, { meetingsText } from '../components/schedule/WeeklySchedule'
+import WeeklySchedule from '../components/schedule/WeeklySchedule'
+import ScheduleByDay from '../components/schedule/ScheduleByDay'
 
 /**
  * A printable copy of one student's class schedule.
@@ -12,8 +13,9 @@ import WeeklySchedule, { meetingsText } from '../components/schedule/WeeklySched
  * meetings.
  *
  * Two views of the same week, because a printed color grid is not always
- * readable: the weekly picture, then a plain list with teacher and room. The
- * list also catches weekend meetings, which the Mon-Fri grid cannot show.
+ * readable: the weekly picture, then the same meetings day by day in time order
+ * with teacher and room. The day list also catches weekend and one-off dated
+ * meetings, which the Mon-Fri grid cannot show.
  */
 
 const Card = ({ title, children }) => (
@@ -123,27 +125,11 @@ const FamilyStudentSchedulePage = () => {
             <WeeklySchedule classes={classes} timeBlocks={schedule.time_blocks || []} />
           </Card>
 
-          <Card title="Classes">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                  <th className="py-2 pr-3 font-medium">Class</th>
-                  <th className="py-2 pr-3 font-medium">When</th>
-                  <th className="py-2 pr-3 font-medium">Teacher</th>
-                  <th className="py-2 font-medium">Where</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {classes.map((c) => (
-                  <tr key={c.id}>
-                    <td className="py-2 pr-3 text-gray-800">{c.name}</td>
-                    <td className="py-2 pr-3 text-gray-500">{meetingsText(c.meetings) || 'Not scheduled'}</td>
-                    <td className="py-2 pr-3 text-gray-500">{c.primary_instructor?.name || ''}</td>
-                    <td className="py-2 text-gray-500">{c.location || ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Day by day, in time order — the way a family reads the week.
+              The class-per-row table this replaced made anyone asking "where is
+              she at 10:30 on Tuesday?" scan every row and re-sort mentally. */}
+          <Card title="Day by day">
+            <ScheduleByDay classes={classes} />
           </Card>
         </>
       )}

@@ -21,7 +21,7 @@ from flask import Flask
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """The rate limiter's in-memory store is a process-wide singleton; these
-    tests each POST /api/icreate/login, and without a reset they consume the
+    tests each POST /api/registration/login, and without a reset they consume the
     shared per-IP budget and 429 OTHER login tests later in the run."""
     from middleware.rate_limiter import rate_limiter
     rate_limiter.requests.clear()
@@ -33,10 +33,10 @@ def _reset_rate_limiter():
 
 @pytest.fixture
 def client():
-    from routes import icreate_registration
+    from routes import registration_funnel
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.register_blueprint(icreate_registration.bp)
+    app.register_blueprint(registration_funnel.bp)
     return app.test_client()
 
 
@@ -92,17 +92,17 @@ def _platform_student(**over):
 
 
 def _post(client, admin):
-    with patch('routes.icreate_registration._admin', return_value=admin), \
-         patch('routes.icreate_registration._load_icreate_invite', return_value=_INVITE), \
-         patch('routes.icreate_registration._password_ok', return_value=True):
-        return client.post('/api/icreate/login', json=_BODY)
+    with patch('routes.registration_funnel._admin', return_value=admin), \
+         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_funnel._password_ok', return_value=True):
+        return client.post('/api/registration/login', json=_BODY)
 
 
 @pytest.mark.unit
 class TestAdultParentLogin:
     def test_adult_by_dob_is_allowed_and_attached_as_parent(self, client):
         admin = _FakeAdmin({'users': [_platform_student(date_of_birth='1985-09-22')],
-                            'icreate_registrations': []})
+                            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 200
         assert resp.get_json()['status'] == 'family'
@@ -111,7 +111,7 @@ class TestAdultParentLogin:
 
     def test_minor_by_dob_is_still_refused(self, client):
         admin = _FakeAdmin({'users': [_platform_student(date_of_birth='2012-05-02')],
-                            'icreate_registrations': []})
+                            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 409
         assert 'student' in resp.get_json()['error'].lower()
@@ -119,26 +119,26 @@ class TestAdultParentLogin:
     def test_account_linked_to_a_parent_is_still_refused(self, client):
         admin = _FakeAdmin({'users': [_platform_student(date_of_birth='1985-09-22')],
                             'parent_student_links': [{'id': 'link1'}],
-                            'icreate_registrations': []})
+                            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 409
 
     def test_dependent_account_is_still_refused(self, client):
         admin = _FakeAdmin({'users': [_platform_student(
             date_of_birth='1985-09-22', managed_by_parent_id='someparent')],
-            'icreate_registrations': []})
+            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 409
 
     def test_no_dob_pristine_account_is_allowed(self, client):
         admin = _FakeAdmin({'users': [_platform_student()],
                             'user_quests': [],
-                            'icreate_registrations': []})
+                            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 200
 
     def test_no_dob_with_learning_activity_is_refused(self, client):
         admin = _FakeAdmin({'users': [_platform_student(total_xp=450)],
-                            'icreate_registrations': []})
+                            'registrations': []})
         resp = _post(client, admin)
         assert resp.status_code == 409

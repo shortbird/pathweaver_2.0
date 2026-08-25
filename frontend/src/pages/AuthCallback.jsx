@@ -6,6 +6,7 @@ import { getPostLoginPath } from '../utils/postLoginPath'
 import { supabase } from '../services/supabaseClient'
 import { useQueryClient } from '@tanstack/react-query'
 import TosConsentModal from '../components/auth/TosConsentModal'
+import { resumePendingRegistrationFunnel } from '../components/auth/registrationFunnelResume'
 
 /**
  * OAuth Authorization Callback Page
@@ -198,7 +199,12 @@ export default function AuthCallback() {
         // Determine redirect path based on user role
         // If invitation was just accepted, user is now an observer regardless of what the response said
         let redirectPath
-        if (invitationAccepted) {
+        // A pending registration funnel owns the destination outright: this
+        // parent is mid-enrollment, not arriving at a dashboard.
+        const funnelPath = await resumePendingRegistrationFunnel()
+        if (funnelPath) {
+          redirectPath = funnelPath
+        } else if (invitationAccepted) {
           const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else if (orgInvitationResult.code) {
@@ -265,7 +271,12 @@ export default function AuthCallback() {
         // Determine redirect path based on user role
         // If invitation was just accepted, user is now an observer regardless of what TOS response said
         let redirectPath
-        if (invitationAccepted) {
+        // A pending registration funnel owns the destination outright: this
+        // parent is mid-enrollment, not arriving at a dashboard.
+        const funnelPath = await resumePendingRegistrationFunnel()
+        if (funnelPath) {
+          redirectPath = funnelPath
+        } else if (invitationAccepted) {
           const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else if (orgInvitationResult.code) {

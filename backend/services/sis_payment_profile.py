@@ -11,7 +11,7 @@ blank.
 
 The family's own answer already existed: "Form of Payment" is a required
 question in the registration funnel, and 98 iCreate families answered it. But it
-was written to `icreate_registrations.answers` and only ever read back by the
+was written to `registrations.answers` and only ever read back by the
 CLP page, so the office — invoicing from the tuition approver, needing to know
 who is on Utah Fits All — could not see it anywhere they worked.
 
@@ -149,7 +149,7 @@ def profiles_for_org(org_id: str) -> Dict[str, Dict[str, Any]]:
         if not by_user:
             return {}
         regs = fetch_all_rows(lambda: (
-            _admin().table('icreate_registrations')
+            _admin().table('registrations')
             .select('id, parent_user_id, answers, created_at')
             .eq('organization_id', org_id)
         ))
@@ -194,7 +194,7 @@ def profile_for_household(org_id: str, household_id: str) -> Dict[str, Any]:
         user_ids = [m['user_id'] for m in members if m.get('user_id')]
         if not user_ids:
             return empty
-        regs = (_admin().table('icreate_registrations')
+        regs = (_admin().table('registrations')
                 .select('parent_user_id, answers, created_at')
                 .eq('organization_id', org_id).in_('parent_user_id', user_ids)
                 .order('created_at', desc=True).execute()).data or []

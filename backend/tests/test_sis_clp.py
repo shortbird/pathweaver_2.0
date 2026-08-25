@@ -205,7 +205,7 @@ class TestHelpers:
             {'parent_user_id': 'g1', 'answers': {'payment_intent': ['OpenED']},
              'created_at': '2026-07-01'},
         ]
-        tables = {'icreate_registrations': _chain(rows)}
+        tables = {'registrations': _chain(rows)}
         with patch('services.sis_clp_service._admin', return_value=_client(tables)):
             assert clp._family_payment_intent('org1', ['g1']) == ['OpenED']
 

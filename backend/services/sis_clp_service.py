@@ -227,7 +227,7 @@ def _family_payment_intent(org_id: str, guardian_ids: List[str]) -> Optional[Lis
         return None
     try:
         rows = (
-            _admin().table('icreate_registrations')
+            _admin().table('registrations')
             .select('parent_user_id, answers, created_at')
             .eq('organization_id', org_id)
             .in_('parent_user_id', guardian_ids)

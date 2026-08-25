@@ -22,10 +22,10 @@ from flask import Flask
 
 @pytest.fixture
 def client():
-    from routes import icreate_registration
+    from routes import registration_funnel
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.register_blueprint(icreate_registration.bp)
+    app.register_blueprint(registration_funnel.bp)
     return app.test_client()
 
 
@@ -105,22 +105,22 @@ def _call(client, admin, path, reg, cfg=_CFG_STRIPE, directive=None, token='tok'
     # fixtures still express it as cfg['stripe_secret_key'], which stays the
     # readable way to say "this school takes cards" -- translate it here.
     key = cfg.get('stripe_secret_key') or None
-    with patch('routes.icreate_registration._admin', return_value=admin), \
-         patch('routes.icreate_registration._load_registration', return_value=reg), \
-         patch('routes.icreate_registration._org_config', return_value=cfg), \
-         patch('routes.icreate_registration._org_stripe_key', return_value=key), \
-         patch('routes.icreate_registration._org_stripe_enabled', return_value=bool(key)), \
-         patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
-         patch('routes.icreate_registration._family_directive', return_value=directive):
+    with patch('routes.registration_funnel._admin', return_value=admin), \
+         patch('routes.registration_funnel._load_registration', return_value=reg), \
+         patch('routes.registration_funnel._org_config', return_value=cfg), \
+         patch('routes.registration_funnel._org_stripe_key', return_value=key), \
+         patch('routes.registration_funnel._org_stripe_enabled', return_value=bool(key)), \
+         patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+         patch('routes.registration_funnel._family_directive', return_value=directive):
         return client.post(path, json={'access_token': token})
 
 
 def _fee_updates(admin):
-    return [p for t, p in admin.updates if t == 'icreate_registrations' and 'fee_cents' in p]
+    return [p for t, p in admin.updates if t == 'registrations' and 'fee_cents' in p]
 
 
-_STATUS = '/api/icreate/registrations/reg1/fee-status'
-_FEE = '/api/icreate/registrations/reg1/fee'
+_STATUS = '/api/registration/registrations/reg1/fee-status'
+_FEE = '/api/registration/registrations/reg1/fee'
 
 
 @pytest.mark.unit

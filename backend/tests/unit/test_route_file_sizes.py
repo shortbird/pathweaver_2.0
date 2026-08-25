@@ -30,7 +30,7 @@ EXEMPTIONS: dict[str, int] = {
     # protecting every OTHER route file again. Each of these still needs
     # splitting; delete its entry when that happens.
     "evidence_documents.py": 1830,
-    "icreate_registration.py": 2300,
+    "registration_funnel.py": 2300,
     "admin/organization_management.py": 1950,
 }
 

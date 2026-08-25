@@ -3,12 +3,16 @@ import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import WeeklySchedule from '../schedule/WeeklySchedule'
+import ScheduleByDay from '../schedule/ScheduleByDay'
 
 /**
  * The student's weekly class schedule on the family-dashboard overview, shown
  * immediately under the hero. Renders nothing for students who aren't in a
  * SIS-enabled school. Before the first day of school it links to the Schedule
  * Builder; after that it notes that changes are handled by the school.
+ *
+ * Two reads of the same week: the grid for its shape, then the same meetings
+ * day by day in time order (ScheduleByDay) with teacher and room.
  */
 const StudentSchedulePreview = ({ studentId }) => {
   const [state, setState] = useState(null) // { schedule, orgName } | 'none'
@@ -69,7 +73,17 @@ const StudentSchedulePreview = ({ studentId }) => {
       </div>
 
       {classes.length > 0 ? (
-        <WeeklySchedule classes={classes} compact />
+        <>
+          <WeeklySchedule classes={classes} compact />
+          {/* The grid shows the shape of the week; this answers the question
+              families actually arrive with — "where is she at 10:30 on
+              Tuesday?" — in day order, then time order. The grid alone left a
+              parent counting rows and squinting at block positions (iCreate
+              parent, 2026-08-25). */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <ScheduleByDay classes={classes} />
+          </div>
+        </>
       ) : !locked ? (
         <p className="text-sm text-neutral-400">
           Open the Schedule Builder to add classes — they'll show up here on the weekly calendar.

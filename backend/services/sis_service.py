@@ -401,7 +401,7 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     # its guardians filed. Oldest first so a later registration overwrites an
     # earlier one -- a family who re-registered means the new list.
     registrations = fetch_all_rows(lambda: (
-        admin.table('icreate_registrations')
+        admin.table('registrations')
         .select('id, parent_user_id, emergency_contacts, created_at')
         .eq('organization_id', org_id)
     ))
@@ -1881,7 +1881,7 @@ def household_registration(org_id: str, household_id: str) -> Optional[Dict[str,
     if not guardian_ids:
         return None
     rows = (
-        _admin().table('icreate_registrations')
+        _admin().table('registrations')
         .select('id, parent_user_id, status, kids, paperwork, answers, emergency_contacts, '
                 'fee_cents, fee_recorded_at, scheduling_emailed_at, created_at, completed_at')
         .eq('organization_id', org_id)
@@ -1961,14 +1961,14 @@ def waive_registration_fee(org_id: str, household_id: str,
 
     # 2. Finish the fee step at $0 on whatever registration is still open.
     registration_completed, waived_cents = False, 0
-    regs = (admin.table('icreate_registrations').select('*')
+    regs = (admin.table('registrations').select('*')
             .eq('organization_id', org_id).in_('parent_user_id', guardian_ids)
             .order('created_at', desc=True).limit(1).execute()).data or []
     reg = regs[0] if regs else None
     if reg and finish_registration and reg.get('status') not in ('completed',):
         waived_cents = int(reg.get('fee_cents') or 0)
         try:
-            admin.table('icreate_registrations').update({
+            admin.table('registrations').update({
                 'fee_cents': 0, 'fee_deferred': False, 'updated_at': now,
             }).eq('id', reg['id']).execute()
             finish_registration({**reg, 'fee_cents': 0, 'fee_deferred': False})

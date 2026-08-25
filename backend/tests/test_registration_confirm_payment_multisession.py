@@ -80,26 +80,26 @@ class FakeStripe:
 
 @pytest.fixture
 def client():
-    from routes import icreate_registration
+    from routes import registration_funnel
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.register_blueprint(icreate_registration.bp)
+    app.register_blueprint(registration_funnel.bp)
     return app.test_client()
 
 
 def _confirm(client, reg, stripe_fake, finish_result=None):
     finish_result = finish_result or {'success': True, 'status': 'completed'}
     with patch.dict(sys.modules, {'stripe': stripe_fake.mod}), \
-         patch('routes.icreate_registration._load_registration', return_value=reg), \
-         patch('routes.icreate_registration._admin'), \
-         patch('routes.icreate_registration._parent_row',
+         patch('routes.registration_funnel._load_registration', return_value=reg), \
+         patch('routes.registration_funnel._admin'), \
+         patch('routes.registration_funnel._parent_row',
                return_value={'email': PARENT_EMAIL}), \
-         patch('routes.icreate_registration._org_config', return_value={}), \
-         patch('routes.icreate_registration._org_stripe_key', return_value=SECRET), \
-         patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
-         patch('routes.icreate_registration._finish_fee_step',
+         patch('routes.registration_funnel._org_config', return_value={}), \
+         patch('routes.registration_funnel._org_stripe_key', return_value=SECRET), \
+         patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
+         patch('routes.registration_funnel._finish_fee_step',
                return_value=finish_result) as finish:
-        res = client.post(f'/api/icreate/registrations/{REG_ID}/confirm-payment',
+        res = client.post(f'/api/registration/registrations/{REG_ID}/confirm-payment',
                           json={'access_token': 'funnel-token'})
     return res, finish
 

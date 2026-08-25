@@ -12,7 +12,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
 import { isOptioAcademyOrg } from '../config/optioAcademy'
-import WeeklySchedule, { meetingsText } from '../components/schedule/WeeklySchedule'
+import WeeklySchedule from '../components/schedule/WeeklySchedule'
+import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
 
@@ -181,27 +182,12 @@ export function MyScheduleSection() {
         </div>
       </div>
       <WeeklySchedule classes={classes} timeBlocks={schedule.time_blocks || []} compact />
-      <div className="overflow-x-auto mt-3">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-              <th className="py-2 pr-3 font-medium">Class</th>
-              <th className="py-2 pr-3 font-medium">When</th>
-              <th className="py-2 pr-3 font-medium">Teacher</th>
-              <th className="py-2 font-medium">Where</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {classes.map((c) => (
-              <tr key={c.id}>
-                <td className="py-2 pr-3 text-gray-800">{c.name}</td>
-                <td className="py-2 pr-3 text-gray-500">{meetingsText(c.meetings) || 'Not scheduled'}</td>
-                <td className="py-2 pr-3 text-gray-500">{c.primary_instructor?.name || ''}</td>
-                <td className="py-2 text-gray-500">{c.location || ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Same meetings under the grid, day by day in time order. The
+          class-per-row table here before answered "when does Pottery meet?",
+          but families ask the inverse — "where are they at 10:30 Tuesday?" —
+          and had to scan every row to work it out. */}
+      <div className="mt-4">
+        <ScheduleByDay classes={classes} />
       </div>
     </section>
   )

@@ -88,4 +88,17 @@ describe('GoogleButton', () => {
       expect(localStorage.getItem('pendingPromoCode')).toBe('PROMO123')
     })
   })
+
+  it('stores the registration funnel code before redirect', async () => {
+    // Without this the parent comes back from Google with a session but no way
+    // to know which school they were enrolling in — /auth/callback spends this
+    // code on /api/registration/attach (see registrationFunnelResume).
+    authService.signInWithGoogle.mockResolvedValue({ success: true, redirecting: true })
+    render(<GoogleButton mode="signup" registrationCode="optio-academy" />)
+
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() => {
+      expect(localStorage.getItem('pendingRegistrationFunnel')).toBe('optio-academy')
+    })
+  })
 })

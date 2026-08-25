@@ -16,7 +16,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * The Registration setup tab: the family registration funnel rendered exactly
- * as families see it (same shared components as pages/ICreateRegisterPage.jsx),
+ * as families see it (same shared components as pages/RegisterFunnelPage.jsx),
  * with the configurable parts editable in place. Staff click through the steps
  * in the left stepper; anything an org can change carries an Edit control.
  *
@@ -169,7 +169,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   useEffect(() => {
     if (!regLink?.invitation_code) return
     let active = true
-    api.get(`/api/icreate/config/${regLink.invitation_code}`)
+    api.get(`/api/registration/config/${regLink.invitation_code}`)
       .then((r) => { if (active) setStripeEnabled(!!r.data?.stripe_enabled) })
       .catch(() => {})
     return () => { active = false }

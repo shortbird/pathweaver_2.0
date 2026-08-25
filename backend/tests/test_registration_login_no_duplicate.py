@@ -6,7 +6,7 @@ BRAND-NEW registration inserted at status='family' every time, which sent an
 already-registered parent back through the family step and created a second set
 of children (Samuel Harrison et al. doubled on the family dashboard, 2026-07-09).
 
-/api/icreate/login must instead reuse the parent's existing registration:
+/api/registration/login must instead reuse the parent's existing registration:
   - completed  -> return 'completed' (app), never insert a new one
   - in-flight  -> resume in place, never insert a new one
   - none       -> start a fresh 'family' registration (only genuinely-new case)
@@ -22,10 +22,10 @@ from flask import Flask
 def client():
     """Minimal app with only the iCreate blueprint (avoids importing app.py,
     which pulls in optional Swagger deps not needed for this route)."""
-    from routes import icreate_registration
+    from routes import registration_funnel
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.register_blueprint(icreate_registration.bp)
+    app.register_blueprint(registration_funnel.bp)
     return app.test_client()
 
 
@@ -76,7 +76,7 @@ class _Query:
 
 class _FakeAdmin:
     def __init__(self, users, regs):
-        self.selects = {'users': users, 'icreate_registrations': regs}
+        self.selects = {'users': users, 'registrations': regs}
         self.inserts = []
         self.updates = []
 
@@ -91,21 +91,21 @@ _BODY = {'code': 'invite-code', 'email': 'amy@example.com', 'password': 'pw'}
 
 
 def _post(client, admin):
-    with patch('routes.icreate_registration._admin', return_value=admin), \
-         patch('routes.icreate_registration._load_icreate_invite', return_value=_INVITE), \
-         patch('routes.icreate_registration._password_ok', return_value=True):
-        return client.post('/api/icreate/login', json=_BODY)
+    with patch('routes.registration_funnel._admin', return_value=admin), \
+         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_funnel._password_ok', return_value=True):
+        return client.post('/api/registration/login', json=_BODY)
 
 
 @pytest.mark.unit
-class TestICreateLoginNoDuplicate:
+class TestRegistrationLoginNoDuplicate:
     def test_completed_registration_is_not_restarted(self, client):
         admin = _FakeAdmin([_USER], [{'id': 'reg1', 'status': 'completed', 'access_token': 'tok'}])
         resp = _post(client, admin)
         assert resp.status_code == 200
         assert resp.get_json()['status'] == 'completed'
         # The bug: a new registration row was inserted, restarting the funnel.
-        assert not any(t == 'icreate_registrations' for t, _ in admin.inserts)
+        assert not any(t == 'registrations' for t, _ in admin.inserts)
 
     def test_in_flight_registration_is_resumed_not_duplicated(self, client):
         admin = _FakeAdmin([_USER], [{'id': 'reg1', 'status': 'family', 'access_token': 'tok'}])
@@ -114,11 +114,11 @@ class TestICreateLoginNoDuplicate:
         body = resp.get_json()
         assert body['status'] == 'family'
         assert body['registration_id'] == 'reg1'
-        assert not any(t == 'icreate_registrations' for t, _ in admin.inserts)
+        assert not any(t == 'registrations' for t, _ in admin.inserts)
 
     def test_new_parent_starts_a_family_registration(self, client):
         admin = _FakeAdmin([_USER], [])  # no prior registration
         resp = _post(client, admin)
         assert resp.status_code == 200
         assert resp.get_json()['status'] == 'family'
-        assert any(t == 'icreate_registrations' for t, _ in admin.inserts)
+        assert any(t == 'registrations' for t, _ in admin.inserts)

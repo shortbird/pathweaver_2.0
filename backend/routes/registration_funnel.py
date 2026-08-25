@@ -1,41 +1,70 @@
 """
-iCreate parent registration funnel (iCreate org only).
+Parent registration funnel — the branded, multi-step enrollment form any org can
+turn on.
 
-Branded, multi-step parent onboarding driven from the org's parent registration
-link. Other organizations keep the standard invitation flow (AcceptInvitationPage);
-this only activates when the invitation belongs to an org whose
-feature_flags.icreate_registration.enabled is true.
+Built for iCreate in 2026-06 and named after them for far too long; the funnel
+is org-neutral and three orgs run it (iCreate, Optio Academy, Gryffin Learning
+Center). The client's name came off the table, the blueprint and the HTTP
+surface on 2026-08-25 — see 20260825160000_rename_icreate_registrations_to_registrations.sql.
+
+Driven from the org's parent registration link. Other organizations keep the
+standard invitation flow (AcceptInvitationPage); this only activates when the
+invitation belongs to an org whose feature_flags.registration.enabled is true
+(reads still fall back to the legacy feature_flags.icreate_registration key —
+see utils/registration_config.py).
+
+Served at /api/registration/*. /api/icreate/* is a DEPRECATED alias, registered
+in routes/__init__.py so a browser mid-registration and the
+previously-deployed web build keep working across the deploy; remove it once
+neither is in play.
 
 Account-first flow: the parent creates their Optio account (or signs into an
 existing one) BEFORE seeing the rest of the form.
 
-    GET  /api/icreate/config/<invitation_code>    -> branding + questions + paperwork + fee config
-    GET  /api/icreate/schedule-preview/<invitation_code> -> open classes + time blocks (staff funnel preview)
-    POST /api/icreate/start                        -> create parent account, email a 6-digit code
-    POST /api/icreate/verify                       -> confirm the code -> issues the funnel access_token
-    POST /api/icreate/resend-code                  -> re-email a fresh code
-    POST /api/icreate/login                        -> existing Optio account (password) -> attach to iCreate
-    POST /api/icreate/registrations/<id>/family    -> phone/address + kids -> creates accounts + household
-    POST /api/icreate/registrations/<id>/photo     -> required photo for the parent / each kid
-    POST /api/icreate/registrations/<id>/details   -> emergency contacts + org questions
-    POST /api/icreate/registrations/<id>/paperwork -> acknowledge/e-sign paperwork
-    POST /api/icreate/registrations/<id>/fee       -> record fee + email scheduling link -> 'completed'
-    POST /api/icreate/registrations/<id>/schedule-done    -> legacy (pre-2026-07 funnels): schedule built -> 'appointment'
-    POST /api/icreate/registrations/<id>/appointment-done -> legacy (pre-2026-07 funnels): booked/deferred -> 'completed'
+    GET  /api/registration/config/<invitation_code>    -> branding + questions + paperwork + fee config
+    GET  /api/registration/schedule-preview/<invitation_code> -> open classes + time blocks (staff funnel preview)
+    POST /api/registration/start                        -> create parent account, email a 6-digit code
+    POST /api/registration/verify                       -> confirm the code -> issues the funnel access_token
+    POST /api/registration/resend-code                  -> re-email a fresh code
+    POST /api/registration/login                        -> existing Optio account (password) -> attach to the org
+    POST /api/registration/attach                       -> existing Optio account (live session) -> attach to the org
+    POST /api/registration/registrations/<id>/family    -> phone/address + kids -> creates accounts + household
+    POST /api/registration/registrations/<id>/photo     -> required photo for the parent / each kid
+    POST /api/registration/registrations/<id>/details   -> emergency contacts + org questions
+    POST /api/registration/registrations/<id>/paperwork -> acknowledge/e-sign paperwork
+    POST /api/registration/registrations/<id>/fee       -> record fee + email scheduling link -> 'completed'
+    POST /api/registration/registrations/<id>/schedule-done    -> legacy (pre-2026-07 funnels): schedule built -> 'appointment'
+    POST /api/registration/registrations/<id>/appointment-done -> legacy (pre-2026-07 funnels): booked/deferred -> 'completed'
 
 The funnel ends at the fee step: the final page lists the next steps (book the
 Customized Learning Plan appointment + build the schedule) with links, and both
 remain reachable afterward (booking link email, Schedule Builder header button).
 
-Security model: all endpoints are public/pre-session (CSRF-exempt). The funnel
-access_token is only revealed AFTER the email is verified (new accounts) or the
-password checks out (existing accounts); every later step requires it. The OTP
+Security model: the funnel endpoints are public/pre-session (CSRF-exempt). The
+funnel access_token is only revealed AFTER the email is verified (new accounts)
+or identity is proven (existing accounts); every later step requires it. The OTP
 is 6 digits, sha256-hashed at rest, 10-minute expiry, sent via our own SendGrid
-email (no dependency on Supabase auth email templates).
+email (no dependency on Supabase auth email templates). /attach is the one
+session-authenticated endpoint here and is deliberately NOT CSRF-exempt.
+
+Identity proof vs. org attachment are separate concerns (2026-08-25). The funnel
+used to verify an existing account by password and nothing else, which silently
+excluded every account that HAS no password — Google and Apple signups, plus
+org-imported parents, 118 of 906 accounts at the time. A parent who had signed
+up with Apple hit a closed loop: "Create account" said her email was taken,
+"Sign in" said her password was wrong (naming the wrong provider, at that), and
+nothing on the page could get her in. So there are two doors onto one room:
+
+    /login   the password proves who you are   (pre-session)
+    /attach  the session proves who you are    (post-OAuth, @require_auth)
+
+Both then run _parent_guardrails + _attach_and_resume, so the two can never
+enforce different rules, and a third credential type (passkey, magic link, org
+SSO) is a new door rather than a fork of the funnel.
 
 Existing-account guardrails on /login: superadmins are refused; accounts already
 in a DIFFERENT organization are refused (we never silently move someone between
-orgs); iCreate student/observer accounts are refused (this is a parent flow).
+orgs); the org's student/observer accounts are refused (this is a parent flow).
 Platform accounts are attached as org_managed/parent automatically. Same-org
 STAFF (org_admin/advisor) may register their own kids: they keep their staff
 role as primary and gain 'parent' in org_roles.
@@ -54,7 +83,7 @@ Account model (see memory: project_icreate_program):
 import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 from flask import Blueprint, request, jsonify
@@ -64,12 +93,22 @@ from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input, validate_uuid
 from utils.registration_config import get_registration_config
+# Identity proof and org attachment live in their own module — see its docstring
+# for why they are separate from the funnel's step handlers. Aliased to the
+# private names this file has always used so every call site reads unchanged.
+from services.registration_identity_service import (
+    calc_age as _calc_age,
+    parse_dob as _parse_dob,
+    parent_guardrails as _parent_guardrails,
+    attach_and_resume as _attach_and_resume,
+    password_failure as _password_failure,
+)
 from utils.logger import get_logger
 from services.email_service import email_service
 
 logger = get_logger(__name__)
 
-bp = Blueprint('icreate_registration', __name__, url_prefix='/api/icreate')
+bp = Blueprint('registration', __name__, url_prefix='/api/registration')
 
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
@@ -89,28 +128,10 @@ def _valid_email(v):
     return bool(v and EMAIL_RE.match(v.strip()))
 
 
-def _calc_age(dob: date) -> int:
-    today = date.today()
-    age = today.year - dob.year
-    if (today.month, today.day) < (dob.month, dob.day):
-        age -= 1
-    return age
-
-
-def _parse_dob(v):
-    """Parse an ISO YYYY-MM-DD date string, or return None."""
-    if not v:
-        return None
-    try:
-        return datetime.strptime(v.strip()[:10], '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        return None
-
-
-def _load_icreate_invite(code):
+def _load_registration_invite(code):
     """
     Resolve an invitation code to (invitation, organization, config) if it is a
-    valid, pending, link-based parent invite for an iCreate-registration org.
+    valid, pending, link-based parent invite for a registration-funnel org.
 
     Returns (data_dict, None) on success or (None, (json, status)) on failure.
     """
@@ -176,7 +197,7 @@ def _paperwork_resource_urls(admin, org_id):
         return {r['paperwork_key']: r['url'] for r in rows
                 if r.get('paperwork_key') and r.get('url')}
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate: paperwork resource lookup failed for org {org_id}: {e}')
+        logger.warning(f'registration: paperwork resource lookup failed for org {org_id}: {e}')
         return {}
 
 
@@ -353,7 +374,7 @@ def _create_org_student(admin, org_id, email, first, last, dob):
     try:
         admin.auth.resend({'type': 'signup', 'email': email})
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate: student verification email failed for {email}: {e}')
+        logger.warning(f'registration: student verification email failed for {email}: {e}')
     return uid
 
 
@@ -525,7 +546,7 @@ def _hash_otp(code: str) -> str:
 def _issue_otp(admin, reg_id: str) -> str:
     """Generate a fresh 6-digit code, store its hash + expiry, return the code."""
     code = f'{secrets.randbelow(1000000):06d}'
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'otp_hash': _hash_otp(code),
         'otp_expires_at': (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat(),
         'otp_attempts': 0,  # fresh code resets the failed-attempt counter
@@ -546,37 +567,7 @@ def _send_otp_email(email: str, first: str, org_name: str, code: str) -> bool:
     try:
         return email_service.send_email(email, f'{org_name}: your registration code', html)
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate: OTP email failed for {email}: {e}')
-        return False
-
-
-def _platform_student_is_registerable_adult(admin, user):
-    """Whether a platform account carrying the DEFAULT role='student' is safe
-    to treat as an adult registering their family (the main Optio signup gives
-    everyone role='student', so adults who self-registered there look like
-    students). True only when there is NO evidence it's a kid's account:
-      - not a dependent / not managed by a parent,
-      - not linked to any parent as the student,
-      - adult by DOB; or with DOB unknown, a pristine account (no XP, no
-        quests — a kid who actually uses Optio has learning activity).
-    Any lookup failure keeps the guardrail (returns False)."""
-    if user.get('is_dependent') or user.get('managed_by_parent_id'):
-        return False
-    try:
-        linked = (admin.table('parent_student_links').select('id')
-                  .eq('student_user_id', user['id']).limit(1).execute()).data
-        if linked:
-            return False
-        dob = _parse_dob(user.get('date_of_birth'))
-        if dob is not None:
-            return _calc_age(dob) >= 18
-        if int(user.get('total_xp') or 0) > 0:
-            return False
-        quests = (admin.table('user_quests').select('id')
-                  .eq('user_id', user['id']).limit(1).execute()).data
-        return not quests
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate login: adult check failed for {user.get("id", "?")[:8]}: {e}')
+        logger.error(f'registration: OTP email failed for {email}: {e}')
         return False
 
 
@@ -587,7 +578,7 @@ def _load_registration(reg_id):
     if not is_valid:
         return None
     admin = _admin()
-    rows = (admin.table('icreate_registrations').select('*')
+    rows = (admin.table('registrations').select('*')
             .eq('id', reg_id).limit(1).execute()).data
     return rows[0] if rows else None
 
@@ -646,7 +637,7 @@ def _existing_household_for_parent(admin, org_id, parent_id):
                 .eq('primary_contact_user_id', parent_id).limit(1).execute()).data or []
         return rows[0]['id'] if rows else None
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate: existing-household lookup failed for parent {parent_id[:8]}: {e}')
+        logger.warning(f'registration: existing-household lookup failed for parent {parent_id[:8]}: {e}')
         return None
 
 
@@ -663,7 +654,7 @@ def _family_directive(admin, org_id, email):
                 .limit(1).execute()).data or []
         return rows[0] if rows else None
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate: family-directive lookup failed for org {org_id}: {e}')
+        logger.warning(f'registration: family-directive lookup failed for org {org_id}: {e}')
         return None
 
 
@@ -683,13 +674,13 @@ def _apply_prepaid_directive(admin, reg):
         parent = _parent_row(admin, reg['parent_user_id'])
         directive = _family_directive(admin, reg['organization_id'], parent.get('email'))
         if directive and directive.get('fee_prepaid'):
-            admin.table('icreate_registrations').update({
+            admin.table('registrations').update({
                 'fee_cents': 0, 'updated_at': datetime.utcnow().isoformat(),
             }).eq('id', reg['id']).execute()
             reg = {**reg, 'fee_cents': 0}
-            logger.info(f"iCreate: prepaid directive zeroed fee for registration {reg['id']}")
+            logger.info(f"registration: prepaid directive zeroed fee for registration {reg['id']}")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"iCreate: prepaid-directive check failed for registration {reg.get('id')}: {e}")
+        logger.warning(f"registration: prepaid-directive check failed for registration {reg.get('id')}: {e}")
     return reg
 
 
@@ -699,7 +690,7 @@ def _apply_prepaid_directive(admin, reg):
 @rate_limit(max_requests=60, window_seconds=60)
 def get_config(invitation_code):
     """Public: branding + questions + paperwork + fee config for the registration page."""
-    data, err = _load_icreate_invite(invitation_code)
+    data, err = _load_registration_invite(invitation_code)
     if err:
         return err
     org = data['organization']
@@ -713,7 +704,7 @@ def schedule_preview(invitation_code):
     """Public: the org's open-class catalog + time blocks so the ?preview=1
     walkthrough can show the Schedule Builder exactly as a parent sees it.
     Exposes nothing a family with the registration link wouldn't get anyway."""
-    data, err = _load_icreate_invite(invitation_code)
+    data, err = _load_registration_invite(invitation_code)
     if err:
         return err
     from services import sis_parent_service
@@ -729,13 +720,13 @@ def schedule_preview(invitation_code):
 @bp.route('/my-registration', methods=['GET'])
 @require_auth
 def my_registration(user_id):
-    """Authenticated resume: the caller's own incomplete iCreate registration
+    """Authenticated resume: the caller's own incomplete registration
     (plus the org's funnel config), so the register page can pick up where they
     left off after logging back in. Returns {registration: null} when there is
     nothing to resume — including for users who never used this funnel."""
     admin = _admin()
     rows = (
-        admin.table('icreate_registrations')
+        admin.table('registrations')
         .select('*')
         .eq('parent_user_id', user_id)
         .order('created_at', desc=True)
@@ -747,7 +738,7 @@ def my_registration(user_id):
     # the funnel now ends at the fee step, so settle these as completed.
     if reg and reg.get('status') in ('schedule', 'appointment'):
         now = datetime.utcnow().isoformat()
-        admin.table('icreate_registrations').update({
+        admin.table('registrations').update({
             'status': 'completed', 'completed_at': now, 'updated_at': now,
         }).eq('id', reg['id']).execute()
         reg['status'] = 'completed'
@@ -765,8 +756,8 @@ def my_registration(user_id):
         try:
             admin.auth.admin.update_user_by_id(user_id, {'email_confirm': True})
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'iCreate resume: auth email-confirm failed for {user_id[:8]}: {e}')
-        admin.table('icreate_registrations').update({
+            logger.warning(f'registration resume: auth email-confirm failed for {user_id[:8]}: {e}')
+        admin.table('registrations').update({
             'email_verified_at': now, 'otp_hash': None, 'otp_expires_at': None,
             'status': 'family', 'updated_at': now,
         }).eq('id', reg['id']).execute()
@@ -803,7 +794,7 @@ def my_registration(user_id):
             for uid, url in avatar_by_id.items()
         }
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate resume: avatar lookup failed: {e}')
+        logger.warning(f'registration resume: avatar lookup failed: {e}')
 
     return jsonify({
         'success': True,
@@ -832,7 +823,7 @@ def start():
     """Create the parent's account and email a 6-digit confirmation code. The
     funnel access_token is NOT returned here — only /verify issues it."""
     body = request.get_json(silent=True) or {}
-    data, err = _load_icreate_invite(body.get('code') or '')
+    data, err = _load_registration_invite(body.get('code') or '')
     if err:
         return err
     org = data['organization']
@@ -855,7 +846,7 @@ def start():
         # If THIS funnel created the account but the email was never verified,
         # let the parent pick up where they left off (password must match).
         pending = (
-            admin.table('icreate_registrations')
+            admin.table('registrations')
             .select('id, parent_user_id, status, users!icreate_registrations_parent_user_id_fkey(email)')
             .eq('organization_id', org_id).eq('status', 'verify')
             .order('created_at', desc=True).limit(20).execute()
@@ -865,7 +856,7 @@ def start():
             if not _password_ok(email, password):
                 return jsonify({'error': 'This email already started registering. Enter the same password, or use "Sign in" instead.'}), 409
             code = _issue_otp(admin, match['id'])
-            sent = _send_otp_email(email, first, org.get('name') or 'iCreate', code)
+            sent = _send_otp_email(email, first, org.get('name') or 'your school', code)
             return jsonify({'success': True, 'registration_id': match['id'], 'email': email,
                             'otp_sent': bool(sent),
                             'message': 'We re-sent your confirmation code.'}), 200
@@ -874,10 +865,10 @@ def start():
     try:
         parent_id = _create_org_parent(admin, org_id, email, password, first, last)
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate start: parent creation failed: {e}')
+        logger.error(f'registration start: parent creation failed: {e}')
         return jsonify({'error': 'Could not create your account. Please try again.'}), 500
 
-    reg = admin.table('icreate_registrations').insert({
+    reg = admin.table('registrations').insert({
         'organization_id': org_id,
         'parent_user_id': parent_id,
         'access_token': secrets.token_urlsafe(32),
@@ -886,9 +877,9 @@ def start():
     reg_id = reg.data[0]['id']
 
     code = _issue_otp(admin, reg_id)
-    sent = _send_otp_email(email, first, org.get('name') or 'iCreate', code)
+    sent = _send_otp_email(email, first, org.get('name') or 'your school', code)
 
-    logger.info(f'iCreate start: registration {reg_id} awaiting email verification (otp_sent={bool(sent)})')
+    logger.info(f'registration start: registration {reg_id} awaiting email verification (otp_sent={bool(sent)})')
     return jsonify({'success': True, 'registration_id': reg_id, 'email': email,
                     'otp_sent': bool(sent)}), 201
 
@@ -918,7 +909,7 @@ def verify_code():
     attempts = reg.get('otp_attempts') or 0
     if attempts >= MAX_OTP_ATTEMPTS:
         # Invalidate the code so further guesses are useless until a resend.
-        admin.table('icreate_registrations').update({
+        admin.table('registrations').update({
             'otp_hash': None, 'otp_expires_at': None,
             'updated_at': datetime.utcnow().isoformat(),
         }).eq('id', reg['id']).execute()
@@ -930,15 +921,15 @@ def verify_code():
         updates = {'otp_attempts': new_attempts, 'updated_at': datetime.utcnow().isoformat()}
         if new_attempts >= MAX_OTP_ATTEMPTS:
             updates.update({'otp_hash': None, 'otp_expires_at': None})
-        admin.table('icreate_registrations').update(updates).eq('id', reg['id']).execute()
+        admin.table('registrations').update(updates).eq('id', reg['id']).execute()
         return jsonify({'error': 'Incorrect code'}), 400
 
     now = datetime.utcnow().isoformat()
     try:
         admin.auth.admin.update_user_by_id(reg['parent_user_id'], {'email_confirm': True})
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'iCreate verify: auth email-confirm failed for {reg["parent_user_id"][:8]}: {e}')
-    admin.table('icreate_registrations').update({
+        logger.warning(f'registration verify: auth email-confirm failed for {reg["parent_user_id"][:8]}: {e}')
+    admin.table('registrations').update({
         'email_verified_at': now, 'otp_hash': None, 'otp_expires_at': None,
         'status': 'family', 'updated_at': now,
     }).eq('id', reg['id']).execute()
@@ -958,21 +949,24 @@ def resend_code():
     parent = _parent_row(admin, reg['parent_user_id'])
     org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
     code = _issue_otp(admin, reg['id'])
-    sent = _send_otp_email(parent.get('email'), parent.get('first_name'), (org or {}).get('name') or 'iCreate', code)
+    sent = _send_otp_email(parent.get('email'), parent.get('first_name'), (org or {}).get('name') or 'your school', code)
     return jsonify({'success': True, 'sent': bool(sent)}), 200
 
 
 @bp.route('/login', methods=['POST'])
 @rate_limit(max_requests=10, window_seconds=300)
 def login():
-    """Existing Optio account: verify the password and attach the account to the
-    iCreate org as a parent. No OTP needed — the password proves ownership."""
+    """Existing Optio account, proven by PASSWORD, attached to the org as a
+    parent. No OTP needed — the password proves ownership.
+
+    The session-based twin is /attach; both share the guardrails and the attach
+    step so they can never enforce different rules.
+    """
     body = request.get_json(silent=True) or {}
-    data, err = _load_icreate_invite(body.get('code') or '')
+    data, err = _load_registration_invite(body.get('code') or '')
     if err:
         return err
     org = data['organization']
-    org_id = org['id']
     admin = _admin()
 
     email = (body.get('email') or '').strip().lower()
@@ -988,134 +982,53 @@ def login():
         return jsonify({'error': 'No Optio account with this email — create one instead.'}), 404
     user = row[0]
 
-    # Guardrails: never silently move accounts between orgs or repurpose
-    # privileged/student accounts as iCreate parents. Same-org STAFF
-    # (org_admin/advisor) are allowed through — school staff have their own
-    # kids to register — and keep their staff role (see the attach step).
-    STAFF_ORG_ROLES = ('org_admin', 'advisor')
-    current_org_role = user.get('org_role') or ((user.get('org_roles') or [None])[0])
-    if user.get('role') == 'superadmin':
-        return jsonify({'error': 'This account cannot be used here.'}), 403
-    org_name = org.get('name') or 'the school'
-    if user.get('organization_id') and user['organization_id'] != org_id:
-        return jsonify({'error': f'This account belongs to another school. Please contact {org_name}.'}), 409
-    # Platform NON-parent accounts must not be silently repurposed as iCreate
-    # parents (that used to convert e.g. a student's own account into a parent).
-    # BUT: the main Optio signup defaults EVERYONE to role='student', so an
-    # adult who created their own account there (e.g. while the funnel was
-    # down, 2026-07-21) is a false positive — refuse only accounts that show
-    # actual evidence of being a kid's: dependent/managed, linked to a parent,
-    # a minor by DOB, or (DOB unknown) an account with real learning activity.
-    if not user.get('organization_id') and user.get('role') == 'student':
-        if not _platform_student_is_registerable_adult(admin, user):
-            return jsonify({'error': "This looks like a student's Optio account. Register with a parent "
-                                     "email — you can connect your child's account on the family step."}), 409
-    if not user.get('organization_id') and user.get('role') in ('advisor', 'observer'):
-        return jsonify({'error': 'This account can\'t be used to register a family. '
-                                 f'Please use a parent email or contact {org_name}.'}), 409
-    if (user.get('organization_id') == org_id and current_org_role
-            and current_org_role not in ('parent',) + STAFF_ORG_ROLES):
-        return jsonify({'error': 'This is not a parent account. Please register with a parent email.'}), 409
+    refusal = _parent_guardrails(admin, user, org)
+    if refusal:
+        return refusal
 
     if not _password_ok(email, password):
-        return jsonify({'error': f'Incorrect password. If you signed up with Google, use "Create account" with a different email or contact {org_name}.'}), 401
+        return _password_failure(admin, user, org.get('name') or 'the school')
 
-    if user.get('organization_id') == org_id and current_org_role in STAFF_ORG_ROLES:
-        # Staff registering their own kids: append 'parent' to org_roles but keep
-        # the staff role PRIMARY (first) — get_effective_role and every staff
-        # surface stay untouched, and the parent-side features (Schedule Builder,
-        # sidebar link) key off household guardianship / any-role checks.
-        roles = [r for r in (user.get('org_roles') or [current_org_role]) if r]
-        if 'parent' not in roles:
-            admin.table('users').update({'org_roles': roles + ['parent']}).eq('id', user['id']).execute()
-    else:
-        # Attach to iCreate as a parent (no-op for existing iCreate parents).
-        admin.table('users').update({
-            'organization_id': org_id,
-            'role': 'org_managed',
-            'org_role': 'parent',
-            'org_roles': ['parent'],
-        }).eq('id', user['id']).execute()
+    return _attach_and_resume(admin, user, org, via='login')
 
-    now = datetime.utcnow().isoformat()
 
-    # Reuse the parent's existing registration rather than starting a fresh funnel
-    # run. Blindly inserting a new 'family' registration here let a returning
-    # parent re-run the family step with an empty prior_kids list, which created a
-    # SECOND set of children (plus emergency contacts + household) instead of
-    # editing the first. Mirror /my-registration's resume behavior instead.
-    existing = (
-        admin.table('icreate_registrations')
-        .select('*')
-        .eq('parent_user_id', user['id'])
-        .eq('organization_id', org_id)
-        .order('created_at', desc=True)
-        .limit(1)
-        .execute()
-    ).data or []
-    reg_row = existing[0] if existing else None
+@bp.route('/attach', methods=['POST'])
+@require_auth
+@rate_limit(max_requests=10, window_seconds=300, per_user=True)
+def attach(user_id):
+    """Existing Optio account, proven by SESSION, attached to the org as a
+    parent. The password-based twin is /login.
 
-    # Legacy in-flight statuses (schedule/appointment were once funnel steps)
-    # settle as completed, same as /my-registration.
-    if reg_row and reg_row.get('status') in ('schedule', 'appointment'):
-        admin.table('icreate_registrations').update({
-            'status': 'completed', 'completed_at': now, 'updated_at': now,
-        }).eq('id', reg_row['id']).execute()
-        reg_row['status'] = 'completed'
+    This is the door for accounts that have no password at all — Google/Apple
+    signups and org-imported parents, 13% of accounts when this shipped. The
+    OAuth round trip lands on /auth/callback, which establishes the session and
+    then calls this with the funnel's invitation code.
 
-    if reg_row and reg_row.get('status') == 'completed':
-        # Already registered — send them into the app; never restart the funnel.
-        logger.info(f'iCreate login: {user["id"][:8]} already registered for org {org_id}')
-        return jsonify({
-            'success': True,
-            'registration_id': reg_row['id'],
-            'access_token': reg_row['access_token'],
-            'status': 'completed',
-            'first_name': user.get('first_name'),
-            'last_name': user.get('last_name'),
-        }), 200
+    The session IS the identity proof, so there is no email to match: the
+    registration link is shareable by design and any authenticated user may
+    follow it. Who they are comes from the cookie; whether they may register a
+    family here is _parent_guardrails' call, exactly as on /login.
+    """
+    body = request.get_json(silent=True) or {}
+    data, err = _load_registration_invite(body.get('code') or '')
+    if err:
+        return err
+    org = data['organization']
+    admin = _admin()
 
-    if reg_row:
-        # Resume an unfinished registration in place. Password login proves
-        # ownership, so a row still awaiting the email code can advance to family.
-        status = reg_row.get('status')
-        updates = {'email_verified_at': reg_row.get('email_verified_at') or now, 'updated_at': now}
-        if status == 'verify':
-            updates.update({'otp_hash': None, 'otp_expires_at': None, 'status': 'family'})
-            status = 'family'
-        if not reg_row.get('access_token'):
-            updates['access_token'] = secrets.token_urlsafe(32)
-        admin.table('icreate_registrations').update(updates).eq('id', reg_row['id']).execute()
-        reg_row = {**reg_row, **updates, 'status': status}
-        logger.info(f'iCreate login: resumed registration {reg_row["id"][:8]} for org {org_id} at {status}')
-        return jsonify({
-            'success': True,
-            'registration_id': reg_row['id'],
-            'access_token': reg_row['access_token'],
-            'status': status,
-            'first_name': user.get('first_name'),
-            'last_name': user.get('last_name'),
-        }), 200
+    row = (admin.table('users')
+           .select('id, role, org_role, org_roles, organization_id, first_name, last_name, '
+                   'is_dependent, managed_by_parent_id, date_of_birth, total_xp')
+           .eq('id', user_id).limit(1).execute()).data
+    if not row:
+        return jsonify({'error': 'Your account could not be loaded. Please sign in again.'}), 404
+    user = row[0]
 
-    # No prior registration: genuinely new funnel run for this existing account.
-    reg = admin.table('icreate_registrations').insert({
-        'organization_id': org_id,
-        'parent_user_id': user['id'],
-        'access_token': secrets.token_urlsafe(32),
-        'status': 'family',
-        'email_verified_at': now,  # password login proves account ownership
-    }).execute()
-    reg_row = reg.data[0]
+    refusal = _parent_guardrails(admin, user, org)
+    if refusal:
+        return refusal
 
-    logger.info(f'iCreate login: existing account {user["id"][:8]} attached to org {org_id}')
-    return jsonify({
-        'success': True,
-        'registration_id': reg_row['id'],
-        'access_token': reg_row['access_token'],
-        'status': 'family',
-        'first_name': user.get('first_name'),
-        'last_name': user.get('last_name'),
-    }), 200
+    return _attach_and_resume(admin, user, org, via='attach')
 
 
 @bp.route('/registrations/<reg_id>/family', methods=['POST'])
@@ -1245,7 +1158,7 @@ def submit_family(reg_id):
                 for r in rows if r.get('avatar_url')
             }
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'iCreate family re-edit: avatar carry-over lookup failed: {e}')
+            logger.warning(f'registration family re-edit: avatar carry-over lookup failed: {e}')
     if prior_kids:
         try:
             from services import sis_enrollment_waitlist_service as enrollment_waitlist
@@ -1263,7 +1176,7 @@ def submit_family(reg_id):
                 try:
                     admin.auth.admin.delete_user(kid_id)
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f'iCreate family re-edit: auth cleanup failed for {kid_id[:8]}: {e}')
+                    logger.warning(f'registration family re-edit: auth cleanup failed for {kid_id[:8]}: {e}')
             # Attached pre-existing accounts are never deleted. Accounts that were
             # platform students before this funnel attached them revert to that
             # state; if the kid is still in the new payload they re-attach below.
@@ -1274,7 +1187,7 @@ def submit_family(reg_id):
                         'org_role': None, 'org_roles': None,
                     }).eq('id', entry['user_id']).execute()
         except Exception as e:  # noqa: BLE001
-            logger.error(f'iCreate family re-edit: teardown failed for {reg_id}: {e}')
+            logger.error(f'registration family re-edit: teardown failed for {reg_id}: {e}')
             return jsonify({'error': 'Could not update your family. Please contact the school.'}), 500
 
     # A parent who already had an Optio account may already have these kids as
@@ -1350,14 +1263,14 @@ def submit_family(reg_id):
                 'allergies': k.get('allergies'), 'medications': k.get('medications'),
             })
         except Exception as e:  # noqa: BLE001
-            logger.error(f"iCreate family: kid creation failed for {k['first']}: {e}")
+            logger.error(f"registration family: kid creation failed for {k['first']}: {e}")
 
     if student_ids:
         try:
             from routes.admin.user_invitations import _create_parent_student_links
             _create_parent_student_links(admin, parent_id, student_ids, org_id)
         except Exception as e:  # noqa: BLE001
-            logger.error(f'iCreate family: parent-student linking failed: {e}')
+            logger.error(f'registration family: parent-student linking failed: {e}')
 
     # Settings the school staged for this family before they re-registered
     # (legacy-form import): prepaid fee, registration hold, priority tier.
@@ -1409,7 +1322,7 @@ def submit_family(reg_id):
                 'updated_at': datetime.utcnow().isoformat(),
             }).eq('id', directive['id']).execute()
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate family: household creation failed: {e}')
+        logger.error(f'registration family: household creation failed: {e}')
 
     # Enrollment age gates: kids whose age falls in a waitlisted band join the
     # enrollment waitlist — they finish registering but can't select classes
@@ -1425,7 +1338,7 @@ def submit_family(reg_id):
                     org_id, ck['user_id'], guardian_user_id=parent_id,
                     household_id=household_id, gate=gate)
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate family: enrollment-waitlist gating failed for {reg_id}: {e}')
+        logger.error(f'registration family: enrollment-waitlist gating failed for {reg_id}: {e}')
         for ck in created_kids:
             ck.setdefault('waitlisted', False)
 
@@ -1439,12 +1352,12 @@ def submit_family(reg_id):
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
         else _compute_fee_cents(cfg, len(created_kids))
     fee_deferred = False
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'kids': created_kids, 'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
         'status': 'details', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
-    logger.info(f'iCreate family: registration {reg_id} has {len(created_kids)} kids, '
+    logger.info(f'registration family: registration {reg_id} has {len(created_kids)} kids, '
                 f'fee {fee_cents}c{" (deferred)" if fee_deferred else ""}')
     return jsonify({'success': True, 'status': 'details', 'kids': created_kids,
                     'fee_cents': fee_cents, 'fee_deferred': fee_deferred}), 200
@@ -1560,7 +1473,7 @@ def submit_details(reg_id):
         try:
             admin.table('emergency_contacts').delete().in_('student_user_id', kid_ids).execute()
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'iCreate details: contact cleanup failed: {e}')
+            logger.warning(f'registration details: contact cleanup failed: {e}')
     for kid_id in kid_ids:
         for pri, c in enumerate(contacts, start=1):
             try:
@@ -1572,9 +1485,9 @@ def submit_details(reg_id):
                     'priority': pri,
                 }).execute()
             except Exception as e:  # noqa: BLE001
-                logger.error(f'iCreate details: contact insert failed for kid {kid_id[:8]}: {e}')
+                logger.error(f'registration details: contact insert failed for kid {kid_id[:8]}: {e}')
 
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'answers': answers, 'emergency_contacts': contacts,
         'status': 'paperwork', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
@@ -1620,10 +1533,10 @@ def _sync_household_payment(admin, reg, answers):
                 fields['payment_plan_preference'] = plan
         if fields:
             admin.table('households').update(fields).eq('id', household_id).execute()
-            logger.info(f'iCreate details: household {household_id[:8]} payment fields '
+            logger.info(f'registration details: household {household_id[:8]} payment fields '
                         f'set from registration answers ({", ".join(sorted(fields))})')
     except Exception as e:  # noqa: BLE001 — never fail a registration over this
-        logger.warning(f'iCreate details: household payment sync failed for {reg["id"]}: {e}')
+        logger.warning(f'registration details: household payment sync failed for {reg["id"]}: {e}')
 
 
 @bp.route('/registrations/<reg_id>/paperwork', methods=['POST'])
@@ -1652,7 +1565,7 @@ def submit_paperwork(reg_id):
             'acknowledged_at': datetime.utcnow().isoformat(),
         })
 
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'paperwork': saved, 'status': 'fee', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
@@ -1708,11 +1621,11 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
                 if email_service.send_email(parent['email'], f'{org_name}: set your student goals', html):
                     emailed_at = now
             except Exception as e:  # noqa: BLE001
-                logger.warning(f'iCreate: goals email failed for registration {reg["id"]}: {e}')
+                logger.warning(f'registration: goals email failed for registration {reg["id"]}: {e}')
     elif scheduling_url and parent.get('email'):
         try:
             from app_config import Config
-            org_name = (org or {}).get('name') or 'iCreate'
+            org_name = (org or {}).get('name') or 'your school'
             builder_url = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder"
             html = (
                 f"<p>Hi {parent.get('first_name') or 'there'},</p>"
@@ -1727,14 +1640,14 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
             if email_service.send_email(parent['email'], f'{org_name}: book your appointment', html):
                 emailed_at = now
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'iCreate: scheduling email failed for registration {reg["id"]}: {e}')
+            logger.warning(f'registration: scheduling email failed for registration {reg["id"]}: {e}')
 
     payload = {
         'fee_recorded_at': now, 'scheduling_emailed_at': emailed_at,
         'status': 'completed', 'completed_at': now, 'updated_at': now,
         **(extra_fields or {}),
     }
-    admin.table('icreate_registrations').update(payload).eq('id', reg['id']).execute()
+    admin.table('registrations').update(payload).eq('id', reg['id']).execute()
 
     # A release put this household on hold until the deferred fee was settled —
     # settling it clears the hold (only OUR hold; a school-set hold stays).
@@ -1749,7 +1662,7 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
                 .eq('primary_contact_user_id', reg['parent_user_id']) \
                 .eq('registration_hold_reason', FEE_HOLD_REASON).execute()
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'iCreate fee: hold clear failed for {reg["id"]}: {e}')
+            logger.warning(f'registration fee: hold clear failed for {reg["id"]}: {e}')
 
     return {
         'success': True, 'status': 'completed',
@@ -1787,7 +1700,7 @@ def create_checkout(reg_id):
         return jsonify({'error': 'Invalid return URL'}), 400
 
     org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
-    org_name = (org or {}).get('name') or 'iCreate'
+    org_name = (org or {}).get('name') or 'your school'
     parent = _parent_row(admin, reg['parent_user_id'])
 
     try:
@@ -1810,7 +1723,7 @@ def create_checkout(reg_id):
             cancel_url=f'{return_url}{sep}payment=canceled',
         )
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate checkout: session creation failed for {reg_id}: {e}')
+        logger.error(f'registration checkout: session creation failed for {reg_id}: {e}')
         return jsonify({'error': 'Could not start the payment. Please try again or contact the school.'}), 502
 
     # Keep a HISTORY of every session, not just the latest: a parent who clicks
@@ -1829,7 +1742,7 @@ def create_checkout(reg_id):
     # fee that includes waitlisted kids (frontend gates the pay button on it).
     if body.get('waitlist_ack') and not reg.get('waitlist_refund_ack_at'):
         updates['waitlist_refund_ack_at'] = datetime.utcnow().isoformat()
-    admin.table('icreate_registrations').update(updates).eq('id', reg_id).execute()
+    admin.table('registrations').update(updates).eq('id', reg_id).execute()
 
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 
@@ -1844,7 +1757,7 @@ def preview_checkout():
     actually pays it. Gated by the public invitation code, same as /config;
     no registration exists and nothing is recorded."""
     body = request.get_json(silent=True) or {}
-    data, err = _load_icreate_invite((body.get('code') or '').strip())
+    data, err = _load_registration_invite((body.get('code') or '').strip())
     if err:
         return err
     org = data['organization']
@@ -1865,7 +1778,7 @@ def preview_checkout():
             line_items=[{
                 'price_data': {
                     'currency': 'usd',
-                    'product_data': {'name': f'{org.get("name") or "iCreate"} registration fee (PREVIEW — do not pay)'},
+                    'product_data': {'name': f'{org.get("name") or "your school"} registration fee (PREVIEW — do not pay)'},
                     'unit_amount': 50,
                 },
                 'quantity': 1,
@@ -1875,7 +1788,7 @@ def preview_checkout():
             cancel_url=f'{return_url}{sep}payment=preview-canceled',
         )
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate preview-checkout: session creation failed: {e}')
+        logger.error(f'registration preview-checkout: session creation failed: {e}')
         return jsonify({'error': 'Could not start the preview payment'}), 502
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 
@@ -1927,7 +1840,7 @@ def _find_paid_session(reg, secret, parent_email=None):
         try:
             session = stripe.checkout.Session.retrieve(sid, api_key=secret)
         except Exception as e:  # noqa: BLE001
-            logger.error(f'iCreate confirm-payment: retrieve failed for {sid[:20]}: {e}')
+            logger.error(f'registration confirm-payment: retrieve failed for {sid[:20]}: {e}')
             errors += 1
             continue
         if session.get('payment_status') != 'paid':
@@ -1966,7 +1879,7 @@ def _find_paid_session(reg, secret, parent_email=None):
             params['starting_after'] = last['id']
             listing = stripe.checkout.Session.list(**params)
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate confirm-payment: session list fallback failed: {e}')
+        logger.error(f'registration confirm-payment: session list fallback failed: {e}')
         errors += 1
     return None, errors
 
@@ -2003,7 +1916,7 @@ def confirm_payment(reg_id):
         return jsonify({'success': False, 'paid': False,
                         'error': "We haven't received your payment yet. Complete the payment and try again."}), 402
     if int(session.get('amount_total') or 0) != int(reg.get('fee_cents') or 0):
-        logger.warning(f'iCreate confirm-payment: amount mismatch for {reg_id}: '
+        logger.warning(f'registration confirm-payment: amount mismatch for {reg_id}: '
                        f'{session.get("amount_total")} != {reg.get("fee_cents")}')
         return jsonify({'error': 'Payment amount mismatch — please contact the school.'}), 400
 
@@ -2014,7 +1927,7 @@ def confirm_payment(reg_id):
         # never reopens a settled registration.
         'fee_deferred': False,
     })
-    logger.info(f'iCreate: registration {reg_id} payment verified ({session.get("payment_intent")})')
+    logger.info(f'registration: registration {reg_id} payment verified ({session.get("payment_intent")})')
     return jsonify({**result, 'paid': True}), 200
 
 
@@ -2103,7 +2016,7 @@ def schedule_done(reg_id):
         return jsonify({'error': 'The schedule step is not open for this registration'}), 400
 
     now = datetime.utcnow().isoformat()
-    _admin().table('icreate_registrations').update({
+    _admin().table('registrations').update({
         'schedule_done_at': reg.get('schedule_done_at') or now,
         'status': 'appointment', 'updated_at': now,
     }).eq('id', reg_id).execute()
@@ -2126,7 +2039,7 @@ def appointment_done(reg_id):
         return jsonify({'error': 'The appointment step is not open for this registration'}), 400
 
     now = datetime.utcnow().isoformat()
-    _admin().table('icreate_registrations').update({
+    _admin().table('registrations').update({
         'appointment_confirmed_at': now if body.get('booked') else None,
         'status': 'completed', 'completed_at': now, 'updated_at': now,
     }).eq('id', reg_id).execute()
@@ -2188,7 +2101,7 @@ def upload_photo(reg_id):
             avatar_url = upload_user_photo(admin, target, file, ext)
     except Exception as e:  # noqa: BLE001
         who = 'staged' if staged else target[:8]
-        logger.error(f'iCreate photo: upload failed for {who}: {e}')
+        logger.error(f'registration photo: upload failed for {who}: {e}')
         return jsonify({'error': 'Could not upload the photo. Please try again.'}), 500
     # `user-photos` is private. `photo_url` stays canonical because the family
     # step posts it straight back to be persisted; `display_url` is what the

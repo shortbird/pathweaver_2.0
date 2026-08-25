@@ -3,7 +3,7 @@ import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@he
 
 /**
  * Presentational pieces of the family registration funnel, shared between the
- * live funnel (pages/ICreateRegisterPage.jsx) and the SIS Registration setup
+ * live funnel (pages/RegisterFunnelPage.jsx) and the SIS Registration setup
  * editor (components/sis/RegistrationSetupTab.jsx), which renders the funnel
  * exactly as families see it with the configurable parts editable in place.
  *

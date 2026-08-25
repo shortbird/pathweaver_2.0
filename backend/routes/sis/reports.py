@@ -7,7 +7,7 @@ NEW, additive (/api/sis/reports), staff-gated, org-scoped. (The roster CSV expor
 lives in routes/sis/__init__.py.)
 
 Registration-answer shape (see routes/icreate_registration.py submit_details):
-icreate_registrations.answers is keyed by question key. A value may be EITHER a
+registrations.answers is keyed by question key. A value may be EITHER a
 scalar / list (family-level answer) OR an object mapping kid user_id -> value
 (per-student answer). Every report here handles both shapes defensively.
 """
@@ -311,7 +311,7 @@ def _latest_registrations(org_id):
     """One registration per parent: their LATEST completed one, or — if the
     parent has never completed — their latest in-progress row (kept so those
     families still show up, flagged via the status column)."""
-    rows = (_admin().table('icreate_registrations')
+    rows = (_admin().table('registrations')
             .select('id, parent_user_id, status, kids, answers, '
                     'emergency_contacts, created_at, updated_at, completed_at')
             .eq('organization_id', org_id)

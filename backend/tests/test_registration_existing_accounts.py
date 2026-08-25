@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 from flask import Flask
 
-from routes import icreate_registration as icr
+from routes import registration_funnel as icr
 from services import sis_service
 
 
@@ -318,11 +318,11 @@ _INVITE = ({'organization': {'id': 'org1', 'name': 'iCreate', 'slug': 'icreate'}
 
 
 def _login(client, user, regs=()):
-    admin = _FakeAdmin({'users': [user], 'icreate_registrations': list(regs)})
-    with patch('routes.icreate_registration._admin', return_value=admin), \
-         patch('routes.icreate_registration._load_icreate_invite', return_value=_INVITE), \
-         patch('routes.icreate_registration._password_ok', return_value=True):
-        resp = client.post('/api/icreate/login',
+    admin = _FakeAdmin({'users': [user], 'registrations': list(regs)})
+    with patch('routes.registration_funnel._admin', return_value=admin), \
+         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_funnel._password_ok', return_value=True):
+        resp = client.post('/api/registration/login',
                            json={'code': 'c', 'email': 'a@x.com', 'password': 'pw'})
     return resp, admin
 

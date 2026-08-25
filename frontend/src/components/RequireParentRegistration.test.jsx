@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import RequireParentRegistration from './RequireParentRegistration'
-import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 
 let authState = {}
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => authState }))
@@ -27,7 +27,7 @@ const PARENT_TEACHER = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  clearICreateRegistrationGate()
+  clearRegistrationGate()
 })
 
 describe('RequireParentRegistration', () => {

@@ -15,7 +15,7 @@ import { stashPendingCodes, clearPendingCodes } from './oauthPendingCodes'
  * the web platform was a password reset — which fails outright for anyone who
  * used Hide My Email.
  */
-const AppleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null, orgInvitationCode = null, onBeforeRedirect = null }) => {
+const AppleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null, orgInvitationCode = null, registrationCode = null, onBeforeRedirect = null }) => {
   const [loading, setLoading] = useState(false)
 
   const handleAppleClick = async () => {
@@ -28,7 +28,7 @@ const AppleButton = ({ mode = 'signin', onError, disabled = false, className = '
         onBeforeRedirect()
       }
 
-      stashPendingCodes({ promoCode, invitationCode, orgInvitationCode })
+      stashPendingCodes({ promoCode, invitationCode, orgInvitationCode, registrationCode })
 
       const result = await authService.signInWithApple()
 
@@ -122,6 +122,7 @@ AppleButton.propTypes = {
   promoCode: PropTypes.string,
   invitationCode: PropTypes.string,
   orgInvitationCode: PropTypes.string,
+  registrationCode: PropTypes.string,
   onBeforeRedirect: PropTypes.func
 }
 

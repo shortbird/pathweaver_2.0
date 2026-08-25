@@ -790,7 +790,7 @@ class TestSignedUrlsAreNeverPersisted:
             'backend/routes/sis/resources.py': 'def _stored_resource_url',
             # Third wave: the two avatar write paths a client can post back to.
             'backend/routes/dependents.py': 'public_object_url(*ref)',
-            'backend/routes/icreate_registration.py': 'photo_url = public_object_url(*_ref)',
+            'backend/routes/registration_funnel.py': 'photo_url = public_object_url(*_ref)',
             # Fourth wave: evidence. Every one of these takes a media URL out of
             # a request body — the editor auto-saves the tree it was rendered,
             # and the capture forms post back whatever the upload endpoint

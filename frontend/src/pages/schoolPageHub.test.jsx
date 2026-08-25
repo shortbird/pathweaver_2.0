@@ -167,14 +167,16 @@ describe('the student schedule section', () => {
     })
   })
 
-  it('shows a student their classes with teacher and room', async () => {
+  it('shows a student their classes day by day with teacher and room', async () => {
     renderPage()
     const section = await screen.findByRole('region', { name: /My schedule/i })
-    // The name appears twice by design: once in the weekly grid, once in the list.
+    // The name appears twice by design: once in the weekly grid, once in the
+    // day list underneath it.
     expect(within(section).getAllByText('Choir (Tuesday)').length).toBeGreaterThan(0)
-    expect(within(section).getByText('Ms. Reed')).toBeInTheDocument()
-    expect(within(section).getByText('Music Conservatory')).toBeInTheDocument()
-    expect(within(section).getByText(/Tue 9:30am-10:30am/)).toBeInTheDocument()
+    // Under the day heading, in time order, with teacher and room on one line.
+    expect(within(section).getByText('Tuesday')).toBeInTheDocument()
+    expect(within(section).getByText('Ms. Reed · Music Conservatory')).toBeInTheDocument()
+    expect(within(section).getByText(/9:30am–10:30am/)).toBeInTheDocument()
   })
 
   it('renders nothing for someone with no enrollments of their own', async () => {

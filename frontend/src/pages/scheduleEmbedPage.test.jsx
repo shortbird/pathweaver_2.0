@@ -31,7 +31,7 @@ describe('ScheduleEmbedPage', () => {
     } })
     renderPage()
     expect(await screen.findByText(/iCreate — Weekly Class Schedule/)).toBeInTheDocument()
-    expect(api.get).toHaveBeenCalledWith('/api/icreate/schedule-preview/abc123')
+    expect(api.get).toHaveBeenCalledWith('/api/registration/schedule-preview/abc123')
     // Tue & Thu columns render; Pottery appears in both.
     expect(screen.getByText('Tuesday')).toBeInTheDocument()
     expect(screen.getByText('Thursday')).toBeInTheDocument()

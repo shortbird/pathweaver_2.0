@@ -27,7 +27,7 @@ const { api, state } = vi.hoisted(() => {
   }
   const apiData = (url) => {
     if (url.includes('/invitations?status=pending')) return { data: { invitations: [REG_LINK] } }
-    if (url.includes('/api/icreate/config/')) return { data: { stripe_enabled: false } }
+    if (url.includes('/api/registration/config/')) return { data: { stripe_enabled: false } }
     if (url.includes('/api/sis/resources')) return { data: { resources: [] } }
     if (url.includes('/age-exception-requests')) return { data: { requests: [] } }
     if (url.includes('/enrollment-waitlist')) return { data: { entries: [] } }

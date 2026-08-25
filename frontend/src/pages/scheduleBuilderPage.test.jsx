@@ -163,7 +163,7 @@ describe('ScheduleBuilderPage', () => {
 
   it('preview route walks the builder with the real catalog and saves nothing', async () => {
     api.get.mockImplementation((url) => {
-      if (url === '/api/icreate/schedule-preview/abc123') {
+      if (url === '/api/registration/schedule-preview/abc123') {
         return Promise.resolve({ data: {
           organization_name: 'Micro School', scheduling_url: '',
           classes: [POTTERY], time_blocks: [], first_day_of_school: null,

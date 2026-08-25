@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeAutofilledFields, firstQuestionError } from './ICreateRegisterPage'
+import { mergeAutofilledFields, firstQuestionError } from './RegisterFunnelPage'
 
 /**
  * Regression: browser/password-manager autofill paints values into the address
