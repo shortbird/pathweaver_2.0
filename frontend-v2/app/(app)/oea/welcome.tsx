@@ -60,6 +60,7 @@ export default function OEAWelcomeScreen() {
               variant="link"
               size="md"
               onPress={async () => {
+                oeaAPI.markHelpVideoOpened().catch(() => {});
                 const opened = await safeOpenURL(helpVideoUrl);
                 if (!opened) toast.error("Couldn't open the video.");
               }}

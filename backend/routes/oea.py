@@ -7,6 +7,8 @@ OpenEd Academy, PRD V2 — the 'oea' naming is the legacy internal id):
   - GET  /api/oea/enrollments              The acting parent's student enrollments.
   - GET  /api/oea/enrollments/<student_id> One student's enrollment (current pathway).
   - POST /api/oea/enrollments              Select / change a student's pathway.
+  - POST /api/oea/help-video/opened        Record that the caller opened the video.
+  - GET  /api/oea/help-video/views         Per-parent open status (org admins).
 
 OEA students are minors managed by a parent (dependents). Ownership is verified
 via users.managed_by_parent_id; superadmin always has access (Critical Rule #7).
@@ -14,17 +16,18 @@ Admin client is used throughout for these cross-user (parent -> student)
 operations, mirroring routes/dependents.py.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from repositories.oea_repository import OEARepository
 from repositories.base_repository import NotFoundError, ValidationError as RepoValidationError
-from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.decorators import require_auth, require_role, validate_uuid_param
 from utils.oea_pathways import list_pathways, get_pathway, PROGRAM_KEY
 from programs.registry import program_for_org_slug
 from utils.oea_grades import compute_gpa, compute_progress, GRADE_POINTS
 from utils import oea_rules
 from utils.roles import UserRole
+from utils.sis_roles import ADMIN_ROLES
 from app_config import Config
 from middleware.error_handler import ValidationError, AuthorizationError
 from utils.logger import get_logger
@@ -1088,3 +1091,122 @@ def compliance_sweep():
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
     from services import oea_compliance_sweep_service
     return jsonify({'success': True, **oea_compliance_sweep_service.run_sweep()}), 200
+
+
+# ── Getting-started video: who has opened it ─────────────────────────────────
+#
+# The video lives off-platform (YouTube/Vimeo/Loom) and opens in a new tab, so
+# "watched" is not observable from here. What is observable is the click, and
+# that is what these two endpoints record and report — the wording stays
+# "opened" all the way to the UI so the number is never read as playback.
+
+@bp.route('/help-video/opened', methods=['POST'])
+@require_auth
+def mark_help_video_opened(user_id):
+    """Record that the caller opened the getting-started video link. Idempotent.
+
+    Fire-and-forget from the client: this is telemetry alongside a link the
+    browser is already following, so a failure here must never look like a
+    failure to open the video. Errors are logged and answered 200.
+    """
+    try:
+        # admin client justified: oea_help_video_views is deny-all RLS (backend
+        # only); the row written is keyed to the authenticated caller.
+        admin = get_supabase_admin_client()
+        actor = admin.table('users').select('organization_id').eq('id', user_id).limit(1).execute()
+        org_id = actor.data[0].get('organization_id') if actor.data else None
+
+        existing = admin.table('oea_help_video_views').select('open_count') \
+            .eq('user_id', user_id).limit(1).execute().data
+        if existing:
+            admin.table('oea_help_video_views').update({
+                'last_opened_at': datetime.now(timezone.utc).isoformat(),
+                'open_count': (existing[0].get('open_count') or 0) + 1,
+                'organization_id': org_id,
+            }).eq('user_id', user_id).execute()
+        else:
+            try:
+                admin.table('oea_help_video_views').insert({
+                    'user_id': user_id,
+                    'organization_id': org_id,
+                }).execute()
+            except Exception:
+                # Lost the insert race against another tab — the row exists now,
+                # which is all this endpoint was trying to guarantee.
+                admin.table('oea_help_video_views').update({
+                    'last_opened_at': datetime.now(timezone.utc).isoformat(),
+                }).eq('user_id', user_id).execute()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.warning(f"Could not record help-video open for {user_id}: {e}")
+        return jsonify({'success': True}), 200
+
+
+@bp.route('/help-video/views', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_help_video_views(user_id):
+    """Per-parent open status for the org's getting-started video (admins).
+
+    Denominator is every parent in the org, not every enrolled parent: a family
+    with no pathway chosen yet is exactly the family the video is for, and they
+    see the card too.
+    """
+    try:
+        # admin client justified: org_admin/coordinator/superadmin-gated read
+        # across the org's parent users and the deny-all views table.
+        admin = get_supabase_admin_client()
+        actor = admin.table('users') \
+            .select('role, org_role, org_roles, organization_id').eq('id', user_id).limit(1).execute()
+        a = actor.data[0] if actor.data else {}
+        org_id = a.get('organization_id')
+        if a.get('role') == UserRole.SUPERADMIN.value:
+            org_id = request.args.get('organization_id') or org_id
+        if not org_id:
+            return jsonify({'success': False, 'error': 'No organization context'}), 400
+
+        # Parents are bounded by one org, and an org's parent roster is the kind
+        # of read that grows — page it rather than trusting the 1000-row cap.
+        from utils.db_fetch import fetch_all_rows
+        parents = fetch_all_rows(lambda: (
+            admin.table('users')
+            .select('id, first_name, last_name, display_name, email, org_role')
+            .eq('organization_id', org_id).eq('org_role', 'parent')
+        ))
+        views = fetch_all_rows(lambda: (
+            admin.table('oea_help_video_views')
+            .select('user_id, first_opened_at, last_opened_at, open_count')
+            .eq('organization_id', org_id)
+        ), order_by='user_id')
+        by_user = {v['user_id']: v for v in views}
+
+        settings = oea_rules.load_oea_settings(admin, org_id)
+
+        rows = []
+        for p in parents:
+            v = by_user.get(p['id'])
+            name = (p.get('display_name')
+                    or f"{p.get('first_name') or ''} {p.get('last_name') or ''}".strip()
+                    or p.get('email') or 'Parent')
+            rows.append({
+                'id': p['id'],
+                'name': name,
+                'email': p.get('email'),
+                'opened': bool(v),
+                'first_opened_at': (v or {}).get('first_opened_at'),
+                'last_opened_at': (v or {}).get('last_opened_at'),
+                'open_count': (v or {}).get('open_count') or 0,
+            })
+        # Not-yet-opened first: the list exists to answer "who do I still need
+        # to nudge", so the answer sorts to the top.
+        rows.sort(key=lambda r: (r['opened'], r['name'].lower()))
+
+        return jsonify({
+            'success': True,
+            'help_video_url': settings.get('help_video_url'),
+            'parent_count': len(rows),
+            'opened_count': sum(1 for r in rows if r['opened']),
+            'parents': rows,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error loading help-video views for org of {user_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load video views'}), 500

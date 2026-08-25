@@ -491,6 +491,9 @@ export const oeaAPI = {
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
   ensureCreditQuest: (creditId: string) =>
     api.post(`/api/oea/credits/${creditId}/quest`, {}),
+  // Record that the parent opened the getting-started video. External link, so
+  // this is a click and not playback — fire and forget.
+  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
 };
 
 export const questAPI = {

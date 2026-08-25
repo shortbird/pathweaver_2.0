@@ -351,6 +351,7 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
             className="text-sm text-optio-purple font-medium">Transcript</button>
           {data?.help_video_url && (
             <a href={data.help_video_url} target="_blank" rel="noopener noreferrer"
+              onClick={() => { oeaAPI.markHelpVideoOpened().catch(() => {}) }}
               className="text-sm text-optio-purple font-medium ml-auto">Watch the tutorial</a>
           )}
         </div>

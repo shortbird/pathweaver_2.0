@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import OpenEdAcademyPage from './OpenEdAcademyPage'
 
@@ -23,8 +24,12 @@ vi.mock('../../services/dependentAPI', () => ({
 
 const enrollments = vi.fn()
 const getMyChildren = vi.fn()
+const markHelpVideoOpened = vi.fn()
 vi.mock('../../services/api', () => ({
-  oeaAPI: { enrollments: (...args) => enrollments(...args) },
+  oeaAPI: {
+    enrollments: (...args) => enrollments(...args),
+    markHelpVideoOpened: (...args) => markHelpVideoOpened(...args),
+  },
   parentAPI: { getMyChildren: (...args) => getMyChildren(...args) },
 }))
 
@@ -49,6 +54,7 @@ describe('OpenEdAcademyPage', () => {
     getMyDependents.mockResolvedValue({ dependents: [{ id: 'stu-1', display_name: 'Ada Lovelace' }] })
     getMyChildren.mockResolvedValue({ data: { children: [] } })
     enrollments.mockResolvedValue({ data: { enrollments: [] } })
+    markHelpVideoOpened.mockResolvedValue({ data: { success: true } })
   })
 
   it('parent sees the management view with their students and no credits dashboard', async () => {
@@ -72,5 +78,31 @@ describe('OpenEdAcademyPage', () => {
     expect(view).toHaveTextContent('read-only')
     // Students do not load the parent student list.
     expect(getMyDependents).not.toHaveBeenCalled()
+  })
+
+  it('records the open when a parent clicks through to the getting-started video', async () => {
+    authState = { user: { id: 'p-1' }, effectiveRole: 'parent' }
+    enrollments.mockResolvedValue({
+      data: { enrollments: [], help_video_url: 'https://example.com/intro' },
+    })
+    renderPage()
+
+    const link = await screen.findByText('New here? Watch the getting-started video')
+    await userEvent.click(link)
+    expect(markHelpVideoOpened).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failed recording never blocks the video link', async () => {
+    authState = { user: { id: 'p-1' }, effectiveRole: 'parent' }
+    enrollments.mockResolvedValue({
+      data: { enrollments: [], help_video_url: 'https://example.com/intro' },
+    })
+    markHelpVideoOpened.mockRejectedValue(new Error('offline'))
+    renderPage()
+
+    const link = await screen.findByText('New here? Watch the getting-started video')
+    await userEvent.click(link)
+    // The anchor still carries the href — the click is not intercepted.
+    expect(link.closest('a')).toHaveAttribute('href', 'https://example.com/intro')
   })
 })

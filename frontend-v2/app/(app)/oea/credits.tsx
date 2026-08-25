@@ -330,7 +330,10 @@ export default function CreditsScreen() {
                   </UIText>
                 )}
                 {data?.help_video_url && (
-                  <Pressable onPress={() => safeOpenURL(data.help_video_url!)}>
+                  <Pressable onPress={() => {
+                    oeaAPI.markHelpVideoOpened().catch(() => {});
+                    safeOpenURL(data.help_video_url!);
+                  }}>
                     <HStack className="items-center" space="xs">
                       <Ionicons name="play-circle" size={18} color={tc.brand} />
                       <UIText size="sm" className="text-optio-purple font-poppins-medium">Watch the tutorial video</UIText>

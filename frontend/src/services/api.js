@@ -970,6 +970,14 @@ export const oeaAPI = {
   // Quarterly progress report (report card) for a term (1-4).
   progressReport: (studentId, term) =>
     api.get(`/api/oea/students/${studentId}/progress-report`, { params: { term } }),
+
+  // Record that the parent opened the getting-started video. The video is an
+  // external link, so this is a click, not playback — fire and forget, never
+  // block or fail the navigation on it.
+  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
+
+  // Per-parent open status for the org's video (org admin / coordinator).
+  helpVideoViews: () => api.get('/api/oea/help-video/views'),
 }
 
 // ── The Treehouse program API ────────────────────────────────────────────────
