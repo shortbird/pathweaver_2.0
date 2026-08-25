@@ -145,7 +145,9 @@ const TeacherClassPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
-        {[['roster', 'Roster & Attendance'], ['quests', 'Quests'], ['curriculum', 'Curriculum'], ['progress', 'Student Progress'], ['messages', 'Messages']].map(([key, label]) => (
+        {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
+            then the two only some classes use. */}
+        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
