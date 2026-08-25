@@ -76,6 +76,15 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
   const isShared = (e) => !!(e.drive_url && sharedUrls?.has(e.drive_url))
   const shareToClass = async (e) => {
     if (!e.drive_url || isShared(e)) return
+    // Confirm, and name what actually happens: this was one un-guarded click,
+    // and iCreate found a teacher's whole curriculum folder in front of
+    // students (2026-08-24). Sharing exposes the folder LINK — anyone the
+    // Drive folder itself is shared with can open it.
+    if (!(await confirm(
+      `Share the "${e.title}" folder link with this class's students? `
+      + 'It will appear under Class materials for every enrolled student. '
+      + 'Your curriculum itself stays staff-only — this shares only this folder link.'
+    ))) return
     setSharing(e.id)
     try {
       await api.post(`/api/sis/classes/${classId}/materials`, { title: e.title, url: e.drive_url })
