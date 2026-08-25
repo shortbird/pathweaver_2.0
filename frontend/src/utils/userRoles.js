@@ -17,13 +17,15 @@ export const userHasRole = (user, role) => {
 }
 
 /**
- * School staff: teachers (advisors), org admins, superadmin. Includes parents
- * who teach — `has_advisor_assignments` marks a guardian who advises students,
- * and `is_org_admin` marks org admins whose role column says org_managed.
+ * School staff: teachers (advisors), org admins, campus coordinators,
+ * superadmin. Includes parents who teach — `has_advisor_assignments` marks a
+ * guardian who advises students, and `is_org_admin` marks org admins whose
+ * role column says org_managed. Coordinators don't set `is_org_admin` (the
+ * trigger reserves it for org_admin), so they must match by org role here.
  */
 export const isStaffUser = (user) => {
   if (!user) return false
   if (user.role === 'superadmin' || user.is_org_admin) return true
   if (user.has_advisor_assignments) return true
-  return ['advisor', 'org_admin'].some((role) => userHasRole(user, role))
+  return ['advisor', 'org_admin', 'campus_coordinator'].some((role) => userHasRole(user, role))
 }
