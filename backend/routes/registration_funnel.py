@@ -847,7 +847,12 @@ def start():
         # let the parent pick up where they left off (password must match).
         pending = (
             admin.table('registrations')
-            .select('id, parent_user_id, status, users!icreate_registrations_parent_user_id_fkey(email)')
+            # The embed names the FK constraint explicitly, so this string is
+            # coupled to a database object: the constraint was renamed with the
+            # table on 2026-08-25 and a stale hint here is a PGRST200 at
+            # request time, not an import error. tests/test_registration_fk_hints.py
+            # checks every hint in this file against the live schema.
+            .select('id, parent_user_id, status, users!registrations_parent_user_id_fkey(email)')
             .eq('organization_id', org_id).eq('status', 'verify')
             .order('created_at', desc=True).limit(20).execute()
         ).data or []
