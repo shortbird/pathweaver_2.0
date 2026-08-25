@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import api from '../../services/api';
 import useCanEditXp from '../../hooks/useCanEditXp';
+import useHidePillars from '../../hooks/useHidePillars';
 
 /**
  * ManualTaskCreator Component
@@ -11,9 +12,14 @@ import useCanEditXp from '../../hooks/useCanEditXp';
  * - Clean, simple form focused on creativity
  * - Manual task entry with title, description, and pillar selection
  * - No AI assistance - pure student-driven task creation
+ *
+ * Schools that have switched the pillars off (feature_flags.hide_pillars) get a
+ * form with one classification instead of two: the credit is picked directly
+ * and the pillar is derived from it server-side.
  */
 const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSubmitOverride = null }) => {
   const canEditXp = useCanEditXp();
+  const hidePillars = useHidePillars();
   const [currentTask, setCurrentTask] = useState({
     title: '',
     description: '',
@@ -91,20 +97,27 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
       return;
     }
 
-    if (!currentTask.pillar) {
+    if (!hidePillars && !currentTask.pillar) {
       setError('Please select a pillar for this task');
       return;
     }
 
+    if (hidePillars && !currentTask.diploma_subject) {
+      setError('Please choose the credit this task counts toward');
+      return;
+    }
+
     // Add to tasks list. 100% of the XP counts toward the chosen credit.
+    // With pillars hidden the pillar is omitted entirely rather than guessed
+    // here — the server derives it from this credit (school_subjects.py).
     const chosenSubject = resolveSubject(currentTask);
     const taskData = {
       title: currentTask.title,
       description: currentTask.description,
-      pillar: currentTask.pillar,
       xp_value: currentTask.xp_value || 100,
       diploma_subjects: { [chosenSubject]: 100 }
     };
+    if (!hidePillars) taskData.pillar = currentTask.pillar;
 
     setAddedTasks(prev => [...prev, taskData]);
 
@@ -172,7 +185,9 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
                 <div className="flex items-center gap-2">
                   <h5 className="font-semibold text-gray-900">{task.title}</h5>
                   <span className="text-sm text-optio-purple font-bold">{task.xp_value || 100} XP</span>
-                  <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
+                  {!hidePillars && (
+                    <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
+                  )}
                   <span className="text-xs font-medium text-optio-pink">
                     {Object.keys(task.diploma_subjects || {})[0] || 'Electives'}
                   </span>
@@ -245,27 +260,31 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
           </div>
 
           {/* Pillar Selection */}
-          <div>
-            <label htmlFor="task-pillar" className="block text-sm font-semibold text-gray-700 mb-2">
-              Pillar *
-            </label>
-            <select
-              id="task-pillar"
-              value={currentTask.pillar}
-              onChange={(e) => handleInputChange('pillar', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            >
-              <option value="">Select a pillar...</option>
-              {pillars.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
-          </div>
+          {!hidePillars && (
+            <div>
+              <label htmlFor="task-pillar" className="block text-sm font-semibold text-gray-700 mb-2">
+                Pillar *
+              </label>
+              <select
+                id="task-pillar"
+                value={currentTask.pillar}
+                onChange={(e) => handleInputChange('pillar', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              >
+                <option value="">Select a pillar...</option>
+                {pillars.map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Diploma Credit (Subject) Selection */}
+          {/* Diploma Credit (Subject) Selection. With pillars hidden this is the
+              only classification on the form, so it is required rather than
+              defaulted off a pillar that was never chosen. */}
           <div>
             <label htmlFor="task-subject" className="block text-sm font-semibold text-gray-700 mb-2">
-              Counts toward credit
+              {hidePillars ? 'Counts toward credit *' : 'Counts toward credit'}
             </label>
             <select
               id="task-subject"
@@ -274,9 +293,11 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
             >
               <option value="">
-                {currentTask.pillar
-                  ? `Auto (${pillarDefaultSubject[currentTask.pillar] || 'Electives'})`
-                  : 'Auto (based on pillar)'}
+                {hidePillars
+                  ? 'Select a subject...'
+                  : currentTask.pillar
+                    ? `Auto (${pillarDefaultSubject[currentTask.pillar] || 'Electives'})`
+                    : 'Auto (based on pillar)'}
               </option>
               {subjects.map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -310,7 +331,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
           {/* Add Task Button */}
           <button
             onClick={handleAddTask}
-            disabled={!currentTask.title || !currentTask.description || !currentTask.pillar}
+            disabled={!currentTask.title || !currentTask.description ||
+              (hidePillars ? !currentTask.diploma_subject : !currentTask.pillar)}
             className="w-full px-6 py-3 bg-optio-purple hover:bg-optio-purple-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
             Add This Task

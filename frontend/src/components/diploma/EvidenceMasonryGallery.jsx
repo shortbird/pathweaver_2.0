@@ -4,6 +4,7 @@ import Masonry from 'react-masonry-css';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 // CollaborationBadge import removed (badge system removal)
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
+import useHidePillars from '../../hooks/useHidePillars';
 import { CREDIT_REQUIREMENTS } from '../../utils/creditRequirements';
 import './EvidenceMasonryGallery.css';
 
@@ -35,6 +36,7 @@ const getSubjectDisplayName = (key) => {
 };
 
 const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
+  const hidePillars = useHidePillars();
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [selectedQuest, setSelectedQuest] = useState('all');
   const [selectedSubject, setSelectedSubject] = useState('all');
@@ -251,7 +253,8 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
           })}
         </select>
 
-        {/* Pillar Filter */}
+        {/* Pillar Filter. Hidden for schools that filter by subject instead. */}
+        {!hidePillars && (
         <select
           value={selectedPillar}
           onChange={(e) => setSelectedPillar(e.target.value)}
@@ -267,6 +270,7 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
             );
           })}
         </select>
+        )}
 
         {/* Subject Filter */}
         {subjects.length > 0 && (
@@ -495,9 +499,11 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                 {/* Footer with metadata */}
                 <div className="px-4 pb-3 flex items-center justify-between text-xs text-gray-500">
                   <div className="flex items-center gap-1">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-white bg-gradient-to-r ${gradientClass} text-xs font-medium`}>
-                      {pillarName}
-                    </span>
+                    {!hidePillars && (
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-white bg-gradient-to-r ${gradientClass} text-xs font-medium`}>
+                        {pillarName}
+                      </span>
+                    )}
                   </div>
                   <span>{formatDate(item.completedAt)}</span>
                 </div>

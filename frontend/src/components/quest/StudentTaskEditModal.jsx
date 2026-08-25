@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal, Alert, FormFooter } from '../ui';
 import { DIPLOMA_PILLARS } from '../../utils/pillarMappings';
 import useCanEditXp, { XP_LOCKED_HINT } from '../../hooks/useCanEditXp';
+import useHidePillars from '../../hooks/useHidePillars';
 
 const PILLAR_OPTIONS = Object.entries(DIPLOMA_PILLARS).map(([value, p]) => ({
   value,
@@ -38,6 +39,7 @@ const subjectsFromTask = (task) => {
 
 export default function StudentTaskEditModal({ task, onClose, onSave, isClassQuest = false }) {
   const canEditXp = useCanEditXp();
+  const hidePillars = useHidePillars();
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(100);
   const [subjects, setSubjects] = useState([]);
@@ -72,13 +74,21 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
 
     setLoading(true);
     try {
-      // Omit xp_value entirely when the org has locked XP to teachers — sending an
-      // unchanged value would still be a no-op server-side, but not sending it
-      // keeps the request honest about what the student actually edited.
-      const payload = canEditXp ? { pillar, xp_value: xp } : { pillar };
-      // Class quests lock credit to the class subject; don't send subjects.
+      // Send only what this form actually offered, so the request stays honest
+      // about what the student edited:
+      //  - pillar: omitted where the school hides pillars, or the task would be
+      //    rewritten to the 'stem' default this state falls back to;
+      //  - xp_value: omitted where the org has locked XP to teachers;
+      //  - diploma_subjects: omitted for class quests, whose credit is locked
+      //    to the class subject.
+      const payload = {};
+      if (!hidePillars) payload.pillar = pillar;
+      if (canEditXp) payload.xp_value = xp;
       if (!isClassQuest) payload.diploma_subjects = subjects;
-      await onSave(payload);
+      // Every field can be off at once (a class quest at a school that hides
+      // pillars and locks XP). There is nothing to save, and an empty PUT is a
+      // 400 — close instead.
+      if (Object.keys(payload).length > 0) await onSave(payload);
       onClose();
     } catch (err) {
       setError(err?.response?.data?.error || err?.message || 'Failed to save task');
@@ -97,33 +107,35 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <Alert variant="error">{error}</Alert>}
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Skill Pillar
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {PILLAR_OPTIONS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => setPillar(p.value)}
-                className={`px-4 py-3 rounded-md border-2 transition-all min-h-[44px] ${
-                  pillar === p.value
-                    ? 'border-optio-purple bg-optio-purple/10'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: p.color }}
-                  />
-                  <span className="text-sm font-medium text-gray-900">{p.label}</span>
-                </div>
-              </button>
-            ))}
+        {!hidePillars && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Skill Pillar
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {PILLAR_OPTIONS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setPillar(p.value)}
+                  className={`px-4 py-3 rounded-md border-2 transition-all min-h-[44px] ${
+                    pillar === p.value
+                      ? 'border-optio-purple bg-optio-purple/10'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: p.color }}
+                    />
+                    <span className="text-sm font-medium text-gray-900">{p.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {!isClassQuest && (
           <div>

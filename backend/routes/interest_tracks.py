@@ -565,10 +565,16 @@ def convert_moment_to_task(user_id, moment_id):
             return jsonify({'error': 'Request body is required'}), 400
 
         title = data.get('title')
-        pillar = data.get('pillar', 'stem')
         xp_value = data.get('xp_value', InterestTracksService.DEFAULT_PROMOTED_TASK_XP)
         quest_id = data.get('quest_id')
         diploma_subject = data.get('diploma_subject') or None
+
+        # A school that hides the pillars (feature_flags.hide_pillars) sends no
+        # pillar, so it is derived from the credit the student chose rather than
+        # everything landing in 'stem'. user_quest_tasks.pillar is NOT NULL, so
+        # one is always resolved here.
+        from utils.school_subjects import pillar_for_subject
+        pillar = data.get('pillar') or pillar_for_subject(diploma_subject)
 
         valid_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
         if pillar not in valid_pillars:

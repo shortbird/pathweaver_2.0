@@ -15,6 +15,7 @@ import {
   PencilIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData, PILLAR_KEYS } from '../../utils/pillarMappings'
+import useHidePillars from '../../hooks/useHidePillars'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useAIAccess } from '../../contexts/AIAccessContext'
@@ -30,6 +31,7 @@ export const AddTaskWizard = ({
   // 'choose' | 'manual' | 'ai-customize' | 'ai-generating' | 'ai-results'
   const [wizardStep, setWizardStep] = useState('choose')
   const { canUseTaskGeneration } = useAIAccess()
+  const hidePillars = useHidePillars()
   const [aiOptions, setAiOptions] = useState({
     focusPillars: [],
     customPrompt: ''
@@ -270,21 +272,23 @@ export const AddTaskWizard = ({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Pillar
-                </label>
-                <select
-                  value={manualTask.pillar}
-                  onChange={(e) => setManualTask(prev => ({ ...prev, pillar: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                >
-                  {PILLAR_KEYS.map(key => (
-                    <option key={key} value={key}>{getPillarData(key).name}</option>
-                  ))}
-                </select>
-              </div>
+            <div className={hidePillars ? '' : 'grid gap-4 sm:grid-cols-2'}>
+              {!hidePillars && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Pillar
+                  </label>
+                  <select
+                    value={manualTask.pillar}
+                    onChange={(e) => setManualTask(prev => ({ ...prev, pillar: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  >
+                    {PILLAR_KEYS.map(key => (
+                      <option key={key} value={key}>{getPillarData(key).name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   XP Value
@@ -334,7 +338,10 @@ export const AddTaskWizard = ({
               Generate personalized task ideas based on this lesson.
             </p>
 
-            {/* Focus Areas - Multi-select pills */}
+            {/* Focus Areas - Multi-select pills. They are the five pillars, so
+                schools that hide the pillars don't get to steer the generator
+                by them; the lesson content and the custom prompt still do. */}
+            {!hidePillars && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2">
                 Focus Areas (optional)
@@ -361,6 +368,7 @@ export const AddTaskWizard = ({
                 })}
               </div>
             </div>
+            )}
 
             {/* Custom Prompt */}
             <div>
@@ -435,12 +443,14 @@ export const AddTaskWizard = ({
                           <h5 className="font-medium text-gray-900 text-sm">{task.title}</h5>
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
                           <div className="flex items-center gap-2 mt-2">
-                            <span
-                              className="px-2 py-0.5 text-xs font-semibold rounded"
-                              style={{ backgroundColor: `${pillarData.color}20`, color: pillarData.color }}
-                            >
-                              {pillarData.name}
-                            </span>
+                            {!hidePillars && (
+                              <span
+                                className="px-2 py-0.5 text-xs font-semibold rounded"
+                                style={{ backgroundColor: `${pillarData.color}20`, color: pillarData.color }}
+                              >
+                                {pillarData.name}
+                              </span>
+                            )}
                             <span className="text-xs text-gray-500 flex items-center gap-1">
                               <TrophyIcon className="w-3 h-3" />
                               {task.xp_value} XP

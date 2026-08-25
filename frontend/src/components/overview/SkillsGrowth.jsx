@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import SkillsRadarChart from '../diploma/SkillsRadarChart';
+import useHidePillars from '../../hooks/useHidePillars';
 import SubjectProgressRow from '../diploma/SubjectProgressRow';
 import { renderDiplomaWidget } from '../../programs/registry';
 import {
@@ -21,6 +22,7 @@ const SkillsGrowth = ({
   hideHeader = false,
   showDiplomaCredits = true
 }) => {
+  const hidePillars = useHidePillars();
   // Standing, not a single total: `totalApplied` is progress toward the
   // diploma, `totalEarned` is what's on the transcript. Showing only the first
   // is what made a student's XP look like it disagreed with their credits.
@@ -44,9 +46,25 @@ const SkillsGrowth = ({
   // falls back to Optio's XP-based credits below.
   const programDiploma = showDiplomaCredits ? renderDiplomaWidget({ oea }) : null;
 
+  // The left column IS the pillars: a radar chart of the five, plus the total
+  // XP that feeds it. A school that has switched them off gets the diploma at
+  // full width, with the total XP kept as a strip above it — the number still
+  // means something without the taxonomy.
+  const twoColumn = showDiplomaCredits && !hidePillars;
+
   const content = (
-    <div className={`grid grid-cols-1 ${showDiplomaCredits ? 'lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x' : ''} divide-gray-100`}>
-        {/* Skills Radar Chart Section */}
+    <div className={`grid grid-cols-1 ${twoColumn ? 'lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x' : ''} divide-gray-100`}>
+        {hidePillars ? (
+          totalXp > 0 && (
+            <div className="px-6 pt-6 text-center">
+              <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-primary">
+                {totalXp.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Total XP</div>
+            </div>
+          )
+        ) : (
+        /* Skills Radar Chart Section */
         <div className="p-6">
           <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Learning Pillars</h3>
 
@@ -76,6 +94,7 @@ const SkillsGrowth = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Diploma section (users 13+). A program may own the student's diploma
             and render its own panel; otherwise show Optio's XP-based credits. */}
@@ -211,7 +230,7 @@ const SkillsGrowth = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           <h2 className="text-xl font-bold text-gray-900">
-            Skills & Growth
+            {hidePillars ? 'Progress' : 'Skills & Growth'}
           </h2>
         </div>
       </div>

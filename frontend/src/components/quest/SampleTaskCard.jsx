@@ -1,10 +1,12 @@
 import React, { useState, memo } from 'react';
 import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
+import useHidePillars from '../../hooks/useHidePillars';
 import toast from 'react-hot-toast';
 
 const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const hidePillars = useHidePillars();
   const pillarData = getPillarData(task.pillar);
 
   const handleAdd = async () => {
@@ -49,12 +51,14 @@ const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
 
         {/* Pillar Badge + XP Badge Row */}
         <div className="flex items-center gap-2 mb-3">
-          <div
-            className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-            style={{ backgroundColor: pillarData.color }}
-          >
-            {pillarData.name}
-          </div>
+          {!hidePillars && (
+            <div
+              className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
+              style={{ backgroundColor: pillarData.color }}
+            >
+              {pillarData.name}
+            </div>
+          )}
           <div
             className="px-3 py-1 rounded-full text-sm font-bold"
             style={{

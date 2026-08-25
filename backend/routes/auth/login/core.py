@@ -34,15 +34,26 @@ logger = get_logger(__name__)
 
 
 def _school_payload(org_row):
-    """The `school` dict the frontend routes on: {'id', 'name', 'homepage'}.
+    """The `school` dict the frontend routes on: {'id', 'name', 'homepage',
+    'hide_pillars'}.
 
     `homepage` is the per-org opt-in (feature_flags.sis_settings.school_homepage)
     that makes /school the front door for the school's families — iCreate,
-    2026-08-06. Reads one boolean; never emits the feature_flags blob.
+    2026-08-06.
+
+    `hide_pillars` is the per-org opt-out of Optio's five pillars
+    (feature_flags.hide_pillars). It is carried here as well as on
+    `organization` because a platform parent has no organization_id of their
+    own — they belong to the school through their children, so `school` is the
+    only place the flag can reach them.
+
+    Reads two booleans; never emits the feature_flags blob.
     """
-    settings = ((org_row.get('feature_flags') or {}).get('sis_settings') or {})
+    flags = org_row.get('feature_flags') or {}
+    settings = (flags.get('sis_settings') or {})
     return {'id': org_row['id'], 'name': org_row.get('name'),
-            'homepage': bool(settings.get('school_homepage'))}
+            'homepage': bool(settings.get('school_homepage')),
+            'hide_pillars': bool(flags.get('hide_pillars'))}
 
 
 def _member_school(admin_client, user_id):

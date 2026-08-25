@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
+import useHidePillars from '../../hooks/useHidePillars';
 
 /**
  * QuestAccordionGallery - Displays portfolio evidence grouped by quest.
@@ -11,6 +12,7 @@ import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
  * Evidence detail is shown within the quest context with back navigation.
  */
 const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) => {
+  const hidePillars = useHidePillars();
   const [expandedQuests, setExpandedQuests] = useState(new Set());
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [modalQuest, setModalQuest] = useState(null);
@@ -180,7 +182,9 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
 
   return (
     <div className="quest-accordion-gallery">
-      {/* Controls row */}
+      {/* Controls row. The only control here is the pillar filter, so schools
+          that hide the pillars get no row at all rather than a lone "All". */}
+      {!hidePillars && (
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap gap-2 items-center">
           <button
@@ -211,6 +215,7 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
           })}
         </div>
       </div>
+      )}
 
       {/* Quest cards */}
       <div className="columns-1 md:columns-2 xl:columns-3 gap-4 [column-fill:_balance]">

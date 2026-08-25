@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
+import useHidePillars from '../../../hooks/useHidePillars';
 // tierMapping import removed - Phase 2 refactoring (January 2025)
 import { CheckCircleIcon, LockClosedIcon, UserIcon, ClockIcon } from '@heroicons/react/24/outline';
 
@@ -12,6 +13,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
 
   // Check if user can start quests (requires paid tier)
   const canStartQuests = true; // All features free (Phase 2)
+  const hidePillars = useHidePillars();
 
   // Simplified data extraction
   const totalXP = quest.total_xp || 0;
@@ -93,28 +95,31 @@ const QuestListItem = ({ quest, onEnroll }) => {
 
             {/* Pillars and Actions */}
             <div className="flex items-start gap-4 flex-shrink-0">
-              {/* Pillar Badges */}
-              <div className="flex flex-wrap gap-1 max-w-xs">
-                {Object.entries(pillarBreakdown)
-                  .filter(([_, xp]) => xp > 0)
-                  .sort(([_, a], [__, b]) => b - a)
-                  .slice(0, 3)
-                  .map(([pillar, xp]) => {
-                    const pillarData = getPillarData(pillar);
-                    const solidColor = solidColors[pillar] || 'bg-gray-500 text-white';
+              {/* Pillar Badges. Dropped entirely for schools that have switched
+                  the pillars off; the accent gradient still carries the colour. */}
+              {!hidePillars && (
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {Object.entries(pillarBreakdown)
+                    .filter(([_, xp]) => xp > 0)
+                    .sort(([_, a], [__, b]) => b - a)
+                    .slice(0, 3)
+                    .map(([pillar, xp]) => {
+                      const pillarData = getPillarData(pillar);
+                      const solidColor = solidColors[pillar] || 'bg-gray-500 text-white';
 
-                    return (
-                      <div
-                        key={pillar}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${solidColor}`}
-                        title={`${pillarData.name}: +${xp} XP`}
-                      >
-                        <span className="truncate">{pillarData.name}</span>
-                        <span className="font-bold">+{xp}</span>
-                      </div>
-                    );
-                  })}
-              </div>
+                      return (
+                        <div
+                          key={pillar}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${solidColor}`}
+                          title={`${pillarData.name}: +${xp} XP`}
+                        >
+                          <span className="truncate">{pillarData.name}</span>
+                          <span className="font-bold">+{xp}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">

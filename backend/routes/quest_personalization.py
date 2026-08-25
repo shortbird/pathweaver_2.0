@@ -48,6 +48,18 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 # CORS headers are set globally in app.py - do not duplicate here
 
 
+def _first_subject(diploma_subjects):
+    """The credit a task mostly counts toward, or None.
+
+    `diploma_subjects` is {subject_display_name: xp}; the heaviest share is the
+    one that best describes the work. Used to derive a pillar for schools that
+    hide the pillar picker.
+    """
+    if not isinstance(diploma_subjects, dict) or not diploma_subjects:
+        return None
+    return max(diploma_subjects.items(), key=lambda kv: kv[1] or 0)[0]
+
+
 def _custom_tasks_blocked(supabase, quest_id: str):
     """403 payload when this quest's author un-ticked "Let people add their own
     tasks", or None when they did not.
@@ -679,6 +691,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
     """
     try:
         from utils.pillar_utils import normalize_pillar_name
+        from utils.school_subjects import pillar_for_subject
         from services.subject_classification_service import SubjectClassificationService
         from routes.tasks.xp_helpers import get_subject_xp_distribution
 
@@ -735,18 +748,25 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 locked=xp_locked,
             )
 
-            # Normalize pillar name
-            try:
-                pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
-            except ValueError:
-                pillar_key = 'stem'
-
             # Ensure diploma_subjects is a dict
             raw_diploma_subjects = task.get('diploma_subjects')
             diploma_subjects = normalize_diploma_subjects(
                 raw_diploma_subjects or {},
                 task.get('xp_value', 100)
             )
+
+            # Normalize pillar name. A school that hides the pillars
+            # (feature_flags.hide_pillars) shows no picker, so the client sends
+            # none — but the column is NOT NULL. Derive it from the credit the
+            # family DID choose rather than filing every task under 'stem'.
+            raw_pillar = task.get('pillar')
+            if raw_pillar:
+                try:
+                    pillar_key = normalize_pillar_name(raw_pillar)
+                except ValueError:
+                    pillar_key = 'stem'
+            else:
+                pillar_key = pillar_for_subject(_first_subject(diploma_subjects))
 
             # Determine the subject XP distribution. When the student explicitly
             # chose the credit (diploma_subjects sent from the task creator), that

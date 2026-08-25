@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon, PrinterIcon, FlagIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon, PrinterIcon, FlagIcon, Squares2X2Icon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
 import SchoolLoginLinkCard from './SchoolLoginLinkCard'
@@ -150,6 +150,36 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
       alert(error.response?.data?.error || 'Failed to update XP goals setting')
     } finally {
       setSavingXpGoals(false)
+    }
+  }
+
+  // Optio's five pillars (STEM / Wellness / Communication / Civics / Art). On by
+  // default. A school that already classifies work by school subject is asking
+  // families to label the same task twice, so it can switch the pillars off:
+  // every picker, badge and breakdown disappears and the diploma credit stands
+  // alone. Nothing is deleted — the pillar is still recorded, derived from the
+  // credit (backend/utils/school_subjects.py::pillar_for_subject) — so turning
+  // it back on restores the full view. Hearthwood Academy asked for this after a
+  // parent wrote in that the pillars were impossible to make sense of
+  // (2026-08-25).
+  const [hidePillars, setHidePillars] = useState(
+    orgData?.organization?.feature_flags?.hide_pillars ?? false
+  )
+  const [savingPillars, setSavingPillars] = useState(false)
+
+  const handleToggleHidePillars = async () => {
+    const newValue = !hidePillars
+    setSavingPillars(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: { ...(orgData?.organization?.feature_flags || {}), hide_pillars: newValue },
+      })
+      setHidePillars(newValue)
+      onUpdate()
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update the pillars setting')
+    } finally {
+      setSavingPillars(false)
     }
   }
 
@@ -575,6 +605,19 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
           enabled={stepPrinting}
           onToggle={handleToggleStepPrinting}
           disabled={savingStepPrinting}
+        />
+      </div>
+
+      {/* How work is classified */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-2">Pillars</h2>
+        <FeatureToggle
+          label="Hide the five pillars"
+          description="Turns off STEM / Wellness / Communication / Civics / Art everywhere your families and students see them — the picker when they create a task, the badges on tasks and evidence, and the pillar chart on the profile. Tasks are then classified only by the diploma credit they count toward. Nothing is lost: pillars come back exactly as they were if you switch this off."
+          icon={Squares2X2Icon}
+          enabled={hidePillars}
+          onToggle={handleToggleHidePillars}
+          disabled={savingPillars}
         />
       </div>
 

@@ -219,9 +219,11 @@ class TestTheSchoolOnTheProfile:
             return _member_school(client, 'user-1')
 
     def test_a_member_gets_their_school_by_name(self):
-        # `homepage` rides along for the post-login landing (school-homepage opt-in).
+        # `homepage` rides along for the post-login landing (school-homepage
+        # opt-in); `hide_pillars` for the per-org pillars opt-out, which a
+        # platform parent can only learn about through `school`.
         assert self._school('org-1', {'id': 'org-1', 'name': 'iCreate'}) == {
-            'id': 'org-1', 'name': 'iCreate', 'homepage': False}
+            'id': 'org-1', 'name': 'iCreate', 'homepage': False, 'hide_pillars': False}
 
     def test_no_school_means_no_school_page(self):
         assert self._school(None, None) is None

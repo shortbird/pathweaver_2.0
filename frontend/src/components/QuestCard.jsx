@@ -1,8 +1,10 @@
 import React, { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { getPillarName, getPillarColor } from '../utils/pillarMappings'
+import useHidePillars from '../hooks/useHidePillars'
 
 const QuestCard = memo(({ quest, isCompleted }) => {
+  const hidePillars = useHidePillars()
   const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 0
   
   const getIntensityBadge = (level) => {
@@ -49,7 +51,7 @@ const QuestCard = memo(({ quest, isCompleted }) => {
         
         <div className="flex flex-wrap gap-2 mb-3">
           {/* Show primary pillar if available */}
-          {quest.primary_pillar && (
+          {!hidePillars && quest.primary_pillar && (
             <span className={`text-xs px-3 py-1 rounded-full font-medium ${getPillarColor(quest.primary_pillar)}`}>
               {getPillarName(quest.primary_pillar)}
             </span>
@@ -87,17 +89,21 @@ const QuestCard = memo(({ quest, isCompleted }) => {
           ) : null}
         </div>
         
-        {/* Show XP awards */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          {quest.quest_skill_xp?.map((award, index) => (
-            <span
-              key={index}
-              className={`text-xs px-2 py-1 rounded-full ${getPillarColor(award.skill_category)}`}
-            >
-              {getPillarName(award.skill_category)} ({award.xp_amount} XP)
-            </span>
-          ))}
-        </div>
+        {/* Show XP awards. Each award is named after its pillar, so schools
+            that hide the pillars get the total below instead of a breakdown by
+            a taxonomy they don't use. */}
+        {!hidePillars && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {quest.quest_skill_xp?.map((award, index) => (
+              <span
+                key={index}
+                className={`text-xs px-2 py-1 rounded-full ${getPillarColor(award.skill_category)}`}
+              >
+                {getPillarName(award.skill_category)} ({award.xp_amount} XP)
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Show deliverables if available */}
         {quest.what_youll_create && quest.what_youll_create.length > 0 && (
@@ -119,7 +125,7 @@ const QuestCard = memo(({ quest, isCompleted }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-primary">Total XP: {totalXP}</span>
-            {quest.primary_pillar && (
+            {!hidePillars && quest.primary_pillar && (
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPillarColor(quest.primary_pillar)}`}>
                 {getPillarName(quest.primary_pillar)}
               </span>
