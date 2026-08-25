@@ -965,6 +965,59 @@ def _evidence_block(event_id, idx, media_item):
             'content': {'url': media_item.get('file_url'), 'caption': '', 'alt_text': media_item.get('file_name', '')}}
 
 
+@bp.route('/capture/upload', methods=['POST'])
+@require_auth
+def facilitator_capture_upload(user_id):
+    """
+    Upload the photos/videos for a facilitator capture and return the durable
+    pointers to post back to /capture.
+
+    The Capture tab used to POST its files to `/api/evidence`, which is a
+    blueprint PREFIX with no handler of its own — every capture that carried a
+    photo 404'd and surfaced as "Could not save capture" (iCreate, 2026-08-17).
+    The per-event upload routes can't stand in: they require the learning event
+    to belong to the caller, and a facilitator is by definition writing into
+    someone else's journal. So the upload is gated the same way /capture is —
+    facilitator in the Treehouse org — and happens before any event exists.
+    """
+    ctx = _context(user_id)
+    if not ctx['is_facilitator']:
+        return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+
+    files = [f for f in request.files.getlist('files') if f and f.filename]
+    if not files:
+        return jsonify({'success': False, 'error': 'No files provided'}), 400
+
+    from services.media_upload_service import MediaUploadService
+    # admin client justified: facilitator-gated media upload into the shared evidence bucket; caller checked above
+    uploader = MediaUploadService(get_supabase_admin_client())
+    uploaded = []
+    for f in files:
+        result = uploader.upload_evidence_file(
+            f,
+            user_id=user_id,
+            context_type='event',
+            # No learning event exists yet — one is created per tagged student
+            # once the capture is saved. The facilitator is the storage owner.
+            context_id=user_id,
+        )
+        if not result.success:
+            # One bad file fails the batch: a partial upload would leave the
+            # facilitator saving a capture that is missing the photo they took.
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False,
+                            'error': f"{f.filename}: {result.error_message}"}), status
+        uploaded.append({
+            'url': result.file_url,
+            'display_url': result.display_url,
+            'original_name': f.filename,
+            'stored_name': result.filename,
+            'size': result.file_size,
+            'content_type': result.content_type,
+        })
+    return jsonify({'success': True, 'files': uploaded}), 201
+
+
 @bp.route('/capture', methods=['POST'])
 @require_auth
 def facilitator_capture(user_id):

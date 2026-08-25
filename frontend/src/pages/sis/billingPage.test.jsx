@@ -187,6 +187,38 @@ describe('BillingPage', () => {
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/billing/outstanding'))
   })
 
+  /**
+   * iCreate, 2026-08-25: "Can we get these in alphabetical order? on the
+   * outstanding billing page?" — asked after the sort dropdown already shipped,
+   * because it reset to "most overdue" on every visit. Outstanding is read as a
+   * list of families to chase, so it opens A-Z and the choice is remembered.
+   */
+  it('opens the outstanding report alphabetically and remembers a change', async () => {
+    localStorage.clear()
+    const { unmount } = render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    await screen.findByText('Bowman Family')
+    const sort = screen.getByLabelText('Sort')
+    expect(sort.value).toBe('family')
+
+    fireEvent.change(sort, { target: { value: 'default' } })
+    expect(sort.value).toBe('default')
+    unmount()
+
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    await screen.findByText('Bowman Family')
+    expect(screen.getByLabelText('Sort').value).toBe('default')
+    localStorage.clear()
+  })
+
+  it('leaves the charges ledger in the server order by default', async () => {
+    localStorage.clear()
+    render(<BillingPage />)
+    await screen.findByText('Fall tuition')
+    expect(screen.getByLabelText('Sort').value).toBe('default')
+  })
+
   it('sends payment reminders and reports counts', async () => {
     const { toast } = await import('react-hot-toast')
     render(<BillingPage />)

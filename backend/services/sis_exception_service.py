@@ -95,7 +95,7 @@ def list_requests(org_id: str, status: Optional[str] = None) -> List[Dict[str, A
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     }

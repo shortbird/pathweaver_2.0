@@ -75,7 +75,6 @@ KNOWN_DEAD = {
     '/api/bounties/__param__/claims/__param__/evidence/__param__/__param__',
     '/api/credits/__param__',
     '/api/curriculum/__param__/reorder',
-    '/api/evidence',
     '/api/evidence/documents/by-id/__param__',
     '/api/evidence__param__',
     '/api/fix/fix-completion',

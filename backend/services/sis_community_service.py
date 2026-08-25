@@ -345,7 +345,7 @@ def upcoming_birthdays(org_id: str, days: int = 7) -> List[Dict[str, Any]]:
     by how soon the birthday is."""
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, role, org_role, date_of_birth')
+        .select('id, first_name, last_name, display_name, role, org_role, date_of_birth, preferred_name')
         .eq('organization_id', org_id)
         .not_.is_('date_of_birth', 'null')
         .execute()
@@ -416,7 +416,7 @@ def create_carpool_post(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         return {'error': f'Keep it under {_CARPOOL_MAX_LEN} characters'}
     post_type = data.get('type') if data.get('type') in CARPOOL_TYPES else 'offer'
     author = (
-        _admin().table('users').select('display_name, first_name, last_name')
+        _admin().table('users').select('display_name, first_name, last_name, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     a = (author or [{}])[0]

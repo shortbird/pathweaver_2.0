@@ -210,7 +210,7 @@ def _priority_siblings(org_id: str, household_ids: set) -> Dict[str, Dict[str, A
     users_map = {
         u['id']: u for u in (
             admin.table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', list({m['user_id'] for m in accepted})).execute().data) or []
     }
     first_day = _coerce_date(_sis_settings(org_id).get('first_day_of_school'))
@@ -333,7 +333,7 @@ def list_entries(org_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     }
@@ -401,7 +401,7 @@ def add_manual(org_id: str, student_user_id: str, *, added_by: str,
     """
     admin = _admin()
     users = (admin.table('users')
-             .select('id, organization_id, date_of_birth, display_name, first_name, last_name')
+             .select('id, organization_id, date_of_birth, display_name, first_name, last_name, preferred_name')
              .eq('id', student_user_id).limit(1).execute()).data or []
     if not users:
         return {'error': 'Student not found'}
@@ -628,7 +628,7 @@ def _send_reject_email(entry: Dict[str, Any], refund_cents: int) -> bool:
         .eq('id', guardian_id).limit(1).execute()
     ).data or []
     student = (
-        admin.table('users').select('first_name, last_name, display_name, username, email')
+        admin.table('users').select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', entry['student_user_id']).limit(1).execute()
     ).data or []
     org = (
@@ -708,7 +708,7 @@ def _send_release_email(entry: Dict[str, Any], fee_due_cents: int) -> bool:
         .eq('id', guardian_id).limit(1).execute()
     ).data or []
     student = (
-        admin.table('users').select('first_name, last_name, display_name, username, email')
+        admin.table('users').select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', entry['student_user_id']).limit(1).execute()
     ).data or []
     org = (

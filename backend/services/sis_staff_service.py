@@ -23,6 +23,7 @@ from utils import blank_values
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -86,18 +87,10 @@ def _org_now(org_id: str) -> datetime:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unknown'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    return (u.get('display_name')
-            or f"{first} {last}".strip()
-            or u.get('username') or u.get('email') or 'Unknown')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unknown')
 
 
 # ── Staff profiles ────────────────────────────────────────────────────────────
@@ -454,6 +447,97 @@ def _age(dob: Optional[str], today: date) -> Optional[int]:
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
+                           when: datetime) -> Dict[str, Dict[str, Any]]:
+    """Where each student on this roster goes after this class, today.
+
+    iCreate, 2026-08-25: "Could you make it so that each teacher is able to see
+    where the students in their class are supposed to go to next? ... Then, each
+    teacher can help us with the in between classes chaos."
+
+    Keyed off THIS class's meeting today, not the wall clock: a teacher takes
+    attendance at the start of the block and needs to know where to send the
+    room at the end of it. Returns {} rather than raising — the roster (and the
+    health alerts on it) must render even if the schedule read fails.
+    """
+    if not student_ids:
+        return {}
+    try:
+        admin = _admin()
+        today = when.date()
+        dow = (today.weekday() + 1) % 7  # Python Mon=0; class_meetings uses Sun=0
+
+        # This class's own meeting today tells us when the handover happens. A
+        # class with no meeting on this weekday has no "next" to point at.
+        mine = (admin.table('class_meetings')
+                .select('start_time, end_time, day_of_week, specific_date')
+                .eq('class_id', class_id).execute()).data or []
+        today_iso = today.isoformat()
+        mine_today = [m for m in mine
+                      if (m.get('specific_date') or '')[:10] == today_iso
+                      or (not m.get('specific_date') and m.get('day_of_week') == dow)]
+        if not mine_today:
+            return {}
+        # Earliest end among this class's meetings today: what the students in
+        # front of the teacher are leaving.
+        leaves_at = min((m.get('end_time') or m.get('start_time') or '')
+                        for m in mine_today)
+        if not leaves_at:
+            return {}
+
+        # Every other class these students are in, and when it meets today.
+        enr = fetch_all_rows(lambda: (
+            admin.table('class_enrollments').select('student_id, class_id')
+            .in_('student_id', student_ids).eq('status', 'active')
+        ))
+        other_ids = sorted({e['class_id'] for e in enr if e['class_id'] != class_id})
+        if not other_ids:
+            return {}
+        meetings = fetch_all_rows(lambda: (
+            admin.table('class_meetings')
+            .select('class_id, day_of_week, specific_date, start_time, end_time, location')
+            .in_('class_id', other_ids)
+        ))
+        classes = {c['id']: c for c in (
+            admin.table('org_classes').select('id, name, location, organization_id')
+            .in_('id', other_ids).execute()).data or []}
+
+        # Earliest meeting today per class that starts at or after this one ends.
+        soonest: Dict[str, Dict[str, Any]] = {}
+        for m in meetings:
+            cls = classes.get(m['class_id'])
+            if not cls or cls.get('organization_id') != org_id:
+                continue
+            on_today = ((m.get('specific_date') or '')[:10] == today_iso
+                        or (not m.get('specific_date') and m.get('day_of_week') == dow))
+            start = m.get('start_time') or ''
+            if not on_today or start < leaves_at:
+                continue
+            prev = soonest.get(m['class_id'])
+            if prev is None or start < prev['start_time']:
+                soonest[m['class_id']] = {
+                    'class_id': m['class_id'],
+                    'name': cls.get('name'),
+                    'start_time': start,
+                    # The meeting's own room wins: a class can move for one
+                    # block, and the room is the whole point of this line.
+                    'location': m.get('location') or cls.get('location'),
+                }
+
+        by_student: Dict[str, Dict[str, Any]] = {}
+        for e in enr:
+            nxt = soonest.get(e['class_id'])
+            if not nxt:
+                continue
+            cur = by_student.get(e['student_id'])
+            if cur is None or nxt['start_time'] < cur['start_time']:
+                by_student[e['student_id']] = nxt
+        return by_student
+    except Exception as exc:  # noqa: BLE001 — a schedule read must not cost the roster
+        logger.warning(f'next-class lookup failed for class {class_id}: {exc}')
+        return {}
+
+
 def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
                         accessor_role: str) -> Dict[str, Any]:
     """Full teacher roster for one class: student, preferred name, age, photo,
@@ -491,7 +575,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
                   .execute()).data or []
         g_ids = [g['user_id'] for g in g_rows]
         g_users = {u['id']: u for u in (
-            admin.table('users').select('id, first_name, last_name, display_name, email')
+            admin.table('users').select('id, first_name, last_name, display_name, email, preferred_name')
             .in_('id', g_ids).execute()).data or []} if g_ids else {}
         for g in g_rows:
             gu = g_users.get(g['user_id']) or {}
@@ -511,7 +595,9 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
         if r.get('status') in s:
             s[r['status']] += 1
 
-    today = _org_now(org_id).date()
+    now = _org_now(org_id)
+    today = now.date()
+    next_class = _next_class_by_student(org_id, class_id, ids, now)
     students = []
     for e in enrollments:
         u = users.get(e['student_id']) or {}
@@ -538,6 +624,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'has_alert': bool(allergies or medications),
             'attendance': att.get(e['student_id']),
             'enrolled_at': e.get('enrolled_at'),
+            'next_class': next_class.get(e['student_id']),
         })
     students.sort(key=lambda s: (s.get('last_name') or s['name']).lower())
     # Student photos are private-bucket objects; one batch for the roster.

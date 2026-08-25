@@ -396,9 +396,7 @@ function CaptureTab({ cohortId }) {
       if (files.length > 0) {
         const fd = new FormData()
         files.forEach(f => fd.append('files', f))
-        const { data } = await api.post('/api/evidence', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        const { data } = await treehouseAPI.captureUpload(fd)
         media = (data.files || []).map(f => ({
           type: (f.content_type || '').startsWith('video') ? 'video' : 'image',
           file_url: f.url, file_name: f.original_name || f.stored_name, file_size: f.size,

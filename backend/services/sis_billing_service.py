@@ -1050,7 +1050,7 @@ def _users_map(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         return {}
     return {u['id']: u for u in (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email, is_dependent')
+        .select('id, display_name, first_name, last_name, username, email, is_dependent, preferred_name')
         .in_('id', ids).execute()
     ).data or []}
 

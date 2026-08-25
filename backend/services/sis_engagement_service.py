@@ -329,7 +329,7 @@ def list_open_alerts(org_id: str, class_ids: Optional[List[str]] = None) -> List
     names: Dict[str, str] = {}
     if student_ids:
         for u in (admin.table('users')
-                  .select('id, display_name, first_name, last_name, username, email')
+                  .select('id, display_name, first_name, last_name, username, email, preferred_name')
                   .in_('id', student_ids).execute()).data or []:
             names[u['id']] = ((u.get('display_name') or
                                f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()

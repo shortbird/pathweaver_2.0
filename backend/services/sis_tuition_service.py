@@ -34,6 +34,7 @@ from services import sis_billing_service as billing
 from services import sis_payment_profile as payment_profile
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils import person_name
 
 # sis_clp_service is imported lazily inside the functions that use it (same idiom
 # as the rest of the SIS services), so the pure helpers here don't pull it in.
@@ -52,17 +53,10 @@ def _admin():
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unknown'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = f"{first} {last}".strip()
-    return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unknown')
 
 
 def _sis_settings(org_id: str) -> Dict[str, Any]:
@@ -307,7 +301,7 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
         classes_by_student.setdefault(e['student_id'], []).append(e['class_id'])
 
     users = {u['id']: u for u in (_admin().table('users')
-             .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan')
+             .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan, preferred_name')
              .in_('id', pending).execute()).data or []}
     hh_map = sis_service._household_by_user(org_id)
     hh_ids = list({(hh_map.get(sid) or {}).get('household_id')
@@ -367,7 +361,7 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
     if not sis_service.student_in_org(student_id, org_id):
         return {'error': 'Student not found'}
     urow = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan')
+            .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan, preferred_name')
             .eq('id', student_id).limit(1).execute()).data
     if not urow:
         return {'error': 'Student not found'}
@@ -441,7 +435,7 @@ def preview_invoice_document(org_id: str, student_id: str,
     if not sis_service.student_in_org(student_id, org_id):
         return {'error': 'Student not found'}
     urow = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email')
+            .select('id, first_name, last_name, display_name, username, email, preferred_name')
             .eq('id', student_id).limit(1).execute()).data
     if not urow:
         return {'error': 'Student not found'}

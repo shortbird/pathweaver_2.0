@@ -775,7 +775,7 @@ def _email_offer(org_id: str, class_name: str, student_id: str,
     org_name = (org[0].get('name') if org else None) or 'your school'
     student = (
         admin.table('users')
-        .select('first_name, last_name, display_name, username, email')
+        .select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', student_id).limit(1).execute()
     ).data or []
     student_name = _display_name(student[0]) if student else 'your student'

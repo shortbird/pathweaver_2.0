@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional
 from database import get_supabase_admin_client
 from utils.fk_errors import fk_blocker, fk_blocker_label
 from utils.logger import get_logger
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -46,18 +47,10 @@ def _now_iso() -> str:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name')
-            or f"{first} {last}".strip())
-    return name or u.get('username') or u.get('email') or 'Unnamed'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 def _user(org_id: str, target_id: str) -> Optional[Dict[str, Any]]:

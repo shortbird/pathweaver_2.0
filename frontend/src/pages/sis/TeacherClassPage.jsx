@@ -40,6 +40,18 @@ const today = () => new Date().toISOString().slice(0, 10)
 // 'gradebook' stays accepted so old links and bookmarks land on the tab that
 // replaced it rather than silently falling back to the roster.
 const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages']
+
+// "Next" is only useful with a room and a time on it — the point is a teacher
+// pointing a student down the right hallway (iCreate, 2026-08-25).
+const fmtTime = (hhmm) => {
+  if (!hhmm) return ''
+  const [h, m] = String(hhmm).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
+}
+
 const TAB_ALIASES = { gradebook: 'progress' }
 
 const TeacherClassPage = () => {
@@ -258,6 +270,13 @@ const TeacherClassPage = () => {
                           {s.name}
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
                         </span>
+                        {s.next_class && (
+                          <span className="block text-xs text-neutral-500 truncate">
+                            Next: {s.next_class.name}
+                            {s.next_class.location ? ` · ${s.next_class.location}` : ''}
+                            {s.next_class.start_time ? ` · ${fmtTime(s.next_class.start_time)}` : ''}
+                          </span>
+                        )}
                         {s.has_alert && (
                           <HealthAlert student={s}
                             open={alertFor === s.student_id}

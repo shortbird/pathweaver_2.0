@@ -13,6 +13,7 @@ from typing import Callable, Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -164,17 +165,10 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name') or f"{first} {last}".strip()).strip()
-    return name or u.get('username') or u.get('email') or 'Unnamed'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 # ── Duplicate-student detection ──────────────────────────────────────────────
@@ -274,7 +268,7 @@ def find_household_duplicates(org_id: str, household_id: str,
     from repositories.household_repository import HouseholdRepository
     admin = _admin()
     crow = (admin.table('users')
-            .select('id, first_name, last_name, date_of_birth')
+            .select('id, first_name, last_name, date_of_birth, preferred_name')
             .eq('id', candidate_user_id).limit(1).execute()).data or []
     if not crow:
         return []
@@ -286,7 +280,7 @@ def find_household_duplicates(org_id: str, household_id: str,
     if not student_ids:
         return []
     rows = (admin.table('users')
-            .select('id, first_name, last_name, display_name, date_of_birth, email, username')
+            .select('id, first_name, last_name, display_name, date_of_birth, email, username, preferred_name')
             .in_('id', student_ids).execute()).data or []
     return [{'user_id': r['id'], 'name': _full_name(r), 'email': r.get('email')}
             for r in rows if likely_same_student(candidate, r)]
@@ -388,7 +382,7 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     if guardian_ids:
         for chunk in (guardian_ids[i:i + 200] for i in range(0, len(guardian_ids), 200)):
             rows = (admin.table('users')
-                    .select('id, first_name, last_name, display_name, email, phone_number')
+                    .select('id, first_name, last_name, display_name, email, phone_number, preferred_name')
                     .in_('id', chunk).execute()).data or []
             g_users.update({u['id']: u for u in rows})
 
@@ -721,7 +715,7 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
     """All users in an org (students + guardians + staff) for household assignment pickers."""
     resp = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, username, role, org_role, org_roles')
+        .select('id, first_name, last_name, display_name, email, username, role, org_role, org_roles, preferred_name')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -937,7 +931,7 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, phone_number, '
-                'role, org_role, org_roles, last_active, created_at, bio, avatar_url')
+                'role, org_role, org_roles, last_active, created_at, bio, avatar_url, preferred_name')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -1120,7 +1114,7 @@ def find_placeholder_match(org_id: str, first: str, last: str) -> Optional[Dict[
         return None
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, org_role, org_roles')
+        .select('id, first_name, last_name, display_name, email, org_role, org_roles, preferred_name')
         .eq('organization_id', org_id).execute()
     ).data or []
     for u in rows:
@@ -1176,7 +1170,7 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
     existing = (
         admin.table('users')
         .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
-                'first_name, last_name, display_name')
+                'first_name, last_name, display_name, preferred_name')
         .eq('email', email).limit(1).execute()
     ).data
     if existing:
@@ -1307,7 +1301,7 @@ def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
     rows = (
         admin.table('users')
         .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
-                'first_name, last_name, display_name, bio')
+                'first_name, last_name, display_name, bio, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not rows:
@@ -1392,7 +1386,7 @@ def set_staff_roles(org_id: str, staff_id: str, roles: Any,
 
     admin = _admin()
     rows = (admin.table('users')
-            .select('id, email, role, org_role, org_roles, organization_id, first_name, last_name, display_name')
+            .select('id, email, role, org_role, org_roles, organization_id, first_name, last_name, display_name, preferred_name')
             .eq('id', staff_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
         return {'error': 'Staff member not found'}
@@ -1613,7 +1607,7 @@ def update_staff_member(org_id: str, staff_id: str, fields: Dict[str, Any]) -> O
     """Edit a staff member's profile (name/email/bio). Keeps display_name in sync
     and best-effort syncs the auth email, mirroring update_student_profile."""
     row = (
-        _admin().table('users').select('id, organization_id, first_name, last_name, email')
+        _admin().table('users').select('id, organization_id, first_name, last_name, email, preferred_name')
         .eq('id', staff_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
@@ -1663,7 +1657,7 @@ def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any])
     if not student_in_org(student_id, org_id):
         return None
     current = (
-        _admin().table('users').select('first_name, last_name, email')
+        _admin().table('users').select('first_name, last_name, email, preferred_name')
         .eq('id', student_id).limit(1).execute()
     ).data
     cur = current[0] if current else {}
@@ -1727,7 +1721,7 @@ def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
     teacher_names: Dict[str, str] = {}
     if teacher_ids:
         for u in (_admin().table('users')
-                  .select('id, display_name, first_name, last_name, username, email')
+                  .select('id, display_name, first_name, last_name, username, email, preferred_name')
                   .in_('id', list(teacher_ids)).execute()).data or []:
             teacher_names[u['id']] = _full_name(u)
 
@@ -1845,7 +1839,7 @@ def get_org_user(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     row = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, date_of_birth, '
-                'role, org_role, org_roles, organization_id')
+                'role, org_role, org_roles, organization_id, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
@@ -2134,7 +2128,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     if user_ids:
         rows = (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url')
+            .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url, preferred_name')
             .in_('id', user_ids)
             .execute()
         ).data or []
@@ -2191,7 +2185,7 @@ def unassigned_students(org_id: str) -> List[Dict[str, Any]]:
     users = (
         admin.table('users')
         .select('id, first_name, last_name, display_name, email, username, '
-                'role, org_role, org_roles, date_of_birth')
+                'role, org_role, org_roles, date_of_birth, preferred_name')
         .eq('organization_id', org_id).execute()
     ).data or []
     students = [u for u in users if is_student(u)]

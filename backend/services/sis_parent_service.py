@@ -21,6 +21,7 @@ from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
 from services import sis_service
 from utils.db_fetch import fetch_all_rows
+from utils import person_name
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
@@ -36,18 +37,10 @@ def _admin():
 
 
 def _student_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name') or
-            f"{first} {last}").strip()
-    return name or (u.get('username') or u.get('email') or 'Unnamed')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 # ── Authorization: which students may this guardian register? ─────────────────
@@ -136,7 +129,7 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -368,7 +361,7 @@ def list_my_registrations(user_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -927,7 +920,7 @@ def _alert_admins_blocked_claim(org_id: str, class_id: str, student_user_id: str
         from services import sis_notifications
         stu = (
             _admin().table('users')
-            .select('first_name, last_name, display_name, username')
+            .select('first_name, last_name, display_name, username, preferred_name')
             .eq('id', student_user_id).limit(1).execute()
         ).data or []
         name = 'A student'
@@ -1362,7 +1355,7 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, email')
+            .select('id, display_name, first_name, last_name, email, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     } if user_ids else {}

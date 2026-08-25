@@ -1021,6 +1021,12 @@ export const treehouseAPI = {
 
   // Facilitator phone capture (G1): one photo+caption → tag one or many students.
   capture: (body) => api.post('/api/treehouse/capture', body),
+  // Photos go up first; /capture stores the pointers this returns. It used to
+  // post to /api/evidence, which has no handler — every capture with a photo
+  // 404'd as "Could not save capture".
+  captureUpload: (formData) => api.post('/api/treehouse/capture/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // Showcase events. scope: 'upcoming' | 'past' | 'all'.
   showcaseEvents: (scope) => api.get('/api/treehouse/showcase/events', { params: scope ? { scope } : {} }),

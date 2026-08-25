@@ -21,6 +21,7 @@ MAX_SPAN_DAYS = 31
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -38,18 +39,10 @@ def _today() -> _date:
 
 
 def _student_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    return (u.get('display_name')
-            or f"{first} {last}".strip()
-            or u.get('username') or u.get('email') or 'Unnamed')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 def _org_admin_ids(org_id: str) -> List[str]:
@@ -382,7 +375,7 @@ def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
         return
     users = (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, username, email, preferred_name')
         .eq('id', student_user_id).limit(1).execute()
     ).data or []
     name = _student_name(users[0]) if users else 'A student'

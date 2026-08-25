@@ -77,6 +77,26 @@ const Modal = ({ title, onClose, children }) => (
   </ModalOverlay>
 )
 
+// Sort preference per view. localStorage so the office's choice survives a
+// page load — the dropdown existed before this and still reset every visit,
+// which read as the sort not working at all.
+const SORT_KEY = 'sis.billing.sort'
+const SORT_DEFAULTS = { charges: 'default', outstanding: 'family', detail: 'default' }
+
+const readSortPrefs = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SORT_KEY) || '{}')
+    // Only keep values this page still understands; a stale key must not wedge
+    // the table into an order with no matching option in the dropdown.
+    return Object.fromEntries(Object.entries(raw)
+      .filter(([k, v]) => k in SORT_DEFAULTS && (v === 'default' || v === 'family')))
+  } catch { return {} }
+}
+
+const writeSortPrefs = (prefs) => {
+  try { localStorage.setItem(SORT_KEY, JSON.stringify(prefs)) } catch { /* private mode */ }
+}
+
 const BillingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'detail'
@@ -84,7 +104,19 @@ const BillingPage = () => {
   // "I need to be able to sort the billing page by family as well to make it
   // easier to record payments" (d406dd7a). Recording a stack of cheques means
   // working family by family; the server order is by what is owed and when.
-  const [sortBy, setSortBy] = useState('default')
+  //
+  // Two views, two habits, so the choice is per view and it is remembered.
+  // Outstanding opens alphabetically: it is read as a list of families to chase
+  // and the office looks people up by name — asked for twice now, the second
+  // time after the dropdown already existed but reset to "most overdue" on
+  // every visit (iCreate, 2026-08-25).
+  const [sortByView, setSortByView] = useState(readSortPrefs)
+  const sortBy = sortByView[view] ?? SORT_DEFAULTS[view] ?? 'default'
+  const setSortBy = (next) => setSortByView((prev) => {
+    const merged = { ...prev, [view]: next }
+    writeSortPrefs(merged)
+    return merged
+  })
   const [ledger, setLedger] = useState(null)
   const [households, setHouseholds] = useState([])
 
