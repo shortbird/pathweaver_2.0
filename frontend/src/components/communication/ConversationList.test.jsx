@@ -52,14 +52,26 @@ describe('ConversationList', () => {
   it('splits active conversations from the contacts directory', async () => {
     renderList()
     await waitFor(() => expect(screen.getByText('Conversations')).toBeInTheDocument())
-    expect(screen.getByText('Contacts')).toBeInTheDocument()
     // Active thread (Sam) with its preview, plus the group, under Conversations
     expect(screen.getByText('Sam Smith')).toBeInTheDocument()
     expect(screen.getByText('Hi Sam')).toBeInTheDocument()
     expect(screen.getByText('Study Group')).toBeInTheDocument()
-    // Optio Support (no thread) shows in the directory with the Optio logo
-    expect(screen.getByText('Optio Support')).toBeInTheDocument()
-    expect(screen.getByAltText('Optio Support')).toBeInTheDocument()
+  })
+
+  it('pins Optio Support below the list instead of burying it in Contacts', async () => {
+    renderList()
+    await waitFor(() => expect(screen.getByText('Need help? Message Optio')).toBeInTheDocument())
+    // It is the pinned row, not a directory entry: no Contacts section is left
+    // once support is the only contact without a thread.
+    expect(screen.queryByText('Contacts')).not.toBeInTheDocument()
+  })
+
+  it('opens the support thread from the pinned row', async () => {
+    const onSelect = vi.fn()
+    renderList({ onSelectConversation: onSelect })
+    await waitFor(() => expect(screen.getByText('Need help? Message Optio')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Need help? Message Optio'))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'sup' }))
   })
 
   it('does not render relationship pills', () => {

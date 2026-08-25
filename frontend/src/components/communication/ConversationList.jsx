@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef } from 'react'
-import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, observerAPI } from '../../services/api'
@@ -142,11 +142,28 @@ const ConversationList = ({
     return rows.sort((a, b) => (b.unread - a.unread) || (new Date(b.sortAt || 0) - new Date(a.sortAt || 0)))
   }, [advisor, advisorMatchesSearch, searchedContacts, filteredGroups])
 
+  // Optio Support. Every account gets this contact from the backend
+  // (routes/direct_messages.py::_append_support_contact), but it arrived last
+  // in an alphabetical Contacts list under every teacher, observer and child —
+  // a Hearthwood parent wrote in on 2026-08-25 saying there was nowhere in the
+  // portal to contact us. It is now a permanent row at the foot of the list,
+  // outside the scroll and unaffected by the search box, so "how do I ask Optio
+  // for help" has one answer that is always on screen.
+  const supportContact = useMemo(
+    () => unifiedContacts.find(c => c.relationshipTypes?.includes('support')) || null,
+    [unifiedContacts]
+  )
+  const supportConversation = useMemo(
+    () => (supportContact ? contactToConversation(supportContact) : null),
+    [supportContact]
+  )
+
   // Contacts directory: people you can message but have no active thread with.
   // The school's shared inbox leads the list (then the pinned teacher above it).
+  // Support is excluded — it has its own pinned row below the list.
   const directoryRows = useMemo(() => {
     const mapped = searchedContacts
-      .filter(c => !c.lastMessageAt)
+      .filter(c => !c.lastMessageAt && c.id !== supportContact?.id)
       .map(contactToConversation)
     const rows = [
       ...mapped.filter(r => r.type === 'school'),
@@ -154,7 +171,7 @@ const ConversationList = ({
     ]
     if (advisor && advisorMatchesSearch && !advisor.last_message_at) rows.unshift(advisor)
     return rows
-  }, [searchedContacts, advisor, advisorMatchesSearch])
+  }, [searchedContacts, advisor, advisorMatchesSearch, supportContact?.id])
 
   // Auto-select the most-recent conversation on desktop (once), so the chat
   // panel isn't empty on load. Falls back to the empty state when there are no
@@ -387,16 +404,44 @@ const ConversationList = ({
         )}
       </div>
 
-      {/* New group — pinned at the bottom of the list */}
-      {canCreateGroups && onCreateGroup && (
-        <div className="border-t border-gray-200 p-3">
-          <button
-            onClick={onCreateGroup}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 hover:border-optio-purple transition-colors"
-          >
-            <PlusIcon className="w-4 h-4" />
-            New group
-          </button>
+      {/* Optio Support and New group — pinned below the scrolling list. */}
+      {(supportConversation || (canCreateGroups && onCreateGroup)) && (
+        <div className="border-t border-gray-200 p-3 space-y-2">
+          {supportConversation && (
+            <button
+              onClick={() => onSelectConversation(supportConversation)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-colors ${
+                selectedConversation?.id === supportConversation.id && selectedConversation?.type !== 'group'
+                  ? 'bg-optio-purple/5 border-optio-purple'
+                  : 'border-gray-200 hover:bg-optio-purple/5 hover:border-optio-purple'
+              }`}
+            >
+              <LifebuoyIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-800">Need help? Message Optio</span>
+                <span className="block text-xs text-gray-500 truncate">
+                  {supportConversation.last_message_preview ||
+                    'Questions about the app, your account, or a name that looks wrong'}
+                </span>
+              </span>
+              {supportConversation.unread_count > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[10px] font-bold">
+                    {supportConversation.unread_count > 9 ? '9+' : supportConversation.unread_count}
+                  </span>
+                </span>
+              )}
+            </button>
+          )}
+          {canCreateGroups && onCreateGroup && (
+            <button
+              onClick={onCreateGroup}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 hover:border-optio-purple transition-colors"
+            >
+              <PlusIcon className="w-4 h-4" />
+              New group
+            </button>
+          )}
         </div>
       )}
     </div>
