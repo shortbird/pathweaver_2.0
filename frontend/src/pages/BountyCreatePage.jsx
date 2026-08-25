@@ -8,6 +8,7 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
 import BountyAiDraftPanel from '../components/bounty/BountyAiDraftPanel'
+import useHidePillars from '../hooks/useHidePillars'
 
 const PILLARS = [
   { key: 'stem', label: 'STEM' },
@@ -27,6 +28,7 @@ const OPTIO_LOGO = 'https://auth.optioeducation.com/storage/v1/object/public/sit
 const OPTIO_USERS = ['tanner bowman']
 
 const BountyCreatePage = () => {
+  const hidePillars = useHidePillars()
   const navigate = useNavigate()
   const location = useLocation()
   // The bounty board passes its own URL as state.from -- it may be embedded in
@@ -436,20 +438,27 @@ const BountyCreatePage = () => {
                       />
                       <span className="text-xs text-gray-400">XP (25-200)</span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PILLARS.map(p => (
-                        <button
-                          key={p.key}
-                          type="button"
-                          onClick={() => updateReward(i, 'pillar', p.key)}
-                          className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                            r.pillar === p.key ? 'bg-optio-purple text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Pillar buttons hidden for schools that switched the
+                        pillars off; the reward keeps its 'stem' default, which
+                        those orgs never see anywhere. Every reward row gets a
+                        default on creation, so hiding the control can never
+                        leave the pillar unset behind the validation below. */}
+                    {!hidePillars && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {PILLARS.map(p => (
+                          <button
+                            key={p.key}
+                            type="button"
+                            onClick={() => updateReward(i, 'pillar', p.key)}
+                            className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                              r.pillar === p.key ? 'bg-optio-purple text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex-1">

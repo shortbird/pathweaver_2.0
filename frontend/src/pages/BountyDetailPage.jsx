@@ -17,6 +17,8 @@ import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
 import { useConfirm } from '../contexts/ConfirmContext'
 
+import useHidePillars from '../hooks/useHidePillars'
+
 const PILLAR_LABELS = {
   stem: 'STEM', art: 'Art', communication: 'Communication', civics: 'Civics', wellness: 'Wellness',
 }
@@ -30,6 +32,7 @@ const PILLAR_COLORS = {
 }
 
 const BountyDetailPage = () => {
+  const hidePillars = useHidePillars()
   const confirm = useConfirm()
   const { bountyId } = useParams()
   const navigate = useNavigate()
@@ -214,9 +217,11 @@ const BountyDetailPage = () => {
                 r.type === 'xp' ? (
                   <span key={i} className="text-sm font-bold text-optio-purple">
                     +{r.value} XP
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-1 ${PILLAR_COLORS[r.pillar] || ''}`}>
-                      {PILLAR_LABELS[r.pillar] || r.pillar}
-                    </span>
+                    {!hidePillars && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-1 ${PILLAR_COLORS[r.pillar] || ''}`}>
+                        {PILLAR_LABELS[r.pillar] || r.pillar}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span key={i} className="text-sm font-semibold px-3 py-1 rounded-full bg-amber-50 text-amber-700">{r.text}</span>

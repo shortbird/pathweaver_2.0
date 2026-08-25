@@ -94,3 +94,114 @@ def test_school_payload_never_leaks_the_flags_blob():
         'feature_flags': {'hide_pillars': True, 'stripe_secret': 'sk_live_nope'},
     })
     assert set(payload) == {'id', 'name', 'homepage', 'hide_pillars'}
+
+
+# ── The write paths must not require a pillar ────────────────────────────────
+#
+# The first regression after the flag shipped: the parent-authoring endpoint
+# (family_quests.create_task_for_dependent) still required a pillar, so a
+# Hearthwood parent's IEW writing task refused to finalize with an error naming
+# a control her form no longer shows (2026-08-25, the same parent's second
+# email). These tests pin every layer of the fix:
+#   - persist_accepted_task (the shared choke point) derives a pillar from the
+#     diploma credit when the caller sends none;
+#   - the family-quests route accepts a body with no pillar at all.
+
+
+def _persist(task):
+    """Run persist_accepted_task with everything but the pillar logic mocked.
+
+    Returns the row handed to supabase.table('user_quest_tasks').insert().
+    """
+    from unittest.mock import MagicMock, patch
+    from routes import quest_personalization as qp
+
+    captured = {}
+
+    def insert(row):
+        captured['row'] = row
+        chain = MagicMock()
+        chain.execute.return_value = MagicMock(data=[row])
+        return chain
+
+    supabase = MagicMock()
+    supabase.table.return_value.insert.side_effect = insert
+    subject_service = MagicMock()
+    subject_service.classify_task_subjects.return_value = {}
+
+    with patch.object(qp, 'get_or_create_enrollment', return_value='uq-1'), \
+            patch.object(qp, 'get_next_order_index', return_value=0), \
+            patch.object(qp, '_class_subject_override', return_value=(None, None)), \
+            patch('utils.xp_permissions.resolve_learner_task_xp',
+                  return_value=(task.get('xp_value', 100), False)):
+        qp.persist_accepted_task(
+            supabase, subject_service, 'user-1', 'quest-1', dict(task),
+            save_to_library=False, caller_role='parent',
+        )
+    return captured['row']
+
+
+def test_persist_derives_pillar_from_the_chosen_credit():
+    """No pillar sent + Language Arts credit -> communication, not stem."""
+    row = _persist({
+        'title': 'IEW writing lesson',
+        'diploma_subjects': {'Language Arts': 100},
+        'xp_value': 100,
+    })
+    assert row['pillar'] == 'communication'
+
+
+def test_persist_still_honors_an_explicit_pillar():
+    row = _persist({
+        'title': 'Robotics build',
+        'pillar': 'art',
+        'diploma_subjects': {'Math': 100},
+        'xp_value': 100,
+    })
+    assert row['pillar'] == 'art'
+
+
+def test_persist_with_no_pillar_and_no_credit_still_writes_a_valid_pillar():
+    """The column is NOT NULL; an empty form must never produce a bad row."""
+    row = _persist({'title': 'Free exploration', 'xp_value': 100})
+    assert row['pillar'] in PILLAR_KEYS
+
+
+def test_family_quest_task_without_pillar_is_accepted():
+    """The exact request the Hearthwood parent's finalize sends: no pillar,
+    a diploma credit picked. Must reach persistence, not 400."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from flask import Flask
+    from routes import family_quests
+
+    view = family_quests.create_task_for_dependent.__wrapped__
+
+    handed = {}
+
+    def fake_persist(supabase, subject_service, child_id, quest_id, task, **kw):
+        handed['task'] = task
+        return {**task, 'id': 't-1'}
+
+    flask_app = Flask(__name__)
+    body = {
+        'child_id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'title': 'IEW writing lesson',
+        'diploma_subjects': {'Language Arts': 100},
+        'xp_value': 100,
+    }
+    with flask_app.test_request_context(
+        '/api/family/quests/q-1/tasks', method='POST',
+        data=json.dumps(body), content_type='application/json',
+    ), patch.object(family_quests, 'verify_parent_role'), \
+            patch.object(family_quests, 'verify_parent_has_access_to_child', return_value=True), \
+            patch.object(family_quests, 'get_supabase_admin_client', return_value=MagicMock()), \
+            patch('routes.quest_personalization.persist_accepted_task', side_effect=fake_persist), \
+            patch('utils.xp_permissions.get_effective_role_for', return_value='parent'), \
+            patch('services.subject_classification_service.SubjectClassificationService', MagicMock()):
+        response, status = view('parent-user', 'q-1'), None
+        payload = response[0].get_json() if isinstance(response, tuple) else response.get_json()
+
+    assert payload['success'] is True, payload
+    assert handed['task']['pillar'] is None
+    assert handed['task']['diploma_subjects'] == {'Language Arts': 100}

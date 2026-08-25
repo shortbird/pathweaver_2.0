@@ -12,6 +12,8 @@ import EmptyState from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { useConfirm } from '../contexts/ConfirmContext'
 
+import useHidePillars from '../hooks/useHidePillars'
+
 const PILLARS = [
   { key: null, label: 'All' },
   { key: 'stem', label: 'STEM' },
@@ -51,6 +53,7 @@ const CLAIM_BADGE = {
 }
 
 const BountyCard = memo(({ bounty, onClick, claimStatus }) => {
+  const hidePillars = useHidePillars()
   const pillarStyle = PILLAR_COLORS[bounty.pillar] || 'text-gray-600 bg-gray-100'
   const badge = claimStatus ? CLAIM_BADGE[claimStatus] : null
 
@@ -77,7 +80,7 @@ const BountyCard = memo(({ bounty, onClick, claimStatus }) => {
             <div className="flex flex-wrap items-center gap-2">
               {(bounty.rewards || []).map((r, i) => (
                 r.type === 'xp' ? (
-                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
                 ) : (
                   <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
                 )
@@ -113,6 +116,7 @@ const rewardSummary = (bounty) => {
 
 // Active claim card - shows deliverables with evidence upload
 const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, turnInPending, onToggleIncomplete, onDrop, onRetry }) => {
+  const hidePillars = useHidePillars()
   const bounty = claim.bounty
   if (!bounty) return null
 
@@ -141,7 +145,7 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
       <div className="flex flex-wrap items-center gap-2 mb-2">
         {(bounty.rewards || []).map((r, i) => (
           r.type === 'xp' ? (
-            <span key={i} className="text-xs font-bold text-optio-purple">+{r.value} XP <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+            <span key={i} className="text-xs font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
           ) : (
             <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
           )
@@ -283,6 +287,7 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
 
 // Posted bounty card - matches browse card layout with edit/delete + claim stats
 const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
+  const hidePillars = useHidePillars()
   const submittedClaims = (bounty.claims || []).filter(c => c.status === 'submitted')
   const approvedClaims = (bounty.claims || []).filter(c => c.status === 'approved')
   const totalClaims = (bounty.claims || []).length
@@ -327,7 +332,7 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
             <div className="flex flex-wrap items-center gap-2">
               {(bounty.rewards || []).map((r, i) => (
                 r.type === 'xp' ? (
-                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
                 ) : (
                   <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
                 )
@@ -365,6 +370,7 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
 }
 
 const BountyBoardPage = () => {
+  const hidePillars = useHidePillars()
   const confirm = useConfirm()
   const navigate = useNavigate()
   const location = useLocation()
@@ -625,6 +631,8 @@ const BountyBoardPage = () => {
       {/* Browse Tab */}
       {tab === 'browse' && (
         <>
+          {/* Pillar filter — meaningless to a school with pillars off */}
+          {!hidePillars && (
           <div className="flex flex-wrap gap-2 mb-6">
             {PILLARS.map(p => (
               <button
@@ -640,6 +648,7 @@ const BountyBoardPage = () => {
               </button>
             ))}
           </div>
+          )}
 
           {loadingBounties ? (
             <PageLoader className="py-16" />

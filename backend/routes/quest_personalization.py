@@ -173,6 +173,7 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
     """
     from services.task_library_service import TaskLibraryService
     from utils.pillar_utils import normalize_pillar_name
+    from utils.school_subjects import pillar_for_subject
     from utils.xp_permissions import resolve_learner_task_xp
 
     # Resolve the (client-controlled) xp_value before it's persisted and copied
@@ -193,15 +194,25 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
 
     user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
 
-    try:
-        pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
-    except ValueError:
-        pillar_key = 'stem'
-
     diploma_subjects = normalize_diploma_subjects(
         task.get('diploma_subjects', {}),
         task.get('xp_value', 100)
     )
+
+    # Every caller of this helper serves surfaces where a school may have
+    # switched the pillars off (feature_flags.hide_pillars) and sent no pillar.
+    # The column is NOT NULL, so derive one from the credit that WAS chosen
+    # rather than requiring the field — requiring it strands the family behind a
+    # validation error naming a control they cannot see (Hearthwood, 2026-08-25:
+    # a parent's IEW writing task refused to finalize over the missing pillar).
+    raw_pillar = task.get('pillar')
+    if raw_pillar:
+        try:
+            pillar_key = normalize_pillar_name(raw_pillar)
+        except ValueError:
+            pillar_key = 'stem'
+    else:
+        pillar_key = pillar_for_subject(_first_subject(diploma_subjects))
     next_order = get_next_order_index(target_user_id, quest_id)
 
     subject_xp_distribution = {}
