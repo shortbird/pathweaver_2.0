@@ -71,7 +71,7 @@ export function zeroFillDays(trends, days, today = new Date()) {
 }
 
 /** "Aug 13" — short enough for a dense axis. */
-function shortDate(iso) {
+export function shortDate(iso) {
   const d = new Date(`${iso}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleDateString('en', { month: 'short', day: 'numeric', timeZone: 'UTC' })

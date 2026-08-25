@@ -163,6 +163,7 @@ def register_all(app):
         ai_quest_review,
         ai_prompts,
         ai_costs,
+        platform_metrics,
         audit_logs,
         crm as admin_crm,
     )
@@ -197,6 +198,7 @@ def register_all(app):
     app.register_blueprint(ai_quest_review.ai_quest_review_bp, url_prefix='/api/admin/ai-quest-review')
     app.register_blueprint(ai_prompts.ai_prompts_bp, url_prefix='/api/admin/ai')
     app.register_blueprint(ai_costs.ai_costs_bp, url_prefix='/api/admin/ai')
+    app.register_blueprint(platform_metrics.platform_metrics_bp, url_prefix='/api/admin')
     app.register_blueprint(audit_logs.bp, url_prefix='/api/admin/audit-logs')
     app.register_blueprint(admin_crm.bp)
 
