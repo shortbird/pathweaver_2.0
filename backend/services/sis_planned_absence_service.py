@@ -111,6 +111,54 @@ def for_class_date(org_id: str, class_id: str, on_date: str) -> Dict[str, Dict[s
     return out
 
 
+# ── Staff read: every upcoming absence, org-wide ─────────────────────────────
+def list_upcoming(org_id: str) -> List[Dict[str, Any]]:
+    """Active guardian-reported absences from today forward, soonest first,
+    with student and class names hydrated.
+
+    The 'Absence reported' notification links to /attendance, but the roster
+    there only shows an absence after the right class AND the right date are
+    picked — for a future-dated report that page answered nothing (iCreate,
+    2026-08-24: "where does that show up on Optio?"). This is the list that
+    page shows up front.
+    """
+    from utils.db_fetch import fetch_all_rows
+    rows = fetch_all_rows(lambda: (
+        _admin().table('student_planned_absences').select('*')
+        .eq('organization_id', org_id).eq('status', 'active')
+        .gte('absence_date', _today().isoformat())
+        .order('absence_date')
+    ))
+    student_ids = list({r['student_user_id'] for r in rows})
+    class_ids = list({r['class_id'] for r in rows if r.get('class_id')})
+    students = {}
+    if student_ids:
+        students = {
+            u['id']: _student_name(u) for u in (
+                _admin().table('users')
+                .select('id, preferred_name, first_name, last_name, display_name, username, email')
+                .in_('id', student_ids).execute()
+            ).data or []
+        }
+    classes = {}
+    if class_ids:
+        classes = {
+            c['id']: c.get('name') for c in (
+                _admin().table('org_classes').select('id, name')
+                .in_('id', class_ids).execute()
+            ).data or []
+        }
+    return [{
+        'id': r['id'],
+        'student_user_id': r['student_user_id'],
+        'student_name': students.get(r['student_user_id'], 'Unnamed'),
+        'absence_date': r['absence_date'],
+        'class_id': r.get('class_id'),
+        'class_name': classes.get(r['class_id']) if r.get('class_id') else None,
+        'reason': r.get('reason'),
+    } for r in rows]
+
+
 # ── Reads for a single student ────────────────────────────────────────────────
 def list_for_student(org_id: str, student_user_id: str,
                      upcoming_only: bool = True) -> List[Dict[str, Any]]:

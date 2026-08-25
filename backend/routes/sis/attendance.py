@@ -87,6 +87,22 @@ def student_attendance(user_id, student_id):
     return jsonify({'success': True, **attendance.student_history(org_id, student_id)})
 
 
+@bp.route('/attendance/absences', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def upcoming_absences(user_id):
+    """Guardian-reported absences from today forward, org-wide.
+
+    The 'Absence reported' notification deep-links to /attendance; without this
+    the page could only surface an absence once the right class and the right
+    date were picked, so the link answered nothing for a future report.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_planned_absence_service as planned
+    return jsonify({'success': True, 'absences': planned.list_upcoming(org_id)})
+
+
 @bp.route('/attendance/alerts', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def attendance_alerts(user_id):
