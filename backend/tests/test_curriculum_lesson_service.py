@@ -443,3 +443,83 @@ class TestValidateLessonContent:
 
         assert len(result['warnings']) > 0
         assert 'very long' in result['warnings'][0].lower()
+
+
+class TestUpdateLessonProgressRace:
+    """Two progress POSTs for the same lesson arriving together.
+
+    The select-then-insert in update_lesson_progress is not a lock: an autosave
+    racing a step click has both requests see no row and both insert, and the
+    loser hit curriculum_lesson_progress_user_id_lesson_id_key and 500'd on a
+    student mid-lesson (Sentry OPTIO-BACKEND-73). The row it collided with is the
+    one it wanted, so it must update instead of failing.
+    """
+
+    def setup_method(self):
+        self.supabase = Mock()
+        self.service = CurriculumLessonService(supabase=self.supabase)
+
+    def _table(self, *, existing, insert_error=None):
+        """A query builder whose select() finds `existing` and whose insert()
+        optionally raises. Returns (table, calls) where calls records the verbs."""
+        calls = []
+        table = Mock()
+        for verb in ('select', 'eq'):
+            getattr(table, verb).side_effect = lambda *a, **k: table
+        table.execute.return_value = Mock(data=existing)
+
+        def _insert(payload):
+            calls.append('insert')
+            inserted = Mock()
+            if insert_error is not None:
+                inserted.execute.side_effect = insert_error
+            else:
+                inserted.execute.return_value = Mock(data=[{'id': 'p1', **payload}])
+            return inserted
+
+        def _update(payload):
+            calls.append('update')
+            updated = Mock()
+            updated.eq.side_effect = lambda *a, **k: updated
+            updated.execute.return_value = Mock(data=[{'id': 'existing', **payload}])
+            return updated
+
+        table.insert.side_effect = _insert
+        table.update.side_effect = _update
+        self.supabase.table.return_value = table
+        return table, calls
+
+    def test_losing_the_insert_race_updates_the_winners_row(self):
+        err = Exception(
+            "{'message': 'duplicate key value violates unique constraint "
+            "\"curriculum_lesson_progress_user_id_lesson_id_key\"', 'code': '23505'}"
+        )
+        _, calls = self._table(existing=[], insert_error=err)
+
+        result = self.service.update_lesson_progress(
+            user_id='u1', lesson_id='l1', quest_id='q1', organization_id='o1',
+            status='in_progress')
+
+        assert calls == ['insert', 'update']
+        assert result['id'] == 'existing'
+
+    def test_an_unrelated_insert_failure_still_raises(self):
+        """Only the unique-violation is a race. Anything else is a real error and
+        must not be silently retried as an update."""
+        _, calls = self._table(existing=[], insert_error=Exception('connection reset'))
+
+        with pytest.raises(Exception, match='connection reset'):
+            self.service.update_lesson_progress(
+                user_id='u1', lesson_id='l1', quest_id='q1', organization_id='o1',
+                status='in_progress')
+
+        assert calls == ['insert']
+
+    def test_an_existing_row_is_updated_without_an_insert(self):
+        _, calls = self._table(existing=[{'id': 'existing'}])
+
+        self.service.update_lesson_progress(
+            user_id='u1', lesson_id='l1', quest_id='q1', organization_id='o1',
+            progress_percentage=40)
+
+        assert calls == ['update']

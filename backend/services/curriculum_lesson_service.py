@@ -489,16 +489,36 @@ class CurriculumLessonService(BaseService):
             if last_position is not None:
                 progress_data['last_position'] = last_position
 
+            def _update():
+                return self.supabase.table('curriculum_lesson_progress').update(progress_data)\
+                    .eq('user_id', user_id).eq('lesson_id', lesson_id).execute()
+
             if existing.data:
-                result = self.supabase.table('curriculum_lesson_progress').update(progress_data).eq('user_id', user_id).eq('lesson_id', lesson_id).execute()
+                result = _update()
             else:
-                progress_data.update({
+                insert_data = {
+                    **progress_data,
                     'user_id': user_id,
                     'lesson_id': lesson_id,
                     'quest_id': quest_id,
                     'organization_id': organization_id
-                })
-                result = self.supabase.table('curriculum_lesson_progress').insert(progress_data).execute()
+                }
+                try:
+                    result = self.supabase.table('curriculum_lesson_progress').insert(insert_data).execute()
+                except Exception as e:  # noqa: BLE001
+                    # The select above is not a lock: a lesson page that fires two
+                    # progress POSTs at once (autosave racing a step click) has both
+                    # requests see no row and both insert. The loser hit
+                    # curriculum_lesson_progress_user_id_lesson_id_key and 500'd on a
+                    # student mid-lesson. The row it collided with is the one we
+                    # wanted, so update it. (Sentry OPTIO-BACKEND-73.)
+                    if getattr(e, 'code', None) != '23505' and '23505' not in str(e):
+                        raise
+                    logger.info(
+                        f"Lesson progress insert raced for user {user_id} lesson {lesson_id}; "
+                        f"updating the existing row"
+                    )
+                    result = _update()
 
             return result.data[0] if result.data else {}
         except Exception as e:
