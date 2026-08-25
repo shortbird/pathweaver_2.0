@@ -157,6 +157,28 @@ export const updateDependentAIFeatures = async (dependentId, features) => {
   }
 }
 
+/**
+ * Correct a child's first and last name.
+ *
+ * Works for both kinds of child a guardian can have — a managed dependent and a
+ * linked student with their own login — which is why it is NOT updateDependent:
+ * that route is dependents-only and takes display_name, so a linked student's
+ * name had no editor anywhere in the parent's portal.
+ *
+ * @param {string} studentId - The child's user ID
+ * @param {{first_name: string, last_name: string}} name
+ * @returns {Promise<{success: boolean, student: Object, message: string}>}
+ */
+export const updateChildName = async (studentId, name) => {
+  try {
+    const response = await api.put(`/api/parent/children/${studentId}/name`, name)
+    return response.data
+  } catch (error) {
+    console.error(`Error updating name for child ${studentId}:`, error)
+    throw error
+  }
+}
+
 export default {
   getMyDependents,
   createDependent,
@@ -166,5 +188,6 @@ export default {
   promoteDependent,
   addDependentLogin,
   toggleDependentAIAccess,
-  updateDependentAIFeatures
+  updateDependentAIFeatures,
+  updateChildName
 }

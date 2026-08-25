@@ -25,6 +25,7 @@ from .analytics_insights import bp as analytics_insights_bp
 from .analytics import bp as analytics_bp
 from .engagement import bp as engagement_bp
 from .child_overview import bp as child_overview_bp
+from .child_profile import bp as child_profile_bp
 from .communications import bp as communications_bp
 from .learning_moments import bp as learning_moments_bp
 
@@ -37,6 +38,7 @@ __all__ = [
     'analytics_bp',
     'engagement_bp',
     'child_overview_bp',
+    'child_profile_bp',
     'communications_bp',
     'learning_moments_bp',
     'register_parent_blueprints'
@@ -52,5 +54,6 @@ def register_parent_blueprints(app: Flask):
     app.register_blueprint(analytics_bp)
     app.register_blueprint(engagement_bp)
     app.register_blueprint(child_overview_bp)
+    app.register_blueprint(child_profile_bp)
     app.register_blueprint(communications_bp)
     app.register_blueprint(learning_moments_bp)

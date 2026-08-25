@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import { Modal } from '../ui'
-import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateDependent } from '../../services/dependentAPI'
+import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateChildName } from '../../services/dependentAPI'
 import { observerAPI } from '../../services/api'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 
 /**
  * Modal for managing child settings (both dependents and linked students):
- * - Profile editing (name, avatar) - for dependents
+ * - Profile editing (first/last name, avatar) - for BOTH kinds of child. It was
+ *   dependents-only until 2026-08-25, when a Hearthwood parent wrote in about
+ *   her son being in the system as "Hanna Nathan": the tab told her he could
+ *   fix it himself in his account settings, which is not a thing a guardian
+ *   correcting a roster-import mistake can act on.
  * - Add login credentials (email/password) - only for dependents
  * - Toggle AI features access - for all children
  * - Granular AI feature controls (chatbot, lesson helper, task generation)
@@ -23,14 +27,16 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   // Support both 'dependent' (legacy) and 'child' props
   const childData = child || dependent
   const showLoginTab = isDependent
-  const showProfileTab = true // Show profile tab for all children (avatar upload)
+  const showProfileTab = true // Show profile tab for all children (name + avatar)
 
   const [activeTab, setActiveTab] = useState(showProfileTab ? 'profile' : 'ai')
   const [loading, setLoading] = useState(false)
   const [featureLoading, setFeatureLoading] = useState(false)
 
-  // Profile form state
-  const [displayName, setDisplayName] = useState('')
+  // Profile form state. First and last separately, because the whole point of
+  // this form is that they can be the wrong way round.
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [previewUrl, setPreviewUrl] = useState(null)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
@@ -67,8 +73,11 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   useEffect(() => {
     if (isOpen && childData) {
       setActiveTab(showProfileTab ? 'profile' : 'ai')
-      setDisplayName(childData?.display_name || childData?.student_name || '')
-      setPreviewUrl(childData?.avatar_url || null)
+      setFirstName(childData?.first_name || childData?.student_first_name || '')
+      setLastName(childData?.last_name || childData?.student_last_name || '')
+      // Linked students arrive from /my-children, which names the field
+      // student_avatar_url; dependents carry avatar_url.
+      setPreviewUrl(childData?.avatar_url || childData?.student_avatar_url || null)
       setAiEnabled(childData?.ai_features_enabled || false)
       setChatbotEnabled(childData?.ai_chatbot_enabled ?? true)
       setLessonHelperEnabled(childData?.ai_lesson_helper_enabled ?? true)
@@ -124,7 +133,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
     childData.display_name || childData.student_name ||
     (childData.student_first_name ? `${childData.student_first_name} ${childData.student_last_name || ''}`.trim() : null) ||
     'Child'
-  const firstName = childName.split(' ')[0]
+  const childFirstName = childName.split(' ')[0]
 
   const hasLogin = childData.email && !childData.email.endsWith('@optio-internal-placeholder.local')
 
@@ -183,26 +192,29 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to upload image')
-      setPreviewUrl(childData?.avatar_url || null)
+      setPreviewUrl(childData?.avatar_url || childData?.student_avatar_url || null)
     } finally {
       setUploading(false)
     }
   }
 
   const handleSaveProfile = async () => {
-    if (!displayName.trim()) {
-      toast.error('Display name is required')
+    if (!firstName.trim() || !lastName.trim()) {
+      toast.error('First and last name are both required')
       return
     }
 
     setLoading(true)
     try {
-      await updateDependent(childId, { display_name: displayName.trim() })
-      toast.success('Profile updated!')
+      await updateChildName(childId, {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+      })
+      toast.success('Name updated')
       onUpdate?.()
       onClose()
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to update profile')
+      toast.error(error.response?.data?.error || 'Failed to update the name')
     } finally {
       setLoading(false)
     }
@@ -438,42 +450,53 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
               </div>
               <p className="text-center text-sm text-gray-500">Click to upload a profile picture</p>
 
-              {/* Name Field - only editable for dependents */}
-              {isDependent ? (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Display Name
-                    </label>
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                      placeholder="Child's name"
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={loading || !displayName.trim()}
-                    className="btn-primary w-full"
-                  >
-                    {loading ? 'Saving...' : 'Save Profile'}
-                  </button>
-                </>
-              ) : (
-                <div className="text-center text-sm text-gray-500">
-                  <p className="font-medium text-gray-700 mb-1">{childName}</p>
-                  <p>{childName} can update their own name in their account settings.</p>
+              {/* Name. Editable for every child a guardian is responsible for. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="child-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    First name
+                  </label>
+                  <input
+                    id="child-first-name"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    placeholder="First name"
+                  />
                 </div>
-              )}
+                <div>
+                  <label htmlFor="child-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last name
+                  </label>
+                  <input
+                    id="child-last-name"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 -mt-4">
+                This is how {firstName || 'your child'} appears everywhere in Optio. If a school
+                roster put the names the wrong way round, swap them here.
+              </p>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={loading || !firstName.trim() || !lastName.trim()}
+                className="btn-primary w-full"
+              >
+                {loading ? 'Saving...' : 'Save name'}
+              </button>
 
               {/* Act As Button - only for dependents */}
               {isDependent && onActAs && (
                 <div className="pt-4 border-t border-gray-200">
                   <p className="text-sm text-gray-600 mb-3">
-                    Switch to {firstName}'s view to manage their quests and tasks directly.
+                    Switch to {childFirstName}'s view to manage their quests and tasks directly.
                   </p>
                   <button
                     onClick={() => {
@@ -483,7 +506,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                     className="btn-primary w-full"
                   >
                     <UserIcon className="w-5 h-5" />
-                    Act As {firstName}
+                    Act As {childFirstName}
                   </button>
                 </div>
               )}
@@ -724,7 +747,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                     </button>
 
                     <p className="mt-2 text-xs text-gray-500">
-                      Each link lets one person follow {firstName}'s learning. Create a separate link for
+                      Each link lets one person follow {childFirstName}'s learning. Create a separate link for
                       each person you invite &mdash; grandparents, a tutor, a coach.
                       {outstandingInviteCount > 0 && (
                         <> {outstandingInviteCount} link{outstandingInviteCount === 1 ? '' : 's'} you

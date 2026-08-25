@@ -77,6 +77,13 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
       ? { label: 'Family Dashboard', path: '/parent/dashboard' }
       : { label: 'Profile', path: '/overview' }
 
+  // Parents have no /overview, so "where do I change my name" had no answer in
+  // this menu — the one place people look for it. Deep-link straight into the
+  // Family Settings "You" tab rather than leaving them to find the modal.
+  const accountItem = effectiveRole === 'parent'
+    ? { label: 'Your account', path: '/parent/dashboard?settings=you' }
+    : null
+
   return (
     <nav ref={navRef} className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
       {/* lg:pl-5 = 20px, the sidebar's icon column (rail px-2 + item px-3). The
@@ -210,6 +217,16 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                       >
                         {profileItem.label}
                       </Link>
+                      {accountItem && (
+                        <Link
+                          role="menuitem"
+                          to={accountItem.path}
+                          onClick={() => setMenuOpen(false)}
+                          className="block px-4 py-2 text-sm font-poppins text-neutral-700 hover:bg-neutral-50 hover:text-optio-purple transition-colors"
+                        >
+                          {accountItem.label}
+                        </Link>
+                      )}
                       <button
                         role="menuitem"
                         onClick={handleLogout}
