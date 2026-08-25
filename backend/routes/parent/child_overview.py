@@ -734,6 +734,18 @@ def get_child_overview(user_id, student_id):
                 'questCount': sum(1 for c in recent_completions if c.get('pillar') == pillar_id)
             })
 
+        # Serve signed, never public. `quest-evidence` is private, so the block
+        # URLs above are durable pointers, not fetchable links, until signed —
+        # one batched call for everything on the page (see utils/storage_urls).
+        from services.portfolio_service import PortfolioService
+        PortfolioService().sign_evidence_blocks_on([
+            entry
+            for group in (completed_quests, portfolio_achievements)
+            for item in group
+            for entry in (item.get('task_evidence') or {}).values()
+            if isinstance(entry, dict)
+        ])
+
         return jsonify({
             'student': {
                 'id': student['id'],

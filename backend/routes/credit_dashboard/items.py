@@ -321,6 +321,10 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
                     .order('order_index') \
                     .execute()
                 evidence_blocks_data = blocks_result.data or []
+                # Serve signed, never public: `quest-evidence` is private, so
+                # the stored URLs are durable pointers, not fetchable links.
+                from services.portfolio_service import PortfolioService
+                PortfolioService().sign_evidence_blocks(evidence_blocks_data)
 
         # Get diploma review rounds
         rounds = admin_supabase.table('diploma_review_rounds') \
