@@ -565,7 +565,7 @@ const SchedulePanel = ({ student, orgId }) => {
                 getLabel={(c) => `${c.name}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}`}
                 placeholder="Search classes…" className="flex-1"
               />
-              <Button size="sm" onClick={enroll} loading={busy}>Enroll</Button>
+              <Button size="sm" onClick={() => enroll()} loading={busy}>Enroll</Button>
             </div>
           )}
       </div>
