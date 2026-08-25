@@ -138,7 +138,7 @@ class TestQueueShowsEveryone:
              patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
             table = Mock()
             admin.return_value.table.return_value = table
-            for chained in ('select', 'eq', 'in_', 'neq'):
+            for chained in ('select', 'eq', 'in_', 'neq', 'order', 'range'):
                 getattr(table, chained).return_value = table
             table.execute.return_value = Mock(data=[])
             result = svc.tuition_queue('org-1')
@@ -161,7 +161,7 @@ class TestQueueShowsEveryone:
              patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
             table = Mock()
             admin.return_value.table.return_value = table
-            for chained in ('select', 'eq', 'in_', 'neq'):
+            for chained in ('select', 'eq', 'in_', 'neq', 'order', 'range'):
                 getattr(table, chained).return_value = table
             table.execute.return_value = Mock(data=[])
             result = svc.tuition_queue('org-1')

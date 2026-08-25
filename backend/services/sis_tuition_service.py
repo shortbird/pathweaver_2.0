@@ -293,8 +293,15 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
     school_name = _org_private_school_name(org_id)
     by_id = {c['id']: c for c in catalog.list_classes(org_id)}
 
-    enrollments = (_admin().table('class_enrollments').select('student_id, class_id, status')
-                   .in_('student_id', pending).eq('status', 'active').execute()).data or []
+    # Paged: one row per enrollment across every pending student is exactly the
+    # read that silently truncates at the PostgREST cap. A dropped tail here does
+    # not hide a family — `pending` already listed them — it prices them at $0,
+    # which is worse: the queue shows a real student with no classes and nothing
+    # owed. (Sentry OPTIO-BACKEND-72, at 1268 active enrollments.)
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, student_id, class_id, status')
+        .in_('student_id', pending).eq('status', 'active')
+    ))
     classes_by_student: Dict[str, List[str]] = {}
     for e in enrollments:
         classes_by_student.setdefault(e['student_id'], []).append(e['class_id'])
