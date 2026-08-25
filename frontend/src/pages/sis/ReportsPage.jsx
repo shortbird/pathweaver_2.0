@@ -236,6 +236,45 @@ export const shapeClassReport = (data, selected, title = 'Class report') => {
   }
 }
 
+// ── Tiered report sort ───────────────────────────────────────────────────────
+// "On class report, please make it sortable like Classes under academics …
+// It's the tiered sort!" (iCreate, 2026-08-24). Cells arrive as pre-formatted
+// display strings, so day and time columns must be parsed into something
+// comparable — alphabetical "Fri < Mon < Wed" is nonsense, and "1:00pm" would
+// sort before "9:00am".
+const DOW_SORT = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+const cellSortValue = (key, cell) => {
+  const s = String(cell ?? '').trim()
+  if (!s) return null // empties sort last
+  if (key === 'days') {
+    const idxs = s.toLowerCase().split(/\s+/).map((d) => DOW_SORT[d]).filter((n) => n != null)
+    return idxs.length ? Math.min(...idxs) : null
+  }
+  if (key === 'time') {
+    const m = s.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i)
+    return m ? ((+m[1] % 12) + (m[3].toLowerCase() === 'pm' ? 12 : 0)) * 60 + +m[2] : null
+  }
+  if (/^\$/.test(s)) {
+    const n = parseFloat(s.replace(/[$,]/g, ''))
+    return Number.isNaN(n) ? null : n
+  }
+  if (key === 'ages') {
+    const m = s.match(/\d+/)
+    return m ? +m[0] : null
+  }
+  if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s)
+  return s.toLowerCase()
+}
+const compareCells = (key, a, b) => {
+  const va = cellSortValue(key, a)
+  const vb = cellSortValue(key, b)
+  if (va == null && vb == null) return 0
+  if (va == null) return 1
+  if (vb == null) return -1
+  if (typeof va === 'number' && typeof vb === 'number') return va - vb
+  return String(va).localeCompare(String(vb), undefined, { numeric: true })
+}
+
 const ReportCard = ({ title, description, children }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col">
     <div className="font-semibold text-neutral-900">{title}</div>
@@ -271,7 +310,10 @@ const ReportsPage = () => {
   const [questionKey, setQuestionKey] = useState('')
   const [report, setReport] = useState(null)          // {title, columns, rows, csvUrl, csvName}
   const [reportLoading, setReportLoading] = useState(false)
-  const [sort, setSort] = useState({ col: 0, dir: 'asc' })  // report table sort
+  // Report table sort: an ordered stack of [{col, dir}] — index 0 is the
+  // primary sort, each later entry a deeper tiebreaker (same model as
+  // ClassesTable). Starts on the first column ascending, as it always has.
+  const [sort, setSort] = useState([{ col: 0, dir: 'asc' }])
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [classCols, setClassCols] = useState(loadClassCols)      // null until first run
   const [includeArchived, setIncludeArchived] = useState(false)
@@ -333,21 +375,34 @@ const ReportsPage = () => {
     })
   }, [classList])
   // Reset the table sort whenever a different report is shown.
-  useEffect(() => { setSort({ col: 0, dir: 'asc' }) }, [report?.title])
+  useEffect(() => { setSort([{ col: 0, dir: 'asc' }]) }, [report?.title])
 
-  const toggleSort = (col) => setSort((s) => (
-    s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }
-  ))
+  // Click cycles a column asc → desc → off. A column not yet in the sort is
+  // appended as the next-deeper tiebreaker, so clicking Days then Time sorts
+  // by day and then by time within each day.
+  const toggleSort = (col) => setSort((stack) => {
+    const i = stack.findIndex((s) => s.col === col)
+    if (i === -1) return [...stack, { col, dir: 'asc' }]
+    if (stack[i].dir === 'asc') {
+      const next = [...stack]
+      next[i] = { col, dir: 'desc' }
+      return next
+    }
+    return stack.filter((s) => s.col !== col)
+  })
 
-  // Rows to render, sorted by the active column.
+  // Rows to render, sorted by the active columns in stack order. The field key
+  // (report.selected, present on the field-picker reports) is what tells the
+  // comparator a column holds days or times rather than plain text.
   const displayRows = React.useMemo(() => {
     if (!report) return []
-    const { col, dir } = sort
+    if (!sort.length) return report.rows
     return [...report.rows].sort((a, b) => {
-      const av = String(a[col] ?? '').toLowerCase()
-      const bv = String(b[col] ?? '').toLowerCase()
-      const n = av.localeCompare(bv, undefined, { numeric: true })
-      return dir === 'asc' ? n : -n
+      for (const { col, dir } of sort) {
+        const n = compareCells(report.selected?.[col], a[col], b[col])
+        if (n) return dir === 'asc' ? n : -n
+      }
+      return 0
     })
   }, [report, sort])
 
@@ -441,7 +496,7 @@ const ReportsPage = () => {
     const isRoster = report.kind === 'rosters'
     if (isRoster) { setRosterCols(next); saveCols(ROSTER_COLS_KEY, next) }
     else { setClassCols(next); saveClassCols(next) }
-    setSort({ col: 0, dir: 'asc' })
+    setSort([{ col: 0, dir: 'asc' }])
     setReport({
       ...report,
       columns: next.map((k) => report.fields.find((f) => f.key === k)?.label || k),
@@ -714,20 +769,37 @@ const ReportsPage = () => {
                   <p className="text-neutral-500">No matching records.</p>
                 ) : (
                   <div className="overflow-x-auto">
+                    {sort.length > 1 && (
+                      <div className="flex items-center gap-2 pb-2 text-xs text-neutral-500">
+                        <span>
+                          Sorted by {sort.map((s, i) => `${i + 1}. ${report.columns[s.col]}${s.dir === 'desc' ? ' ↓' : ' ↑'}`).join(', ')}
+                        </span>
+                        <button type="button" onClick={() => setSort([])}
+                          className="text-optio-purple hover:underline">Clear</button>
+                        <span className="text-neutral-300 hidden sm:inline">
+                          · Click a column to add a deeper level; click again to flip or remove it.
+                        </span>
+                      </div>
+                    )}
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="text-left border-b border-gray-200">
-                          {report.columns.map((c, j) => (
-                            <th key={c} className="py-2 pr-4 font-semibold text-neutral-700">
-                              <button type="button" onClick={() => toggleSort(j)}
-                                className="inline-flex items-center gap-1 hover:text-optio-purple">
-                                {c}
-                                <span className="text-[10px] text-neutral-400">
-                                  {sort.col === j ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
-                                </span>
-                              </button>
-                            </th>
-                          ))}
+                          {report.columns.map((c, j) => {
+                            const idx = sort.findIndex((s) => s.col === j)
+                            const entry = idx === -1 ? null : sort[idx]
+                            return (
+                              <th key={c} className="py-2 pr-4 font-semibold text-neutral-700">
+                                <button type="button" onClick={() => toggleSort(j)}
+                                  className="inline-flex items-center gap-1 hover:text-optio-purple">
+                                  {c}
+                                  <span className={`text-[10px] ${entry ? 'text-optio-purple' : 'text-neutral-400'}`}>
+                                    {entry ? (entry.dir === 'asc' ? '▲' : '▼') : '↕'}
+                                    {entry && sort.length > 1 ? <span className="font-bold ml-0.5">{idx + 1}</span> : null}
+                                  </span>
+                                </button>
+                              </th>
+                            )
+                          })}
                         </tr>
                       </thead>
                       <tbody>
