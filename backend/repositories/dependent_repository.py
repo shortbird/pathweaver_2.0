@@ -129,7 +129,14 @@ class DependentRepository(BaseRepository):
                 'is_dependent': True,
                 'managed_by_parent_id': parent_id,
                 'promotion_eligible_at': str(promotion_eligible_at),
-                'role': 'student',
+                # A child inheriting a parent's organisation is an org student
+                # and needs the org role columns, or the org_role-only queries
+                # skip them and the school's student counts disagree with each
+                # other (iCreate, 2026-08-27). Platform children keep the plain
+                # student role, which is what a user with no organisation has.
+                'role': 'org_managed' if parent_org_id else 'student',
+                'org_role': 'student' if parent_org_id else None,
+                'org_roles': ['student'] if parent_org_id else None,
                 'email': None,  # COPPA compliance - no visible email for dependents
                 'organization_id': parent_org_id,  # Inherit from parent
                 'total_xp': 0,

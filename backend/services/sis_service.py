@@ -11,6 +11,7 @@ RLS policies for a single org-admin read (same justification the /me endpoint us
 from typing import Callable, Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
 from utils import person_name
@@ -18,6 +19,12 @@ from utils import person_name
 logger = get_logger(__name__)
 
 ENROLLMENT_STATUSES = ('applicant', 'enrolled', 'withdrawn', 'graduated')
+
+# Students the People page hides by default, and so the headline count does too.
+# Kept in step with sis_clp_service._HIDDEN_ENROLLMENT_STATUSES: the dashboard
+# counting them while the roster hid them is what made one school's two student
+# totals disagree by six (iCreate, 2026-08-27: "Which one is actually accurate").
+INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 
 
 def _admin():
@@ -104,8 +111,6 @@ def member_org_id(user_id: str) -> Optional[str]:
 
 
 def _org_users(org_id: str) -> List[Dict[str, Any]]:
-    from utils.db_fetch import fetch_all_rows
-
     # Paged: this is every account in the school and it grows with every family
     # that joins. iCreate is at 334 and adding families daily; at the 1000-row
     # cap PostgREST would start dropping the tail silently, and the People page
@@ -124,32 +129,32 @@ def _org_students(org_id: str) -> List[Dict[str, Any]]:
 
 
 def _enrollments_by_student(org_id: str) -> Dict[str, Dict[str, Any]]:
-    resp = (
+    # Paged: this decides each student's enrollment_status, and the People page
+    # hides withdrawn and graduated students by it. A truncated read would make
+    # those students 'unassigned' and quietly put them back in the list.
+    rows = fetch_all_rows(lambda: (
         _admin().table('school_enrollments')
         .select('*')
         .eq('organization_id', org_id)
-        .execute()
-    )
-    return {row['student_user_id']: row for row in (resp.data or [])}
+    ))
+    return {row['student_user_id']: row for row in rows}
 
 
 def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
     """Map user_id -> {household_id, household_name, relationship} for an org."""
-    households = (
+    households = fetch_all_rows(lambda: (
         _admin().table('households')
         .select('id, name')
         .eq('organization_id', org_id)
-        .execute()
-    ).data or []
+    ))
     if not households:
         return {}
     hh_by_id = {h['id']: h for h in households}
-    members = (
+    members = fetch_all_rows(lambda: (
         _admin().table('household_members')
         .select('household_id, user_id, relationship, is_primary_guardian')
         .in_('household_id', list(hh_by_id.keys()))
-        .execute()
-    ).data or []
+    ))
     out: Dict[str, Dict[str, Any]] = {}
     for m in members:
         hh = hh_by_id.get(m['household_id'])
@@ -456,9 +461,16 @@ def get_dashboard(org_id: str) -> Dict[str, Any]:
         .limit(1)
         .execute()
     ).data
+    # The headline figure counts the same students the People page lists, so the
+    # two agree. The all-inclusive figure is still reported alongside it, because
+    # withdrawn and graduated students have not stopped existing.
+    inactive_students = sum(status_counts.get(s, 0)
+                            for s in INACTIVE_ENROLLMENT_STATUSES)
     return {
         'organization': org[0] if org else {'id': org_id},
-        'total_students': len(students),
+        'total_students': len(students) - inactive_students,
+        'all_students': len(students),
+        'inactive_students': inactive_students,
         'active_last_7_days': active,
         'households': households_count,
         'enrollment_status': status_counts,
@@ -575,11 +587,13 @@ def attach_student_to_org(org_id: str, student_id: str,
     if effective not in (None, 'student'):
         return False
 
-    if u.get('is_dependent'):
-        updates: Dict[str, Any] = {'organization_id': org_id}
-    else:
-        updates = {'organization_id': org_id, 'role': 'org_managed',
-                   'org_role': 'student', 'org_roles': ['student']}
+    # Dependents get the same role shape as everybody else. Skipping it here
+    # left them with role='student' and no org_role, which is_student() accepts
+    # but the many org_role-only queries do not -- so a parent-created child was
+    # missing from half the platform's student counts (iCreate: 52 of 219).
+    # roster_import_service writes this same shape for its dependents.
+    updates: Dict[str, Any] = {'organization_id': org_id, 'role': 'org_managed',
+                               'org_role': 'student', 'org_roles': ['student']}
     _admin().table('users').update(updates).eq('id', student_id).execute()
 
     for gid in (guardian_ids or []):

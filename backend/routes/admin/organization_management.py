@@ -16,6 +16,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_superadmin, require_org_admin, require_org_front_office
 from services.organization_service import OrganizationService
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.validation.password_validator import validate_password_strength
 from datetime import datetime, date
@@ -1000,14 +1001,14 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
         # Get students in organization
         # Note: Org users have role='org_managed' with actual role in org_role
-        users_query = client.table('users')\
-            .select('id, email, display_name, first_name, last_name, total_xp, last_active, created_at, org_role')\
-            .eq('organization_id', org_id)\
-            .eq('org_role', role_filter)\
+        # Paged: total_students below is len() of this read.
+        students = fetch_all_rows(lambda: (
+            client.table('users')
+            .select('id, email, display_name, first_name, last_name, total_xp, last_active, created_at, org_role')
+            .eq('organization_id', org_id)
+            .eq('org_role', role_filter)
             .order('first_name')
-
-        users_response = users_query.execute()
-        students = users_response.data or []
+        ))
 
         if not students:
             return jsonify({

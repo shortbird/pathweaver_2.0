@@ -377,12 +377,26 @@ class TestAttachStudentToOrg:
                                    'org_role': 'student', 'org_roles': ['student']}
         assert any(t == 'parent_student_links' for t, _ in admin.inserts)
 
-    def test_dependent_gets_org_only_and_no_link(self):
+    def test_dependent_gets_the_org_roles_but_no_link(self):
+        """A dependent is still an org student and needs the org role columns.
+
+        This used to set organization_id alone, leaving the child as
+        role='student' with no org_role. is_student() accepts that shape but the
+        many org_role-only queries do not, so a parent-created child was missing
+        from half the platform's student counts -- 52 of iCreate's 219 students,
+        which is what made their People page, dashboard and reports disagree
+        (2026-08-27). roster_import_service already writes this same shape for
+        its dependents.
+
+        The parent link is still skipped: dependents are joined to their parent
+        by managed_by_parent_id, not by parent_student_links.
+        """
         ok, admin = self._run({'id': 'k1', 'role': 'student', 'org_role': None,
                                'organization_id': None, 'is_dependent': True})
         assert ok
         user_updates = [p for t, p in admin.updates if t == 'users']
-        assert user_updates[0] == {'organization_id': 'org1'}
+        assert user_updates[0] == {'organization_id': 'org1', 'role': 'org_managed',
+                                   'org_role': 'student', 'org_roles': ['student']}
         assert not any(t == 'parent_student_links' for t, _ in admin.inserts)
 
     def test_other_org_refused(self):

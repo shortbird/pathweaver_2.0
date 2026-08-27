@@ -42,10 +42,11 @@ const Card = ({ title, action, children, className = '' }) => (
   </div>
 )
 
-const StatCard = ({ label, value, accent }) => (
+const StatCard = ({ label, value, accent, note }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-5">
     <div className="text-3xl font-bold text-neutral-900">{value ?? 0}</div>
     <div className={`text-sm mt-1 ${accent || 'text-neutral-500'}`}>{label}</div>
+    {note && <div className="text-xs mt-1 text-neutral-400">{note}</div>}
   </div>
 )
 
@@ -345,7 +346,16 @@ const SisDashboard = () => {
               School snapshot
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total students" value={snapshot.total_students} />
+              {/* Counts the same students the People page lists. The two used
+                  to disagree, because this card included withdrawn and
+                  graduated students and that page hides them. */}
+              <StatCard
+                label="Current students"
+                value={snapshot.total_students}
+                note={snapshot.inactive_students
+                  ? `${snapshot.all_students} incl. withdrawn and graduated`
+                  : null}
+              />
               <StatCard label="Active (last 7 days)" value={snapshot.active_last_7_days} accent="text-green-600" />
               <StatCard label="Families" value={snapshot.households} />
               <StatCard label="Enrolled" value={counts.enrolled || 0} accent="text-optio-purple" />

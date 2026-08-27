@@ -135,7 +135,10 @@ describe('today and the snapshot', () => {
 
   it('keeps the census, demoted under the queues', async () => {
     renderPage()
-    expect(await screen.findByText('Total students')).toBeInTheDocument()
+    // "Current" rather than "Total": this card counted withdrawn and graduated
+    // students while the People page hid them, so a school saw two different
+    // student totals and could not tell which was real (iCreate, 2026-08-27).
+    expect(await screen.findByText('Current students')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('Families')).toBeInTheDocument()
     expect(screen.queryByText('Enrollment status')).not.toBeInTheDocument()
