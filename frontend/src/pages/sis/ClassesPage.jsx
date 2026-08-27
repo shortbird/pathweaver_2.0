@@ -994,7 +994,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
             </div>
           )}
 
-          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} />}
+          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />}
           {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>
@@ -1010,7 +1010,11 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
 // sibling sections — the same class at a different time, which is what "she is
 // in the wrong one" nearly always means, and the only move that cannot change
 // what the family is charged.
-const ClassRoster = ({ classId, className, orgId }) => {
+// onChanged refreshes the parent's class list. Without it the roster panel's own
+// count moved but the "X / Y enrolled" column, the Full chip and spots_left kept
+// their stale values until the page was reopened (iCreate, 2026-08-26: "it
+// doesn't update the enrolled number ... on a bunch of classes").
+const ClassRoster = ({ classId, className, orgId, onChanged }) => {
   const confirm = useConfirm()
   const [roster, setRoster] = useState(null)
   const [dropping, setDropping] = useState(null)
@@ -1045,6 +1049,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
       toast.success(`Dropped ${s.name}`)
       reload()
+      onChanged?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not drop the student') }
     finally { setDropping(null) }
   }
@@ -1061,6 +1066,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       toast.success(r.data?.already_enrolled ? 'Already on this roster' : 'Added to the class')
       setAdding('')
       reload()
+      onChanged?.()
     } catch (e) {
       if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
         setBusy(false)
@@ -1085,6 +1091,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
       toast.success(`Moved ${s.name} to ${section.name}`)
       reload()
+      onChanged?.()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not move the student')
     } finally { setDropping(null) }
@@ -1290,6 +1297,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       })
       toast.success(`${section.name} offered to ${e.student_name}`)
       reload()
+      onChanged?.()   // an offer holds a seat, so spots_left and Full move too
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not offer that section')
     } finally { setBusy(null) }
@@ -1329,6 +1337,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       await api.post(`/api/sis/waitlist/${e.id}/offer`, { organization_id: orgId })
       toast.success(`Seat offered to ${e.student_name}`)
       reload()
+      onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not offer the seat')
     } finally { setBusy(null) }

@@ -137,6 +137,49 @@ describe('adding a student from the roster', () => {
   })
 })
 
+/**
+ * iCreate, 2026-08-26: "I think it's a bug when you add a student to the roster
+ * & waitlist that it doesn't update the enrolled number. This is happening on a
+ * bunch of classes that i'm adding kids to." Followed the next morning by "Ok,
+ * nevermind. The enrolled number finally updated" — it had taken a reload.
+ *
+ * The roster panel refetched only its own list. The "X / Y enrolled" column, the
+ * Full chip and spots_left all live on the parent's class list, so they kept the
+ * value they were loaded with until something else happened to reload the page.
+ */
+const classListCalls = () => api.get.mock.calls
+  .filter(([url]) => url.includes('/api/sis/classes') && !url.includes('/enrollments')
+    && !url.includes('/sibling-sections') && !url.includes('/waitlist')).length
+
+describe('the enrolled count on the class list', () => {
+  it('refreshes after a student is added to the roster', async () => {
+    // clearAllMocks keeps implementations, so the 409 case above would otherwise
+    // still be in force here and the add would stop on its confirm.
+    api.post.mockResolvedValue({ data: { success: true } })
+    await openRoster()
+    const before = classListCalls()
+    await pickStudent('Ryder Swenson')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(classListCalls()).toBeGreaterThan(before))
+  })
+
+  it('refreshes after a student is dropped', async () => {
+    await openRoster()
+    const before = classListCalls()
+    fireEvent.click(screen.getByRole('button', { name: 'Drop' }))
+    await answerConfirm()
+    await waitFor(() => expect(classListCalls()).toBeGreaterThan(before))
+  })
+
+  it('refreshes after a student is moved to another section', async () => {
+    await openRoster()
+    const before = classListCalls()
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Lego Robotics \(Thu 1:00\)/ }))
+    await waitFor(() => expect(classListCalls()).toBeGreaterThan(before))
+  })
+})
+
 describe('moving a student to another section', () => {
   it('offers only the other sections with room', async () => {
     await openRoster()

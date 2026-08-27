@@ -183,7 +183,7 @@ describe('HouseholdsPage', () => {
 
     // Pick the family in Zed's row, then Add.
     fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Add'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
@@ -199,7 +199,7 @@ describe('HouseholdsPage', () => {
       target: { value: 'kid@family.com' },
     })
     fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[1], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Connect'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
@@ -224,7 +224,7 @@ describe('HouseholdsPage', () => {
     const heading = await screen.findByText('Students without a family')
     const panel = heading.closest('.bg-amber-50')
     fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Add'))
 
     expect(await confirmText()).toMatch(/looks like the same student/)
@@ -247,7 +247,7 @@ describe('HouseholdsPage', () => {
     const heading = await screen.findByText('Students without a family')
     const panel = heading.closest('.bg-amber-50')
     fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
     fireEvent.click(within(panel).getByText('Add'))
 
     await answerConfirm(false)

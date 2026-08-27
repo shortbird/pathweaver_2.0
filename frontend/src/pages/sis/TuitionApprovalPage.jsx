@@ -227,30 +227,33 @@ const TuitionApprovalPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] items-start gap-6">
         {/* ── Queue ─────────────────────────────────────────────────────── */}
-        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] flex flex-col min-h-0">
+        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] flex flex-col min-h-0 min-w-0">
           {!!queue?.length && (
             <div className="mb-3 space-y-2 pb-1 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    className={`${field} w-full pr-7 text-xs`}
-                    placeholder="Search name or family…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-xs px-1"
-                      aria-label="Clear search"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+              {/* Search owns its own row: four controls abreast overflowed the
+                  340px column, squeezing the search box to a sliver and pushing
+                  the overflow under the sticky preview pane. */}
+              <div className="relative">
+                <input
+                  type="text"
+                  className={`${field} w-full pr-7`}
+                  placeholder="Search name or family…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-xs px-1"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <select
-                  className={`${field} text-xs py-2`}
+                  className={`${field} text-xs py-2 min-w-0 flex-1`}
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   aria-label="Sort queue"
@@ -263,10 +266,10 @@ const TuitionApprovalPage = () => {
                 </select>
                 <PaymentFilterSelect
                   rows={queue} value={payFilter} onChange={setPayFilter}
-                  className="text-xs py-2"
+                  className="text-xs py-2 min-w-0 flex-1"
                 />
                 <select value={clpFilter} onChange={(e) => setClpFilter(e.target.value)}
-                  className="text-xs py-2 border border-gray-200 rounded-lg px-2" aria-label="Learning plan">
+                  className="text-xs py-2 border border-gray-200 rounded-lg px-2 min-w-0 flex-1" aria-label="Learning plan">
                   <option value="">Any learning plan</option>
                   <option value="finished">CLP finished</option>
                   <option value="unfinished">CLP not finished</option>
