@@ -269,6 +269,23 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onT
                           {offering === c.id ? '…' : 'Offer next seat'}
                         </button>
                       )}
+                      {/* On the row, not only at the foot of the expanded
+                          editor. Clicking a class opens the days-and-times form,
+                          so somebody looking for the roster expanded a class,
+                          saw a schedule editor and concluded there was nowhere
+                          to add a student (Gryffin, 2026-08-27: "when i click on
+                          the class it just does a drop down of like days and
+                          times ... I am not sure where to find the option to add
+                          a student"). */}
+                      {onRoster && c.status !== 'archived' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onRoster(c) }}
+                          title="Open the roster to add or drop students"
+                          className="text-[11px] font-semibold px-2 py-1 rounded-md border border-gray-300 text-neutral-600 hover:bg-gray-50 transition-colors">
+                          Roster
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
