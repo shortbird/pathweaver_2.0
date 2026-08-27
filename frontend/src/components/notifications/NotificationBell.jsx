@@ -28,9 +28,23 @@ const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
 
-  // Fetch notifications on mount
+  // Fetch on mount, then poll, and catch up whenever the tab is looked at
+  // again. Realtime pushes new ones when it is connected, but it depends on a
+  // channel the cookie-authenticated client cannot always subscribe to, and
+  // when it is not connected the count simply froze until a full page load --
+  // which reads as "I never get notified" (Gryffin, 2026-08-27).
   useEffect(() => {
     fetchNotifications()
+    const poll = setInterval(fetchNotifications, 60000)
+    const onFocus = () => fetchNotifications()
+    const onVisible = () => { if (!document.hidden) fetchNotifications() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(poll)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   // Handle real-time notification updates

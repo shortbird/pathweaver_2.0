@@ -12,6 +12,7 @@ import api from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { getProgramNavItem } from '../../programs/registry'
 import { parentHomePath } from '../../utils/postLoginPath'
+import { useUnreadCount } from '../../hooks/api/useDirectMessages'
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 
 const HOME_ICON = (
@@ -40,6 +41,8 @@ const FAMILY_ICON = (
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
+  const { data: unreadData } = useUnreadCount(user?.id)
+  const unreadMessages = unreadData?.unread_count || 0
   const { organization, school } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
   // SIS carve-out: when the user's org has sis_enabled (or the local dev override
@@ -319,10 +322,15 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // The sidebar has rendered item.badge since it was written, and nothing ever
+  // set one -- so a message arrived, a notification row was written, and the nav
+  // looked identical (Gryffin, 2026-08-27: "messages doesn't have any
+  // notifications, so you dont know if you have received messages").
   const communityItems = [
     {
       name: 'Messages',
       path: '/messages',
+      badge: unreadMessages > 0 ? unreadMessages : undefined,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -586,7 +594,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                         <span className={`w-5 flex-shrink-0 relative ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
                           {item.icon}
                           {/* Badge for collapsed sidebar */}
-                          {item.badge && !isExpanded && (
+                          {item.badge > 0 && !isExpanded && (
                             <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-optio-pink rounded-full">
                               {item.badge > 99 ? '99+' : item.badge}
                             </span>
@@ -595,7 +603,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                         <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 flex items-center gap-2 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
                           {item.name}
                           {/* Badge for expanded sidebar */}
-                          {item.badge && isExpanded && (
+                          {item.badge > 0 && isExpanded && (
                             <span className="min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-bold text-white bg-optio-pink rounded-full">
                               {item.badge > 99 ? '99+' : item.badge}
                             </span>
