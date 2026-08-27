@@ -147,4 +147,61 @@ describe('ConversationList', () => {
     )
     expect(screen.getByText('No conversations yet')).toBeInTheDocument()
   })
+
+  // The perf regression this list shipped with: ConversationItem was declared
+  // inside ConversationList's body, so every render produced a new component
+  // type and React remounted every row -- <img> included. Typing one character
+  // in the search box tore down and re-fetched every avatar on screen.
+  //
+  // Identity of the DOM node across a keystroke is the observable proof the row
+  // was reused rather than rebuilt. If someone moves these components back
+  // inside the parent, this fails.
+  it('reuses avatar DOM nodes when the search query changes', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/cora.jpg' }
+    ]
+    renderList()
+
+    const before = await screen.findByAltText('Cora Vance')
+    fireEvent.change(
+      screen.getByPlaceholderText('Search people and conversations...'),
+      { target: { value: 'Cor' } }
+    )
+    const after = await screen.findByAltText('Cora Vance')
+
+    expect(after).toBe(before)
+  })
+
+  it('defers offscreen avatar loading', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/cora.jpg' }
+    ]
+    renderList()
+
+    const img = await screen.findByAltText('Cora Vance')
+    expect(img).toHaveAttribute('loading', 'lazy')
+    // Explicit dimensions keep the list from reflowing as avatars arrive.
+    expect(img).toHaveAttribute('width', '40')
+    expect(img).toHaveAttribute('height', '40')
+  })
+
+  // Every one of these URLs fails eventually: a signed storage URL expires after
+  // an hour, Google's CDN throttles a burst of OAuth avatars, an object gets
+  // deleted. The row must degrade to the initial, not Chrome's broken-image
+  // glyph with the alt text spilling out of a 40px circle.
+  it('falls back to the initial when an avatar fails to load', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/gone.jpg' }
+    ]
+    renderList()
+
+    const img = await screen.findByAltText('Cora Vance')
+    fireEvent.error(img)
+
+    expect(screen.queryByAltText('Cora Vance')).not.toBeInTheDocument()
+    expect(await screen.findByText('C')).toBeInTheDocument()
+  })
 })

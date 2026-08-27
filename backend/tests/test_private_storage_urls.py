@@ -72,6 +72,34 @@ def storage_client():
     return client
 
 
+@pytest.fixture
+def thumb_client():
+    """Like `storage_client`, but its signer honours a transform option — what
+    Supabase actually does for `create_signed_url(path, ttl, {'transform': …})`."""
+    client = MagicMock()
+    buckets = {}
+
+    def from_(bucket):
+        if bucket not in buckets:
+            store = MagicMock()
+
+            def sign(path, ttl, options=None, _b=bucket):
+                t = (options or {}).get('transform')
+                if not t:
+                    return {'signedURL': f'{SIGN_BASE}/{_b}/{path}?token=tok-{ttl}'}
+                base = SIGN_BASE.replace('/object/sign', '/render/image/sign')
+                return {'signedURL':
+                        f"{base}/{_b}/{path}?token=tok-{ttl}"
+                        f"&w={t['width']}&h={t['height']}"}
+
+            store.create_signed_url.side_effect = sign
+            buckets[bucket] = store
+        return buckets[bucket]
+
+    client.storage.from_.side_effect = from_
+    return client
+
+
 # ── the helper signs a bare object path ──────────────────────────────────────
 
 class TestSignsBarePath:
@@ -729,7 +757,13 @@ _AVATAR_READ_PATHS = (
     'backend/services/xp_service.py',
 )
 
-_SIGNS_SOMETHING = re.compile(r'\bsign_(?:in_place|stored_urls?)\s*\(')
+# sign_thumb_urls/sign_thumbs_in_place count too: they sign the same way, and
+# additionally bake a render size into the token (see storage_urls).
+_SIGNS_SOMETHING = re.compile(
+    r'\bsign_(?:in_place|stored_urls?|thumbs_in_place|thumb_urls)\s*\('
+)
+# The batched helpers — one storage call for a whole list, rather than one per row.
+_BATCHED_HELPERS = ('sign_in_place', 'sign_thumbs_in_place')
 
 
 class TestAvatarReadPathsSign:
@@ -762,12 +796,13 @@ class TestAvatarReadPathsSign:
         )
         offenders = [
             rel for rel in list_paths
-            if 'sign_in_place' not in (REPO_ROOT / rel).read_text(encoding='utf-8')
+            if not any(h in (REPO_ROOT / rel).read_text(encoding='utf-8')
+                       for h in _BATCHED_HELPERS)
         ]
         assert not offenders, (
             'These serve LISTS of people. Signing one URL per row is one storage '
-            'round trip per row inside a single request; use sign_in_place():\n  '
-            + '\n  '.join(offenders)
+            'round trip per row inside a single request; use sign_in_place() or '
+            'sign_thumbs_in_place():\n  ' + '\n  '.join(offenders)
         )
 
 
@@ -1067,3 +1102,89 @@ class TestEvidenceReadPathsSign:
             if 'def sign_evidence_blocks' in path.read_text(encoding='utf-8', errors='ignore')
         ]
         assert signers == ['backend/services/portfolio_service.py'], signers
+
+
+# ── thumbnails ───────────────────────────────────────────────────────────────
+
+class TestThumbnails:
+    """Messages drew 40px avatars from full-resolution originals.
+
+    `user-photos` averages 1.3 MB an object, and a signed URL carries a fresh
+    token every request against no Cache-Control header, so nothing was reusable
+    between loads: one iCreate parent's contact list pulled ~108 MB to paint 95
+    circles, every single time. sign_thumb_urls bakes the size into the token.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear(self):
+        from utils.storage_urls import clear_thumb_cache
+        clear_thumb_cache()
+        yield
+        clear_thumb_cache()
+
+    def test_private_object_is_signed_at_thumbnail_size(self, thumb_client):
+        from utils.storage_urls import sign_thumb_urls
+        url = sign_thumb_urls([f'{PUBLIC_BASE}/user-photos/kid/photo.jpg'],
+                              client=thumb_client)[f'{PUBLIC_BASE}/user-photos/kid/photo.jpg']
+        assert '/render/image/sign/' in url
+        assert 'w=96' in url and 'h=96' in url
+
+    def test_transform_failure_falls_back_to_a_full_size_signed_url(self):
+        """A heavy avatar beats a missing one — but never an unsigned one."""
+        from utils.storage_urls import sign_thumb_urls
+        client = MagicMock()
+        store = MagicMock()
+
+        def sign(path, ttl, options=None):
+            if options:
+                raise RuntimeError('image transformation unavailable')
+            return {'signedURL': f'{SIGN_BASE}/user-photos/{path}?token=tok-{ttl}'}
+
+        store.create_signed_url.side_effect = sign
+        client.storage.from_.return_value = store
+
+        original = f'{PUBLIC_BASE}/user-photos/kid/photo.jpg'
+        url = sign_thumb_urls([original], client=client)[original]
+        assert url.startswith(f'{SIGN_BASE}/user-photos/')
+        assert 'token=' in url
+        assert '/object/public/' not in url
+
+    def test_second_call_does_not_resign(self, thumb_client):
+        """The whole reason per-object signing is affordable."""
+        from utils.storage_urls import sign_thumb_urls
+        values = [f'{PUBLIC_BASE}/user-photos/kid/photo.jpg']
+        first = sign_thumb_urls(values, client=thumb_client)
+        calls_after_first = thumb_client.storage.from_('user-photos').create_signed_url.call_count
+        second = sign_thumb_urls(values, client=thumb_client)
+        assert second == first
+        assert thumb_client.storage.from_('user-photos').create_signed_url.call_count == calls_after_first
+
+    def test_public_bucket_and_external_urls_are_left_alone(self, thumb_client):
+        from utils.storage_urls import sign_thumb_urls
+        logo = f'{PUBLIC_BASE}/site-assets/logos/gradient_fav.svg'
+        external = 'https://lh3.googleusercontent.com/a/AAA=s96-c'
+        out = sign_thumb_urls([logo, external], client=thumb_client)
+        assert out[logo] == logo
+        assert out[external] == external
+
+    def test_in_place_rewrites_only_the_named_fields(self, thumb_client):
+        from utils.storage_urls import sign_thumbs_in_place
+        records = [
+            {'id': 'a', 'avatar_url': f'{PUBLIC_BASE}/user-photos/a.jpg', 'bio': 'unchanged'},
+            {'id': 'b', 'avatar_url': None},
+            {'id': 'c'},
+        ]
+        sign_thumbs_in_place(records, ['avatar_url'], client=thumb_client)
+        assert '/render/image/sign/' in records[0]['avatar_url']
+        assert records[0]['bio'] == 'unchanged'
+        assert records[1]['avatar_url'] is None
+        assert 'avatar_url' not in records[2]
+
+    def test_a_signed_thumbnail_url_still_resolves_to_its_object(self):
+        """Re-signing something already signed must resolve, not pass through:
+        a stored capability would otherwise be handed straight back out."""
+        signed = (
+            'https://auth.optioeducation.com/storage/v1/render/image/sign/'
+            'user-photos/kid/photo.jpg?token=abc&w=96'
+        )
+        assert parse_object_ref(signed) == ('user-photos', 'kid/photo.jpg')

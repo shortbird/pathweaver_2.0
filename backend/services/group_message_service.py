@@ -414,56 +414,69 @@ class GroupMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Get all group memberships
-            memberships = supabase.table('group_members').select('group_id').eq(
-                'user_id', user_id
-            ).execute()
+            # Memberships carry last_read_at, so reading it here saves a
+            # per-group lookup further down.
+            memberships = supabase.table('group_members').select(
+                'group_id, last_read_at'
+            ).eq('user_id', user_id).execute()
 
             if not memberships.data:
                 return []
 
-            group_ids = [m['group_id'] for m in memberships.data]
+            last_read_by_group = {
+                m['group_id']: m.get('last_read_at') for m in memberships.data
+            }
+            group_ids = list(last_read_by_group)
 
             # Get group details
             groups = supabase.table('group_conversations').select('*').in_(
                 'id', group_ids
             ).eq('is_active', True).order('last_message_at', desc=True).execute()
 
-            # Enrich with member count and unread status
+            rows = groups.data or []
+            if not rows:
+                return []
+
+            # Member counts for every group at once. Paged, because this is one
+            # row per person per group and a teacher's class chats add up past
+            # the 1000-row response cap -- where the tail would silently read as
+            # empty groups (see utils/db_fetch).
+            from utils.db_fetch import fetch_all_rows
+            active_ids = [g['id'] for g in rows]
+            member_rows = fetch_all_rows(lambda: (
+                supabase.table('group_members').select('id, group_id')
+                .in_('group_id', active_ids)
+            ))
+            member_counts: Dict[str, int] = {}
+            for m in member_rows:
+                gid = m.get('group_id')
+                if gid:
+                    member_counts[gid] = member_counts.get(gid, 0) + 1
+
             result = []
-            for group in (groups.data or []):
-                member_count = supabase.table('group_members').select(
-                    'id', count='exact'
-                ).eq('group_id', group['id']).execute()
+            for group in rows:
+                last_read_at = last_read_by_group.get(group['id'])
+                last_message_at = group.get('last_message_at')
 
-                # Get user's last read time
-                membership = supabase.table('group_members').select('last_read_at').eq(
-                    'group_id', group['id']
-                ).eq('user_id', user_id).single().execute()
-
-                last_read_at = membership.data.get('last_read_at') if membership.data else None
-
-                # Count unread messages
-                unread_count = 0
-                if last_read_at:
-                    unread = supabase.table('group_messages').select(
-                        'id', count='exact'
-                    ).eq('group_id', group['id']).gt(
-                        'created_at', last_read_at
-                    ).neq('sender_id', user_id).eq('is_deleted', False).execute()
-                    unread_count = unread.count or 0
+                # A group whose newest message predates this member's last read
+                # cannot have anything unread, so skip the count query outright.
+                # In a normal inbox that is nearly all of them -- this used to
+                # be an unconditional round trip per group.
+                if last_read_at and (not last_message_at or last_message_at <= last_read_at):
+                    unread_count = 0
                 else:
-                    # Count all messages not from user
                     unread = supabase.table('group_messages').select(
                         'id', count='exact'
                     ).eq('group_id', group['id']).neq(
                         'sender_id', user_id
-                    ).eq('is_deleted', False).execute()
-                    unread_count = unread.count or 0
+                    ).eq('is_deleted', False)
+                    if last_read_at:
+                        unread = unread.gt('created_at', last_read_at)
+                    unread_count = unread.execute().count or 0
 
                 result.append({
                     **group,
-                    'member_count': member_count.count or 0,
+                    'member_count': member_counts.get(group['id'], 0),
                     'unread_count': unread_count
                 })
 

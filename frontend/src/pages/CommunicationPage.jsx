@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useConversations } from '../hooks/api/useDirectMessages'
@@ -49,9 +49,11 @@ const CommunicationPage = () => {
     }
   }, [searchParams, groupsData])
 
-  const handleSelectConversation = (conversation) => {
+  // Stable across renders: ConversationList's rows are memoized on it, and a
+  // fresh function each render would defeat that on every 30s poll.
+  const handleSelectConversation = useCallback((conversation) => {
     setSelectedConversation(conversation)
-  }
+  }, [])
 
   const handleCreateGroup = () => {
     setShowCreateGroupModal(true)

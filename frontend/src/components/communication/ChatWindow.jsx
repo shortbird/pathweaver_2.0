@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { AcademicCapIcon, ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
@@ -7,7 +7,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useConversationMessages,
   useSendMessage,
-  useMarkAsRead,
+  useMarkConversationAsRead,
   useToggleMessageReaction,
   useEditMessage,
   useDeleteMessage
@@ -20,6 +20,11 @@ const ChatWindow = ({ conversation, onBack }) => {
   const { user } = useAuth()
   const confirm = useConfirm()
   const [replyTo, setReplyTo] = useState(null)
+  // The header photo fails the same ways the list rows do — an expired signed
+  // URL, a throttled Google CDN avatar, a deleted object. Fall back to the
+  // initial rather than a broken-image glyph. See the Avatar note in
+  // ConversationList.
+  const [avatarFailed, setAvatarFailed] = useState(false)
 
   // Determine chat type
   const chatType = conversation?.type // 'advisor', 'friend'
@@ -40,7 +45,7 @@ const ChatWindow = ({ conversation, onBack }) => {
   )
 
   const sendMessageMutation = useSendMessage()
-  const markAsReadMutation = useMarkAsRead()
+  const markConversationReadMutation = useMarkConversationAsRead()
   const toggleReactionMutation = useToggleMessageReaction()
   const editMessageMutation = useEditMessage()
   const deleteMessageMutation = useDeleteMessage()
@@ -51,20 +56,35 @@ const ChatWindow = ({ conversation, onBack }) => {
   // Reset reply state when switching conversations
   useEffect(() => {
     setReplyTo(null)
+    setAvatarFailed(false)
   }, [conversation?.id])
 
-  // Mark messages as read when conversation opens
+  // Mark the thread read when it opens, or when a message arrives while it is
+  // open. One request for the whole conversation — this used to fire a PUT per
+  // unread message, each one invalidating the conversation list on the way
+  // back, so a busy thread refetched the heaviest query on the page twenty
+  // times over while the user read it.
+  //
+  // `markedReadRef` keeps that to one call per (conversation, unread state):
+  // the mutation invalidates the message query it is triggered from, so
+  // without it the success handler would re-arm this effect indefinitely.
+  const markedReadRef = useRef(null)
   useEffect(() => {
-    if (messagesData?.messages && messagesData.messages.length > 0) {
-      const unreadMessages = messagesData.messages.filter(
-        m => m.recipient_id === user?.id && !m.read_at
-      )
-
-      unreadMessages.forEach(message => {
-        markAsReadMutation.mutate(message.id)
-      })
-    }
-  }, [messagesData?.messages, user?.id])
+    const messages = messagesData?.messages
+    if (!conversation?.id || !user?.id || !messages?.length) return
+    const unreadCount = messages.filter(
+      m => m.recipient_id === user.id && !m.read_at
+    ).length
+    if (!unreadCount) return
+    const token = `${conversation.id}:${unreadCount}`
+    if (markedReadRef.current === token) return
+    markedReadRef.current = token
+    markConversationReadMutation.mutate(conversation.id, {
+      // Let a failed attempt be retried; otherwise the badge stays lit until
+      // the unread count happens to change.
+      onError: () => { markedReadRef.current = null }
+    })
+  }, [messagesData?.messages, user?.id, conversation?.id])
 
   // Build the small { id, sender_name, content } preview shown while replying
   const buildReplyPreview = (message) => ({
@@ -179,10 +199,14 @@ const ChatWindow = ({ conversation, onBack }) => {
             <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
               <AcademicCapIcon className="w-5 h-5 text-white" />
             </div>
-          ) : otherUser?.avatar_url ? (
+          ) : otherUser?.avatar_url && !avatarFailed ? (
             <img
               src={otherUser.avatar_url}
               alt={displayName}
+              width={40}
+              height={40}
+              decoding="async"
+              onError={() => setAvatarFailed(true)}
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (

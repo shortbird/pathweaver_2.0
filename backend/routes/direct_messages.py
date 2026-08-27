@@ -22,7 +22,9 @@ from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_required_fields, validate_string_length
 from utils.api_response import success_response, error_response
-from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
+from utils.storage_urls import (
+    public_object_url, sign_stored_url, sign_thumbs_in_place,
+)
 
 bp = Blueprint('direct_messages', __name__, url_prefix='/api/messages')
 
@@ -327,6 +329,35 @@ def mark_message_as_read(user_id: str, message_id: str):
         )
 
 
+@bp.route('/conversations/<conversation_id>/read', methods=['POST'])
+@require_auth
+def mark_conversation_read(user_id: str, conversation_id: str):
+    """Mark the whole thread read in one request.
+
+    Replaces a PUT-per-message loop from the client; see
+    DirectMessageService.mark_conversation_read.
+    """
+    try:
+        count = message_service.mark_conversation_read(conversation_id, user_id)
+        return success_response({
+            'success': True,
+            'conversation_id': conversation_id,
+            'marked_read': count,
+        })
+
+    except ValueError as e:
+        logger.warning(f"Permission error marking conversation as read: {str(e)}")
+        return error_response(str(e), status_code=403, error_code="forbidden")
+
+    except Exception as e:
+        logger.error(f"Error marking conversation as read: {str(e)}")
+        return error_response(
+            f"Failed to mark conversation as read: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
 @bp.route('/unread-count', methods=['GET'])
 @require_auth
 def get_unread_count(user_id: str):
@@ -506,9 +537,9 @@ def get_contacts(user_id: str):
                         'organization_id': org_id  # Include for superadmin context
                     })
 
-            # Avatars live in private buckets; the whole list is signed in one
-            # batch per bucket, not one round trip per contact.
-            sign_in_place(contacts, ['avatar_url'])
+            # Avatars live in private buckets and the list draws them at 40px,
+            # so serve thumbnails -- a full-size user photo averages 1.3 MB.
+            sign_thumbs_in_place(contacts, ['avatar_url'])
             return success_response({
                 'contacts': contacts,
                 'total': len(contacts)
@@ -646,9 +677,9 @@ def get_contacts(user_id: str):
                 # SIS classes: the teachers of every class those children are
                 # enrolled in. Class chats hold guardians and teachers, so the
                 # 1:1 surface has to offer the same adults (2026-08-22).
-                class_teacher_ids = set()
-                for cid in child_ids:
-                    class_teacher_ids |= class_membership.teachers_of_student(cid)
+                # Batched across the whole sibling set — per-child lookups cost
+                # three queries each.
+                class_teacher_ids = class_membership.teachers_of_students(child_ids)
                 _add_class_contacts(
                     supabase, contacts, class_teacher_ids,
                     'advisor', user_id, user_org_id
@@ -698,7 +729,7 @@ def get_contacts(user_id: str):
         # Always include the "Optio Support" contact (dedupes by id too).
         contacts = _append_support_contact(supabase, contacts, user_id)
 
-        sign_in_place(contacts, ['avatar_url'])
+        sign_thumbs_in_place(contacts, ['avatar_url'])
         return success_response({
             'contacts': contacts,
             'total': len(contacts)
@@ -761,7 +792,7 @@ def get_messageable_children(user_id: str):
                     'id, display_name, first_name, last_name, avatar_url, role'
                 ).in_('id', child_ids).execute()
                 children = res.data or []
-                sign_in_place(children, ['avatar_url'])
+                sign_thumbs_in_place(children, ['avatar_url'])
 
         return success_response({
             'children': children,

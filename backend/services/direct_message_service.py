@@ -277,12 +277,19 @@ class DirectMessageService(BaseService):
 
             # Both sides of every thread in one request. Two `.eq()` reads were
             # two round trips for a filter Postgres can OR in one.
+            #
+            # `.or_()` takes a raw filter STRING, where a comma ends one clause
+            # and starts the next -- so the id is proven to be a UUID before it
+            # goes in. See utils/validation/sanitizers and
+            # tests/test_postgrest_filter_injection.py.
+            from utils.validation.sanitizers import pgrst_uuid
             convos = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
                 created_at, updated_at
             ''').or_(
-                f'participant_1_id.eq.{user_id},participant_2_id.eq.{user_id}'
+                f'participant_1_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                f'participant_2_id.eq.{pgrst_uuid(user_id, "user_id")}'
             ).execute()
 
             rows = convos.data or []
@@ -349,10 +356,11 @@ class DirectMessageService(BaseService):
             # Sort by last_message_at descending
             all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
 
-            # Avatars live in private buckets. Sign the whole conversation list
-            # in one batch per bucket rather than a round trip per header.
-            from utils.storage_urls import sign_in_place
-            sign_in_place(
+            # Avatars live in private buckets, and the list draws them at 40px.
+            # Serve thumbnails: the originals average 1.3 MB apiece and the
+            # browser cannot reuse either one between loads (see storage_urls).
+            from utils.storage_urls import sign_thumbs_in_place
+            sign_thumbs_in_place(
                 [c['other_user'] for c in all_conversations
                  if isinstance(c.get('other_user'), dict)],
                 ['avatar_url'],
@@ -375,6 +383,33 @@ class DirectMessageService(BaseService):
             return user.data if user.data else {}
         except:
             return {'id': user_id, 'display_name': 'Unknown User'}
+
+    # PostgREST `in_` filters ride in the query string, so long id lists are
+    # chunked rather than sent as one enormous URL.
+    _USER_INFO_CHUNK = 100
+
+    def _get_users_info(self, user_ids) -> Dict[str, Dict[str, Any]]:
+        """The batch form of :meth:`_get_user_info`, keyed by id.
+
+        Anything that enriches a *list* should use this. Resolving names one
+        row at a time is the difference between one round trip and one per
+        conversation.
+        """
+        ids = [uid for uid in dict.fromkeys(user_ids) if uid]
+        if not ids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        try:
+            supabase = self._get_client()
+            for i in range(0, len(ids), self._USER_INFO_CHUNK):
+                rows = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role'
+                ).in_('id', ids[i:i + self._USER_INFO_CHUNK]).execute().data or []
+                for row in rows:
+                    out[row['id']] = row
+        except Exception as e:  # noqa: BLE001
+            print(f"Batch user lookup failed: {e}", file=sys.stderr, flush=True)
+        return out
 
     # ==================== Message Operations ====================
 
@@ -612,6 +647,66 @@ class DirectMessageService(BaseService):
 
         except Exception as e:
             print(f"Error marking message as read: {str(e)}", file=sys.stderr, flush=True)
+            raise
+
+    def mark_conversation_read(self, conversation_id: str, user_id: str) -> int:
+        """Mark every message this user has received in a thread as read.
+
+        Returns the number of messages that changed.
+
+        Opening a thread reads all of it at once, so this is one request. The
+        client used to send a PUT per unread message and invalidate the
+        conversation list on each response -- a thread with twenty unread
+        messages fired twenty writes and twenty refetches of the most expensive
+        endpoint on the page, all while the user was reading.
+        """
+        try:
+            supabase = self._get_client()
+
+            convo = supabase.table('message_conversations').select(
+                'id, participant_1_id, participant_2_id'
+            ).eq('id', conversation_id).single().execute()
+            if not convo.data:
+                raise ValueError("Conversation not found")
+
+            is_p1 = convo.data['participant_1_id'] == user_id
+            if not is_p1 and convo.data['participant_2_id'] != user_id:
+                raise ValueError("You are not a participant in this conversation")
+
+            # One UPDATE ... WHERE, not a read-then-write per row. Scoped to the
+            # caller as recipient, so it can only ever clear their own unread.
+            updated = supabase.table('direct_messages').update({
+                'read_at': datetime.utcnow().isoformat()
+            }).eq('conversation_id', conversation_id) \
+              .eq('recipient_id', user_id) \
+              .is_('read_at', 'null').execute()
+
+            rows = updated.data or []
+            if not rows:
+                return 0
+
+            # The whole thread is read, so the counter is zero -- no decrement
+            # arithmetic to drift out of step with the messages themselves.
+            supabase.table('message_conversations').update(
+                {'unread_count_p1' if is_p1 else 'unread_count_p2': 0}
+            ).eq('id', conversation_id).execute()
+
+            # Clear the bell for each sender whose message we just read, for the
+            # reason mark_as_read does it: a read thread must not keep showing
+            # in the notification center.
+            senders = {r.get('sender_id') for r in rows if r.get('sender_id')}
+            for sender_id in senders:
+                try:
+                    NotificationService().mark_message_notifications_read(
+                        user_id=user_id, sender_id=sender_id,
+                    )
+                except Exception as notif_err:  # noqa: BLE001
+                    logger.warning(f"Failed to clear message notifications on read: {notif_err}")
+
+            return len(rows)
+
+        except Exception as e:
+            print(f"Error marking conversation as read: {str(e)}", file=sys.stderr, flush=True)
             raise
 
     def get_unread_count(self, user_id: str) -> int:

@@ -9,7 +9,7 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1
 vi.mock('../../hooks/api/useDirectMessages', () => ({
   useConversationMessages: () => messagesState,
   useSendMessage: () => ({ mutateAsync: sendMutate, isPending: false }),
-  useMarkAsRead: () => ({ mutate: vi.fn() }),
+  useMarkConversationAsRead: () => ({ mutate: vi.fn() }),
   useToggleMessageReaction: () => ({ mutate: vi.fn() }),
   useEditMessage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteMessage: () => ({ mutate: vi.fn() })

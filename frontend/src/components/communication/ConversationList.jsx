@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react'
+import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react'
 import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,6 +14,222 @@ import {
 
 // Optio "favicon" mark, used as the avatar for the Optio Support contact.
 const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
+
+// Row size in CSS pixels. Passed to every <img> so the browser reserves the
+// space before the bytes land and the list stops reflowing as avatars arrive.
+const AVATAR_PX = 40
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffInHours = Math.floor((now - date) / (1000 * 60 * 60))
+
+  if (diffInHours < 1) return 'Just now'
+  if (diffInHours < 24) return `${diffInHours}h ago`
+  const diffInDays = Math.floor(diffInHours / 24)
+  if (diffInDays < 7) return `${diffInDays}d ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// An avatar that falls back to the person's initial when the image does not
+// load — the state every one of these URLs reaches sooner or later:
+//
+//   * A signed storage URL expires (STORAGE_SIGNED_URL_TTL, currently an hour).
+//     Leave Messages open over lunch and every photo on screen 400s.
+//   * Google OAuth avatars (44 accounts) are served by lh3.googleusercontent
+//     .com, which throttles a burst of concurrent requests from one client —
+//     measured 8 of 44 failing on one load and 0 on the next, from URLs that
+//     each return 200 when fetched alone. Nothing we control.
+//   * An avatar_url whose object has since been deleted (1 row today).
+//
+// Without this the row rendered Chrome's broken-image glyph with the alt text
+// spilling out of the 40px circle. The initial is what an account with no photo
+// already shows, so the failure is invisible rather than ugly.
+const Avatar = React.memo(({ src, name, initial }) => {
+  const [failed, setFailed] = useState(false)
+  // A re-signed URL for the same person is a fresh chance to load.
+  useEffect(() => { setFailed(false) }, [src])
+
+  if (!src || failed) {
+    return (
+      <div className="w-10 h-10 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-bold">
+        {initial}
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={name}
+      width={AVATAR_PX}
+      height={AVATAR_PX}
+      // A school directory is a long list and most of it is below the fold;
+      // without this every offscreen avatar downloaded on load.
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="w-10 h-10 rounded-full object-cover bg-optio-purple/10"
+    />
+  )
+})
+Avatar.displayName = 'Avatar'
+
+const UnreadBadge = ({ count }) => (
+  <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center">
+    <span className="text-white text-[10px] font-bold">{count > 9 ? '9+' : count}</span>
+  </div>
+)
+
+// These three live at module scope, NOT inside ConversationList. Declared in
+// the parent's body they were a new component type on every render, so React
+// tore down and rebuilt every row — including its <img> — each time the search
+// box changed by one character. Typing a name flickered the whole list and
+// re-fetched every avatar in it.
+//
+// Module scope + memo means a keystroke re-renders only the rows whose props
+// actually changed. `onSelect` must stay referentially stable for that to hold,
+// which is what the useCallback in the parent is for.
+
+const ConversationItem = React.memo(({ conversation, isSelected, onSelect }) => {
+  const isPinned = conversation.type === 'advisor'
+  const isSupport = conversation.type === 'support' || conversation.relationshipTypes?.includes('support')
+  const isSchool = conversation.type === 'school' || conversation.relationshipTypes?.includes('school') ||
+    conversation.other_user?.is_school
+  const hasThread = !!conversation.last_message_at
+  const isUnread = conversation.unread_count > 0
+  const displayName = `${conversation.other_user?.first_name || ''} ${conversation.other_user?.last_name || ''}`.trim() ||
+    conversation.other_user?.display_name || 'Unknown'
+  const initial = displayName?.charAt(0)?.toUpperCase() || '?'
+
+  return (
+    <button
+      onClick={() => onSelect(conversation)}
+      className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
+        isSelected
+          ? 'bg-optio-purple/5 border-optio-purple'
+          : 'border-transparent hover:bg-gray-50'
+      }`}
+    >
+      {/* Avatar */}
+      <div className="relative flex-shrink-0">
+        {isSupport ? (
+          <img
+            src={OPTIO_LOGO_URL}
+            alt="Optio Support"
+            width={AVATAR_PX}
+            height={AVATAR_PX}
+            decoding="async"
+            className="w-10 h-10 rounded-full object-contain bg-white border border-gray-100"
+          />
+        ) : isSchool ? (
+          <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+            <AcademicCapIcon className="w-5 h-5 text-white" />
+          </div>
+        ) : (
+          <Avatar
+            src={conversation.other_user?.avatar_url}
+            name={displayName}
+            initial={initial}
+          />
+        )}
+        {isPinned && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center" title="Teacher">
+            <MapPinIcon className="w-2.5 h-2.5 text-white" />
+          </div>
+        )}
+        {isUnread && <UnreadBadge count={conversation.unread_count} />}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 text-left">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
+            {displayName}
+          </h3>
+          {hasThread && (
+            <span className="text-xs text-gray-400 flex-shrink-0">
+              {formatTime(conversation.last_message_at)}
+            </span>
+          )}
+        </div>
+        <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : hasThread ? 'text-gray-500' : 'text-gray-400 italic'}`}>
+          {conversation.last_message_preview || 'No messages yet'}
+        </p>
+      </div>
+    </button>
+  )
+})
+ConversationItem.displayName = 'ConversationItem'
+
+const GroupConversationItem = React.memo(({ group, isSelected, onSelect }) => {
+  const isUnread = group.unread_count > 0
+
+  return (
+    <button
+      onClick={() => onSelect({ ...group, type: 'group' })}
+      className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
+        isSelected ? 'bg-optio-purple/5 border-optio-purple' : 'border-transparent hover:bg-gray-50'
+      }`}
+    >
+      <div className="relative flex-shrink-0">
+        <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
+          <UsersIcon className="w-5 h-5 text-white" />
+        </div>
+        {isUnread && <UnreadBadge count={group.unread_count} />}
+      </div>
+
+      <div className="flex-1 min-w-0 text-left">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
+              {group.name}
+            </h3>
+            {group.source_class_id && (
+              <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded-full">
+                Class
+              </span>
+            )}
+          </div>
+          {group.last_message_at && (
+            <span className="text-xs text-gray-400 flex-shrink-0">
+              {formatTime(group.last_message_at)}
+            </span>
+          )}
+        </div>
+        <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+          {group.last_message_preview || `${group.member_count || 0} members`}
+        </p>
+      </div>
+    </button>
+  )
+})
+GroupConversationItem.displayName = 'GroupConversationItem'
+
+const SectionHeader = ({ icon, label }) => (
+  <div className="px-4 pt-4 pb-1 flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+    {icon}
+    {label}
+  </div>
+)
+
+// Rows in the shape of the real thing, rather than a centred spinner. The list
+// is assembled from four requests that land at different times; a skeleton
+// keeps the layout still while they arrive instead of replacing the panel
+// wholesale when the last one lands.
+const ConversationSkeleton = () => (
+  <div className="pt-4" aria-hidden="true">
+    {Array.from({ length: 7 }).map((_, i) => (
+      <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="h-3.5 bg-gray-100 rounded animate-pulse" style={{ width: `${55 + ((i * 7) % 30)}%` }} />
+          <div className="h-3 bg-gray-100 rounded animate-pulse" style={{ width: `${35 + ((i * 11) % 40)}%` }} />
+        </div>
+      </div>
+    ))}
+  </div>
+)
 
 const ConversationList = ({
   conversations,
@@ -208,153 +424,8 @@ const ConversationList = ({
     onSelectConversation(first.kind === 'group' ? { ...first.group, type: 'group' } : first.convo)
   }, [isLoading, conversationRows, selectedConversation, onSelectConversation])
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return ''
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60))
-
-    if (diffInHours < 1) return 'Just now'
-    if (diffInHours < 24) return `${diffInHours}h ago`
-    const diffInDays = Math.floor(diffInHours / 24)
-    if (diffInDays < 7) return `${diffInDays}d ago`
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  const ConversationItem = ({ conversation }) => {
-    const isSelected = selectedConversation?.id === conversation.id && selectedConversation?.type !== 'group'
-    const isPinned = conversation.type === 'advisor'
-    const isSupport = conversation.type === 'support' || conversation.relationshipTypes?.includes('support')
-    const isSchool = conversation.type === 'school' || conversation.relationshipTypes?.includes('school') ||
-      conversation.other_user?.is_school
-    const hasThread = !!conversation.last_message_at
-    const isUnread = conversation.unread_count > 0
-    const displayName = `${conversation.other_user?.first_name || ''} ${conversation.other_user?.last_name || ''}`.trim() ||
-      conversation.other_user?.display_name || 'Unknown'
-    const initial = displayName?.charAt(0)?.toUpperCase() || '?'
-
-    return (
-      <button
-        onClick={() => onSelectConversation(conversation)}
-        className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
-          isSelected
-            ? 'bg-optio-purple/5 border-optio-purple'
-            : 'border-transparent hover:bg-gray-50'
-        }`}
-      >
-        {/* Avatar */}
-        <div className="relative flex-shrink-0">
-          {isSupport ? (
-            <img
-              src={OPTIO_LOGO_URL}
-              alt="Optio Support"
-              className="w-10 h-10 rounded-full object-contain bg-white border border-gray-100"
-            />
-          ) : isSchool ? (
-            <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
-              <AcademicCapIcon className="w-5 h-5 text-white" />
-            </div>
-          ) : conversation.other_user?.avatar_url ? (
-            <img
-              src={conversation.other_user.avatar_url}
-              alt={displayName}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-10 h-10 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-bold">
-              {initial}
-            </div>
-          )}
-          {isPinned && (
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center" title="Teacher">
-              <MapPinIcon className="w-2.5 h-2.5 text-white" />
-            </div>
-          )}
-          {isUnread && (
-            <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-[10px] font-bold">
-                {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
-              {displayName}
-            </h3>
-            {hasThread && (
-              <span className="text-xs text-gray-400 flex-shrink-0">
-                {formatTime(conversation.last_message_at)}
-              </span>
-            )}
-          </div>
-          <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : hasThread ? 'text-gray-500' : 'text-gray-400 italic'}`}>
-            {conversation.last_message_preview || 'No messages yet'}
-          </p>
-        </div>
-      </button>
-    )
-  }
-
-  const GroupConversationItem = ({ group }) => {
-    const isSelected = selectedConversation?.id === group.id && selectedConversation?.type === 'group'
-    const isUnread = group.unread_count > 0
-
-    return (
-      <button
-        onClick={() => onSelectConversation({ ...group, type: 'group' })}
-        className={`w-full px-4 py-2.5 flex items-center gap-3 border-l-2 transition-colors ${
-          isSelected ? 'bg-optio-purple/5 border-optio-purple' : 'border-transparent hover:bg-gray-50'
-        }`}
-      >
-        <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
-            <UsersIcon className="w-5 h-5 text-white" />
-          </div>
-          {isUnread && (
-            <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-[10px] font-bold">
-                {group.unread_count > 9 ? '9+' : group.unread_count}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
-                {group.name}
-              </h3>
-              {group.source_class_id && (
-                <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded-full">
-                  Class
-                </span>
-              )}
-            </div>
-            {group.last_message_at && (
-              <span className="text-xs text-gray-400 flex-shrink-0">
-                {formatTime(group.last_message_at)}
-              </span>
-            )}
-          </div>
-          <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
-            {group.last_message_preview || `${group.member_count || 0} members`}
-          </p>
-        </div>
-      </button>
-    )
-  }
-
-  const SectionHeader = ({ icon, label }) => (
-    <div className="px-4 pt-4 pb-1 flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-      {icon}
-      {label}
-    </div>
-  )
+  // Stable identity, so the memoized rows above genuinely skip re-rendering.
+  const handleSelect = useCallback((c) => onSelectConversation(c), [onSelectConversation])
 
   const hasAnything = conversationRows.length > 0 || directoryRows.length > 0
 
@@ -382,9 +453,7 @@ const ConversationList = ({
       {/* Lists */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" />
-          </div>
+          <ConversationSkeleton />
         ) : (
           <>
             {/* Conversations (active threads + groups) */}
@@ -393,8 +462,18 @@ const ConversationList = ({
                 <SectionHeader icon={<MapPinIcon className="w-3 h-3" />} label="Conversations" />
                 {conversationRows.map(row =>
                   row.kind === 'group'
-                    ? <GroupConversationItem key={row.key} group={row.group} />
-                    : <ConversationItem key={row.key} conversation={row.convo} />
+                    ? <GroupConversationItem
+                        key={row.key}
+                        group={row.group}
+                        isSelected={selectedConversation?.id === row.group.id && selectedConversation?.type === 'group'}
+                        onSelect={handleSelect}
+                      />
+                    : <ConversationItem
+                        key={row.key}
+                        conversation={row.convo}
+                        isSelected={selectedConversation?.id === row.convo.id && selectedConversation?.type !== 'group'}
+                        onSelect={handleSelect}
+                      />
                 )}
               </div>
             )}
@@ -404,7 +483,12 @@ const ConversationList = ({
               <div className="pb-2">
                 <SectionHeader icon={<UserIcon className="w-3 h-3" />} label="Contacts" />
                 {directoryRows.map(convo => (
-                  <ConversationItem key={`contact-${convo.id}`} conversation={convo} />
+                  <ConversationItem
+                    key={`contact-${convo.id}`}
+                    conversation={convo}
+                    isSelected={selectedConversation?.id === convo.id && selectedConversation?.type !== 'group'}
+                    onSelect={handleSelect}
+                  />
                 ))}
               </div>
             )}
