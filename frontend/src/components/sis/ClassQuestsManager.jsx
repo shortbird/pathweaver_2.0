@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, AcademicCapIcon, ChevronDownIcon, ChevronRightIcon,
+  PencilSquareIcon, CalendarDaysIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import QuestDraftForm, { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
@@ -58,6 +59,37 @@ function PresetTaskManager({ classId, questId }) {
     }
   }
 
+  // Editing in place, rather than delete-and-retype: deleting a task takes any
+  // student work attached to it, so "fix the XP" must not mean "start over"
+  // (Gryffin, 2026-08-27).
+  const [editingId, setEditingId] = useState(null)
+  const [editDraft, setEditDraft] = useState(null)
+
+  const startEdit = (t) => {
+    setEditingId(t.id)
+    setEditDraft({ title: t.title, pillar: t.pillar, xp_value: t.xp_value, description: t.description || '' })
+  }
+
+  const saveEdit = async (taskId) => {
+    if (!editDraft?.title?.trim()) return
+    setSaving(true)
+    try {
+      const { data } = await api.patch(`${base}/${taskId}`, {
+        title: editDraft.title.trim(),
+        description: editDraft.description,
+        pillar: editDraft.pillar,
+        xp_value: Number(editDraft.xp_value) || 0,
+      })
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)))
+      setEditingId(null)
+      toast.success('Task updated for every student on this quest')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the task')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const del = async (taskId) => {
     try {
       await api.delete(`${base}/${taskId}`)
@@ -77,14 +109,48 @@ function PresetTaskManager({ classId, questId }) {
       {tasks.length > 0 && (
         <ul className="mb-3 space-y-1.5">
           {tasks.map((t) => (
-            <li key={t.id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1 min-w-0 truncate text-neutral-800">{t.title}</span>
-              <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
-                {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
-              </span>
-              {editable && (
-                <button onClick={() => del(t.id)} className="shrink-0 p-1 text-gray-400 hover:text-red-500"
-                  aria-label="Remove task"><TrashIcon className="w-4 h-4" /></button>
+            <li key={t.id} className="text-sm">
+              {editingId === t.id ? (
+                <div className="rounded-lg border border-optio-purple/40 p-3 space-y-2">
+                  <input value={editDraft.title} className={inputCls}
+                    onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} />
+                  <textarea value={editDraft.description} rows={2} className={inputCls}
+                    placeholder="Instructions for this task (optional)"
+                    onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select value={editDraft.pillar} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                      onChange={(e) => setEditDraft({ ...editDraft, pillar: e.target.value })}>
+                      {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </select>
+                    <input type="number" min="0" value={editDraft.xp_value}
+                      className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                      onChange={(e) => setEditDraft({ ...editDraft, xp_value: e.target.value })} />
+                    <span className="text-xs text-neutral-500">XP</span>
+                    <button onClick={() => saveEdit(t.id)} disabled={saving}
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm disabled:opacity-50">
+                      Save
+                    </button>
+                    <button onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-600">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 min-w-0 truncate text-neutral-800">{t.title}</span>
+                  <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
+                    {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
+                  </span>
+                  {editable && (
+                    <>
+                      <button onClick={() => startEdit(t)} className="shrink-0 p-1 text-gray-400 hover:text-optio-purple"
+                        aria-label={`Edit ${t.title}`}><PencilSquareIcon className="w-4 h-4" /></button>
+                      <button onClick={() => del(t.id)} className="shrink-0 p-1 text-gray-400 hover:text-red-500"
+                        aria-label="Remove task"><TrashIcon className="w-4 h-4" /></button>
+                    </>
+                  )}
+                </div>
               )}
             </li>
           ))}
@@ -253,6 +319,29 @@ export default function ClassQuestsManager({ classId }) {
   }
 
   // Two different things, kept visibly apart: unassign takes the quest off this
+  // Due dates live on class_quests, so they are per-class: the same quest can be
+  // due on different days for two sections. The column and the student-facing
+  // badges existed already; nothing could write it from here (Gryffin,
+  // 2026-08-27: "How do we add due dates to any tasks that we assign?").
+  const [dueEditing, setDueEditing] = useState(null)
+  const [dueValue, setDueValue] = useState('')
+
+  const saveDue = async (questId, value) => {
+    try {
+      await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, {
+        due_date: value ? new Date(value).toISOString() : null,
+      })
+      setQuests((prev) => prev.map((q) => (
+        q.quest_id === questId
+          ? { ...q, due_date: value ? new Date(value).toISOString() : null }
+          : q)))
+      setDueEditing(null)
+      toast.success(value ? 'Due date set' : 'Due date cleared')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the due date')
+    }
+  }
+
   // class and leaves it in the school's library; delete removes it entirely.
   const unassign = async (q) => {
     if (!(await confirm(
@@ -455,6 +544,42 @@ export default function ClassQuestsManager({ classId }) {
                     </p>
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
+                    {q.due_date && dueEditing !== q.quest_id && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">
+                        Due {new Date(q.due_date).toLocaleDateString()}
+                      </span>
+                    )}
+                    {dueEditing === q.quest_id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input type="date" value={dueValue} autoFocus
+                          onChange={(e) => setDueValue(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+                        <button onClick={() => saveDue(q.quest_id, dueValue)}
+                          className="px-2 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs">
+                          Save
+                        </button>
+                        {q.due_date && (
+                          <button onClick={() => saveDue(q.quest_id, '')}
+                            className="px-2 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600">
+                            Clear
+                          </button>
+                        )}
+                        <button onClick={() => setDueEditing(null)}
+                          className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setDueValue(q.due_date ? new Date(q.due_date).toISOString().slice(0, 10) : '')
+                          setDueEditing(q.quest_id)
+                        }}
+                        className="px-2 py-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg whitespace-nowrap">
+                        <CalendarDaysIcon className="w-4 h-4" />
+                        {q.due_date ? 'Change due date' : 'Set due date'}
+                      </button>
+                    )}
                     <button onClick={() => unassign(q)}
                       title="Take it off this class — the quest stays in your library"
                       className="px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-gray-50">

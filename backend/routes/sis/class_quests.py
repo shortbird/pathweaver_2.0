@@ -582,6 +582,99 @@ def add_preset_task(user_id, class_id, quest_id):
     return jsonify({'success': True, 'task': _serialize_task(row[0])})
 
 
+@bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
+@require_auth
+def update_preset_task(user_id, class_id, quest_id, task_id):
+    """Edit a preset task in place.
+
+    Tasks could only be added and deleted, so correcting a typo, an XP value or
+    the wrong pillar meant deleting the task and writing it again -- and
+    deleting one takes any student work attached to it (Gryffin, 2026-08-27:
+    "There is also no option to edit a quest or a task once its saved. You just
+    have to delete and start over ... if you put in the wrong category you also
+    can't change it").
+    """
+    class_row, admin, quest, err = _authorize_editable_quest(user_id, class_id, quest_id)
+    if err:
+        return err
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': 'A task title is required.'}), 400
+        updates['title'] = title
+    if 'description' in data:
+        updates['description'] = (data.get('description') or '').strip()
+    if 'pillar' in data:
+        updates['pillar'] = _norm_pillar(data.get('pillar'))
+    if 'xp_value' in data:
+        try:
+            xp = int(data.get('xp_value'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'XP must be a number.'}), 400
+        updates['xp_value'] = max(0, xp)
+    if 'is_required' in data:
+        updates['is_required'] = bool(data.get('is_required'))
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    row = (admin.table('quest_template_tasks').update(updates)
+           .eq('id', task_id).eq('quest_id', quest_id).execute()).data
+    if not row:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+
+    # Carry the correction to the students already holding this quest. Their
+    # tasks are copies taken at enrolment, so without this an edit would only
+    # reach whoever starts it next. resync rewrites rows in place and refuses to
+    # touch a task carrying a completion or evidence.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task saved but enrollment resync failed for {quest_id}: {e}')
+
+    return jsonify({'success': True, 'task': _serialize_task(row[0])})
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>', methods=['PATCH'])
+@require_auth
+def update_class_quest(user_id, class_id, quest_id):
+    """Set or clear a quest's due date (and publish schedule) for THIS class.
+
+    class_quests has carried due_date and publish_at all along and the list
+    endpoint returns them, but nothing could write them from the SIS -- so a
+    school with due dates switched on still had no way to set one (Gryffin,
+    2026-08-27: "How do we add due dates to any tasks that we assign?").
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    for field in ('due_date', 'publish_at'):
+        if field in data:
+            value = data.get(field)
+            updates[field] = (str(value).strip() or None) if value else None
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+    updates['updated_at'] = _now_iso()
+
+    row = (admin.table('class_quests').update(updates)
+           .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
+    if not row:
+        return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+    return jsonify({'success': True,
+                    'due_date': row[0].get('due_date'),
+                    'publish_at': row[0].get('publish_at')})
+
+
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
 @require_auth
 def delete_preset_task(user_id, class_id, quest_id, task_id):
