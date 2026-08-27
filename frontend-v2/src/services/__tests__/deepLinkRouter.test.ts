@@ -112,6 +112,16 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/credit-dashboard')?.target).toBe('/(app)/view-on-web');
   });
 
+  it('routes SIS console links to view-on-web rather than back to the list', () => {
+    // These fell through to the unrecognised-link fallback, which pushes the
+    // notifications list. Tapping a notification while already on that list
+    // re-renders and opens nothing (iCreate, 2026-08-26: "I can't open any of
+    // them. I click on them and they go refresh, sort of.").
+    for (const link of ['/forms', '/tasks', '/attendance', '/my-classes', '/billing', '/sis']) {
+      expect(resolveDeepLink(link)?.target).toBe('/(app)/view-on-web');
+    }
+  });
+
   it('passes already-qualified mobile routes through verbatim', () => {
     expect(resolveDeepLink('/(app)/(tabs)/family?student=s1')?.target).toBe(
       '/(app)/(tabs)/family?student=s1',

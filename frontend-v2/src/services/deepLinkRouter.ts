@@ -14,7 +14,16 @@ export type ResolvedRoute = {
   params?: Record<string, string>;
 };
 
-/** Route prefixes that only exist on the web app. */
+/** Route prefixes that only exist on the web app.
+ *
+ *  The SIS console entries matter for the same reason the rest do: without
+ *  them a notification carrying one of those links fell through to the
+ *  unrecognised-link fallback, which pushes the notifications list. Tapping a
+ *  notification while already ON the notifications list re-renders and opens
+ *  nothing, which is exactly what was reported (iCreate, 2026-08-26: "I can't
+ *  open any of them. I click on them and they go refresh, sort of."). Sending
+ *  them to the view-on-web screen at least says where the page lives.
+ */
 const WEB_ONLY_PREFIXES = [
   '/dashboard',
   '/courses',
@@ -23,6 +32,34 @@ const WEB_ONLY_PREFIXES = [
   '/advisor',
   '/invitations',
   '/credit-dashboard',
+  // SIS console
+  '/attendance',
+  '/billing',
+  '/classes',
+  '/clp',
+  '/community',
+  '/directory',
+  '/forms',
+  '/goals',
+  '/inbox',
+  '/messaging',
+  '/my-classes',
+  '/my-documents',
+  '/my-schedule',
+  '/my-tasks',
+  '/my-time',
+  '/onboarding',
+  '/people',
+  '/registration',
+  '/reports',
+  '/resources',
+  '/secure-documents',
+  '/sis',
+  '/submissions',
+  '/tasks',
+  '/timesheets',
+  '/training',
+  '/tuition',
 ];
 
 /** Legacy/web paths → mobile equivalents. Matched against the path only (query

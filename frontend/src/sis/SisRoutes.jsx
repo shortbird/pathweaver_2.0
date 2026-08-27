@@ -63,6 +63,27 @@ const LearningRedirect = () => {
   return null
 }
 
+// Learning-app routes that notifications, emails and pushes link to. The SIS
+// console does not have these pages, so it hands them back to the surface that
+// does rather than treating them as unknown.
+const LEARNING_SURFACE_PATHS = [
+  '/school',
+  '/announcements',
+  '/notifications',
+  '/dashboard',
+  '/parent-dashboard',
+  '/quests',
+  '/courses',
+  '/bounties',
+  '/messages',
+  '/communication',
+  '/feed',
+  '/journal',
+  '/connections',
+  '/credit-dashboard',
+  '/profile',
+]
+
 // New SIS console pages
 const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))
 const PeoplePage = lazy(() => import('../pages/sis/PeoplePage'))
@@ -183,6 +204,18 @@ const SisRoutes = () => (
       <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
       <Route path="admin/*" element={<AdminPage />} />
 
+      {/* Anything this surface doesn't own, but the learning app does, is
+          handed over rather than swallowed. Notification links are written for
+          the learning app -- every announcement carries "/school" -- and staff
+          who have ever pressed "SIS" render this router even on www, so those
+          links hit this catch-all and dumped the reader on the SIS dashboard
+          with no idea what they had been sent (iCreate, 2026-08-26: "when I
+          click on a notification, it doesn't open anythign. Instead it just
+          sends me to the SIS dashboard"). Listed explicitly, so a genuine typo
+          still lands on the dashboard instead of bouncing between surfaces. */}
+      {LEARNING_SURFACE_PATHS.map((p) => (
+        <Route key={p} path={`${p}/*`} element={<LearningRedirect />} />
+      ))}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>
   </Routes>

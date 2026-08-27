@@ -103,7 +103,10 @@ describe('SisDashboard', () => {
   it('loads and shows school stats', async () => {
     render(<SisDashboard />)
     expect(await screen.findByText('School Dashboard')).toBeInTheDocument()
-    expect(await screen.findByText('Total students')).toBeInTheDocument()
+    // "Current" rather than "Total": this card counted withdrawn and graduated
+    // students while the People page hid them, so the school saw two different
+    // student totals and could not tell which was real.
+    expect(await screen.findByText('Current students')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/dashboard'))
   })
 })

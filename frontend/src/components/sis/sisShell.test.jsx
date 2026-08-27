@@ -131,11 +131,16 @@ describe('SisSidebar', () => {
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
     expect(screen.getByText('Registration')).toBeInTheDocument()
+    // Their own documents, though: everyone on staff has a contract or a signed
+    // policy, and the page and its endpoint always allowed admins and
+    // coordinators — only this link was hidden from them (iCreate, 2026-08-26:
+    // "None of the staff members (admin, campus coordinator) have a My
+    // Documents section showing").
+    expect(screen.getByText('My Documents')).toBeInTheDocument()
     // Not the teacher portal — a coordinator is not a teacher.
     expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
     expect(screen.queryByText('My Schedule')).not.toBeInTheDocument()
     expect(screen.queryByText('Directory')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Documents')).not.toBeInTheDocument()
     expect(screen.queryByText('My Time')).not.toBeInTheDocument()
     expect(screen.queryByText('My Profile')).not.toBeInTheDocument()
     // Not the money.
