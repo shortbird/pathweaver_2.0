@@ -150,6 +150,37 @@ def _enrolled_classes(org_id: str, student_id: str,
 # fee" lines that only differ by amount.
 SUPPLY_LINE_SUFFIX = ' — supplies'
 
+# class_meetings.day_of_week is Sunday=0, matching the front end's DAY_LETTER.
+_DAY_LETTERS = {0: 'Su', 1: 'M', 2: 'T', 3: 'W', 4: 'Th', 5: 'F', 6: 'Sa'}
+
+
+def class_label(cls: Dict[str, Any]) -> str:
+    """A class name with the days it meets, e.g. "Ukelele Jam (T/Th)".
+
+    The same class name repeats across sections -- iCreate runs three Reading
+    Tutorings and two Ukelele Jams -- so a bare name on a bill does not say which
+    one a family is being charged for (2026-08-26: "If classes could always show
+    the initials of which day, that would be helpful on billing and tuition
+    pages"). The attendance page has labelled classes this way for a while;
+    this is the same idea on the money.
+    """
+    name = cls.get('name') or 'Class'
+    days, seen = [], set()
+    for m in (cls.get('meetings') or []):
+        dow = m.get('day_of_week')
+        letter = _DAY_LETTERS.get(dow)
+        if letter and letter not in seen:
+            seen.add(letter)
+            days.append((dow, letter))
+    if not days:
+        return name
+    # A name that already carries its day ("Ukelele Jam (Thurs Block 3)") does
+    # not need it twice.
+    ordered = '/'.join(l for _, l in sorted(days))
+    if ordered.lower() in name.lower():
+        return name
+    return f'{name} ({ordered})'
+
 
 def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PURE. One line item per enrolled class that charges a materials fee.
@@ -164,7 +195,7 @@ def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if fee <= 0:
             continue
         out.append({'class_id': c.get('class_id'),
-                    'description': f"{c.get('name') or 'Class'}{SUPPLY_LINE_SUFFIX}",
+                    'description': f"{class_label(c)}{SUPPLY_LINE_SUFFIX}",
                     'amount_cents': fee,
                     'kind': 'supply'})
     return out
@@ -196,7 +227,7 @@ def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
                     'amount_cents': year_cents, 'kind': 'tuition'}]
     else:
         tuition = [{'class_id': c['class_id'],
-                    'description': c.get('name') or 'Class',
+                    'description': class_label(c),
                     'amount_cents': int(c.get('price_cents') or 0),
                     'kind': 'tuition'} for c in classes]
     return tuition + supply_line_items(classes)

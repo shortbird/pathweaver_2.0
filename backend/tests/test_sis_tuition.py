@@ -81,6 +81,51 @@ class TestSeedLineItems:
 
 
 @pytest.mark.unit
+class TestClassLabel:
+    """iCreate, 2026-08-26: "If classes could always show the initials of which
+    day, that would be helpful on billing and tuition pages." The same class
+    name repeats across sections -- three Reading Tutorings, two Ukelele Jams --
+    so a bare name on a bill does not say which one is being charged for."""
+
+    def test_the_days_are_appended_to_the_name(self):
+        label = tuition.class_label({
+            'name': 'Ukelele Jam',
+            'meetings': [{'day_of_week': 2}, {'day_of_week': 4}],
+        })
+        assert label == 'Ukelele Jam (T/Th)'
+
+    def test_days_come_out_in_week_order_not_row_order(self):
+        label = tuition.class_label({
+            'name': 'Piano',
+            'meetings': [{'day_of_week': 5}, {'day_of_week': 1}],
+        })
+        assert label == 'Piano (M/F)'
+
+    def test_a_repeated_day_is_listed_once(self):
+        label = tuition.class_label({
+            'name': 'Art',
+            'meetings': [{'day_of_week': 3}, {'day_of_week': 3}],
+        })
+        assert label == 'Art (W)'
+
+    def test_a_class_with_no_meetings_keeps_its_bare_name(self):
+        assert tuition.class_label({'name': 'Independent Study'}) == 'Independent Study'
+        assert tuition.class_label({'name': 'Solo', 'meetings': []}) == 'Solo'
+
+    def test_a_name_that_already_says_the_day_is_left_alone(self):
+        """iCreate names its sections "Ukelele Jam (Thurs Block 3)"; adding
+        "(Th)" on top of that reads as a mistake."""
+        label = tuition.class_label({
+            'name': 'Reading (Th Block 1)',
+            'meetings': [{'day_of_week': 4}],
+        })
+        assert label == 'Reading (Th Block 1)'
+
+    def test_an_unnamed_class_still_gets_a_description(self):
+        assert tuition.class_label({'meetings': [{'day_of_week': 1}]}) == 'Class (M)'
+
+
+@pytest.mark.unit
 class TestSupplyFeeCents:
     """org_classes.supply_fee is numeric DOLLARS and PostgREST returns it as a
     string; every invoice column is cents."""
