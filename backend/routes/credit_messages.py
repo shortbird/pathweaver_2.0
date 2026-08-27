@@ -70,7 +70,13 @@ def _can_access(completion, user, role, admin):
             .eq('advisor_id', user['id'])\
             .eq('student_id', completion['user_id'])\
             .eq('is_active', True).limit(1).execute()
-        return bool(assignment.data)
+        if assignment.data:
+            return True
+        # Teaching the student is the same relationship. Schools that onboarded
+        # through class rosters never populate advisor_student_assignments, so
+        # assignment alone locked their teachers out of their own students' work.
+        from utils.class_membership import shares_class
+        return shares_class(user['id'], completion['user_id'])
     return False
 
 

@@ -18,6 +18,59 @@ from services.notification_service import NotificationService
 logger = logging.getLogger(__name__)
 
 
+def can_comment_on_student(supabase, author_id, author, student_id):
+    """Whether `author` may leave feedback on `student_id`'s work.
+
+    Kept out of the route and pinned by tests because the bug this replaced was
+    a single predicate reading the RAW `users.role`: org staff carry
+    role='org_managed' with the real role in org_role, so the advisor branch
+    never ran and org_admin had no branch at all. Every org teacher could see a
+    student's work in the feed and was refused when they commented on it
+    (Gryffin, 2026-08-27: "When we try to submit feedback we get an access
+    denied error").
+    """
+    from utils.auth.decorators import caller_is_superadmin
+    from utils.roles import get_effective_role
+
+    if not author:
+        return False
+    effective_role = get_effective_role(author)
+    if effective_role == 'superadmin' or caller_is_superadmin(supabase, author_id):
+        return True
+
+    link = supabase.table('observer_student_links') \
+        .select('can_comment') \
+        .eq('observer_id', author_id) \
+        .eq('student_id', student_id) \
+        .execute()
+    if link.data and link.data[0].get('can_comment'):
+        return True
+
+    if effective_role in ('org_admin', 'campus_coordinator') and author.get('organization_id'):
+        # An org admin speaks for their whole school.
+        student = supabase.table('users').select('organization_id') \
+            .eq('id', student_id).single().execute()
+        if student.data and student.data.get('organization_id') == author['organization_id']:
+            return True
+
+    if effective_role == 'advisor':
+        assignment = supabase.table('advisor_student_assignments') \
+            .select('id') \
+            .eq('advisor_id', author_id) \
+            .eq('student_id', student_id) \
+            .eq('is_active', True) \
+            .execute()
+        if assignment.data:
+            return True
+        # Schools that onboarded through class rosters have no rows in
+        # advisor_student_assignments at all. Teaching the student is the same
+        # relationship, and is already what lets the two of them message.
+        from utils.class_membership import shares_class
+        return shares_class(author_id, student_id)
+
+    return False
+
+
 def send_comment_notifications_async(student_id, observer_id, comment_text):
     """Send comment notifications in background thread."""
     try:
@@ -112,36 +165,13 @@ def register_routes(bp):
             # admin client justified: observer-comment flow gated by relationship check below (observer_student_links / advisor_student_assignments / superadmin); writes observer_comments + reads users for author/student lookup
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
-            can_comment = False
 
-            # Check if superadmin (directly or masquerading as another user, so
-            # an admin acting-as a student keeps full comment access)
-            from utils.auth.decorators import caller_is_superadmin
-            user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
-            user_role = user_result.data.get('role') if user_result.data else None
-            if user_role == 'superadmin' or caller_is_superadmin(supabase, observer_id):
-                can_comment = True
+            user_result = supabase.table('users') \
+                .select('role, org_role, org_roles, organization_id') \
+                .eq('id', observer_id).single().execute()
+            author = user_result.data or {}
 
-            # Verify observer has access and comment permission
-            if not can_comment:
-                link = supabase.table('observer_student_links') \
-                    .select('can_comment') \
-                    .eq('observer_id', observer_id) \
-                    .eq('student_id', student_id) \
-                    .execute()
-                can_comment = link.data and link.data[0]['can_comment']
-
-            # Check advisor_student_assignments for advisors
-            if not can_comment and user_role == 'advisor':
-                advisor_link = supabase.table('advisor_student_assignments') \
-                    .select('id') \
-                    .eq('advisor_id', observer_id) \
-                    .eq('student_id', student_id) \
-                    .eq('is_active', True) \
-                    .execute()
-                can_comment = bool(advisor_link.data)
-
-            if not can_comment:
+            if not can_comment_on_student(supabase, observer_id, author, student_id):
                 return jsonify({'error': 'Access denied or comment permission disabled'}), 403
 
             # Create comment
@@ -252,6 +282,16 @@ def register_routes(bp):
                     .eq('student_user_id', student_id) \
                     .execute()
                 is_parent_of_student = bool(parent_link.data)
+
+                # A dependent child has no link row at all -- the guardian is on
+                # the child's own record. Without this, the parent of a dependent
+                # could not remove a comment from their child's work either.
+                if not is_parent_of_student:
+                    dependent = supabase.table('users') \
+                        .select('managed_by_parent_id') \
+                        .eq('id', student_id).single().execute()
+                    is_parent_of_student = bool(dependent.data) and \
+                        dependent.data.get('managed_by_parent_id') == user_id
 
             if not is_author and not is_superadmin and not is_parent_of_student:
                 return jsonify({'error': 'Not authorized to delete this comment'}), 403
