@@ -154,9 +154,16 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
   }, [orgId, staff.id])
 
   const seesFinance = canSeeFinance(user)
+  // staff_type and the dates are employment terms, not campus operations: the
+  // front office runs the campus without needing to know who is a contractor or
+  // when they were hired (iCreate, 2026-08-25). The API drops them too, so these
+  // guards only stop an empty row rendering.
   const employment = profile && [
     profile.position,
-    profile.staff_type === 'contractor' ? 'Independent contractor' : profile.staff_type === 'employee' ? 'Employee' : null,
+    seesFinance
+      ? (profile.staff_type === 'contractor' ? 'Independent contractor'
+        : profile.staff_type === 'employee' ? 'Employee' : null)
+      : null,
     seesFinance ? profile.pay_type : null,
   ].filter(Boolean).join(' · ')
 
@@ -199,7 +206,7 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
           {/* The API drops pay fields for a campus coordinator; an empty row
               would read as "this person has no payroll ID". */}
           {seesFinance && <Row label="Payroll ID" value={profile?.payroll_id} />}
-          <Row label="Start date" value={profile?.start_date} />
+          {seesFinance && <Row label="Start date" value={profile?.start_date} />}
           <Row label="Last active" value={fmtDate(staff.last_active)} />
           {profile && profile.is_active === false && (
             <p className="text-sm font-medium text-red-600">Inactive</p>

@@ -264,7 +264,8 @@ def my_profile(user_id):
     # rate previously leaked pay_type and payroll_id — and _read_target lets an
     # admin/coordinator preview another staff member — so redact the full
     # PAY_FIELDS set here. Finance sees pay via the staff_admin path (redact_pay).
-    profile = staff.redact_pay(profile, redact=True)
+    # Pay only: somebody's own hire date and employment type are theirs to see.
+    profile = staff.redact_pay(profile, redact=True, fields=staff.PAY_FIELDS)
     return jsonify({'success': True, 'profile': profile})
 
 

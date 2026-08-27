@@ -120,6 +120,26 @@ class TestPayFieldRedaction:
         assert out['work_schedule'] == 'Tue & Thu 9–3'
         assert out['position'] == 'Art teacher'
 
+    def test_employment_terms_are_stripped_too(self):
+        """Not money, so these were visible and editable by the front office:
+        "I don't think we want them to see all the employment info" (iCreate,
+        2026-08-25). Whether somebody is a contractor and when they were hired
+        is HR's, not the campus's."""
+        profile = {**self.PROFILE, 'start_date': '2025-08-01', 'end_date': None}
+        out = staff.redact_pay(dict(profile), True)
+        for f in staff.EMPLOYMENT_FIELDS:
+            assert f not in out, f
+        assert out['position'] == 'Art teacher'   # still runs the campus on this
+
+    def test_a_teacher_reading_their_own_profile_keeps_their_hire_date(self):
+        """The self-profile route redacts pay only — somebody's own start date
+        and employment type are theirs to see."""
+        profile = {**self.PROFILE, 'start_date': '2025-08-01'}
+        out = staff.redact_pay(dict(profile), True, fields=staff.PAY_FIELDS)
+        assert out['start_date'] == '2025-08-01'
+        assert out['staff_type'] == 'employee'
+        assert 'hourly_rate_cents' not in out
+
     def test_an_admin_sees_everything(self):
         assert staff.redact_pay(dict(self.PROFILE), False) == self.PROFILE
 

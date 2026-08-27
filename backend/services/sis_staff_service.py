@@ -44,9 +44,21 @@ SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone',
 # are redacted, not the endpoint withheld.
 PAY_FIELDS = ('pay_type', 'payroll_id', 'hourly_rate_cents')
 
+# The rest of somebody's employment terms. Not money, so these were visible to
+# and editable by campus coordinators, which iCreate did not expect: "Idk if
+# campus coordinators can see the staff like I do, but I don't think we want
+# them to see all the employment info" (2026-08-25). Hire and end dates and
+# whether somebody is an employee, a contractor or family are HR's business, not
+# the front office's. Everything a coordinator actually needs to run the campus
+# -- position, work schedule, emergency contact -- stays visible.
+EMPLOYMENT_FIELDS = ('staff_type', 'start_date', 'end_date')
 
-def redact_pay(profile, redact=True):
-    """Strip pay fields from a staff profile (or list of them) when `redact`.
+# Everything the front office does not see on a staff record.
+RESTRICTED_FIELDS = PAY_FIELDS + EMPLOYMENT_FIELDS
+
+
+def redact_pay(profile, redact=True, fields=RESTRICTED_FIELDS):
+    """Strip the restricted fields from a staff profile (or list of them).
 
     Returns the input unchanged when `redact` is False, so callers can pass the
     caller's tier straight through: `redact_pay(profile, is_campus_coordinator(roles))`.
@@ -54,8 +66,8 @@ def redact_pay(profile, redact=True):
     if not redact or not profile:
         return profile
     if isinstance(profile, list):
-        return [redact_pay(p, True) for p in profile]
-    return {k: v for k, v in profile.items() if k not in PAY_FIELDS}
+        return [redact_pay(p, True, fields) for p in profile]
+    return {k: v for k, v in profile.items() if k not in fields}
 
 STAFF_TYPES = ('employee', 'contractor', 'family')
 PAY_TYPES = ('hourly', 'salaried', 'stipend', 'unpaid')
@@ -657,7 +669,7 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
     staff = sis_service.list_org_staff(org_id)
     profiles = {p['user_id']: p for p in (
         _admin().table('sis_staff_profiles')
-        .select('user_id, position, work_schedule, is_active, staff_type')
+        .select('user_id, position, work_schedule, is_active')
         .eq('organization_id', org_id).execute()
     ).data or []}
     out = []
@@ -671,7 +683,9 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
             'roles': s['roles'], 'role_labels': s['role_labels'],
             'bio': s.get('bio'), 'avatar_url': s.get('avatar_url'),
             'position': p.get('position'), 'work_schedule': p.get('work_schedule'),
-            'staff_type': p.get('staff_type'),
+            # staff_type deliberately absent: whether a colleague is an employee,
+            # a contractor or family is an employment term, and this phonebook is
+            # readable by every staff member including teachers.
         })
     return out
 

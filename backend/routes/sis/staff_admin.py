@@ -71,11 +71,12 @@ def put_profile(user_id, staff_id):
     if err:
         return err
     payload = request.get_json() or {}
-    # A coordinator can't read a pay rate, so they must not be able to set one
-    # either — a blind write is the same leak in the other direction.
-    if not sis_service.caller_sees_pay(user_id) and any(f in payload for f in staff.PAY_FIELDS):
+    # A coordinator can't read a pay rate or an employment term, so they must not
+    # be able to set one either — a blind write is the same leak in the other
+    # direction.
+    if not sis_service.caller_sees_pay(user_id) and any(f in payload for f in staff.RESTRICTED_FIELDS):
         return jsonify({'success': False,
-                        'error': 'Pay details are managed by an organization admin.'}), 403
+                        'error': 'Pay and employment details are managed by an organization admin.'}), 403
     result = staff.upsert_staff_profile(org_id, staff_id, payload)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
@@ -544,22 +545,24 @@ def staff_roster_csv(user_id):
         get_supabase_admin_client().table('sis_staff_profiles').select('*')
         .eq('organization_id', org_id).execute()
     ).data or []}
-    # Pay Type and Payroll ID are money. Drop the columns entirely for a campus
-    # coordinator rather than blanking them — an empty column reads as "nobody
-    # has a payroll ID", which is a different and wrong statement.
+    # Pay and employment terms come out entirely for a campus coordinator rather
+    # than being blanked — an empty column reads as "nobody has a payroll ID",
+    # which is a different and wrong statement. Position and Active stay: those
+    # are what the front office runs the campus on.
     sees_pay = sis_service.caller_sees_pay(user_id)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(['Name', 'Email', 'Roles', 'Position', 'Staff Type']
-                    + (['Pay Type', 'Payroll ID'] if sees_pay else [])
-                    + ['Start Date', 'End Date', 'Active', 'Last Active'])
+    writer.writerow(['Name', 'Email', 'Roles', 'Position']
+                    + (['Staff Type', 'Pay Type', 'Payroll ID',
+                        'Start Date', 'End Date'] if sees_pay else [])
+                    + ['Active', 'Last Active'])
     for s in rows:
         p = profiles.get(s['id']) or {}
         writer.writerow([
             s['name'], s.get('email') or '', ', '.join(s.get('role_labels') or []),
-            p.get('position') or '', p.get('staff_type') or '',
-        ] + ([p.get('pay_type') or '', p.get('payroll_id') or ''] if sees_pay else []) + [
-            p.get('start_date') or '', p.get('end_date') or '',
+            p.get('position') or '',
+        ] + ([p.get('staff_type') or '', p.get('pay_type') or '', p.get('payroll_id') or '',
+              p.get('start_date') or '', p.get('end_date') or ''] if sees_pay else []) + [
             'No' if p.get('is_active') is False else 'Yes', s.get('last_active') or '',
         ])
     return Response(
