@@ -303,6 +303,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     body: announcement?.body || '',
     pinned: Boolean(announcement?.pinned),
     priority: announcement?.priority || 'normal',
+    audience: announcement?.audience || 'school',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
     // Who to SEND it to, beyond the staff noticeboard. Empty = noticeboard only.
@@ -320,6 +321,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       body: f.body,
       pinned: f.pinned,
       priority: f.priority,
+      audience: f.audience,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
       notify_audiences: f.notify,
@@ -391,6 +393,17 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           <select value={f.priority} onChange={(e) => set('priority', e.target.value)} className={field}>
             <option value="normal">Normal</option>
             <option value="urgent">Urgent</option>
+          </select>
+        </label>
+        {/* Who can READ the board post. Separate from "send it to", below:
+            posting to the board and sending a notification are two acts. Board
+            posts had no audience at all, so a note for teachers was readable by
+            every family in the app (iCreate, 2026-08-26). */}
+        <label className="text-xs text-neutral-500 block">Visible to
+          <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
+            <option value="school">Everyone at the school</option>
+            <option value="teachers">Staff only</option>
+            <option value="admins">Admins only</option>
           </select>
         </label>
       </div>

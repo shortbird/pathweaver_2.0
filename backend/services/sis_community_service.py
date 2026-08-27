@@ -34,6 +34,11 @@ logger = get_logger(__name__)
 DONATION_WINDOW_DAYS = 14
 
 ANNOUNCEMENT_PRIORITIES = ('normal', 'urgent')
+# Mirrors sis_events.audience, including the default. Board posts had no
+# audience at all, so a note written for teachers reached every family
+# (iCreate, 2026-08-26: "things Sent to teachers should not be showing up for
+# Families").
+ANNOUNCEMENT_AUDIENCES = ('school', 'teachers', 'admins')
 LOST_FOUND_STATUSES = ('unclaimed', 'claimed', 'donated')
 
 # Lost & Found photos are taken inside the school and routinely have children in
@@ -112,12 +117,16 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     priority = data.get('priority') or 'normal'
     if priority not in ANNOUNCEMENT_PRIORITIES:
         priority = 'normal'
+    audience = data.get('audience') or 'school'
+    if audience not in ANNOUNCEMENT_AUDIENCES:
+        audience = 'school'
     fields = {
         'organization_id': org_id,
         'title': title,
         'body': _body(data.get('body')),
         'pinned': bool(data.get('pinned')),
         'priority': priority,
+        'audience': audience,
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
         'expires_at': (str(data['expires_at']).strip() or None) if data.get('expires_at') else None,
         'created_by': user_id,
@@ -162,6 +171,8 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
         fields['pinned'] = bool(data.get('pinned'))
     if 'priority' in data:
         fields['priority'] = data['priority'] if data['priority'] in ANNOUNCEMENT_PRIORITIES else 'normal'
+    if 'audience' in data:
+        fields['audience'] = data['audience'] if data['audience'] in ANNOUNCEMENT_AUDIENCES else 'school'
     for k in ('publish_at', 'expires_at'):
         if k in data:
             fields[k] = (str(data[k]).strip() or None) if data.get(k) else None
@@ -543,7 +554,9 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
         projected['mine'] = bool(viewer_id) and raw.get('created_by') == viewer_id
     return {
         'announcements': _project(
-            list_announcements(org_id, include_hidden=False)[:20], _FAMILY_ANNOUNCEMENT),
+            [a for a in list_announcements(org_id, include_hidden=False)
+             if (a.get('audience') or 'school') == 'school'][:20],
+            _FAMILY_ANNOUNCEMENT),
         'lost_found': _project(
             list_lost_found(org_id, status='unclaimed')[:50], _FAMILY_LOST_FOUND),
         'recognition': _project(list_recognition(org_id)[:20], _FAMILY_RECOGNITION),

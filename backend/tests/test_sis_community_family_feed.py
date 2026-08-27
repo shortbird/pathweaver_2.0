@@ -121,6 +121,24 @@ class TestWhatStaysInTheOffice:
                                            'audience': 'teachers'}))
         assert [e['title'] for e in feed['events']] == ['Open house']
 
+    def test_admin_and_teacher_announcements_do_not_reach_families(self):
+        """Events have always carried an audience; board announcements did not,
+        so a post written for staff was readable by every family in the app
+        (iCreate, 2026-08-26: "things Sent to teachers should not be showing up
+        for Families")."""
+        feed, _, _ = _feed(announcements=(
+            ANNOUNCEMENT,
+            {**ANNOUNCEMENT, 'id': 'a2', 'title': 'Staff PD Friday', 'audience': 'teachers'},
+            {**ANNOUNCEMENT, 'id': 'a3', 'title': 'Payroll cutoff', 'audience': 'admins'},
+        ))
+        assert [a['title'] for a in feed['announcements']] == ['Early dismissal']
+
+    def test_an_announcement_with_no_audience_still_reaches_families(self):
+        """Every row predating the column is one families could already read;
+        the migration defaults them to 'school' and this holds that default."""
+        feed, _, _ = _feed(announcements=({**ANNOUNCEMENT, 'audience': None},))
+        assert [a['title'] for a in feed['announcements']] == ['Early dismissal']
+
     def test_birthdays_are_not_part_of_the_family_feed(self):
         """Highlights shows them to the office; a broadcast of children's
         birthdays to every family in the school is a different thing."""

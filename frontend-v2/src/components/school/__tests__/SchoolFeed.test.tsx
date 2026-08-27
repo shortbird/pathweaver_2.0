@@ -74,10 +74,13 @@ describe('SchoolFeed', () => {
       announcements: [board({ pinned: true, priority: 'urgent' })],
       recognition: [{ id: 'r1', type: 'weekly_win', recipient_name: 'Jane B.', message: 'Finished her mural', created_at: '2026-08-02T00:00:00Z' }],
     };
-    const { getByText, queryByText } = render(
+    const { getByText, queryByText, getByTestId } = render(
       <SchoolFeed schoolName="iCreate" feed={feed} messages={[message()]} onSeeAll={() => {}} />,
     );
-    expect(getByText('From iCreate')).toBeTruthy();
+    // The heading is the section's own toggle now, so it is one accessibility
+    // node rather than loose text. Open on arrival, so the items below it still
+    // render without a tap.
+    expect(getByTestId('section-toggle-From iCreate')).toBeTruthy();
     expect(getByText('Picture day')).toBeTruthy();
     expect(getByText('Pinned')).toBeTruthy();
     expect(getByText('Urgent')).toBeTruthy();
@@ -113,9 +116,10 @@ describe('SchoolFeed', () => {
       <SchoolFeed schoolName="iCreate" feed={emptyFeed} messages={messages} onSeeAll={() => {}} />,
     );
     expect(getByText('Show all 8')).toBeTruthy();
-    // Six visible, two waiting.
+    // Three visible, five waiting: six posts was most of a phone screen before
+    // anything else on the page got a look in.
     const shown = messages.filter((m) => queryByText(m.title as string)).length;
-    expect(shown).toBe(6);
+    expect(shown).toBe(3);
     fireEvent.press(getByTestId('feed-show-all'));
     expect(messages.filter((m) => queryByText(m.title as string)).length).toBe(8);
   });

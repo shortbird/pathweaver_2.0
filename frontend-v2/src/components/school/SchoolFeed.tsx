@@ -23,9 +23,12 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { htmlToText } from '@/src/utils/richText';
 import type { SchoolFeed as SchoolFeedData, ArchivedMessage } from '@/src/hooks/useSchool';
 import RichBody from './RichBody';
+import { SchoolSection } from './SchoolSection';
 import { fmtDate, fmtWhen } from './format';
 
-const FEED_CAP = 6;
+// Three, not six: on a phone six posts is most of a screen before anything else
+// on the page gets a look in. "Show all" is right there for the rest.
+const FEED_CAP = 3;
 
 const RECOGNITION_LABEL: Record<string, string> = {
   shout_out: 'Shout-out',
@@ -218,33 +221,40 @@ export default function SchoolFeed({ schoolName, feed, messages, onSeeAll }: {
   const overflows = items.length > FEED_CAP;
   const visible = showAll || !overflows ? items : items.slice(0, FEED_CAP);
 
+  // Collapsible, like every other block on this page, and open on arrival
+  // because it is what a family comes here for. It was the one section that
+  // could not be closed and it ran the full height of the screen, so nobody
+  // realised the schedule and the rest sat underneath it (iCreate, 2026-08-26:
+  // "Families are not understanding there are more things below the
+  // announcements").
   return (
-    <Card className="mb-3 bg-white dark:bg-dark-surface-100" testID="school-feed">
-      <HStack className="items-center gap-2.5 mb-3">
-        <View className="w-8 h-8 rounded-lg bg-optio-purple/10 items-center justify-center">
-          <Ionicons name="megaphone-outline" size={17} color={c.brand} />
-        </View>
-        <Heading size="sm" className="flex-1">From {schoolName}</Heading>
-      </HStack>
-      <VStack space="sm">
-        {visible.map(renderItem)}
-      </VStack>
-      {overflows && !showAll && (
-        <Pressable onPress={() => setShowAll(true)} hitSlop={8} className="mt-3" testID="feed-show-all">
-          <UIText size="sm" className="text-optio-purple font-poppins-medium">
-            Show all {items.length}
-          </UIText>
+    <View testID="school-feed">
+      <SchoolSection
+        title={`From ${schoolName}`}
+        icon="megaphone-outline"
+        count={items.length}
+        defaultOpen
+      >
+        <VStack space="sm">
+          {visible.map(renderItem)}
+        </VStack>
+        {overflows && !showAll && (
+          <Pressable onPress={() => setShowAll(true)} hitSlop={8} className="mt-3" testID="feed-show-all">
+            <UIText size="sm" className="text-optio-purple font-poppins-medium">
+              Show all {items.length}
+            </UIText>
+          </Pressable>
+        )}
+        <Pressable onPress={onSeeAll} hitSlop={8} className="mt-3" testID="feed-see-all">
+          <HStack className="items-center gap-1">
+            <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+              Older messages &amp; search
+            </UIText>
+            <Ionicons name="chevron-forward" size={14} color={c.brand} />
+          </HStack>
         </Pressable>
-      )}
-      <Pressable onPress={onSeeAll} hitSlop={8} className="mt-3" testID="feed-see-all">
-        <HStack className="items-center gap-1">
-          <UIText size="sm" className="text-optio-purple font-poppins-semibold">
-            Older messages &amp; search
-          </UIText>
-          <Ionicons name="chevron-forward" size={14} color={c.brand} />
-        </HStack>
-      </Pressable>
-    </Card>
+      </SchoolSection>
+    </View>
   );
 }
 
