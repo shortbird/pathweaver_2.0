@@ -110,6 +110,7 @@ export default function QuestPersonalizationWizard({
   onManualTasksOverride = null,
   classSubject = null,
   skipSubjectXp = false,
+  draftScope = null,
 }) {
   const classSubjectName = classSubject ? getSubjectName(classSubject) : null;
   const hidePillars = useHidePillars();
@@ -899,6 +900,7 @@ export default function QuestPersonalizationWizard({
           onTasksCreated={handleManualTasksCreated}
           onCancel={onCancel}
           onSubmitOverride={onManualTasksOverride}
+          draftScope={draftScope}
         />
       )}
 
