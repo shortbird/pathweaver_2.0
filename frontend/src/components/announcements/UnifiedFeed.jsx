@@ -198,7 +198,6 @@ export default function UnifiedFeed({
       id="school-feed"
       title={schoolName ? `From ${schoolName}` : 'From your school'}
       Icon={MegaphoneIcon}
-      collapsible={false}
       defaultOpen
     >
       {/* Search — the archive filters server-side (?q); board items client-side. */}

@@ -321,7 +321,7 @@ class TestTheSchoolPageAdmitsCoordinators:
         """canPost/canModerate are True for a coordinator (caller_is_admin),
         so the routes behind those buttons must not 403 them."""
         from routes.sis import community
-        for view in ('create_carpool', 'message_carpool_author', 'delete_carpool'):
+        for view in ('create_carpool', 'delete_carpool'):
             assert _admits_coordinator(community, view), view
 
     def test_the_announcements_archive_admits_coordinators(self):

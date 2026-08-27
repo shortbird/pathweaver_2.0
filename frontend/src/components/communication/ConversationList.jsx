@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react'
 import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, observerAPI } from '../../services/api'
@@ -24,6 +25,7 @@ const ConversationList = ({
 }) => {
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = React.useState('')
+  const [searchParams] = useSearchParams()
 
   // Get effective role (resolves org_managed to org_role)
   const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role
@@ -173,10 +175,29 @@ const ConversationList = ({
     return rows
   }, [searchedContacts, advisor, advisorMatchesSearch, supportContact?.id])
 
+  // Set by either of the two effects below: whichever opens a thread first wins,
+  // so a ?user= deep link is not overwritten by the desktop auto-select.
+  const hasAutoSelectedRef = useRef(false)
+
+  // Deep-link: ?user=<id> opens that person's thread — how "Message Sarah" on
+  // the carpool board arrives here. Matches the mobile app's messages?user=
+  // param. Consumed once per id so pressing back doesn't bounce straight in
+  // again, and silently ignored when that person isn't a contact of this
+  // account (an unreachable id must not open an empty chat).
+  const openedForUserRef = useRef(null)
+  useEffect(() => {
+    const targetId = searchParams.get('user')
+    if (!targetId || openedForUserRef.current === targetId || isLoading) return
+    const match = unifiedContacts.find(c => c.id === targetId)
+    if (!match) return
+    openedForUserRef.current = targetId
+    hasAutoSelectedRef.current = true
+    onSelectConversation(contactToConversation(match))
+  }, [searchParams, unifiedContacts, isLoading, onSelectConversation])
+
   // Auto-select the most-recent conversation on desktop (once), so the chat
   // panel isn't empty on load. Falls back to the empty state when there are no
   // active conversations yet.
-  const hasAutoSelectedRef = useRef(false)
   useEffect(() => {
     if (hasAutoSelectedRef.current || selectedConversation || isLoading) return
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768

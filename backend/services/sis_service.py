@@ -745,6 +745,83 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+# The adults on a school's roster: guardians and the people who run the place.
+# Observers are deliberately absent — a grandparent or mentor is linked to one
+# student, not a member of the parent body, and keeps their narrower rule.
+ADULT_ORG_ROLES = ('parent', 'advisor', 'org_admin', 'campus_coordinator')
+
+_ADULT_CONTACT_COLUMNS = ('id, first_name, last_name, display_name, preferred_name, '
+                          'avatar_url, role, org_role, org_roles')
+
+
+def _adult_role(u: Dict[str, Any]) -> Optional[str]:
+    """The org role to show an adult under, or None if they are not one."""
+    if is_student(u):
+        return None
+    role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
+    if role in ADULT_ORG_ROLES:
+        return role
+    roles = u.get('org_roles')
+    if isinstance(roles, list):
+        for r in ADULT_ORG_ROLES:
+            if r in roles:
+                return r
+    return None
+
+
+def org_adults(org_id: str) -> List[Dict[str, Any]]:
+    """Every adult on a school's roster — guardians and staff, never students.
+
+    Two ways to belong, the same two member_org_id resolves: users carrying the
+    organization_id, plus guardians of the school's households who do not (a
+    platform parent is a member of the school through their child, and there is
+    no column on their own row that says so).
+
+    Rows carry `org_role`, the role to display them under. Paged, because this
+    is every adult account in the school and it grows with every family.
+    """
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users').select(_ADULT_CONTACT_COLUMNS)
+        .eq('organization_id', org_id)
+    ))
+    out: Dict[str, Dict[str, Any]] = {}
+    for u in rows:
+        role = _adult_role(u)
+        if role:
+            out[u['id']] = {**u, 'org_role': role}
+
+    for u in _household_guardians_outside_org(org_id, skip=set(out)):
+        out[u['id']] = {**u, 'org_role': 'parent'}
+    return sorted(out.values(), key=lambda u: _full_name(u).lower())
+
+
+def _household_guardians_outside_org(org_id: str, skip: set) -> List[Dict[str, Any]]:
+    """Guardians of this school's households whose own row has no organization_id
+    (platform parents). Without them the school's own parent body is incomplete."""
+    households = fetch_all_rows(lambda: (
+        _admin().table('households').select('id').eq('organization_id', org_id)
+    ))
+    hh_ids = [h['id'] for h in households]
+    if not hh_ids:
+        return []
+    members = fetch_all_rows(lambda: (
+        _admin().table('household_members').select('user_id, relationship')
+        .in_('household_id', hh_ids)
+    ))
+    wanted = [m['user_id'] for m in members
+              if m.get('relationship') != 'student' and m.get('user_id')
+              and m['user_id'] not in skip]
+    if not wanted:
+        return []
+    found: List[Dict[str, Any]] = []
+    for i in range(0, len(wanted), 100):
+        found.extend(
+            (_admin().table('users').select(_ADULT_CONTACT_COLUMNS)
+             .in_('id', wanted[i:i + 100]).execute()).data or []
+        )
+    return [u for u in found if not is_student(u)]
+
+
 # Org roles considered "staff" (people who run the school), in display precedence.
 STAFF_ORG_ROLES = ('org_admin', 'campus_coordinator', 'advisor')
 _STAFF_ROLE_LABEL = {'org_admin': 'Org Admin', 'campus_coordinator': 'Campus Coordinator',

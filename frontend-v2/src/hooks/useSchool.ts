@@ -73,6 +73,8 @@ export interface CarpoolPost {
   area: string | null;
   days: string | null;
   author_name: string | null;
+  /** The author's account, so "Message them" can deep-link into Messages. */
+  author_id: string | null;
   created_at: string;
   mine?: boolean;
 }
@@ -348,18 +350,13 @@ export function useSchoolHub(opts?: { markRead?: boolean }) {
     await fetchFeed(feedParamsRef.current);
   }, [fetchFeed]);
 
-  const messageCarpool = useCallback(async (id: string, message: string) => {
-    await api.post(`/api/sis/community/feed/carpool/${id}/message`, { message });
-  }, []);
-
   const carpool = useMemo(() => ({
     posts: feed?.carpool || [],
     canPost,
     canModerate,
     post: postCarpool,
     remove: removeCarpool,
-    message: messageCarpool,
-  }), [feed?.carpool, canPost, canModerate, postCarpool, removeCarpool, messageCarpool]);
+  }), [feed?.carpool, canPost, canModerate, postCarpool, removeCarpool]);
 
   useRefetchOnForeground(refresh);
 

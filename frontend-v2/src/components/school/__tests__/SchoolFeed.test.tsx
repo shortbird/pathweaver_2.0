@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import SchoolFeed, { ComingUp, mergeSchoolFeed } from '../SchoolFeed';
 import CarpoolBoard from '../CarpoolBoard';
 import type { SchoolFeed as SchoolFeedData, CarpoolPost, ArchivedMessage } from '@/src/hooks/useSchool';
@@ -155,27 +156,28 @@ describe('ComingUp', () => {
 describe('CarpoolBoard', () => {
   const post = (over: Partial<CarpoolPost> = {}): CarpoolPost => ({
     id: 'c1', type: 'offer', message: 'Two seats from Provo', area: 'Provo', days: 'MWF',
-    author_name: 'Dana P.', created_at: '2026-08-01T00:00:00Z', mine: false, ...over,
+    author_name: 'Dana P.', author_id: 'u-dana', created_at: '2026-08-01T00:00:00Z',
+    mine: false, ...over,
   });
   const noop = async () => {};
 
   it('renders nothing for a student with an empty board', () => {
     const { toJSON } = render(
-      <CarpoolBoard posts={[]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} onMessage={noop} />,
+      <CarpoolBoard posts={[]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} />,
     );
     expect(toJSON()).toBeNull();
   });
 
   it('opens on arrival when the dedicated screen asks it to', () => {
     const { getByText } = render(
-      <CarpoolBoard posts={[post()]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} onMessage={noop} defaultOpen />,
+      <CarpoolBoard posts={[post()]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} defaultOpen />,
     );
     expect(getByText('Two seats from Provo')).toBeTruthy();
   });
 
   it('students see posts but no composer or message buttons', () => {
     const { getByTestId, getByText, queryByTestId } = render(
-      <CarpoolBoard posts={[post()]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} onMessage={noop} />,
+      <CarpoolBoard posts={[post()]} canPost={false} canModerate={false} onPost={noop} onRemove={noop} />,
     );
     open(getByTestId, 'Carpool board');
     expect(getByText('Two seats from Provo')).toBeTruthy();
@@ -187,7 +189,7 @@ describe('CarpoolBoard', () => {
     const { getByTestId, queryByTestId } = render(
       <CarpoolBoard
         posts={[post(), post({ id: 'c2', mine: true })]}
-        canPost canModerate={false} onPost={noop} onRemove={noop} onMessage={noop}
+        canPost canModerate={false} onPost={noop} onRemove={noop}
       />,
     );
     open(getByTestId, 'Carpool board');
@@ -200,28 +202,36 @@ describe('CarpoolBoard', () => {
 
   it('a moderator can remove any post', () => {
     const { getByTestId, queryByTestId } = render(
-      <CarpoolBoard posts={[post()]} canPost canModerate onPost={noop} onRemove={noop} onMessage={noop} />,
+      <CarpoolBoard posts={[post()]} canPost canModerate onPost={noop} onRemove={noop} />,
     );
     open(getByTestId, 'Carpool board');
     expect(queryByTestId('carpool-remove-c1')).toBeTruthy();
   });
 
-  it('sends a first-contact message through onMessage', async () => {
-    const onMessage = jest.fn().mockResolvedValue(undefined);
+  it('opens the author\'s thread in Messages instead of composing here', () => {
     const { getByTestId } = render(
-      <CarpoolBoard posts={[post()]} canPost canModerate={false} onPost={noop} onRemove={noop} onMessage={onMessage} />,
+      <CarpoolBoard posts={[post()]} canPost canModerate={false} onPost={noop} onRemove={noop} />,
     );
     open(getByTestId, 'Carpool board');
     fireEvent.press(getByTestId('carpool-message-c1'));
-    fireEvent.changeText(getByTestId('carpool-dm-input'), 'Is the Tuesday seat open?');
-    fireEvent.press(getByTestId('carpool-dm-send'));
-    await waitFor(() => expect(onMessage).toHaveBeenCalledWith('c1', 'Is the Tuesday seat open?'));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/(app)/(tabs)/messages', params: { user: 'u-dana' },
+    });
+  });
+
+  it('offers no way to message a post whose author the feed did not name', () => {
+    const { getByTestId, queryByTestId } = render(
+      <CarpoolBoard posts={[post({ author_id: null })]} canPost canModerate={false}
+        onPost={noop} onRemove={noop} />,
+    );
+    open(getByTestId, 'Carpool board');
+    expect(queryByTestId('carpool-message-c1')).toBeNull();
   });
 
   it('posts through onPost with the composed form', async () => {
     const onPost = jest.fn().mockResolvedValue(undefined);
     const { getByTestId } = render(
-      <CarpoolBoard posts={[]} canPost canModerate={false} onPost={onPost} onRemove={noop} onMessage={noop} />,
+      <CarpoolBoard posts={[]} canPost canModerate={false} onPost={onPost} onRemove={noop} />,
     );
     open(getByTestId, 'Carpool board');
     fireEvent.press(getByTestId('carpool-open-composer'));

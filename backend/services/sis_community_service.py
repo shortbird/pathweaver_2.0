@@ -447,13 +447,6 @@ def create_carpool_post(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     return {'post': row[0] if row else None}
 
 
-def get_carpool_post(org_id: str, post_id: str) -> Optional[Dict[str, Any]]:
-    row = (_admin().table('sis_carpool_posts').select('*')
-           .eq('id', post_id).eq('organization_id', org_id)
-           .eq('status', 'active').limit(1).execute()).data
-    return row[0] if row else None
-
-
 def delete_carpool_post(org_id: str, user_id: str, post_id: str,
                         is_moderator: bool) -> bool:
     """Remove a post — its author taking it down, or an admin moderating."""
@@ -525,10 +518,12 @@ _FAMILY_RECOGNITION = ('id', 'type', 'recipient_name', 'message', 'created_at')
 _FAMILY_ANNOUNCEMENT = ('id', 'title', 'body', 'pinned', 'priority', 'created_at')
 _FAMILY_EVENT = ('id', 'title', 'description', 'location', 'start_at', 'end_at',
                  'all_day', 'category', 'categories')
-# author_name is the snapshot column, never a users join; created_by is replaced
-# by a computed `mine` so the author sees their own delete button without any
-# account id reaching the client — "Message this person" goes through the post
-# id (POST /feed/carpool/<id>/message), so the author's id never needs to.
+# author_name is the snapshot column, never a users join. created_by is served
+# as `author_id` alongside a computed `mine`: the author gets their own delete
+# button, and "Message this person" is a link into Messages addressed to that
+# account. Withholding the id bought nothing once every adult in the school is
+# a contact of every other (2026-08-27) — it only meant the board had to carry
+# its own one-shot composer, which the mobile app never managed to send from.
 _FAMILY_CARPOOL = ('id', 'type', 'message', 'area', 'days',
                    'author_name', 'created_at')
 
@@ -551,6 +546,7 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     carpool_rows = list_carpool(org_id)
     carpool = _project(carpool_rows, _FAMILY_CARPOOL)
     for projected, raw in zip(carpool, carpool_rows):
+        projected['author_id'] = raw.get('created_by')
         projected['mine'] = bool(viewer_id) and raw.get('created_by') == viewer_id
     return {
         'announcements': _project(

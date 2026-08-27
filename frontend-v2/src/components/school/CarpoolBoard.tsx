@@ -1,8 +1,13 @@
 /**
  * Carpool board — families post ride offers and needs, then arrange between
- * themselves over in-app messaging: every post has "Message {name}", addressed
- * by POST id (the author's account id never reaches the client), and the reply
- * lands in Messages. No phone numbers on the board, on purpose.
+ * themselves over in-app messaging. No phone numbers on the board, on purpose.
+ *
+ * "Message {name}" opens the Messages tab on that person (2026-08-27). It used
+ * to be a one-shot composer here that POSTed the text to the board's own
+ * endpoint — which never worked from this app: it sent `{message}` where the
+ * backend read `content`, so every send came back 400 and a parent wrote in
+ * saying the board "doesn't let me send messages". Every adult in a school is
+ * now a contact of every other, so the thread just starts where it lives.
  *
  * Students see the board (it may explain their own ride) but cannot post or
  * message — the backend enforces both; `canPost` only hides the buttons.
@@ -10,6 +15,7 @@
 
 import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Badge, BadgeText, BottomSheet, Button, ButtonText, HStack, Heading,
@@ -34,20 +40,15 @@ interface CarpoolBoardProps {
   canModerate: boolean;
   onPost: (form: typeof EMPTY_FORM) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
-  onMessage: (id: string, message: string) => Promise<void>;
   /** Open on arrival — the dedicated carpool screen, where the board is the page. */
   defaultOpen?: boolean;
 }
 
-export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRemove, onMessage, defaultOpen }: CarpoolBoardProps) {
+export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRemove, defaultOpen }: CarpoolBoardProps) {
   const c = useThemeColors();
   const [composerOpen, setComposerOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [messageFor, setMessageFor] = useState<CarpoolPost | null>(null);
-  const [messageText, setMessageText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sentFor, setSentFor] = useState<Set<string>>(() => new Set());
 
   if (!posts.length && !canPost) return null;
 
@@ -83,22 +84,6 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
       toast.success('Post removed');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Could not remove the post');
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!messageFor || !messageText.trim()) return;
-    setSending(true);
-    try {
-      await onMessage(messageFor.id, messageText.trim());
-      setSentFor((prev) => new Set(prev).add(messageFor.id));
-      setMessageFor(null);
-      setMessageText('');
-      toast.success('Sent — replies land in Messages');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Could not send');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -142,20 +127,19 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
                         <UIText size="xs" className="text-error-600 font-poppins-medium">Remove</UIText>
                       </Pressable>
                     )}
-                    {canPost && !post.mine && (
-                      sentFor.has(post.id) ? (
-                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Sent ✓</UIText>
-                      ) : (
-                        <Pressable
-                          onPress={() => { setMessageFor(post); setMessageText(''); }}
-                          hitSlop={8}
-                          testID={`carpool-message-${post.id}`}
-                        >
-                          <UIText size="xs" className="text-optio-purple font-poppins-semibold">
-                            Message {post.author_name?.split(' ')[0] || 'them'}
-                          </UIText>
-                        </Pressable>
-                      )
+                    {canPost && !post.mine && !!post.author_id && (
+                      <Pressable
+                        onPress={() => router.push({
+                          pathname: '/(app)/(tabs)/messages',
+                          params: { user: post.author_id as string },
+                        })}
+                        hitSlop={8}
+                        testID={`carpool-message-${post.id}`}
+                      >
+                        <UIText size="xs" className="text-optio-purple font-poppins-semibold">
+                          Message {post.author_name?.split(' ')[0] || 'them'}
+                        </UIText>
+                      </Pressable>
                     )}
                   </HStack>
                 </HStack>
@@ -227,28 +211,6 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
         </VStack>
       </BottomSheet>
 
-      {/* First-contact message. The reply arrives as a normal DM. */}
-      <BottomSheet visible={messageFor !== null} onClose={() => setMessageFor(null)}>
-        <VStack space="md">
-          <Heading size="lg">Message {messageFor?.author_name || 'this family'}</Heading>
-          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-            Sent privately. Replies arrive in your Messages.
-          </UIText>
-          <Input>
-            <InputField
-              placeholder="e.g. Is the Tuesday seat still open?"
-              value={messageText}
-              onChangeText={setMessageText}
-              multiline
-              autoFocus
-              testID="carpool-dm-input"
-            />
-          </Input>
-          <Button onPress={sendMessage} disabled={sending || !messageText.trim()} testID="carpool-dm-send">
-            <ButtonText>{sending ? 'Sending…' : 'Send'}</ButtonText>
-          </Button>
-        </VStack>
-      </BottomSheet>
     </SchoolSection>
   );
 }

@@ -171,15 +171,17 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
                 return True
 
-            # Carpool board (iCreate, 2026-08-06): an ACTIVE ride offer/need is an
-            # invitation to be contacted, so it connects two ADULTS of the same
-            # school for as long as it is up. Author deletes the post -> new
-            # messages stop (history stays readable); students never qualify in
+            # A school's adults are contacts of each other (2026-08-27): every
+            # guardian and staff member of one organization can open a thread
+            # with any other. It replaces the narrower carpool rule this started
+            # as -- an active ride post connected exactly two accounts, so
+            # parents could only reach the families already advertising, and
+            # never each other for anything else. Students never qualify in
             # either direction.
-            if self._carpool_connection(user_id, target_id,
-                                        sender_role=sender_effective_role,
-                                        target_role=target_effective_role):
-                print(f"[can_message_user] ALLOWED: Active carpool post in shared school", file=sys.stderr, flush=True)
+            if self._org_adult_connection(user_id, target_id,
+                                          sender_role=sender_effective_role,
+                                          target_role=target_effective_role):
+                print(f"[can_message_user] ALLOWED: Adults of the same school", file=sys.stderr, flush=True)
                 return True
 
             print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
@@ -190,30 +192,27 @@ class DirectMessageService(BaseService):
             import traceback
             return False
 
-    def _carpool_connection(self, user_id: str, target_id: str,
-                            sender_role: str = None, target_role: str = None) -> bool:
-        """True when either party has an ACTIVE carpool post in a school both
-        belong to, and neither is a student. Membership resolves the way the
-        board itself does (sis_service.member_org_id — platform parents belong
-        through their children)."""
+    def _org_adult_connection(self, user_id: str, target_id: str,
+                              sender_role: str = None, target_role: str = None) -> bool:
+        """True when both parties are adults on the same school's roster.
+
+        Membership resolves the way the community board does
+        (sis_service.member_org_id), so a platform parent -- no organization_id
+        of their own -- is a member through their child. Students are excluded
+        by role, and so are observers: they are linked to one student, not to
+        the parent body, and keep their own narrower rule above.
+        """
         try:
-            if sender_role == 'student' or target_role == 'student':
-                return False
-            supabase = self._get_client()
-            posts = supabase.table('sis_carpool_posts') \
-                .select('organization_id') \
-                .in_('created_by', [user_id, target_id]) \
-                .eq('status', 'active').limit(20).execute().data or []
-            if not posts:
-                return False
-            post_orgs = {p['organization_id'] for p in posts}
+            # Imported here, not at module scope: sis_service reaches back into
+            # the services package and the pair import-cycles at module load.
             from services import sis_service
-            org_a = sis_service.member_org_id(user_id)
-            if not org_a or org_a not in post_orgs:
+            if sender_role not in sis_service.ADULT_ORG_ROLES or \
+               target_role not in sis_service.ADULT_ORG_ROLES:
                 return False
-            return sis_service.member_org_id(target_id) == org_a
+            org = sis_service.member_org_id(user_id)
+            return bool(org) and sis_service.member_org_id(target_id) == org
         except Exception as e:
-            print(f"[can_message_user] carpool check failed (denying): {e}", file=sys.stderr, flush=True)
+            print(f"[can_message_user] org adult check failed (denying): {e}", file=sys.stderr, flush=True)
             return False
 
     # ==================== Conversation Management ====================
@@ -276,55 +275,60 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Get conversations where user is participant_1
-            convos_p1 = supabase.table('message_conversations').select('''
+            # Both sides of every thread in one request. Two `.eq()` reads were
+            # two round trips for a filter Postgres can OR in one.
+            convos = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
                 created_at, updated_at
-            ''').eq('participant_1_id', user_id).execute()
+            ''').or_(
+                f'participant_1_id.eq.{user_id},participant_2_id.eq.{user_id}'
+            ).execute()
 
-            # Get conversations where user is participant_2
-            convos_p2 = supabase.table('message_conversations').select('''
-                id, participant_1_id, participant_2_id, last_message_at,
-                last_message_preview, unread_count_p1, unread_count_p2,
-                created_at, updated_at
-            ''').eq('participant_2_id', user_id).execute()
+            rows = convos.data or []
 
-            # Combine and enrich with participant details
+            # Resolve every counterpart in one query. This used to be a
+            # `_get_user_info` call per conversation -- ~110 ms each against
+            # Supabase, so a 20-thread inbox spent two seconds doing nothing but
+            # sequential single-row lookups.
+            others = {
+                (c['participant_2_id'] if c['participant_1_id'] == user_id
+                 else c['participant_1_id'])
+                for c in rows
+            }
+            users_by_id = self._get_users_info(others)
+
             all_conversations = []
-
-            if convos_p1.data:
-                for convo in convos_p1.data:
-                    other_user_id = convo['participant_2_id']
-                    user_data = self._get_user_info(other_user_id)
-                    all_conversations.append({
-                        **convo,
-                        'other_user': user_data,
-                        'unread_count': convo['unread_count_p1']
-                    })
-
-            if convos_p2.data:
-                for convo in convos_p2.data:
-                    other_user_id = convo['participant_1_id']
-                    user_data = self._get_user_info(other_user_id)
-                    all_conversations.append({
-                        **convo,
-                        'other_user': user_data,
-                        'unread_count': convo['unread_count_p2']
-                    })
+            for convo in rows:
+                is_p1 = convo['participant_1_id'] == user_id
+                other_user_id = convo['participant_2_id'] if is_p1 else convo['participant_1_id']
+                all_conversations.append({
+                    **convo,
+                    'other_user': users_by_id.get(
+                        other_user_id, {'id': other_user_id, 'display_name': 'Unknown User'}
+                    ),
+                    'unread_count': convo['unread_count_p1'] if is_p1 else convo['unread_count_p2'],
+                })
 
             # Recompute unread from the ACTUAL unread messages rather than trusting
             # the cached unread_count_p1/p2 counters, which drift out of sync (a
             # missed decrement left a "ghost" unread badge after the user had
-            # already opened and read the conversation). One query, counted here.
+            # already opened and read the conversation).
             try:
-                unread_resp = supabase.table('direct_messages') \
-                    .select('conversation_id') \
-                    .eq('recipient_id', user_id) \
-                    .is_('read_at', 'null') \
-                    .execute()
+                # Paged: this is every unread message addressed to one account,
+                # and a school inbox answering a whole parent body can hold more
+                # than the 1000-row cap. Truncated, the tail of the list would
+                # silently read as "no unread" -- the same failure mode as the
+                # iCreate enrollment counts (see utils/db_fetch).
+                from utils.db_fetch import fetch_all_rows
+                unread_rows = fetch_all_rows(lambda: (
+                    supabase.table('direct_messages')
+                    .select('id, conversation_id')
+                    .eq('recipient_id', user_id)
+                    .is_('read_at', 'null')
+                ))
                 unread_by_convo: Dict[str, int] = {}
-                for row in (unread_resp.data or []):
+                for row in unread_rows:
                     cid = row.get('conversation_id')
                     if cid:
                         unread_by_convo[cid] = unread_by_convo.get(cid, 0) + 1

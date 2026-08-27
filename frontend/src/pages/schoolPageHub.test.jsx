@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -259,6 +259,18 @@ describe('the unified feed', () => {
     const names = await cardNames()
     expect(names).not.toContain('Announcements')
     expect(names).not.toContain('Messages')
+  })
+
+  it('opens on arrival but can be collapsed out of the way', async () => {
+    schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
+    renderPage()
+    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Collapse From/i }))
+    await waitFor(() => {
+      expect(screen.queryByText('Picture day is Thursday')).not.toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Expand From/i }))
+    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
   })
 })
 

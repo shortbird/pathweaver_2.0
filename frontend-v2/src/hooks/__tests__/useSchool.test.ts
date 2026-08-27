@@ -181,19 +181,6 @@ describe('useSchoolHub', () => {
     expect(feedCallsAfter).toBe(feedCallsBefore + 1);
   });
 
-  it('messageCarpool posts to the per-post message endpoint', async () => {
-    primeGets();
-    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
-    const { result } = renderHook(() => useSchoolHub());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    await act(async () => {
-      await result.current.carpool.message('c1', 'Is the Tuesday seat open?');
-    });
-    expect(api.post).toHaveBeenCalledWith('/api/sis/community/feed/carpool/c1/message',
-      { message: 'Is the Tuesday seat open?' });
-  });
-
   it('removeCarpool deletes and refreshes', async () => {
     primeGets();
     (api.delete as jest.Mock).mockResolvedValue({ data: { success: true } });

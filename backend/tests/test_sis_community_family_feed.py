@@ -257,9 +257,9 @@ class TestTheSchoolOnTheProfile:
 
 @pytest.mark.unit
 class TestCarpoolBoard:
-    """The first family-AUTHORED module: posts carry an author display name and
-    a computed `mine`, never an account id or a phone number — contact happens
-    through in-app messaging, addressed by post id."""
+    """The first family-AUTHORED module: posts carry an author display name, the
+    author's account (so "Message them" can link into Messages) and a computed
+    `mine` — never a phone number. Contact happens through in-app messaging."""
 
     def test_posts_reach_the_family_feed(self):
         feed, _, _ = _feed()
@@ -267,10 +267,16 @@ class TestCarpoolBoard:
         assert post['message'] == 'Two seats from Lehi, Tue & Thu mornings.'
         assert post['author_name'] == 'Dana C.'
 
-    def test_the_author_account_id_and_contact_stay_internal(self):
+    def test_no_phone_number_ever_reaches_the_board(self):
         feed, _, _ = _feed()
-        assert 'created_by' not in feed['carpool'][0]
         assert 'contact' not in feed['carpool'][0]
+        assert 'phone' not in feed['carpool'][0]
+
+    def test_the_author_is_addressable_for_a_dm(self):
+        """`author_id` is what the "Message Dana" link is built from. It is the
+        raw created_by under a name that says what the client may do with it."""
+        feed, _, _ = _feed()
+        assert feed['carpool'][0]['author_id'] == 'parent-1'
 
     def test_the_viewer_sees_which_posts_are_theirs(self):
         feed, _, _ = _feed(viewer_id='parent-1')
@@ -285,38 +291,47 @@ class TestCarpoolBoard:
 
 
 @pytest.mark.unit
-class TestCarpoolMessagingRule:
-    """An active carpool post connects two adults of the same school for as
-    long as it is up — the DM-permission clause behind "Message this person"."""
+class TestOrgAdultMessagingRule:
+    """Every adult of a school can message every other — the DM-permission
+    clause behind "Message this person" on the carpool board, and behind the
+    school's other families appearing in Messages at all.
 
-    def _connected(self, posts, org_a='org-1', org_b='org-1',
+    It replaced a narrower rule that required an ACTIVE carpool post: parents
+    could only reach the families already advertising a ride, and never each
+    other for anything else."""
+
+    def _connected(self, org_a='org-1', org_b='org-1',
                    sender_role='parent', target_role='parent'):
-        from unittest.mock import Mock, patch as _patch
+        from unittest.mock import patch as _patch
         from services.direct_message_service import DirectMessageService
         svc = DirectMessageService.__new__(DirectMessageService)
-        client = Mock()
-        table = Mock()
-        client.table.return_value = table
-        for chained in ('select', 'in_', 'eq', 'limit'):
-            getattr(table, chained).return_value = table
-        table.execute.return_value = Mock(data=list(posts))
-        svc._get_client = lambda: client
         with _patch('services.sis_service.member_org_id',
                     side_effect=lambda uid: org_a if uid == 'a' else org_b):
-            return svc._carpool_connection('a', 'b', sender_role=sender_role,
-                                           target_role=target_role)
+            return svc._org_adult_connection('a', 'b', sender_role=sender_role,
+                                             target_role=target_role)
 
-    def test_an_active_post_in_the_shared_school_connects_them(self):
-        assert self._connected([{'organization_id': 'org-1'}]) is True
+    def test_two_parents_of_the_same_school_connect(self):
+        assert self._connected() is True
 
-    def test_no_post_no_connection(self):
-        assert self._connected([]) is False
+    def test_a_parent_and_a_teacher_of_the_same_school_connect(self):
+        assert self._connected(target_role='advisor') is True
+        assert self._connected(sender_role='org_admin') is True
+        assert self._connected(sender_role='campus_coordinator') is True
 
     def test_different_schools_never_connect(self):
-        assert self._connected([{'organization_id': 'org-1'}], org_b='org-2') is False
+        assert self._connected(org_b='org-2') is False
+
+    def test_no_school_no_connection(self):
+        """A platform user with no membership to resolve — not everyone in the
+        product is in a school."""
+        assert self._connected(org_a=None, org_b=None) is False
 
     def test_students_never_qualify_in_either_direction(self):
-        assert self._connected([{'organization_id': 'org-1'}],
-                               sender_role='student') is False
-        assert self._connected([{'organization_id': 'org-1'}],
-                               target_role='student') is False
+        assert self._connected(sender_role='student') is False
+        assert self._connected(target_role='student') is False
+
+    def test_observers_keep_their_narrower_linked_student_rule(self):
+        """An observer is somebody's grandparent or mentor, linked to one
+        student — not a member of the school's parent body."""
+        assert self._connected(sender_role='observer') is False
+        assert self._connected(target_role='observer') is False

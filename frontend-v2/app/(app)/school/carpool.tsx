@@ -48,7 +48,6 @@ export default function SchoolCarpoolScreen() {
               canModerate={carpool.canModerate}
               onPost={carpool.post}
               onRemove={carpool.remove}
-              onMessage={carpool.message}
               defaultOpen
             />
           )}

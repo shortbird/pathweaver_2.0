@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import ConversationList from './ConversationList'
 
 let authState = { user: { id: 'u1', role: 'student' } }
@@ -22,20 +23,23 @@ const groups = [
   { id: 'g1', name: 'Study Group', last_message_at: '2025-01-01T00:00:00Z', unread_count: 0, member_count: 3 }
 ]
 
-function renderList(props = {}) {
+// `route` seeds the URL: the list reads ?user=<id> to open a deep-linked thread.
+function renderList(props = {}, { route = '/messages' } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={client}>
-      <ConversationList
-        conversations={conversations}
-        groupConversations={groups}
-        selectedConversation={null}
-        onSelectConversation={vi.fn()}
-        isLoading={false}
-        onCreateGroup={vi.fn()}
-        {...props}
-      />
-    </QueryClientProvider>
+    <MemoryRouter initialEntries={[route]}>
+      <QueryClientProvider client={client}>
+        <ConversationList
+          conversations={conversations}
+          groupConversations={groups}
+          selectedConversation={null}
+          onSelectConversation={vi.fn()}
+          isLoading={false}
+          onCreateGroup={vi.fn()}
+          {...props}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>
   )
 }
 
@@ -103,18 +107,43 @@ describe('ConversationList', () => {
     expect(screen.getByText('New group')).toBeInTheDocument()
   })
 
+  // ?user=<id> is how "Message Dana" on the carpool board arrives at Messages:
+  // the board links out instead of composing a one-shot DM of its own.
+  describe('the ?user= deep link', () => {
+    it('opens that person\'s thread on arrival', async () => {
+      mockContacts = [
+        { id: 'p9', first_name: 'Dana', last_name: 'Cole', relationship: 'parent' }
+      ]
+      const onSelectConversation = vi.fn()
+      renderList({ onSelectConversation }, { route: '/messages?user=p9' })
+      await waitFor(() => expect(onSelectConversation).toHaveBeenCalled())
+      expect(onSelectConversation.mock.calls[0][0].other_user.id).toBe('p9')
+    })
+
+    it('stays on the list when that person is not a contact of this account', async () => {
+      mockContacts = []
+      const onSelectConversation = vi.fn()
+      renderList({ onSelectConversation, conversations: [], groupConversations: [] },
+        { route: '/messages?user=stranger' })
+      await waitFor(() => expect(screen.getByText('No conversations yet')).toBeInTheDocument())
+      expect(onSelectConversation).not.toHaveBeenCalled()
+    })
+  })
+
   it('shows an empty state when there is nothing to show', () => {
     mockContacts = []
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <ConversationList
-          conversations={[]}
-          groupConversations={[]}
-          selectedConversation={{ id: 'x' }}
-          onSelectConversation={vi.fn()}
-          isLoading={false}
-        />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ConversationList
+            conversations={[]}
+            groupConversations={[]}
+            selectedConversation={{ id: 'x' }}
+            onSelectConversation={vi.fn()}
+            isLoading={false}
+          />
+        </QueryClientProvider>
+      </MemoryRouter>
     )
     expect(screen.getByText('No conversations yet')).toBeInTheDocument()
   })

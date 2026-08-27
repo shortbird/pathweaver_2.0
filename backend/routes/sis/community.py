@@ -335,40 +335,6 @@ def create_carpool(user_id):
     return jsonify({'success': True, 'post': result['post']}), 201
 
 
-@bp.route('/feed/carpool/<post_id>/message', methods=['POST'])
-@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
-def message_carpool_author(user_id, post_id):
-    """First contact about a ride, addressed by POST ID — the author's account
-    id never reaches the client. Delivered as a normal DM (web + mobile app);
-    the reply happens in Messages. Permission is the carpool rule in
-    direct_message_service.can_message_user (active post, shared school,
-    adults only)."""
-    from services import sis_service
-    from services.direct_message_service import DirectMessageService
-    org_id = sis_service.member_org_id(user_id)
-    if not org_id:
-        return jsonify({'success': False, 'error': 'Not in a school'}), 403
-    post = community.get_carpool_post(org_id, post_id)
-    if not post:
-        return jsonify({'success': False, 'error': 'This post is no longer up'}), 404
-    if post['created_by'] == user_id:
-        return jsonify({'success': False, 'error': 'This is your own post'}), 400
-    content = ((request.json or {}).get('content') or '').strip()
-    if not content:
-        return jsonify({'success': False, 'error': 'Write a message first'}), 400
-    if len(content) > 2000:
-        return jsonify({'success': False, 'error': 'Keep it under 2000 characters'}), 400
-    # A little context on top of the first message, so the recipient knows which
-    # post it is about without the sender having to explain.
-    prefix = 'About your carpool post' + (f' ({post.get("area")})' if post.get('area') else '')
-    try:
-        message = DirectMessageService().send_message(
-            user_id, post['created_by'], f'{prefix}: {content}')
-    except ValueError as e:
-        return jsonify({'success': False, 'error': str(e)}), 403
-    return jsonify({'success': True, 'conversation_id': message.get('conversation_id')}), 201
-
-
 @bp.route('/feed/carpool/<post_id>', methods=['DELETE'])
 @require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def delete_carpool(user_id, post_id):

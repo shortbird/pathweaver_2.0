@@ -104,6 +104,42 @@ def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, use
             contacts.append({**row, 'relationship': relationship})
 
 
+def _append_org_adult_contacts(supabase, contacts, user_id, user_role):
+    """Append the other adults of the caller's school — every guardian and staff
+    member — to `contacts`, in place.
+
+    A school is a community, and until 2026-08-27 a parent could only reach the
+    families already advertising a ride on the carpool board. Now they find each
+    other by name in Messages. Students are never included; observers are not
+    part of the parent body and keep their linked-student contacts only. Ids
+    already in the list keep the relationship the earlier, more specific branch
+    gave them (a child's teacher stays 'advisor', not 'advisor' by proxy of the
+    org). Never raises: a school roster failing is not worth an empty inbox.
+    """
+    from services import sis_service
+    if user_role not in sis_service.ADULT_ORG_ROLES:
+        return
+    try:
+        org_id = sis_service.member_org_id(user_id)
+        if not org_id:
+            return
+        already = {ct['id'] for ct in contacts} | {user_id}
+        for u in sis_service.org_adults(org_id):
+            if u['id'] in already:
+                continue
+            contacts.append({
+                'id': u['id'],
+                'display_name': u.get('display_name'),
+                'first_name': u.get('first_name'),
+                'last_name': u.get('last_name'),
+                'avatar_url': u.get('avatar_url'),
+                'role': u.get('org_role'),
+                'relationship': u['org_role'],
+            })
+    except Exception as e:
+        logger.warning(f"Could not append org adult contacts for {user_id}: {str(e)}")
+
+
 def _append_school_contact(contacts, user_id):
     """
     Append the caller's "{School Name}" contact — the org's shared inbox. Every
@@ -650,6 +686,11 @@ def get_contacts(user_id: str):
                             continue
                         student.pop('organization_id', None)
                         contacts.append({**student, 'relationship': 'student'})
+
+        # Everyone else in the school. The role branches above cover the
+        # relationships a person has (their children, their teachers, their
+        # observers); this covers the school they are all in.
+        _append_org_adult_contacts(supabase, contacts, user_id, user_role)
 
         # Every org member gets their school's shared-inbox contact.
         _append_school_contact(contacts, user_id)

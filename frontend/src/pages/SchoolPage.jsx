@@ -15,7 +15,6 @@ import { isOptioAcademyOrg } from '../config/optioAcademy'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
-import CarpoolBoard from '../components/announcements/CarpoolBoard'
 
 const PAGE_SIZE = 20
 
@@ -216,7 +215,6 @@ export default function SchoolPage() {
   const [viewAs, setViewAs] = useState('parent')
   const previewParams = previewOrgId ? { organization_id: previewOrgId, view_as: viewAs } : null
   const [feed, setFeed] = useState(null)
-  const [carpoolPerms, setCarpoolPerms] = useState({ canPost: false, canModerate: false })
   const [schoolOrg, setSchoolOrg] = useState(null)
   const debounceRef = useRef(null)
   // Archive ids already reported as read this session — read receipts are
@@ -282,27 +280,21 @@ export default function SchoolPage() {
   }, [previewOrgId, viewAs])
 
   // The community board, loaded once. A failure here is silent: the archive is
-  // still the feed, the board items are the extra. Re-fetched after a carpool
-  // post/removal (refreshFeed) so the board reflects the change without a
-  // reload.
-  const [feedNonce, setFeedNonce] = useState(0)
-  const refreshFeed = useCallback(() => setFeedNonce((n) => n + 1), [])
+  // still the feed, the board items are the extra. Nothing on this page writes
+  // to the board any more — the carpool board lives on /carpool, which the rail
+  // links to — so there is no refetch to arrange.
   useEffect(() => {
     let active = true
     api.get('/api/sis/community/feed', previewParams ? { params: previewParams } : undefined)
       .then(({ data }) => {
         if (!active || !data?.success) return
         setFeed(data.feed)
-        setCarpoolPerms({
-          canPost: Boolean(data.can_post_carpool),
-          canModerate: Boolean(data.can_moderate),
-        })
         if (data.organization_name) setOrgName(data.organization_name)
       })
       .catch(() => { /* no board for this user */ })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewParams derives from these
-  }, [feedNonce, previewOrgId, viewAs])
+  }, [previewOrgId, viewAs])
 
   const onSearchChange = (value) => {
     setSearch(value)
@@ -471,18 +463,6 @@ export default function SchoolPage() {
           )}
 
           {!cardsOnly && <ComingUp events={feed?.events || []} />}
-
-          {/* Carpool renders even when empty (someone has to post first) — but
-              only once the feed has loaded, and never a bare board to students,
-              who cannot post (feed === null means no board for this user). */}
-          {!cardsOnly && feed !== null && (
-            <CarpoolBoard
-              posts={feed?.carpool || []}
-              canPost={carpoolPerms.canPost}
-              canModerate={carpoolPerms.canModerate}
-              onChanged={refreshFeed}
-            />
-          )}
         </div>
 
         {rail && (
