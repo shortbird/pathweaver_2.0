@@ -352,14 +352,14 @@ Rules:
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
-            # Get unassigned moments (excluding pillars to avoid pillar-based grouping)
-            moments_response = supabase.table('learning_events') \
-                .select('id, title, description, created_at') \
-                .eq('user_id', user_id) \
-                .is_('track_id', 'null') \
-                .order('created_at', desc=True) \
-                .limit(30) \
-                .execute()
+            # Get unassigned moments (excluding pillars to avoid pillar-based grouping).
+            # Track membership lives in the learning_event_topics junction table,
+            # not on learning_events — this RPC returns moments with no junction row.
+            moments_response = supabase.rpc('get_unassigned_moments', {
+                'p_user_id': user_id,
+                'p_limit': 30,
+                'p_offset': 0
+            }).execute()
 
             moments = moments_response.data or []
 
@@ -372,7 +372,7 @@ Rules:
 
             # Format moments with IDs for analysis (content only, no pillars)
             moments_text = '\n---\n'.join([
-                f"ID: {m['id']}\nTitle: {m.get('title', 'Untitled')}\nDescription: {m['description'][:300]}"
+                f"ID: {m['id']}\nTitle: {m.get('title', 'Untitled')}\nDescription: {(m.get('description') or '')[:300]}"
                 for m in moments
             ])
 

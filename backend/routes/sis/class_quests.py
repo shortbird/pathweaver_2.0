@@ -664,7 +664,8 @@ def update_class_quest(user_id, class_id, quest_id):
             updates[field] = (str(value).strip() or None) if value else None
     if not updates:
         return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
-    updates['updated_at'] = _now_iso()
+    # No updated_at here: class_quests doesn't have that column (only added_at),
+    # and PostgREST rejects the whole PATCH over it (Sentry OPTIO-BACKEND-7B/7C).
 
     row = (admin.table('class_quests').update(updates)
            .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
