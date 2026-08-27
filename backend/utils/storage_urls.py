@@ -471,6 +471,17 @@ def clear_thumb_cache() -> None:
         _THUMB_CACHE.clear()
 
 
+# A row pointing at an object that is not in the bucket. Matched on the message
+# because storage3 raises StorageApiError for every failure alike and the code
+# is only inside the payload.
+_MISSING_OBJECT_MARKERS = ('not_found', 'Object not found', 'does not exist')
+
+
+def _is_missing_object(error: Exception) -> bool:
+    text = str(error)
+    return any(marker in text for marker in _MISSING_OBJECT_MARKERS)
+
+
 def _sign_thumb(bucket: str, path: str, ttl: int, transform: dict, client=None) -> Optional[str]:
     """One transformed signed URL, falling back to the full-size one.
 
@@ -478,6 +489,17 @@ def _sign_thumb(bucket: str, path: str, ttl: int, transform: dict, client=None) 
     change, a non-image object, an unsupported codec) the right outcome is a
     heavy avatar, not a missing one. It is still signed, so the privacy
     contract in this module's docstring holds either way.
+
+    A **missing** object is the exception to that, and it has to be, because
+    signing per object changed how this failure surfaces. The batch endpoint
+    hands back a usable-looking signed URL for a path that isn't there (with an
+    `error` alongside it that nothing read), so a dangling avatar_url was
+    silent: the URL simply 404'd in the browser. `create_signed_url` raises
+    instead, and falling back to signed_url() re-raised and logged at ERROR —
+    which is a Sentry event per request per stale row (OPTIO-BACKEND-7G, from a
+    single dangling row in `users`). Retrying full-size cannot succeed for an
+    object that does not exist, so don't: return None, let the caller render
+    initials, and say so once at WARNING.
     """
     # Stay on this thread's own client for the fallback too — reaching for the
     # shared admin client here would reintroduce the contention this avoids.
@@ -503,6 +525,12 @@ def _sign_thumb(bucket: str, path: str, ttl: int, transform: dict, client=None) 
     except Exception as e:  # noqa: BLE001
         # Lazy %-args and the path in `extra`, for the Sentry grouping reason
         # explained in signed_url().
+        if _is_missing_object(e):
+            logger.warning(
+                "[storage] Avatar object is missing from %s; rendering initials instead",
+                bucket, extra={'extra_fields': {'storage_path': path}},
+            )
+            return None
         logger.warning(
             "[storage] Thumbnail signing failed in %s, falling back to full size: %s",
             bucket, e, extra={'extra_fields': {'storage_path': path}},

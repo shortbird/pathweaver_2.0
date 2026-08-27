@@ -1180,6 +1180,27 @@ class TestThumbnails:
         assert records[1]['avatar_url'] is None
         assert 'avatar_url' not in records[2]
 
+    def test_a_missing_object_is_not_retried_at_full_size(self):
+        """OPTIO-BACKEND-7G. Signing per object changed how a dangling
+        avatar_url surfaces: the batch endpoint returned a usable-looking URL
+        for a path that was not there, so the row was silent and merely 404'd
+        in the browser. create_signed_url raises, and re-signing at full size
+        raised again through signed_url's logger.error -- one Sentry event per
+        request per stale row. Full size cannot succeed for an object that does
+        not exist, so it must not be attempted."""
+        from utils.storage_urls import sign_thumb_urls
+        client = MagicMock()
+        store = MagicMock()
+        store.create_signed_url.side_effect = Exception(
+            "{'statusCode': 404, 'error': not_found, 'message': Object not found}"
+        )
+        client.storage.from_.return_value = store
+
+        original = f'{PUBLIC_BASE}/user-photos/gone/photo.jpg'
+        assert sign_thumb_urls([original], client=client)[original] is None
+        # One attempt, not two: the second would only re-raise.
+        assert store.create_signed_url.call_count == 1
+
     def test_a_signed_thumbnail_url_still_resolves_to_its_object(self):
         """Re-signing something already signed must resolve, not pass through:
         a stored capability would otherwise be handed straight back out."""
