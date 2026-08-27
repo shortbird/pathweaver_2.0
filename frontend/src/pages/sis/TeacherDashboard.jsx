@@ -66,7 +66,12 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     // Engagement alerts are non-critical — the card simply hides on failure.
     // Same preview as the dashboard above: without it an admin viewing a
     // teacher's portal saw their own org-wide alerts in the teacher's card.
-    api.get(withPreview(withOrg('/api/sis/engagement-alerts', orgId), preview))
+    // scope=mine because this is the TEACHER's home: at a microschool the
+    // person teaching a class is often also an admin, and the ordinary role
+    // scope would hand them every student in the school here while every other
+    // card on the page stayed scoped to their classes.
+    const alertsUrl = withPreview(withOrg('/api/sis/engagement-alerts', orgId), preview)
+    api.get(`${alertsUrl}${alertsUrl.includes('?') ? '&' : '?'}scope=mine`)
       .then((r) => setAlerts(r.data?.alerts || []))
       .catch(() => setAlerts([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect

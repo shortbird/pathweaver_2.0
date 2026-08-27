@@ -161,6 +161,18 @@ def adjust_completion_xp(user_id, completion_id):
 
 # ── Engagement alerts ────────────────────────────────────────────────────────
 
+def _alert_scope(target_user_id, org_id):
+    """Class ids the alerts should be limited to, or None for the whole org.
+
+    ?scope=mine forces the caller's own taught classes even for an admin, so the
+    teacher dashboard shows a teacher their own students. Anything else keeps
+    the ordinary role scope.
+    """
+    if (request.args.get('scope') or '').strip() == 'mine':
+        return sis_service.advisor_class_ids(target_user_id, org_id)
+    return sis_service.class_scope(target_user_id, org_id)
+
+
 @bp.route('/engagement-alerts', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_engagement_alerts(user_id):
@@ -171,12 +183,21 @@ def list_engagement_alerts(user_id):
     Without it, an admin on "View portal" got their OWN unrestricted scope while
     every other card on the page was scoped to the teacher — so Ana Rogers'
     portal listed an Algebra 1 student she doesn't teach (iCreate, 2026-08-14).
+
+    ?scope=mine narrows to the caller's OWN classes even when they are an admin.
+    The teacher dashboard asks for it, because at a microschool the person
+    teaching a class is very often also an org admin or coordinator, and
+    class_scope hands those roles the whole school: their Needs attention card
+    listed every student in it, unlike every other card on that page (iCreate,
+    2026-08-26: "Not all teachers should see things in the Needs attention
+    section").
     """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
     from routes.sis.staff_portal import _read_target
-    scope = sis_service.class_scope(_read_target(user_id, org_id), org_id)
+    target = _read_target(user_id, org_id)
+    scope = _alert_scope(target, org_id)
     return jsonify({'success': True, 'alerts': engagement.list_open_alerts(org_id, class_ids=scope)})
 
 
@@ -186,7 +207,11 @@ def resolve_engagement_alert(user_id, alert_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
+    # Same target resolution as the list above: reading through ?teacher_id= and
+    # then resolving against the caller's own scope meant the alerts on screen
+    # and the alerts that could be dismissed were two different sets.
+    from routes.sis.staff_portal import _read_target
+    scope = _alert_scope(_read_target(user_id, org_id), org_id)
     if not engagement.resolve_alert(org_id, alert_id, class_ids=scope):
         return jsonify({'success': False, 'error': 'Alert not found'}), 404
     return jsonify({'success': True})
