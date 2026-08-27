@@ -25,18 +25,47 @@ id (`jti`). A family row records the single jti that may be presented next:
 **The grace window** exists because two browser tabs refreshing in the same
 instant present the same jti twice, which is byte-for-byte what a replay looks
 like. `previous_jti` is accepted for `REPLAY_GRACE_SECONDS` after a rotation
-without revoking anything. Long enough to cover a concurrent tab, far short of
-the window a stolen token needs.
+without revoking anything. Long enough to cover a concurrent tab -- or a client
+that never received the rotation's response and retried -- far short of the
+window a stolen token needs.
 
 **Failure is open, deliberately.** If the lookup or the write fails, the refresh
 proceeds unrotated. Reuse detection is a defence in depth on top of
 `users.last_logout_at`; a Supabase blip must not sign out the platform. The
 failure is logged and reported, so a broken deployment is loud rather than
 silently permissive.
+
+**What a reuse event has to answer.** Revoking a family signs a real person out
+of everything, so the report has to be good enough to tell WHY without a
+database session. Sentry OPTIO-BACKEND-6N was 27 revocations across 22 users in
+10 days under a single fingerprint that said only "reuse detected", which is
+consistent with both a token thief and a client that lost a response. Every
+reuse now carries:
+
+  * `reuse_shape` -- which token was presented, and it is also the Sentry
+    fingerprint, so the honest shape cannot bury the alarming one:
+      `stale_previous`  the immediately-preceding jti, just outside the grace
+                        window. A client that never saw the rotation's response.
+      `unknown_jti`     a jti from further back, or from outside the chain. The
+                        shape a replayed stolen token makes.
+      `user_mismatch`   a token signed for a different user than owns the
+                        family. Key compromise, not replay.
+  * `same_client` -- whether the replay came from the same client as the
+    rotation it replays, via `last_client_fp` (see the 20260827140000
+    migration). The single most decisive field: `stale_previous` + same client
+    is a race, `unknown_jti` + different client is theft.
+  * how stale the presented token was, how old the family is, and how long since
+    it was last used, plus 8-character jti prefixes for correlating the chain
+    across events without putting live credentials in an error tracker.
+
+`GRACE` hits are logged with their age too. Nothing is wrong when one happens,
+but the distribution of those ages is the only evidence for whether
+REPLAY_GRACE_SECONDS is set anywhere near right.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+import hashlib
 import uuid
 
 from utils.logger import get_logger
@@ -48,7 +77,21 @@ TABLE = 'refresh_token_families'
 # How long after a rotation the superseded jti is still accepted. Covers two
 # tabs (or a request the client retried) racing the same refresh; anything
 # outside it is treated as replay.
-REPLAY_GRACE_SECONDS = 30
+#
+# 30s until 2026-08-27. Sentry OPTIO-BACKEND-6N recorded 27 family revocations
+# across 22 distinct users in 10 days -- each one an honest person silently
+# signed out of everything -- and three of them landed 33, 35 and 47 seconds
+# after the rotation they were racing. That is the shape of a client that never
+# saw the rotation's response (dropped connection, backgrounded phone) and
+# retried the only token it has, not of a thief: a stolen token is replayed from
+# a device that was never in the chain, at an arbitrary distance from the last
+# rotation, and this window does not help it.
+#
+# What the window actually costs: an attacker holding the immediately-preceding
+# refresh token has 2 minutes rather than 30 seconds from the victim's rotation
+# to use it, and gets the current pair rather than a rotation of their own. Any
+# older token, and any token from a revoked family, is still refused outright.
+REPLAY_GRACE_SECONDS = 120
 
 # Rotation outcomes.
 OK = 'ok'                    # current jti presented; rotated
@@ -62,6 +105,12 @@ UNAVAILABLE = 'unavailable'  # database unreachable; caller proceeds unrotated
 
 # Outcomes the caller must refuse the refresh on.
 DENY = frozenset({REUSE, REVOKED, EXPIRED})
+
+# Shapes a reuse can take. The Sentry fingerprint, so each gets its own issue
+# and its own rate -- see the module docstring for what each one means.
+SHAPE_STALE_PREVIOUS = 'stale_previous'
+SHAPE_UNKNOWN_JTI = 'unknown_jti'
+SHAPE_USER_MISMATCH = 'user_mismatch'
 
 
 def _admin():
@@ -92,6 +141,43 @@ def _parse_ts(value) -> Optional[datetime]:
     except (ValueError, TypeError):
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _client_fp(family_id: str) -> Optional[str]:
+    """A comparison key for "is this the same client as last time?".
+
+    sha256(family_id || user agent || client ip), truncated. Salting with the
+    family id is what keeps this a diagnostic rather than a tracker: the value
+    is only ever equal to itself within one chain, so it can answer the reuse
+    question and cannot be used to follow a device between users or sessions.
+
+    None when there is no request to read (a test, a background path). A missing
+    fingerprint degrades the report to same_client='unknown'; it never blocks a
+    refresh.
+    """
+    try:
+        from flask import has_request_context, request
+        if not has_request_context():
+            return None
+        from utils.client_ip import get_real_ip
+        # get_real_ip reads X-Forwarded-For from the RIGHT (TRUSTED_PROXY_HOPS),
+        # so a client cannot pick its own fingerprint by forging the header.
+        material = f"{family_id}|{request.headers.get('User-Agent', '')}|{get_real_ip()}"
+        return hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]
+    except Exception:  # noqa: BLE001 — diagnostics must never break a refresh
+        return None
+
+
+def _age_seconds(ts: Optional[datetime]) -> Optional[float]:
+    if ts is None:
+        return None
+    return round((datetime.now(timezone.utc) - ts).total_seconds(), 1)
+
+
+def _prefix(value) -> Optional[str]:
+    """First 8 characters of a jti. Enough to follow one chain across events,
+    useless as a credential -- a full jti in an error tracker would be one."""
+    return str(value)[:8] if value else None
 
 
 def new_jti() -> str:
@@ -135,6 +221,7 @@ def start_family(user_id: str, ttl: timedelta,
             'last_used_at': now.isoformat(),
             'expires_at': (now + ttl).isoformat(),
             'revoked': False,
+            'last_client_fp': _client_fp(family_id),
         }).execute()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[RefreshFamilies] Could not start family for "
@@ -171,7 +258,8 @@ def rotate(user_id: str, family_id: Optional[str], jti: Optional[str],
     try:
         rows = (_admin().table(TABLE)
                 .select('id, user_id, current_jti, previous_jti, rotated_at, '
-                        'expires_at, revoked')
+                        'expires_at, revoked, created_at, last_used_at, '
+                        'last_client_fp')
                 .eq('id', family_id).limit(1).execute()).data or []
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[RefreshFamilies] Lookup failed for family "
@@ -192,9 +280,13 @@ def rotate(user_id: str, family_id: Optional[str], jti: Optional[str],
     # A token signed for one user naming another user's family would be a key
     # compromise, not a replay; refuse it and say so loudly.
     if row.get('user_id') and str(row['user_id']) != str(user_id):
-        logger.error(f"[RefreshFamilies] Family {family_id[:8]}... belongs to a "
-                     f"different user than the presented token")
+        # A token signed for one user naming another user's family. Reported on
+        # the same path as a replay -- it used to revoke in silence, which meant
+        # the one shape here that implies a signing-key problem was the only one
+        # Sentry never saw.
         _revoke(family_id, 'user_mismatch')
+        _report_reuse(user_id, family_id, row, jti,
+                      shape=SHAPE_USER_MISMATCH, owner_id=row.get('user_id'))
         return REUSE, family_id, None
 
     if row.get('revoked'):
@@ -215,14 +307,22 @@ def rotate(user_id: str, family_id: Optional[str], jti: Optional[str],
         # Two tabs, one cookie, same millisecond. Not an attack: hand back the
         # family's live jti so the loser of the race keeps a working session,
         # without rotating again (which would spend the winner's token).
-        logger.info(f"[RefreshFamilies] Concurrent refresh on family "
-                    f"{family_id[:8]}...; served from the grace window")
+        #
+        # The age is logged because the distribution of these is the only
+        # evidence for whether REPLAY_GRACE_SECONDS is set anywhere near right.
+        # A cluster of grace hits near the limit is the warning that the next
+        # tightening -- or the next slow network -- starts signing people out.
+        logger.info(
+            f"[RefreshFamilies] Concurrent refresh on family {family_id[:8]}...; "
+            f"served from the grace window | age={_age_seconds(rotated_at)}s "
+            f"of {REPLAY_GRACE_SECONDS}s | same_client="
+            f"{_same_client(row.get('last_client_fp'), family_id)}")
         return GRACE, family_id, current
 
     # A jti of this family that is neither current nor a just-superseded one.
     # It was signed by us, so it was issued -- and it has already been spent.
     _revoke(family_id, 'reuse_detected')
-    _report_reuse(user_id, family_id)
+    _report_reuse(user_id, family_id, row, jti)
     return REUSE, family_id, None
 
 
@@ -251,6 +351,9 @@ def _advance(user_id: str, family_id: str, presented_jti: str,
             'rotated_at': now.isoformat(),
             'last_used_at': now.isoformat(),
             'expires_at': (now + ttl).isoformat(),
+            # Whoever just rotated is the client this chain belongs to, as far
+            # as the next reuse report is concerned.
+            'last_client_fp': _client_fp(family_id),
         }).eq('id', family_id)
           .eq('current_jti', presented_jti)
           .eq('revoked', False).execute())
@@ -271,7 +374,8 @@ def _reclassify_after_lost_race(user_id: str, family_id: str,
                                 presented_jti: str) -> Tuple[str, str, Optional[str]]:
     try:
         rows = (_admin().table(TABLE)
-                .select('current_jti, previous_jti, rotated_at, revoked')
+                .select('current_jti, previous_jti, rotated_at, revoked, '
+                        'created_at, last_used_at, last_client_fp')
                 .eq('id', family_id).limit(1).execute()).data or []
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[RefreshFamilies] Re-read failed for family "
@@ -287,7 +391,7 @@ def _reclassify_after_lost_race(user_id: str, family_id: str,
             _parse_ts(row.get('rotated_at'))):
         return GRACE, family_id, str(row.get('current_jti'))
     _revoke(family_id, 'reuse_detected')
-    _report_reuse(user_id, family_id)
+    _report_reuse(user_id, family_id, row, presented_jti, lost_cas_race=True)
     return REUSE, family_id, None
 
 
@@ -303,16 +407,93 @@ def _revoke(family_id: str, reason: str) -> None:
                      f"{str(family_id)[:8]}...: {e}")
 
 
-def _report_reuse(user_id: str, family_id: str) -> None:
+def _same_client(stored_fp: Optional[str], family_id: str) -> str:
+    """'yes' / 'no' / 'unknown' -- whether this request looks like the client
+    that last rotated this family.
+
+    Deliberately a three-valued string rather than a bool: 'unknown' (nothing
+    recorded, or no request context) must not read as 'no', which is the value
+    that means theft.
+    """
+    if not stored_fp:
+        return 'unknown'
+    current = _client_fp(family_id)
+    if not current:
+        return 'unknown'
+    return 'yes' if current == stored_fp else 'no'
+
+
+def _reuse_shape(row: dict, presented_jti: str) -> str:
+    """Which token was presented -- see the module docstring.
+
+    The distinction the old single-fingerprint issue could not make: a replay of
+    the immediately-preceding jti is what a client that lost the rotation's
+    response looks like, and a jti from anywhere else in (or outside) the chain
+    is what a stolen token looks like.
+    """
+    previous = str(row.get('previous_jti') or '')
+    if previous and presented_jti == previous:
+        return SHAPE_STALE_PREVIOUS
+    return SHAPE_UNKNOWN_JTI
+
+
+def _reuse_facts(row: dict, presented_jti: str, lost_cas_race: bool = False,
+                 owner_id=None) -> Dict[str, Any]:
+    """Everything about the revocation that is knowable at this moment.
+
+    Gathered here rather than at the call sites so every reuse path reports the
+    same fields, and so adding one is a single edit.
+    """
+    rotated_at = _parse_ts(row.get('rotated_at'))
+    facts: Dict[str, Any] = {
+        # How stale the presented token was. For stale_previous this is the
+        # number REPLAY_GRACE_SECONDS is competing with -- 35s means the window
+        # is too tight, 5 days means something kept a token far too long.
+        'seconds_since_rotation': _age_seconds(rotated_at),
+        'grace_window_seconds': REPLAY_GRACE_SECONDS,
+        'seconds_since_last_use': _age_seconds(_parse_ts(row.get('last_used_at'))),
+        'family_age_seconds': _age_seconds(_parse_ts(row.get('created_at'))),
+        # Prefixes only: a full jti here would put a live credential in Sentry.
+        'presented_jti_prefix': _prefix(presented_jti),
+        'current_jti_prefix': _prefix(row.get('current_jti')),
+        'previous_jti_prefix': _prefix(row.get('previous_jti')),
+        # True when the reuse surfaced only after losing the compare-and-swap,
+        # i.e. two requests were genuinely in flight together. Corroborates the
+        # race reading of a stale_previous.
+        'lost_cas_race': lost_cas_race,
+    }
+    if owner_id is not None:
+        facts['family_owner_prefix'] = _prefix(owner_id)
+    return facts
+
+
+def _report_reuse(user_id: str, family_id: str, row: dict, presented_jti: str,
+                  shape: Optional[str] = None, lost_cas_race: bool = False,
+                  owner_id=None) -> None:
     """A replayed refresh token is a security event, not an error.
 
     Nothing else in the stack would surface it: the caller turns it into an
     ordinary 401, which is the most common status this API returns. Report it
-    explicitly so a real token theft is visible.
+    explicitly so a real token theft is visible -- and with enough detail to
+    tell one from a client that simply lost a response, which is what Sentry
+    OPTIO-BACKEND-6N could not do.
+
+    Fingerprinted by shape, following the CSRF rejection split
+    (middleware/csrf_protection.classify_csrf_failure): when the routine cause
+    and the alarming one share an issue, the routine one wins on volume and
+    hides the other.
     """
+    shape = shape or _reuse_shape(row, presented_jti)
+    facts = _reuse_facts(row, presented_jti, lost_cas_race=lost_cas_race,
+                         owner_id=owner_id)
+    same_client = _same_client(row.get('last_client_fp'), family_id)
+    detail = ' '.join(f'{k}={v}' for k, v in facts.items())
+    # One line, all of it: Sentry samples and Render logs do not, so a
+    # reconstruction six weeks from now can start from the log alone.
     logger.warning(
-        f"[RefreshFamilies] REFRESH TOKEN REUSE DETECTED | user "
-        f"{str(user_id)[:8]}... | family {str(family_id)[:8]}... | "
+        f"[RefreshFamilies] REFRESH TOKEN REUSE DETECTED | shape={shape} | "
+        f"user {str(user_id)[:8]}... | family {str(family_id)[:8]}... | "
+        f"same_client={same_client} | {detail} | "
         f"family revoked, all sessions on this chain ended"
     )
     try:
@@ -320,10 +501,18 @@ def _report_reuse(user_id: str, family_id: str) -> None:
         with sentry_sdk.new_scope() as scope:
             scope.set_level('warning')
             scope.set_tag('security_event', 'refresh_token_reuse')
+            scope.set_tag('reuse_shape', shape)
+            # Searchable: `same_client:no` is the query that finds real theft,
+            # and `reuse_shape:stale_previous same_client:yes` is the one that
+            # says the grace window needs another look.
+            scope.set_tag('same_client', same_client)
             scope.set_tag('user_id_prefix', str(user_id)[:8])
             scope.set_extra('family_id', str(family_id))
+            for key, value in facts.items():
+                scope.set_extra(key, value)
+            scope.fingerprint = ['refresh-token-reuse', shape]
             sentry_sdk.capture_message(
-                'Refresh token reuse detected; token family revoked',
+                f'Refresh token reuse ({shape}); token family revoked',
                 level='warning',
             )
     except Exception:  # noqa: BLE001
