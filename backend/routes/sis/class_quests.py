@@ -793,3 +793,156 @@ def class_student_progress(user_id, class_id):
     students.sort(key=lambda s: s['name'].lower())
 
     return jsonify({'success': True, 'quests': quests, 'students': students})
+
+
+# ── One student's work, and a nudge about what is left ────────────────────────
+
+def _student_work(admin, class_row, student_id):
+    """This student's assigned quests for the class, task by task.
+
+    The class progress grid answers "how many tasks are done"; this answers
+    "which ones", which is what a teacher needs before saying anything to a
+    family (Gryffin, 2026-08-27: "You should be able to click on a name and see
+    what is done and what isn't").
+    """
+    links = (admin.table('class_quests')
+             .select('quest_id, due_date, quests(title)')
+             .eq('class_id', class_row['id'])
+             .order('sequence_order').execute()).data or []
+    quest_ids = [r['quest_id'] for r in links if r.get('quest_id')]
+    if not quest_ids:
+        return []
+
+    user_quests = (admin.table('user_quests')
+                   .select('id, quest_id, completed_at, started_at')
+                   .eq('user_id', student_id)
+                   .in_('quest_id', quest_ids).execute()).data or []
+    uq_by_quest = {uq['quest_id']: uq for uq in user_quests}
+    uq_ids = [uq['id'] for uq in user_quests]
+
+    tasks, done_ids = [], set()
+    if uq_ids:
+        tasks = (admin.table('user_quest_tasks')
+                 .select('id, user_quest_id, title, xp_value, order_index')
+                 .in_('user_quest_id', uq_ids).order('order_index').execute()).data or []
+        task_ids = [t['id'] for t in tasks]
+        for start in range(0, len(task_ids), 200):
+            rows = (admin.table('quest_task_completions')
+                    .select('task_id, completed_at')
+                    .in_('task_id', task_ids[start:start + 200]).execute()).data or []
+            done_ids.update(r['task_id'] for r in rows)
+
+    by_uq = {}
+    for t in tasks:
+        by_uq.setdefault(t['user_quest_id'], []).append(t)
+
+    out = []
+    for link in links:
+        uq = uq_by_quest.get(link['quest_id'])
+        own = by_uq.get(uq['id'], []) if uq else []
+        out.append({
+            'quest_id': link['quest_id'],
+            'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
+            'due_date': link.get('due_date'),
+            'started': bool(uq),
+            'completed': bool(uq and uq.get('completed_at')),
+            'tasks': [{
+                'id': t['id'],
+                'title': t.get('title'),
+                'xp_value': t.get('xp_value'),
+                'done': t['id'] in done_ids,
+            } for t in own],
+        })
+    return out
+
+
+@bp.route('/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
+@require_auth
+def student_class_progress(user_id, class_id, student_id):
+    """What one student on this class has finished, and what they have not."""
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(student_id):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+
+    enrolled = (admin.table('class_enrollments').select('id')
+                .eq('class_id', class_row['id']).eq('student_id', student_id)
+                .eq('status', 'active').limit(1).execute()).data
+    if not enrolled:
+        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
+
+    from utils import person_name
+    user = (admin.table('users').select(person_name.USER_NAME_FIELDS)
+            .eq('id', student_id).limit(1).execute()).data
+    return jsonify({
+        'success': True,
+        'student': {
+            'id': student_id,
+            'name': person_name.full_name(user[0], 'Unnamed') if user else 'Unnamed',
+        },
+        'quests': _student_work(admin, class_row, student_id),
+    })
+
+
+@bp.route('/classes/<class_id>/students/<student_id>/remind', methods=['POST'])
+@require_auth
+def remind_student(user_id, class_id, student_id):
+    """Nudge a student, and their guardians, about work that is still open.
+
+    Gryffin, 2026-08-27: "you should be able to send a reminder of what work
+    they haven't completed and that should be sent to the parent and student."
+    Nothing like it existed -- the only nudge on the platform was for unread
+    announcements.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(student_id):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+
+    enrolled = (admin.table('class_enrollments').select('id')
+                .eq('class_id', class_row['id']).eq('student_id', student_id)
+                .eq('status', 'active').limit(1).execute()).data
+    if not enrolled:
+        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
+
+    outstanding = []
+    for q in _student_work(admin, class_row, student_id):
+        if q['completed']:
+            continue
+        left = [t['title'] for t in q['tasks'] if not t['done']]
+        if left or not q['started']:
+            outstanding.append({'quest': q['title'], 'tasks': left, 'started': q['started']})
+    if not outstanding:
+        return jsonify({'success': False,
+                        'error': 'Nothing outstanding — there is nothing to remind them about.'}), 400
+
+    lines = []
+    for item in outstanding[:5]:
+        if not item['started']:
+            lines.append(f"{item['quest']} (not started)")
+        else:
+            shown = ', '.join(item['tasks'][:3])
+            more = len(item['tasks']) - 3
+            lines.append(f"{item['quest']}: {shown}" + (f" and {more} more" if more > 0 else ''))
+    body = f"Still to do in {class_row.get('name') or 'your class'} — " + '; '.join(lines)
+
+    from services.notification_service import NotificationService
+    notifier = NotificationService()
+    sent = 0
+    for recipient in [student_id] + [
+            p['id'] for p in (notifier.get_parents_for_student(student_id) or []) if p.get('id')]:
+        try:
+            notifier.create_notification(
+                user_id=recipient,
+                notification_type='announcement',
+                title='A reminder about unfinished work',
+                message=body,
+                link='/dashboard',
+            )
+            sent += 1
+        except Exception as e:  # noqa: BLE001 — one failed send must not lose the rest
+            logger.warning(f'Reminder to {recipient[:8]} failed: {e}')
+
+    return jsonify({'success': True, 'notified': sent, 'outstanding': len(outstanding)})
