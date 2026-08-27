@@ -361,8 +361,18 @@ def update_quest(user_id, quest_id):
             can_edit = True
             can_toggle_active = True
         elif user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
-            # Advisors can only edit their own unpublished quests
-            if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
+            # An advisor may edit a quest they wrote, within their own school.
+            #
+            # This used to require `not is_active` as well, which no advisor
+            # could ever satisfy: every creation path stamps is_active=True, so
+            # a teacher's own quest was un-editable from the moment they saved
+            # it, and the only way to change a word was to delete it and start
+            # again (Gryffin, 2026-08-27: "There is also no option to edit a
+            # quest or a task once its saved. You just have to delete and start
+            # over."). Publishing is still not theirs to toggle --
+            # can_toggle_active stays False.
+            if quest.data.get('created_by') == user_id and (
+                    not quest_org_id or quest_org_id == user_org_id):
                 can_edit = True
 
         if not can_edit:

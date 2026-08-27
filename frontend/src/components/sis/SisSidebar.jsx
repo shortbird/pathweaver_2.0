@@ -87,7 +87,12 @@ const NAV_SECTIONS = [
       { name: 'My Tasks', path: '/my-tasks', hideInPreview: true, d: ICONS.check },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
       { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
-      { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
+      // Every staff member has documents of their own -- a contract, a signed
+      // policy -- and the page has always worked for admins and coordinators;
+      // only this link was hidden from them, so they had no way to reach it
+      // (iCreate, 2026-08-26: "None of the staff members (admin, campus
+      // coordinator) have a My Documents section showing").
+      { name: 'My Documents', path: '/my-documents', d: ICONS.doc },
     ],
   },
   {

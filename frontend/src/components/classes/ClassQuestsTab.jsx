@@ -6,12 +6,14 @@ import {
   BookOpenIcon,
   ClockIcon,
   CalendarDaysIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import { useOrgFeature } from '../../contexts/OrganizationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import AddQuestModal from './AddQuestModal'
+import QuestForm from '../admin/QuestForm'
 
 /**
  * Convert an ISO/UTC timestamp to the value a <input type="datetime-local"> expects
@@ -68,7 +70,7 @@ function InlineDateEditor({ value, setValue, onSave, onClear, onCancel, hasValue
 /**
  * QuestRow - a single quest assigned to the class, with optional scheduling + due date.
  */
-function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, onSchedule, onSetDueDate }) {
+function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, onSchedule, onSetDueDate, onEdit }) {
   const quest = item.quests || {}
   const [editing, setEditing] = useState(null) // 'schedule' | 'due' | null
   const [scheduleValue, setScheduleValue] = useState(isoToLocalInput(item.publish_at))
@@ -160,12 +162,24 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
         </span>
       )}
 
-      {/* Due-date button */}
-      {dueDatesEnabled && !editing && (
+      {/* Due-date button. Labelled, not a bare icon: a school with the feature
+          switched on asked how to set due dates at all, because a calendar
+          glyph among four other glyphs reads as decoration (Gryffin,
+          2026-08-27: "How do we add due dates to any tasks that we assign?"). */}
+      {dueDatesEnabled && !editing && !dueIso && (
+        <button
+          onClick={() => setEditing('due')}
+          className="px-2 py-1 flex items-center gap-1 text-xs text-gray-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors whitespace-nowrap"
+        >
+          <CalendarDaysIcon className="w-4 h-4" />
+          Set due date
+        </button>
+      )}
+      {dueDatesEnabled && !editing && dueIso && (
         <button
           onClick={() => setEditing('due')}
           className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-          title={dueIso ? 'Edit due date' : 'Set due date'}
+          title="Edit due date"
         >
           <CalendarDaysIcon className="w-5 h-5" />
         </button>
@@ -179,6 +193,19 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
           title={isFuture ? 'Edit publish schedule' : 'Schedule publish'}
         >
           <ClockIcon className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Edit. The only way into the quest editor used to be an unlabelled row
+          click on the org Quests page, which advisors cannot even reach --
+          so from here a quest looked permanent once saved. */}
+      {!editing && (
+        <button
+          onClick={() => onEdit(quest)}
+          className="p-2 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
+          title="Edit this quest and its tasks"
+        >
+          <PencilSquareIcon className="w-5 h-5" />
         </button>
       )}
 
@@ -201,6 +228,7 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingQuest, setEditingQuest] = useState(null)
 
   const { isSuperadmin } = useAuth()
   // Per-org capabilities; superadmin (no org) can use them on any class.
@@ -355,6 +383,7 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
               onRemove={handleRemoveQuest}
               onSchedule={handleScheduleQuest}
               onSetDueDate={handleSetDueDate}
+              onEdit={setEditingQuest}
             />
           ))}
         </div>
@@ -367,6 +396,17 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
           existingQuestIds={quests.map((q) => q.quest_id)}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddQuest}
+        />
+      )}
+
+      {editingQuest && (
+        <QuestForm
+          mode="edit"
+          quest={editingQuest}
+          organizationId={orgId}
+          templateTasksEndpoint={`/api/admin/quests/${editingQuest.id}/template-tasks`}
+          onClose={() => setEditingQuest(null)}
+          onSuccess={() => { setEditingQuest(null); fetchQuests() }}
         />
       )}
     </div>

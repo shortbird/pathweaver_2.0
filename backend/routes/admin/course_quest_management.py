@@ -706,11 +706,32 @@ def update_template_tasks(user_id, quest_id):
         # Also update legacy table for backward compatibility during migration
         _sync_to_legacy_table(quest_id, tasks_data, supabase)
 
+        # Carry the edit to the students already holding this quest. Their tasks
+        # are copies taken at enrolment, so editing the template used to change
+        # what only FUTURE enrollees received: correcting a task's XP or its
+        # pillar left every current student on the old value, with no way to
+        # give them the new one (Gryffin, 2026-08-27: "when editing the XP under
+        # the quest it should update all the kids xp, so you dont have to
+        # manually go in and edit each kids quests").
+        #
+        # resync rewrites rows IN PLACE and protects any task carrying a
+        # completion or evidence -- see its docstring, the delete/recreate
+        # version would cascade away submitted work. Best-effort: the template
+        # save has already succeeded, and a resync failure must not report it as
+        # a failure.
+        resynced = None
+        try:
+            from utils.template_tasks import resync_enrollments_to_template
+            resynced = resync_enrollments_to_template(supabase, quest_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'Template saved but enrollment resync failed for {quest_id}: {e}')
+
         return jsonify({
             'success': True,
             'message': f'Template tasks updated: {len(created_tasks)} tasks',
             'tasks': created_tasks,
-            'total': len(created_tasks)
+            'total': len(created_tasks),
+            'resynced': resynced,
         })
 
     except Exception as e:
