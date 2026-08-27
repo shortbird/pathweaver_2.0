@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+
+// The tab links out to the class's submissions, so it needs router context.
+const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -41,6 +45,19 @@ describe('StudentProgressTab', () => {
     render(<StudentProgressTab classId="c1" className="Art" />)
     expect(await screen.findByText('No quests assigned to this class yet.')).toBeInTheDocument()
     expect(screen.getByText(/Assign one on the Quests tab/)).toBeInTheDocument()
+  })
+
+  it('offers a way into this class\'s submissions', async () => {
+    /** Submissions is its own sidebar item, a long way from the page a teacher
+     *  is on when they wonder what somebody handed in (Gryffin, 2026-08-27:
+     *  "a submissions tab should be under student progress. It is hard to
+     *  figure out where to find that"). Pre-filtered to the class. */
+    api.get.mockResolvedValue({
+      data: { quests: QUESTS, students: [student('Ada', [cell('q1'), cell('q2')])] },
+    })
+    render(<StudentProgressTab classId="c1" className="Art" />)
+    const link = await screen.findByRole('link', { name: /Review submissions/i })
+    expect(link).toHaveAttribute('href', '/submissions?class_id=c1')
   })
 
   it('says the roster is empty rather than showing a bare table', async () => {

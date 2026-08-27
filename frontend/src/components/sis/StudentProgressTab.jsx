@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { PrinterIcon } from '@heroicons/react/24/outline'
+import { Link } from 'react-router-dom'
+import { PrinterIcon, InboxIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
 
@@ -109,12 +110,25 @@ const StudentProgressTab = ({ classId, className }) => {
           Updates on its own as students complete tasks — there is nothing to fill in.
           {summary?.notStarted ? ` ${summary.notStarted} ${summary.notStarted === 1 ? 'student hasn’t' : 'students haven’t'} started anything yet.` : ''}
         </p>
-        <button
-          onClick={() => printProgress(className, quests, students)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50 shrink-0"
-        >
-          <PrinterIcon className="w-4 h-4" /> Print
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Submissions is its own item in the sidebar, which is a long way
+              from the page you are on when you wonder what somebody handed in
+              (Gryffin, 2026-08-27: "a submissions tab should be under student
+              progress. It is hard to figure out where to find that"). Linked,
+              not duplicated, and pre-filtered to this class. */}
+          <Link
+            to={`/submissions?class_id=${classId}`}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
+          >
+            <InboxIcon className="w-4 h-4" /> Review submissions
+          </Link>
+          <button
+            onClick={() => printProgress(className, quests, students)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
+          >
+            <PrinterIcon className="w-4 h-4" /> Print
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

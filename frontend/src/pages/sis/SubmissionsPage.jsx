@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { safeHref } from '../../utils/safeHref'
@@ -188,8 +189,13 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
 
 const SubmissionsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const [searchParams] = useSearchParams()
   const [scope, setScope] = useState('new')
-  const [classId, setClassId] = useState('')
+  // Pre-filtered when arrived at from a class's Student Progress tab, which is
+  // where a teacher is when they wonder what a student has handed in (Gryffin,
+  // 2026-08-27: "a submissions tab should be under student progress. It is hard
+  // to figure out where to find that").
+  const [classId, setClassId] = useState(searchParams.get('class_id') || '')
   const [classes, setClasses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [counts, setCounts] = useState({ new: 0, reviewed: 0 })
