@@ -157,6 +157,15 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('sis_staff_assignments', 'created_by'),
     ('sis_time_entries', 'approved_by'),
     ('sis_time_entries', 'edited_by'),
+    # The FERPA disclosure trail on OTHER students' records. The row belongs to
+    # the student who was looked at (`student_id`, deleted above), so only "who
+    # looked" goes blank. The FK is ON DELETE SET NULL and would do this by
+    # itself -- it is here because the column was NOT NULL until 20260827100000,
+    # which made SET NULL throw 23502 and blocked the erasure of every parent,
+    # advisor, observer and admin on the platform (Sentry OPTIO-BACKEND-75/76).
+    # Nulling it explicitly means that failure surfaces as a named line in
+    # `errors` instead of GoTrue's opaque "Database error deleting user".
+    ('student_access_logs', 'accessor_id'),
     ('transcript_overrides', 'updated_by'),
     ('transcript_share_tokens', 'revoked_by'),
     ('transfer_credits', 'created_by'),

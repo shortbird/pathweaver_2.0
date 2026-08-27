@@ -492,3 +492,31 @@ def test_cron_dispatcher_actually_fires_the_deletion_sweep(monkeypatch):
 
     assert ('account-deletion-sweep',
             'https://api.example.com/api/users/internal/deletion-sweep') in posted
+
+
+def test_ferpa_access_log_stamps_no_longer_block_the_accessor(fake_db):
+    """student_access_logs.accessor_id was NOT NULL under an ON DELETE SET NULL
+    FK, so the cascade threw 23502 and GoTrue reported it as the same opaque
+    "Database error deleting user" (Sentry OPTIO-BACKEND-75/76). Every parent,
+    advisor, observer and admin who had ever opened a student record was
+    undeletable. 20260827100000 drops the NOT NULL; the executor nulls the
+    column itself so a regression names the table instead of hiding in GoTrue."""
+    assert ('student_access_logs', 'accessor_id') in svc.ANONYMIZE_REFS
+    assert ('student_access_logs', 'accessor_id') not in svc.BLOCKING_REFS
+
+    fake_db.tables['student_access_logs'] = [
+        # The departing user read someone else's record: the row is the other
+        # student's disclosure trail and has to survive.
+        {'id': 'a1', 'student_id': 'other-student', 'accessor_id': 'due-user'},
+        # Reads of the departing user's OWN record go with them.
+        {'id': 'a2', 'student_id': 'due-user', 'accessor_id': 'an-advisor'},
+        {'id': 'a3', 'student_id': 'other-student', 'accessor_id': 'an-advisor'},
+    ]
+
+    purge_user('due-user', admin=fake_db)
+
+    rows = {r['id']: r for r in fake_db.tables['student_access_logs']}
+    assert 'a2' not in rows, 'the departing user\'s own access log must be erased'
+    assert rows['a1']['student_id'] == 'other-student'
+    assert rows['a1']['accessor_id'] is None
+    assert rows['a3']['accessor_id'] == 'an-advisor'
