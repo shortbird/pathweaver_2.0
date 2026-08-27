@@ -23,6 +23,7 @@ from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 from utils.validation.sanitizers import pgrst_pattern
 from database import get_supabase_admin_client
 from services import announcement_service, sis_service
+from utils.db_fetch import fetch_all_rows
 from utils import rich_text
 from utils.logger import get_logger
 
@@ -292,6 +293,21 @@ def mark_announcements_read(user_id):
             query = query.eq('organization_id', org_id)
         valid = [r['id'] for r in (query.execute().data or [])]
 
+        # Only a person the announcement was actually sent to can register as
+        # having read it. Being in the org was enough before, so anyone opening
+        # the school page added to the numerator of a send they were never part
+        # of -- iCreate has announcements sitting at 71 reads against 0
+        # recipients. Sends made before recipient snapshots existed have no
+        # snapshot to check, so they keep the old behaviour; the read view
+        # reports no ratio for those anyway.
+        if valid:
+            snapshot = admin.table('announcement_recipients')\
+                .select('announcement_id, user_id').in_('announcement_id', valid)\
+                .execute().data or []
+            snapshotted = {r['announcement_id'] for r in snapshot}
+            mine = {r['announcement_id'] for r in snapshot if r.get('user_id') == user_id}
+            valid = [i for i in valid if i not in snapshotted or i in mine]
+
         if valid:
             admin.table('announcement_reads').upsert(
                 [{'announcement_id': aid, 'user_id': user_id} for aid in valid],
@@ -345,17 +361,54 @@ def nudge_announcement(user_id, announcement_id):
         return jsonify({'success': False, 'error': 'Failed to send reminders'}), 500
 
 
-_AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents'}
+_AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents',
+                    'advisor': 'advisors'}
+
+# Who keeps the unfiltered view: the front office. They are the people who SEND
+# announcements and field the questions about them, and a coordinator's
+# restriction is financial, not scope-based. A teacher is not front office.
+_ARCHIVE_SEES_ALL = ('superadmin', 'org_admin', 'campus_coordinator')
 
 
 def _archive_audience_token(effective_role, view_as):
-    """Audience filter for the archive. Members are filtered by their own role;
-    a superadmin previewing a school page (?view_as) is filtered by the
-    previewed role, and with no view_as sees everything, as before. Nobody
-    else's view_as is honored."""
+    """Audience filter for the archive.
+
+    Members are filtered by their own role; a superadmin previewing a school
+    page (?view_as) is filtered by the previewed role, and with no view_as sees
+    everything, as before. Nobody else's view_as is honored.
+
+    Teachers used to be in the sees-everything set too, which meant a message
+    sent to ten named students turned up in a teacher's announcements
+    (iCreate, 2026-08-26: Emerson Gowdy received a students-only send; she was
+    not among its ten recipients). They are now filtered like any other member,
+    and reach anything actually addressed to them through the recipient
+    snapshot instead.
+    """
     if effective_role == 'superadmin':
         return _AUDIENCE_TOKENS.get(view_as)
+    if effective_role in _ARCHIVE_SEES_ALL:
+        return None
     return _AUDIENCE_TOKENS.get(effective_role)
+
+
+def _received_announcement_ids(admin, user_id):
+    """Announcements this user was actually sent, from the recipient snapshot.
+
+    Targeting is finer than the role label: a send narrowed to one class writes
+    a snapshot naming exactly those people, while target_audience only records
+    'parents (1 class)'. Without this, a class-targeted message would be missing
+    from its own recipients' archive as soon as the role token stopped matching.
+    """
+    try:
+        rows = fetch_all_rows(lambda: (
+            admin.table('announcement_recipients')
+            .select('announcement_id')
+            .eq('user_id', user_id)
+        ))
+        return [r['announcement_id'] for r in rows if r.get('announcement_id')]
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not read announcement recipients for {user_id}: {e}')
+        return []
 
 
 @bp.route('/api/announcements/archive', methods=['GET'])
@@ -413,10 +466,16 @@ def announcements_archive(user_id):
         audience_token = _archive_audience_token(effective_role,
                                                  request.args.get('view_as'))
         if audience_token:
-            query = query.or_(
-                f'target_audience.eq.everyone,'
-                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%'
-            )
+            clauses = [
+                'target_audience.eq.everyone',
+                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%',
+            ]
+            # ...plus anything actually addressed to them, which the role label
+            # alone cannot express for a narrowed send.
+            received = _received_announcement_ids(admin, user_id)
+            if received:
+                clauses.append(f'id.in.({",".join(received)})')
+            query = query.or_(','.join(clauses))
 
         q = (request.args.get('q') or '').strip()
         if q:

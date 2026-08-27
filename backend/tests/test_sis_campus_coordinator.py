@@ -325,12 +325,21 @@ class TestTheSchoolPageAdmitsCoordinators:
             assert _admits_coordinator(kiosk, view), view
 
     def test_a_coordinator_reads_the_archive_unfiltered_like_an_admin(self):
-        """No audience token means no filter: staff see every sent message —
-        a superset of what any family member sees."""
+        """No audience token means no filter: the front office sees every sent
+        message — a superset of what any family member sees. The coordinator's
+        restriction is financial, not scope-based.
+
+        A TEACHER is not front office, and used to be in this set: a message
+        sent to ten named students turned up in an advisor's announcements
+        (iCreate, 2026-08-26 — Emerson Gowdy was not one of its ten
+        recipients). Advisors are filtered like any other member now, and reach
+        what is actually addressed to them through the recipient snapshot.
+        """
         from routes.announcements import _archive_audience_token
         assert _archive_audience_token('campus_coordinator', None) is None
         assert _archive_audience_token('org_admin', None) is None
         assert _archive_audience_token('parent', None) == 'parents'
+        assert _archive_audience_token('advisor', None) == 'advisors'
 
 
 @pytest.mark.unit

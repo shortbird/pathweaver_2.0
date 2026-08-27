@@ -203,6 +203,30 @@ class SisClassRepository(BaseRepository):
             'end_time': fields.get('end_time'),
             'location': fields.get('location'),
         }
+        # Adding the same slot twice is a double submit, not a second meeting:
+        # every schedule view draws one block per meeting row, so a duplicate
+        # shows the class twice on the family's timetable while the roster still
+        # shows one seat (iCreate, 2026-08-26). A unique index now backs this;
+        # returning the existing row keeps a repeat submit a no-op rather than a
+        # 500.
+        existing = (
+            self.client.table('class_meetings')
+            .select('*')
+            .eq('class_id', class_id)
+            .eq('start_time', payload['start_time'])
+        )
+        if payload['day_of_week'] is None:
+            existing = existing.is_('day_of_week', 'null')
+        else:
+            existing = existing.eq('day_of_week', payload['day_of_week'])
+        if payload['specific_date'] is None:
+            existing = existing.is_('specific_date', 'null')
+        else:
+            existing = existing.eq('specific_date', payload['specific_date'])
+        found = existing.limit(1).execute().data
+        if found:
+            return found[0]
+
         resp = self.client.table('class_meetings').insert(payload).execute()
         return resp.data[0] if resp.data else None
 

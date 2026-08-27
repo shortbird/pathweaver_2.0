@@ -64,15 +64,19 @@ SUPERADMIN = {'role': 'superadmin', 'org_role': None, 'org_roles': None,
 
 
 # ── POST /api/announcements/mark-read ────────────────────────────────────────
-def _mark_read(caller, body, member_org='org-1', org_announcements=None):
+def _mark_read(caller, body, member_org='org-1', org_announcements=None,
+               recipients=None):
     """Call the unwrapped view with a mocked admin client. `org_announcements`
-    is what the org-filtered announcements query returns (the fence)."""
+    is what the org-filtered announcements query returns (the fence);
+    `recipients` is the announcement_recipients snapshot rows those ids have.
+    Empty (the default) means the sends predate snapshots."""
     view = getattr(routes.mark_announcements_read, '__wrapped__',
                    routes.mark_announcements_read)
     tables = {
         'users': _table(caller),
         'announcements': _table(org_announcements or []),
         'announcement_reads': _table([]),
+        'announcement_recipients': _table(recipients or []),
     }
     client = _client(tables)
     app = Flask(__name__)
@@ -121,6 +125,35 @@ class TestMarkRead:
         assert _json(resp)['marked'] == 1
         tables['announcements'].eq.assert_not_called()
         member.assert_not_called()
+
+    def test_only_a_recipient_can_mark_a_snapshotted_send_read(self):
+        """Otherwise anyone in the org opening the school page counts as a read
+        of a message they were never sent. iCreate has sends showing 71 reads
+        against 0 recipients."""
+        resp, tables, _ = _mark_read(
+            PARENT, {'announcement_ids': [A1, A2]},
+            org_announcements=[{'id': A1}, {'id': A2}],
+            recipients=[{'announcement_id': A1, 'user_id': 'caller-1'},
+                        {'announcement_id': A2, 'user_id': 'somebody-else'}])
+        assert _json(resp)['marked'] == 1
+        rows = tables['announcement_reads'].upsert.call_args[0][0]
+        assert [r['announcement_id'] for r in rows] == [A1]
+
+    def test_a_non_recipient_marks_nothing(self):
+        resp, tables, _ = _mark_read(
+            PARENT, {'announcement_ids': [A1]},
+            org_announcements=[{'id': A1}],
+            recipients=[{'announcement_id': A1, 'user_id': 'somebody-else'}])
+        assert _json(resp)['marked'] == 0
+        tables['announcement_reads'].upsert.assert_not_called()
+
+    def test_sends_predating_the_snapshot_still_mark_read(self):
+        """No snapshot means nothing to check against, and the read view already
+        reports no ratio for those — refusing them would only lose the read."""
+        resp, tables, _ = _mark_read(
+            PARENT, {'announcement_ids': [A1]},
+            org_announcements=[{'id': A1}], recipients=[])
+        assert _json(resp)['marked'] == 1
 
     def test_a_caller_with_no_org_marks_nothing(self):
         resp, tables, _ = _mark_read(PARENT, {'announcement_ids': [A1]},
