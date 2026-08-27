@@ -31,10 +31,16 @@ import SearchSelect from '../../components/ui/SearchSelect'
  *   to ignore its email. The Community board already worked this way; this is
  *   the same rule on the send.
  */
+// "Families" reaches guardians, not their children -- tick Students as well to
+// reach both. That was not obvious from the labels alone, and picking one
+// believing it meant the other is exactly what happened (iCreate, 2026-08-26:
+// "Does families mean parents and students? If i send it to students do the
+// parents get the email too?"). The live recipient count under the composer is
+// the real answer; these hints stop the question being asked at all.
 const AUDIENCES = [
-  { key: 'parents', label: 'Families' },
-  { key: 'students', label: 'Students' },
-  { key: 'advisors', label: 'Teachers' },
+  { key: 'parents', label: 'Families', hint: 'Parents and guardians' },
+  { key: 'students', label: 'Students', hint: 'The students themselves' },
+  { key: 'advisors', label: 'Teachers', hint: 'Staff who teach them' },
 ]
 
 /** One chip list backed by the platform's type-to-filter combobox. */
@@ -147,6 +153,40 @@ const FamilyMessagingPage = () => {
   }
 
   const targeted = classIds.length || teacherIds.length || minAge || maxAge
+
+  // Who this selection actually reaches, resolved by the same code that does
+  // the sending. The picker has two overlapping ways to narrow a send and used
+  // to say nothing about the result, so it was possible to believe a message
+  // had gone to families when it had gone to students (iCreate, 2026-08-26).
+  const [preview, setPreview] = useState(null)
+  useEffect(() => {
+    if (!orgId || !audiences.length) { setPreview(null); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      api.post('/api/announcements/recipient-preview', {
+        organization_id: orgId,
+        audiences,
+        class_ids: classIds,
+        teacher_ids: teacherIds,
+        min_age: minAge === '' ? null : Number(minAge),
+        max_age: maxAge === '' ? null : Number(maxAge),
+      })
+        .then((r) => { if (!cancelled) setPreview(r.data) })
+        .catch(() => { if (!cancelled) setPreview(null) })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [orgId, audiences, classIds, teacherIds, minAge, maxAge])
+
+  const ROLE_WORDS = { parents: 'guardians', students: 'students', advisors: 'teachers' }
+  const previewText = () => {
+    if (!preview) return null
+    if (!preview.total) return 'Nobody matches this selection yet'
+    const parts = Object.entries(preview.by_role || {})
+      .filter(([, n]) => n > 0)
+      .map(([role, n]) => `${n} ${ROLE_WORDS[role] || role}`)
+    return `Goes to ${preview.total} ${preview.total === 1 ? 'person' : 'people'}`
+      + (parts.length > 1 ? ` (${parts.join(', ')})` : '')
+  }
   const clearTargeting = () => {
     setClassIds([]); setTeacherIds([]); setMinAge(''); setMaxAge('')
   }
@@ -212,10 +252,16 @@ const FamilyMessagingPage = () => {
                   ? 'bg-optio-purple text-white border-optio-purple'
                   : 'bg-white text-neutral-600 border-gray-300 hover:border-optio-purple'
               }`}
+              title={a.hint}
             >
               {a.label}
             </button>
           ))}
+          <span className="w-full text-xs text-neutral-500">
+            {AUDIENCES.filter((a) => audiences.includes(a.key))
+              .map((a) => `${a.label}: ${a.hint.toLowerCase()}`).join(' · ')
+              || 'Pick who this goes to'}
+          </span>
         </div>
 
         {/* Narrowing. Long lists, so the platform's type-to-filter combobox
@@ -228,7 +274,7 @@ const FamilyMessagingPage = () => {
             </span>
             {admin && targeted ? (
               <button onClick={clearTargeting} className="text-xs text-optio-purple hover:underline">
-                Clear — send to the whole school
+                Remove these filters
               </button>
             ) : null}
           </div>
@@ -284,7 +330,14 @@ const FamilyMessagingPage = () => {
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <Button onClick={send} loading={sending}>Send announcement</Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={send} loading={sending}>Send announcement</Button>
+            {previewText() && (
+              <span className={`text-sm ${preview?.total ? 'text-neutral-600' : 'text-amber-700'}`}>
+                {previewText()}
+              </span>
+            )}
+          </div>
           {/* Templates live in org settings, which the templates endpoints
               gate to the admin tier — a teacher would only get a 403. */}
           {admin && (

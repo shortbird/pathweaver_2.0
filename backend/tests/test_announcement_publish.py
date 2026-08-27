@@ -29,7 +29,9 @@ def _client(insert_returns=None):
     client = Mock()
     table = Mock()
     client.table.return_value = table
-    for chained in ('select', 'eq', 'insert', 'limit'):
+    # 'range' because the org-members read is paged: it is every account in the
+    # school, and an unpaged read silently drops recipients past the cap.
+    for chained in ('select', 'eq', 'insert', 'limit', 'range', 'order'):
         getattr(table, chained).return_value = table
     table.execute.return_value = Mock(data=insert_returns if insert_returns is not None else MEMBERS)
     return client, table
@@ -178,7 +180,9 @@ class TestCommunityPostCanReachFamilies:
         client = Mock()
         table = Mock()
         client.table.return_value = table
-        for chained in ('select', 'eq', 'insert', 'limit'):
+        # 'range' because the org-members read is paged: it is every account in
+        # the school, and an unpaged read silently drops recipients past the cap.
+        for chained in ('select', 'eq', 'insert', 'limit', 'range', 'order'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=[{'id': 'a1', 'title': 'Early dismissal'}])
         return client
@@ -258,9 +262,36 @@ class TestTargetedSend:
             admin.return_value.table.return_value = table
             table.select.return_value = table
             table.eq.return_value = table
+            table.order.return_value = table   # the org-members read is paged
+            table.range.return_value = table
             table.execute.return_value = Mock(data=members)
             got = svc.recipients_for('org-1', ['students'], student_ids={'s1'})
         assert got == {'s1'}
+
+    def test_the_preview_breakdown_matches_what_would_be_sent(self):
+        """The composer shows who a send will reach before it goes out, and it
+        is only worth trusting if it cannot disagree with the send — so both are
+        built on the same resolution (iCreate, 2026-08-26: "I love that we can
+        narrow it down, but it's still confusing")."""
+        from services import announcement_service as svc
+        members = [
+            {'id': 's1', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 's2', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 'a1', 'role': 'org_managed', 'org_role': 'advisor'},
+        ]
+        with patch.object(svc, '_admin') as admin:
+            table = Mock()
+            admin.return_value.table.return_value = table
+            table.select.return_value = table
+            table.eq.return_value = table
+            table.order.return_value = table
+            table.range.return_value = table
+            table.execute.return_value = Mock(data=members)
+            by_role = svc.recipients_by_role('org-1', ['students', 'advisors'])
+            everyone = svc.recipients_for('org-1', ['students', 'advisors'])
+        assert by_role['students'] == {'s1', 's2'}
+        assert by_role['advisors'] == {'a1'}
+        assert set().union(*by_role.values()) == everyone
 
     def test_target_label_records_who_it_went_to(self):
         from services import announcement_service as svc

@@ -22,6 +22,7 @@ from flask import current_app
 
 from database import get_supabase_admin_client
 from utils import rich_text
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.roles import get_effective_role
 
@@ -130,10 +131,32 @@ def recipients_for(org_id: str, audiences: Iterable[str],
     Parents are resolved per student, so a platform parent (no organization_id
     of their own) still gets their child's school announcements.
     """
-    members = (
+    by_role = recipients_by_role(org_id, audiences, exclude_user_id,
+                                 student_ids, advisor_ids)
+    return set().union(*by_role.values()) if by_role else set()
+
+
+def recipients_by_role(org_id: str, audiences: Iterable[str],
+                       exclude_user_id: Optional[str] = None,
+                       student_ids: Optional[Set[str]] = None,
+                       advisor_ids: Optional[Set[str]] = None
+                       ) -> Dict[str, Set[str]]:
+    """The same resolution as recipients_for, split by the audience each person
+    is reached through.
+
+    Exists so the composer can show who a send is about to reach BEFORE it goes
+    out. The picker offers two overlapping ways to narrow a send and gave no
+    feedback about the result, so it was possible to believe a message had gone
+    to families when it had gone to students (iCreate, 2026-08-26: "I love that
+    we can narrow it down, but it's still confusing"). A preview is only worth
+    trusting if it cannot disagree with the send, so the send is built on this.
+    """
+    # Paged: this is every account in the school and it grows with every family
+    # that joins, and a truncated read here silently drops recipients.
+    members = fetch_all_rows(lambda: (
         _admin().table('users').select('id, role, org_role, org_roles')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+        .eq('organization_id', org_id)
+    ))
     students = [m for m in members if get_effective_role(m) == 'student']
     advisors = [m for m in members if get_effective_role(m) == 'advisor']
     # A targeted send narrows to these students; their parents follow from them,
@@ -148,23 +171,26 @@ def recipients_for(org_id: str, audiences: Iterable[str],
     if advisor_ids is not None:
         advisors = [m for m in advisors if m['id'] in advisor_ids]
 
-    recipient_ids: Set[str] = set()
+    by_role: Dict[str, Set[str]] = {}
     if 'students' in audiences:
-        recipient_ids.update(m['id'] for m in students)
+        by_role['students'] = {m['id'] for m in students}
     if 'advisors' in audiences:
-        recipient_ids.update(m['id'] for m in advisors)
+        by_role['advisors'] = {m['id'] for m in advisors}
     if 'parents' in audiences:
         from services.notification_service import NotificationService
         notifier = NotificationService()
+        parents: Set[str] = set()
         for s in students:
             try:
                 for p in (notifier.get_parents_for_student(s['id']) or []):
                     if p.get('id'):
-                        recipient_ids.add(p['id'])
+                        parents.add(p['id'])
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Could not resolve parents for student {s['id']}: {e}")
-    recipient_ids.discard(exclude_user_id)
-    return recipient_ids
+        by_role['parents'] = parents
+    for ids in by_role.values():
+        ids.discard(exclude_user_id)
+    return by_role
 
 
 def targeted_advisor_ids(org_id: str, class_ids: Optional[List[str]] = None,

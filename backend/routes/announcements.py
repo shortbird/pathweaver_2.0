@@ -361,6 +361,78 @@ def nudge_announcement(user_id, announcement_id):
         return jsonify({'success': False, 'error': 'Failed to send reminders'}), 500
 
 
+@bp.route('/api/announcements/recipient-preview', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def preview_recipients(user_id):
+    """How many people the composer's current selection would reach, by role.
+
+    The picker offers two overlapping ways to narrow a send -- audience chips
+    and a class/teacher/age filter -- and said nothing about the result, so it
+    was possible to believe a message had gone to families when it had gone to
+    students (iCreate, 2026-08-26: "I love that we can narrow it down, but it's
+    still confusing ... Does families mean parents and students?").
+
+    Deliberately built on the same resolution as the send, so the number cannot
+    promise something the send does not do.
+    """
+    try:
+        # admin client justified: role-gated preview of an org broadcast — resolves the sender's own org/role and counts org members, and an advisor is fenced to their own classes below
+        admin = get_supabase_admin_client()
+        data = request.get_json() or {}
+        org_id = data.get('organization_id')
+
+        sender = admin.table('users')\
+            .select('id, role, org_role, org_roles, organization_id')\
+            .eq('id', user_id).single().execute().data
+        sender_role = get_effective_role(sender) if sender else None
+        if not org_id:
+            org_id = sender.get('organization_id') if sender else None
+        if not org_id:
+            return jsonify({'success': False, 'error': 'No organization context'}), 400
+        if sender_role != 'superadmin' and sender.get('organization_id') != org_id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        audiences = announcement_service.normalize_audiences(data.get('audiences'))
+        if not audiences:
+            return jsonify({'success': True, 'total': 0, 'by_role': {}})
+
+        class_ids = [c for c in (data.get('class_ids') or []) if c]
+        teacher_ids = [t for t in (data.get('teacher_ids') or []) if t]
+
+        # Same fence as the send: a teacher previews their own classes only, so
+        # the preview can never describe a wider send than they could make.
+        scope = sis_service.class_scope(user_id, org_id) \
+            if sender_role != 'superadmin' else None
+        if scope is not None:
+            if teacher_ids or not class_ids or not set(class_ids) <= set(scope):
+                return jsonify({'success': True, 'total': 0, 'by_role': {}})
+
+        def _int(v):
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
+
+        student_ids = announcement_service.targeted_student_ids(
+            org_id, class_ids=class_ids, teacher_ids=teacher_ids,
+            min_age=_int(data.get('min_age')), max_age=_int(data.get('max_age')))
+        advisor_ids = announcement_service.targeted_advisor_ids(
+            org_id, class_ids=class_ids, teacher_ids=teacher_ids)
+
+        by_role = announcement_service.recipients_by_role(
+            org_id, audiences, exclude_user_id=user_id,
+            student_ids=student_ids, advisor_ids=advisor_ids)
+        everyone = set().union(*by_role.values()) if by_role else set()
+        return jsonify({
+            'success': True,
+            'total': len(everyone),
+            'by_role': {role: len(ids) for role, ids in by_role.items()},
+        })
+    except Exception as e:
+        logger.error(f'Error previewing announcement recipients: {e}')
+        return jsonify({'success': False, 'error': 'Could not preview recipients'}), 500
+
+
 _AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents',
                     'advisor': 'advisors'}
 
