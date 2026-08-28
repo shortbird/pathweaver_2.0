@@ -212,10 +212,14 @@ def create_assignment(org_id: str, fields: Dict[str, Any], created_by: str) -> D
         'notes': (fields.get('notes') or '').strip() or None,
         'created_by': created_by,
     }).execute()).data
+    # '/' is not a destination: it dropped the reader on whichever dashboard
+    # they happened to render and told them nothing (iCreate, 2026-08-26: "when
+    # I click on a notification, it doesn't open anythign"). Assignments live on
+    # the staff member's own task list.
     sis_notifications.notify(
         target, 'New assignment',
         f'You have a new {a_type}: {title}',
-        link='/', organization_id=org_id)
+        link='/my-tasks', organization_id=org_id)
     return {'assignment': row[0] if row else None}
 
 

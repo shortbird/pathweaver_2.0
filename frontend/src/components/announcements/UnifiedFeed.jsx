@@ -19,9 +19,14 @@ import { htmlToText } from '../../utils/richText'
  *
  * The one seam the merge has to hide: a board post created with "notify" also
  * writes an archive row (announcement_service.publish via notify_audiences), so
- * the same words arrive twice. An archive message whose title matches a board
- * post on the same calendar day is that copy, and the board copy wins — it
+ * the same words arrive twice. The archive row carries the board post's id in
+ * source_announcement_id; that copy is dropped and the board copy wins — it
  * carries pinned/urgent.
+ *
+ * Title + calendar day used to stand in for that link, which held right up
+ * until someone edited the post: the titles stopped matching and one notice
+ * became two on the family portal (iCreate, 2026-08-27). Sends that predate
+ * the link column have no source id, so the old match is kept as a fallback.
  */
 
 const FEED_CAP = 6
@@ -35,9 +40,15 @@ export function mergeFeedItems(feed, messages) {
     key: `announcement-${a.id}`, kind: 'announcement',
     date: a.created_at, pinned: Boolean(a.pinned), data: a,
   }))
+  const boardIds = new Set(board.map((i) => i.data.id))
   const boardKeys = new Set(board.map((i) => `${norm(i.data.title)}|${dayOf(i.date)}`))
+  const isBoardCopy = (m) => (
+    m.source_announcement_id
+      ? boardIds.has(m.source_announcement_id)
+      : boardKeys.has(`${norm(m.title)}|${dayOf(m.created_at)}`)
+  )
   const msgs = (messages || [])
-    .filter((m) => !boardKeys.has(`${norm(m.title)}|${dayOf(m.created_at)}`))
+    .filter((m) => !isBoardCopy(m))
     .map((m) => ({ key: `message-${m.id}`, kind: 'message', date: m.created_at, pinned: false, data: m }))
   const shouts = (feed?.recognition || []).map((r) => ({
     key: `shoutout-${r.id}`, kind: 'shoutout', date: r.created_at, pinned: false, data: r,

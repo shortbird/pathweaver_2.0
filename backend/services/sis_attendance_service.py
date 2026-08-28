@@ -320,7 +320,9 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
             admin_id,
             'Student not accounted for',
             f"{who} marked absent in {class_name} on {on_date} with no guardian report.",
-            link='/',
+            # The attendance page is the thing to act on; '/' just reloaded a
+            # dashboard (iCreate, 2026-08-26).
+            link='/attendance',
             organization_id=org_id,
             metadata={'class_id': class_id, 'date': on_date, 'student_ids': student_ids},
         )

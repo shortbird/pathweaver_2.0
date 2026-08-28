@@ -83,7 +83,11 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const resolveAlert = async (alertId) => {
     setResolvingId(alertId)
     try {
-      await api.post(`/api/sis/engagement-alerts/${alertId}/resolve`, { organization_id: orgId })
+      // scope=mine here too: the list above is narrowed to this teacher's own
+      // classes, and resolve re-derives the scope from the query string. Without
+      // it the alerts on screen and the alerts that can be dismissed are two
+      // different sets again.
+      await api.post(`/api/sis/engagement-alerts/${alertId}/resolve?scope=mine`, { organization_id: orgId })
       setAlerts((prev) => prev.filter((a) => a.id !== alertId))
       toast.success('Alert resolved')
     } catch (err) {

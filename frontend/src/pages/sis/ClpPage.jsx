@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { matchesPersonSearch } from '../../utils/personSearch'
 
 /**
  * SIS — Customized Learning Plan (CLP) meeting view.
@@ -378,13 +379,17 @@ const ClpPage = () => {
     return true
   }, [lens])
 
+  // A student renders under ONE name (the nickname replaces the first name), so
+  // matching the rendered string alone left the other half unfindable — the
+  // office types the legal name off a form and gets nothing back. matchesPersonSearch
+  // searches every name the record holds (iCreate, 2026-08-28).
   const filteredFamilies = useMemo(() => {
     const q = search.trim().toLowerCase()
     return directory.families
       .map((f) => {
         const famMatch = !q || (f.name || '').toLowerCase().includes(q)
         const students = f.students
-          .filter((s) => famMatch || (s.name || '').toLowerCase().includes(q))
+          .filter((s) => famMatch || matchesPersonSearch(s, q))
           .filter(matchesLens)
         return students.length ? { ...f, students, student_count: students.length } : null
       })

@@ -84,7 +84,8 @@ def delete_announcement(user_id, announcement_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    if not community.delete_row(org_id, 'sis_announcements', announcement_id):
+    # Not delete_row: taking the post down has to pull the send it spawned too.
+    if not community.delete_announcement(org_id, announcement_id):
         return jsonify({'success': False, 'error': 'Announcement not found'}), 404
     return jsonify({'success': True})
 

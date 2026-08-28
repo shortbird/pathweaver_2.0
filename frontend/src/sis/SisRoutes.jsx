@@ -1,7 +1,7 @@
 import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
-import { goToLearningSurface } from '../utils/appSurface'
+import { goToLearningSurface, LEARNING_SURFACE_PATHS } from '../utils/appSurface'
 import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
@@ -62,27 +62,6 @@ const LearningRedirect = () => {
   useEffect(() => { goToLearningSurface(location.pathname + location.search) }, [location])
   return null
 }
-
-// Learning-app routes that notifications, emails and pushes link to. The SIS
-// console does not have these pages, so it hands them back to the surface that
-// does rather than treating them as unknown.
-const LEARNING_SURFACE_PATHS = [
-  '/school',
-  '/announcements',
-  '/notifications',
-  '/dashboard',
-  '/parent-dashboard',
-  '/quests',
-  '/courses',
-  '/bounties',
-  '/messages',
-  '/communication',
-  '/feed',
-  '/journal',
-  '/connections',
-  '/credit-dashboard',
-  '/profile',
-]
 
 // New SIS console pages
 const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))

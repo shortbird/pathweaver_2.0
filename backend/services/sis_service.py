@@ -2252,6 +2252,16 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
         h['primary_contact_user_id'] = h.get('primary_contact_user_id')
         _mark_duplicate_members(h['members'])
         for m in h['members']:
+            # `name` renders under ONE name — the nickname replaces the first —
+            # so the Families search could not find a student by the name on
+            # their paperwork (iCreate, 2026-08-28). The names that are NOT on
+            # screen ride along as one searchable string; the raw columns stay
+            # stripped, since nothing on the page displays them.
+            u = users.get(m['user_id'], {})
+            alt = ' '.join(str(v) for v in (
+                u.get('first_name'), u.get('last_name'),
+                u.get('preferred_name'), u.get('display_name')) if v)
+            m['search_terms'] = alt or None
             for k in ('first_name', 'last_name', 'date_of_birth'):
                 m.pop(k, None)
     _disambiguate_household_names(households)

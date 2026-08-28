@@ -163,7 +163,7 @@ def list_announcements(user_id):
         audience_token = _archive_audience_token(get_effective_role(caller), None)
         query = admin.table('announcements')\
             .select('id, title, message, target_audience, author_id, created_at, '
-                    'last_nudged_at')\
+                    'last_nudged_at, source_announcement_id')\
             .eq('organization_id', org_id)
         if audience_token:
             query = query.or_(
@@ -232,16 +232,9 @@ def delete_announcement(user_id, announcement_id):
                 row.get('author_id') != user_id:
             return jsonify({'success': False, 'error': 'Only the sender or an admin can delete this'}), 403
 
-        admin.table('announcements').delete().eq('id', announcement_id).execute()
-        # Best-effort: pull the bell notifications that point at it, so the
-        # message doesn't survive its own deletion in everyone's notification
-        # list. Failure here still leaves the announcement gone.
-        try:
-            admin.table('notifications').delete()\
-                .eq('notification_type', 'announcement')\
-                .filter('metadata->>announcement_id', 'eq', announcement_id).execute()
-        except Exception as ne:  # noqa: BLE001
-            logger.warning(f"Announcement {announcement_id} deleted but notifications not swept: {ne}")
+        # Deletes the row and sweeps the bell notifications that point at it,
+        # so the message doesn't survive its own deletion in everyone's list.
+        announcement_service.retract(announcement_id)
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Error deleting announcement: {e}")
@@ -442,6 +435,28 @@ _AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents',
 _ARCHIVE_SEES_ALL = ('superadmin', 'org_admin', 'campus_coordinator')
 
 
+def _family_audience_token(user_row):
+    """The archive token for the caller's FAMILY role, if they hold one.
+
+    Staff who are also parents at the school read two different pages out of one
+    endpoint. The front office keeps the unfiltered view on the SIS side, but
+    the family home is that same person's parent view, and a staff-only notice
+    surfacing there reads as a leak: a coordinator posted a teachers-only
+    message and found it on her own parent dashboard (iCreate, 2026-08-28 —
+    "I created an announcement and said to mark it visible to only teachers.
+    It still sent to me as a parent"). Callers that ARE a family surface ask for
+    this with ?family_view=1; it can only narrow what they would otherwise see.
+    """
+    if not user_row:
+        return None
+    held = {user_row.get('role'), user_row.get('org_role')}
+    held |= set(user_row.get('org_roles') or [])
+    for role in ('parent', 'student'):
+        if role in held:
+            return _AUDIENCE_TOKENS[role]
+    return None
+
+
 def _archive_audience_token(effective_role, view_as):
     """Audience filter for the archive.
 
@@ -528,7 +543,8 @@ def announcements_archive(user_id):
             offset = 0
 
         query = admin.table('announcements')\
-            .select('id, title, message, target_audience, author_id, created_at',
+            .select('id, title, message, target_audience, author_id, created_at, '
+                    'source_announcement_id',
                     count='exact')\
             .eq('organization_id', org_id)
 
@@ -537,6 +553,10 @@ def announcements_archive(user_id):
         # a comma-joined role list (e.g. 'parents,students').
         audience_token = _archive_audience_token(effective_role,
                                                  request.args.get('view_as'))
+        # A family surface asking for the family view: narrow to the caller's
+        # own parent/student role even when their staff role would see all.
+        if request.args.get('family_view') in ('1', 'true', 'yes'):
+            audience_token = _family_audience_token(user_row) or audience_token
         if audience_token:
             clauses = [
                 'target_audience.eq.everyone',

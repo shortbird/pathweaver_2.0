@@ -26,6 +26,7 @@ from repositories import (
     AnalyticsRepository
 )
 from utils.auth.decorators import require_admin, require_advisor, get_advisor_assigned_students
+from utils.roles import get_effective_role
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_utils import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects, normalize_subject_key
@@ -317,6 +318,68 @@ def bulk_update_quests(user_id):
         }), 500
 
 
+def _quest_edit_rights(supabase, user_id, quest):
+    """(can_edit, can_toggle_active) for this user on this quest.
+
+    One place, because two copies of this rule drifted apart and the AI-cleanup
+    path enforced a stricter one than the edit path it belongs to.
+
+    - Superadmin: everything.
+    - The front office (org_admin, campus_coordinator) inside their own org:
+      everything. Reading `org_role` alone missed a coordinator, and missed
+      anyone whose admin role sits in `org_roles` — the flag columns disagree
+      often enough that get_effective_role exists for exactly this.
+    - A teacher: may edit a quest they wrote, AND a quest attached to a class
+      they teach. Publishing is never theirs to toggle.
+
+    That second half is the fix for iCreate 2026-08-27: "I am logged in as a
+    teacher and made changes to a quest. When I saved, it said I am not
+    authorized ... Is it because I originally created the quest while logged in
+    as an administrator?" It was. A class's own teacher could not edit the
+    coursework on their own class because somebody else had typed it in.
+    """
+    from utils.sis_roles import ADMIN_ROLES
+
+    row = (supabase.table('users')
+           .select('id, role, org_role, org_roles, organization_id')
+           .eq('id', user_id).limit(1).execute()).data
+    user_data = row[0] if row else {}
+    effective_role = get_effective_role(user_data) if user_data else None
+    user_org_id = user_data.get('organization_id')
+    quest_org_id = quest.get('organization_id')
+
+    if effective_role == 'superadmin':
+        return True, True
+    if effective_role in ADMIN_ROLES and quest_org_id and quest_org_id == user_org_id:
+        return True, True
+    if effective_role != 'advisor':
+        return False, False
+
+    # Their own quest, in their own school.
+    #
+    # This used to be the whole rule, and it also used to require `not
+    # is_active`, which no advisor could ever satisfy: every creation path
+    # stamps is_active=True, so a teacher's own quest was un-editable from the
+    # moment they saved it (Gryffin, 2026-08-27: "There is also no option to
+    # edit a quest or a task once its saved. You just have to delete and start
+    # over.").
+    if quest.get('created_by') == user_id and (
+            not quest_org_id or quest_org_id == user_org_id):
+        return True, False
+
+    # Or a quest assigned to a class they teach.
+    if user_org_id and quest_org_id == user_org_id:
+        from services import sis_service
+        class_ids = sis_service.advisor_class_ids(user_id, user_org_id)
+        if class_ids:
+            linked = (supabase.table('class_quests').select('class_id')
+                      .eq('quest_id', quest.get('id'))
+                      .in_('class_id', class_ids).limit(1).execute()).data
+            if linked:
+                return True, False
+    return False, False
+
+
 @bp.route('/quests/<quest_id>', methods=['PUT'])
 @require_advisor
 def update_quest(user_id, quest_id):
@@ -337,43 +400,7 @@ def update_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Get user role and organization
-        user = supabase.table('users').select('role, organization_id, org_role').eq('id', user_id).execute()
-        user_data = user.data[0] if user.data else {}
-        user_role = user_data.get('role', 'advisor')
-        user_org_id = user_data.get('organization_id')
-        user_org_role = user_data.get('org_role')
-
-        # Determine effective role for permissions
-        is_superadmin = user_role == 'superadmin'
-        is_org_admin = user_role == 'org_managed' and user_org_role == 'org_admin'
-        quest_org_id = quest.data.get('organization_id')
-
-        # Check if user can edit this quest
-        can_edit = False
-        can_toggle_active = False
-
-        if is_superadmin:
-            can_edit = True
-            can_toggle_active = True
-        elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
-            # Org admins can edit their organization's quests
-            can_edit = True
-            can_toggle_active = True
-        elif user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
-            # An advisor may edit a quest they wrote, within their own school.
-            #
-            # This used to require `not is_active` as well, which no advisor
-            # could ever satisfy: every creation path stamps is_active=True, so
-            # a teacher's own quest was un-editable from the moment they saved
-            # it, and the only way to change a word was to delete it and start
-            # again (Gryffin, 2026-08-27: "There is also no option to edit a
-            # quest or a task once its saved. You just have to delete and start
-            # over."). Publishing is still not theirs to toggle --
-            # can_toggle_active stays False.
-            if quest.data.get('created_by') == user_id and (
-                    not quest_org_id or quest_org_id == user_org_id):
-                can_edit = True
+        can_edit, can_toggle_active = _quest_edit_rights(supabase, user_id, quest.data)
 
         if not can_edit:
             return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
@@ -477,14 +504,12 @@ def ai_cleanup_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Get user role
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
-
-        # Check ownership for advisors
-        if user_role == 'advisor':
-            if quest.data.get('created_by') != user_id:
-                return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
+        # Same rights as the ordinary edit: rewriting a quest's words IS editing
+        # it, and the two checks disagreeing is how an endpoint ends up enforcing
+        # a stricter rule than the one its own edit path documents.
+        can_edit, _ = _quest_edit_rights(supabase, user_id, quest.data)
+        if not can_edit:
+            return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
 
         # Get current title and big_idea
         current_title = quest.data.get('title', '')

@@ -88,8 +88,11 @@ describe('TeacherDashboard — Needs attention card', () => {
     fireEvent.click(buttons[0])
 
     await waitFor(() => {
+      // scope=mine, like the list above it: resolve re-derives the scope from
+      // the query string, so without it an admin-who-also-teaches could see a
+      // narrowed list and dismiss out of a wider one.
       expect(api.post).toHaveBeenCalledWith(
-        '/api/sis/engagement-alerts/a1/resolve',
+        '/api/sis/engagement-alerts/a1/resolve?scope=mine',
         { organization_id: 'org-1' }
       )
     })

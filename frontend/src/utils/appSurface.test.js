@@ -5,6 +5,9 @@ import {
   isSisHost,
   goToSisSurface,
   goToLearningSurface,
+  isSisSurfacePath,
+  LEARNING_SURFACE_PATHS,
+  SIS_SURFACE_PATHS,
 } from './appSurface'
 
 // jsdom default host is localhost — treated as a non-prod surface, so the
@@ -77,5 +80,39 @@ describe('appSurface', () => {
     goToLearningSurface('/dashboard')
     expect(localStorage.getItem('optio_surface')).toBeNull()
     expect(assign).toHaveBeenCalledWith('/dashboard')
+  })
+})
+
+describe('isSisSurfacePath', () => {
+  it('claims the SIS-only pages', () => {
+    expect(isSisSurfacePath('/attendance')).toBe(true)
+    expect(isSisSurfacePath('/inbox')).toBe(true)
+    expect(isSisSurfacePath('/my-classes/abc-123')).toBe(true)
+  })
+
+  it('ignores query strings and hashes', () => {
+    expect(isSisSurfacePath('/people?tab=families')).toBe(true)
+    expect(isSisSurfacePath('/tasks#requests')).toBe(true)
+  })
+
+  it('leaves the learning app alone', () => {
+    expect(isSisSurfacePath('/school')).toBe(false)
+    expect(isSisSurfacePath('/dashboard')).toBe(false)
+    expect(isSisSurfacePath('/')).toBe(false)
+  })
+
+  it('does not match a longer name that merely starts the same', () => {
+    expect(isSisSurfacePath('/classes-archive')).toBe(false)
+    expect(isSisSurfacePath('/inboxes')).toBe(false)
+  })
+
+  it('survives junk', () => {
+    expect(isSisSurfacePath(null)).toBe(false)
+    expect(isSisSurfacePath('')).toBe(false)
+  })
+
+  it('the two surface lists do not overlap — an overlap is a redirect loop', () => {
+    const both = LEARNING_SURFACE_PATHS.filter((p) => SIS_SURFACE_PATHS.includes(p))
+    expect(both).toEqual([])
   })
 })

@@ -148,7 +148,11 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
             audiences = announcement_service.normalize_audiences(audiences)
             if audiences:
                 sent = announcement_service.publish(
-                    org_id, user_id, title, _body(data.get('body')) or title, audiences)
+                    org_id, user_id, title, _body(data.get('body')) or title, audiences,
+                    # Tie the send to the post, so an edit or a delete on the
+                    # board reaches both halves of what a family sees as one
+                    # notice (see announcement_service.revise_for_source).
+                    source_announcement_id=(created or {}).get('id'))
                 result['notified'] = {**sent, 'audiences': audiences}
         except Exception as e:  # noqa: BLE001
             logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
@@ -178,7 +182,33 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
             fields[k] = (str(data[k]).strip() or None) if data.get(k) else None
     fields['updated_at'] = _now_iso()
     row = (_admin().table('sis_announcements').update(fields).eq('id', announcement_id).execute()).data
+    # The same edit has to reach the send this post spawned, or the family feed
+    # sees two notices where the admin edited one.
+    if 'title' in fields or 'body' in fields:
+        try:
+            from services import announcement_service
+            announcement_service.revise_for_source(
+                announcement_id, title=fields.get('title'), content=fields.get('body'))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Announcement revision fan-out failed: {e}', exc_info=True)
     return {'announcement': row[0] if row else None}
+
+
+def delete_announcement(org_id: str, announcement_id: str) -> bool:
+    """Take a board post down, and with it the send it spawned.
+
+    delete_row alone removed the board copy only, which is how a notice the
+    admin had deleted stayed on the parent dashboard (iCreate, 2026-08-28).
+    """
+    if not _owned(org_id, 'sis_announcements', announcement_id):
+        return False
+    try:
+        from services import announcement_service
+        announcement_service.retract_for_source(announcement_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Announcement retraction fan-out failed: {e}', exc_info=True)
+    _admin().table('sis_announcements').delete().eq('id', announcement_id).execute()
+    return True
 
 
 # ── Lost & Found ──────────────────────────────────────────────────────────────

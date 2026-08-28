@@ -240,7 +240,8 @@ def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
 def publish(org_id: str, author_id: str, title: str, content: str,
             audiences: List[str], student_ids: Optional[Set[str]] = None,
             send_email: bool = True, target_label: Optional[str] = None,
-            advisor_ids: Optional[Set[str]] = None) -> Dict[str, Any]:
+            advisor_ids: Optional[Set[str]] = None,
+            source_announcement_id: Optional[str] = None) -> Dict[str, Any]:
     """Store the announcement and fan it out (notifications + optional email).
 
     `send_email` defaults to True so every existing caller keeps behaving
@@ -260,6 +261,10 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     A body written with the editor is stored as sanitized HTML; everything that
     reads it as text (the notification preview, the plain half of the email)
     flattens it first. See utils/rich_text.py.
+
+    `source_announcement_id` links the row back to the Community Hub board post
+    that spawned it, so revise()/retract_for_source() can keep the two halves
+    in step.
     """
     content = rich_text.sanitize(content)
     announcement_id = None
@@ -269,6 +274,10 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             'author_id': author_id,
             'title': title,
             'message': content,
+            # The board post this send came from, when there is one. Without it
+            # the family feed had to guess the two rows were the same notice by
+            # matching title + day, and an edit to the title made them two.
+            'source_announcement_id': source_announcement_id,
             # A targeted send records WHO it went to, not just which roles, so
             # the archive does not read as school-wide six months later.
             'target_audience': (target_label if target_label
@@ -319,6 +328,92 @@ def publish(org_id: str, author_id: str, title: str, content: str,
                 f"({','.join(audiences)}; email={'yes' if send_email else 'no'})")
     return {'sent': sent, 'announcement_id': announcement_id,
             'recipients': len(recipient_ids), 'emailed': bool(send_email)}
+
+
+def retract(announcement_id: str) -> None:
+    """Take a sent announcement down: delete the durable row and the bell
+    notifications that point at it.
+
+    Deleting the row alone is not enough — the notification survives it and the
+    message reappears when the bell is opened. Best-effort on the sweep: the
+    announcement is gone either way.
+    """
+    _admin().table('announcements').delete().eq('id', announcement_id).execute()
+    try:
+        _admin().table('notifications').delete()\
+            .eq('notification_type', 'announcement')\
+            .filter('metadata->>announcement_id', 'eq', announcement_id).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Announcement {announcement_id} deleted but notifications "
+                       f"not swept: {e}")
+
+
+def retract_for_source(source_announcement_id: str) -> int:
+    """Retract every send that came from this Community Hub board post.
+
+    Deleting the board post used to leave the fan-out row alive, so a notice the
+    admin had taken down stayed on the family archive and the parent dashboard
+    for good (iCreate, 2026-08-28: "Summit Program Info" was gone from the admin
+    side and still on the parent page). Returns how many sends were pulled.
+    """
+    try:
+        rows = (_admin().table('announcements').select('id')
+                .eq('source_announcement_id', source_announcement_id)
+                .execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not find sends for board post "
+                       f"{source_announcement_id}: {e}")
+        return 0
+    for row in rows:
+        try:
+            retract(row['id'])
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not retract announcement {row['id']}: {e}")
+    return len(rows)
+
+
+def revise_for_source(source_announcement_id: str, title: Optional[str] = None,
+                      content: Optional[str] = None) -> int:
+    """Carry an edit of a board post through to the send it spawned.
+
+    The two rows are one notice to a family. Left unsynced, editing the board
+    post's title made the family feed stop recognising them as the same thing
+    and show both (iCreate, 2026-08-27: "The announcements show two
+    announcements on a family portal even though I only edited the original").
+    Returns how many sends were updated.
+    """
+    fields: Dict[str, Any] = {}
+    if title is not None:
+        fields['title'] = title
+    if content is not None:
+        fields['message'] = rich_text.sanitize(content)
+    if not fields:
+        return 0
+    try:
+        rows = (_admin().table('announcements').update(fields)
+                .eq('source_announcement_id', source_announcement_id)
+                .execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not revise sends for board post "
+                       f"{source_announcement_id}: {e}")
+        return 0
+    # The bell notification carries its own copy of the words, so an edit that
+    # stops at the announcements row leaves the old text in everyone's list.
+    for row in rows:
+        try:
+            patch: Dict[str, Any] = {}
+            if title is not None:
+                patch['title'] = title
+            if content is not None:
+                patch['message'] = rich_text.preview(fields['message'])
+            if patch:
+                (_admin().table('notifications').update(patch)
+                 .eq('notification_type', 'announcement')
+                 .filter('metadata->>announcement_id', 'eq', row['id']).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Revised announcement {row['id']} but its "
+                           f"notifications were not updated: {e}")
+    return len(rows)
 
 
 def _snapshot_recipients(announcement_id: Optional[str],
