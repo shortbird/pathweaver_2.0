@@ -248,12 +248,26 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
 
 def list_invoices(org_id: str, household_id: Optional[str] = None,
                   status: Optional[str] = None) -> List[Dict[str, Any]]:
-    query = _admin().table('sis_invoices').select('*').eq('organization_id', org_id)
-    if household_id:
-        query = query.eq('household_id', household_id)
-    if status:
-        query = query.eq('status', status)
-    return query.order('created_at', desc=True).execute().data or []
+    """Every invoice matching the filters, newest first.
+
+    Paged: an org accumulates an invoice per family per billing period, so this
+    read outgrows the 1000-row response cap on its own -- and a truncated read
+    would drop the oldest invoices out of the ledger and the reports built on
+    it with nothing to show it happened.
+    """
+    def build():
+        query = _admin().table('sis_invoices').select('*').eq('organization_id', org_id)
+        if household_id:
+            query = query.eq('household_id', household_id)
+        if status:
+            query = query.eq('status', status)
+        return query
+
+    rows = fetch_all_rows(build)
+    # Paging orders by id (it has to be unique); restore the newest-first order
+    # callers read this in.
+    rows.sort(key=lambda r: str(r.get('created_at') or ''), reverse=True)
+    return rows
 
 
 def get_invoice(org_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
@@ -627,16 +641,25 @@ def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, A
         return []
     ids = [i['id'] for i in invoices]
 
+    # Both reads span every invoice in the org, so both outgrow the 1000-row
+    # response cap -- silently. Line items crossed it first (OPTIO-BACKEND-7F),
+    # which blanked the charge description on whichever invoices fell past the
+    # cut; payments would have dropped a family's payment history the same way.
     lines_by_inv: Dict[str, List[Dict[str, Any]]] = {}
-    for li in (_admin().table('sis_invoice_line_items').select('*')
-               .in_('invoice_id', ids).execute()).data or []:
+    for li in fetch_all_rows(lambda: (
+            _admin().table('sis_invoice_line_items').select('*')
+            .in_('invoice_id', ids))):
         lines_by_inv.setdefault(li['invoice_id'], []).append(li)
 
-    # Payments ordered newest-first, so the first entry per invoice is the latest.
     pays_by_inv: Dict[str, List[Dict[str, Any]]] = {}
-    for p in (_admin().table('sis_payment_records').select('*')
-              .in_('invoice_id', ids).order('recorded_at', desc=True).execute()).data or []:
+    for p in fetch_all_rows(lambda: (
+            _admin().table('sis_payment_records').select('*')
+            .in_('invoice_id', ids))):
         pays_by_inv.setdefault(p['invoice_id'], []).append(p)
+    # Newest-first per invoice, so the first entry is the latest payment. Sorted
+    # here rather than in the query: paging needs its own unique ordering.
+    for rows in pays_by_inv.values():
+        rows.sort(key=lambda r: str(r.get('recorded_at') or ''), reverse=True)
 
     hh_ids = [i.get('household_id') for i in invoices if i.get('household_id')]
     hh_names = {}
@@ -931,22 +954,22 @@ def _maybe_autocomplete_registration(org_id: str, invoice: Dict[str, Any],
 def apply_late_fees(org_id: str, late_fee_cents: int) -> Dict[str, Any]:
     """Mark overdue scheduled installments 'late' and add a one-time late fee."""
     # join installments -> plans -> invoices for this org
-    invoices = (
-        _admin().table('sis_invoices').select('id').eq('organization_id', org_id).execute()
-    ).data or []
+    # Paged at every hop: an org's invoices, their plans and their installments
+    # all outgrow the row cap, and an installment dropped past the cut never
+    # gets its late fee -- money quietly not charged.
+    invoices = fetch_all_rows(lambda: (
+        _admin().table('sis_invoices').select('id').eq('organization_id', org_id)))
     invoice_ids = [i['id'] for i in invoices]
     if not invoice_ids:
         return {'updated': 0}
-    plans = (
-        _admin().table('sis_payment_plans').select('id').in_('invoice_id', invoice_ids).execute()
-    ).data or []
+    plans = fetch_all_rows(lambda: (
+        _admin().table('sis_payment_plans').select('id').in_('invoice_id', invoice_ids)))
     plan_ids = [p['id'] for p in plans]
     if not plan_ids:
         return {'updated': 0}
-    installments = (
+    installments = fetch_all_rows(lambda: (
         _admin().table('sis_installments').select('*')
-        .in_('payment_plan_id', plan_ids).eq('status', 'scheduled').execute()
-    ).data or []
+        .in_('payment_plan_id', plan_ids).eq('status', 'scheduled')))
     updated = 0
     for inst in installments:
         if pricing.is_overdue(inst['due_date'], inst['status']):
@@ -1083,25 +1106,39 @@ def _hydrate_invoices(invoices: List[Dict[str, Any]]) -> None:
     ids = [i['id'] for i in invoices]
     if not ids:
         return
+    # Every read here fans out over `ids`, which is the whole org's invoices
+    # from outstanding_invoices and every org's from run_payment_reminders --
+    # well past the 1000-row response cap, which truncates without saying so.
+    # An invoice past the cut would report no charges and no payments, i.e. a
+    # balance the staff report and the reminder email both get wrong.
     lines_by_inv: Dict[str, List] = {}
-    for li in (_admin().table('sis_invoice_line_items').select('*')
-               .in_('invoice_id', ids).execute()).data or []:
+    for li in fetch_all_rows(lambda: (
+            _admin().table('sis_invoice_line_items').select('*')
+            .in_('invoice_id', ids))):
         lines_by_inv.setdefault(li['invoice_id'], []).append(li)
-    plans = (_admin().table('sis_payment_plans').select('id, invoice_id, cadence, installment_count')
-             .in_('invoice_id', ids).execute()).data or []
+    plans = fetch_all_rows(lambda: (
+        _admin().table('sis_payment_plans')
+        .select('id, invoice_id, cadence, installment_count')
+        .in_('invoice_id', ids)))
     plan_invoice = {p['id']: p['invoice_id'] for p in plans}
     inst_by_inv: Dict[str, List] = {}
     if plans:
-        for inst in (_admin().table('sis_installments').select('*')
-                     .in_('payment_plan_id', list(plan_invoice.keys()))
-                     .order('due_date').execute()).data or []:
+        for inst in fetch_all_rows(lambda: (
+                _admin().table('sis_installments').select('*')
+                .in_('payment_plan_id', list(plan_invoice.keys()))
+                .order('due_date'))):
             inv_id = plan_invoice.get(inst['payment_plan_id'])
             if inv_id:
                 inst_by_inv.setdefault(inv_id, []).append(inst)
     pays_by_inv: Dict[str, List] = {}
-    for p in (_admin().table('sis_payment_records').select('*')
-              .in_('invoice_id', ids).order('recorded_at', desc=True).execute()).data or []:
+    for p in fetch_all_rows(lambda: (
+            _admin().table('sis_payment_records').select('*')
+            .in_('invoice_id', ids))):
         pays_by_inv.setdefault(p['invoice_id'], []).append(p)
+    # Newest-first per invoice; sorted here because paging needs its own
+    # unique ordering and cannot also order by recorded_at alone.
+    for rows in pays_by_inv.values():
+        rows.sort(key=lambda r: str(r.get('recorded_at') or ''), reverse=True)
     for inv in invoices:
         inv['line_items'] = lines_by_inv.get(inv['id'], [])
         inv['installments'] = inst_by_inv.get(inv['id'], [])
@@ -1980,11 +2017,10 @@ def _days_overdue(inv: Dict[str, Any], unpaid_installments: List[Dict[str, Any]]
 def outstanding_invoices(org_id: str) -> List[Dict[str, Any]]:
     """Open invoices with a balance due, hydrated for the staff report:
     family + student names, amount due, days overdue, unpaid installments."""
-    invoices = [i for i in (
+    invoices = [i for i in fetch_all_rows(lambda: (
         _admin().table('sis_invoices').select('*')
         .eq('organization_id', org_id).in_('status', list(OPEN_INVOICE_STATUSES))
-        .execute()
-    ).data or [] if amount_due_cents(i) > 0]
+    )) if amount_due_cents(i) > 0]
     if not invoices:
         return []
     _hydrate_invoices(invoices)
@@ -2189,11 +2225,14 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
     invoice via sis_payment_reminders (one reminder per REMINDER_COOLDOWN_DAYS).
     Returns {checked, reminded, skipped}: invoices with a balance examined,
     reminder emails sent, and invoices skipped for a recent reminder."""
-    query = (_admin().table('sis_invoices').select('*')
-             .in_('status', list(OPEN_INVOICE_STATUSES)))
-    if org_id:
-        query = query.eq('organization_id', org_id)
-    invoices = [i for i in (query.execute().data or []) if amount_due_cents(i) > 0]
+    def _open_invoices():
+        query = (_admin().table('sis_invoices').select('*')
+                 .in_('status', list(OPEN_INVOICE_STATUSES)))
+        return query.eq('organization_id', org_id) if org_id else query
+
+    # Paged: with no org_id this is every open invoice on the platform, and an
+    # invoice dropped past the row cap is a family who never gets reminded.
+    invoices = [i for i in fetch_all_rows(_open_invoices) if amount_due_cents(i) > 0]
     checked = len(invoices)
     reminded = skipped = 0
     if not invoices:

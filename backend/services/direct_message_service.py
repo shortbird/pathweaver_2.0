@@ -649,6 +649,40 @@ class DirectMessageService(BaseService):
             print(f"Error marking message as read: {str(e)}", file=sys.stderr, flush=True)
             raise
 
+    def _find_conversation(self, conversation_or_user_id: str,
+                           user_id: str) -> Optional[Dict[str, Any]]:
+        """The conversation behind an id from the URL, or None if there is none.
+
+        `/conversations/<id>` accepts either a conversation id or the other
+        participant's user id. Unlike get_conversation_messages this never
+        creates one: a thread that does not exist has nothing unread in it.
+
+        Raises ValueError if the caller is not a participant.
+        """
+        try:
+            uuid.UUID(str(conversation_or_user_id))
+        except (ValueError, AttributeError, TypeError):
+            raise ValueError("Conversation not found")
+
+        supabase = self._get_client()
+        rows = (supabase.table('message_conversations')
+                .select('id, participant_1_id, participant_2_id')
+                .eq('id', conversation_or_user_id).limit(1).execute()).data or []
+        if rows:
+            convo = rows[0]
+            if user_id not in (convo['participant_1_id'], convo['participant_2_id']):
+                raise ValueError("You are not a participant in this conversation")
+            return convo
+
+        # Participants are stored smallest-uuid-first; see
+        # get_or_create_conversation, which is the only writer of these rows.
+        p1_id, p2_id = sorted([user_id, conversation_or_user_id])
+        rows = (supabase.table('message_conversations')
+                .select('id, participant_1_id, participant_2_id')
+                .eq('participant_1_id', p1_id).eq('participant_2_id', p2_id)
+                .limit(1).execute()).data or []
+        return rows[0] if rows else None
+
     def mark_conversation_read(self, conversation_id: str, user_id: str) -> int:
         """Mark every message this user has received in a thread as read.
 
@@ -663,15 +697,21 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            convo = supabase.table('message_conversations').select(
-                'id, participant_1_id, participant_2_id'
-            ).eq('id', conversation_id).single().execute()
-            if not convo.data:
-                raise ValueError("Conversation not found")
+            # The id in the URL is a conversation id OR the other person's user
+            # id. Every other endpoint on this thread has taken both since the
+            # first one was opened from a contact rather than an existing thread
+            # (see get_conversation_messages), and a user id is what the web
+            # client actually sends: ChatWindow's `conversation.id` comes from
+            # contactToConversation, which carries the contact's id. Reading it
+            # as a conversation id and nothing else made every mark-read a 500,
+            # so unread badges never cleared (OPTIO-BACKEND-7H).
+            convo = self._find_conversation(conversation_id, user_id)
+            if convo is None:
+                # These two have no thread yet -- nothing to mark read.
+                return 0
 
-            is_p1 = convo.data['participant_1_id'] == user_id
-            if not is_p1 and convo.data['participant_2_id'] != user_id:
-                raise ValueError("You are not a participant in this conversation")
+            conversation_id = convo['id']
+            is_p1 = convo['participant_1_id'] == user_id
 
             # One UPDATE ... WHERE, not a read-then-write per row. Scoped to the
             # caller as recipient, so it can only ever clear their own unread.

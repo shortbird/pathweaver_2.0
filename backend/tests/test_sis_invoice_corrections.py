@@ -232,7 +232,10 @@ def _service_with_tables(rows_by_table):
     each instead of the same list every time."""
     def table_for(name):
         table = Mock()
-        for chained in ('select', 'eq', 'in_', 'limit', 'order', 'update', 'insert'):
+        # 'range' is here because the org-wide reads page through
+        # fetch_all_rows; without it page one comes back a bare Mock.
+        for chained in ('select', 'eq', 'in_', 'limit', 'order', 'range',
+                        'update', 'insert'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=list(rows_by_table.get(name, [])))
         return table
@@ -303,3 +306,72 @@ class TestLedgerCarriesItsPayments:
             row = billing.billing_ledger('org1')[0]
         assert row['payments'] == []
         assert row['method'] is None
+
+class _PagedTable:
+    """A table that honours .range(), so a read past the 1000-row response cap
+    comes back short unless the caller pages — which is the whole point."""
+
+    CAP = 1000
+
+    def __init__(self, rows):
+        self._rows = rows
+        self._range = None
+
+    def select(self, *_a, **_k):
+        return self
+
+    def eq(self, *_a, **_k):
+        return self
+
+    def in_(self, *_a, **_k):
+        return self
+
+    def order(self, *_a, **_k):
+        return self
+
+    def limit(self, *_a, **_k):
+        return self
+
+    def range(self, start, end):
+        self._range = (start, end)
+        return self
+
+    def execute(self):
+        if self._range is None:
+            return Mock(data=self._rows[:self.CAP])
+        start, end = self._range
+        return Mock(data=self._rows[start:min(end + 1, start + self.CAP)])
+
+
+@pytest.mark.unit
+class TestLedgerReadsPastTheRowCap:
+    """OPTIO-BACKEND-7F. The ledger read every line item for the org in one
+    request. PostgREST caps a response at 1000 rows and says nothing about it,
+    so once the org crossed the cap the invoices past the cut showed a blank
+    charge description — with nothing in the response to say rows were missing.
+    iCreate was at 1180 line items when the truncation canary caught it."""
+
+    def test_a_line_item_past_the_cap_still_reaches_its_invoice(self):
+        # 1200 line items; the one we care about is row 1150, past the cap.
+        lines = [{'invoice_id': f'inv{i}', 'description': f'Charge {i}'}
+                 for i in range(1200)]
+        invoices = [{'id': f'inv{i}', 'organization_id': 'org1', 'household_id': None,
+                     'student_user_id': None, 'status': 'sent', 'due_date': '2026-08-01',
+                     'total_cents': 100, 'amount_paid_cents': 0,
+                     'processing_fee_cents': 0} for i in range(1200)]
+
+        def table_for(name):
+            if name == 'sis_invoice_line_items':
+                return _PagedTable(lines)
+            return _PagedTable([])
+
+        client = Mock()
+        client.table.side_effect = table_for
+
+        with patch('services.sis_billing_service._admin', return_value=client), \
+                patch('services.sis_billing_service.list_invoices', return_value=invoices), \
+                patch('services.sis_billing_service._users_map', return_value={}):
+            rows = {r['invoice_id']: r for r in billing.billing_ledger('org1')}
+
+        assert rows['inv1150']['description'] == 'Charge 1150'
+
