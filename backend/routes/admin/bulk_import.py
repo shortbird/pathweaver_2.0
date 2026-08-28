@@ -784,3 +784,84 @@ def validate_import_file(current_user_id, current_org_id, is_superadmin, org_id)
         'invalid_rows': invalid_rows,
         'can_import': len(invalid_rows) == 0
     }), 200
+
+
+@bp.route('/<org_id>/users/bulk-reset-passwords', methods=['POST'])
+@require_org_admin
+def bulk_reset_username_passwords(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Regenerate passwords for the org's username-based (no-email) accounts so the
+    admin can print login cards after the creation moment has passed. Passwords
+    are hashed at rest, so a printable sheet is only possible by generating new
+    ones — this resets every account it returns.
+
+    Email-based accounts are never touched: they reset their own passwords, and
+    a silent bulk reset would lock them out.
+
+    Request body:
+        user_ids: list[str] - Optional. Limit to these users; defaults to every
+                              username-based account in the organization.
+
+    Returns:
+        200: {results: [{user_id, name, username, password}], failed: [...]}
+    """
+    from routes.admin.organization_management import generate_simple_password
+    from utils.db_fetch import fetch_all_rows
+
+    try:
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json() or {}
+        requested_ids = data.get('user_ids')
+        if requested_ids is not None and not isinstance(requested_ids, list):
+            return jsonify({'error': 'user_ids must be a list'}), 400
+
+        # admin client justified: admin-only route (@require_org_admin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+
+        query = client.table('users')\
+            .select('id, username, email, first_name, last_name, display_name')\
+            .eq('organization_id', org_id)\
+            .not_.is_('username', 'null')\
+            .is_('email', 'null')
+        if requested_ids:
+            query = query.in_('id', requested_ids)
+        accounts = fetch_all_rows(lambda: query)
+
+        if not accounts:
+            return jsonify({'results': [], 'failed': [],
+                            'message': 'No username-based accounts found'}), 200
+
+        if len(accounts) > 500:
+            return jsonify({'error': 'Too many accounts (max 500 per request)'}), 400
+
+        results = []
+        failed = []
+        for account in accounts:
+            name = f"{account.get('first_name') or ''} {account.get('last_name') or ''}".strip() \
+                or account.get('display_name') or account['username']
+            new_password = generate_simple_password()
+            try:
+                client.auth.admin.update_user_by_id(account['id'], {'password': new_password})
+            except Exception as auth_error:
+                logger.error(f"Bulk password reset failed for user {account['id']} in org {org_id}: {auth_error}")
+                failed.append({'user_id': account['id'], 'name': name,
+                               'username': account['username']})
+                continue
+            results.append({
+                'user_id': account['id'],
+                'name': name,
+                'username': account['username'],
+                'password': new_password
+            })
+
+        logger.info(
+            f"Bulk password reset in org {org_id} by {current_user_id}: "
+            f"{len(results)} reset, {len(failed)} failed"
+        )
+        return jsonify({'results': results, 'failed': failed}), 200
+
+    except Exception as e:
+        logger.error(f"Error bulk-resetting passwords in org {org_id}: {e}")
+        return jsonify({'error': 'Failed to reset passwords'}), 500

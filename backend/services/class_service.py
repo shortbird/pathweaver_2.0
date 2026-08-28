@@ -415,14 +415,17 @@ class ClassService(BaseService):
         if not cls:
             raise NotFoundError(f"Class {class_id} not found")
 
-        xp_threshold = cls.get('xp_threshold', 100)
+        xp_threshold = cls.get('xp_threshold') or 0
 
         # Get earned XP
         earned_xp = self.class_repo.get_student_class_xp(class_id, student_id)
 
-        # Calculate progress
+        # Calculate progress. A class with no threshold (0 or NULL) never
+        # auto-completes: earned_xp >= 0 is vacuously true, which marked every
+        # student 'completed' the moment they were enrolled and left the
+        # active roster showing 0 students.
         percentage = min(100, int((earned_xp / xp_threshold) * 100)) if xp_threshold > 0 else 0
-        is_complete = earned_xp >= xp_threshold
+        is_complete = xp_threshold > 0 and earned_xp >= xp_threshold
 
         return {
             'earned_xp': earned_xp,

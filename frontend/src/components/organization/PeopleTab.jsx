@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState } from 'react'
 import CreateUsernameStudentModal from './CreateUsernameStudentModal'
 import AddPeopleChooser from './AddPeopleChooser'
 import BulkUsernameCreateModal from './BulkUsernameCreateModal'
+import PrintLoginCardsModal from './PrintLoginCardsModal'
 import {
   Modal,
   EditUserModal,
@@ -11,7 +12,7 @@ import {
   AssignStudentsModal,
   AddParentConnectionModal
 } from './people'
-import { UserPlusIcon } from '@heroicons/react/24/outline'
+import { UserPlusIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import usePeopleTabState from '../../hooks/usePeopleTabState'
 
 const BulkUserImport = lazy(() => import('../admin/BulkUserImport'))
@@ -21,6 +22,7 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
   const state = usePeopleTabState({ orgId, orgSlug, users, onUpdate })
   const [showAddPeopleChooser, setShowAddPeopleChooser] = useState(false)
   const [showBulkUsernameModal, setShowBulkUsernameModal] = useState(false)
+  const [showPrintLoginCardsModal, setShowPrintLoginCardsModal] = useState(false)
   const [inviteInitialRole, setInviteInitialRole] = useState('student')
 
   return (
@@ -59,6 +61,14 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
               {state.bulkActionLoading ? 'Removing...' : `Remove ${state.selectedUsers.size} Selected`}
             </button>
           )}
+
+          <button
+            onClick={() => setShowPrintLoginCardsModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 font-medium rounded-lg hover:bg-gray-200"
+          >
+            <PrinterIcon className="w-5 h-5" />
+            Print Login Cards
+          </button>
 
           <button
             onClick={() => setShowAddPeopleChooser(true)}
@@ -162,6 +172,15 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
             state.setConnectionMode(mode)
             state.setShowAddConnectionModal(true)
           }}
+        />
+      )}
+
+      {showPrintLoginCardsModal && (
+        <PrintLoginCardsModal
+          orgId={orgId}
+          orgSlug={orgSlug}
+          orgName={orgName}
+          onClose={() => setShowPrintLoginCardsModal(false)}
         />
       )}
 
