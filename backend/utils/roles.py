@@ -210,10 +210,19 @@ def apply_role_view(user: Dict, user_id: Optional[str] = None) -> Dict:
         return user
     role = view['role']
     real_roles = _real_effective_roles(user)
-    if role not in real_roles and UserRole.SUPERADMIN.value not in real_roles:
+    if not may_view_as(real_roles, role):
         return user
     narrowed = dict(user)
-    if user.get('role') == UserRole.ORG_MANAGED.value:
+    if UserRole.SUPERADMIN.value in real_roles:
+        # A superadmin has no org of their own: the view pins them to the org
+        # they were looking at, shaped exactly like a member of it.
+        if not view.get('organization_id'):
+            return user
+        narrowed['organization_id'] = view['organization_id']
+        narrowed['role'] = UserRole.ORG_MANAGED.value
+        narrowed['org_role'] = role
+        narrowed['org_roles'] = [role]
+    elif user.get('role') == UserRole.ORG_MANAGED.value:
         narrowed['org_role'] = role
         narrowed['org_roles'] = [role]
     else:
@@ -221,6 +230,23 @@ def apply_role_view(user: Dict, user_id: Optional[str] = None) -> Dict:
     if 'is_org_admin' in narrowed:
         narrowed['is_org_admin'] = role == OrgRole.ORG_ADMIN.value
     return narrowed
+
+
+# Roles a session may be narrowed to. Superadmin is never a target (you cannot
+# view your way UP) and org_managed is a container, not a role.
+VIEWABLE_ROLES = VALID_ORG_ROLES | {'student', 'parent', 'advisor', 'observer'}
+
+# The admin tiers may view as ANY role, held or not: an org admin previewing
+# the teacher or family experience of their own school is the point of the
+# feature, and every target is a strictly smaller privilege than their own.
+_VIEW_ANY_ROLES = (UserRole.SUPERADMIN.value, OrgRole.ORG_ADMIN.value)
+
+
+def may_view_as(real_roles, role: str) -> bool:
+    """Whether an account with these real roles may narrow itself to `role`."""
+    if role not in VIEWABLE_ROLES:
+        return False
+    return role in real_roles or any(r in real_roles for r in _VIEW_ANY_ROLES)
 
 
 def get_effective_role(user: Dict) -> str:

@@ -295,15 +295,18 @@ class SessionManager:
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
 
-    def generate_role_view_token(self, user_id: str, role: str) -> str:
-        """Generate a role-view token: this user's session narrowed to ONE of
-        their own roles ("View as teacher"). Privilege can only go down — the
-        role is re-checked against the user's real roles at every application
-        (utils.roles.active_role_view), so a stale or stolen token can never
-        grant a role the account does not hold."""
+    def generate_role_view_token(self, user_id: str, role: str,
+                                 organization_id: Optional[str] = None) -> str:
+        """Generate a role-view token: this user's session narrowed to ONE role
+        ("View as teacher"). Privilege can only go down — the role is re-checked
+        against the user's real roles at every application
+        (utils.roles.apply_role_view), so a stale or stolen token can never
+        grant a role the account does not hold. organization_id pins a
+        superadmin (who has no org of their own) to the org being viewed."""
         payload = {
             'user_id': user_id,
             'act_as_role': role,
+            'organization_id': organization_id,
             'type': 'role_view',
             'version': self.token_version,
             'exp': datetime.now(timezone.utc) + timedelta(hours=12),
@@ -339,7 +342,8 @@ class SessionManager:
         payload = self.verify_role_view_token(token)
         if not payload:
             return None
-        return {'user_id': payload.get('user_id'), 'role': payload.get('act_as_role')}
+        return {'user_id': payload.get('user_id'), 'role': payload.get('act_as_role'),
+                'organization_id': payload.get('organization_id')}
 
     def set_role_view_cookie(self, response, token: str):
         """Set the httpOnly role_view_token cookie (same shape as masquerade)."""

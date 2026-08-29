@@ -81,6 +81,51 @@ def test_cannot_widen_to_a_role_not_held():
         ctx.pop()
 
 
+PLAIN_ADMIN = {'id': 'u-admin', 'role': 'org_managed', 'org_role': 'org_admin',
+               'org_roles': ['org_admin'], 'is_org_admin': True, 'organization_id': 'org-1'}
+SUPER = {'id': 'u-super', 'role': 'superadmin', 'org_role': None, 'org_roles': None,
+         'is_org_admin': False, 'organization_id': None}
+
+
+def test_org_admin_may_view_as_any_role_of_the_school():
+    """An admin previewing the teacher experience holds no advisor role; the
+    admin tier may still step DOWN into any role (never up)."""
+    ctx = _with_view('u-admin', 'advisor')
+    try:
+        assert get_effective_roles(PLAIN_ADMIN) == ['advisor']
+        assert apply_role_view(PLAIN_ADMIN)['is_org_admin'] is False
+        assert has_any_role(PLAIN_ADMIN, ['org_admin']) is False
+    finally:
+        ctx.pop()
+
+
+def test_superadmin_view_is_pinned_to_an_org_and_shaped_like_a_member():
+    ctx = _app.test_request_context('/')
+    ctx.push()
+    g._role_view = {'user_id': 'u-super', 'role': 'advisor', 'organization_id': 'org-9'}
+    try:
+        narrowed = apply_role_view(SUPER)
+        assert narrowed['role'] == 'org_managed'
+        assert narrowed['org_roles'] == ['advisor']
+        assert narrowed['organization_id'] == 'org-9'
+        assert narrowed['is_org_admin'] is False
+        assert get_effective_role(SUPER) == 'advisor'
+        # Without an org the view cannot apply — a superadmin has no org of
+        # their own to fall back to.
+        g._role_view = {'user_id': 'u-super', 'role': 'advisor', 'organization_id': None}
+        assert apply_role_view(SUPER) is SUPER
+    finally:
+        ctx.pop()
+
+
+def test_nobody_views_as_superadmin():
+    ctx = _with_view('u-admin', 'superadmin')
+    try:
+        assert apply_role_view(PLAIN_ADMIN) is PLAIN_ADMIN
+    finally:
+        ctx.pop()
+
+
 def test_id_required_explicit_user_id_narrows_idless_dicts():
     """Auth decorators select only role columns — no id. They pass user_id
     explicitly; without it the dict must stay untouched."""
