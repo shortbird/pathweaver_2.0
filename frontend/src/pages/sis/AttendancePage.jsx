@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
-import { range12h } from '../../utils/timeFormat'
+import { classLabel, meetingText } from '../../components/sis/classLabel'
 import { isSisAdmin } from './sisRole'
 
 /**
@@ -34,22 +34,6 @@ const CARD = {
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const today = () => new Date().toISOString().slice(0, 10)
-
-// "Mon/Wed 09:30–10:30" — all meeting days, times from the first meeting. Same
-// class names repeat across sections (three "Reading Tutoring"s), so every
-// class label carries its schedule.
-const meetingText = (meetings = []) => {
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  if (!meetings.length) return ''
-  const days = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))]
-    .sort().map((d) => DAYS[d]).join('/')
-  const m = meetings[0]
-  return `${days} ${range12h(m.start_time, m.end_time)}`.trim()
-}
-const classLabel = (c) => {
-  const when = meetingText(c.meetings)
-  return when ? `${c.name} — ${when}` : c.name
-}
 
 const AttendancePage = () => {
   const { user } = useAuth()

@@ -88,6 +88,22 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
     try { localStorage.setItem('sis_staff_view', v) } catch { /* ignore */ }
   }
   const navigate = useNavigate()
+  const [resendingId, setResendingId] = useState(null)
+
+  // Row/card-level resend, so chasing a stale invite doesn't mean opening
+  // every person's detail modal one by one.
+  const resendInvite = async (e, s) => {
+    e.stopPropagation()
+    setResendingId(s.id)
+    try {
+      await api.post(`/api/sis/staff/${s.id}/resend-invite`, { organization_id: orgId })
+      toast.success(`Setup email sent to ${s.email}`)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not resend the invite')
+    } finally {
+      setResendingId(null)
+    }
+  }
 
   const openPortalPreview = (s) => {
     setPreviewTeacher(s)
@@ -275,6 +291,15 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
                       {s.login_pending && (
                         <span className="text-xs text-neutral-500">{waitingFor(s.created_at)}</span>
                       )}
+                      {s.login_pending && (
+                        <button
+                          onClick={(e) => resendInvite(e, s)}
+                          disabled={resendingId === s.id}
+                          className="text-xs font-medium text-optio-purple hover:underline disabled:opacity-50"
+                        >
+                          {resendingId === s.id ? 'Sending…' : 'Resend invite'}
+                        </button>
+                      )}
                       {!s.is_placeholder && !s.login_pending && (
                         <span className="text-xs text-neutral-400">Signed in</span>
                       )}
@@ -312,6 +337,9 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
                 {s.email && !s.is_placeholder && (
                   <p className="text-sm text-neutral-500 truncate">{s.email}</p>
                 )}
+                {s.phone_number && (
+                  <p className="text-sm text-neutral-500 truncate">{s.phone_number}</p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
                   {(s.roles || []).map((r) => <RolePill key={r} role={r} />)}
                   {s.staff_type === 'family' && (
@@ -323,6 +351,17 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
                 </div>
                 {s.login_pending && waitingFor(s.created_at) && (
                   <p className="mt-1 text-xs text-neutral-500">{waitingFor(s.created_at)}</p>
+                )}
+                {s.login_pending && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => resendInvite(e, s)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') resendInvite(e, s) }}
+                    className="mt-0.5 text-xs font-medium text-optio-purple hover:underline"
+                  >
+                    {resendingId === s.id ? 'Sending…' : 'Resend invite'}
+                  </span>
                 )}
                 {s.bio && <p className="mt-2 text-sm text-neutral-600 line-clamp-3">{s.bio}</p>}
                 {fmtDate(s.last_active) && (

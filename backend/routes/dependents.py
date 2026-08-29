@@ -174,6 +174,20 @@ def create_dependent(user_id):
         except ValueError:
             raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
 
+        # Same duplicate guard as /add-child: re-adding a kid who already has
+        # an account creates the orphan double the school then has to clean up.
+        parts = display_name.split()
+        dup = _existing_child_match(user_id, parts[0] if parts else display_name,
+                                    ' '.join(parts[1:]), date_of_birth_str)
+        if dup:
+            return jsonify({
+                'success': False,
+                'code': 'duplicate_child',
+                'error': (f'{display_name} already has an account here.'
+                          ' If something about it looks wrong, ask your school to fix'
+                          ' that account instead of adding a second one.'),
+            }), 409
+
         # Create dependent
         # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
@@ -203,6 +217,46 @@ def create_dependent(user_id):
     except Exception as e:
         logger.error(f"Error creating dependent for user {user_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to create dependent profile'}), 500
+
+
+def _existing_child_match(parent_id, first_name, last_name, dob_str):
+    """An existing account that is almost certainly this same child.
+
+    Two signals, either one decides: a child already managed by THIS parent
+    with the same name, or an account in the parent's org matching name AND
+    birth date (a teen with their own login, or a funnel-created sibling).
+    Name matching is case-insensitive.
+    """
+    try:
+        # admin client justified: read-only duplicate probe over the caller's own
+        # children and org, before creating an account on their behalf
+        admin = get_supabase_admin_client()
+        full = f'{first_name} {last_name}'.strip().lower()
+
+        mine = (admin.table('users')
+                .select('id, display_name, first_name, last_name, date_of_birth')
+                .eq('managed_by_parent_id', parent_id).execute()).data or []
+        for u in mine:
+            name = (u.get('display_name')
+                    or f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip().lower()
+            if name == full:
+                return u
+
+        parent = (admin.table('users').select('organization_id')
+                  .eq('id', parent_id).limit(1).execute()).data
+        org_id = parent[0].get('organization_id') if parent else None
+        if org_id and dob_str:
+            rows = (admin.table('users')
+                    .select('id, display_name, first_name, last_name, is_dependent')
+                    .eq('organization_id', org_id)
+                    .eq('date_of_birth', dob_str)
+                    .ilike('first_name', first_name)
+                    .ilike('last_name', last_name).execute()).data or []
+            if rows:
+                return rows[0]
+    except Exception as e:  # noqa: BLE001 — a failed probe must not block adding a child
+        logger.warning(f'Duplicate-child probe failed for parent {parent_id}: {e}')
+    return None
 
 
 @bp.route('/add-child', methods=['POST'])
@@ -242,6 +296,23 @@ def add_child(user_id):
 
         from services import family_student_service
         age = family_student_service.calculate_age(date_of_birth)
+
+        # A parent who registered through the school funnel and then opens the
+        # portal often re-adds the same kid, which mints a second account that
+        # haunts the school's People page as an orphan duplicate (iCreate,
+        # 2026-08-28: "They're showing up twice but not sure why"). Same name
+        # under the same parent, or same name + birth date in the parent's org,
+        # is that kid.
+        dup = _existing_child_match(user_id, first_name, last_name, dob_str)
+        if dup:
+            return jsonify({
+                'success': False,
+                'code': 'duplicate_child',
+                'error': (f'{first_name} already has an account here'
+                          f' ({dup.get("display_name") or "existing profile"}).'
+                          ' If something about it looks wrong, ask your school to fix'
+                          ' that account instead of adding a second one.'),
+            }), 409
 
         if age >= 13:
             # admin client justified: reads the caller's own org to decide whether

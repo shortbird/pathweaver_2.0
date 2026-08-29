@@ -27,11 +27,14 @@ export type ResolvedRoute = {
 const WEB_ONLY_PREFIXES = [
   '/dashboard',
   '/courses',
+  // "/quests" and "/quests/<id>" resolve to the mobile quest screens first
+  // (REMAP + dynamic match below); this prefix only catches deeper sub-paths.
   '/quests',
   '/admin',
   '/advisor',
   '/invitations',
   '/credit-dashboard',
+  '/credit-review',
   // SIS console
   '/attendance',
   '/billing',
@@ -39,6 +42,9 @@ const WEB_ONLY_PREFIXES = [
   '/clp',
   '/community',
   '/directory',
+  // The family portal ("/family/portal", "/family/required-documents") is the
+  // most common notification link for SIS orgs — onboarding + signatures.
+  '/family',
   '/forms',
   '/goals',
   '/inbox',
@@ -57,8 +63,10 @@ const WEB_ONLY_PREFIXES = [
   '/sis',
   '/submissions',
   '/tasks',
+  '/time',
   '/timesheets',
   '/training',
+  '/treehouse',
   '/tuition',
 ];
 
@@ -67,7 +75,10 @@ const WEB_ONLY_PREFIXES = [
 const REMAP: [RegExp, string][] = [
   [/^\/parent-dashboard\/?$/, '/(app)/(tabs)/family'],
   [/^\/feedback\/?$/, '/(app)/(tabs)/feed'],
-  [/^\/connections\/?$/, '/(app)/(tabs)/feed'],
+  // Sub-paths too ("/connections/approvals") — the web page's tabs are all the
+  // same surface from mobile's point of view.
+  [/^\/connections(\/.*)?$/, '/(app)/(tabs)/feed'],
+  [/^\/quests\/?$/, '/(app)/(tabs)/quests'],
   [/^\/observer\/feed\/?$/, '/(app)/(tabs)/feed'],
   [/^\/profile\/?$/, '/(app)/(tabs)/profile'],
   [/^\/journal\/?$/, '/(app)/(tabs)/journal'],
@@ -155,6 +166,11 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   const bountyDetail = path.match(/^\/bounties\/([^/]+)$/);
   if (bountyDetail) return { target: `/(app)/bounties/${bountyDetail[1]}` };
 
+  // Quest detail exists on mobile (app/(app)/quests/[id].tsx) — don't send it
+  // to view-on-web with the rest of the /quests prefix.
+  const questDetail = path.match(/^\/quests\/([^/]+)$/);
+  if (questDetail) return { target: `/(app)/quests/${questDetail[1]}` };
+
   // Parent → kid's quest detail. The web app uses `/parent/quest/<sid>/<qid>`
   // and the mobile app mirrors that path under the (app) group.
   const parentQuest = path.match(/^\/parent\/quest\/([^/]+)\/([^/]+)$/);
@@ -168,9 +184,13 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   // the default surface there).
   if (/^\/parent\/bounties\/?$/.test(path)) return { target: '/(app)/(tabs)/bounties' };
 
-  // Observer accept-invite → mobile observer flow.
+  // Observer accept-invite → mobile observer flow. The mobile screen is
+  // app/(app)/observers/accept.tsx taking ?code= — there is no accept/[code]
+  // route, so the path-segment form 404'd to the unmatched screen.
   const observerAccept = path.match(/^\/observer\/accept\/([^/]+)$/);
-  if (observerAccept) return { target: `/(app)/observers/accept/${observerAccept[1]}` };
+  if (observerAccept) {
+    return { target: '/(app)/observers/accept', params: { code: observerAccept[1] } };
+  }
 
   // Observer → student portfolio.
   const observerStudent = path.match(/^\/observers?\/student\/([^/]+)$/);
@@ -213,6 +233,8 @@ function labelForPrefix(prefix: string): string {
   switch (prefix) {
     case '/dashboard': return 'The dashboard';
     case '/credit-dashboard': return 'The credit dashboard';
+    case '/credit-review': return 'Credit review';
+    case '/family': return 'The family portal';
     case '/courses': return 'Courses';
     case '/quests': return 'Quests';
     case '/admin': return 'The admin panel';

@@ -579,6 +579,18 @@ def add_preset_task(user_id, class_id, quest_id):
     row = admin.table('quest_template_tasks').insert(task).execute().data
     if not row:
         return jsonify({'success': False, 'error': 'Could not add the task.'}), 500
+
+    # Students' task lists are copies taken at enrollment, so without this a
+    # task added after anyone started the quest reached nobody already on it
+    # (Gryffin, 2026-08-28: added a second task, "none of the students got that
+    # task"). resync inserts the new task into every enrollment and reopens
+    # enrollments that had already been completed.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task added but enrollment resync failed for {quest_id}: {e}')
+
     return jsonify({'success': True, 'task': _serialize_task(row[0])})
 
 
@@ -686,6 +698,16 @@ def delete_preset_task(user_id, class_id, quest_id, task_id):
         return jsonify({'success': False, 'error': 'Invalid task id'}), 400
     admin.table('quest_template_tasks').delete() \
         .eq('id', task_id).eq('quest_id', quest_id).execute()
+
+    # Same as add: carry the removal to enrolled students. resync deletes only
+    # rows carrying no completion or evidence — a task somebody already worked
+    # on stays put rather than cascading their work away.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task removed but enrollment resync failed for {quest_id}: {e}')
+
     return jsonify({'success': True})
 
 
@@ -821,7 +843,7 @@ def _student_work(admin, class_row, student_id):
     uq_by_quest = {uq['quest_id']: uq for uq in user_quests}
     uq_ids = [uq['id'] for uq in user_quests]
 
-    tasks, done_ids = [], set()
+    tasks, done_ids, completion_by_task = [], set(), {}
     if uq_ids:
         tasks = (admin.table('user_quest_tasks')
                  .select('id, user_quest_id, title, xp_value, order_index')
@@ -829,9 +851,10 @@ def _student_work(admin, class_row, student_id):
         task_ids = [t['id'] for t in tasks]
         for start in range(0, len(task_ids), 200):
             rows = (admin.table('quest_task_completions')
-                    .select('task_id, completed_at')
+                    .select('id, task_id, completed_at')
                     .in_('task_id', task_ids[start:start + 200]).execute()).data or []
             done_ids.update(r['task_id'] for r in rows)
+            completion_by_task.update({r['task_id']: r['id'] for r in rows})
 
     by_uq = {}
     for t in tasks:
@@ -852,6 +875,10 @@ def _student_work(admin, class_row, student_id):
                 'title': t.get('title'),
                 'xp_value': t.get('xp_value'),
                 'done': t['id'] in done_ids,
+                # Lets the task row link straight to the submission review
+                # (Gryffin, 2026-08-28: "It would be nice to be able to click
+                # on the task to see their submission").
+                'completion_id': completion_by_task.get(t['id']),
             } for t in own],
         })
     return out

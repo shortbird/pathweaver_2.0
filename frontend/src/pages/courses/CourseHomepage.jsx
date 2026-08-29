@@ -13,6 +13,7 @@ import {
   XMarkIcon,
   QuestionMarkCircleIcon,
   PlusIcon,
+  CameraIcon,
   ClipboardDocumentListIcon,
   SparklesIcon,
   TrashIcon,
@@ -271,6 +272,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
   const [uploading, setUploading] = useState(false)
   const [textEvidence, setTextEvidence] = useState('')
   const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
   const pillar = getPillarData(task.pillar)
   const xp = task.xp_value || task.xp_amount || 0
 
@@ -339,8 +341,16 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
       const updated = [...evidenceBlocks, newBlock]
       await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
       setEvidenceBlocks(updated)
+      // Students watched the spinner vanish and could not tell whether the
+      // photo made it, so they re-uploaded or worried they'd lose credit
+      // (Gryffin, 2026-08-28). Say it landed.
+      toast.success(blockType === 'image' ? 'Photo uploaded and saved' : 'File uploaded and saved')
     } catch { toast.error('Upload failed') }
-    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = '' }
+    finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (cameraInputRef.current) cameraInputRef.current.value = ''
+    }
   }
 
   const handleAddText = async () => {
@@ -459,7 +469,19 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors disabled:opacity-50"
                   >
                     <PlusIcon className="w-3.5 h-3.5" />
-                    {uploading ? 'Uploading...' : 'Attach File'}
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                  </button>
+                  {/* capture opens the device camera directly on phones and
+                      tablets; desktop browsers fall back to the file picker
+                      (Gryffin, 2026-08-28: "I expected it to utilize the
+                      camera to take a picture, not upload an image"). */}
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors disabled:opacity-50"
+                  >
+                    <CameraIcon className="w-3.5 h-3.5" />
+                    Take Photo
                   </button>
                   {textEvidence.trim() && (
                     <button
@@ -480,6 +502,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
                 </button>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" onChange={handleFileSelect} className="hidden" />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
             </div>
           )}
 

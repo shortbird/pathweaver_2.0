@@ -51,7 +51,13 @@ def get_user_org_context(user_id: str) -> Dict[str, Any]:
         .limit(1)
         .execute()
     )
-    return resp.data[0] if resp.data else {}
+    if not resp.data:
+        return {}
+    # "View as role" narrows every SIS role decision through this one read:
+    # _user_org_roles and the caller_* helpers all flow from here, so an admin
+    # viewing as teacher IS a teacher to the whole SIS backend.
+    from utils.roles import apply_role_view
+    return apply_role_view(resp.data[0])
 
 
 def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[str]:
@@ -1019,16 +1025,16 @@ def _archived_staff_ids(org_id: str) -> set:
 def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
     """Org staff (org_admin / advisor) with their role labels, for the SIS Staff page."""
     archived = set() if include_archived else _archived_staff_ids(org_id)
-    resp = (
+    # Paged: every org user, and PostgREST truncates at 1000 silently.
+    rows = fetch_all_rows(lambda: (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, phone_number, '
                 'role, org_role, org_roles, last_active, created_at, bio, avatar_url, preferred_name')
         .eq('organization_id', org_id)
-        .execute()
-    )
+    ))
     out = []
     school_account_email = org_messaging_email(org_id)
-    for u in (resp.data or []):
+    for u in rows:
         # The org's messaging identity is infrastructure, not a staff member.
         if u.get('email') == school_account_email:
             continue
@@ -1691,7 +1697,7 @@ def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     return {'email': u['email'], 'email_sent': True}
 
 
-_STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')
+_STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio', 'phone_number')
 
 
 def update_staff_member(org_id: str, staff_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -2217,12 +2223,12 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     user_ids = list({m['user_id'] for m in members})
     users = {}
     if user_ids:
-        rows = (
+        # Paged: household membership grows with the school (rule 10).
+        rows = fetch_all_rows(lambda: (
             _admin().table('users')
             .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url, preferred_name')
             .in_('id', user_ids)
-            .execute()
-        ).data or []
+        ))
         users = {u['id']: u for u in rows}
 
     enrollments = _enrollments_by_student(org_id)
@@ -2283,12 +2289,14 @@ def unassigned_students(org_id: str) -> List[Dict[str, Any]]:
     instead of adding a second copy.
     """
     admin = _admin()
-    users = (
+    # Paged: every org user, and a truncated read here undercounts the
+    # "students not in a family" tile silently (rule 10).
+    users = fetch_all_rows(lambda: (
         admin.table('users')
         .select('id, first_name, last_name, display_name, email, username, '
                 'role, org_role, org_roles, date_of_birth, preferred_name')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+        .eq('organization_id', org_id)
+    ))
     students = [u for u in users if is_student(u)]
     hh_by_user = _household_by_user(org_id)
     enrollments = _enrollments_by_student(org_id)

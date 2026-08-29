@@ -181,6 +181,22 @@ def register_routes(bp):
                 if user_data and user_data.data:
                     response_data = user_data.data
 
+                    # "View as role": narrow the profile the frontend builds its
+                    # chrome from, so the SIS console, nav and guards render the
+                    # viewed role without any per-page wiring. role_view carries
+                    # what the switcher UI needs: what's active and what the
+                    # account really holds.
+                    from utils.roles import apply_role_view, active_role_view, _real_effective_roles
+                    real_roles = _real_effective_roles(response_data)
+                    view = active_role_view()
+                    narrowed = apply_role_view(response_data)
+                    active = (view or {}).get('role') if narrowed is not response_data else None
+                    response_data = narrowed
+                    response_data['role_view'] = {
+                        'active_role': active,
+                        'available_roles': real_roles,
+                    }
+
                     # Include organization data if user has an organization.
                     #
                     # feature_flags used to carry the org's Stripe secret key, so

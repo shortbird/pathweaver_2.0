@@ -506,10 +506,10 @@ class TestMeetingSlot:
         {'label': 'Open studio', 'start': '13:00', 'end': '14:00'},
     ]
 
-    def slot(self, start, end, blocks=None):
+    def slot(self, start, end, blocks=None, **kw):
         return reports._meeting_slot(
             {'start_time': start, 'end_time': end},
-            self.BLOCKS if blocks is None else blocks)
+            self.BLOCKS if blocks is None else blocks, **kw)
 
     def test_one_block(self):
         assert self.slot('10:30', '11:30') == 'Block 2'
@@ -528,6 +528,16 @@ class TestMeetingSlot:
 
     def test_outside_every_block_falls_back_to_times(self):
         assert self.slot('16:00', '17:00') == '4:00pm-5:00pm'
+
+    def test_with_times_appends_the_meeting_times_to_a_block_name(self):
+        """A block name alone means nothing to anyone who hasn't memorized the
+        school's block grid — the master list asks for the times alongside."""
+        assert self.slot('10:30', '11:30', with_times=True) == 'Block 2 (10:30am-11:30am)'
+        assert self.slot('13:00', '14:00', with_times=True) == 'Open studio (1:00pm-2:00pm)'
+        assert self.slot('09:30', '12:30', with_times=True) == 'Blocks 1-3 (9:30am-12:30pm)'
+
+    def test_with_times_does_not_double_up_the_fallback(self):
+        assert self.slot('16:00', '17:00', with_times=True) == '4:00pm-5:00pm'
 
     def test_no_blocks_configured_falls_back_to_times(self):
         assert self.slot('09:30:00', '10:30:00', blocks=[]) == '9:30am-10:30am'
@@ -600,19 +610,22 @@ class TestStudentScheduleReport:
         out = self._run()
         assert [d['label'] for d in out['days']] == ['Tue', 'Wed', 'Thu']
 
-    def test_each_day_cell_names_the_blocks_in_time_order(self):
+    def test_each_day_cell_names_the_blocks_with_times_in_time_order(self):
+        """Cells carry the block name AND the times — iCreate's office reads
+        this list without the block grid in front of them."""
         out = self._run()
         nora = next(r for r in out['rows'] if r['student'] == 'Nora Candland')
-        assert nora['by_day']['2'] == 'Block 1: Pottery; Block 2: Guitar Jam'
+        assert nora['by_day']['2'] == ('Block 1 (9:30am-10:30am): Pottery; '
+                                       'Block 2 (10:30am-11:30am): Guitar Jam')
         assert nora['by_day']['3'] == ''
-        assert nora['by_day']['4'] == 'Block 2: Guitar Jam'
+        assert nora['by_day']['4'] == 'Block 2 (10:30am-11:30am): Guitar Jam'
         assert nora['days'] == 'Tue Thu'
         assert nora['family'] == 'Candland'
 
     def test_a_class_spanning_the_day_reads_as_one_span_skipping_lunch(self):
         out = self._run()
         ryder = next(r for r in out['rows'] if r['student'] == 'Ryder Swenson')
-        assert ryder['by_day']['3'] == 'Blocks 1-5: Full Day'
+        assert ryder['by_day']['3'] == 'Blocks 1-5 (9:30am-3:00pm): Full Day'
         assert ryder['days'] == 'Wed'
 
     def test_an_unscheduled_class_is_reported_not_dropped(self):
@@ -682,7 +695,8 @@ class TestStudentScheduleRoute:
         'has_unscheduled': False,
         'rows': [{'student': 'Nora Candland', 'age': '13', 'family': 'Candland',
                   'days': 'Tue Thu',
-                  'by_day': {'2': 'Block 1: Pottery', '4': 'Block 2: Guitar Jam'},
+                  'by_day': {'2': 'Block 1 (9:30am-10:30am): Pottery',
+                             '4': 'Block 2 (10:30am-11:30am): Guitar Jam'},
                   'unscheduled': ''}],
     }
 
@@ -710,7 +724,9 @@ class TestStudentScheduleRoute:
         assert resp.headers['Content-Disposition'] == 'attachment; filename=student-schedule.csv'
         lines = resp.data.decode().strip().splitlines()
         assert lines[0] == 'Student,Age,Family,Days,Tue,Thu'
-        assert lines[1] == 'Nora Candland,13,Candland,Tue Thu,Block 1: Pottery,Block 2: Guitar Jam'
+        assert lines[1] == ('Nora Candland,13,Candland,Tue Thu,'
+                            'Block 1 (9:30am-10:30am): Pottery,'
+                            'Block 2 (10:30am-11:30am): Guitar Jam')
 
     def test_csv_adds_the_unscheduled_column_only_when_needed(self, client, auth_headers, mock_verify_token):
         rpt = {**self.REPORT, 'has_unscheduled': True,

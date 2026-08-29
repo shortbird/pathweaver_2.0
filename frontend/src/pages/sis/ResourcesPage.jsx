@@ -166,6 +166,12 @@ const ResourcesPage = () => {
                         {r.audience === 'all' ? 'Families + staff' : 'Staff'}
                       </span>
                     )}
+                    {admin && r.pinned && (
+                      <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple"
+                        title="Shown in the Links section on every teacher's home">
+                        Teacher home
+                      </span>
+                    )}
                     {r.requires_ack && (
                       <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
                         Acknowledgment required
@@ -250,6 +256,7 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
     audience: resource?.audience || 'families',
     visible_to_roles: resource?.visible_to_roles || [],
     requires_ack: Boolean(resource?.requires_ack),
+    pinned: Boolean(resource?.pinned),
     reack: false,
   })
   const [uploading, setUploading] = useState(false)
@@ -337,6 +344,13 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
           <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4">
             <input type="checkbox" checked={f.requires_ack} onChange={(e) => set('requires_ack', e.target.checked)} />
             Staff must confirm they&apos;ve read it
+          </label>
+        )}
+        {f.audience !== 'families' && (
+          <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4"
+            title="Shows this link in a Links section on every teacher's home, between Today and My classes.">
+            <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />
+            Pin to teacher home
           </label>
         )}
         {resource && f.requires_ack && (

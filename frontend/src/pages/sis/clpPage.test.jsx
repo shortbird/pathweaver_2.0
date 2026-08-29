@@ -137,6 +137,27 @@ describe('ClpPage', () => {
     expect(screen.getByText('$47.50')).toBeInTheDocument()
   })
 
+  it('puts same-start-time classes on the same row across days', async () => {
+    // Per-day stacks put Tuesday's 10:30 class at a different height than
+    // Monday's 10:30 (iCreate, 2026-08-25) — rows key on the shared start time.
+    STUDENT_PAYLOAD.schedule.push({
+      class_id: 'c6', name: 'Drums', is_enrolled: true, on_waitlist: false,
+      meetings: [{ day_of_week: 2, start_time: '10:30', end_time: '11:30' }],
+    })
+    try {
+      render(<ClpPage />)
+      fireEvent.click(await screen.findByText('Alice Ant'))
+      await screen.findByText('Weekly schedule')
+      // Clay (Mon 10:30) and Drums (Tue 10:30) share the 10:30 row; Art (Mon
+      // 9:00) sits in its own earlier row.
+      expect(screen.getByText('Clay').closest('[data-slot]').getAttribute('data-slot')).toBe('10:30')
+      expect(screen.getByText('Drums').closest('[data-slot]').getAttribute('data-slot')).toBe('10:30')
+      expect(screen.getByText('Art').closest('[data-slot]').getAttribute('data-slot')).toBe('09:00')
+    } finally {
+      STUDENT_PAYLOAD.schedule = STUDENT_PAYLOAD.schedule.filter((c) => c.class_id !== 'c6')
+    }
+  })
+
   it('filters available classes to the student\'s age with an All-ages override', async () => {
     render(<ClpPage />)
     fireEvent.click(await screen.findByText('Alice Ant'))

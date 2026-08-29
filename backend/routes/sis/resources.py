@@ -295,6 +295,7 @@ def create_resource(user_id):
         'paperwork_key': paperwork_key,
         'audience': audience,
         'visible_to_roles': visible_to_roles,
+        'pinned': bool(data.get('pinned')),
         'requires_ack': requires_ack,
         'version_date': datetime.utcnow().isoformat() if requires_ack else None,
         'created_by': user_id,
@@ -355,6 +356,8 @@ def update_resource(user_id, resource_id):
         fields['visible_to_roles'] = visible_to_roles
     if 'requires_ack' in data:
         fields['requires_ack'] = bool(data.get('requires_ack'))
+    if 'pinned' in data:
+        fields['pinned'] = bool(data.get('pinned'))
     # "Everyone must re-read this" — bump the version so prior acks go stale.
     if data.get('reack'):
         fields['version_date'] = datetime.utcnow().isoformat()

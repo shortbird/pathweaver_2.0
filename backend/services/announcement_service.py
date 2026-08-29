@@ -24,7 +24,7 @@ from database import get_supabase_admin_client
 from utils import rich_text
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, get_effective_roles
 
 logger = get_logger(__name__)
 
@@ -157,8 +157,17 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
         _admin().table('users').select('id, role, org_role, org_roles')
         .eq('organization_id', org_id)
     ))
-    students = [m for m in members if get_effective_role(m) == 'student']
-    advisors = [m for m in members if get_effective_role(m) == 'advisor']
+
+    def _roles_of(m):
+        # EVERY role the person holds, not just the primary. get_effective_role
+        # collapses ['campus_coordinator', 'advisor'] to whichever the array
+        # leads with, so anyone whose advisor role was not primary silently
+        # dropped out of teacher sends and the preview count (iCreate,
+        # 2026-08-28: "I selected 6 teachers ... it says 'goes to 5 people'").
+        return set(get_effective_roles(m))
+
+    students = [m for m in members if 'student' in _roles_of(m)]
+    advisors = [m for m in members if 'advisor' in _roles_of(m)]
     # A targeted send narrows to these students; their parents follow from them,
     # so "the parents of the Tuesday choir" needs no separate parent query.
     if student_ids is not None:
@@ -168,8 +177,12 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
     # narrowed students (iCreate, 2026-08-22: "sent a message to just the
     # teachers ... it came through to the parents too" — three of the org's
     # advisors are also parents, and all thirty advisors were messaged).
+    # Somebody the sender picked BY NAME is included even when they hold no
+    # advisor role at all: the staff picker offers coordinators and admins, and
+    # an explicit selection is not a role query (Katrine, 2026-08-28).
     if advisor_ids is not None:
-        advisors = [m for m in advisors if m['id'] in advisor_ids]
+        by_id = {m['id']: m for m in members}
+        advisors = [by_id[i] for i in advisor_ids if i in by_id]
 
     by_role: Dict[str, Set[str]] = {}
     if 'students' in audiences:
@@ -187,10 +200,42 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
                         parents.add(p['id'])
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Could not resolve parents for student {s['id']}: {e}")
+        # The SIS's third parent link: household guardians. A second guardian in
+        # the household of a dependent child has no parent_student_links row and
+        # managed_by_parent_id already names guardian #1, so resolving parents
+        # per student alone skipped them (iCreate, 2026-08-26: "Marika didn't
+        # get it (seems like she should have as a parent?)").
+        parents |= _household_guardians_of([s['id'] for s in students])
         by_role['parents'] = parents
-    for ids in by_role.values():
+    for role, ids in by_role.items():
+        # The author does not notify themselves — unless they were picked by
+        # name, which is an explicit request to be included.
+        if role == 'advisors' and advisor_ids is not None and exclude_user_id in advisor_ids:
+            continue
         ids.discard(exclude_user_id)
     return by_role
+
+
+def _household_guardians_of(student_ids: List[str]) -> Set[str]:
+    """Guardians who share a household with any of these students."""
+    if not student_ids:
+        return set()
+    try:
+        member_rows = fetch_all_rows(lambda: (
+            _admin().table('household_members').select('household_id, user_id')
+            .in_('user_id', student_ids)
+        ))
+        household_ids = list({r['household_id'] for r in member_rows})
+        if not household_ids:
+            return set()
+        guardian_rows = fetch_all_rows(lambda: (
+            _admin().table('household_members').select('user_id, relationship')
+            .in_('household_id', household_ids).eq('relationship', 'guardian')
+        ))
+        return {r['user_id'] for r in guardian_rows if r.get('user_id')}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not resolve household guardians: {e}")
+        return set()
 
 
 def targeted_advisor_ids(org_id: str, class_ids: Optional[List[str]] = None,
@@ -283,6 +328,10 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             'target_audience': (target_label if target_label
                                 else 'everyone' if set(audiences) == ROLE_AUDIENCES
                                 else ','.join(sorted(audiences))),
+            # Targeted rows are visible in the archive only to their snapshot
+            # recipients — the role token in the label must not widen them to
+            # the whole role (see announcements_archive).
+            'is_targeted': bool(target_label),
         }).execute()
         announcement_id = ins.data[0]['id'] if ins.data else None
     except Exception as e:  # noqa: BLE001

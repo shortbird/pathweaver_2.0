@@ -685,13 +685,22 @@ def _minutes(t: Optional[str]) -> Optional[int]:
     return h * 60 + m
 
 
-def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
+def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]],
+                  with_times: bool = False) -> str:
     """Name WHEN a meeting happens, in the school's own vocabulary: the
     teaching block(s) it overlaps ('Block 2'; the block's label when it has
-    one; 'Blocks 1-3' for a span), else the raw times."""
+    one; 'Blocks 1-3' for a span), else the raw times.
+
+    `with_times` appends the meeting's actual times to a block name —
+    'Block 2 (10:30am-11:30am)'. The student-schedule master list wants that:
+    a block name alone means nothing to anyone who hasn't memorized the
+    school's block grid, so its cells always carry the time range. The
+    day-rosters report keeps bare names — each class line there already
+    prints its own times."""
     ms, me = _minutes(meeting.get('start_time')), _minutes(meeting.get('end_time'))
     if ms is None or me is None:
         return ''
+    when = f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
     hits = []
     for n, b in enumerate(blocks or [], start=1):
         bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
@@ -700,15 +709,17 @@ def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
         if ms < be and me > bs:
             hits.append((n, b))
     if not hits:
-        return f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
+        return when
     names = [(b.get('label') or '').strip() or f'Block {n}' for n, b in hits]
-    if len(names) == 1:
-        return names[0]
     numbers = [n for n, _ in hits]
-    if (numbers == list(range(numbers[0], numbers[0] + len(numbers)))
+    if len(names) == 1:
+        label = names[0]
+    elif (numbers == list(range(numbers[0], numbers[0] + len(numbers)))
             and all(not (b.get('label') or '').strip() for _, b in hits)):
-        return f'Blocks {numbers[0]}-{numbers[-1]}'
-    return ' + '.join(names)
+        label = f'Blocks {numbers[0]}-{numbers[-1]}'
+    else:
+        label = ' + '.join(names)
+    return f'{label} ({when})' if with_times else label
 
 
 def student_schedule_report(org_id: str) -> Dict[str, Any]:
@@ -729,7 +740,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
     blocks = teaching_blocks(
         sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
 
-    # class_id -> [(day, minutes-for-sorting, 'Block 2: Pottery')], and apart
+    # class_id -> [(day, minutes-for-sorting, 'Block 2 (10:30am-11:30am): Pottery')], and apart
     # from those the classes with no scheduled meeting at all.
     slots_by_class: Dict[str, List] = {}
     unscheduled_by_class: Dict[str, str] = {}
@@ -740,7 +751,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
             day = m.get('day_of_week')
             if day is None:
                 continue
-            slot = _meeting_slot(m, blocks)
+            slot = _meeting_slot(m, blocks, with_times=True)
             text = f'{slot}: {name}' if slot and name else (slot or name)
             entries.append((day, _minutes(m.get('start_time')) or 0, text))
         if entries:

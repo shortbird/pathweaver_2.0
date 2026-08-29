@@ -6,6 +6,7 @@ import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
 import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
+import RoleViewSwitcher from './RoleViewSwitcher'
 
 /**
  * SIS console sidebar. Distinct from the web platform's Sidebar — this is the
@@ -184,6 +185,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
           Switch to Learning app
         </button>
       </div>
+
+      <RoleViewSwitcher user={user} />
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {NAV_SECTIONS.map((section) => {

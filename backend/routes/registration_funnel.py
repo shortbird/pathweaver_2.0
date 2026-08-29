@@ -529,7 +529,14 @@ def _create_dependent(admin, parent_id, org_id, first, last, dob):
         'is_dependent': True,
         'managed_by_parent_id': parent_id,
         'promotion_eligible_at': str(dob + relativedelta(years=13)) if dob else None,
-        'role': 'student',
+        # Full org-student shape, matching _create_org_student and
+        # DependentRepository.create_dependent. role='student' with no org_role
+        # is the exact shape 20260826110000_normalize_org_student_roles.sql had
+        # to clean up — org_role-only queries skip such accounts and the
+        # school's student counts drift apart again with every registration.
+        'role': 'org_managed',
+        'org_role': 'student',
+        'org_roles': ['student'],
         'email': None,
         'organization_id': org_id,
     }
@@ -612,7 +619,7 @@ def _org_stripe_enabled(org_id):
 
 
 def _parent_row(admin, parent_id):
-    r = admin.table('users').select('id, email, first_name, last_name, avatar_url').eq('id', parent_id).maybe_single().execute()
+    r = admin.table('users').select('id, email, first_name, last_name, avatar_url, phone_number').eq('id', parent_id).maybe_single().execute()
     return (r.data if r else None) or {}
 
 
@@ -1068,6 +1075,17 @@ def submit_family(reg_id):
         return jsonify({'error': 'A phone number is required'}), 400
     if not address['address_line1'] or not address['city'] or not address['state'] or not address['postal_code']:
         return jsonify({'error': 'Street address, city, state, and ZIP are required'}), 400
+
+    # The number also belongs on the parent's own record: the People page and
+    # staff exports read users.phone_number, and writing only households.phone
+    # left every funnel-registered parent looking phoneless there (iCreate,
+    # 2026-08-28: "Are we still not capturing phone numbers?"). Fill, never
+    # clobber — staff may have typed a corrected number by hand.
+    try:
+        if phone and not (parent.get('phone_number') or '').strip():
+            admin.table('users').update({'phone_number': phone}).eq('id', parent_id).execute()
+    except Exception as e:  # noqa: BLE001 — registration must not fail over this
+        logger.warning(f'Could not copy registration phone to parent {parent_id}: {e}')
 
     # Validate kids up front so we don't create half the family on bad input.
     raw_kids = body.get('kids') or []

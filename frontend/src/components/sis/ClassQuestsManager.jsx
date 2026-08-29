@@ -52,6 +52,7 @@ function PresetTaskManager({ classId, questId }) {
       const { data } = await api.post(base, draft)
       setTasks((prev) => [...prev, data.task])
       setDraft(blankTask())
+      toast.success('Task added and sent to every student on this quest')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not add the task')
     } finally {

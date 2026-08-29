@@ -22,6 +22,7 @@ from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.sis_roles import STAFF_ROLES
 from utils.storage_urls import sign_in_place
+from services.portfolio_service import PortfolioService
 
 logger = get_logger(__name__)
 
@@ -286,13 +287,13 @@ def list_submissions(user_id):
         })
 
     # Photos and student work both live in private buckets. One batch per
-    # bucket for the whole page of submissions.
+    # bucket for the whole page of submissions. Evidence URLs live in THREE
+    # places (block row, content, and every entry of content.items — where the
+    # editor puts all current image uploads), so use the canonical helper;
+    # signing only content's top level shipped teachers broken images
+    # (Gryffin, 2026-08-28).
     sign_in_place([i['student'] for i in items], ['avatar_url'])
-    sign_in_place(
-        [b['content'] for i in items for b in i['evidence_blocks']
-         if isinstance(b.get('content'), dict)],
-        ['url', 'thumbnail_url'],
-    )
+    PortfolioService().sign_evidence_blocks_on(items, key='evidence_blocks')
 
     return jsonify({'success': True, 'submissions': items, 'counts': counts,
                     'total': total, 'limit': limit, 'offset': offset})

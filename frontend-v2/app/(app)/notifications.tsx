@@ -61,17 +61,24 @@ function NotificationCard({
   onDelete,
 }: {
   notification: any;
-  onPress: () => void;
+  /** Resolves true when the tap navigated; false means expand in place. */
+  onPress: () => Promise<boolean>;
   onDelete: () => void;
 }) {
   const c = useThemeColors();
   const icon = getIcon(notification.type, c.textMuted);
-  const isAnnouncement = notification.type === 'announcement';
   const fullContent = notification.metadata?.full_content;
   const [expanded, setExpanded] = useState(false);
 
+  const handleCardPress = async () => {
+    const navigated = await onPress();
+    // Nowhere to go (no link, or a link that resolves back to this screen):
+    // the tap shows the whole notification instead of a phantom "refresh".
+    if (!navigated) setExpanded(e => !e);
+  };
+
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={handleCardPress}>
       <Card
         variant={notification.is_read ? 'filled' : 'elevated'}
         size="sm"
@@ -112,15 +119,17 @@ function NotificationCard({
               </UIText>
             )}
 
-            {/* Expandable announcement content */}
-            {isAnnouncement && fullContent && (
+            {/* Expandable full content (announcements carry the whole text in
+                metadata.full_content; the message itself un-truncates via
+                numberOfLines above) */}
+            {fullContent && (
               <Pressable onPress={(e) => { e.stopPropagation?.(); setExpanded(!expanded); }}>
                 <UIText size="xs" className="text-optio-purple font-poppins-medium mt-1">
                   {expanded ? 'Show less' : 'Read more'}
                 </UIText>
               </Pressable>
             )}
-            {isAnnouncement && fullContent && expanded && (
+            {fullContent && expanded && (
               <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-2">
                 {fullContent}
               </UIText>
@@ -182,7 +191,9 @@ export default function NotificationsScreen() {
     setRefreshing(false);
   }, [refetch, filter]);
 
-  const handlePress = useCallback(async (notification: any) => {
+  // Returns true when the tap navigated somewhere; false tells the card to
+  // expand in place instead.
+  const handlePress = useCallback(async (notification: any): Promise<boolean> => {
     if (!notification.is_read) {
       await markRead(notification.id);
     }
@@ -191,19 +202,27 @@ export default function NotificationsScreen() {
     // routes. The old code just prepended "/(app)" to the raw link, producing
     // non-existent paths like "/(app)/communication" → the "Unmatched Route"
     // (optio:///) screen for anything that isn't already a 1:1 mobile path.
-    if (notification.link) {
-      const resolved = resolveDeepLink(notification.link);
-      const target = resolved?.target ?? '/(app)/notifications';
-      try {
-        if (resolved?.params) {
-          router.push({ pathname: target as any, params: resolved.params });
-        } else {
-          router.push(target as any);
-        }
-      } catch {
-        // Invalid route, just stay on page
-      }
+    const resolved = resolveDeepLink(notification.link);
+    // No link, or a link whose only resolution is the notifications list itself
+    // (the unrecognised-link fallback): we're already here, and pushing this
+    // screen onto itself reads as a broken refresh (loading skeletons, scroll
+    // reset). Expand the card instead.
+    if (!resolved || resolved.target === '/(app)/notifications') {
+      return false;
     }
+    try {
+      // router.navigate, not push — reuses the route if it's already in the
+      // stack instead of stacking a duplicate on repeated taps (same rationale
+      // as the push-notification handler in _layout.tsx).
+      if (resolved.params) {
+        router.navigate({ pathname: resolved.target as any, params: resolved.params });
+      } else {
+        router.navigate(resolved.target as any);
+      }
+    } catch {
+      // Invalid route, just stay on page
+    }
+    return true;
   }, [markRead]);
 
   const handleBroadcast = useCallback(async () => {

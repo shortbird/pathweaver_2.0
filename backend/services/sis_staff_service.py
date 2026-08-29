@@ -410,6 +410,22 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     # signing call for the list; external links pass through.
     sign_in_place(staff_resources, ['url'])
 
+    # Pinned links: the school's permanent teacher links (iCreate 2026-08-28),
+    # rendered as their own section between Today and My classes. Same
+    # audience/role visibility rules as the library.
+    pinned_links = [
+        {'id': r['id'], 'title': r['title'], 'url': r.get('url'),
+         'description': r.get('description')}
+        for r in sis_service.filter_role_visible(user_id, (
+            _admin().table('org_resources')
+            .select('id, title, url, description, audience, visible_to_roles')
+            .eq('organization_id', org_id).eq('pinned', True)
+            .in_('audience', ['staff', 'all'])
+            .order('sort_order').order('title').execute()
+        ).data or [])
+    ]
+    sign_in_place(pinned_links, ['url'])
+
     return {
         # Before the first day of school the daily schedule stays empty — weekly
         # meeting patterns exist in the catalog but classes haven't started yet.
@@ -423,6 +439,7 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'pending_acks': pending_acks,
         'recent_forms': forms,
         'staff_resources': staff_resources,
+        'pinned_links': pinned_links,
     }
 
 
@@ -983,6 +1000,14 @@ def _detach_from_classes(preview: Dict[str, Any], staff_id: str) -> None:
         remaining = [a for a in (c.get('assistant_instructor_ids') or []) if a != staff_id]
         _admin().table('org_classes').update(
             {'assistant_instructor_ids': remaining}).eq('id', c['id']).execute()
+    # The third teacher link: class_advisors rows keep the person a teacher of
+    # the class (targeting, class scope) even after both columns above are
+    # cleared. Departing staff must not keep receiving class sends.
+    try:
+        _admin().table('class_advisors').update({'is_active': False})\
+            .eq('advisor_id', staff_id).eq('is_active', True).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not deactivate class_advisors for {staff_id}: {e}')
 
 
 def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:

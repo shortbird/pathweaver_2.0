@@ -115,7 +115,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
   const { today = [], classes = [], profile = {}, open_time_entry: openEntry,
     onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
-    staff_resources: staffResources = [] } = data
+    staff_resources: staffResources = [], pinned_links: pinnedLinks = [] } = data
 
   const todayClasses = today.filter((i) => i.kind === 'class')
 
@@ -284,6 +284,24 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           )}
         </div>
       </div>
+
+      {/* Permanent links the school pins for its teachers (Resources page,
+          "Pin to teacher home"). Sits between Today and My classes by request
+          (iCreate 2026-08-28) — documents and forms teachers always need. */}
+      {pinnedLinks.length > 0 && (
+        <Card title="Links"
+          action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
+          <div className="flex flex-wrap gap-2">
+            {pinnedLinks.map((l) => (
+              <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                title={l.description || undefined}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-optio-purple hover:border-optio-purple/50 hover:bg-optio-purple/5 transition-colors">
+                {l.title}
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* My classes — the core of the portal */}
       {/* Every class, not the first six. A teacher with seven classes had to

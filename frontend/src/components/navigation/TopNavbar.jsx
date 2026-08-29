@@ -6,6 +6,7 @@ import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
 import { getPostLoginPath } from '../../utils/postLoginPath'
+import { exitRoleView } from '../sis/RoleViewSwitcher'
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navRef = useRef(null)
@@ -226,6 +227,21 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                         >
                           {accountItem.label}
                         </Link>
+                      )}
+                      {/* Way back from "view as parent/student": that view
+                          lands here on the learning app, where the SIS
+                          sidebar's switcher isn't visible. */}
+                      {user?.role_view?.active_role && (
+                        <button
+                          role="menuitem"
+                          onClick={async () => {
+                            setMenuOpen(false)
+                            try { await exitRoleView() } catch { /* reload anyway */ }
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm font-poppins text-optio-purple hover:bg-neutral-50 transition-colors"
+                        >
+                          Exit “{user.role_view.active_role === 'advisor' ? 'teacher' : user.role_view.active_role.replace('_', ' ')}” view
+                        </button>
                       )}
                       <button
                         role="menuitem"

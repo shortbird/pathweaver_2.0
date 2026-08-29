@@ -258,9 +258,22 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
                     <span className={t.done ? 'text-green-600' : 'text-neutral-300'}>
                       {t.done ? '✓' : '○'}
                     </span>
-                    <span className={t.done ? 'text-neutral-500 line-through' : 'text-neutral-700'}>
-                      {t.title}
-                    </span>
+                    {/* A finished task links straight to its submission review
+                        (Gryffin, 2026-08-28: "click on the task to see their
+                        submission"). */}
+                    {t.done && t.completion_id ? (
+                      <Link
+                        to={`/submissions?class_id=${classId}&completion_id=${t.completion_id}`}
+                        className="text-neutral-500 line-through hover:text-optio-purple hover:no-underline"
+                        title="See the submission"
+                      >
+                        {t.title}
+                      </Link>
+                    ) : (
+                      <span className={t.done ? 'text-neutral-500 line-through' : 'text-neutral-700'}>
+                        {t.title}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

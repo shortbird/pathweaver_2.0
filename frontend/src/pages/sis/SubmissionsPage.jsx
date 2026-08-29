@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
@@ -7,6 +7,7 @@ import { getPillarName } from '../../utils/pillarMappings'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { classLabel } from '../../components/sis/classLabel'
 import CreditFeedbackThread from '../../components/credit/CreditFeedbackThread'
 
 /**
@@ -196,6 +197,10 @@ const SubmissionsPage = () => {
   // 2026-08-27: "a submissions tab should be under student progress. It is hard
   // to figure out where to find that").
   const [classId, setClassId] = useState(searchParams.get('class_id') || '')
+  // Deep link from a task row in Student Progress: open THIS submission. The
+  // completion may already be reviewed, so if the New list doesn't hold it we
+  // flip to Reviewed once before giving up.
+  const targetCompletion = useRef(searchParams.get('completion_id') || null)
   const [classes, setClasses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [counts, setCounts] = useState({ new: 0, reviewed: 0 })
@@ -218,6 +223,17 @@ const SubmissionsPage = () => {
         const list = r.data?.submissions || []
         setSubmissions(list)
         setCounts(r.data?.counts || { new: 0, reviewed: 0 })
+        const target = targetCompletion.current
+        if (target && list.some((s) => s.completion_id === target)) {
+          targetCompletion.current = null
+          setSelectedId(target)
+          return
+        }
+        if (target && scope === 'new') {
+          setScope('reviewed') // re-runs load; target found there or dropped below
+          return
+        }
+        targetCompletion.current = null
         setSelectedId((prev) =>
           list.some((s) => s.completion_id === prev) ? prev : (list[0]?.completion_id || null))
       })
@@ -326,7 +342,7 @@ const SubmissionsPage = () => {
           onChange={setClassId}
           options={classOptions}
           getId={(c) => c.id}
-          getLabel={(c) => c.name}
+          getLabel={classLabel}
           placeholder="Filter by class…"
         />
       </div>

@@ -160,7 +160,9 @@ function ShoutoutItem({ item }: { item: FeedItem }) {
   );
 }
 
-function LostFoundItem({ item }: { item: FeedItem }) {
+/** One lost & found card. Exported for the hub's "Lost & found" chip modal,
+ *  which lists the same feed items outside the merged stream. */
+export function LostFoundItem({ item }: { item: FeedItem }) {
   const d = item.data;
   return (
     <View testID={`feed-${item.key}`} className={`p-3.5 flex-row gap-3 ${itemCard}`}>

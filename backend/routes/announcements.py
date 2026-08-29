@@ -166,10 +166,18 @@ def list_announcements(user_id):
                     'last_nudged_at, source_announcement_id')\
             .eq('organization_id', org_id)
         if audience_token:
-            query = query.or_(
-                f'target_audience.eq.everyone,'
-                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%'
-            )
+            # Targeted sends are snapshot-only, same as the archive: the role
+            # token inside "parents (1 class)" must not widen a narrowed send
+            # to every parent in the org.
+            clauses = [
+                'target_audience.eq.everyone',
+                f'and(target_audience.ilike.%{pgrst_pattern(audience_token)}%,'
+                f'is_targeted.eq.false)',
+            ]
+            received = _received_announcement_ids(admin, user_id)
+            if received:
+                clauses.append(f'id.in.({",".join(received)})')
+            query = query.or_(','.join(clauses))
         rows = query.order('created_at', desc=True).limit(50).execute()
         announcements = [
             {**row, 'content': row.get('message')}
@@ -558,9 +566,15 @@ def announcements_archive(user_id):
         if request.args.get('family_view') in ('1', 'true', 'yes'):
             audience_token = _family_audience_token(user_row) or audience_token
         if audience_token:
+            # The role token matches only UNTARGETED sends: "parents (1 class;
+            # ages 15+)" contains 'parents', and without the is_targeted guard
+            # every parent in the org read a one-class notice in their archive
+            # (iCreate, 2026-08-26). Targeted rows reach exactly their snapshot
+            # recipients through the id list below.
             clauses = [
                 'target_audience.eq.everyone',
-                f'target_audience.ilike.%{pgrst_pattern(audience_token)}%',
+                f'and(target_audience.ilike.%{pgrst_pattern(audience_token)}%,'
+                f'is_targeted.eq.false)',
             ]
             # ...plus anything actually addressed to them, which the role label
             # alone cannot express for a narrowed send.

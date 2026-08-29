@@ -295,6 +295,87 @@ class SessionManager:
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
 
+    def generate_role_view_token(self, user_id: str, role: str) -> str:
+        """Generate a role-view token: this user's session narrowed to ONE of
+        their own roles ("View as teacher"). Privilege can only go down — the
+        role is re-checked against the user's real roles at every application
+        (utils.roles.active_role_view), so a stale or stolen token can never
+        grant a role the account does not hold."""
+        payload = {
+            'user_id': user_id,
+            'act_as_role': role,
+            'type': 'role_view',
+            'version': self.token_version,
+            'exp': datetime.now(timezone.utc) + timedelta(hours=12),
+            'iat': datetime.now(timezone.utc),
+        }
+        return jwt.encode(payload, self.secret_key, algorithm='HS256')
+
+    def verify_role_view_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verify and decode a role-view token (supports graceful key rotation)."""
+        for key in filter(None, (self.secret_key, self.previous_secret_key)):
+            try:
+                payload = jwt.decode(token, key, algorithms=['HS256'])
+                if payload.get('type') == 'role_view':
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                continue
+        return None
+
+    def get_role_view(self) -> Optional[Dict[str, str]]:
+        """The active role view on this request: {'user_id', 'role'} or None.
+
+        Reads the X-Role-View header first (header-auth fallback browsers),
+        then the httpOnly role_view_token cookie. Verification only — whether
+        the view applies to a given user dict is decided in utils.roles with
+        the id match and the real-roles re-check.
+        """
+        try:
+            token = request.headers.get('X-Role-View') or request.cookies.get('role_view_token')
+        except RuntimeError:
+            return None
+        if not token:
+            return None
+        payload = self.verify_role_view_token(token)
+        if not payload:
+            return None
+        return {'user_id': payload.get('user_id'), 'role': payload.get('act_as_role')}
+
+    def set_role_view_cookie(self, response, token: str):
+        """Set the httpOnly role_view_token cookie (same shape as masquerade)."""
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            cookie_kwargs['domain'] = self.cookie_domain
+        response.set_cookie('role_view_token', token,
+                            max_age=int(timedelta(hours=12).total_seconds()),
+                            **cookie_kwargs)
+        return response
+
+    def clear_role_view_cookie(self, response):
+        """Clear only the role_view_token cookie."""
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'expires': 0,
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            domain_kwargs = cookie_kwargs.copy()
+            domain_kwargs['domain'] = self.cookie_domain
+            response.set_cookie('role_view_token', '', **domain_kwargs)
+        response.set_cookie('role_view_token', '', **cookie_kwargs)
+        return response
+
     def generate_acting_as_token(self, parent_id: str, dependent_id: str) -> str:
         """Generate a JWT acting-as token (parent acting as dependent)"""
         payload = {
@@ -656,11 +737,13 @@ class SessionManager:
             response.set_cookie('access_token', '', **cookie_kwargs_with_domain)
             response.set_cookie('refresh_token', '', **cookie_kwargs_with_domain)
             response.set_cookie('masquerade_token', '', **cookie_kwargs_with_domain)
+            response.set_cookie('role_view_token', '', **cookie_kwargs_with_domain)
 
         # Then clear without domain (for current hostname)
         response.set_cookie('access_token', '', **cookie_kwargs)
         response.set_cookie('refresh_token', '', **cookie_kwargs)
         response.set_cookie('masquerade_token', '', **cookie_kwargs)
+        response.set_cookie('role_view_token', '', **cookie_kwargs)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
         domain_info = f", domain={self.cookie_domain}" if self.cookie_domain else ""

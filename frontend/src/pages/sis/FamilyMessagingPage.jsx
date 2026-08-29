@@ -12,6 +12,7 @@ import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { classLabel } from '../../components/sis/classLabel'
 
 /**
  * Compose an announcement to families/students/advisors. Reuses the existing
@@ -43,10 +44,13 @@ const AUDIENCES = [
   { key: 'advisors', label: 'Teachers', hint: 'Staff who teach them' },
 ]
 
-/** One chip list backed by the platform's type-to-filter combobox. */
-const Picker = ({ label, options, chosen, setChosen, getLabel, placeholder }) => {
+/** One chip list backed by the platform's type-to-filter combobox.
+ * `getChipLabel` (optional) shortens the chosen chips when the dropdown label
+ * carries disambiguating detail the chip doesn't need. */
+const Picker = ({ label, options, chosen, setChosen, getLabel, getChipLabel, placeholder }) => {
   const byId = new Map(options.map((o) => [o.id, o]))
   const remaining = options.filter((o) => !chosen.includes(o.id))
+  const chipLabel = getChipLabel || getLabel
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -68,7 +72,7 @@ const Picker = ({ label, options, chosen, setChosen, getLabel, placeholder }) =>
             <button key={id} onClick={() => setChosen(chosen.filter((x) => x !== id))}
               className="px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple text-xs hover:bg-optio-purple/20"
               title="Remove">
-              {byId.get(id) ? getLabel(byId.get(id)) : id} ×
+              {byId.get(id) ? chipLabel(byId.get(id)) : id} ×
             </button>
           ))}
         </div>
@@ -279,8 +283,10 @@ const FamilyMessagingPage = () => {
             ) : null}
           </div>
 
+          {/* Options carry the meeting day/time — same class names repeat
+              across sections; chips stay short (name only). */}
           <Picker label="Classes" options={classes} chosen={classIds} setChosen={setClassIds}
-            getLabel={(c) => c.name} placeholder="Add a class…" />
+            getLabel={classLabel} getChipLabel={(c) => c.name} placeholder="Add a class…" />
           {admin && (
             <Picker label="Teachers" options={teachers} chosen={teacherIds} setChosen={setTeacherIds}
               getLabel={(t) => t.name || t.display_name || t.email} placeholder="Add a teacher…" />

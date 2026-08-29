@@ -19,6 +19,9 @@ describe('resolveDeepLink', () => {
   it('maps observer legacy routes to feed tab', () => {
     expect(resolveDeepLink('/feedback')?.target).toBe('/(app)/(tabs)/feed');
     expect(resolveDeepLink('/connections')?.target).toBe('/(app)/(tabs)/feed');
+    // Sub-paths of /connections are the same web surface — approvals links
+    // used to fall through to the notifications-list fallback.
+    expect(resolveDeepLink('/connections/approvals')?.target).toBe('/(app)/(tabs)/feed');
     expect(resolveDeepLink('/observer/feed')?.target).toBe('/(app)/(tabs)/feed');
   });
 
@@ -54,10 +57,17 @@ describe('resolveDeepLink', () => {
   });
 
   it('routes web-only prefixes to view-on-web with params', () => {
-    const resolved = resolveDeepLink('/quests/quest-id');
+    const resolved = resolveDeepLink('/courses/course-id');
     expect(resolved?.target).toBe('/(app)/view-on-web');
-    expect(resolved?.params?.path).toBe('/quests/quest-id');
-    expect(resolved?.params?.label).toBe('Quests');
+    expect(resolved?.params?.path).toBe('/courses/course-id');
+    expect(resolved?.params?.label).toBe('Courses');
+  });
+
+  it('routes quest links to the mobile quest screens, not view-on-web', () => {
+    // Mobile HAS quest screens (app/(app)/(tabs)/quests.tsx and
+    // app/(app)/quests/[id].tsx) — these were wrongly treated web-only.
+    expect(resolveDeepLink('/quests')?.target).toBe('/(app)/(tabs)/quests');
+    expect(resolveDeepLink('/quests/abc-123')?.target).toBe('/(app)/quests/abc-123');
   });
 
   it('routes /courses, /admin, /advisor, /dashboard to view-on-web', () => {
@@ -122,6 +132,27 @@ describe('resolveDeepLink', () => {
     }
   });
 
+  it('routes the family portal and the other missed SIS surfaces to view-on-web', () => {
+    // The most common SIS-org notification links (onboarding + signature
+    // reminders) point at the family portal; these all fell through to the
+    // notifications-list fallback before.
+    const portal = resolveDeepLink('/family/portal');
+    expect(portal?.target).toBe('/(app)/view-on-web');
+    expect(portal?.params?.path).toBe('/family/portal');
+    expect(portal?.params?.label).toBe('The family portal');
+    for (const link of ['/family/required-documents', '/time', '/treehouse/facilitator', '/credit-review']) {
+      expect(resolveDeepLink(link)?.target).toBe('/(app)/view-on-web');
+    }
+  });
+
+  it('routes the observer accept link to the ?code= screen, not a dead path segment', () => {
+    // The mobile screen is app/(app)/observers/accept.tsx taking ?code= —
+    // there is no accept/[code].tsx, so the old path-segment target 404'd.
+    const resolved = resolveDeepLink('/observer/accept/xyz');
+    expect(resolved?.target).toBe('/(app)/observers/accept');
+    expect(resolved?.params?.code).toBe('xyz');
+  });
+
   it('passes already-qualified mobile routes through verbatim', () => {
     expect(resolveDeepLink('/(app)/(tabs)/family?student=s1')?.target).toBe(
       '/(app)/(tabs)/family?student=s1',
@@ -135,8 +166,8 @@ describe('resolveDeepLink', () => {
   });
 
   it('keeps the query string in the view-on-web path param', () => {
-    const resolved = resolveDeepLink('/quests/q1?task=t1');
+    const resolved = resolveDeepLink('/courses/c1?lesson=l1');
     expect(resolved?.target).toBe('/(app)/view-on-web');
-    expect(resolved?.params?.path).toBe('/quests/q1?task=t1');
+    expect(resolved?.params?.path).toBe('/courses/c1?lesson=l1');
   });
 });

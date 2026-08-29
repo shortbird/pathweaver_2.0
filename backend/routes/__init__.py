@@ -177,6 +177,8 @@ def register_all(app):
     app.register_blueprint(advisor_management.bp)
     app.register_blueprint(parent_connections.bp)
     app.register_blueprint(masquerade.masquerade_bp)
+    from routes.role_view import role_view_bp
+    app.register_blueprint(role_view_bp)
     app.register_blueprint(course_import.bp)
     app.register_blueprint(curriculum_upload.bp)
     app.register_blueprint(curriculum_generate.bp)
