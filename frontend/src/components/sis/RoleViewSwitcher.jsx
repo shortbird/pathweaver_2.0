@@ -73,34 +73,29 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
     }
   }
 
-  const btn = (selected) => `px-2 py-1 rounded text-xs font-medium ${
-    selected
-      ? 'bg-optio-purple text-white'
-      : 'text-neutral-600 hover:bg-white border border-transparent hover:border-gray-200'
-  }`
-
   return (
     <div className="px-3 pt-3">
-      <div className="rounded-lg border border-gray-200 bg-neutral-50 p-2">
-        <p className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+      <label className="block">
+        <span className="block px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
           Viewing as
-        </p>
-        <div className="flex flex-wrap gap-1">
-          <button onClick={() => active && pick(null)} disabled={busy} className={btn(!active)}>
-            {resetLabel}
-          </button>
+        </span>
+        <select
+          value={active || ''}
+          disabled={busy}
+          onChange={(e) => pick(e.target.value || null)}
+          className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50"
+        >
+          <option value="">{resetLabel}</option>
           {options.map((r) => (
-            <button key={r} onClick={() => active !== r && pick(r)} disabled={busy} className={btn(active === r)}>
-              {ROLE_LABELS[r]}
-            </button>
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
           ))}
-        </div>
-        {active && (
-          <p className="px-1 pt-1.5 text-[11px] text-neutral-500">
-            The whole platform behaves as if this were your only role.
-          </p>
-        )}
-      </div>
+        </select>
+      </label>
+      {active && (
+        <p className="px-1 pt-1 text-[11px] text-neutral-500">
+          The whole platform behaves as if this were your only role.
+        </p>
+      )}
     </div>
   )
 }
