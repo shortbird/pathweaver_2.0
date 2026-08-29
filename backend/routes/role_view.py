@@ -18,7 +18,8 @@ every request, so the token can only ever narrow, never widen.
 from flask import Blueprint, jsonify, make_response, request
 
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, require_real_identity
+from utils.db_fetch import fetch_all_rows
 from utils.roles import _real_effective_roles, may_view_as, VIEWABLE_ROLES
 from utils.session_manager import session_manager
 from utils.logger import get_logger
@@ -26,6 +27,54 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 role_view_bp = Blueprint('role_view', __name__, url_prefix='/api/role-view')
+
+
+@role_view_bp.route('/people', methods=['GET'])
+@require_real_identity
+def people_in_role(user_id):
+    """The members of a school who hold a role — the "specific person" list
+    behind the switcher, so an admin can open a teacher's or a family's actual
+    setup rather than a generic empty view. Resolved on the REAL caller (it is
+    reachable from inside a narrowed view or a masquerade): superadmin for any
+    org, org admin for their own. Admin-tier accounts are never listed — the
+    masquerade rule refuses them as targets.
+
+    Query: role, organization_id (superadmin only; ignored for others).
+    """
+    role = (request.args.get('role') or '').strip()
+    if role not in VIEWABLE_ROLES:
+        return jsonify({'success': False, 'error': 'Unknown role'}), 400
+    # admin client justified: reads the caller's own row, then org members' names/roles for a picker; org pinned below
+    admin = get_supabase_admin_client()
+    me = (admin.table('users').select('id, role, org_role, org_roles, organization_id')
+          .eq('id', user_id).limit(1).execute()).data
+    if not me:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    real = _real_effective_roles(me[0])
+    if 'superadmin' in real:
+        org_id = (request.args.get('organization_id') or '').strip() or None
+    elif 'org_admin' in real:
+        org_id = me[0].get('organization_id')
+    else:
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    if not org_id:
+        return jsonify({'success': False, 'error': 'Pick a school first'}), 400
+
+    rows = fetch_all_rows(lambda: (
+        admin.table('users')
+        .select('id, first_name, last_name, display_name, role, org_role, org_roles, email')
+        .eq('organization_id', org_id)
+    ))
+    people = []
+    for u in rows:
+        roles = set(_real_effective_roles(u))
+        if role not in roles or roles & {'org_admin', 'superadmin'}:
+            continue
+        name = (f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                or u.get('display_name') or u.get('email') or 'Unnamed')
+        people.append({'id': u['id'], 'name': name})
+    people.sort(key=lambda p: p['name'].lower())
+    return jsonify({'success': True, 'people': people})
 
 
 @role_view_bp.route('/<role>', methods=['POST'])

@@ -10,8 +10,9 @@ Admin masquerade routes - Allow admins to view platform as other users
 """
 from flask import Blueprint, jsonify, request, make_response
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin_identity, require_superadmin
+from utils.auth.decorators import require_admin_identity, require_real_identity, require_superadmin
 from utils.session_manager import session_manager
+from utils.token_authority import caller_may_masquerade
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place, sign_stored_url
 from middleware.rate_limiter import get_real_ip
@@ -21,12 +22,15 @@ logger = get_logger(__name__)
 
 masquerade_bp = Blueprint('masquerade', __name__, url_prefix='/api/admin/masquerade')
 
-# Control plane: @require_admin_identity checks the REAL caller, so starting a
+# Control plane: @require_real_identity resolves the REAL caller, so starting a
 # session still works from inside one (switching targets, or backing out of an
-# account that renders nothing). Everything OUTSIDE these routes authorizes the
-# person being viewed — see utils.auth.decorators.authorizing_user_id.
+# account that renders nothing). Who may act as whom is one rule,
+# token_authority.caller_may_masquerade — superadmin anyone; an org admin a
+# non-admin member of their own school — and the same rule re-runs on every
+# token refresh. Everything OUTSIDE these routes authorizes the person being
+# viewed — see utils.auth.decorators.authorizing_user_id.
 @masquerade_bp.route('/<target_user_id>', methods=['POST'])
-@require_admin_identity
+@require_real_identity
 def start_masquerade(admin_id, target_user_id):
     """
     Start a masquerade session as another user
@@ -39,7 +43,7 @@ def start_masquerade(admin_id, target_user_id):
     Returns masquerade token and target user info
     """
     try:
-        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+        # admin client justified: cross-user read to authorize and start a masquerade; the caller/target rule is enforced below
         supabase = get_supabase_admin_client()
 
         # Validate target user exists
@@ -50,18 +54,16 @@ def start_masquerade(admin_id, target_user_id):
 
         target_user_data = target_user.data[0]
 
-        # Check if requesting user is superadmin
-        admin_user = supabase.table('users').select('role').eq('id', admin_id).execute()
-        admin_role = admin_user.data[0].get('role') if admin_user.data else None
+        admin_user = supabase.table('users').select('id, role, org_role, org_roles, organization_id')\
+            .eq('id', admin_id).execute()
+        admin_row = admin_user.data[0] if admin_user.data else None
+        admin_role = (admin_row or {}).get('role')
 
-        # DEBUG logging
         logger.info(f"[Masquerade] admin_id={admin_id}, admin_role={admin_role}, target_role={target_user_data.get('role')}")
 
-        # Prevent non-superadmins from masquerading as admins
-        # Superadmins can masquerade as anyone for testing/debugging
-        if target_user_data.get('role') == 'superadmin' and admin_role != 'superadmin':
-            logger.warning(f"[Masquerade] Blocked: admin_role={admin_role} tried to masquerade as {target_user_data.get('role')}")
-            return jsonify({'error': 'Only superadmins can masquerade as other admins'}), 403
+        if not caller_may_masquerade(admin_row, target_user_data):
+            logger.warning(f"[Masquerade] Blocked: {admin_id[:8]} ({admin_role}) tried to masquerade as {target_user_id[:8]}")
+            return jsonify({'error': 'You can view as members of your own school who are not admins'}), 403
 
         # Get request metadata (use secure IP extraction to prevent spoofing)
         ip_address = get_real_ip()

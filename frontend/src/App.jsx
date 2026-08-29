@@ -268,8 +268,10 @@ function AppContent() {
       if (result.success) {
         setMasqueradeState(null);
         toast.success('Exited masquerade session');
-        // Full page load required to reinitialize AuthContext with admin token
-        window.location.href = '/admin/users';
+        // Full page load required to reinitialize AuthContext with admin token.
+        // Org admins (who can now view as their own members) have no
+        // /admin/users; they go back to their console home.
+        window.location.href = result.adminUser?.role === 'superadmin' ? '/admin/users' : '/';
       } else {
         toast.error(result.error || 'Failed to exit masquerade');
       }

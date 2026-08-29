@@ -959,7 +959,7 @@ class SessionManager:
             # utils.token_authority at call time -- these are the two checks a
             # test needs to be able to stand in for.
             from utils import token_authority
-            if not token_authority.is_masquerade_still_authorized(admin_id):
+            if not token_authority.is_masquerade_still_authorized(admin_id, target_id):
                 logger.warning(
                     f"[SessionManager] Masquerade refresh refused: {admin_id[:8]}... "
                     f"is no longer a superadmin")

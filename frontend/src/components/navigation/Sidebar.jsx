@@ -75,7 +75,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       if (result.success) {
         setMasqueradeState(null)
         toast.success('Exited masquerade session')
-        window.location.href = '/admin/users'
+        // Org admins viewing their own members have no /admin/users.
+        window.location.href = result.adminUser?.role === 'superadmin' ? '/admin/users' : '/'
       } else {
         toast.error(result.error || 'Failed to exit masquerade')
       }

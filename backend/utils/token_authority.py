@@ -73,23 +73,59 @@ def session_revoked_since(user_id: str, issued_at: Optional[datetime]) -> bool:
     return issued_at < last_logout
 
 
-def is_masquerade_still_authorized(admin_id: str) -> bool:
-    """True iff `admin_id` is still a superadmin.
+_MASQUERADE_ROW = 'id, role, org_role, org_roles, organization_id'
 
-    Mirrors the check @require_admin makes when the masquerade is first
-    granted. Fails CLOSED: unlike the token-version check above, this decides
-    whether someone may act as another user, and the safe answer when we cannot
-    confirm the grant is to stop renewing it.
+
+def caller_may_masquerade(admin_row, target_row) -> bool:
+    """The one rule for who may act as whom.
+
+    A superadmin may act as anyone. An org admin may act as a member of their
+    OWN organization who holds no admin-tier role (no org_admin, no
+    superadmin) — the "view this teacher's / this family's actual setup" the
+    front office keeps asking for. Every other pairing is refused. Used both
+    when the session is granted (routes/admin/masquerade.py) and every time it
+    is renewed (session_manager), so a demotion ends the session at the next
+    refresh.
+    """
+    from utils.roles import _real_effective_roles
+    if not admin_row or not target_row:
+        return False
+    admin_roles = set(_real_effective_roles(admin_row))
+    if 'superadmin' in admin_roles:
+        return True
+    if 'org_admin' not in admin_roles:
+        return False
+    if not admin_row.get('organization_id') or \
+            admin_row.get('organization_id') != target_row.get('organization_id'):
+        return False
+    target_roles = set(_real_effective_roles(target_row))
+    return not (target_roles & {'org_admin', 'superadmin'})
+
+
+def is_masquerade_still_authorized(admin_id: str, target_id: str = None) -> bool:
+    """True iff `admin_id` may still act as `target_id` (see caller_may_masquerade).
+
+    Fails CLOSED: unlike the token-version check above, this decides whether
+    someone may act as another user, and the safe answer when we cannot
+    confirm the grant is to stop renewing it. Without a target id only a
+    superadmin qualifies (the pre-2026-08-28 rule).
     """
     if not admin_id:
         return False
     try:
-        rows = (_admin().table('users').select('role')
+        rows = (_admin().table('users').select(_MASQUERADE_ROW)
                 .eq('id', admin_id).limit(1).execute()).data
+        admin_row = rows[0] if rows else None
+        if not admin_row:
+            return False
+        if not target_id:
+            return admin_row.get('role') == 'superadmin'
+        trows = (_admin().table('users').select(_MASQUERADE_ROW)
+                 .eq('id', target_id).limit(1).execute()).data
+        return caller_may_masquerade(admin_row, trows[0] if trows else None)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[TokenAuthority] Masquerade re-check failed for {admin_id[:8]}...: {e}")
         return False
-    return bool(rows) and rows[0].get('role') == 'superadmin'
 
 
 def is_acting_as_still_authorized(parent_id: str, dependent_id: str) -> bool:

@@ -332,6 +332,27 @@ def validate_uuid_param(*param_names):
         return decorated_function
     return decorator
 
+def require_real_identity(f):
+    """Any authenticated caller, resolved to their REAL account — ignoring an
+    active masquerade or role view. For control-plane endpoints whose whole job
+    is to change who the session acts as (view-as pickers, masquerade start):
+    they must keep answering to the person at the keyboard while that person is
+    inside somebody else's account or a narrowed role. The route decides the
+    role rule itself, on the real row."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return ('', 200)
+        user_id = session_manager.get_actual_admin_id()
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+        request.user_id = user_id
+        _set_sentry_user(user_id)
+        return f(user_id, *args, **kwargs)
+
+    return decorated_function
+
+
 def require_admin_identity(f):
     """Superadmin check against the REAL caller, ignoring any active masquerade.
 
