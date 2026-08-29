@@ -312,6 +312,57 @@ describe('RosterImportPage', () => {
     expect(cell('Student first', 1)).toHaveValue('Ava')
   })
 
+  it('deletes every rejected row at once and drops the stale preview', async () => {
+    const three = PASTED + '\n\tHennessy\tMia\tnot-an-email\tHennessy\tMegan\tmhennessy@opened.co'
+    api.post.mockResolvedValueOnce({
+      data: {
+        ...PREVIEW,
+        can_import: false,
+        students: [student(3, 'Ava', '29ahennessy@dsdmail.net')],
+        row_errors: [
+          { row: 2, errors: ['"27nhennessy@dsdmail.net" already belongs to another student'] },
+          { row: 4, errors: ['"not-an-email" is not a valid email address'] },
+        ],
+        counts: { ...PREVIEW.counts, rows: 3, students_new: 1, invalid_rows: 2 },
+      },
+    })
+    await renderPage()
+    pasteRoster(three)
+    await previewIt()
+
+    // Both the grid toolbar and the error banner offer it; one click is enough.
+    const buttons = screen.getAllByRole('button', { name: 'Delete 2 rows with errors' })
+    expect(buttons).toHaveLength(2)
+    fireEvent.click(buttons[0])
+
+    // Only the clean row (plus the trailing blank) survives, and the plan built
+    // from the old rows is gone.
+    expect(cell('Student first', 1)).toHaveValue('Ava')
+    expect(cell('Student first', 2)).toHaveValue('')
+    expect(screen.queryByLabelText('Student first row 3')).not.toBeInTheDocument()
+    expect(screen.queryByText('Preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /with errors/ })).not.toBeInTheDocument()
+  })
+
+  it('leaves one blank row when every row had an error', async () => {
+    api.post.mockResolvedValueOnce({
+      data: {
+        ...PREVIEW,
+        can_import: false,
+        students: [],
+        row_errors: [{ row: 2, errors: ['bad'] }, { row: 3, errors: ['bad'] }],
+        counts: { ...PREVIEW.counts, students_new: 0, invalid_rows: 2 },
+      },
+    })
+    await renderPage()
+    pasteRoster()
+    await previewIt()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete 2 rows with errors' })[0])
+
+    expect(cell('Student first', 1)).toHaveValue('')
+    expect(screen.queryByLabelText('Student first row 2')).not.toBeInTheDocument()
+  })
+
   it('surfaces a rejected request instead of leaving the page looking successful', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'Organization not found' } } })
     await renderPage()

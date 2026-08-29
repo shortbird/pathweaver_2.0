@@ -181,10 +181,14 @@ export default function RosterImportPage() {
   }
 
   const addRow = () => { setRows(prev => [...prev, blankRow()]); clearPlan() }
-  const removeRow = (key) => {
-    setRows(prev => (prev.length > 1 ? prev.filter(row => row.key !== key) : [blankRow()]))
+  const removeRows = (keys) => {
+    setRows(prev => {
+      const kept = prev.filter(row => !keys.includes(row.key))
+      return kept.length ? kept : [blankRow()]
+    })
     clearPlan()
   }
+  const removeRow = key => removeRows([key])
   const clearGrid = () => { setRows([blankRow(), blankRow(), blankRow()]); clearPlan() }
 
   const run = async (step) => {
@@ -213,6 +217,14 @@ export default function RosterImportPage() {
   const studentFor = key => preview?.students?.find(s => keyForServerRow(s.row) === key)
   const parentFor = email =>
     preview?.parents?.find(p => p.email === (email || '').trim().toLowerCase())
+
+  // Grid rows the server rejected. Dropping them is the quick way through a
+  // roster where a few rows are hopeless (no emails at all, half a family),
+  // instead of hunting each red row down the sheet.
+  const errorRowKeys = (preview?.row_errors || []).map(e => keyForServerRow(e.row)).filter(Boolean)
+  const removeErrorRows = () => removeRows(errorRowKeys)
+  const deleteErrorsLabel =
+    `Delete ${errorRowKeys.length} row${errorRowKeys.length === 1 ? '' : 's'} with errors`
 
   const counts = preview?.counts
   const totalAccounts = counts ? counts.students_new + counts.parents_new : 0
@@ -258,6 +270,14 @@ export default function RosterImportPage() {
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
+            {errorRowKeys.length > 0 && (
+              <button
+                onClick={removeErrorRows}
+                className="text-sm px-3 py-1.5 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+              >
+                {deleteErrorsLabel}
+              </button>
+            )}
             <button onClick={addRow} className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg">
               Add row
             </button>
@@ -271,12 +291,12 @@ export default function RosterImportPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-gray-600">
+                <th className="w-8" />
                 <th className="w-10 py-2 px-2 font-medium text-xs">#</th>
                 {COLUMNS.map(column => (
                   <th key={column.field} className="py-2 px-2 font-medium text-xs">{column.label}</th>
                 ))}
                 {preview && <th className="py-2 px-2 font-medium text-xs">Status</th>}
-                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -287,6 +307,23 @@ export default function RosterImportPage() {
                 return (
                   <React.Fragment key={row.key}>
                     <tr className={rowError ? 'bg-red-50' : ''}>
+                      {/* Leading, not trailing: the trailing column scrolls off on a
+                          narrow screen and the delete control goes with it. */}
+                      <td className="py-1 pl-2 pr-0">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.key)}
+                          aria-label={`Remove row ${index + 1}`}
+                          title="Delete row"
+                          className={`flex items-center justify-center w-5 h-5 rounded text-sm leading-none ${
+                            rowError
+                              ? 'text-red-600 hover:bg-red-100'
+                              : 'text-gray-400 hover:text-red-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          &times;
+                        </button>
+                      </td>
                       <td className="py-1 px-2 text-xs text-gray-400">{index + 1}</td>
                       {COLUMNS.map((column, columnIndex) => (
                         <td key={column.field} className="py-1 px-1">
@@ -315,20 +352,11 @@ export default function RosterImportPage() {
                           )}
                         </td>
                       )}
-                      <td className="py-1 px-2">
-                        <button
-                          onClick={() => removeRow(row.key)}
-                          aria-label={`Remove row ${index + 1}`}
-                          className="text-gray-400 hover:text-red-600 px-1"
-                        >
-                          &times;
-                        </button>
-                      </td>
                     </tr>
                     {rowError && (
                       <tr className="bg-red-50">
-                        <td />
-                        <td colSpan={COLUMNS.length + (preview ? 2 : 1)}
+                        <td colSpan={2} />
+                        <td colSpan={COLUMNS.length + (preview ? 1 : 0)}
                             className="pb-2 px-2 text-xs text-red-800">
                           {rowError.errors.join('; ')}
                         </td>
@@ -378,9 +406,19 @@ export default function RosterImportPage() {
           ))}
 
           {preview.row_errors?.length > 0 && (
-            <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
-              Fix the {preview.row_errors.length} highlighted row
-              {preview.row_errors.length === 1 ? '' : 's'} above, then preview again.
+            <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm flex items-center justify-between gap-4 flex-wrap">
+              <span>
+                Fix the {preview.row_errors.length} highlighted row
+                {preview.row_errors.length === 1 ? '' : 's'} above, then preview again.
+              </span>
+              {errorRowKeys.length > 0 && (
+                <button
+                  onClick={removeErrorRows}
+                  className="shrink-0 px-3 py-1.5 border border-red-300 text-red-700 bg-white rounded-lg hover:bg-red-100"
+                >
+                  {deleteErrorsLabel}
+                </button>
+              )}
             </div>
           )}
 
