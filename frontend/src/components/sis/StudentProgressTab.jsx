@@ -139,7 +139,11 @@ const StudentProgressTab = ({ classId, className }) => {
               {quests.map((q) => (
                 <th key={q.quest_id} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
                   <span className="block truncate max-w-[10rem] mx-auto" title={q.title}>{q.title}</span>
-                  {q.due_date && <span className="block text-[11px] font-normal text-neutral-400">due {q.due_date}</span>}
+                  {q.due_date && (
+                    <span className="block text-[11px] font-normal text-neutral-400">
+                      due {new Date(q.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
                 </th>
               ))}
               <th className="px-3 py-2.5 font-medium text-neutral-600">Tasks done</th>

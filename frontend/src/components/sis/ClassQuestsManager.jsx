@@ -327,15 +327,29 @@ export default function ClassQuestsManager({ classId }) {
   const [dueEditing, setDueEditing] = useState(null)
   const [dueValue, setDueValue] = useState('')
 
+  // A date input hands back 'YYYY-MM-DD'. new Date('YYYY-MM-DD') is UTC
+  // midnight, and toLocaleDateString() renders that as the day BEFORE anywhere
+  // west of Greenwich: Gryffin typed Sep 5 and saw Sep 4 (2026-08-29, both
+  // teachers). Store the end of that day in the teacher's own timezone, so
+  // every surface that formats the instant locally lands on the day typed.
+  const dateInputToIso = (value) => {
+    if (!value) return null
+    const [y, m, d] = value.split('-').map(Number)
+    return new Date(y, m - 1, d, 23, 59, 59).toISOString()
+  }
+  const isoToDateInput = (iso) => {
+    if (!iso) return ''
+    const dt = new Date(iso)
+    if (Number.isNaN(dt.getTime())) return ''
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+  }
+
   const saveDue = async (questId, value) => {
+    const iso = dateInputToIso(value)
     try {
-      await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, {
-        due_date: value ? new Date(value).toISOString() : null,
-      })
-      setQuests((prev) => prev.map((q) => (
-        q.quest_id === questId
-          ? { ...q, due_date: value ? new Date(value).toISOString() : null }
-          : q)))
+      await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, { due_date: iso })
+      setQuests((prev) => prev.map((q) => (q.quest_id === questId ? { ...q, due_date: iso } : q)))
       setDueEditing(null)
       toast.success(value ? 'Due date set' : 'Due date cleared')
     } catch (err) {
@@ -573,7 +587,7 @@ export default function ClassQuestsManager({ classId }) {
                     ) : (
                       <button
                         onClick={() => {
-                          setDueValue(q.due_date ? new Date(q.due_date).toISOString().slice(0, 10) : '')
+                          setDueValue(isoToDateInput(q.due_date))
                           setDueEditing(q.quest_id)
                         }}
                         className="px-2 py-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg whitespace-nowrap">
