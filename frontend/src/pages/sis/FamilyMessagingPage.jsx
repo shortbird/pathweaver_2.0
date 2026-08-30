@@ -375,14 +375,16 @@ const FamilyMessagingPage = () => {
                   <h3 className="font-medium text-neutral-900">{a.title}</h3>
                   <span className="text-xs text-neutral-400 whitespace-nowrap flex items-center gap-2">
                     {new Date(a.created_at).toLocaleString()}
+                    {/* A word, not a glyph: the small x read as decoration and
+                        the office asked for a delete feature that was already
+                        here (iCreate, 2026-08-29). */}
                     <button
                       type="button"
                       onClick={() => removeAnnouncement(a)}
-                      className="text-neutral-400 hover:text-red-600"
+                      className="px-2 py-0.5 rounded border border-gray-200 text-xs font-medium text-neutral-500 hover:text-red-600 hover:border-red-300"
                       aria-label={`Delete announcement ${a.title}`}
-                      title="Delete announcement"
                     >
-                      &#x2715;
+                      Delete
                     </button>
                   </span>
                 </div>

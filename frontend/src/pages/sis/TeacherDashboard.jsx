@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
+import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 
 /**
  * TeacherDashboard — the advisor home for the SIS teacher portal.
@@ -56,6 +57,13 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const [clockBusy, setClockBusy] = useState(false)
   const [alerts, setAlerts] = useState([])
   const [resolvingId, setResolvingId] = useState(null)
+  // What the office has sent this teacher. The archive already narrows to the
+  // caller's own sends (2026-08-27); until now a teacher had no page that
+  // listed them, only the bell (iCreate, 2026-08-29: "could we have
+  // announcements for teachers show up in a different place than announcements
+  // for families? Like could it show in their teacher portal").
+  const [announcements, setAnnouncements] = useState([])
+  const [allAnnouncements, setAllAnnouncements] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -74,6 +82,11 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     api.get(`${alertsUrl}${alertsUrl.includes('?') ? '&' : '?'}scope=mine`)
       .then((r) => setAlerts(r.data?.alerts || []))
       .catch(() => setAlerts([]))
+    // Not previewed: the archive is filtered by the caller's recipient rows,
+    // so an admin viewing a teacher's home sees their own (wider) list here.
+    api.get(withOrg('/api/announcements/archive?limit=20', orgId))
+      .then((r) => setAnnouncements(r.data?.announcements || []))
+      .catch(() => setAnnouncements([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
@@ -284,6 +297,34 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           )}
         </div>
       </div>
+
+      {/* Announcements from the office. Teachers see only what was sent to
+          them; families read theirs on the family home, so a staff notice
+          never lands on a parent page and a teacher no longer has to dig
+          through the bell to find one. */}
+      {announcements.length > 0 && (
+        <Card title="Announcements"
+          action={announcements.length > 3 ? (
+            <button type="button" onClick={() => setAllAnnouncements((v) => !v)}
+              className="text-sm text-optio-purple hover:underline">
+              {allAnnouncements ? 'Show fewer' : `Show all (${announcements.length})`}
+            </button>
+          ) : null}>
+          <ul className="divide-y divide-gray-100">
+            {(allAnnouncements ? announcements : announcements.slice(0, 3)).map((a) => (
+              <li key={a.id} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-medium text-neutral-900">{a.title}</p>
+                  <span className="text-xs text-neutral-400 whitespace-nowrap">
+                    {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <AnnouncementBody text={a.content} className="text-sm text-neutral-600 mt-1" />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* Permanent links the school pins for its teachers (Resources page,
           "Pin to teacher home"). Sits between Today and My classes by request
