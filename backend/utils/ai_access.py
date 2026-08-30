@@ -72,15 +72,18 @@ def check_ai_access(user_id: str, feature: str = None):
             # Add feature-specific fields
             user_fields += ', ai_chatbot_enabled, ai_lesson_helper_enabled, ai_task_generation_enabled'
 
-        # Get user with org info
+        # Get user with org info. limit(1), not single(): a signed token can
+        # outlive its profile row (the account was erased, or signup never
+        # wrote one), and single() turns that empty result into an exception
+        # instead of the "User not found" branch below.
         user_result = supabase.table('users').select(
             user_fields
-        ).eq('id', user_id).single().execute()
+        ).eq('id', user_id).limit(1).execute()
 
         if not user_result.data:
             return False, {'error': 'User not found'}, 404
 
-        user = user_result.data
+        user = user_result.data[0]
 
         # Check user-level master toggle (for dependents)
         if user.get('is_dependent') and not user.get('ai_features_enabled'):
@@ -193,11 +196,16 @@ def get_ai_feature_status(user_id: str):
         # admin client justified: AI access-control helper — resolves user-level AI permissions
         supabase = get_supabase_admin_client()
 
-        # Get user with all AI settings
+        # Get user with all AI settings. limit(1), not single(): a valid token
+        # whose users row is gone (erased account, Android session that outlived
+        # it) made single() raise PGRST116, which the handler below logged as an
+        # error on every /api/ai-access/status call and then answered with full
+        # access (Sentry OPTIO-BACKEND-7J). An empty list takes the branch that
+        # was written for exactly this case.
         user_result = supabase.table('users').select(
             'id, is_dependent, ai_features_enabled, organization_id, '
             'ai_chatbot_enabled, ai_lesson_helper_enabled, ai_task_generation_enabled'
-        ).eq('id', user_id).single().execute()
+        ).eq('id', user_id).limit(1).execute()
 
         if not user_result.data:
             return {
@@ -208,7 +216,7 @@ def get_ai_feature_status(user_id: str):
                 'org_limits': {'chatbot': True, 'lesson_helper': True, 'task_generation': True}
             }
 
-        user = user_result.data
+        user = user_result.data[0]
 
         # Initialize defaults
         org_limits = {'chatbot': True, 'lesson_helper': True, 'task_generation': True}
