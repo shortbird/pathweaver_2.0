@@ -34,6 +34,10 @@ SIS_CLASS_FIELDS = (
     # Staff-only scratchpad. sis_catalog_service strips it from every
     # non-staff audience — keep it in STAFF_ONLY_FIELDS there or it leaks.
     'internal_notes',
+    # The class discussion board's switch (routes/sis/class_discussions.py).
+    # Teachers flip it from their class page; this lets the admin class
+    # editor set it too.
+    'discussion_enabled',
 )
 
 

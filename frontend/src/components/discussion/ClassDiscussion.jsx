@@ -16,8 +16,14 @@ import { useAuth } from '../../contexts/AuthContext'
  *
  * MVP: top-level posts (newest first) each with replies (oldest first),
  * a post composer, per-post reply composer, and delete controls where allowed.
+ *
+ * The backend also says what the viewer may do: `can_post` is false for a
+ * guardian reading their child's board (no composers), `is_moderator` gets the
+ * on/off switch, and `discussion_enabled` false means the board is closed --
+ * students never reach this state (403 hides the board); a moderator sees the
+ * history plus a "Turn on" button.
  */
-export default function ClassDiscussion({ classId, questId, className = '' }) {
+export default function ClassDiscussion({ classId, questId, className = '', title = 'Discussion' }) {
   const { user } = useAuth()
 
   const base = questId
@@ -25,6 +31,8 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
     : `/api/sis/classes/${classId}/discussion`
 
   const [posts, setPosts] = useState([])
+  const [meta, setMeta] = useState({ isModerator: false, canPost: true, enabled: true })
+  const [switching, setSwitching] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [hidden, setHidden] = useState(false)
@@ -42,6 +50,11 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
     try {
       const { data } = await api.get(base)
       setPosts(data?.posts || [])
+      setMeta({
+        isModerator: !!data?.is_moderator,
+        canPost: data?.can_post !== false,
+        enabled: data?.discussion_enabled !== false,
+      })
     } catch (err) {
       const status = err?.response?.status
       // Not a participant, or the quest has no class discussion — hide quietly.
@@ -98,16 +111,54 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
     }
   }
 
+  // The switch lives on the class-keyed route; the quest page never shows it.
+  const setBoardEnabled = async (enabled) => {
+    setSwitching(true)
+    try {
+      await api.patch(`/api/sis/classes/${classId}/discussion/settings`, { enabled })
+      toast.success(enabled ? 'Discussion is on for this class' : 'Discussion is off for this class')
+      await load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not change the discussion setting')
+    } finally {
+      setSwitching(false)
+    }
+  }
+
   if (hidden) return null
+
+  const showSwitch = meta.isModerator && !!classId
 
   return (
     <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-6 ${className}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <ChatBubbleLeftRightIcon className="w-5 h-5 text-optio-purple" />
-        <h2 className="text-lg font-bold text-gray-900">Discussion</h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <ChatBubbleLeftRightIcon className="w-5 h-5 text-optio-purple shrink-0" />
+          <h2 className="text-lg font-bold text-gray-900 truncate">{title}</h2>
+          {!meta.enabled && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 whitespace-nowrap">Off</span>
+          )}
+        </div>
+        {showSwitch && (
+          <button
+            type="button"
+            onClick={() => setBoardEnabled(!meta.enabled)}
+            disabled={switching}
+            className="shrink-0 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-neutral-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {meta.enabled ? 'Turn off for this class' : 'Turn on for this class'}
+          </button>
+        )}
       </div>
 
-      {/* Composer */}
+      {!meta.enabled && (
+        <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          Discussion is off. Students cannot see this board or post on it. Earlier posts stay here for you.
+        </p>
+      )}
+
+      {/* Composer (participants who may write; a guardian only reads) */}
+      {meta.canPost && (
       <form onSubmit={submitPost} className="mb-6">
         <textarea
           value={newPost}
@@ -127,6 +178,7 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
           </button>
         </div>
       </form>
+      )}
 
       {loading && (
         <div className="flex items-center gap-3 py-6 text-gray-500">
@@ -146,7 +198,7 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
 
       {!loading && !error && posts.length === 0 && (
         <p className="py-6 text-center text-sm text-gray-500">
-          No posts yet. Start the conversation.
+          {meta.canPost ? 'No posts yet. Start the conversation.' : 'No posts yet.'}
         </p>
       )}
 
@@ -173,8 +225,9 @@ export default function ClassDiscussion({ classId, questId, className = '' }) {
                 </ul>
               )}
 
-              {/* Reply composer (not offered on a deleted/tombstone post) */}
-              {!post.deleted && (
+              {/* Reply composer (not offered on a deleted/tombstone post, nor
+                  to a viewer who only reads) */}
+              {!post.deleted && meta.canPost && (
                 <div className="mt-3">
                   {replyFor === post.id ? (
                     <div>

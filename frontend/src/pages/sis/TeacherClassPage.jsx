@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import StudentProgressTab from '../../components/sis/StudentProgressTab'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
+import ClassDiscussion from '../../components/discussion/ClassDiscussion'
 import ClassMessagesTab from '../../components/sis/ClassMessagesTab'
 import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
@@ -39,7 +40,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 // 'gradebook' stays accepted so old links and bookmarks land on the tab that
 // replaced it rather than silently falling back to the roster.
-const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages']
+const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages', 'discussion']
 
 // "Next" is only useful with a room and a time on it — the point is a teacher
 // pointing a student down the right hallway (iCreate, 2026-08-25).
@@ -159,7 +160,7 @@ const TeacherClassPage = () => {
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
         {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
             then the two only some classes use. */}
-        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress']].map(([key, label]) => (
+        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['discussion', 'Discussion']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -198,6 +199,15 @@ const TeacherClassPage = () => {
 
       {tab === 'messages' && (
         <ClassMessagesTab classId={classId} orgId={orgId} className={cls?.name} />
+      )}
+
+      {/* The students' board. It has been on every class quest page since
+          July with no adult able to open it; Gryffin's students wrote 80
+          posts in two days before their teacher asked whether "teachers and
+          parents see a group chat" (2026-08-29). The teacher reads it here,
+          deletes anything, and can switch it off for the class. */}
+      {tab === 'discussion' && (
+        <ClassDiscussion classId={classId} />
       )}
 
       {/* Materials budget — a ceiling, never a target. The wording matters:
