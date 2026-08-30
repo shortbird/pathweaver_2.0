@@ -307,12 +307,58 @@ export async function updateInterestTrack(trackId: string, updates: { name?: str
   return data;
 }
 
-export async function evolveTrackToQuest(trackId: string) {
-  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, {});
+// ── Evolve a topic into a quest ──
+//
+// The backend needs a quest title (plus optional description and tasks) to
+// evolve a track. Posting an empty body 400'd with "Request body is required"
+// on every Evolve tap. The flow mirrors the web app: fetch the AI preview, let
+// the student review and edit it, then post what they approved.
+
+export interface EvolvePreviewTask {
+  title: string;
+  description?: string;
+  pillar?: string;
+  xp_value?: number;
+}
+
+export interface EvolvePreview {
+  title: string;
+  description: string;
+  tasks: EvolvePreviewTask[];
+  total_xp?: number;
+  primary_pillar?: string;
+  learning_outcomes?: string[];
+}
+
+export interface EvolvePreviewResponse {
+  success: boolean;
+  preview?: EvolvePreview;
+  moment_count?: number;
+  track_name?: string;
+  error?: string;
+}
+
+export interface EvolvePayload {
+  title: string;
+  description?: string | null;
+  tasks?: EvolvePreviewTask[];
+}
+
+export interface EvolveResult {
+  success: boolean;
+  quest_id?: string;
+  quest?: { id: string; title: string };
+  tasks_created?: number;
+  message?: string;
+  error?: string;
+}
+
+export async function evolveTrackToQuest(trackId: string, payload: EvolvePayload): Promise<EvolveResult> {
+  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, payload);
   return data;
 }
 
-export async function previewEvolvedQuest(trackId: string) {
+export async function previewEvolvedQuest(trackId: string): Promise<EvolvePreviewResponse> {
   const { data } = await api.get(`/api/interest-tracks/${trackId}/evolve/preview`);
   return data;
 }

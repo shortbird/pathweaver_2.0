@@ -45,6 +45,9 @@ jest.mock('@/src/components/journal/QuestTasksSection', () => ({
 jest.mock('@/src/components/journal/GenerateTasksModal', () => ({
   GenerateTasksModal: () => null,
 }));
+jest.mock('@/src/components/journal/EvolveTopicModal', () => ({
+  EvolveTopicModal: () => null,
+}));
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));

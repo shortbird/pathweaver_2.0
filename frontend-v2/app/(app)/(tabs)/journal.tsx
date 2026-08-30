@@ -22,10 +22,11 @@ import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { useFeed } from '@/src/hooks/useFeed';
 import { GenerateTasksModal } from '@/src/components/journal/GenerateTasksModal';
+import { EvolveTopicModal } from '@/src/components/journal/EvolveTopicModal';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
-  deleteInterestTrack, updateInterestTrack, evolveTrackToQuest,
+  deleteInterestTrack, updateInterestTrack,
 } from '@/src/hooks/useJournal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { onUploadComplete } from '@/src/services/uploadQueue';
@@ -153,23 +154,20 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   refetchViewRef.current = refetchCurrentView;
   useEffect(() => onUploadComplete(() => { void refetchViewRef.current(); }), []);
 
-  const handleEvolve = async () => {
+  // Evolve opens a preview of the AI-suggested quest (title, description,
+  // tasks) for the student to review before anything is created. The backend
+  // needs a title, so a bare confirm dialog posting an empty body can't work;
+  // that was the "Request body is required" error on every Evolve tap.
+  const [evolveVisible, setEvolveVisible] = useState(false);
+  const handleEvolve = () => {
     if (!selectedId) return;
-    const confirmed = await confirmAlert({
-      title: 'Evolve Topic',
-      message: 'Evolve this topic into a quest? Your moments will be linked to the new quest.',
-      confirmText: 'Evolve',
-    });
-    if (!confirmed) return;
-    try {
-      const result = await evolveTrackToQuest(selectedId);
-      refetchTopics();
-      if (result.quest_id) {
-        router.push(`/(app)/quests/${result.quest_id}`);
-      }
-    } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to evolve topic');
-    }
+    setEvolveVisible(true);
+  };
+  const handleEvolved = (questId: string) => {
+    setEvolveVisible(false);
+    refetchTopics();
+    refetchTrack();
+    router.push(`/(app)/quests/${questId}`);
   };
 
   const handleDeleteTopic = async () => {
@@ -639,6 +637,14 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           onGenerate={generateTasks}
           onAcceptTask={acceptTask}
         />
+        <EvolveTopicModal
+          visible={evolveVisible}
+          trackId={selectedType === 'topic' || selectedType === 'track' ? selectedId : null}
+          trackName={track?.name}
+          momentCount={trackMoments.length}
+          onClose={() => setEvolveVisible(false)}
+          onSuccess={handleEvolved}
+        />
 
         <ScrollToTopFab
           visible={showScrollTop}
@@ -811,6 +817,14 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         onClose={() => setGenerateModalVisible(false)}
         onGenerate={generateTasks}
         onAcceptTask={acceptTask}
+      />
+      <EvolveTopicModal
+        visible={evolveVisible}
+        trackId={selectedType === 'topic' || selectedType === 'track' ? selectedId : null}
+        trackName={track?.name}
+        momentCount={trackMoments.length}
+        onClose={() => setEvolveVisible(false)}
+        onSuccess={handleEvolved}
       />
 
     </SafeAreaView>
