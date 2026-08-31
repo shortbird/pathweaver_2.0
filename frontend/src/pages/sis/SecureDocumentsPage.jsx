@@ -154,7 +154,11 @@ const SecureDocumentsPage = () => {
 
   const handleDownload = useCallback(async (doc) => {
     try {
-      const res = await api.get(withOrg(`/api/sis/secure-documents/${doc.id}/url`, orgId))
+      // A checklist attachment has no store row — its blob lives in a
+      // checklist bucket, reached through the admin onboarding door.
+      const res = await api.get(doc.source === 'checklist'
+        ? withOrg(`/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.storage_path)}&audience=${doc.audience || 'staff'}`, orgId)
+        : withOrg(`/api/sis/secure-documents/${doc.id}/url`, orgId))
       const url = res.data?.url
       if (url) window.open(url, '_blank', 'noopener,noreferrer')
       else toast.error('Could not open the document')
@@ -594,7 +598,7 @@ const SecureDocumentsPage = () => {
                         <td className="py-3 px-4">
                           {d.uploaded_by_owner ? (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                              They sent this
+                              {d.source === 'checklist' ? 'From their checklist' : 'They sent this'}
                             </span>
                           ) : !d.owner_user_id ? (
                             <span className="text-xs text-neutral-400">—</span>
@@ -619,6 +623,16 @@ const SecureDocumentsPage = () => {
                               Off means the document is theirs to read, not to sign. */}
                           {!d.owner_user_id || d.uploaded_by_owner ? (
                             <span className="text-xs text-neutral-400">—</span>
+                          ) : d.signed_at ? (
+                            // The outcome, not the ask: once their checklist has
+                            // recorded a signature against this document, "Needs
+                            // signature" is the wrong thing to say about it.
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700"
+                              title={`Signed${d.signed_by_name ? ` by ${d.signed_by_name}` : ''} on ${formatDate(d.signed_at)}`}
+                            >
+                              Signed {formatDate(d.signed_at)}
+                            </span>
                           ) : (
                             <button
                               type="button"
@@ -645,20 +659,27 @@ const SecureDocumentsPage = () => {
                           >
                             Open
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => { setRenamingId(d.id); setRenameText(docName(d)) }}
-                            className="ml-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(d)}
-                            className="ml-2 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                          {/* A checklist attachment is managed on the checklist
+                              (removing it there deletes the file) — nothing here
+                              to rename or delete. */}
+                          {d.source !== 'checklist' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { setRenamingId(d.id); setRenameText(docName(d)) }}
+                                className="ml-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
+                              >
+                                Rename
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(d)}
+                                className="ml-2 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}

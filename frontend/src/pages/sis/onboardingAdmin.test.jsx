@@ -145,3 +145,35 @@ describe('removing a checklist', () => {
     expect(screen.getByRole('button', { name: /Unassign this checklist/ })).toBeInTheDocument()
   })
 })
+
+describe('checklist attachments', () => {
+  // The whole reason the roll-up exists: Cassea uploaded her background check,
+  // the item read "complete", and the office could not find the file anywhere
+  // (iCreate, 2026-08-31). The item row now shows what was attached and opens
+  // it through the admin door, which also knows about family buckets.
+  it('opens what they uploaded through the admin doc-url', async () => {
+    mockData({
+      assignments: [{
+        ...ASSIGNMENT, audience: 'staff',
+        items: [{
+          key: 'bgcheck', title: 'Background check', status: 'complete', needs_approval: false,
+          documents: [{ path: 'org-1/sam/bg.pdf', filename: 'BackCkSam.pdf' }],
+        }],
+      }],
+    })
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((url) => (url.includes('/staff-admin/onboarding/doc-url')
+      ? Promise.resolve({ data: { url: 'https://signed.example/bg.pdf' } })
+      : base(url)))
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: 'BackCkSam.pdf' }))
+
+    await waitFor(() => expect(open).toHaveBeenCalledWith('https://signed.example/bg.pdf', '_blank', 'noopener'))
+    const call = api.get.mock.calls.map(([u]) => u).find((u) => u.includes('doc-url'))
+    expect(call).toContain(`path=${encodeURIComponent('org-1/sam/bg.pdf')}`)
+    expect(call).toContain('audience=staff')
+    open.mockRestore()
+  })
+})

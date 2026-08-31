@@ -286,3 +286,69 @@ describe('saying which document is the one to sign', () => {
     expect(screen.getAllByRole('button', { name: 'No signature' })).toHaveLength(2)
   })
 })
+
+describe('once they have signed', () => {
+  // requires_signature is the ask, not the outcome. Cassea's signed contract
+  // read "Needs signature" until the office asked where the signature went
+  // (iCreate, 2026-08-31). A signed document says so, dated.
+  it('shows Signed with the date instead of the ask-flag', async () => {
+    DOCS = [{
+      ...KARIN, requires_signature: true, shared_with_owner: true,
+      signed_at: '2026-08-25T01:29:36+00:00', signed_by_name: 'Karin Jaccard',
+    }]
+    render(<SecureDocumentsPage />)
+    await screen.findByText('Contract - Karin')
+    expect(screen.getByText(/^Signed /)).toBeInTheDocument()
+    expect(screen.queryByText('Needs signature')).not.toBeInTheDocument()
+  })
+
+  it('still shows the ask while nobody has signed', async () => {
+    DOCS = [{ ...KARIN, requires_signature: true, shared_with_owner: true, signed_at: null }]
+    render(<SecureDocumentsPage />)
+    await screen.findByText('Contract - Karin')
+    expect(screen.getByText('Needs signature')).toBeInTheDocument()
+  })
+})
+
+describe('checklist attachments in the cabinet', () => {
+  // The office looked here for Cassea's background check and it was filed one
+  // tab over, on her checklist (iCreate, 2026-08-31). The server now merges
+  // checklist attachments into this list; they open through the admin
+  // onboarding door and are managed on the checklist, not here.
+  const BG_CHECK = {
+    id: 'checklist:a1:bgcheck:0', source: 'checklist', audience: 'staff',
+    title: 'Background Check', filename: null, category: 'Background Check',
+    owner_user_id: 'staff-1', owner_name: 'Karin Jaccard',
+    uploaded_by_owner: true, shared_with_owner: true,
+    storage_path: 'org-1/staff-1/bg.pdf', created_at: '2026-08-25T01:46:11+00:00',
+  }
+
+  it('opens through the admin onboarding door, with the audience', async () => {
+    DOCS = [BG_CHECK]
+    api.get.mockImplementation((url) => {
+      if (url.includes('/roster')) return Promise.resolve({ data: { roster: ROSTER } })
+      if (url.includes('/staff-admin/onboarding/doc-url')) {
+        return Promise.resolve({ data: { url: 'https://signed.example/bg.pdf' } })
+      }
+      return Promise.resolve({ data: { documents: DOCS } })
+    })
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    render(<SecureDocumentsPage />)
+    await screen.findAllByText('Background Check')
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+    await waitFor(() => expect(open).toHaveBeenCalledWith('https://signed.example/bg.pdf', '_blank', 'noopener,noreferrer'))
+    const call = api.get.mock.calls.map(([u]) => u).find((u) => u.includes('doc-url'))
+    expect(call).toContain(`path=${encodeURIComponent('org-1/staff-1/bg.pdf')}`)
+    expect(call).toContain('audience=staff')
+    open.mockRestore()
+  })
+
+  it('cannot be renamed or deleted here — it is managed on the checklist', async () => {
+    DOCS = [BG_CHECK]
+    render(<SecureDocumentsPage />)
+    await screen.findAllByText('Background Check')
+    expect(screen.getByText('From their checklist')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+})

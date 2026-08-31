@@ -470,6 +470,19 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
     }
   }
 
+  // The admin-side door to a checklist attachment. Not the teacher doc-url:
+  // that one only signs the staff bucket, and this list also holds family
+  // checklists (audience picks the bucket server-side).
+  const openItemDoc = async (a, doc) => {
+    try {
+      const r = await api.get(withOrg(
+        `/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.path)}&audience=${a.audience || 'staff'}`, orgId))
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
   const reviewItem = async (assignmentId, itemKey, status) => {
     try {
       await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
@@ -585,7 +598,9 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
                 </span>
               </summary>
               <ul className="px-3 divide-y divide-gray-100">
-                {(a.items || []).map((item) => (
+                {(a.items || []).map((item) => {
+                  const docs = itemDocuments(item)
+                  return (
                   <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-neutral-800">{item.title}</span>
                     <ItemBadge status={item.status} />
@@ -595,6 +610,13 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
                         {item.signature.signed_at ? ` on ${new Date(item.signature.signed_at).toLocaleDateString()}` : ''}
                       </span>
                     )}
+                    {docs.map((doc, i) => (
+                      <button key={doc.path} onClick={() => openItemDoc(a, doc)}
+                        className="text-xs text-optio-purple hover:underline"
+                        title="Open the document they attached">
+                        {doc.filename || (docs.length > 1 ? `Document ${i + 1}` : 'View document')}
+                      </button>
+                    ))}
                     <span className="ml-auto flex items-center gap-2">
                       {item.signature && (
                         <button onClick={() => clearSignature(a.id, item.key, item.signature.name)}
@@ -612,7 +634,8 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
                       )}
                     </span>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
               <div className="px-3 pb-3 pt-1 border-t border-gray-100">
                 <button onClick={() => unassign(a)}

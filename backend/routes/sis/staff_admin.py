@@ -402,6 +402,34 @@ def unassign_onboarding(user_id, assignment_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/onboarding/doc-url', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def onboarding_admin_doc_url(user_id):
+    """Signed (1h) URL for a document attached to any checklist item in the org.
+
+    The teacher-portal twin (staff_portal.onboarding_doc_url) only signs against
+    the staff bucket; the admin roll-up also shows family checklists, whose
+    uploads live in family-documents — `audience` picks the bucket the same way
+    the upload routes did."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    bucket = onboarding.CHECKLIST_BUCKETS.get(
+        (request.args.get('audience') or 'staff').strip().lower())
+    path = request.args.get('path') or ''
+    if not bucket or path.split('/')[0] != org_id or len(path.split('/')) < 3:
+        return jsonify({'success': False, 'error': 'Document not found'}), 404
+    try:
+        # admin client justified: signed URL on a PRIVATE checklist bucket; org prefix checked above, caller is ADMIN_ROLES for that org
+        signed = get_supabase_admin_client().storage.from_(bucket) \
+            .create_signed_url(path, 3600)
+        url = signed.get('signedURL') or signed.get('signedUrl')
+    except Exception as e:
+        logger.error(f'Admin checklist doc-url failed for {path}: {e}')
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
+    return jsonify({'success': True, 'url': url})
+
+
 @bp.route('/onboarding/recipients', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def onboarding_recipients(user_id):

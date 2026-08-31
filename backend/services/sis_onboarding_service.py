@@ -29,6 +29,7 @@ from services import sis_notifications
 from services import sis_access_gate
 from services import sis_secure_docs_service
 from services import sis_service
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -540,6 +541,72 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     if user_id:
         _attach_sign_docs(org_id, user_id, rows)
     return rows
+
+
+def signatures_by_document(org_id: str) -> Dict[str, Dict[str, Any]]:
+    """doc_id -> the checklist signature that signed it.
+
+    A signature item records the documents the signer had in front of them
+    (`signature.documents`, see _apply_signature) — this reads that evidence
+    back per stored document, so the documents list can say "Signed <date>"
+    instead of showing the requires_signature ask-flag as if nobody had signed
+    (iCreate, 2026-08-31: a signed contract still read "Needs signature")."""
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_onboarding_assignments').select('id, items')
+        .eq('organization_id', org_id)))
+    out: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        for item in (r.get('items') or []):
+            sig = item.get('signature') or {}
+            for doc in (sig.get('documents') or []):
+                if isinstance(doc, dict) and doc.get('id'):
+                    out[doc['id']] = {'signed_at': sig.get('signed_at'),
+                                      'signed_by': sig.get('signed_by'),
+                                      'signed_by_name': sig.get('name')}
+    return out
+
+
+def checklist_documents(org_id: str) -> List[Dict[str, Any]]:
+    """Every checklist attachment in the org, shaped like a secure-document row.
+
+    The admin's filing cabinet is /secure-documents, but a checklist upload
+    lives on the assignment item and its blob in a checklist bucket — so the
+    office searched the cabinet for a background check that was filed one tab
+    over (iCreate, 2026-08-31). Merged at read time rather than mirrored into
+    sis_secure_documents on upload: removing an attachment deletes its blob
+    (_remove_document_blob), and a mirror row would outlive the file.
+
+    These rows are read-only in the store — no sis_secure_documents id to
+    rename, delete or share — which is what `source: 'checklist'` tells the
+    frontend. `audience` picks the bucket when the file is opened."""
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_onboarding_assignments')
+        .select('id, user_id, audience, items')
+        .eq('organization_id', org_id)))
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        audience = _clean_audience(r.get('audience'))
+        for item in (r.get('items') or []):
+            for i, doc in enumerate(item_documents(item)):
+                out.append({
+                    'id': f"checklist:{r['id']}:{item.get('key')}:{i}",
+                    'source': 'checklist',
+                    'audience': audience,
+                    'organization_id': org_id,
+                    'owner_user_id': r.get('user_id'),
+                    'student_user_id': None,
+                    'uploaded_by': r.get('user_id'),
+                    'uploaded_by_owner': True,
+                    'storage_path': doc.get('path'),
+                    'filename': doc.get('filename'),
+                    'title': doc.get('filename') or item.get('title'),
+                    'category': item.get('title'),
+                    'note': None,
+                    'created_at': doc.get('uploaded_at'),
+                    'shared_with_owner': True,
+                    'requires_signature': False,
+                })
+    return out
 
 
 def office_documents(org_id: str, user_id: str,
