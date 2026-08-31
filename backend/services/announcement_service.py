@@ -284,17 +284,25 @@ def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
 
 def publish(org_id: str, author_id: str, title: str, content: str,
             audiences: List[str], student_ids: Optional[Set[str]] = None,
-            send_email: bool = True, target_label: Optional[str] = None,
+            send_email: bool = True, send_app: bool = True,
+            target_label: Optional[str] = None,
             advisor_ids: Optional[Set[str]] = None,
-            source_announcement_id: Optional[str] = None) -> Dict[str, Any]:
+            source_announcement_id: Optional[str] = None,
+            attachments: Optional[List[dict]] = None) -> Dict[str, Any]:
     """Store the announcement and fan it out (notifications + optional email).
 
     `send_email` defaults to True so every existing caller keeps behaving
-    exactly as it did. The SIS Messaging page passes False for a targeted send:
+    exactly as it did. The SIS composer passes False for a targeted send:
     iCreate found that an in-app note to one class was also 300 emails, and
     asked for the email to be the deliberate half ("maybe we keep announcements
     within the community dashboard only and have the ability to check the box
     only if we want it emailed too" — 857b5f70).
+
+    `send_app` (default True, same reasoning) is the other half of the channel
+    choice (iCreate, 2026-08-31: email OR app message OR both): False skips the
+    notification/push fan-out and marks the row in_app=false, which keeps it
+    off the family-facing announcements surfaces — it exists as staff history
+    and as email. The route refuses a send with both flags off.
 
     `student_ids` narrows delivery to a set of students and their parents; see
     targeted_student_ids.
@@ -310,7 +318,14 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     `source_announcement_id` links the row back to the Community Hub board post
     that spawned it, so revise()/retract_for_source() can keep the two halves
     in step.
+
+    `attachments` (iCreate, 2026-08-31) is the same pre-uploaded
+    {url, type, name, size} list a message send carries; it is cleaned with the
+    same helper, stored on the row (readers sign the private URLs per read),
+    and linked at the bottom of the email.
     """
+    from services import messaging_extras_service as msg_extras
+    attachments = msg_extras.clean_attachments(attachments)
     content = rich_text.sanitize(content)
     announcement_id = None
     try:
@@ -332,6 +347,10 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             # recipients — the role token in the label must not widen them to
             # the whole role (see announcements_archive).
             'is_targeted': bool(target_label),
+            # Email-only sends stay off the family-facing surfaces (the
+            # announcements list and archive both filter on this).
+            'in_app': send_app,
+            'attachments': attachments or None,
         }).execute()
         announcement_id = ins.data[0]['id'] if ins.data else None
     except Exception as e:  # noqa: BLE001
@@ -346,7 +365,7 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     notifier = NotificationService()
     preview = rich_text.preview(content)
     sent = 0
-    for rid in recipient_ids:
+    for rid in (recipient_ids if send_app else []):
         try:
             notifier.create_notification(
                 user_id=rid,
@@ -372,9 +391,11 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             logger.warning(f"Announcement notify failed for {rid}: {e}")
 
     if send_email:
-        _email_fanout(org_id, title, content, list(recipient_ids))
+        _email_fanout(org_id, title, content, list(recipient_ids),
+                      attachments=attachments)
     logger.info(f"Announcement '{title[:40]}' by {author_id[:8]} sent to {sent} "
-                f"({','.join(audiences)}; email={'yes' if send_email else 'no'})")
+                f"({','.join(audiences)}; app={'yes' if send_app else 'no'}; "
+                f"email={'yes' if send_email else 'no'})")
     return {'sent': sent, 'announcement_id': announcement_id,
             'recipients': len(recipient_ids), 'emailed': bool(send_email)}
 
@@ -586,9 +607,14 @@ def nudge(announcement: Dict[str, Any]) -> Dict[str, Any]:
     return {'notified': notified}
 
 
-def _email_fanout(org_id: str, title: str, content: str, recipients: List[str]) -> None:
+def _email_fanout(org_id: str, title: str, content: str, recipients: List[str],
+                  attachments: Optional[List[dict]] = None) -> None:
     """Email the announcement in a daemon thread — parents who never open the
-    app still get it, and a slow SMTP hop never holds up the request."""
+    app still get it, and a slow SMTP hop never holds up the request.
+
+    Attachments arrive as a linked list at the bottom of the body, signed for a
+    week: the bucket is private, and an email is often read days later. The app
+    surfaces never see these signed twins — they re-sign per read."""
     if not recipients:
         return
     try:
@@ -601,7 +627,20 @@ def _email_fanout(org_id: str, title: str, content: str, recipients: List[str]) 
         with app.app_context():
             try:
                 from services.announcement_email_service import send_announcement_emails
-                send_announcement_emails(org_id, title, content, recipients)
+                body = content
+                if attachments:
+                    import html as _html
+                    from services.messaging_extras_service import ATTACHMENT_BUCKET
+                    from utils.storage_urls import sign_stored_urls
+                    mapping = sign_stored_urls(
+                        [a['url'] for a in attachments],
+                        ATTACHMENT_BUCKET, expires_in=7 * 24 * 3600)
+                    items = ''.join(
+                        f'<li><a href="{mapping.get(a["url"]) or a["url"]}">'
+                        f'{_html.escape(a.get("name") or "attachment")}</a></li>'
+                        for a in attachments)
+                    body = f'{content}<p><strong>Attachments</strong></p><ul>{items}</ul>'
+                send_announcement_emails(org_id, title, body, recipients)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Announcement email fan-out failed: {e}", exc_info=True)
 

@@ -5,7 +5,7 @@ import { usePromptText } from '../../contexts/ConfirmContext'
 
 /**
  * TemplateControls - unobtrusive template picker + "Save as template" for the
- * announcement composers (AnnouncementsTab, SIS FamilyMessagingPage).
+ * announcement composers (AnnouncementsTab, the SIS inbox's AnnouncementComposer).
  *
  * Templates live in organizations.feature_flags.sis_settings.message_templates
  * via GET/PUT /api/announcements/templates (org_admin + superadmin).

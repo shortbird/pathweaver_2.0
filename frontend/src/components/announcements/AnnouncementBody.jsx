@@ -28,7 +28,7 @@ const LINK_CLS = 'inline-flex max-w-full items-center gap-1.5 rounded-lg bg-opti
 const URL_RE = /https?:\/\/[^\s<>"']+/g
 
 /** "https://www.acme.com/x/y" -> "acme.com" — the label a pasted URL gets. */
-const hostLabel = (url) => {
+export const hostLabel = (url) => {
   try {
     return new URL(url).hostname.replace(/^www\./, '')
   } catch {
@@ -39,8 +39,9 @@ const hostLabel = (url) => {
 /** Trailing sentence punctuation belongs to the sentence, not the URL. */
 const trimUrl = (url) => url.replace(/[.,;:!?)\]]+$/, '')
 
-/** Split plain text into alternating { text } and { url } segments. */
-const splitUrls = (text) => {
+/** Split plain text into alternating { text } and { url } segments.
+ * Exported for plain-text surfaces (message bubbles) that linkify inline. */
+export const splitUrls = (text) => {
   const parts = []
   let last = 0
   for (const m of text.matchAll(URL_RE)) {

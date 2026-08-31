@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
   AcademicCapIcon,
@@ -6,21 +7,40 @@ import {
   ChatBubbleLeftRightIcon,
   InboxIcon,
   PaperAirplaneIcon,
+  PaperClipIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { AttachmentList } from '../../components/communication/MessageParts'
+import { splitUrls, hostLabel } from '../../components/announcements/AnnouncementBody'
+import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 
 /**
- * SchoolInboxPage — the shared "{School Name}" inbox.
+ * SchoolInboxPage — messages and announcements in one place (/inbox).
  *
- * Every org member sees the school as a contact in their Messages and can
- * write to it; those threads land here. The front office (org admins + campus
- * coordinators) reads and answers them AS the school — the member sees the
- * school's name, while the thread here shows which colleague replied
- * (sent_by_name). Read state is shared: one person opening a thread marks it
- * read for the whole office.
+ * Two tabs (messaging and the inbox merged, 2026-08-31; /messaging redirects
+ * here):
+ *
+ * - Messages. For the front office (org admins + campus coordinators) this is
+ *   the shared "{School Name}" inbox: every org member sees the school as a
+ *   contact in their Messages and can write to it; those threads land here,
+ *   read and answered AS the school — the member sees the school's name, while
+ *   the thread here shows which colleague replied (sent_by_name). Read state
+ *   is shared: one person opening a thread marks it read for the whole office.
+ *   For a teacher this is their OWN thread list (/api/messages — the same
+ *   threads as the learning app's Messages), read and answered as themselves:
+ *   the inbox teachers didn't have (iCreate, 2026-08-31).
+ * - Announcements. The group send that used to live at /messaging — audiences,
+ *   class/teacher/age narrowing, optional email. A teacher's send stays scoped
+ *   to their own classes by the backend.
+ *
+ * Under a teacher preview an admin still gets the admin view here: both thread
+ * sources only ever answer for the CALLER (no ?teacher_id=), so a "faithful"
+ * preview would show the admin's own DMs behind the teacher's name — the same
+ * trap hideInPreview guards on My Tasks.
  */
 const POLL_LIST_MS = 30000
 const POLL_THREAD_MS = 15000
@@ -49,8 +69,31 @@ const memberName = (convo) =>
   `${convo.other_user?.first_name || ''} ${convo.other_user?.last_name || ''}`.trim() ||
   convo.other_user?.display_name || 'Member'
 
+/** Message text with its URLs as short, clickable links (labeled by host).
+ * `light` = on the gradient (own-message) bubble. */
+const LinkifiedText = ({ text, light }) => (
+  <p className="text-sm whitespace-pre-wrap break-words">
+    {splitUrls(text).map((s, i) => (s.url ? (
+      <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url}
+        className={`underline font-medium ${light ? 'text-white' : 'text-optio-purple'}`}>
+        {hostLabel(s.url)}
+      </a>
+    ) : (
+      <React.Fragment key={i}>{s.text}</React.Fragment>
+    )))}
+  </p>
+)
+
 const SchoolInboxPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { user } = useAuth()
+  // Which thread source this caller reads (see the header comment). The
+  // backend is the real gate either way: /api/school-inbox/* is ADMIN_ROLES,
+  // /api/messages/* answers only for the caller.
+  const admin = isSisAdmin(user)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') === 'announcements' ? 'announcements' : 'messages'
+  const setTab = (t) => setSearchParams(t === 'messages' ? {} : { tab: t }, { replace: true })
   const [conversations, setConversations] = useState([])
   const [inboxUserId, setInboxUserId] = useState(null)
   const [orgName, setOrgName] = useState('')
@@ -60,37 +103,57 @@ const SchoolInboxPage = () => {
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [attachments, setAttachments] = useState([])
+  const [uploadingAtt, setUploadingAtt] = useState(false)
+  const fileRef = useRef(null)
   const endRef = useRef(null)
+
+  // "Me" in a thread: the school for the front office, the teacher themself
+  // otherwise.
+  const selfId = admin ? inboxUserId : user?.id
 
   const loadConversations = useCallback((quiet = false) => {
     if (!quiet) setLoading(true)
-    api.get(withOrg('/api/school-inbox/conversations', isSuperadmin ? orgId : null))
+    const req = admin
+      ? api.get(withOrg('/api/school-inbox/conversations', isSuperadmin ? orgId : null))
+      : api.get('/api/messages/conversations')
+    req
       .then((r) => {
         const data = r.data?.data || {}
         setConversations(data.conversations || [])
-        setInboxUserId(data.inbox_user_id || null)
-        setOrgName(data.organization?.name || '')
+        if (admin) {
+          setInboxUserId(data.inbox_user_id || null)
+          setOrgName(data.organization?.name || '')
+        }
       })
       .catch((e) => {
         if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the inbox')
       })
       .finally(() => { if (!quiet) setLoading(false) })
-  }, [orgId, isSuperadmin])
+  }, [orgId, isSuperadmin, admin])
 
   useEffect(() => {
-    if (isSuperadmin && !orgId) return
+    if (tab !== 'messages') return
+    if (admin && isSuperadmin && !orgId) return
     loadConversations()
     const timer = setInterval(() => loadConversations(true), POLL_LIST_MS)
     return () => clearInterval(timer)
-  }, [loadConversations, isSuperadmin, orgId])
+  }, [loadConversations, isSuperadmin, orgId, admin, tab])
 
   const loadMessages = useCallback((conversationId, quiet = false) => {
     if (!conversationId) return
     if (!quiet) setMessagesLoading(true)
-    api.get(withOrg(`/api/school-inbox/conversations/${conversationId}`, isSuperadmin ? orgId : null))
+    const url = admin
+      ? withOrg(`/api/school-inbox/conversations/${conversationId}`, isSuperadmin ? orgId : null)
+      : `/api/messages/conversations/${conversationId}`
+    api.get(url)
       .then((r) => {
         setMessages(r.data?.data?.messages || [])
-        // Opening the thread marked it read for the whole office.
+        // The school inbox marks the thread read on GET; a teacher's own
+        // thread needs the explicit mark (same as the learning app).
+        if (!admin) {
+          api.post(`/api/messages/conversations/${conversationId}/read`, {}).catch(() => {})
+        }
         setConversations((prev) => prev.map((c) =>
           c.id === conversationId ? { ...c, unread_count: 0 } : c))
       })
@@ -98,14 +161,14 @@ const SchoolInboxPage = () => {
         if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the conversation')
       })
       .finally(() => { if (!quiet) setMessagesLoading(false) })
-  }, [orgId, isSuperadmin])
+  }, [orgId, isSuperadmin, admin])
 
   useEffect(() => {
-    if (!selected?.id) return
+    if (!selected?.id || tab !== 'messages') return
     loadMessages(selected.id)
     const timer = setInterval(() => loadMessages(selected.id, true), POLL_THREAD_MS)
     return () => clearInterval(timer)
-  }, [selected?.id, loadMessages])
+  }, [selected?.id, loadMessages, tab])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'auto' })
@@ -113,18 +176,48 @@ const SchoolInboxPage = () => {
 
   // Switching orgs (superadmin) resets the open thread.
   useEffect(() => { setSelected(null); setMessages([]) }, [orgId])
+  // A pending attachment belongs to the thread it was picked for.
+  useEffect(() => { setAttachments([]) }, [selected?.id])
+
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files || [])
+    e.target.value = '' // allow re-selecting the same file
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 25MB)`)
+        continue
+      }
+      setUploadingAtt(true)
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const r = await api.post('/api/messages/attachments', formData)
+        const att = (r.data?.data || r.data)?.attachment
+        if (att) setAttachments((prev) => [...prev, att])
+      } catch (err) {
+        toast.error(err.response?.data?.error || `Failed to upload ${file.name}`)
+      } finally {
+        setUploadingAtt(false)
+      }
+    }
+  }
 
   const handleSend = (e) => {
     e?.preventDefault()
     const content = draft.trim()
-    if (!content || !selected?.other_user?.id || sending) return
+    if ((!content && !attachments.length) || !selected?.other_user?.id || sending) return
     setSending(true)
-    api.post(
-      withOrg(`/api/school-inbox/conversations/${selected.other_user.id}/send`, isSuperadmin ? orgId : null),
-      { content }
-    )
+    const url = admin
+      ? withOrg(`/api/school-inbox/conversations/${selected.other_user.id}/send`, isSuperadmin ? orgId : null)
+      : `/api/messages/conversations/${selected.other_user.id}/send`
+    api.post(url, {
+      content,
+      // Durable pointers only — never the signed display twins.
+      attachments: attachments.map(({ url: u, type, name, size }) => ({ url: u, type, name, size })),
+    })
       .then(() => {
         setDraft('')
+        setAttachments([])
         loadMessages(selected.id, true)
         loadConversations(true)
       })
@@ -134,20 +227,41 @@ const SchoolInboxPage = () => {
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
 
+  const tabClass = (t) => `px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+    tab === t
+      ? 'bg-optio-purple text-white border-optio-purple'
+      : 'bg-white text-neutral-600 border-gray-300 hover:border-optio-purple'}`
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">Inbox</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
-            Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
-            replies go out under the school&apos;s name.
-            {totalUnread > 0 && ` ${totalUnread} unread.`}
+            {admin ? (
+              <>Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
+                replies go out under the school&apos;s name.</>
+            ) : (
+              <>Your message threads, and announcements to the families of your classes.</>
+            )}
+            {tab === 'messages' && totalUnread > 0 && ` ${totalUnread} unread.`}
           </p>
         </div>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <button type="button" onClick={() => setTab('messages')} className={tabClass('messages')}>
+          Messages{totalUnread > 0 ? ` (${totalUnread})` : ''}
+        </button>
+        <button type="button" onClick={() => setTab('announcements')} className={tabClass('announcements')}>
+          Announcements
+        </button>
+      </div>
+
+      {tab === 'announcements' ? (
+        <AnnouncementComposer />
+      ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}
         <div className={`w-full md:w-[300px] lg:w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col ${
@@ -162,7 +276,9 @@ const SchoolInboxPage = () => {
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
                 <p className="text-sm font-medium text-neutral-700 mb-1">No messages yet</p>
                 <p className="text-xs text-neutral-500">
-                  When a family or staff member messages the school, the thread shows up here.
+                  {admin
+                    ? 'When a family or staff member messages the school, the thread shows up here.'
+                    : 'When someone messages you, the thread shows up here.'}
                 </p>
               </div>
             ) : (
@@ -214,7 +330,11 @@ const SchoolInboxPage = () => {
           {!selected ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
               <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-sm text-neutral-500">Pick a conversation to read and reply as the school.</p>
+              <p className="text-sm text-neutral-500">
+                {admin
+                  ? 'Pick a conversation to read and reply as the school.'
+                  : 'Pick a conversation to read and reply.'}
+              </p>
             </div>
           ) : (
             <>
@@ -227,10 +347,12 @@ const SchoolInboxPage = () => {
                 </button>
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selected)}</h2>
-                  <p className="text-xs text-neutral-500 flex items-center gap-1">
-                    <AcademicCapIcon className="w-3.5 h-3.5" />
-                    Replying as {orgName || 'the school'}
-                  </p>
+                  {admin && (
+                    <p className="text-xs text-neutral-500 flex items-center gap-1">
+                      <AcademicCapIcon className="w-3.5 h-3.5" />
+                      Replying as {orgName || 'the school'}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -243,24 +365,24 @@ const SchoolInboxPage = () => {
                   <p className="text-center text-sm text-neutral-400 py-8">No messages in this thread yet.</p>
                 ) : (
                   messages.map((message) => {
-                    const fromSchool = message.sender_id === inboxUserId
+                    const fromMe = message.sender_id === selfId
                     return (
-                      <div key={message.id} className={`flex ${fromSchool ? 'justify-end' : 'justify-start'}`}>
+                      <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 ${
-                          fromSchool
+                          fromMe
                             ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
                             : 'bg-white border border-gray-200 text-neutral-900'}`}>
                           {message.message_content && (
-                            <p className="text-sm whitespace-pre-wrap break-words">{message.message_content}</p>
+                            <LinkifiedText text={message.message_content} light={fromMe} />
                           )}
                           {message.attachments?.length > 0 && (
-                            <AttachmentList attachments={message.attachments} light={fromSchool} />
+                            <AttachmentList attachments={message.attachments} light={fromMe} />
                           )}
-                          <p className={`text-[11px] mt-1 ${fromSchool ? 'text-white/70' : 'text-gray-400'}`}>
+                          <p className={`text-[11px] mt-1 ${fromMe ? 'text-white/70' : 'text-gray-400'}`}>
                             {formatTime(message.created_at)}
-                            {fromSchool && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
+                            {admin && fromMe && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
                             {/* A member-side message with an author = forwarded in from Optio Support. */}
-                            {!fromSchool && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
+                            {admin && !fromMe && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
                           </p>
                         </div>
                       </div>
@@ -270,33 +392,65 @@ const SchoolInboxPage = () => {
                 <div ref={endRef} />
               </div>
 
-              <form onSubmit={handleSend} className="border-t border-gray-200 bg-white p-3 flex items-end gap-2">
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSend()
-                    }
-                  }}
-                  rows={1}
-                  placeholder={`Reply as ${orgName || 'the school'}...`}
-                  className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple max-h-32"
-                />
-                <button
-                  type="submit"
-                  disabled={sending || !draft.trim()}
-                  className="p-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white disabled:opacity-40"
-                  aria-label="Send reply"
-                >
-                  <PaperAirplaneIcon className="w-5 h-5" />
-                </button>
-              </form>
+              <div className="border-t border-gray-200 bg-white">
+                {(attachments.length > 0 || uploadingAtt) && (
+                  <div className="px-3 pt-2 flex flex-wrap items-center gap-1.5">
+                    {attachments.map((att, i) => (
+                      <span key={att.url || i}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-neutral-700">
+                        <span className="truncate max-w-[160px]">{att.name}</span>
+                        <button type="button"
+                          onClick={() => setAttachments((prev) => prev.filter((_, x) => x !== i))}
+                          aria-label={`Remove ${att.name}`}
+                          className="text-neutral-400 hover:text-red-600">
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    {uploadingAtt && <span className="text-xs text-neutral-400">Uploading…</span>}
+                  </div>
+                )}
+                <form onSubmit={handleSend} className="p-3 flex items-end gap-2">
+                  <input ref={fileRef} type="file" multiple hidden
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                    onChange={handleFiles} aria-label="Attach files" />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploadingAtt}
+                    className="p-2.5 rounded-lg text-neutral-500 hover:text-optio-purple hover:bg-optio-purple/5 disabled:opacity-40"
+                    aria-label="Attach a file"
+                  >
+                    <PaperClipIcon className="w-5 h-5" />
+                  </button>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSend()
+                      }
+                    }}
+                    rows={1}
+                    placeholder={admin ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
+                    className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple max-h-32"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || (!draft.trim() && !attachments.length)}
+                    className="p-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white disabled:opacity-40"
+                    aria-label="Send reply"
+                  >
+                    <PaperAirplaneIcon className="w-5 h-5" />
+                  </button>
+                </form>
+              </div>
             </>
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

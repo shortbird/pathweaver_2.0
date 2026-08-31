@@ -71,7 +71,6 @@ const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
-const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
 const SchoolInboxPage = lazy(() => import('../pages/sis/SchoolInboxPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
@@ -147,7 +146,9 @@ const SisRoutes = () => (
       <Route path="prior-learning" element={<PriorLearningRoute><PriorLearningPage /></PriorLearningRoute>} />
       <Route path="reports" element={<ModuleRoute path="/reports"><ReportsPage /></ModuleRoute>} />
       <Route path="secure-documents" element={<HrRoute><ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute></HrRoute>} />
-      <Route path="messaging" element={<FamilyMessagingPage />} />
+      {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
+          working for bookmarks and old notification links. */}
+      <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />
       <Route path="inbox" element={<SchoolInboxPage />} />
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<ModuleRoute path="/calendar"><CalendarPage /></ModuleRoute>} />

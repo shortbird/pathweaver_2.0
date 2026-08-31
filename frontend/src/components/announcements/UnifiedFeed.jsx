@@ -4,6 +4,7 @@ import {
   MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
 } from '@heroicons/react/24/outline'
 import AnnouncementBody from './AnnouncementBody'
+import { AttachmentList } from '../communication/MessageParts'
 import { FeedSection, fmtDate, fmtWhen, RECOGNITION_LABEL } from './SchoolCommunity'
 import { htmlToText } from '../../utils/richText'
 
@@ -168,6 +169,8 @@ function FeedItem({ item, expanded, onToggleExpand }) {
           className={`text-sm text-gray-700 mt-2 leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`}
         />
       )}
+      {/* Archive sends can carry files (signed per read by the backend). */}
+      {d.attachments?.length > 0 && <AttachmentList attachments={d.attachments} />}
       {isLong && (
         <button
           onClick={onToggleExpand}

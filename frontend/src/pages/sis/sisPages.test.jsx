@@ -83,7 +83,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 import SisDashboard from './SisDashboard'
 import RosterPage from './RosterPage'
 import HouseholdsPage from './HouseholdsPage'
-import FamilyMessagingPage from './FamilyMessagingPage'
+import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
@@ -284,9 +284,9 @@ describe('HouseholdsPage', () => {
   })
 })
 
-describe('FamilyMessagingPage', () => {
+describe('AnnouncementComposer', () => {
   it('sends an announcement via /api/announcements', async () => {
-    render(<FamilyMessagingPage />)
+    render(<AnnouncementComposer />)
     fireEvent.change(screen.getByPlaceholderText('Subject line'), { target: { value: 'Hello' } })
     fireEvent.change(screen.getByPlaceholderText('Write your announcement…'), { target: { value: 'Body text' } })
     fireEvent.click(screen.getByText('Send announcement'))

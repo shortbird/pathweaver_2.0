@@ -81,7 +81,7 @@ const ATTENTION_TILES = [
 const QUICK_ACTIONS = [
   { label: 'Take attendance', to: '/attendance', module: '/attendance' },
   { label: 'Add a family', to: '/people?tab=families' },
-  { label: 'Message families', to: '/messaging' },
+  { label: 'Message families', to: '/inbox?tab=announcements' },
   { label: 'Send for signature', to: '/tasks?tab=paperwork', module: '/tasks' },
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Reports', to: '/reports', module: '/reports' },

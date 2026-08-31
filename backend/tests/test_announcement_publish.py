@@ -329,6 +329,53 @@ class TestEmailIsOptional:
         email.assert_not_called()
         assert out['emailed'] is False
 
+    def test_an_email_only_send_skips_the_app_entirely(self):
+        """iCreate, 2026-08-31: email OR app message OR both. send_app=False
+        fans out no notifications and marks the row in_app=false, which keeps
+        it off the family-facing surfaces — the email is the whole delivery."""
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        notifier = Mock()
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a', 'b'}), \
+             patch('services.notification_service.NotificationService', return_value=notifier), \
+             patch('services.announcement_service._email_fanout') as email:
+            out = svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
+                              send_app=False)
+        assert out['sent'] == 0
+        assert out['recipients'] == 2
+        notifier.create_notification.assert_not_called()
+        email.assert_called_once()
+        assert table.insert.call_args_list[0][0][0]['in_app'] is False
+
+    def test_attachments_are_cleaned_stored_and_handed_to_the_email(self):
+        """iCreate, 2026-08-31: announcements can carry files. The client list
+        is cleaned to known fields (signed display twins and garbage dropped),
+        stored on the row, and passed to the email fan-out for linking."""
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=Mock()), \
+             patch('services.announcement_service._email_fanout') as email:
+            svc.publish('org-1', 'admin-1', 'T', 'B', ['parents'], attachments=[
+                {'url': 'https://x.supabase.co/storage/v1/object/public/user-uploads/messages/u1/f.pdf',
+                 'name': 'f.pdf', 'type': 'file', 'size': 10, 'display_url': 'signed-twin'},
+                'garbage',
+            ])
+        stored = table.insert.call_args_list[0][0][0]['attachments']
+        assert len(stored) == 1
+        assert stored[0]['name'] == 'f.pdf'
+        assert 'display_url' not in stored[0]
+        assert email.call_args.kwargs['attachments'] == stored
+
+    def test_a_default_send_is_marked_in_app(self):
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=Mock()), \
+             patch('services.announcement_service._email_fanout'):
+            svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'])
+        assert table.insert.call_args_list[0][0][0]['in_app'] is True
+
     def test_a_targeted_send_records_who_it_reached(self):
         client, table = _client(insert_returns=[{'id': 'ann-1'}])
         with patch('services.announcement_service._admin', return_value=client), \

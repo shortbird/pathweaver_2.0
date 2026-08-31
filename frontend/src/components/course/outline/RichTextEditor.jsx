@@ -3,15 +3,21 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
+import { usePromptText } from '../../../contexts/ConfirmContext'
 
 /**
  * RichTextEditor - Simplified WYSIWYG editor for project descriptions
- * Supports headings (H1-H3), bold, italic, lists, and text alignment
+ * Supports headings (H1-H3), bold, italic, links, lists, and text alignment
  *
  * `alignment` is opt-out because alignment is carried by a style attribute, and
  * the announcement pipeline (sanitized HTML through email and the family page)
  * deliberately allows no style attributes. Offering buttons whose effect
  * silently disappears on save is worse than not offering them.
+ *
+ * Links: StarterKit v3 bundles the Link extension (pasted URLs autolink);
+ * the toolbar button lets an author put the link on the words they wrote
+ * ("Sign up here") instead of pasting a raw URL. openOnClick is off so
+ * clicking a link while editing edits it rather than navigating away.
  */
 const RichTextEditor = ({
   value = '',
@@ -21,12 +27,18 @@ const RichTextEditor = ({
   alignment = true,
 }) => {
   const isInternalUpdate = useRef(false)
+  const promptText = usePromptText()
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+        link: {
+          openOnClick: false,
+          autolink: true,
+          defaultProtocol: 'https',
         },
       }),
       Placeholder.configure({
@@ -64,6 +76,25 @@ const RichTextEditor = ({
 
   if (!editor) {
     return null
+  }
+
+  const editLink = async () => {
+    let url = await promptText({ title: 'Link URL', placeholder: 'https://…' })
+    if (url === null) return // cancelled
+    url = url.trim()
+    if (!url) {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+    if (!/^(https?:\/\/|mailto:|tel:)/i.test(url)) url = `https://${url}`
+    if (editor.state.selection.empty && !editor.isActive('link')) {
+      // Nothing selected: insert the URL itself as a link.
+      editor.chain().focus().insertContent({
+        type: 'text', text: url, marks: [{ type: 'link', attrs: { href: url } }],
+      }).run()
+    } else {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    }
   }
 
   const MenuButton = ({ onClick, isActive, children, title }) => (
@@ -130,6 +161,27 @@ const RichTextEditor = ({
         >
           <span className="italic">I</span>
         </MenuButton>
+        <MenuButton
+          onClick={editLink}
+          isActive={editor.isActive('link')}
+          title="Add link"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+          </svg>
+        </MenuButton>
+        {editor.isActive('link') && (
+          <MenuButton
+            onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
+            title="Remove link"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-1.5 1.5m-5.304-5.304l-1.757 1.757a4.5 4.5 0 006.364 6.364l1.5-1.5m4.286-9.286l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-1.5 1.5M3 3l18 18" />
+            </svg>
+          </MenuButton>
+        )}
 
         {alignment && <Divider />}
 

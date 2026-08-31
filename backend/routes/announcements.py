@@ -124,15 +124,25 @@ def create_announcement(user_id):
             return jsonify({'success': False,
                             'error': 'Nobody matches that selection'}), 400
 
-        # Default True: every existing caller (Community Hub, scripts) keeps
-        # emailing. The SIS Messaging composer sends the flag explicitly.
+        # Delivery channels (iCreate, 2026-08-31): app message, email, or both.
+        # Defaults keep every existing caller (Community Hub, scripts) behaving
+        # exactly as before — app + email. The SIS inbox composer sends both
+        # flags explicitly.
         send_email = data.get('send_email')
         send_email = True if send_email is None else bool(send_email)
+        send_app = data.get('send_app')
+        send_app = True if send_app is None else bool(send_app)
+        if not send_app and not send_email:
+            return jsonify({'success': False,
+                            'error': 'Pick at least one way to deliver it'}), 400
 
         result = announcement_service.publish(
             org_id, user_id, title, content, audiences,
-            student_ids=student_ids, send_email=send_email,
+            student_ids=student_ids, send_email=send_email, send_app=send_app,
             advisor_ids=advisor_ids,
+            # Pre-uploaded via POST /api/messages/attachments; the service
+            # cleans the list down to known fields.
+            attachments=data.get('attachments'),
             target_label=announcement_service.target_label(
                 audiences, class_ids, teacher_ids, min_age, max_age))
         return jsonify({'success': True, **result})
@@ -163,9 +173,12 @@ def list_announcements(user_id):
         audience_token = _archive_audience_token(get_effective_role(caller), None)
         query = admin.table('announcements')\
             .select('id, title, message, target_audience, author_id, created_at, '
-                    'last_nudged_at, source_announcement_id')\
+                    'last_nudged_at, source_announcement_id, in_app, attachments')\
             .eq('organization_id', org_id)
         if audience_token:
+            # Email-only sends never reach the app: families must not read one
+            # in-app that the office chose to keep out of the app.
+            query = query.eq('in_app', True)
             # Targeted sends are snapshot-only, same as the archive: the role
             # token inside "parents (1 class)" must not widen a narrowed send
             # to every parent in the org.
@@ -183,6 +196,9 @@ def list_announcements(user_id):
             {**row, 'content': row.get('message')}
             for row in (rows.data or [])
         ]
+        # Attachment pointers are private-bucket URLs; hand out signed twins.
+        from services import messaging_extras_service as msg_extras
+        msg_extras.sign_attachments(announcements)
         # Read stats, for the staff view only (audience_token is None exactly
         # for the staff tiers + superadmin). One query against the aggregate
         # view for the whole page — never a count per row, never raw read rows
@@ -202,6 +218,25 @@ def list_announcements(user_id):
                 s = stats.get(a['id']) or {}
                 a['read_count'] = s.get('read_count') or 0
                 a['recipient_count'] = s.get('recipient_count')
+            # Sender names, for the history's "by who sent them" filter on the
+            # SIS inbox composer (iCreate, 2026-08-31). One query for the page.
+            author_ids = list({a['author_id'] for a in announcements
+                               if a.get('author_id')})
+            names = {}
+            if author_ids:
+                try:
+                    urows = admin.table('users')\
+                        .select('id, display_name, first_name, last_name')\
+                        .in_('id', author_ids).execute().data or []
+                    names = {
+                        u['id']: (u.get('display_name')
+                                  or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip())
+                        for u in urows
+                    }
+                except Exception as ne:  # noqa: BLE001 — names must not sink the list
+                    logger.warning(f"Announcement author names unavailable: {ne}")
+            for a in announcements:
+                a['author_name'] = names.get(a.get('author_id')) or None
         return jsonify({'success': True, 'announcements': announcements})
     except Exception as e:
         logger.error(f"Error listing announcements: {e}")
@@ -338,11 +373,18 @@ def nudge_announcement(user_id, announcement_id):
         effective_role = get_effective_role(caller)
 
         row = admin.table('announcements')\
-            .select('id, organization_id, author_id, title, message, last_nudged_at')\
+            .select('id, organization_id, author_id, title, message, '
+                    'last_nudged_at, in_app')\
             .eq('id', announcement_id).limit(1).execute().data
         if not row:
             return jsonify({'success': False, 'error': 'Announcement not found'}), 404
         row = row[0]
+        if row.get('in_app') is False:
+            # Email-only send: a nudge is an in-app notification about a
+            # message that was never in the app.
+            return jsonify({'success': False,
+                            'error': 'This was sent as email only, so there is '
+                                     'nothing in-app to remind anyone about'}), 400
 
         if effective_role != 'superadmin' and \
                 row.get('organization_id') != caller.get('organization_id'):
@@ -552,9 +594,10 @@ def announcements_archive(user_id):
 
         query = admin.table('announcements')\
             .select('id, title, message, target_audience, author_id, created_at, '
-                    'source_announcement_id',
+                    'source_announcement_id, attachments',
                     count='exact')\
-            .eq('organization_id', org_id)
+            .eq('organization_id', org_id)\
+            .eq('in_app', True)
 
         # Audience visibility: students/parents only see announcements that
         # target their role or the whole org. target_audience is 'everyone' or
@@ -609,6 +652,9 @@ def announcements_archive(user_id):
             {**row, 'content': row.get('message')}
             for row in (result.data or [])
         ]
+        # Attachment pointers are private-bucket URLs; hand out signed twins.
+        from services import messaging_extras_service as msg_extras
+        msg_extras.sign_attachments(announcements)
         return jsonify({
             'success': True,
             'announcements': announcements,
