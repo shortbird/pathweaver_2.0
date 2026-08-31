@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -113,17 +114,73 @@ const EntryRow = ({ entry, orgId, onChanged }) => {
   )
 }
 
+/**
+ * Why the page is empty, said out loud. The time clock is off by default on
+ * every staff profile, so a school that has never switched it on for anybody
+ * sees an empty period forever and reads that as the feature being broken
+ * (iCreate, 2026-08-25: "Timesheets would be a nice feature if it worked!").
+ * Nobody on the clock is a setup step, not an empty week, and the two need to
+ * look different.
+ */
+const SetupNotice = ({ setup }) => {
+  if (!setup) return <p className="text-neutral-500">No time entries in this period.</p>
+
+  if (!setup.clock_enabled) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+        <p className="font-semibold text-amber-900">Nobody is on the time clock yet</p>
+        <p className="text-sm text-amber-900">
+          Hours show up here once staff clock in and out, and the clock is off until you turn
+          it on for each person. None of your {setup.staff_total} active staff{' '}
+          {setup.staff_total === 1 ? 'member has' : 'members have'} it on.
+        </p>
+        <p className="text-sm text-amber-900">
+          Open <Link to="/people?tab=staff" className="font-semibold underline">People &rarr; Staff</Link>,
+          edit someone&apos;s employment details, and tick <strong>Uses time clock</strong>. Set their
+          hourly rate at the same time so the payroll export can total their pay. They will then see
+          a My Time page with Clock in and Clock out.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <p className="text-neutral-500">
+      No time entries in this period. {setup.clock_enabled} staff{' '}
+      {setup.clock_enabled === 1 ? 'member is' : 'members are'} on the clock — entries appear
+      here once they clock out.
+    </p>
+  )
+}
+
+/** Clock on, rate missing: the payroll CSV leaves Amount blank rather than guess. */
+const MissingRateNotice = ({ setup }) => {
+  if (!setup?.missing_rate?.length) return null
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900">
+      No hourly rate on file for{' '}
+      <strong>{setup.missing_rate.map((s) => s.name).join(', ')}</strong>. Their hours are tracked,
+      but the payroll export leaves the rate and amount blank. Set it under{' '}
+      <Link to="/people?tab=staff" className="font-semibold underline">People &rarr; Staff</Link>.
+    </div>
+  )
+}
+
 const TimesheetsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [{ start, end }, setPeriod] = useState(defaultPeriod())
   const [sheets, setSheets] = useState([])
+  const [setup, setSetup] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
     setLoading(true)
     api.get(withOrg(`/api/sis/staff-admin/timesheets?start=${start}&end=${end}`, orgId))
-      .then((r) => setSheets(r.data?.timesheets || []))
+      .then((r) => {
+        setSheets(r.data?.timesheets || [])
+        setSetup(r.data?.setup || null)
+      })
       .catch(() => toast.error('Failed to load timesheets'))
       .finally(() => setLoading(false))
   }, [orgId, start, end])
@@ -172,9 +229,8 @@ const TimesheetsPage = () => {
       </div>
 
       {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && !sheets.length && (
-        <p className="text-neutral-500">No time entries in this period.</p>
-      )}
+      {!loading && !sheets.length && <SetupNotice setup={setup} />}
+      {!loading && !!sheets.length && <MissingRateNotice setup={setup} />}
 
       <div className="space-y-3">
         {sheets.map((s) => (

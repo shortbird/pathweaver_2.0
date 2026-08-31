@@ -525,7 +525,12 @@ def timesheets(user_id):
     start, end, perr = _period_or_error()
     if perr:
         return perr
-    return jsonify({'success': True, 'timesheets': staff.timesheet_summary(org_id, start, end)})
+    return jsonify({'success': True,
+                    'timesheets': staff.timesheet_summary(org_id, start, end),
+                    # Why the list is empty, when it is: the time clock is off
+                    # by default on every staff profile, and nothing on the page
+                    # used to say so.
+                    'setup': staff.timeclock_setup(org_id)})
 
 
 @bp.route('/time-entries/<entry_id>', methods=['PATCH'])
