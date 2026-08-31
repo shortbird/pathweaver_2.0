@@ -1,23 +1,22 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import SearchSelect from '../ui/SearchSelect'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import { getMasqueradeState, startMasquerade, exitMasquerade } from '../../services/masqueradeService'
 
 /**
- * "Viewing as" — switch the whole session to ONE role, backend authorization
- * included (POST /api/role-view/<role> sets a signed httpOnly cookie;
- * utils/roles.apply_role_view narrows every role decision server-side), and
- * optionally to ONE PERSON in that role, which is a masquerade: the backend
- * answers as that account, so an admin sees a teacher's real classes or a
- * family's real portal rather than a generic empty view (iCreate,
- * 2026-08-28). Masquerade is audited (admin_masquerade_log) and gated by
- * token_authority.caller_may_masquerade.
+ * "Viewing as" — for the admin tiers (superadmin, org_admin) this is ONE
+ * searchable person picker: choose anyone at the school and the backend
+ * answers as that account (a masquerade — audited in admin_masquerade_log,
+ * gated by token_authority.caller_may_masquerade). The role dropdown that
+ * used to sit above it is gone: the generic role view showed an empty
+ * account, and admins only ever wanted a real person's setup (2026-08-31).
  *
- * Who gets what: the admin tiers (superadmin, org_admin) may view as ANY role
- * of the school and as any non-admin member of it. Everyone else gets the
- * roles they hold, shown only when there is more than one (Katie at Gryffin:
- * parent + teacher). A superadmin's view is pinned to the org selected.
+ * Non-admins who hold several roles (Katie at Gryffin: parent + teacher)
+ * keep the role view instead — they may not masquerade, so narrowing their
+ * own session to one role (POST /api/role-view/<role>, signed httpOnly
+ * cookie, utils/roles.apply_role_view) is their switcher.
  */
 
 const ROLE_LABELS = {
@@ -26,17 +25,15 @@ const ROLE_LABELS = {
   advisor: 'Teacher',
   parent: 'Parent',
   student: 'Student',
+  observer: 'Observer',
 }
-
-// Everything an admin tier may step down into, in nav order.
-const ADMIN_TIER_OFFER = ['org_admin', 'campus_coordinator', 'advisor', 'parent', 'student']
 
 const viewable = (roles = []) => roles.filter((r) => ROLE_LABELS[r])
 
 const isAdminTier = (realRoles = []) => realRoles.includes('superadmin') || realRoles.includes('org_admin')
 
 export const offeredRoles = (realRoles = []) => {
-  if (isAdminTier(realRoles)) return ADMIN_TIER_OFFER
+  if (isAdminTier(realRoles)) return []
   const held = viewable(realRoles)
   return held.length > 1 ? held : []
 }
@@ -55,7 +52,17 @@ export const exitRoleView = async () => {
 
 // Where a masqueraded session should open: staff on the console home,
 // families and students on their own surfaces.
-const landingFor = (role) => (role === 'parent' ? '/parent/dashboard' : role === 'student' ? '/dashboard' : '/')
+const landingFor = (roles = []) => {
+  if (roles.includes('campus_coordinator') || roles.includes('advisor')) return '/'
+  if (roles.includes('parent')) return '/parent/dashboard'
+  if (roles.includes('student')) return '/dashboard'
+  return '/'
+}
+
+const personLabel = (p) => {
+  const roles = (p.roles || []).map((r) => ROLE_LABELS[r]).filter(Boolean)
+  return roles.length ? `${p.name} — ${roles.join(', ')}` : p.name
+}
 
 const select = 'w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50'
 
@@ -69,18 +76,18 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
   const masq = getMasqueradeState()
   const isSuperadmin = real.includes('superadmin')
   const adminTier = isAdminTier(real)
+  const orgReady = !isSuperadmin || Boolean(orgId)
 
-  // The person list for the active role — admin tiers only, and only once a
-  // role is chosen (a plain multi-role user gets no person picker).
+  // The person list — everyone at the school an admin may open.
   useEffect(() => {
-    if (!active || !adminTier || masq) { setPeople(null); return }
+    if (!adminTier || masq || !orgReady) { setPeople(null); return }
     let cancelled = false
-    api.get(withOrg(`/api/role-view/people?role=${encodeURIComponent(active)}`, isSuperadmin ? orgId : null))
+    api.get(withOrg('/api/role-view/people', isSuperadmin ? orgId : null))
       .then((r) => { if (!cancelled) setPeople(r.data?.people || []) })
       .catch(() => { if (!cancelled) setPeople([]) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, adminTier, isSuperadmin, orgId, Boolean(masq)])
+  }, [adminTier, isSuperadmin, orgId, orgReady, Boolean(masq)])
 
   // Inside a masquerade the account we see IS the target, so the real roles
   // above belong to them; render the way back instead of their switcher.
@@ -112,33 +119,62 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
     )
   }
 
-  if (!active && !roles.length) return null
-  const resetLabel = isSuperadmin ? 'Superadmin' : (real.includes('org_admin') && real.length === 1 ? 'Admin' : 'All roles')
-  // The Admin option is the same thing as reset for a plain org admin.
-  const options = roles.filter((r) => !(r === 'org_admin' && resetLabel === 'Admin'))
-
-  const pickRole = async (role) => {
-    if (busy) return
-    if (role && isSuperadmin && !orgId) {
-      toast.error('Pick a school first')
-      return
-    }
+  const pickPerson = async (personId) => {
+    if (busy || !personId) return
+    const person = (people || []).find((p) => p.id === personId)
     setBusy(true)
-    try {
-      if (role) await startRoleView(role, isSuperadmin ? orgId : null)
-      else await exitRoleView()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not switch views')
+    const result = await startMasquerade(personId, 'SIS viewing-as picker', api, landingFor(person?.roles))
+    if (!result.success) {
+      toast.error(result.error || 'Could not open that account')
       setBusy(false)
     }
   }
 
-  const pickPerson = async (personId) => {
-    if (busy || !personId) return
+  if (adminTier) {
+    return (
+      <div className="px-3 pt-3 space-y-2">
+        <label className="block">
+          <span className="block px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+            Viewing as
+          </span>
+          <SearchSelect
+            value=""
+            onChange={pickPerson}
+            options={people || []}
+            getId={(p) => p.id}
+            getLabel={personLabel}
+            placeholder={!orgReady ? 'Pick a school first' : people === null ? 'Loading…' : 'Search people…'}
+          />
+        </label>
+        {/* Role views are no longer started from here, but one can still be
+            active (older session, TopNavbar); leave a way back. */}
+        {active && (
+          <button
+            onClick={async () => { if (!busy) { setBusy(true); try { await exitRoleView() } catch { setBusy(false) } } }}
+            disabled={busy}
+            className="w-full rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
+          >
+            Exit {ROLE_LABELS[active] || active} view
+          </button>
+        )}
+        <p className="px-1 text-[11px] text-neutral-500">
+          Open someone&rsquo;s account to see the platform exactly as they do.
+        </p>
+      </div>
+    )
+  }
+
+  // Non-admin, several roles: narrow the session to one of them.
+  if (!active && !roles.length) return null
+
+  const pickRole = async (role) => {
+    if (busy) return
     setBusy(true)
-    const result = await startMasquerade(personId, `SIS view as ${active}`, api, landingFor(active))
-    if (!result.success) {
-      toast.error(result.error || 'Could not open that account')
+    try {
+      if (role) await startRoleView(role)
+      else await exitRoleView()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not switch views')
       setBusy(false)
     }
   }
@@ -150,32 +186,15 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
           Viewing as
         </span>
         <select value={active || ''} disabled={busy} onChange={(e) => pickRole(e.target.value || null)} className={select}>
-          <option value="">{resetLabel}</option>
-          {options.map((r) => (
+          <option value="">All roles</option>
+          {roles.map((r) => (
             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
           ))}
         </select>
       </label>
-      {active && adminTier && (
-        <label className="block">
-          <span className="block px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-            Specific {ROLE_LABELS[active] ? ROLE_LABELS[active].toLowerCase() : 'person'}
-          </span>
-          <select value="" disabled={busy || people === null} onChange={(e) => pickPerson(e.target.value)} className={select}>
-            <option value="">
-              {people === null ? 'Loading…' : people.length ? 'Open someone’s account…' : `No ${ROLE_LABELS[active]?.toLowerCase() || 'people'}s yet`}
-            </option>
-            {(people || []).map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
       {active && (
         <p className="px-1 text-[11px] text-neutral-500">
-          {adminTier
-            ? 'Generic view of this role. Pick a person to see their actual setup.'
-            : 'The whole platform behaves as if this were your only role.'}
+          The whole platform behaves as if this were your only role.
         </p>
       )}
     </div>

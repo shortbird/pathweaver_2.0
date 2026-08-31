@@ -28,21 +28,32 @@ logger = get_logger(__name__)
 
 role_view_bp = Blueprint('role_view', __name__, url_prefix='/api/role-view')
 
+# VIEWABLE_ROLES is a set; the picker labels people by role, so fix an order.
+_ROLE_DISPLAY_ORDER = ('campus_coordinator', 'advisor', 'parent', 'student', 'observer')
+
+# Non-admin staff — who the "Viewing as" picker lists by default. Students and
+# parents are deliberately out (2026-08-31): the picker is for stepping into a
+# colleague's seat, and an org has hundreds of families.
+_STAFF_PICK_ROLES = {'campus_coordinator', 'advisor'}
+
 
 @role_view_bp.route('/people', methods=['GET'])
 @require_real_identity
 def people_in_role(user_id):
-    """The members of a school who hold a role — the "specific person" list
-    behind the switcher, so an admin can open a teacher's or a family's actual
+    """The members of a school an admin may open — the person list behind the
+    "Viewing as" picker, so an admin can open a teacher's or a family's actual
     setup rather than a generic empty view. Resolved on the REAL caller (it is
     reachable from inside a narrowed view or a masquerade): superadmin for any
     org, org admin for their own. Admin-tier accounts are never listed — the
     masquerade rule refuses them as targets.
 
-    Query: role, organization_id (superadmin only; ignored for others).
+    Query: role (optional filter; omitted = school staff only — teachers and
+    coordinators, not the hundreds of students and parents), organization_id
+    (superadmin only; ignored for others). Each person carries their viewable
+    roles so the picker can label and search by role.
     """
-    role = (request.args.get('role') or '').strip()
-    if role not in VIEWABLE_ROLES:
+    role = (request.args.get('role') or '').strip() or None
+    if role and role not in VIEWABLE_ROLES:
         return jsonify({'success': False, 'error': 'Unknown role'}), 400
     # admin client justified: reads the caller's own row, then org members' names/roles for a picker; org pinned below
     admin = get_supabase_admin_client()
@@ -68,11 +79,17 @@ def people_in_role(user_id):
     people = []
     for u in rows:
         roles = set(_real_effective_roles(u))
-        if role not in roles or roles & {'org_admin', 'superadmin'}:
+        if roles & {'org_admin', 'superadmin'}:
+            continue
+        viewable = [r for r in _ROLE_DISPLAY_ORDER if r in roles]
+        if not viewable or (role and role not in roles):
+            continue
+        # Default (no role filter) = the "Viewing as" picker: staff only.
+        if not role and not (roles & _STAFF_PICK_ROLES):
             continue
         name = (f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
                 or u.get('display_name') or u.get('email') or 'Unnamed')
-        people.append({'id': u['id'], 'name': name})
+        people.append({'id': u['id'], 'name': name, 'roles': viewable})
     people.sort(key=lambda p: p['name'].lower())
     return jsonify({'success': True, 'people': people})
 

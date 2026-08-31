@@ -160,3 +160,70 @@ def test_parent_view_reaches_the_family_surface_role():
         assert has_any_role(KATIE, ['advisor', 'org_admin']) is False
     finally:
         ctx.pop()
+
+
+# --- /api/role-view/people: the person picker's list ------------------------
+#
+# Since 2026-08-31 the SIS "Viewing as" switcher is a single searchable person
+# picker, so the endpoint must answer WITHOUT a role filter: the school's
+# non-admin STAFF (teachers, coordinators — not students or parents), each
+# carrying their viewable roles for the label.
+
+from unittest.mock import Mock, patch
+
+
+def _org_people_db(caller_row, members):
+    db = Mock()
+    table = Mock()
+    db.table.return_value = table
+    for chained in ('select', 'eq', 'limit'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(data=[caller_row])
+    return db, members
+
+
+def test_people_without_role_lists_staff_only(client, mock_verify_token):
+    caller = {'id': 'test-user-123', 'role': 'org_managed', 'org_role': 'org_admin',
+              'org_roles': None, 'organization_id': 'org-1'}
+    members = [
+        {'id': 'u-t', 'first_name': 'Dallin', 'last_name': 'Bird',
+         'role': 'org_managed', 'org_role': 'advisor', 'org_roles': ['advisor', 'parent']},
+        {'id': 'u-c', 'first_name': 'Cora', 'last_name': 'Front',
+         'role': 'org_managed', 'org_role': 'campus_coordinator', 'org_roles': None},
+        {'id': 'u-s', 'first_name': 'Sam', 'last_name': 'Hearth',
+         'role': 'org_managed', 'org_role': 'student', 'org_roles': None},
+        {'id': 'u-p', 'first_name': 'Penny', 'last_name': 'Hearth',
+         'role': 'org_managed', 'org_role': 'parent', 'org_roles': None},
+        {'id': 'u-a', 'first_name': 'Christina', 'last_name': 'Admin',
+         'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': None},
+    ]
+    db, _ = _org_people_db(caller, members)
+    with patch('routes.role_view.get_supabase_admin_client', return_value=db), \
+         patch('routes.role_view.fetch_all_rows', return_value=members):
+        resp = client.get('/api/role-view/people',
+                          headers={'Authorization': 'Bearer t'})
+    assert resp.status_code == 200
+    people = {p['id']: p for p in resp.get_json()['people']}
+    # Staff only: no students, no parents; admin-tier members never appear —
+    # the masquerade rule refuses them.
+    assert set(people) == {'u-t', 'u-c'}
+    assert people['u-t']['roles'] == ['advisor', 'parent']
+    assert people['u-c']['roles'] == ['campus_coordinator']
+
+
+def test_people_still_filters_by_role_when_asked(client, mock_verify_token):
+    caller = {'id': 'test-user-123', 'role': 'org_managed', 'org_role': 'org_admin',
+              'org_roles': None, 'organization_id': 'org-1'}
+    members = [
+        {'id': 'u-t', 'first_name': 'Dallin', 'last_name': 'Bird',
+         'role': 'org_managed', 'org_role': 'advisor', 'org_roles': None},
+        {'id': 'u-s', 'first_name': 'Sam', 'last_name': 'Hearth',
+         'role': 'org_managed', 'org_role': 'student', 'org_roles': None},
+    ]
+    db, _ = _org_people_db(caller, members)
+    with patch('routes.role_view.get_supabase_admin_client', return_value=db), \
+         patch('routes.role_view.fetch_all_rows', return_value=members):
+        resp = client.get('/api/role-view/people?role=advisor',
+                          headers={'Authorization': 'Bearer t'})
+    assert resp.status_code == 200
+    assert [p['id'] for p in resp.get_json()['people']] == ['u-t']
