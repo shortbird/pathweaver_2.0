@@ -6,27 +6,17 @@ import api from '../../services/api'
 import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
-import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 
 /**
  * TeacherDashboard — the advisor home for the SIS teacher portal.
  *
- * Class management first: today's teaching schedule (with one-tap attendance)
- * and the teacher's classes lead the page; operational items (time clock,
- * onboarding, required reading, forms) sit in a secondary rail; learning-app
- * engagement alerts drop to the bottom. One backend call
- * (/api/sis/teacher/dashboard) feeds every card.
+ * Class management first: pinned teacher links up top, then the teacher's
+ * classes as the hero (the Today schedule card was removed by request —
+ * iCreate 2026-08-31); operational items (time clock, onboarding, required
+ * reading, forms) sit in a secondary rail; learning-app engagement alerts
+ * drop to the bottom. One backend call (/api/sis/teacher/dashboard) feeds
+ * every card.
  */
-
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = hhmm.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
-const KIND_LABEL = { class: 'Class', duty: 'Duty', event: 'Event', meeting: 'Meeting', substitute: 'Substitute', other: 'Shift' }
 
 const Card = ({ title, children, action }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -57,13 +47,6 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const [clockBusy, setClockBusy] = useState(false)
   const [alerts, setAlerts] = useState([])
   const [resolvingId, setResolvingId] = useState(null)
-  // What the office has sent this teacher. The archive already narrows to the
-  // caller's own sends (2026-08-27); until now a teacher had no page that
-  // listed them, only the bell (iCreate, 2026-08-29: "could we have
-  // announcements for teachers show up in a different place than announcements
-  // for families? Like could it show in their teacher portal").
-  const [announcements, setAnnouncements] = useState([])
-  const [allAnnouncements, setAllAnnouncements] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -82,11 +65,6 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     api.get(`${alertsUrl}${alertsUrl.includes('?') ? '&' : '?'}scope=mine`)
       .then((r) => setAlerts(r.data?.alerts || []))
       .catch(() => setAlerts([]))
-    // Not previewed: the archive is filtered by the caller's recipient rows,
-    // so an admin viewing a teacher's home sees their own (wider) list here.
-    api.get(withOrg('/api/announcements/archive?limit=20', orgId))
-      .then((r) => setAnnouncements(r.data?.announcements || []))
-      .catch(() => setAnnouncements([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
@@ -126,11 +104,9 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   if (loading) return <p className="text-neutral-500">Loading…</p>
   if (!data) return <p className="text-neutral-500">Nothing to show yet.</p>
 
-  const { today = [], classes = [], profile = {}, open_time_entry: openEntry,
+  const { classes = [], profile = {}, open_time_entry: openEntry,
     onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
     staff_resources: staffResources = [], pinned_links: pinnedLinks = [] } = data
-
-  const todayClasses = today.filter((i) => i.kind === 'class')
 
   return (
     <div className="space-y-6">
@@ -171,52 +147,54 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
         </Link>
       )}
 
+      {/* Permanent links the school pins for its teachers (Resources page,
+          "Pin to teacher home"). Moved above the class grid by request
+          (iCreate 2026-08-31) — documents and forms teachers always need. */}
+      {pinnedLinks.length > 0 && (
+        <Card title="Links"
+          action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
+          <div className="flex flex-wrap gap-2">
+            {pinnedLinks.map((l) => (
+              <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                title={l.description || undefined}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-optio-purple hover:border-optio-purple/50 hover:bg-optio-purple/5 transition-colors">
+                {l.title}
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Hero: today's teaching schedule with one-tap attendance */}
+        {/* Hero: the teacher's classes — the core of the portal. Replaced the
+            Today schedule card in this slot (iCreate 2026-08-31). */}
+        {/* Every class, not the first six. A teacher with seven classes had to
+            click through to find the seventh, which is the opposite of a
+            dashboard (iCreate, 2026-07-31: "it'd be nice just to show ALL the
+            classes on the dashboard instead of having to click to see all"). */}
         <div className="lg:col-span-2">
-          <Card title="Today" action={<Link to="/my-schedule" className="text-sm text-optio-purple hover:underline">Full schedule</Link>}>
-            {data.school_starts && (
-              <p className="text-sm text-neutral-500">
-                School starts {new Date(`${data.school_starts}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} — no classes until then.
-              </p>
-            )}
-            {!today.length && !data.school_starts && (
-              <p className="text-sm text-neutral-500">Nothing scheduled today.</p>
-            )}
-            <ul className="space-y-2">
-              {today.map((item, i) => {
-                const isClass = item.kind === 'class' && item.class_id
-                return (
-                  <li key={i}
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                      isClass ? 'border-gray-200 hover:border-optio-purple/40 transition-colors' : 'border-transparent bg-gray-50'}`}>
-                    <span className="text-sm font-semibold text-neutral-500 w-24 shrink-0">
-                      {item.start_time ? `${fmtTime(item.start_time)}–${fmtTime(item.end_time)}` : 'All day'}
-                    </span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600 shrink-0">
-                      {KIND_LABEL[item.kind] || item.kind}
-                    </span>
-                    {isClass ? (
-                      <Link to={`/my-classes/${item.class_id}`} className="text-sm font-medium text-neutral-900 hover:text-optio-purple truncate">
-                        {item.title}
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-neutral-800 truncate">{item.title}</span>
-                    )}
-                    {item.location && <span className="hidden sm:inline text-xs text-neutral-400 shrink-0">{item.location}</span>}
-                    {isClass && (
-                      <Link to={`/my-classes/${item.class_id}`}
-                        className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold">
-                        <ClipboardDocumentCheckIcon className="w-4 h-4" /> Take attendance
-                      </Link>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-            {!todayClasses.length && today.length > 0 && (
-              <p className="mt-2 text-xs text-neutral-400">No classes to take attendance for today.</p>
-            )}
+          <Card title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
+            action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
+            {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {classes.map((c) => (
+                <div key={c.id}
+                  className="rounded-lg border border-gray-200 p-3 hover:border-optio-purple/50 transition-colors">
+                  <Link to={`/my-classes/${c.id}`} className="block">
+                    <p className="font-medium text-neutral-900 truncate">{c.name}</p>
+                    <p className="text-sm text-neutral-500">{c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}</p>
+                  </Link>
+                  <div className="mt-2 flex items-center gap-3 text-xs font-medium">
+                    <Link to={`/my-classes/${c.id}`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
+                      <ClipboardDocumentCheckIcon className="w-4 h-4" /> Attendance
+                    </Link>
+                    <Link to={`/my-classes/${c.id}?tab=messages`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
+                      <ChatBubbleLeftRightIcon className="w-4 h-4" /> Message
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
 
@@ -297,81 +275,6 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           )}
         </div>
       </div>
-
-      {/* Announcements from the office. Teachers see only what was sent to
-          them; families read theirs on the family home, so a staff notice
-          never lands on a parent page and a teacher no longer has to dig
-          through the bell to find one. */}
-      {announcements.length > 0 && (
-        <Card title="Announcements"
-          action={announcements.length > 3 ? (
-            <button type="button" onClick={() => setAllAnnouncements((v) => !v)}
-              className="text-sm text-optio-purple hover:underline">
-              {allAnnouncements ? 'Show fewer' : `Show all (${announcements.length})`}
-            </button>
-          ) : null}>
-          <ul className="divide-y divide-gray-100">
-            {(allAnnouncements ? announcements : announcements.slice(0, 3)).map((a) => (
-              <li key={a.id} className="py-3 first:pt-0 last:pb-0">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-medium text-neutral-900">{a.title}</p>
-                  <span className="text-xs text-neutral-400 whitespace-nowrap">
-                    {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
-                <AnnouncementBody text={a.content} className="text-sm text-neutral-600 mt-1" />
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* Permanent links the school pins for its teachers (Resources page,
-          "Pin to teacher home"). Sits between Today and My classes by request
-          (iCreate 2026-08-28) — documents and forms teachers always need. */}
-      {pinnedLinks.length > 0 && (
-        <Card title="Links"
-          action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
-          <div className="flex flex-wrap gap-2">
-            {pinnedLinks.map((l) => (
-              <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
-                title={l.description || undefined}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-optio-purple hover:border-optio-purple/50 hover:bg-optio-purple/5 transition-colors">
-                {l.title}
-              </a>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* My classes — the core of the portal */}
-      {/* Every class, not the first six. A teacher with seven classes had to
-          click through to find the seventh, which is the opposite of a
-          dashboard (iCreate, 2026-07-31: "it'd be nice just to show ALL the
-          classes on the dashboard instead of having to click to see all"). */}
-      <Card title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
-        action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
-        {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {classes.map((c) => (
-            <div key={c.id}
-              className="rounded-lg border border-gray-200 p-3 hover:border-optio-purple/50 transition-colors">
-              <Link to={`/my-classes/${c.id}`} className="block">
-                <p className="font-medium text-neutral-900 truncate">{c.name}</p>
-                <p className="text-sm text-neutral-500">{c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}</p>
-              </Link>
-              <div className="mt-2 flex items-center gap-3 text-xs font-medium">
-                <Link to={`/my-classes/${c.id}`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
-                  <ClipboardDocumentCheckIcon className="w-4 h-4" /> Attendance
-                </Link>
-                <Link to={`/my-classes/${c.id}?tab=messages`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
-                  <ChatBubbleLeftRightIcon className="w-4 h-4" /> Message
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {/* Learning-app engagement alerts — secondary, below class management. */}
       {alerts.length > 0 && (

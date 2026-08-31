@@ -41,7 +41,7 @@ beforeEach(() => {
 })
 
 describe('TeacherDashboard — pinned Links section', () => {
-  it('renders pinned links as named hyperlinks between Today and My classes', async () => {
+  it('renders pinned links as named hyperlinks above My classes', async () => {
     state.dashboard.pinned_links = [
       { id: 'l1', title: 'Field Trip Form', url: 'https://example.com/form', description: 'Permission slip' },
       { id: 'l2', title: 'Staff Handbook', url: 'https://example.com/handbook' },
@@ -54,10 +54,11 @@ describe('TeacherDashboard — pinned Links section', () => {
     expect(link).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'Staff Handbook' })).toBeInTheDocument()
 
-    // Order on the page: Today, then Links, then My classes.
-    const titles = ['Today', 'Links', 'My classes'].map((t) => screen.getByText(t))
+    // Order on the page: Links, then My classes (the Today card is gone —
+    // iCreate 2026-08-31).
+    const titles = ['Links', 'My classes'].map((t) => screen.getByText(t))
     expect(titles[0].compareDocumentPosition(titles[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(titles[1].compareDocumentPosition(titles[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
   })
 
   it('shows no Links card when the org pinned nothing', async () => {
