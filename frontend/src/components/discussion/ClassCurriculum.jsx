@@ -100,8 +100,6 @@ export default function ClassCurriculum({ classId, questId, className = '', refr
       await api.delete(`${writeBase}/${id}`)
       const next = materials.filter((m) => m.id !== id)
       setMaterials(next)
-      // Keep the parent in sync so "Your curriculum" flips its Share button back
-      // to "Share with students" the moment a shared link is removed here.
       onMaterialsLoaded?.(next)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove this item')

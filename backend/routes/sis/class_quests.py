@@ -244,6 +244,7 @@ def assign_quest(user_id, class_id):
         'class_id': class_row['id'], 'quest_id': quest_id,
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
+    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
     return jsonify({'success': True})
 
 
@@ -276,6 +277,34 @@ def _linked_curricula(admin, class_id):
         return []
     return (admin.table('sis_curriculum').select('id, title, is_active')
             .in_('id', ids).eq('is_active', True).order('title').execute()).data or []
+
+
+def _attach_quest_to_class_curricula(admin, class_id, quest_id, user_id):
+    """A quest put on a class also lands on the class's curriculum.
+
+    iCreate, 2026-08-31: teachers add quests (not curriculum), and "the quests
+    they add get attached to the curriculum for the class" — so the durable set
+    the school reuses next year keeps up with what is actually taught, without
+    anyone remembering to press save-to-curriculum. Additive only: nothing is
+    ever removed from a curriculum here (unassigning a quest from one section
+    must not rewrite the school's curriculum); admins prune the set in the
+    library. Best-effort — a failure here must not undo the class assignment.
+    """
+    try:
+        for c in _linked_curricula(admin, class_id):
+            existing = (admin.table('sis_curriculum_quests')
+                        .select('quest_id, sequence_order')
+                        .eq('curriculum_id', c['id']).execute()).data or []
+            if any(r['quest_id'] == quest_id for r in existing):
+                continue
+            next_order = max([r.get('sequence_order') or 0 for r in existing],
+                             default=-1) + 1
+            admin.table('sis_curriculum_quests').upsert(
+                {'curriculum_id': c['id'], 'quest_id': quest_id,
+                 'sequence_order': next_order, 'added_by': user_id},
+                on_conflict='curriculum_id,quest_id').execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Quest {quest_id} assigned but curriculum attach failed: {e}')
 
 
 def _assignable(admin, quest_ids, org_id):
@@ -509,6 +538,7 @@ def create_quest_with_tasks(user_id, class_id):
         'class_id': class_row['id'], 'quest_id': quest_id,
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
+    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
 
     return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count']})
 

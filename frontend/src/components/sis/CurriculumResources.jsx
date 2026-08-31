@@ -1,11 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { SparklesIcon, PlusIcon } from '@heroicons/react/24/outline'
+import {
+  SparklesIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon,
+  PencilSquareIcon, TrashIcon,
+} from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import SearchSelect from '../ui/SearchSelect'
 import QuestDraftForm, { blankTask } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
+import PresetTaskManager from './PresetTaskManager'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * The teaching material a curriculum carries: its quests.
@@ -40,6 +45,125 @@ const Empty = ({ children }) => <p className="text-sm text-neutral-400">{childre
 // school-only, which means the mix wasn't visible.
 const optionLabel = (o) => (o.source === 'library' ? `${o.title} · Optio library` : o.title)
 
+const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+
+/**
+ * One quest opened inside the curriculum: its description, its preset tasks,
+ * and — for the school's own quests — the full set of controls (rename, edit
+ * description, task CRUD, delete outright). iCreate, 2026-08-31: "when admin
+ * creates a quest in /curriculum they need to be able to view the quests inside
+ * the curriculum and also have full CRUD" — the row was title-only, so checking
+ * a quest meant finding a class it was assigned to.
+ */
+function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
+  const confirm = useConfirm()
+  const [detail, setDetail] = useState(null)   // { title, description, editable }
+  const [editingInfo, setEditingInfo] = useState(false)
+  const [infoDraft, setInfoDraft] = useState({ title: '', description: '' })
+  const [busy, setBusy] = useState(false)
+  const base = `/api/sis/curriculum/${curriculumId}/quests/${quest.id}`
+
+  useEffect(() => {
+    let active = true
+    // The tasks GET carries the quest's description and editability too, so the
+    // panel is one request; PresetTaskManager re-fetches the same URL for the
+    // task list itself.
+    api.get(withOrg(`${base}/tasks`, orgId))
+      .then((r) => { if (active) setDetail({ ...(r.data?.quest || {}), editable: !!r.data?.editable }) })
+      .catch(() => { if (active) setDetail({ editable: false }) })
+    return () => { active = false }
+  }, [base, orgId])
+
+  const saveInfo = async () => {
+    if (!infoDraft.title.trim()) { toast.error('A title is required'); return }
+    setBusy(true)
+    try {
+      const { data } = await api.patch(withOrg(base, orgId), {
+        title: infoDraft.title.trim(),
+        description: infoDraft.description,
+      })
+      setDetail((d) => ({ ...d, ...data.quest }))
+      setEditingInfo(false)
+      onRenamed?.(data.quest?.title)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the quest')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteOutright = async () => {
+    if (!(await confirm(
+      `Delete "${detail?.title || quest.title}" entirely? This removes it from every `
+      + 'curriculum and class using it. Quests students have started can\'t be deleted.'
+    ))) return
+    setBusy(true)
+    try {
+      await api.delete(withOrg(`${base}/delete`, orgId))
+      toast.success('Quest deleted')
+      onDeleted?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not delete the quest')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!detail) return <p className="text-sm text-neutral-400 py-2">Loading…</p>
+
+  return (
+    <div className="mt-1 mb-2 ml-6 rounded-lg border border-gray-100 bg-neutral-50/60 p-3">
+      {editingInfo ? (
+        <div className="space-y-2 mb-2">
+          <input value={infoDraft.title} className={inputCls}
+            onChange={(e) => setInfoDraft({ ...infoDraft, title: e.target.value })} />
+          <textarea value={infoDraft.description} rows={2} className={inputCls}
+            placeholder="What is this quest about? (optional)"
+            onChange={(e) => setInfoDraft({ ...infoDraft, description: e.target.value })} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setEditingInfo(false)}
+              className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-600">
+              Cancel
+            </button>
+            <button onClick={saveInfo} disabled={busy}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 mb-1">
+          <p className="flex-1 text-sm text-neutral-600">
+            {detail.description || <span className="text-neutral-400">No description.</span>}
+          </p>
+          {detail.editable && (
+            <button
+              onClick={() => {
+                setInfoDraft({ title: detail.title || quest.title, description: detail.description || '' })
+                setEditingInfo(true)
+              }}
+              className="shrink-0 inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-optio-purple"
+              aria-label={`Edit ${detail.title || quest.title}`}>
+              <PencilSquareIcon className="w-3.5 h-3.5" /> Edit details
+            </button>
+          )}
+        </div>
+      )}
+
+      <PresetTaskManager base={`${base}/tasks`} orgId={orgId} />
+
+      {detail.editable && (
+        <div className="mt-2 pt-2 border-t border-gray-100 text-right">
+          <button onClick={deleteOutright} disabled={busy}
+            className="inline-flex items-center gap-1 text-xs text-red-500 hover:underline disabled:opacity-50">
+            <TrashIcon className="w-3.5 h-3.5" /> Delete this quest entirely
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CurriculumResources({ orgId, curriculumId, canManage, onChanged }) {
   const [quests, setQuests] = useState([])
   const [questOptions, setQuestOptions] = useState([])
@@ -50,6 +174,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newTasks, setNewTasks] = useState([blankTask()])
+  const [expandedId, setExpandedId] = useState(null) // quest whose detail is open
 
   const load = useCallback(() => {
     setLoading(true)
@@ -130,17 +255,54 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
         </p>
         {!quests.length ? <Empty>Nothing saved yet.</Empty> : (
           <ul className="divide-y divide-gray-50 mb-2">
-            {quests.map((q) => (
-              <li key={q.id} className="py-1.5 flex items-center gap-2 text-sm">
-                <span className="text-neutral-800 flex-1 min-w-0 truncate">{q.title}</span>
-                {canManage && (
-                  <button type="button" disabled={busy}
-                    aria-label={`Remove ${q.title}`}
-                    onClick={() => saveQuests(quests.filter((x) => x.id !== q.id))}
-                    className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
-                )}
-              </li>
-            ))}
+            {quests.map((q) => {
+              const open = expandedId === q.id
+              return (
+                <li key={q.id} className="py-1.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    {/* The row opens onto the quest itself — description, preset
+                        tasks, and (for the school's own quests) full editing.
+                        Admin-only: the per-quest routes behind it are too. */}
+                    {canManage ? (
+                      <button type="button"
+                        onClick={() => setExpandedId(open ? null : q.id)}
+                        aria-label={`${open ? 'Collapse' : 'Expand'} ${q.title}`}
+                        className="flex items-center gap-1.5 flex-1 min-w-0 text-left text-neutral-800 hover:text-optio-purple">
+                        {open
+                          ? <ChevronDownIcon className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+                          : <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-neutral-400" />}
+                        <span className="truncate">{q.title}</span>
+                      </button>
+                    ) : (
+                      <span className="text-neutral-800 flex-1 min-w-0 truncate">{q.title}</span>
+                    )}
+                    {canManage && (
+                      <button type="button" disabled={busy}
+                        aria-label={`Remove ${q.title}`}
+                        onClick={() => saveQuests(quests.filter((x) => x.id !== q.id))}
+                        className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
+                    )}
+                  </div>
+                  {open && (
+                    <QuestDetail
+                      orgId={orgId}
+                      curriculumId={curriculumId}
+                      quest={q}
+                      onRenamed={(title) => {
+                        if (!title) return
+                        setQuests((prev) => prev.map((x) => (x.id === q.id ? { ...x, title } : x)))
+                        onChanged?.()
+                      }}
+                      onDeleted={() => {
+                        setExpandedId(null)
+                        setQuests((prev) => prev.filter((x) => x.id !== q.id))
+                        onChanged?.()
+                      }}
+                    />
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
         {canManage && (

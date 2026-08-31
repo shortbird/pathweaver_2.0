@@ -3,11 +3,10 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
   LinkIcon, PencilSquareIcon, TrashIcon, PlusIcon, LockClosedIcon,
-  ArrowRightCircleIcon, CheckCircleIcon, AcademicCapIcon,
+  AcademicCapIcon, SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { FolderIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
-import { useAuth } from '../../contexts/AuthContext'
 import CurriculumFields, { blankCurriculum, curriculumFieldsOf } from './CurriculumFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
@@ -19,27 +18,25 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * what the teacher shares WITH students, this is what the school gives the
  * teacher to teach from.
  *
- * Teachers get the SAME curriculum form admins use (via CurriculumFields),
- * scoped to this class: they add curriculum here and edit/remove the entries
- * they created. Admin-created entries shared onto the class stay read-only to a
- * teacher (the pencil/trash only show on their own). This keeps routine
- * curriculum upkeep off admins.
+ * Curriculum itself is ADMIN-ONLY: only an org admin can add, edit, or remove
+ * entries here (same form as the library page, via CurriculumFields, scoped to
+ * this class). Teachers see the curriculum read-only — what they add to a class
+ * is QUESTS (the Quests tab), which attach to the class's curriculum via
+ * to-curriculum. iCreate, 2026-08-31: teachers were creating whole curriculum
+ * entries from this button; the school wants curriculum defined by the office.
  *
- * Each entry with a Drive link can be pushed straight into Class materials
- * ("Share with students") — this copies the LINK, so nothing is downloaded and
- * re-uploaded. `sharedUrls` is the set of material URLs already on the class, so
- * an already-shared entry shows as done; `onSharedToClass` tells the parent to
- * refresh the materials column.
+ * There is deliberately NO "share with students" here. Curriculum stays
+ * staff-side only; students get their files through a different channel
+ * (iCreate, 2026-08-31 — and the 2026-08-24 incident where a teacher's whole
+ * curriculum folder ended up in front of students argues for the same).
  */
-export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedToClass }) {
+export default function ClassCurriculumLibrary({ classId }) {
   const confirm = useConfirm()
-  const { user } = useAuth()
   const [entries, setEntries] = useState([])
   const [canManage, setCanManage] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [editing, setEditing] = useState(null) // null | 'new' | entry
-  const [sharing, setSharing] = useState(null)  // entry id currently being shared
 
   const load = useCallback(() => {
     if (!classId) return undefined
@@ -58,7 +55,8 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
 
   useEffect(() => load(), [load])
 
-  const canEditEntry = (e) => isAdmin || e.created_by === user?.id
+  // Curriculum entries are admin-managed; teachers see them read-only.
+  const canEditEntry = () => isAdmin
 
   const remove = async (e) => {
     if (!(await confirm(`Remove "${e.title}" from this class? The Drive folder itself is untouched.`))) return
@@ -68,32 +66,6 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove it')
-    }
-  }
-
-  // Push a curriculum entry's Drive link into Class materials, where students
-  // see it. Copies the link only — no download/re-upload.
-  const isShared = (e) => !!(e.drive_url && sharedUrls?.has(e.drive_url))
-  const shareToClass = async (e) => {
-    if (!e.drive_url || isShared(e)) return
-    // Confirm, and name what actually happens: this was one un-guarded click,
-    // and iCreate found a teacher's whole curriculum folder in front of
-    // students (2026-08-24). Sharing exposes the folder LINK — anyone the
-    // Drive folder itself is shared with can open it.
-    if (!(await confirm(
-      `Share the "${e.title}" folder link with this class's students? `
-      + 'It will appear under Class materials for every enrolled student. '
-      + 'Your curriculum itself stays staff-only — this shares only this folder link.'
-    ))) return
-    setSharing(e.id)
-    try {
-      await api.post(`/api/sis/classes/${classId}/materials`, { title: e.title, url: e.drive_url })
-      toast.success('Shared with students')
-      onSharedToClass?.()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not share it')
-    } finally {
-      setSharing(null)
     }
   }
 
@@ -119,7 +91,7 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
             <p className="text-xs text-neutral-500">What you teach from — students never see this.</p>
           </div>
         </div>
-        {canManage && !editing && (
+        {isAdmin && !editing && (
           <button onClick={() => setEditing('new')}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold shrink-0">
             <PlusIcon className="w-4 h-4" /> Add curriculum
@@ -141,7 +113,9 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
 
       {!entries.length && !editing && (
         <p className="text-sm text-neutral-400">
-          No curriculum yet. Add an entry and paste the Drive folder where it lives.
+          {isAdmin
+            ? 'No curriculum yet. Add an entry and paste the Drive folder where it lives.'
+            : 'No curriculum attached yet. Your school’s administrator attaches curriculum to the class; you can add quests from the Quests tab.'}
         </p>
       )}
 
@@ -163,6 +137,26 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
                   course already here rather than being expected to build one
                   (iCreate, 2026-08-06). Linked, not copied, so this is always
                   what the library currently says. */}
+              {/* The curriculum's saved quest set — including quests this
+                  class's teacher added on the Quests tab, which auto-attach to
+                  the curriculum (iCreate, 2026-08-31: "if teachers add quests
+                  it should appear there as well"). Managed from the Quests tab
+                  and the admin library; listed here so the curriculum reads as
+                  one whole. */}
+              {e.quests?.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">
+                    Quests in this curriculum
+                  </p>
+                  <ul className="space-y-0.5">
+                    {e.quests.map((q) => (
+                      <li key={q.id} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                        <SparklesIcon className="w-4 h-4 text-optio-purple shrink-0" /> {q.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {e.courses?.length > 0 && (
                 <div className="mt-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">
@@ -192,24 +186,6 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-              {/* Send this resource to students — copies the link, no re-upload.
-                  Available for any entry with a link, including admin-shared ones. */}
-              {canManage && e.drive_url && (
-                <div className="mt-2">
-                  {isShared(e) ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                      <CheckCircleIcon className="w-4 h-4" /> Shared with students
-                    </span>
-                  ) : (
-                    <button onClick={() => shareToClass(e)} disabled={sharing === e.id}
-                      title="Add this to Class materials so students can see it"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
-                      <ArrowRightCircleIcon className="w-4 h-4" />
-                      {sharing === e.id ? 'Sharing…' : 'Share with students'}
-                    </button>
-                  )}
                 </div>
               )}
             </div>

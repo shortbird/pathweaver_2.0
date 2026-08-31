@@ -70,10 +70,6 @@ const TeacherClassPage = () => {
   // Which student's health alert is expanded. Hover-only tooltips were
   // unreadable on touch and unreliable on desktop, so the badge is a button.
   const [alertFor, setAlertFor] = useState(null)
-  // Curriculum tab: the class materials list is owned here so "Your curriculum"
-  // can know what's already shared and refresh the materials column after a share.
-  const [classMaterials, setClassMaterials] = useState([])
-  const [materialsRefresh, setMaterialsRefresh] = useState(0)
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
   const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
@@ -180,16 +176,8 @@ const TeacherClassPage = () => {
         // one side, the materials shared with students on the other — different
         // audiences, side by side so the split reads at a glance.
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          <ClassCurriculumLibrary
-            classId={classId}
-            sharedUrls={new Set(classMaterials.map((m) => m.url))}
-            onSharedToClass={() => setMaterialsRefresh((n) => n + 1)}
-          />
-          <ClassCurriculum
-            classId={classId}
-            refreshSignal={materialsRefresh}
-            onMaterialsLoaded={setClassMaterials}
-          />
+          <ClassCurriculumLibrary classId={classId} />
+          <ClassCurriculum classId={classId} />
         </div>
       )}
 
