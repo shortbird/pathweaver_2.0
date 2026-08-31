@@ -785,6 +785,45 @@ def my_time_entries(org_id: str, user_id: str, start: str, end: str) -> Dict[str
 
 # ── Timesheets (admin) ───────────────────────────────────────────────────────
 
+def timeclock_setup(org_id: str) -> Dict[str, Any]:
+    """Why the Timesheets page is empty, when it is.
+
+    The time clock is off by default on every staff profile
+    (`sis_staff_profiles.uses_time_clock` defaults to false), so a school that
+    has never turned it on for anybody sees "No time entries in this period."
+    forever, with nothing on the page naming the switch. iCreate read that as
+    the feature being broken: "Timesheets would be a nice feature if it
+    worked!" (2026-08-25). Every part of the chain was working; none of it had
+    been switched on.
+
+    So the page reports its own preconditions: how many active staff could be
+    on the clock, how many are, and who is on it without an hourly rate — that
+    last one matters because payroll.csv leaves Amount blank rather than
+    guessing a rate, and a blank column in a payroll export is the kind of
+    thing you want to learn about before payday rather than after.
+    """
+    # order_by='user_id', not the default 'id': sis_staff_profiles is keyed on
+    # (user_id, organization_id) and has no id column, and paging on a column
+    # that does not exist is a 400, not a short read.
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_staff_profiles')
+        .select('user_id, uses_time_clock, hourly_rate_cents, is_active')
+        .eq('organization_id', org_id).is_('archived_at', 'null')
+    ), order_by='user_id')
+    active = [r for r in rows if r.get('is_active')]
+    on_clock = [r for r in active if r.get('uses_time_clock')]
+    no_rate = [r for r in on_clock if not r.get('hourly_rate_cents')]
+    names = {s['id']: s.get('name') for s in sis_service.list_org_staff(org_id)}
+    return {
+        'staff_total': len(active),
+        'clock_enabled': len(on_clock),
+        'missing_rate': [
+            {'user_id': r['user_id'], 'name': names.get(r['user_id']) or 'Unknown'}
+            for r in no_rate
+        ],
+    }
+
+
 def timesheet_summary(org_id: str, start: str, end: str) -> List[Dict[str, Any]]:
     """Per-staff totals for a pay period, with entry detail."""
     rows = (
