@@ -283,6 +283,54 @@ const FamilyBillingPage = () => {
     }
   }, [])
 
+  // Returning from a link in the invoice EMAIL rather than from this page.
+  //
+  // Those routes are unauthenticated and do the work server-side before
+  // redirecting here, so there is nothing left to confirm — only to say what
+  // happened. They carry no pay_invoice/setup_invoice id, which is exactly what
+  // separates them from the handler above, and is why they used to land here
+  // silently: a parent paid their tuition from the email and the page they were
+  // dropped on said nothing at all.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('pay_invoice') || params.get('pay_family') || params.get('setup_invoice')) return
+    const payment = params.get('payment')
+    const autopay = params.get('autopay')
+    if (!payment && !autopay) return
+    window.history.replaceState({}, '', window.location.pathname)
+
+    const notices = {
+      payment: {
+        paid: ['success', 'Payment received — thank you!'],
+        pending: ['info', 'We could not confirm the payment yet. It may take a moment.'],
+        already_paid: ['info', 'That invoice is already paid.'],
+        invalid_link: ['error', 'That payment link is not valid. Ask the school for a new one.'],
+        unavailable: ['error', 'This invoice cannot be paid online right now. Please contact the school.'],
+      },
+      autopay: {
+        active: ['success', 'Monthly payments are set up — your card is saved and the first payment was made.'],
+        already: ['info', 'Monthly payments are already set up for that invoice.'],
+        pending: ['info', 'We could not finish setting up the plan yet. It may take a moment.'],
+        canceled: ['info', 'Setup canceled'],
+        already_paid: ['info', 'That invoice is already paid.'],
+        no_guardian: ['error', 'Only a parent or guardian can set up automatic payments.'],
+        invalid_link: ['error', 'That link is not valid. Ask the school for a new one.'],
+        unavailable: ['error', 'Automatic payments are not available for this invoice right now.'],
+        // Open-ended monthly tuition: the card saved, but say plainly whether
+        // the first payment went through. "Your card is saved" on its own reads
+        // as done, and the family would not know they still owe this month.
+        card_saved: ['success', 'Your card is saved for monthly tuition.'],
+        card_saved_unpaid: ['info', 'Your card is saved, but the first payment did not go through. The school will be in touch.'],
+      },
+    }
+    const [kind, message] = notices[payment ? 'payment' : 'autopay']?.[payment || autopay] || []
+    if (!message) return
+    if (kind === 'success') toast.success(message)
+    else if (kind === 'error') toast.error(message)
+    else toast(message)
+    if (kind === 'success') loadBilling()
+  }, [])
+
   const payInvoice = async (invoice) => {
     setPaying(invoice.id)
     try {

@@ -496,3 +496,33 @@ def tuition_autopay_cron():
         if not is_super:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
     return jsonify({'success': True, **billing.charge_due_installments()})
+
+
+@bp.route('/internal/recurring-tuition', methods=['POST'])
+def recurring_tuition_cron():
+    """Cron entrypoint: bill every household whose open-ended monthly tuition
+    falls due today, across ALL orgs. One invoice and one charge per household,
+    with a line per student.
+
+    Same auth as the autopay sweep: X-Cron-Secret, or a signed-in superadmin for
+    manual triggering. Idempotent within a day — a billed row's next_charge_on
+    has already moved to next month, so a re-run finds nothing due.
+    """
+    from database import get_supabase_admin_client
+    from services import sis_recurring_tuition_service as recurring
+    secret = request.headers.get('X-Cron-Secret')
+    from utils.cron_auth import is_valid_cron_secret
+    is_cron = is_valid_cron_secret(secret)
+    if not is_cron:
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (
+                get_supabase_admin_client().table('users').select('role')
+                .eq('id', uid).limit(1).execute()
+            ).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **recurring.charge_due()})
