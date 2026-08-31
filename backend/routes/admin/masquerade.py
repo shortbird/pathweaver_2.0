@@ -177,9 +177,12 @@ def exit_masquerade():
                 'avatar_url': sign_stored_url(admin_data.get('avatar_url'))
             }
         }), 200)
-        # Refresh admin auth cookies and clear masquerade cookie
+        # Refresh admin auth cookies and clear masquerade cookie. Also drop any
+        # role view: an admin who narrowed to "Teacher", opened a teacher's
+        # account, and clicked back expects their own role, not the narrowed one.
         session_manager.set_auth_cookies(response, admin_id, admin_access_token, admin_refresh_token)
         session_manager.clear_masquerade_cookie(response)
+        session_manager.clear_role_view_cookie(response)
         return response
 
     except Exception as e:
