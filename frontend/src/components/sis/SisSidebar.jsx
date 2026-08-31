@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isClpEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import RoleViewSwitcher from './RoleViewSwitcher'
 
@@ -66,7 +66,7 @@ const NAV_SECTIONS = [
       { name: 'Classes', path: '/classes', adminOnly: true, d: ICONS.classes },
       { name: 'My Classes', path: '/my-classes', teacherOnly: true, d: ICONS.classes },
       { name: 'My Schedule', path: '/my-schedule', teacherOnly: true, d: ICONS.calendar },
-      { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc },
+      { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
       { name: 'Submissions', path: '/submissions', d: ICONS.clipboard },
@@ -203,6 +203,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.communityMode && !isCommunityEnabled(activeOrg)) return false
             // Prior Learning is opt-in per org.
             if (it.priorLearningMode && !isPriorLearningEnabled(activeOrg)) return false
+            // CLPs are iCreate's workflow; every other school opts in.
+            if (it.clpMode && !isClpEnabled(activeOrg)) return false
             return true
           })
           if (!items.length) return null

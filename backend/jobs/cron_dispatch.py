@@ -110,6 +110,14 @@ def main():
     if now.hour == 14 and now.minute < 10:
         _run("sis-tuition-autopay", f"{base}/api/sis/internal/tuition-autopay", cron_secret, failures)
 
+    # Once/day: open-ended monthly tuition (14:00 UTC, right after the autopay
+    # sweep so a school running both bills on one pass). Groups each household's
+    # active schedules into ONE invoice and ONE charge. Idempotent within a day:
+    # a billed row's next_charge_on has already advanced a month, so a re-run
+    # finds nothing due. A declined card is left for staff, never retried.
+    if now.hour == 14 and now.minute < 10:
+        _run("sis-recurring-tuition", f"{base}/api/sis/internal/recurring-tuition", cron_secret, failures)
+
     # Once/day: SIS quest engagement sweep (13:00 UTC; open-alert dedupe is a
     # partial unique index server-side, so re-runs are idempotent).
     if now.hour == 13 and now.minute < 10:

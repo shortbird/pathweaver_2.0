@@ -547,9 +547,15 @@ def _household_primary_contact(household_id: Optional[str]) -> Optional[str]:
     return (row[0].get('primary_contact_user_id') if row else None)
 
 
-def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
+def email_invoice_to_family(org_id: str, invoice_id: str,
+                            autopay_installments: Optional[int] = None) -> Dict[str, Any]:
     """Email the household's guardians that a tuition invoice is ready, linking to
-    the family billing portal. Best-effort; returns {'emailed': n}."""
+    the family billing portal. Best-effort; returns {'emailed': n}.
+
+    `autopay_installments` adds a "set up monthly payments" link for that many
+    installments — the school stating the terms it billed on, rather than the
+    family choosing a schedule the office never agreed to.
+    """
     inv = get_invoice(org_id, invoice_id)
     if not inv:
         return {'error': 'Invoice not found'}
@@ -592,14 +598,36 @@ def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'[SIS billing] invoice PDF failed for {invoice_id}: {e}')
 
+    # The monthly-tuition flow asks for a recurring charge, not a lump sum, so
+    # that link leads and the pay-in-full one follows. Only offered when the
+    # school issued the invoice on monthly terms — an invoice with no intended
+    # schedule should not invite the family to invent one.
+    autopay_link = None
+    if pay_link and autopay_installments:
+        try:
+            from services.sis_pay_links import autopay_url
+            autopay_link = autopay_url(invoice_id, int(autopay_installments))
+        except Exception as e:  # noqa: BLE001 — same best-effort rule as the pay link
+            logger.warning(f'[SIS billing] autopay link unavailable for {invoice_id}: {e}')
+
     subject = f"{org_name}: tuition invoice for {student_name}"
-    pay_text = (f"Pay by card here: {pay_link}\n\n" if pay_link else '')
-    pay_html = (f'<p><a href="{pay_link}">Pay this invoice by card</a></p>' if pay_link else '')
+    monthly = int(round(total / int(autopay_installments))) if autopay_link else 0
+    autopay_text = (
+        f"Set up monthly payments of about {_money(monthly)} "
+        f"({autopay_installments} payments): {autopay_link}\n\n" if autopay_link else '')
+    autopay_html = (
+        f'<p><a href="{autopay_link}"><strong>Set up monthly payments</strong></a> — about '
+        f'{_money(monthly)} a month for {autopay_installments} months, charged automatically '
+        f'to the card you save.</p>' if autopay_link else '')
+    pay_text = (f"Pay the full balance by card here: {pay_link}\n\n" if pay_link else '')
+    pay_html = (f'<p><a href="{pay_link}">Or pay the full balance by card</a></p>'
+                if pay_link else '')
     attached = 'The invoice is attached as a PDF.' if attachments else ''
     text = (
         f"Hello,\n\n"
         f"{org_name} has issued a tuition invoice ({number}) for {student_name} "
         f"totaling {_money(total)}. {attached}\n\n"
+        f"{autopay_text}"
         f"{pay_text}"
         f"You can also see your balance and pay — in full or on a payment plan — here: {link}\n\n"
         f"Thank you,\n{org_name}"
@@ -609,6 +637,7 @@ def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
         f"<p>{org_name} has issued a tuition invoice (<strong>{number}</strong>) for "
         f"<strong>{student_name}</strong> totaling <strong>{_money(total)}</strong>."
         f"{' ' + attached if attached else ''}</p>"
+        f"{autopay_html}"
         f"{pay_html}"
         f"<p><a href=\"{link}\">See your balance and payment options</a> — pay in full or on a "
         f"payment plan.</p>"
@@ -1746,16 +1775,50 @@ def _existing_stripe_customer(org_id: str, guardian_user_id: str) -> Optional[st
     return (rows[0].get('stripe_customer_id') if rows else None) or None
 
 
-def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str,
-                                  installment_count: int = 10) -> Dict[str, Any]:
-    """Start a Stripe Checkout in SETUP mode to save the family's card on the
-    school's account. On return, confirm_autopay_setup persists it and builds the
-    payment plan. Returns a hosted URL."""
-    inv = _guardian_invoice(user_id, invoice_id)
-    if not inv:
-        return {'error': 'Invoice not found'}
-    if inv.get('status') in ('paid', 'void', 'draft'):
-        return {'error': 'This invoice is not payable'}
+def _autopay_guardian(user_id: str) -> Dict[str, Any]:
+    """The signed-in guardian, as the autopay flow needs them."""
+    return _users_map([user_id]).get(user_id) or {}
+
+
+def _pay_link_guardian(inv: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The guardian an emailed autopay link acts on behalf of.
+
+    The session flow knows who is clicking; a link in an email does not. A saved
+    card is keyed on (organization_id, guardian_user_id), so the token flow still
+    has to name one — and the household's primary contact is who the school
+    addressed the invoice to, so that is who it names.
+
+    Dependents are skipped rather than trusted to be absent. A child should never
+    hold a guardian relationship on a household, but the session flow refuses to
+    create a Stripe Customer for a minor, and a tokenless path must not become
+    the way around that refusal.
+    """
+    hh_id = inv.get('household_id')
+    if not hh_id:
+        return None
+    primary = _household_primary_contact(hh_id)
+    candidates = _guardian_emails_for_household(hh_id, primary)
+    if not candidates:
+        return None
+    users = _users_map([c['user_id'] for c in candidates])
+    # Primary contact first, then whoever else guards the household.
+    for c in sorted(candidates, key=lambda c: c['user_id'] != primary):
+        if (users.get(c['user_id']) or {}).get('is_dependent'):
+            continue
+        return c
+    return None
+
+
+def _start_autopay_checkout(inv: Dict[str, Any], guardian_user_id: str,
+                            guardian_email: Optional[str], return_url: str,
+                            installment_count: int) -> Dict[str, Any]:
+    """Shared core: open a setup-mode Checkout for `inv` against `guardian_user_id`.
+
+    Both entry points land here — the signed-in family portal and the signed
+    token in the invoice email — so the Stripe call, the Customer reuse and the
+    session bookkeeping exist once rather than drifting apart in two copies.
+    """
+    invoice_id = inv['id']
     org_id = inv['organization_id']
     secret = _org_stripe_secret(org_id)
     if not secret:
@@ -1763,32 +1826,24 @@ def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str
     if not (return_url or '').startswith('http'):
         return {'error': 'Invalid return URL'}
     count = max(2, min(int(installment_count or 10), 24))
-    guardian = _users_map([user_id]).get(user_id) or {}
-    if guardian.get('is_dependent'):
-        # Never create a Stripe Customer for a child. A Customer record is
-        # durable, holds an email and a saved card, and is the one Stripe object
-        # that turns "a payment happened" into "this person banks here".
-        # Guardians are legitimate Stripe customers; minors are not.
-        logger.warning(f'[SIS billing] refusing autopay setup for dependent account {user_id[:8]}')
-        return {'error': 'Only a parent or guardian can set up automatic payments'}
     try:
         import stripe
         sep = '&' if '?' in return_url else '?'
         # Reuse the guardian's Customer on this school's account if they already
         # have one. Creating it per attempt orphans a Customer record on every
         # retry (and a retry is exactly what a family does when setup fails).
-        customer_id = _existing_stripe_customer(org_id, user_id)
+        customer_id = _existing_stripe_customer(org_id, guardian_user_id)
         if not customer_id:
             customer_id = stripe.Customer.create(
-                api_key=secret, email=guardian.get('email') or None,
-                metadata={'guardian_user_id': user_id, 'organization_id': org_id}).id
+                api_key=secret, email=guardian_email or None,
+                metadata={'guardian_user_id': guardian_user_id, 'organization_id': org_id}).id
         session = stripe.checkout.Session.create(
             # currency is REQUIRED in setup mode (no line items to infer it from)
             # unless payment_method_types is pinned; Stripe needs it to decide
             # which automatic payment methods are eligible.
             api_key=secret, mode='setup', customer=customer_id, currency='usd',
             metadata={'kind': 'autopay_setup', 'invoice_id': invoice_id,
-                      'guardian_user_id': user_id, 'installment_count': count},
+                      'guardian_user_id': guardian_user_id, 'installment_count': count},
             success_url=f'{return_url}{sep}autopay=return',
             cancel_url=f'{return_url}{sep}autopay=canceled')
     except Exception as e:  # noqa: BLE001
@@ -1801,14 +1856,78 @@ def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str
     return {'checkout_url': session.url}
 
 
-def confirm_autopay_setup(user_id: str, invoice_id: str, installment_count: int = 10,
-                          start_date: Optional[str] = None) -> Dict[str, Any]:
-    """After returning from the setup Checkout, save the card and build a
-    monthly auto-charge plan for the invoice's balance, charging installment #1
-    immediately. Idempotent: a second call returns the existing plan."""
+def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str,
+                                  installment_count: int = 10) -> Dict[str, Any]:
+    """Start a Stripe Checkout in SETUP mode to save the family's card on the
+    school's account. On return, confirm_autopay_setup persists it and builds the
+    payment plan. Returns a hosted URL."""
     inv = _guardian_invoice(user_id, invoice_id)
     if not inv:
         return {'error': 'Invoice not found'}
+    if inv.get('status') in ('paid', 'void', 'draft'):
+        return {'error': 'This invoice is not payable'}
+    guardian = _autopay_guardian(user_id)
+    if guardian.get('is_dependent'):
+        # Never create a Stripe Customer for a child. A Customer record is
+        # durable, holds an email and a saved card, and is the one Stripe object
+        # that turns "a payment happened" into "this person banks here".
+        # Guardians are legitimate Stripe customers; minors are not.
+        logger.warning(f'[SIS billing] refusing autopay setup for dependent account {user_id[:8]}')
+        return {'error': 'Only a parent or guardian can set up automatic payments'}
+    return _start_autopay_checkout(inv, user_id, guardian.get('email'),
+                                   return_url, installment_count)
+
+
+def autopay_setup_for_pay_link(invoice_id: str, installment_count: int,
+                               return_url: str) -> Dict[str, Any]:
+    """Start autopay setup from the signed link in the invoice email — no session.
+
+    Same money, same machinery, same Stripe account as the signed-in flow. What
+    differs is only where the authorization came from: holding the token stands
+    in for the login, exactly as it already does for paying the invoice once.
+
+    Returns {'error', 'reason'} rather than raising — the caller is a redirect
+    route facing a parent, and a stack trace is not an answer to "why can't I set
+    up my payments".
+    """
+    rows = (_admin().table('sis_invoices').select('*')
+            .eq('id', invoice_id).limit(1).execute()).data
+    if not rows:
+        return {'error': 'Invoice not found', 'reason': 'missing'}
+    inv = rows[0]
+    if inv.get('status') in ('paid', 'void', 'draft'):
+        return {'error': 'This invoice is not payable', 'reason': 'settled'}
+    if amount_due_cents(inv) <= 0:
+        return {'error': 'This invoice has no balance due', 'reason': 'settled'}
+    existing = (_admin().table('sis_payment_plans').select('id')
+                .eq('invoice_id', invoice_id).eq('auto_charge', True).limit(1).execute()).data
+    if existing:
+        # Idempotent by design: a parent who taps the emailed link twice must not
+        # end up on two plans against the same invoice.
+        return {'error': 'Automatic payments are already set up', 'reason': 'already'}
+    guardian = _pay_link_guardian(inv)
+    if not guardian:
+        logger.warning(f'[SIS billing] autopay link has no eligible guardian for {invoice_id[:8]}')
+        return {'error': 'Only a parent or guardian can set up automatic payments',
+                'reason': 'no_guardian'}
+    result = _start_autopay_checkout(inv, guardian['user_id'], guardian.get('email'),
+                                     return_url, installment_count)
+    if result.get('error') and not result.get('reason'):
+        result['reason'] = 'unavailable'
+    return result
+
+
+def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
+                     installment_count: int = 10,
+                     start_date: Optional[str] = None) -> Dict[str, Any]:
+    """Shared core: turn a completed setup Checkout into a saved card + plan.
+
+    `guardian_user_id` is only the fallback. The card is saved against whoever
+    the setup session was CREATED for (its `guardian_user_id` metadata), so the
+    saved card and the Stripe Customer that holds it can never end up filed
+    under two different people.
+    """
+    invoice_id = inv['id']
     org_id = inv['organization_id']
     secret = _org_stripe_secret(org_id)
     if not secret:
@@ -1842,16 +1961,43 @@ def confirm_autopay_setup(user_id: str, invoice_id: str, installment_count: int 
         exp_month, exp_year = card.get('exp_month'), card.get('exp_year')
     except Exception as e:  # noqa: BLE001 — card display fields are best-effort
         logger.debug(f'[SIS billing] card detail lookup failed for {pm_id}: {e}')
-    saved = _upsert_saved_pm(org_id, user_id, inv.get('household_id'), customer_id, pm_id,
+    meta = setup_sess.get('metadata') or {}
+    owner_id = meta.get('guardian_user_id') or guardian_user_id
+    saved = _upsert_saved_pm(org_id, owner_id, inv.get('household_id'), customer_id, pm_id,
                              brand, last4, exp_month, exp_year)
     # Idempotency: one auto-charge plan per invoice.
     existing = (_admin().table('sis_payment_plans').select('*')
                 .eq('invoice_id', invoice_id).eq('auto_charge', True).limit(1).execute()).data
     if existing:
         return {'ready': True, 'already': True, 'plan': existing[0], 'saved_card': _card_public(saved)}
-    count = int((setup_sess.get('metadata') or {}).get('installment_count') or installment_count or 10)
+    count = int(meta.get('installment_count') or installment_count or 10)
     result = _create_autopay_plan(org_id, inv, saved, count, start_date, secret)
     return {'ready': True, 'saved_card': _card_public(saved), **result}
+
+
+def confirm_autopay_setup(user_id: str, invoice_id: str, installment_count: int = 10,
+                          start_date: Optional[str] = None) -> Dict[str, Any]:
+    """After returning from the setup Checkout, save the card and build a
+    monthly auto-charge plan for the invoice's balance, charging installment #1
+    immediately. Idempotent: a second call returns the existing plan."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    return _confirm_autopay(inv, user_id, installment_count, start_date)
+
+
+def confirm_autopay_for_pay_link(invoice_id: str, installment_count: int = 10,
+                                 start_date: Optional[str] = None) -> Dict[str, Any]:
+    """Confirm autopay set up through the emailed link. The signed token was the
+    authorization; the guardian is whoever the setup session was created for."""
+    rows = (_admin().table('sis_invoices').select('*')
+            .eq('id', invoice_id).limit(1).execute()).data
+    if not rows:
+        return {'error': 'Invoice not found'}
+    inv = rows[0]
+    guardian = _pay_link_guardian(inv)
+    return _confirm_autopay(inv, (guardian or {}).get('user_id'),
+                            installment_count, start_date)
 
 
 def _card_public(saved: Dict[str, Any]) -> Dict[str, Any]:
@@ -2311,3 +2457,142 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
                 logger.error(f"[SIS billing] reminder log failed for invoice {inv['id']}: {e}")
             reminded += 1
     return {'checked': checked, 'reminded': reminded, 'skipped': skipped}
+
+
+# ── Household card on file (open-ended recurring tuition) ────────────────────
+#
+# The autopay flow above anchors everything on an INVOICE: the family saves a
+# card in order to pay off one known total. Open-ended monthly tuition has no
+# total and no end, so the card is saved against the HOUSEHOLD once and reused
+# for every month's charge (services/sis_recurring_tuition_service.py).
+#
+# Stripe-side this is the same setup-mode Checkout and the same
+# sis_saved_payment_methods row, so a family that already saved a card for an
+# invoice does not have to enter it again.
+
+
+def household_saved_card(org_id: str, household_id: str) -> Optional[Dict[str, Any]]:
+    """The card this household has on file with the school, or None."""
+    rows = (_admin().table('sis_saved_payment_methods').select('*')
+            .eq('organization_id', org_id).eq('household_id', household_id)
+            .order('updated_at', desc=True).limit(1).execute()).data
+    return rows[0] if rows else None
+
+
+def start_card_setup_for_household(org_id: str, household_id: str,
+                                   return_url: str) -> Dict[str, Any]:
+    """Open a setup-mode Checkout to put a card on file for the household.
+
+    Unlike the invoice flow this has no row to park the session id on, so the
+    session is handed back through Stripe's {CHECKOUT_SESSION_ID} template in the
+    return URL — one fewer piece of state, and it cannot go stale.
+    """
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school',
+                'reason': 'not_configured'}
+    if not (return_url or '').startswith('http'):
+        return {'error': 'Invalid return URL', 'reason': 'unavailable'}
+    guardian = _pay_link_guardian({'household_id': household_id})
+    if not guardian:
+        return {'error': 'Only a parent or guardian can set up automatic payments',
+                'reason': 'no_guardian'}
+    try:
+        import stripe
+        sep = '&' if '?' in return_url else '?'
+        customer_id = _existing_stripe_customer(org_id, guardian['user_id'])
+        if not customer_id:
+            customer_id = stripe.Customer.create(
+                api_key=secret, email=guardian.get('email') or None,
+                metadata={'guardian_user_id': guardian['user_id'],
+                          'organization_id': org_id}).id
+        session = stripe.checkout.Session.create(
+            api_key=secret, mode='setup', customer=customer_id, currency='usd',
+            metadata={'kind': 'recurring_card_setup', 'household_id': household_id,
+                      'guardian_user_id': guardian['user_id'], 'organization_id': org_id},
+            success_url=f'{return_url}{sep}session_id={{CHECKOUT_SESSION_ID}}',
+            cancel_url=f'{return_url}{sep}setup=canceled')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS billing] household card setup failed for {household_id[:8]}: {e}')
+        return {'error': 'Could not start card setup. Please try again or contact the school.',
+                'reason': 'unavailable'}
+    return {'checkout_url': session.url}
+
+
+def save_card_from_setup_session(org_id: str, household_id: str,
+                                 session_id: str) -> Dict[str, Any]:
+    """Persist the card from a completed setup Checkout. Returns {'saved': row}.
+
+    Verifies the session belongs to THIS household before saving: the session id
+    arrives in a URL the parent's browser followed, so it is caller-supplied
+    input, not something to be trusted because it looks like ours.
+    """
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    try:
+        import stripe
+        sess = stripe.checkout.Session.retrieve(session_id, api_key=secret,
+                                                expand=['setup_intent'])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[SIS billing] setup session {session_id[:12]} unreadable: {e}')
+        return {'ready': False}
+    meta = sess.get('metadata') or {}
+    if meta.get('kind') != 'recurring_card_setup' or meta.get('household_id') != household_id:
+        logger.warning('[SIS billing] setup session did not match the household it was used for')
+        return {'ready': False}
+    if sess.get('status') != 'complete':
+        return {'ready': False}
+    si = sess.get('setup_intent')
+    pm_id = (si.get('payment_method') if isinstance(si, dict) else None)
+    customer_id = sess.get('customer')
+    if not pm_id or not customer_id:
+        return {'ready': False}
+    brand = last4 = None
+    exp_month = exp_year = None
+    try:
+        pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
+        card = (pm.get('card') or {}) if isinstance(pm, dict) else {}
+        brand, last4 = card.get('brand'), card.get('last4')
+        exp_month, exp_year = card.get('exp_month'), card.get('exp_year')
+    except Exception as e:  # noqa: BLE001 — display fields are best-effort
+        logger.debug(f'[SIS billing] card detail lookup failed for {pm_id}: {e}')
+    saved = _upsert_saved_pm(org_id, meta.get('guardian_user_id'), household_id,
+                             customer_id, pm_id, brand, last4, exp_month, exp_year)
+    return {'ready': True, 'saved': saved, 'saved_card': _card_public(saved)}
+
+
+def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
+                               saved_pm: Dict[str, Any]) -> Dict[str, Any]:
+    """Charge an invoice's full balance against a saved card, off-session.
+
+    Records the payment on success. On a decline the invoice is LEFT STANDING and
+    unpaid rather than deleted: the family still owes that month, the office can
+    see it on the outstanding report, and the family can pay it from the portal
+    or the emailed link. Returns {'status': 'charged'|'failed', ...}.
+    """
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'status': 'failed', 'error': 'Online card payment is not set up for this school'}
+    amount = amount_due_cents(invoice)
+    if amount <= 0:
+        return {'status': 'failed', 'error': 'Nothing due on this invoice'}
+    try:
+        import stripe
+        intent = stripe.PaymentIntent.create(
+            api_key=secret, amount=amount, currency='usd',
+            customer=saved_pm['stripe_customer_id'],
+            payment_method=saved_pm['stripe_payment_method_id'],
+            off_session=True, confirm=True,
+            metadata={'kind': 'recurring_tuition', 'invoice_id': invoice['id'],
+                      'organization_id': org_id})
+    except Exception as e:  # noqa: BLE001 — card declines raise here
+        logger.warning(f"[SIS billing] recurring charge failed for invoice {invoice['id'][:8]}: {e}")
+        return {'status': 'failed', 'error': str(e)[:400]}
+    if intent.get('status') != 'succeeded':
+        return {'status': 'failed', 'error': f"status={intent.get('status')}"}
+    record_payment(org_id, invoice['id'], amount_cents=amount, method='card',
+                   external_ref=intent.get('id'), installment_id=None,
+                   recorded_by=saved_pm.get('guardian_user_id'),
+                   note='Monthly tuition (auto-charge)')
+    return {'status': 'charged', 'payment_intent': intent.get('id'), 'amount_cents': amount}

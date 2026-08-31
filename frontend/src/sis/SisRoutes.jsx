@@ -2,7 +2,7 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface, LEARNING_SURFACE_PATHS } from '../utils/appSurface'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled } from '../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isClpEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
@@ -32,6 +32,13 @@ const CommunityRoute = ({ children }) => {
 const PriorLearningRoute = ({ children }) => {
   const { activeOrg } = useSisOrg()
   if (!isPriorLearningEnabled(activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
+// CLPs are iCreate's workflow, so the page is opt-in rather than opt-out.
+const ClpRoute = ({ children }) => {
+  const { activeOrg } = useSisOrg()
+  if (!isClpEnabled(activeOrg)) return <Navigate to="/" replace />
   return children
 }
 
@@ -137,7 +144,7 @@ const SisRoutes = () => (
       <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
       <Route path="classes" element={<ModuleRoute path="/classes"><ClassesPage /></ModuleRoute>} />
-      <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
+      <Route path="clp" element={<ClpRoute><ClpPage /></ClpRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleRoute path="/billing"><BillingPage /></ModuleRoute></FinanceRoute>} />
       <Route path="tuition" element={<FinanceRoute><ModuleRoute path="/tuition"><TuitionApprovalPage /></ModuleRoute></FinanceRoute>} />
       <Route path="attendance" element={<ModuleRoute path="/attendance"><AttendancePage /></ModuleRoute>} />
