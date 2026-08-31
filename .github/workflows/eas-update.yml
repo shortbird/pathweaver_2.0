@@ -104,5 +104,6 @@ jobs:
           eas env:exec preview --non-interactive '
             : "${EXPO_PUBLIC_SUPABASE_URL:?OTA env guard - EXPO_PUBLIC_SUPABASE_URL is empty, bundle would crash on launch, aborting publish}"
             : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?OTA env guard - EXPO_PUBLIC_SUPABASE_ANON_KEY is empty, aborting publish}"
+            : "${EXPO_PUBLIC_SENTRY_DSN:?OTA env guard - EXPO_PUBLIC_SENTRY_DSN is empty, mobile crash reporting would be dead in this OTA, aborting publish}"
             npm run ota:preview -- -m "$MSG"
           '
