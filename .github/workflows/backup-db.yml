@@ -182,9 +182,17 @@ jobs:
           CREATE ROLE supabase_admin SUPERUSER;
           CREATE ROLE supabase_auth_admin NOLOGIN;
           CREATE ROLE supabase_storage_admin NOLOGIN;
-          CREATE EXTENSION IF NOT EXISTS pgcrypto;
-          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          -- The extensions MUST live in the "extensions" schema, and this schema
+          -- must exist before they are created. Supabase installs them there, so
+          -- pg_dump emits fully-qualified defaults like
+          --     "id" uuid DEFAULT "extensions"."uuid_generate_v4"()
+          -- Created in public instead, every CREATE TABLE fails on an unknown
+          -- function and the restore yields an empty database that still looks
+          -- like it "mostly worked" in the log.
           CREATE SCHEMA IF NOT EXISTS extensions;
+          CREATE EXTENSION IF NOT EXISTS pgcrypto    WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm     WITH SCHEMA extensions;
           SQL
 
           # 3. Real restore. Errors are tolerated here (|| true) on purpose: the
