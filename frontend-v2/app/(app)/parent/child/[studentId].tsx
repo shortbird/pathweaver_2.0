@@ -16,6 +16,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Divider,
   Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
+import ClassSchedule from '@/src/components/school/ClassSchedule';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
@@ -146,6 +147,10 @@ export default function ChildProfileScreen() {
                 </VStack>
               </HStack>
             </Card>
+
+            {/* Where she is, and when. Renders nothing for a family whose
+                school isn't on the SIS, or a child with no classes. */}
+            <ClassSchedule studentId={studentId} defaultOpen />
 
             {/* Learning Activity */}
             {calendarDays.length > 0 && (
