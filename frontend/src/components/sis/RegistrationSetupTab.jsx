@@ -103,6 +103,10 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const [questions, setQuestions] = useState(cfg?.questions || [])
   const [askContacts, setAskContacts] = useState(cfg ? cfg.emergency_contacts !== false : true)
   const [askHealth, setAskHealth] = useState(cfg ? cfg.health_fields !== false : true)
+  // Credit partner switches. Both default OFF: an ordinary microschool
+  // registration has no transcript to route and no Academy enrollment to make.
+  const [askRecords, setAskRecords] = useState(!!cfg?.records_destination)
+  const [academyEnroll, setAcademyEnroll] = useState(!!cfg?.academy_enrollment)
   const [flow, setFlow] = useState(sisSettings.post_registration_flow || 'schedule')
   // Stripe: '' = leave the stored key alone. Only a typed key (set) or the
   // explicit clear checkbox changes it — the old form cleared the org's key on
@@ -320,6 +324,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
       enabled: true,
       emergency_contacts: askContacts,
       health_fields: askHealth,
+      records_destination: askRecords,
+      academy_enrollment: academyEnroll,
       scheduling_url: absUrl(schedulingUrl),
       paperwork: items,
       questions: qs,
@@ -378,7 +384,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // conclusion they are entitled to draw — the step stays, stated as unknown.
   const feeStepVisible = !seesFinance
     || feeApplies || Boolean(absUrl(paymentUrl)) || (stripeEnabled && !stripeClear)
-  const editorSteps = feeStepVisible ? STEPS : STEPS.filter((s) => s !== 'fee')
+  const editorSteps = STEPS.filter((st) => (st !== 'fee' || feeStepVisible) && (st !== 'records' || askRecords))
   const editorLabels = askContacts ? STEP_LABELS : { ...STEP_LABELS, details: 'A few questions' }
 
   // ── Step bodies (the funnel, verbatim, with Edit affordances) ──────────────
@@ -585,6 +591,39 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     </label>
   )
 
+  // ── School records (credit partners) ───────────────────────────────────────
+  // Turning this on adds a funnel step asking, per student, which school's
+  // registrar receives their Optio Academy transcript. Enrolling in Optio
+  // Academy is the separate switch: a partner might collect the destination
+  // without enrolling, or enroll a family who has no school of record yet.
+  const recordsEditor = (
+    <div className="space-y-3">
+      <label className="flex items-start gap-2 text-sm text-neutral-700 select-none">
+        <input type="checkbox" checked={askRecords}
+          onChange={(e) => setAskRecords(e.target.checked)}
+          className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+        <span>
+          Ask each family where their student&rsquo;s transcript should be sent
+          <span className="block text-xs text-neutral-500">
+            Adds a School records step to the funnel. Turn this on for credit partner programs.
+          </span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm text-neutral-700 select-none">
+        <input type="checkbox" checked={academyEnroll}
+          onChange={(e) => setAcademyEnroll(e.target.checked)}
+          className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+        <span>
+          Enroll each registered student in Optio Academy
+          <span className="block text-xs text-neutral-500">
+            Happens when the family finishes registering. This is what puts Optio Academy&rsquo;s
+            accreditation on their transcript.
+          </span>
+        </span>
+      </label>
+    </div>
+  )
+
   const detailsStep = (
     <div className="space-y-6">
       <Editable label="Edit" open={openZones.has('contacts')} onToggle={() => toggleZone('contacts')} editor={contactsEditor}>
@@ -660,6 +699,21 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
           </button>
         </div>
       </Section>
+      <Editable label="Edit" open={openZones.has('records')} onToggle={() => toggleZone('records')} editor={recordsEditor}>
+        <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-neutral-600">
+          <span className="font-medium text-neutral-800">Optio Academy credit</span>
+          <p className="mt-1">
+            {askRecords
+              ? 'Families are asked where each student\u2019s transcript should be sent. See the School records step.'
+              : 'Families are not asked where transcripts should be sent.'}
+          </p>
+          <p className="mt-1">
+            {academyEnroll
+              ? 'Finishing registration enrolls each student in Optio Academy.'
+              : 'Finishing registration does not enroll anyone in Optio Academy.'}
+          </p>
+        </div>
+      </Editable>
       <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>
     </div>
   )
@@ -765,6 +819,35 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         <label className="block text-xs font-medium text-neutral-500 mb-1">Payment link (external, fallback)</label>
         <input className={field} value={paymentUrl} onChange={(e) => setPaymentUrl(e.target.value)} placeholder="https://…" />
       </div>
+    </div>
+  )
+
+  const recordsStep = (
+    <div className="space-y-6">
+      <Editable label="Edit" open={openZones.has('records')} onToggle={() => toggleZone('records')} editor={recordsEditor}>
+        <Section
+          title="Where should the school records go?"
+          subtitle="Credit is issued by Optio Academy on an official transcript. Tell us where each student's transcript should be sent, so we can send it for you when credit is awarded."
+        >
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-neutral-800">Is your child enrolled in a school?</label>
+            <select className={mockInput} disabled><option>-- Please select --</option></select>
+            <input className={mockInput} readOnly placeholder="School name" value="" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input className={mockInput} readOnly placeholder="City" value="" />
+              <input className={mockInput} readOnly placeholder="State" value="" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input className={mockInput} readOnly placeholder="Registrar name" value="" />
+              <input className={mockInput} readOnly placeholder="Registrar email" value="" />
+            </div>
+            <label className="flex items-start gap-2 text-sm text-neutral-600">
+              <input type="checkbox" readOnly checked={false} className="mt-1 pointer-events-none" />
+              <span>Send the official transcript to this school automatically once credit is awarded.</span>
+            </label>
+          </div>
+        </Section>
+      </Editable>
     </div>
   )
 
@@ -979,7 +1062,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const activeStep = editorSteps.includes(step) ? step : 'done'
   const stepBody = {
     account: accountStep, family: familyStep, details: detailsStep,
-    paperwork: paperworkStep, fee: feeStep, done: doneStep,
+    records: recordsStep, paperwork: paperworkStep, fee: feeStep, done: doneStep,
   }[activeStep]
 
   return (

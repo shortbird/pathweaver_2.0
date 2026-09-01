@@ -93,6 +93,7 @@ from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input, validate_uuid
 from utils.registration_config import get_registration_config
+from services import academy_enrollment_service as academy_enrollment
 # Identity proof and org attachment live in their own module — see its docstring
 # for why they are separate from the funnel's step handlers. Aliased to the
 # private names this file has always used so every call site reads unchanged.
@@ -248,6 +249,18 @@ def _public_config(org, cfg, paperwork_urls=None):
         # Whether the family step asks for each child's allergies/medications
         # (default yes; irrelevant for a fully online org).
         'health_fields': cfg.get('health_fields') is not False,
+        # Credit partner orgs (a sports club, a music studio) enroll their
+        # participants in Optio Academy, so the funnel has to ask the one
+        # question a transcript needs and no other funnel asks: which school's
+        # registrar receives it. Off by default -- an ordinary microschool
+        # registration has no transcript to send anywhere.
+        'records_destination': cfg.get('records_destination') is True,
+        # Whether finishing this funnel enrolls each registered student in
+        # Optio Academy. Independent of the question above: a partner could
+        # collect the destination without enrolling, or enroll without asking
+        # (a family with no school of record yet).
+        'academy_enrollment': cfg.get('academy_enrollment') is True,
+        'academy_pathway': cfg.get('academy_pathway') or 'partner_credit',
         'fee_mode': cfg.get('fee_mode') or 'flat',
         'registration_fee_cents': int(cfg.get('registration_fee_cents') or 0),
         'per_student_fee_cents': int(cfg.get('per_student_fee_cents') or 0),
@@ -816,6 +829,10 @@ def my_registration(user_id):
             'answers': reg.get('answers') or {},
             'emergency_contacts': reg.get('emergency_contacts') or [],
             'paperwork': reg.get('paperwork') or [],
+            # Already-answered records destinations, keyed by student, so
+            # back-editing that step shows what the family entered instead of
+            # an empty form they have to fill in twice.
+            'records_destinations': academy_enrollment.destinations_for_kids(kids, client=admin),
             'household': household,
             'scheduling_url': _abs_url(cfg.get('scheduling_url')),
             'scheduling_emailed': bool(reg.get('scheduling_emailed_at')),
@@ -1510,14 +1527,18 @@ def submit_details(reg_id):
             except Exception as e:  # noqa: BLE001
                 logger.error(f'registration details: contact insert failed for kid {kid_id[:8]}: {e}')
 
+    # Credit partner funnels ask where the transcript goes before paperwork;
+    # everyone else goes straight to paperwork as before.
+    next_status = 'records' if cfg.get('records_destination') is True else 'paperwork'
+
     admin.table('registrations').update({
         'answers': answers, 'emergency_contacts': contacts,
-        'status': 'paperwork', 'updated_at': datetime.utcnow().isoformat(),
+        'status': next_status, 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
     _sync_household_payment(admin, reg, answers)
 
-    return jsonify({'success': True, 'status': 'paperwork'}), 200
+    return jsonify({'success': True, 'status': next_status}), 200
 
 
 def _sync_household_payment(admin, reg, answers):
@@ -1560,6 +1581,77 @@ def _sync_household_payment(admin, reg, answers):
                         f'set from registration answers ({", ".join(sorted(fields))})')
     except Exception as e:  # noqa: BLE001 — never fail a registration over this
         logger.warning(f'registration details: household payment sync failed for {reg["id"]}: {e}')
+
+
+@bp.route('/registrations/<reg_id>/records', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=300)
+def submit_records_destination(reg_id):
+    """Save where each registered student's transcript should be sent.
+
+    Only credit partner funnels reach this step (the org's registration config
+    sets records_destination). One answer per kid, because siblings routinely
+    attend different schools, and the answer is the thing the Transfer to School
+    send has always needed and never had: a named school with a registrar who
+    can receive an official transcript.
+
+    Body:
+        access_token: the funnel token
+        destinations: { <kid user_id>: {
+            destination_type: 'school' | 'homeschool' | 'optio_only',
+            school_name, school_city, school_state, school_district,
+            registrar_name, registrar_email, registrar_phone,
+            student_id_at_school, auto_send_consent
+        } }
+
+    Re-submittable: back-editing this step updates each student's single row.
+    """
+    body = request.get_json(silent=True) or {}
+    reg = _load_registration(reg_id)
+    if not _authz(reg, body.get('access_token')):
+        return jsonify({'error': 'Not authorized'}), 403
+
+    admin = _admin()
+    cfg = _org_config(admin, reg['organization_id'])
+    if cfg.get('records_destination') is not True:
+        return jsonify({'error': 'This registration does not collect school records information.'}), 400
+
+    reg_kids = [k for k in (reg.get('kids') or []) if k.get('user_id')]
+    if not reg_kids:
+        return jsonify({'error': 'Please add your children before this step.'}), 400
+
+    destinations = body.get('destinations')
+    if not isinstance(destinations, dict):
+        return jsonify({'error': 'Please answer for each student.'}), 400
+
+    # Validate EVERY student before writing any of them, so a typo on the second
+    # child cannot leave the first one saved and the family staring at an error
+    # with no idea which half went through.
+    validated = []
+    for kid in reg_kids:
+        payload = destinations.get(kid['user_id'])
+        if not isinstance(payload, dict):
+            who = kid.get('first_name') or 'your student'
+            return jsonify({'error': f'Please tell us where {who}\'s records should go.'}), 400
+        fields, err = academy_enrollment.validate_destination(payload)
+        if err:
+            who = kid.get('first_name') or 'your student'
+            return jsonify({'error': f'{who}: {err}'}), 400
+        validated.append((kid, payload))
+
+    for kid, payload in validated:
+        _, err = academy_enrollment.set_destination(
+            kid['user_id'], payload, updated_by=reg.get('parent_user_id'), client=admin)
+        if err:
+            who = kid.get('first_name') or 'your student'
+            return jsonify({'error': f'{who}: {err}'}), 400
+
+    admin.table('registrations').update({
+        'status': 'paperwork', 'updated_at': datetime.utcnow().isoformat(),
+    }).eq('id', reg_id).execute()
+
+    logger.info(f'registration records: registration {reg_id} saved destinations '
+                f'for {len(validated)} student(s)')
+    return jsonify({'success': True, 'status': 'paperwork'}), 200
 
 
 @bp.route('/registrations/<reg_id>/paperwork', methods=['POST'])
@@ -1671,6 +1763,8 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
         **(extra_fields or {}),
     }
     admin.table('registrations').update(payload).eq('id', reg['id']).execute()
+
+    academy_enrollment.enroll_registration_kids(reg, cfg, client=admin)
 
     # A release put this household on hold until the deferred fee was settled —
     # settling it clears the hold (only OUR hold; a school-set hold stays).

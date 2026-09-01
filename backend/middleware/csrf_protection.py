@@ -109,6 +109,7 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'registration.login',
     'registration.submit_family',
     'registration.submit_details',
+    'registration.submit_records_destination',
     'registration.submit_paperwork',
     'registration.create_checkout',
     'registration.preview_checkout',

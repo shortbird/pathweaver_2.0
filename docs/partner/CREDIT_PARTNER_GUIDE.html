@@ -1,0 +1,540 @@
+<title>Credit Partner Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Karla:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --paper:      #FCFBFD;
+    --panel:      #F4F0F8;
+    --ink:        #1B1622;
+    --muted:      #6A6276;
+    --rule:       #E4DFEA;
+    --accent:     #6D469B;
+    --accent-ink: #5A3A82;
+    --mark:       #EF597B;
+    --mark-wash:  rgba(239, 89, 123, 0.10);
+
+    --measure: 34rem;
+    --step--1: 0.8125rem;
+    --step-0:  1.0625rem;
+    --step-1:  1.25rem;
+    --step-2:  1.5rem;
+    --step-3:  2rem;
+    --step-4:  2.75rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #141118;
+      --panel:      #1D1926;
+      --ink:        #F1EEF5;
+      --muted:      #9C94A8;
+      --rule:       #2E2739;
+      --accent:     #B292DB;
+      --accent-ink: #C9AFE9;
+      --mark:       #F5809A;
+      --mark-wash:  rgba(245, 128, 154, 0.14);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #141118;
+    --panel:      #1D1926;
+    --ink:        #F1EEF5;
+    --muted:      #9C94A8;
+    --rule:       #2E2739;
+    --accent:     #B292DB;
+    --accent-ink: #C9AFE9;
+    --mark:       #F5809A;
+    --mark-wash:  rgba(245, 128, 154, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  /* ── Masthead ─────────────────────────────────────────────── */
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 4.5rem 0 2rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .eyebrow {
+    font-size: var(--step--1);
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-4);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-1);
+    line-height: 1.5;
+    color: var(--muted);
+    text-wrap: pretty;
+    margin: 0;
+  }
+
+  /* ── Sections ─────────────────────────────────────────────── */
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding: 3.25rem 0 0;
+  }
+
+  h2 {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-3);
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h3 {
+    font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-0);
+    font-weight: 700;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  p { margin: 0; text-wrap: pretty; }
+
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; border-radius: 2px; }
+
+  strong { font-weight: 700; }
+
+  .lede { font-size: var(--step-1); line-height: 1.55; }
+
+  /* ── Lists ────────────────────────────────────────────────── */
+
+  ul.plain {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  ul.plain > li {
+    position: relative;
+    padding-left: 1.35rem;
+  }
+
+  ul.plain > li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.72em;
+    width: 0.45rem;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  /* ── Numbered sequence (the six steps are a real sequence) ── */
+
+  ol.steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+  }
+
+  ol.steps > li {
+    display: grid;
+    grid-template-columns: 2.25rem 1fr;
+    gap: 0.25rem 0.9rem;
+    counter-increment: step;
+  }
+
+  ol.steps > li::before {
+    content: counter(step);
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-2);
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    grid-row: span 2;
+    padding-top: 0.05em;
+    border-top: 2px solid var(--accent);
+  }
+
+  ol.steps h3 { align-self: end; padding-top: 0.1rem; }
+  ol.steps p { color: var(--muted); }
+
+  /* ── Ask / don't ask pair ─────────────────────────────────── */
+
+  .pair {
+    display: grid;
+    gap: 2rem;
+  }
+
+  @media (min-width: 46rem) {
+    .pair { grid-template-columns: 1fr 1fr; gap: 2.5rem; }
+  }
+
+  .pair > div { display: flex; flex-direction: column; gap: 0.9rem; }
+
+  .pair-head {
+    font-size: var(--step--1);
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule);
+    margin: 0;
+  }
+
+  .pair-head.yes { color: var(--accent); }
+  .pair-head.no  { color: var(--muted); }
+
+  /* ── Q&A ──────────────────────────────────────────────────── */
+
+  .qa {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .qa > div { display: flex; flex-direction: column; gap: 0.4rem; }
+  .qa p { color: var(--muted); }
+
+  /* ── Copy blocks ──────────────────────────────────────────── */
+
+  .copyblock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    background: var(--panel);
+    border-left: 2px solid var(--accent);
+    padding: 1.4rem 1.5rem;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .copyblock + .copyblock { margin-top: 1.5rem; }
+
+  .copyblock-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    font-size: var(--step--1);
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  .copyblock-label span {
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    text-transform: none;
+  }
+
+  .copyblock-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-1);
+    line-height: 1.55;
+  }
+
+  .copyblock-body h4 {
+    font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-0);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .copyblock-body ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0;
+    padding-left: 1.15rem;
+  }
+
+  /* ── Fill-in placeholders ─────────────────────────────────── */
+
+  .ph {
+    background: var(--mark-wash);
+    color: var(--mark);
+    font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.92em;
+    font-weight: 700;
+    padding: 0.08em 0.34em;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  /* ── Callout ──────────────────────────────────────────────── */
+
+  .callout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-top: 2px solid var(--mark);
+    background: var(--mark-wash);
+    padding: 1.2rem 1.4rem;
+    border-radius: 0 0 3px 3px;
+  }
+
+  .callout p { color: var(--ink); }
+
+  /* ── Footer ───────────────────────────────────────────────── */
+
+  footer {
+    margin-top: 4.5rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  footer strong { color: var(--ink); font-weight: 700; }
+</style>
+
+<div class="doc">
+
+  <header class="masthead">
+    <p class="eyebrow">Optio Academy &middot; Partner Program</p>
+    <h1>Credit Partner Guide</h1>
+    <p class="standfirst">How the young people already in your program can earn high school credit for taking part, what Optio handles, and what to tell their families.</p>
+  </header>
+
+  <section>
+    <h2>What this is</h2>
+    <p class="lede">Optio Academy is an accredited private high school. Students earn credit by documenting real work rather than by sitting in a classroom for a set number of hours.</p>
+    <p>That means what you already run can count as a high school class. Your participants enroll in Optio Academy, take part in your program exactly as they do now, and finish with credit on an official transcript that Optio issues and sends to their school.</p>
+    <p>You do not become a school. You do not grade anyone. Nothing about how you run your program has to change.</p>
+  </section>
+
+  <section>
+    <h2>What your participants get</h2>
+    <ul class="plain">
+      <li><strong><span class="ph">[0.5]</span> credit in <span class="ph">[Subject]</span></strong> on an official high school transcript, issued by an accredited school.</li>
+      <li><strong>Credit that transfers</strong> the same way credit from any other school does.</li>
+      <li><strong>A record of what they actually did.</strong> Photos, video, and notes gathered as they go, kept in one place they own.</li>
+      <li><strong>No homework, no tests, no extra sessions.</strong> Taking part in your program is the coursework.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li>
+        <h3>Optio sets up your program</h3>
+        <p>One conversation. We agree on the subject, how much credit a term is worth, your dates, and what counts as taking part. You never touch a settings page.</p>
+      </li>
+      <li>
+        <h3>You share one link</h3>
+        <p>Families enroll themselves. The account, the parent consent, and the school their transcript should go to are all collected in that one form. You do not gather, hold, or forward any of it.</p>
+      </li>
+      <li>
+        <h3>Participants take part</h3>
+        <p>Same practices, same lessons, same season. Whether a young person is earning credit is invisible in the room.</p>
+      </li>
+      <li>
+        <h3>They document as they go</h3>
+        <p>In the Optio app, a participant adds photos, a short video, or a few sentences about what they worked on. It takes a minute and it is theirs to keep.</p>
+      </li>
+      <li>
+        <h3>You confirm who took part</h3>
+        <p>At the end of the term you open your roster in Optio, check the names of the people who genuinely participated, and submit. This is the only administrative task the program asks of you, and it takes about two minutes.</p>
+      </li>
+      <li>
+        <h3>Optio reviews and awards the credit</h3>
+        <p>A licensed Optio teacher reviews the work and awards the credit. Optio issues the transcript and sends it to the school each family named when they enrolled.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Your part, precisely</h2>
+    <div class="pair">
+      <div>
+        <p class="pair-head yes">Optio asks you to</p>
+        <ul class="plain">
+          <li>Share the enrollment link with your families.</li>
+          <li>Answer questions about your own program.</li>
+          <li>Confirm at the end of the term who took part.</li>
+          <li>Tell us if someone stops attending partway through.</li>
+        </ul>
+      </div>
+      <div>
+        <p class="pair-head no">Optio never asks you to</p>
+        <ul class="plain">
+          <li>Grade anyone, write lesson plans, or change your curriculum.</li>
+          <li>Collect, store, or forward student records.</li>
+          <li>Award the credit yourself.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Questions families will ask you</h2>
+    <div class="qa">
+      <div>
+        <h3>Will our school accept it?</h3>
+        <p>Most do. The credit comes from an accredited private school on an official transcript with a verification link, which is the same form a registrar handles for any transfer student. A district can still set its own transfer policy, so a family who is counting on the credit should ask their counselor before enrolling. Optio will talk to the counselor directly if that helps.</p>
+      </div>
+      <div>
+        <h3>Does my child have to do extra work?</h3>
+        <p>No. Showing up and taking part is the work. Documenting it in the app takes a minute here and there, and it is the part most participants end up enjoying, because they finish the season with something to show for it.</p>
+      </div>
+      <div>
+        <h3>What if we stop partway through?</h3>
+        <p>Then no credit is awarded for that term and nothing else happens. There is no penalty and no mark on any record.</p>
+      </div>
+      <div>
+        <h3>Who can see my child's work?</h3>
+        <p>The student, their parent, and the Optio teacher who reviews it. Nothing is public unless the family deliberately makes it public. Optio does not sell data and does not put students in advertising tools.</p>
+      </div>
+      <div>
+        <h3>Is this a real high school transcript?</h3>
+        <p>Yes. It is issued by Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges, the same commission that accredits thousands of public and private schools.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Messaging you can use</h2>
+    <p>Take any of this word for word, or bend it to sound like you. Replace anything marked <span class="ph">like this</span>. Optio will read over your version before it goes live if you want a second pair of eyes.</p>
+
+    <div class="copyblock">
+      <p class="copyblock-label">One line <span>schedule, flyer, bio, signature</span></p>
+      <div class="copyblock-body">
+        <p>Participants can earn <span class="ph">[0.5]</span> high school <span class="ph">[Subject]</span> credit through <span class="ph">[Your Program]</span>, at no extra time commitment, on an accredited transcript.</p>
+      </div>
+    </div>
+
+    <div class="copyblock">
+      <p class="copyblock-label">Short website blurb <span>about 60 words</span></p>
+      <div class="copyblock-body">
+        <p><strong>Earn high school credit while you <span class="ph">[activity]</span>.</strong></p>
+        <p>Through a partnership with Optio Academy, an accredited private high school, your season with <span class="ph">[Your Program]</span> can count as a high school <span class="ph">[Subject]</span> class. There is no extra coursework and nothing more to attend. You take part the way you always have, document your work along the way, and finish with <span class="ph">[0.5]</span> credit on an official transcript.</p>
+      </div>
+    </div>
+
+    <div class="copyblock">
+      <p class="copyblock-label">Full website section <span>with the how-it-works</span></p>
+      <div class="copyblock-body">
+        <h4>High school credit for the work you are already doing</h4>
+        <p><span class="ph">[Your Program]</span> has partnered with Optio Academy so that the time you put in here can count toward your high school diploma. Optio Academy is an accredited private school that awards credit for documented real-world work instead of seat time, which means your <span class="ph">[activity]</span> qualifies as a <span class="ph">[Subject]</span> class.</p>
+        <p><strong>How it works</strong></p>
+        <ul>
+          <li>Enroll through the link below. It takes about ten minutes, and a parent signs off in the same form.</li>
+          <li>Take part in <span class="ph">[Your Program]</span> exactly as you would anyway.</li>
+          <li>Capture what you are working on in the Optio app as you go. Photos, video, or a few sentences.</li>
+          <li>At the end of the term we confirm your participation, an Optio teacher reviews your work, and your credit is awarded.</li>
+          <li>Optio sends the official transcript to your school. You tell us where it should go when you enroll.</li>
+        </ul>
+        <p>There is no extra class to attend and no homework. <span class="ph">[Add your cost line here.]</span></p>
+        <p><strong>Enroll:</strong> <span class="ph">[your enrollment link]</span></p>
+      </div>
+    </div>
+
+    <div class="copyblock">
+      <p class="copyblock-label">Parent email <span>send to your roster</span></p>
+      <div class="copyblock-body">
+        <p><strong>Subject:</strong> Your <span class="ph">[activity]</span> can now count as a high school class</p>
+        <p>Hi everyone,</p>
+        <p>I have something new for this <span class="ph">[season / term / year]</span>. <span class="ph">[Your Program]</span> has partnered with Optio Academy, an accredited private high school, so that participants can earn <span class="ph">[0.5]</span> high school <span class="ph">[Subject]</span> credit for taking part.</p>
+        <p>Nothing about our program changes. There is no extra practice, no homework, and no test. Your student takes part the way they already do and captures what they are working on in the Optio app along the way. At the end of the <span class="ph">[season]</span> I confirm who participated, a licensed Optio teacher reviews the work, and the credit is awarded to an official transcript. Optio sends that transcript directly to your student's school. You tell them where when you enroll.</p>
+        <p>The credit is accredited and is designed to transfer like credit from any other school. If your student is enrolled somewhere that is particular about outside credit, check with their counselor first, and Optio is happy to speak with that counselor directly.</p>
+        <p><span class="ph">[Add your cost line here.]</span></p>
+        <p>To take part, enroll here: <span class="ph">[your enrollment link]</span></p>
+        <p>Questions about the credit itself go to Optio at <span class="ph">[Optio contact]</span>. Questions about our program come to me as always.</p>
+        <p><span class="ph">[Your name]</span></p>
+      </div>
+    </div>
+
+    <div class="copyblock">
+      <p class="copyblock-label">Group message or social post <span>short</span></p>
+      <div class="copyblock-body">
+        <p>New this <span class="ph">[season]</span>: you can earn <span class="ph">[0.5]</span> high school <span class="ph">[Subject]</span> credit for <span class="ph">[activity]</span> with us. No extra practices and no homework. Take part like you always do, document it as you go, and finish with credit on an accredited transcript through Optio Academy. Enroll here: <span class="ph">[your enrollment link]</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How to talk about the accreditation</h2>
+    <p>The accreditation is what makes this worth anything, so there are a few firm rules about how it is described. They are short, and Optio will help you get any wording right.</p>
+    <ul class="plain">
+      <li><strong>Say the credit comes from Optio Academy.</strong> Participants earn credit through Optio Academy, an accredited private high school. That is accurate and it is the strongest thing you can say.</li>
+      <li><strong>Do not describe your own program as accredited.</strong> It is not, and it does not need to be. Optio Academy holds the accreditation and issues the credit.</li>
+      <li><strong>Do not use the commission's logo.</strong> Optio is licensed to display it. Partners are not.</li>
+      <li><strong>Wherever you mention accreditation in writing, include the commission's full details</strong> in the same page or email. The block at the bottom of this guide is exactly what to paste.</li>
+      <li><strong>Send new wording to Optio before it goes live.</strong> A quick read takes a day and saves everyone a correction later.</li>
+    </ul>
+    <div class="callout">
+      <p><strong>The shortest compliant version:</strong> "Credit is awarded by Optio Academy, accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges, 533 Airport Blvd., Suite 200, Burlingame, CA 94010, www.acswasc.org."</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Getting started</h2>
+    <ul class="plain">
+      <li><strong>Have the setup conversation.</strong> Subject, credit value, dates, and what counts as taking part in your program. Thirty minutes.</li>
+      <li><strong>Sign the partner agreement.</strong> It covers the basis for the credit, your role in confirming participation, and how student information is handled.</li>
+      <li><strong>Get your enrollment link.</strong> Optio builds it, brands it to your program, and sends it over.</li>
+      <li><strong>Tell your families.</strong> Use the messaging above.</li>
+    </ul>
+    <p>Questions, or ready to start: <span class="ph">[Optio contact name and email]</span></p>
+  </section>
+
+  <footer>
+    <p><strong>Optio Academy</strong> is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges.</p>
+    <p>Accrediting Commission for Schools, Western Association of Schools and Colleges &middot; 533 Airport Blvd., Suite 200, Burlingame, CA 94010 &middot; www.acswasc.org</p>
+  </footer>
+
+</div>

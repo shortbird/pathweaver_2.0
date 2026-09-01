@@ -125,6 +125,23 @@ export const firstQuestionError = (questions, answers, kidsList) => {
   return null
 }
 
+// First validation error for the school-records step, or null. Mirrors the
+// backend's validate_destination so a family sees the problem before a round
+// trip. Exported for unit tests, like firstQuestionError above.
+export const firstDestinationError = (kidsList, destinations) => {
+  const who = (k) => (k.first_name || k.name || 'your student').trim()
+  for (const k of kidsList || []) {
+    const d = (destinations || {})[k.user_id] || {}
+    if (!d.destination_type) return `Choose where ${who(k)}'s records should go`
+    if (d.destination_type !== 'school') continue
+    if (!(d.school_name || '').trim()) return `Enter the school ${who(k)} attends`
+    if (d.auto_send_consent && !(d.registrar_email || '').trim()) {
+      return `Add a registrar email for ${who(k)}, or untick sending the transcript automatically`
+    }
+  }
+  return null
+}
+
 // What to try when a photo won't attach — written for the common iPhone case
 // (the original lives in iCloud and Safari silently fails to fetch it).
 const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually means the "
@@ -154,7 +171,9 @@ const RegisterFunnelPage = () => {
     || config?.payment_url
     || config?.stripe_enabled,
   )
-  const steps = feeApplies ? STEPS : STEPS.filter((s) => s !== 'fee')
+  // Only credit partner funnels ask where a transcript should be sent.
+  const recordsApply = Boolean(config?.records_destination)
+  const steps = STEPS.filter((s) => (s !== 'fee' || feeApplies) && (s !== 'records' || recordsApply))
   // When the org doesn't collect emergency contacts, the details step is only
   // the questions — label it that way in the steppers.
   const stepLabels = config?.emergency_contacts === false
@@ -181,6 +200,11 @@ const RegisterFunnelPage = () => {
   const addressBoxRef = useRef(null)  // autofill reconciliation (mergeAutofilledFields)
   const [kids, setKids] = useState([emptyKid()])
   const [parentPhoto, setParentPhoto] = useState({ file: null, preview: '', avatar_url: '', uploading: false, error: '' })
+
+  // records step — one destination per registered student, keyed by user_id.
+  // Siblings routinely attend different schools, so this is never one answer
+  // for the family.
+  const [destinations, setDestinations] = useState({})
 
   // details step
   const [contacts, setContacts] = useState([emptyContact()])
@@ -253,6 +277,19 @@ const RegisterFunnelPage = () => {
             })))
           }
           if (Object.keys(regData.answers || {}).length) setAnswers(regData.answers)
+          if (Object.keys(regData.records_destinations || {}).length) {
+            setDestinations(Object.fromEntries(
+              Object.entries(regData.records_destinations).map(([id, d]) => [id, {
+                destination_type: d.destination_type || '',
+                school_name: d.school_name || '', school_city: d.school_city || '',
+                school_state: d.school_state || '', school_district: d.school_district || '',
+                registrar_name: d.registrar_name || '', registrar_email: d.registrar_email || '',
+                registrar_phone: d.registrar_phone || '',
+                student_id_at_school: d.student_id_at_school || '',
+                auto_send_consent: !!d.auto_send_consent,
+              }]),
+            ))
+          }
           if ((regData.paperwork || []).length) {
             setSignatures(Object.fromEntries(regData.paperwork.map((p) => [p.key, p.signed_name || ''])))
             setAgreed(Object.fromEntries(regData.paperwork.map((p) => [p.key, true])))
@@ -643,7 +680,8 @@ const RegisterFunnelPage = () => {
   // ── Details / paperwork / fee (unchanged mechanics) ─────────────────────────
 
   const submitDetails = async () => {
-    if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
+    if (previewMode) return setStep(recordsApply ? 'records'
+      : (config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
     // Orgs can opt out of emergency contacts (config.emergency_contacts === false).
     const asksContacts = config.emergency_contacts !== false
     const validContacts = asksContacts ? contacts.filter((c) => c.name.trim() || c.phone.trim()) : []
@@ -663,11 +701,36 @@ const RegisterFunnelPage = () => {
         })),
         answers,
       })
-      if ((config.paperwork || []).length) setStep('paperwork')
+      if (recordsApply) setStep('records')
+      else if ((config.paperwork || []).length) setStep('paperwork')
       else if ((feeCents || 0) > 0 || config.payment_url) setStep('fee')
       else await finishFee()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save your details')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const setDestination = (userId, patch) => setDestinations((d) => ({
+    ...d, [userId]: { ...(d[userId] || {}), ...patch },
+  }))
+
+  const submitRecords = async () => {
+    if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
+    const dErr = firstDestinationError(serverKids, destinations)
+    if (dErr) return toast.error(dErr)
+    setSubmitting(true)
+    try {
+      await api.post(`/api/registration/registrations/${reg.registration_id}/records`, {
+        access_token: reg.access_token,
+        destinations: Object.fromEntries(serverKids.map((k) => [k.user_id, destinations[k.user_id] || {}])),
+      })
+      if ((config.paperwork || []).length) setStep('paperwork')
+      else if ((feeCents || 0) > 0 || config.payment_url) setStep('fee')
+      else await finishFee()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not save your school information')
     } finally {
       setSubmitting(false)
     }
@@ -1233,6 +1296,125 @@ const RegisterFunnelPage = () => {
             </PrimaryButton>
           </div>
         )}
+
+        {step === 'records' && (() => {
+          // Preview mode has no server-side kids; fake ids from the sample
+          // family so staff walking the funnel see the per-child layout.
+          const rKids = previewMode
+            ? kids.map((k, i) => ({ user_id: `preview-${i}`, first_name: k.first_name, name: `${k.first_name} ${k.last_name}`.trim() }))
+            : serverKids
+          return (
+            <div className="space-y-6">
+              <Section
+                title="Where should the school records go?"
+                subtitle="Credit is issued by Optio Academy on an official transcript. Tell us where each student's transcript should be sent, so we can send it for you when credit is awarded."
+              >
+                <div className="space-y-5">
+                  {rKids.map((k, idx) => {
+                    const d = destinations[k.user_id] || {}
+                    const name = (k.first_name || k.name || 'Your child').trim()
+                    return (
+                      <div key={k.user_id} className={idx > 0 ? 'pt-5 border-t border-gray-100' : ''}>
+                        <h3 className="text-sm font-semibold text-neutral-900 mb-3">{name}</h3>
+
+                        <label className="block text-sm font-medium text-neutral-800 mb-1">
+                          Is {name} enrolled in a school? <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className={field}
+                          value={d.destination_type || ''}
+                          onChange={(e) => setDestination(k.user_id, { destination_type: e.target.value })}
+                        >
+                          <option value="">-- Please select --</option>
+                          <option value="school">Yes, {name} attends a school</option>
+                          <option value="homeschool">No, we homeschool</option>
+                          <option value="optio_only">No, {name} is not enrolled anywhere right now</option>
+                        </select>
+
+                        {d.destination_type === 'school' && (
+                          <div className="mt-3 space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-neutral-800 mb-1">
+                                School name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                className={field}
+                                placeholder="e.g. Green Canyon High School"
+                                value={d.school_name || ''}
+                                onChange={(e) => setDestination(k.user_id, { school_name: e.target.value })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <input
+                                className={field} placeholder="City"
+                                value={d.school_city || ''}
+                                onChange={(e) => setDestination(k.user_id, { school_city: e.target.value })}
+                              />
+                              <input
+                                className={field} placeholder="State"
+                                value={d.school_state || ''}
+                                onChange={(e) => setDestination(k.user_id, { school_state: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-neutral-800 mb-1">
+                                Registrar or counselor
+                              </label>
+                              <p className="text-xs text-neutral-500 mb-2">
+                                Who at the school receives transcripts. If you are not sure, leave this blank
+                                and we will look it up.
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <input
+                                  className={field} placeholder="Name"
+                                  value={d.registrar_name || ''}
+                                  onChange={(e) => setDestination(k.user_id, { registrar_name: e.target.value })}
+                                />
+                                <input
+                                  type="email" className={field} placeholder="Email"
+                                  value={d.registrar_email || ''}
+                                  onChange={(e) => setDestination(k.user_id, { registrar_email: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                            <label className="flex items-start gap-2 text-sm text-neutral-700">
+                              <input
+                                type="checkbox" className="mt-1"
+                                checked={!!d.auto_send_consent}
+                                onChange={(e) => setDestination(k.user_id, { auto_send_consent: e.target.checked })}
+                              />
+                              <span>
+                                Send {name}&rsquo;s official transcript to this school automatically once credit
+                                is awarded. Leave this unticked and we will email you first instead.
+                              </span>
+                            </label>
+                          </div>
+                        )}
+
+                        {d.destination_type === 'homeschool' && (
+                          <p className="mt-2 text-sm text-neutral-600">
+                            Optio Academy will issue {name}&rsquo;s transcript directly to you, and you can send
+                            it anywhere later.
+                          </p>
+                        )}
+                        {d.destination_type === 'optio_only' && (
+                          <p className="mt-2 text-sm text-neutral-600">
+                            We will hold {name}&rsquo;s transcript on file. You can ask us to send it to a school
+                            any time.
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </Section>
+
+              <PrimaryButton onClick={submitRecords} disabled={submitting}>
+                {submitting ? 'Saving\u2026' : 'Continue'}
+              </PrimaryButton>
+            </div>
+          )
+        })()}
 
         {step === 'paperwork' && (
           <div className="space-y-6">

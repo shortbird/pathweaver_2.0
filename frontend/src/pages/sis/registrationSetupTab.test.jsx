@@ -224,3 +224,72 @@ describe('Registration setup tab for a campus coordinator', () => {
     expect(await screen.findByText('Edit fees & payment')).toBeInTheDocument()
   })
 })
+
+describe('Credit partner switches (Optio Academy credit)', () => {
+  const openRecordsEditor = async () => {
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Contacts & questions'))
+    // The switches live on the always-present details step, so a funnel that
+    // does not have the School records step yet can still turn it on.
+    const zone = await screen.findByText('Optio Academy credit')
+    fireEvent.click(zone.closest('div').parentElement.querySelector('button'))
+  }
+
+  it('hides the School records step until the org collects records', async () => {
+    state.flags = { registration: CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    expect(screen.queryByText('School records')).not.toBeInTheDocument()
+  })
+
+  it('shows the School records step for a credit partner', async () => {
+    state.flags = { registration: { ...CFG, records_destination: true }, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(await screen.findByText('School records'))
+    expect(await screen.findByText('Where should the school records go?')).toBeInTheDocument()
+  })
+
+  it('states plainly that neither switch is on', async () => {
+    state.flags = { registration: CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Contacts & questions'))
+    expect(await screen.findByText(/not asked where transcripts should be sent/)).toBeInTheDocument()
+    expect(screen.getByText(/does not enroll anyone in Optio Academy/)).toBeInTheDocument()
+  })
+
+  it('saves both switches off by default rather than omitting them', async () => {
+    state.flags = { registration: CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Save registration settings'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    const saved = state.putBodies[0].feature_flags.registration
+    expect(saved.records_destination).toBe(false)
+    expect(saved.academy_enrollment).toBe(false)
+  })
+
+  it('round-trips both switches when they are on', async () => {
+    state.flags = {
+      registration: { ...CFG, records_destination: true, academy_enrollment: true },
+      sis_settings: {},
+    }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Save registration settings'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    const saved = state.putBodies[0].feature_flags.registration
+    expect(saved.records_destination).toBe(true)
+    expect(saved.academy_enrollment).toBe(true)
+  })
+
+  it('turning the records switch on adds the step to the funnel', async () => {
+    state.flags = { registration: CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await openRecordsEditor()
+    const box = await screen.findByLabelText(/where their student/i)
+    fireEvent.click(box)
+    expect(await screen.findByText('School records')).toBeInTheDocument()
+  })
+})

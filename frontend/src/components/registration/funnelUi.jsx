@@ -12,15 +12,19 @@ import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@he
  * copy-paste.
  */
 
-export const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'done']
+// 'records' only appears for orgs whose funnel collects a school of record
+// (credit partners); RegisterFunnelPage filters it out otherwise, the same way
+// it drops 'fee' for orgs that charge nothing.
+export const STEPS = ['account', 'family', 'details', 'records', 'paperwork', 'fee', 'done']
 export const STEP_LABELS = {
   account: 'Account', family: 'Your family', details: 'Contacts & questions',
-  paperwork: 'Paperwork', fee: 'Registration fee', done: 'Next steps',
+  records: 'School records', paperwork: 'Paperwork', fee: 'Registration fee',
+  done: 'Next steps',
 }
 
 // Steps a family can navigate back into to edit; after the fee is settled the
 // data is final, so nothing is back-editable from the done step.
-export const BACK_EDITABLE = new Set(['family', 'details', 'paperwork'])
+export const BACK_EDITABLE = new Set(['family', 'details', 'records', 'paperwork'])
 export const POST_FEE_STEPS = new Set(['done'])
 
 export const field = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
