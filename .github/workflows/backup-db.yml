@@ -87,9 +87,14 @@ jobs:
             echo "::error::BACKUP_DB_URL secret is not set — see backend/docs/BACKUP_RESTORE.md"
             exit 1
           fi
+          # Set these as shell variables for use in THIS step, and export them
+          # via GITHUB_ENV for the later steps. GITHUB_ENV only takes effect in
+          # subsequent steps, so writing it alone leaves $DUMP unbound here and
+          # `set -u` kills the job before pg_dump ever runs.
           STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          DUMP="optio-prod-$STAMP.dump"
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
-          echo "DUMP=optio-prod-$STAMP.dump" >> "$GITHUB_ENV"
+          echo "DUMP=$DUMP" >> "$GITHUB_ENV"
 
           # Custom format (-Fc), max compression. Custom format is what makes a
           # SELECTIVE restore possible ("put back just sis_invoices"), which is
