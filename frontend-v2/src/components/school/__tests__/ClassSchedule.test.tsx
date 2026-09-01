@@ -79,6 +79,46 @@ describe('narrowed to one child', () => {
   });
 });
 
+// ── Add/drop requests ────────────────────────────────────────────────────────
+// The mobile app has no schedule builder, only this read-only schedule, so for
+// iCreate's families this button IS the add/drop feature (their office asked
+// for it 2026-09-01, deadline Sept 8).
+describe('the add/drop request', () => {
+  const inWindow = (extra: Partial<StudentSchedule['add_drop']> = {}) => ({
+    ...MADELEINE,
+    organization_id: 'org-1',
+    add_drop: { open: true, deadline: '2026-09-08', pending: false, ...extra },
+  });
+
+  it('offers the request under the week while the window is open', () => {
+    withSchedules([inWindow()]);
+    const { queryByLabelText, queryByText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByLabelText('Request an add/drop')).toBeTruthy();
+    expect(queryByText(/Add\/drop closes after September 8, 2026/)).toBeTruthy();
+  });
+
+  it('is absent once the deadline has passed', () => {
+    // The server decides this, in the school's own timezone.
+    withSchedules([inWindow({ open: false })]);
+    const { queryByLabelText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByLabelText('Request an add/drop')).toBeNull();
+  });
+
+  it('is absent for a school that never opened an add/drop period', () => {
+    withSchedules([MADELEINE]);
+    const { queryByLabelText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByLabelText('Request an add/drop')).toBeNull();
+  });
+
+  it('says the request is in rather than inviting a duplicate', () => {
+    withSchedules([inWindow({ pending: true })]);
+    const { queryByLabelText, queryByText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByText('Your add/drop request is in')).toBeTruthy();
+    expect(queryByLabelText('Request an add/drop')).toBeNull();
+    expect(queryByText('Send another request')).toBeTruthy();
+  });
+});
+
 describe('the school hub is unchanged', () => {
   it('still lists every child when no studentId is given', () => {
     withSchedules([MADELEINE, CHARLOTTE]);

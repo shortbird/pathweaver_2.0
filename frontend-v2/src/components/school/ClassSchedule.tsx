@@ -14,6 +14,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, VStack, HStack } from '@/src/components/ui';
 import { SchoolSection } from './SchoolSection';
+import AddDropRequest from './AddDropRequest';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   useClassSchedule, meetingsByDay, meetingTime,
@@ -100,7 +101,7 @@ export default function ClassSchedule({
    *  being there; the school hub stacks several and stays closed. */
   defaultOpen?: boolean;
 }) {
-  const { schedules, loading, hasAny } = useClassSchedule(organizationId);
+  const { schedules, loading, hasAny, refresh } = useClassSchedule(organizationId);
 
   // Nothing to say beats an empty box: a member with no classes at all should
   // not get a "Schedule" heading over blank space.
@@ -134,6 +135,20 @@ export default function ClassSchedule({
           defaultOpen={defaultOpen}
         >
           <StudentDays classes={s.classes} />
+          {/* The read-only schedule's one action, while the school's add/drop
+              window is open. Under the week, because that is what the parent
+              is looking at when they notice the wrong class. */}
+          {s.add_drop?.open && s.organization_id && (
+            <AddDropRequest
+              studentId={s.student_id}
+              studentName={s.student_name === 'My schedule' ? undefined : s.student_name}
+              organizationId={s.organization_id}
+              enrolled={s.classes}
+              deadline={s.add_drop.deadline}
+              pending={s.add_drop.pending}
+              onSubmitted={refresh}
+            />
+          )}
         </SchoolSection>
       ))}
     </View>
