@@ -69,6 +69,10 @@ const select = 'w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 te
 const RoleViewSwitcher = ({ user, orgId = null }) => {
   const [busy, setBusy] = useState(false)
   const [people, setPeople] = useState(null)
+  // Why the list is empty. Swallowing the backend's message here turned every
+  // failure — no school selected, not an admin, a 500 — into the same silent
+  // "No matches", which is indistinguishable from a school with no staff.
+  const [loadError, setLoadError] = useState(null)
   const rv = user?.role_view
   const real = rv?.available_roles || []
   const roles = offeredRoles(real)
@@ -80,11 +84,16 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
 
   // The person list — everyone at the school an admin may open.
   useEffect(() => {
-    if (!adminTier || masq || !orgReady) { setPeople(null); return }
+    if (!adminTier || masq || !orgReady) { setPeople(null); setLoadError(null); return }
     let cancelled = false
+    setLoadError(null)
     api.get(withOrg('/api/role-view/people', isSuperadmin ? orgId : null))
       .then((r) => { if (!cancelled) setPeople(r.data?.people || []) })
-      .catch(() => { if (!cancelled) setPeople([]) })
+      .catch((e) => {
+        if (cancelled) return
+        setPeople([])
+        setLoadError(e?.response?.data?.error || e?.message || 'Could not load people')
+      })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminTier, isSuperadmin, orgId, orgReady, Boolean(masq)])
@@ -146,6 +155,14 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
             placeholder={!orgReady ? 'Pick a school first' : people === null ? 'Loading…' : 'Search people…'}
           />
         </label>
+        {loadError && (
+          <p className="px-1 text-[11px] text-red-600">{loadError}</p>
+        )}
+        {!loadError && people?.length === 0 && (
+          <p className="px-1 text-[11px] text-neutral-500">
+            No teachers or coordinators at this school yet.
+          </p>
+        )}
         {/* Role views are no longer started from here, but one can still be
             active (older session, TopNavbar); leave a way back. */}
         {active && (
