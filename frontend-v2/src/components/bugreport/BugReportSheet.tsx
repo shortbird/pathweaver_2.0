@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, Image } from 'react-native';
+import { View, TextInput, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet, VStack, HStack, Heading, UIText, Button, ButtonText } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -170,6 +170,19 @@ export function BugReportSheet() {
             {screenshotUri ? 'Screenshot + diagnostics attached' : 'Diagnostics attached'}
           </UIText>
         </HStack>
+
+        {/* The shake gesture is the fastest way in and nobody finds it on their
+            own ("hilarious but not intuitive" — iCreate campus coordinator,
+            2026-08-31). Teach it here, where somebody already reporting a bug
+            will read it, rather than hoping for a tour nobody takes. */}
+        {Platform.OS !== 'web' ? (
+          <HStack className="items-center gap-2 rounded-xl bg-surface-50 dark:bg-dark-surface-50 px-3 py-2.5">
+            <Ionicons name="phone-portrait-outline" size={16} color={c.brand} />
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-400 flex-1">
+              Next time, just shake your phone from any screen to open this.
+            </UIText>
+          </HStack>
+        ) : null}
 
         <Button size="lg" onPress={handleSubmit} loading={submitting} disabled={submitting} className="w-full">
           <ButtonText>Send report</ButtonText>

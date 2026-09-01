@@ -7,14 +7,19 @@
  * own location is used, and when neither is recorded the row simply carries
  * the time rather than an empty "Room" label pretending to be information.
  *
- * Laid out day by day, in time order, since 2026-08-25 — see StudentDays.
+ * Laid out day by day, in time order, since 2026-08-25 — see ScheduleDays.
+ *
+ * Printable since 2026-08-31 (iCreate campus coordinator): a schedule is the
+ * thing that ends up on a fridge, so every rendering of one carries a Print
+ * action — see utils/schedulePrint.
  */
-import React from 'react';
-import { View } from 'react-native';
+import React, { useState } from 'react';
+import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { UIText, VStack, HStack } from '@/src/components/ui';
+import { UIText, VStack, HStack, toast } from '@/src/components/ui';
 import { SchoolSection } from './SchoolSection';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { printSchedule } from '@/src/utils/schedulePrint';
 import {
   useClassSchedule, meetingsByDay, meetingTime,
   type ScheduledClass, type ClassMeeting, type StudentSchedule,
@@ -59,7 +64,7 @@ function MeetingRow({ cls, meeting }: { cls: ScheduledClass; meeting: ClassMeeti
  * "where is she at 10:30 on Tuesday?" (iCreate parent, 2026-08-25). Day
  * headings with time-ordered rows put the answer where they look for it.
  */
-function StudentDays({ classes }: { classes: ScheduledClass[] }) {
+export function ScheduleDays({ classes }: { classes: ScheduledClass[] }) {
   const days = meetingsByDay(classes);
   return (
     <VStack space="md">
@@ -79,7 +84,49 @@ function StudentDays({ classes }: { classes: ScheduledClass[] }) {
   );
 }
 
-export default function ClassSchedule({ organizationId }: { organizationId?: string | null }) {
+/**
+ * Print this week. Sits under the days rather than in the section header: the
+ * header is a collapse target, and a button inside a Pressable header is a
+ * mis-tap waiting to happen.
+ */
+export function PrintScheduleButton({ studentName, classes, schoolName }: {
+  studentName: string;
+  classes: ScheduledClass[];
+  schoolName?: string | null;
+}) {
+  const c = useThemeColors();
+  const [printing, setPrinting] = useState(false);
+
+  const onPress = async () => {
+    setPrinting(true);
+    const ok = await printSchedule(studentName, classes, schoolName);
+    setPrinting(false);
+    // A cancelled print sheet also lands here; the message is about the button
+    // never being a dead end, and re-tapping costs nothing.
+    if (!ok) toast.error("Couldn't open the print options");
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={printing}
+      testID="schedule-print"
+      accessibilityRole="button"
+      accessibilityLabel={`Print ${studentName}'s schedule`}
+      className="self-start flex-row items-center gap-1.5 mt-3 px-3 py-2 rounded-lg bg-optio-purple/10 active:opacity-70"
+    >
+      <Ionicons name="print-outline" size={15} color={c.brand} />
+      <UIText size="xs" className="text-optio-purple font-poppins-semibold">
+        {printing ? 'Opening…' : 'Print or save as PDF'}
+      </UIText>
+    </Pressable>
+  );
+}
+
+export default function ClassSchedule({ organizationId, schoolName }: {
+  organizationId?: string | null;
+  schoolName?: string | null;
+}) {
   const { schedules, loading, hasAny } = useClassSchedule(organizationId);
 
   // Nothing to say beats an empty box: a member with no classes at all should
@@ -98,16 +145,24 @@ export default function ClassSchedule({ organizationId }: { organizationId?: str
   // reads better than their own name on their own page.
   return (
     <View testID="class-schedule">
-      {withClasses.map((s: StudentSchedule) => (
-        <SchoolSection
-          key={s.student_id}
-          title={s.student_name === 'My schedule' ? 'Class schedule' : s.student_name}
-          icon="time-outline"
-          count={s.classes.length}
-        >
-          <StudentDays classes={s.classes} />
-        </SchoolSection>
-      ))}
+      {withClasses.map((s: StudentSchedule) => {
+        const title = s.student_name === 'My schedule' ? 'Class schedule' : s.student_name;
+        return (
+          <SchoolSection
+            key={s.student_id}
+            title={title}
+            icon="time-outline"
+            count={s.classes.length}
+          >
+            <ScheduleDays classes={s.classes} />
+            <PrintScheduleButton
+              studentName={title}
+              classes={s.classes}
+              schoolName={schoolName}
+            />
+          </SchoolSection>
+        );
+      })}
     </View>
   );
 }

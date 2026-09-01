@@ -14,11 +14,13 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { View, Pressable, Image, Linking, ActivityIndicator } from 'react-native';
+import { View, Pressable, Image, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, toast } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { safeOpenURL } from '@/src/utils/linking';
+import { MediaModal } from '@/src/components/feed/MediaModal';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
 import type { MessageReaction, ReplyPreview } from '@/src/hooks/useMessages';
 
@@ -151,10 +153,29 @@ export function MessageAttachments({
   isMine: boolean;
 }) {
   const c = useThemeColors();
+  // Photos and videos open IN the app. They used to be handed to
+  // Linking.openURL, which on Android means the browser, which means the only
+  // thing a parent could do with a photo their teacher sent was download it
+  // (iCreate parent, 2026-08-31). MediaModal is the viewer the feed already
+  // uses — pinch to zoom, tap to close — so a tapped photo behaves the same
+  // everywhere in the app.
+  const [viewing, setViewing] = useState<{ type: 'image' | 'video'; uri: string; title?: string } | null>(null);
+
   if (!attachments || attachments.length === 0) return null;
 
-  const open = (url: string) => {
-    Linking.openURL(url).catch(() => toast.error('Could not open the attachment'));
+  // Files still leave the app: there is no in-app reader for a .docx, and a
+  // dead tap reads as a broken attachment, so say so when it can't be routed.
+  const openExternally = async (url: string) => {
+    const opened = await safeOpenURL(url);
+    if (!opened) toast.error('Could not open the attachment');
+  };
+
+  const onPressAttachment = (a: MessageAttachment) => {
+    if (a.type === 'image' || a.type === 'video') {
+      setViewing({ type: a.type, uri: a.url, title: a.name || undefined });
+      return;
+    }
+    openExternally(a.url);
   };
 
   return (
@@ -163,9 +184,10 @@ export function MessageAttachments({
         a.type === 'image' ? (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => onPressAttachment(a)}
             accessibilityRole="imagebutton"
-            accessibilityLabel={a.name || 'Image attachment'}
+            accessibilityLabel={`View ${a.name || 'image attachment'}`}
+            testID="message-attachment-image"
           >
             <Image
               source={{ uri: a.url }}
@@ -176,9 +198,10 @@ export function MessageAttachments({
         ) : (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => onPressAttachment(a)}
             accessibilityRole="button"
             accessibilityLabel={`Open ${a.name || 'attachment'}`}
+            testID="message-attachment-file"
             className="flex-row items-center"
             style={{
               gap: 8,
@@ -211,6 +234,16 @@ export function MessageAttachments({
           </Pressable>
         ),
       )}
+
+      {viewing ? (
+        <MediaModal
+          visible
+          onClose={() => setViewing(null)}
+          type={viewing.type}
+          uri={viewing.uri}
+          title={viewing.title}
+        />
+      ) : null}
     </View>
   );
 }

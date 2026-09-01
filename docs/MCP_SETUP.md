@@ -103,6 +103,65 @@ annotations, project management.
 
 **EU Cloud:** If using EU Cloud, use `mcp-eu.posthog.com` instead of `mcp.posthog.com`.
 
+## Stripe MCP
+
+Official hosted server at `https://mcp.stripe.com` — no npm package, no local process.
+
+```bash
+claude mcp add -s user --transport http stripe https://mcp.stripe.com/
+```
+
+Then authenticate with OAuth: run `/mcp` in an interactive session, pick `stripe`,
+and approve the consent page in the browser. OAuth is per-user and per-environment
+(live vs sandbox), so authorize against the environment you actually want.
+
+Verify with `list_available_accounts_or_orgs` — it returns the account name and
+`livemode`, which is the only way to be sure you authorized the right one:
+`{"stripe_context":"acct_1SmHUjGhMwqwwj8J","livemode":true,"name":"Optio"}`.
+
+**Do NOT put a Stripe key in the repo's [.mcp.json](../.mcp.json)** — that file is
+committed. Header-auth servers belong in `~/.claude.json` (user scope) with a
+literal value; `${VAR}` interpolation does not resolve under the VSCode extension,
+which snapshots the shell env (this is why `brevo` stores a literal token).
+
+### Which account you are talking to
+
+There are two unrelated Stripe accounts in this system:
+
+| Account | Key lives in | Covers |
+|---|---|---|
+| Optio platform | `STRIPE_SECRET_KEY` (Render env) | Platform subscriptions, registration funnel checkout |
+| Per-org (currently iCreate only) | `organization_secrets.stripe_secret_key`, an `rk_live_` | That school's tuition, fees, invoices |
+
+The OAuth session above is the **Optio platform** account. To reach an org's
+account instead, register a second server with that org's restricted key:
+
+```bash
+claude mcp add -s user --transport http stripe-<org> https://mcp.stripe.com/ \
+  --header 'Authorization: Bearer rk_live_...'
+```
+
+These are separate accounts, not Stripe Connect — there is no `Stripe-Account`
+header in play, and a platform-account query will not see an org's payments.
+
+### Safety
+
+OAuth inherits your full dashboard permissions. The live server exposes 11 tools;
+the entire write surface is the single tool `stripe_api_write`, which can reach any
+`POST`/`DELETE` API method — refunds, voided invoices, cancelled subscriptions —
+against **live** money. (Stripe's docs list per-action tools like `create_refund`;
+those are not what the server actually serves as of 2026-08-31.) Mitigations:
+
+- Never allowlist `stripe_api_write` in permissions; let it prompt every time.
+  Reads go through a separate `stripe_api_read`, so allowlisting reads is safe.
+- Restrict server-wide access at https://dashboard.stripe.com/settings/mcp
+  (configured separately for live and sandbox).
+- Revoke a session at https://dashboard.stripe.com/settings/user under **OAuth sessions**.
+- For read-only work, prefer a restricted key with read scopes over OAuth.
+
+Stripe's docs also warn about prompt injection when Stripe MCP is combined with
+other servers — relevant here, since this session also has DB and email tools.
+
 ## Troubleshooting
 
 | Issue | Solution |

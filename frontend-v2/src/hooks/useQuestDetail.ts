@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { extractApiError } from '../services/apiError';
 import { useAuthStore } from '../stores/authStore';
 
 export interface QuestTask {
@@ -58,6 +59,12 @@ export function useQuestDetail(questId: string | null) {
   const [quest, setQuest] = useState<QuestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // WHY the load failed, not just that it did. Only a 404 means the quest is
+  // actually gone; a 502 from a restarting worker, or no signal, means try
+  // again. An iCreate student sat inside a full prod 502 window and the app
+  // told him "Quest not found" for a quest he was enrolled in, with nothing to
+  // tap but Go Back (2026-08-18).
+  const [missing, setMissing] = useState(false);
 
   const fetchQuest = useCallback(async () => {
     if (!isAuthenticated || !questId) { setLoading(false); return; }
@@ -66,8 +73,14 @@ export function useQuestDetail(questId: string | null) {
       const { data } = await api.get(`/api/quests/${questId}`);
       setQuest(data.quest || data);
       setError(null);
+      setMissing(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load quest');
+      // extractApiError, not `err.response.data.error`: the backend sometimes
+      // answers with a nested `{ error: { message } }` object, and putting that
+      // object into state renders it straight into JSX.
+      const parsed = extractApiError(err, 'Failed to load quest');
+      setError(parsed.message);
+      setMissing(parsed.status === 404);
     } finally {
       setLoading(false);
     }
@@ -197,7 +210,7 @@ export function useQuestDetail(questId: string | null) {
   useEffect(() => { fetchQuest(); }, [fetchQuest]);
 
   return {
-    quest, loading, error,
+    quest, loading, error, missing,
     refetch: fetchQuest,
     enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
   };

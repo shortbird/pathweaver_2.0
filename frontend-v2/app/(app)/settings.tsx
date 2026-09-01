@@ -156,7 +156,7 @@ export default function SettingsScreen() {
               </View>
               <VStack className="flex-1">
                 <UIText size="sm" className="font-poppins-medium">Report a bug</UIText>
-                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tell us what went wrong</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tell us what went wrong — or just shake your phone</UIText>
               </VStack>
               <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
             </HStack>

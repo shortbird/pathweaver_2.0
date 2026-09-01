@@ -163,6 +163,43 @@ function bySchedulePresence(a: ScheduledClass, b: ScheduledClass) {
   return (a.name || '').localeCompare(b.name || '');
 }
 
+/**
+ * ONE child's schedule, for a screen that already knows which child.
+ *
+ * The family tab shows the selected child's week under their name (iCreate,
+ * 2026-08-31). Going through useClassSchedule there would re-fetch the whole
+ * children list and then fan out a request per sibling to render one of them;
+ * the guardian schedule endpoint is already per-student, so ask it directly.
+ */
+export function useStudentSchedule(studentId?: string | null, organizationId?: string | null) {
+  const user = useAuthStore((s) => s.user);
+  const [classes, setClasses] = useState<ScheduledClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const orgId = organizationId || (user as any)?.organization_id;
+
+  const load = useCallback(async () => {
+    if (!studentId || !orgId) { setClasses([]); setLoading(false); return; }
+    setLoading(true);
+    try {
+      const { data } = await api.get(
+        `/api/sis/parent/students/${studentId}/schedule`,
+        { params: { organization_id: orgId } },
+      );
+      setClasses((data?.classes || []).map(normalizeClass).sort(bySchedulePresence));
+    } catch {
+      // A school with no SIS, or a child who isn't enrolled: no schedule is a
+      // normal answer here, not a failure worth showing.
+      setClasses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId, orgId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { classes, loading, refresh: load };
+}
+
 export function useClassSchedule(organizationId?: string | null) {
   const user = useAuthStore((s) => s.user);
   const { children, loading: childrenLoading } = useMyChildren();

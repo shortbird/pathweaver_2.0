@@ -168,7 +168,7 @@ export default function SchoolScreen() {
 
           <ComingUp events={feed?.events || []} />
 
-          <ClassSchedule organizationId={org?.organization_id} />
+          <ClassSchedule organizationId={org?.organization_id} schoolName={name} />
 
           {!hasSchoolContent(feed, messages) && (
             <View className="items-center pt-12 gap-3">

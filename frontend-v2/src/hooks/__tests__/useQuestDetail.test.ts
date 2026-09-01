@@ -44,6 +44,48 @@ afterEach(() => {
 });
 
 describe('useQuestDetail', () => {
+  // A 502 from a restarting worker is not a deleted quest. The screen renders
+  // "Quest not found" only when `missing` is true, so this flag is the whole
+  // difference between telling a student their work is gone and telling them
+  // to try again (iCreate, 2026-08-18).
+  it('flags a 404 as missing', async () => {
+    (api.get as jest.Mock).mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404, data: { error: 'Quest not found' } },
+    });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.missing).toBe(true);
+    expect(result.current.error).toBe('Quest not found');
+  });
+
+  it('does not flag a 502 or a network drop as missing', async () => {
+    (api.get as jest.Mock).mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 502, data: {} },
+    });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.missing).toBe(false);
+  });
+
+  it('keeps a nested {error:{message}} body out of state as an object', async () => {
+    (api.get as jest.Mock).mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 500, data: { error: { message: 'Boom', code: 'E' } } },
+    });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(typeof result.current.error).toBe('string');
+    expect(result.current.error).toBe('Boom');
+  });
+
   it('fetches quest data from /api/quests/{id}', async () => {
     (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
 

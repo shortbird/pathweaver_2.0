@@ -581,7 +581,7 @@ function TaskItem({
 export default function QuestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
-    quest, loading, error,
+    quest, loading, error, missing,
     refetch, enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
   } = useQuestDetail(id || null);
   const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
@@ -681,14 +681,36 @@ export default function QuestDetailScreen() {
   }
 
   if (error || !quest) {
+    // "Quest not found" is only true for a 404. Everything else — a 502 while
+    // the backend restarts, a dropped connection — is the app failing to
+    // reach the quest, and telling a student their work has vanished when the
+    // server is merely down is both wrong and frightening (iCreate,
+    // 2026-08-18). Say which one it is, and offer the retry that fixes it.
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
-        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
-        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">Quest not found</Heading>
-        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">{error || 'This quest may have been removed.'}</UIText>
-        <Button className="mt-6" onPress={() => router.back()}>
-          <ButtonText>Go Back</ButtonText>
-        </Button>
+        <Ionicons
+          name={missing ? 'alert-circle-outline' : 'cloud-offline-outline'}
+          size={48}
+          color={c.iconMuted}
+        />
+        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">
+          {missing ? 'Quest not found' : "Couldn't load this quest"}
+        </Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">
+          {missing
+            ? (error || 'This quest may have been removed.')
+            : 'We couldn\'t reach Optio just now. Your work is safe — try again in a moment.'}
+        </UIText>
+        <HStack className="mt-6 gap-3">
+          {!missing && (
+            <Button testID="quest-retry" onPress={() => refetch()}>
+              <ButtonText>Try again</ButtonText>
+            </Button>
+          )}
+          <Button variant="outline" onPress={() => router.back()}>
+            <ButtonText>Go Back</ButtonText>
+          </Button>
+        </HStack>
       </SafeAreaView>
     );
   }

@@ -22,6 +22,9 @@ import api, { uploadChildAvatar } from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAddKidStore } from '@/src/stores/addKidStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
+import { useStudentSchedule } from '@/src/hooks/useClassSchedule';
+import { useSchool } from '@/src/hooks/useSchool';
+import { ScheduleDays, PrintScheduleButton } from '@/src/components/school/ClassSchedule';
 import { onUploadComplete } from '@/src/services/uploadQueue';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -305,6 +308,39 @@ function QuestsList({
  *
  * Renders nothing when there is nothing enrolled.
  */
+/**
+ * The selected child's week, on the child's own page.
+ *
+ * It already existed at the bottom of the school hub, and two people reported
+ * the same thing on the same morning (iCreate parent and campus coordinator,
+ * 2026-08-31): "the student schedule is not visible under their name but only
+ * when we scroll to the very bottom of the building icon". A schedule is a
+ * fact about a child, so it belongs on the child.
+ *
+ * Renders nothing at all when the child has no classes — a family that isn't
+ * enrolled in anything should not get an empty "Class schedule" heading.
+ */
+function ChildSchedule({ studentId, studentName }: { studentId: string | null; studentName: string }) {
+  const school = useSchool();
+  const { classes, loading } = useStudentSchedule(studentId);
+
+  if (loading || classes.length === 0) return null;
+
+  return (
+    <VStack space="sm" testID="family-class-schedule">
+      <Heading size="md">Class schedule</Heading>
+      <Card variant="elevated" size="md">
+        <ScheduleDays classes={classes} />
+        <PrintScheduleButton
+          studentName={studentName}
+          classes={classes}
+          schoolName={school?.name}
+        />
+      </Card>
+    </VStack>
+  );
+}
+
 function MyOwnQuests() {
   const c = useThemeColors();
   const { data, loading } = useDashboard();
@@ -613,6 +649,13 @@ export default function ParentDashboardPage() {
                 child={selectedChild}
                 stats={dashboard?.stats}
                 onOpenSettings={() => setSettingsMenuOpen(true)}
+              />
+
+              {/* Where this child actually has to be this week. Directly under
+                  the hero: it is the first thing families open the page for. */}
+              <ChildSchedule
+                studentId={selectedId}
+                studentName={nameFor(selectedChild)}
               />
 
               {/* Two-column on desktop: Engagement + Quests */}
