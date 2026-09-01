@@ -134,18 +134,24 @@ const ChatWindow = ({ conversation, onBack }) => {
   }
 
   // Superadmin (Optio Support): hand a member's message off to their school's
-  // shared inbox. The member gets an automatic note that the school will follow
-  // up, so nothing else is needed here.
+  // org admins — it lands in the admins' own Messages and in their email. The
+  // member gets an automatic note that the school will follow up, so nothing
+  // else is needed here.
   const canForwardToSchool = user?.role === 'superadmin'
   const handleForwardToSchool = async (message) => {
     const ok = await confirm(
-      "Forward this message to the sender's school inbox? They'll be told the school will get back to them."
+      "Forward this message to the sender's school? Their org admins get it in their Optio messages and by email, and the sender is told the school will follow up."
     )
     if (!ok) return
     try {
       const r = await api.post(`/api/messages/${message.id}/forward-to-school`, {})
       const orgName = r.data?.data?.organization?.name
-      toast.success(`Forwarded to ${orgName || 'the school'}`)
+      const emailed = r.data?.data?.emailed_admins || 0
+      toast.success(
+        emailed
+          ? `Forwarded to ${orgName || 'the school'} and emailed ${emailed} admin${emailed === 1 ? '' : 's'}`
+          : `Forwarded to ${orgName || 'the school'}`
+      )
       refetchMessages()
     } catch (error) {
       toast.error(error?.response?.data?.error || 'Could not forward this message')
@@ -173,6 +179,10 @@ const ChatWindow = ({ conversation, onBack }) => {
     otherUser?.is_school
   const displayName = `${otherUser?.first_name || ''} ${otherUser?.last_name || ''}`.trim() || otherUser?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
+  // Backend-supplied, and only for superadmin viewers: the school this person
+  // belongs to. Optio Support answers members from every org in one inbox, so
+  // the header has to say whose member this is.
+  const memberOrgName = otherUser?.organization_name
   const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
   return (
@@ -220,6 +230,7 @@ const ChatWindow = ({ conversation, onBack }) => {
               {isAdvisor ? 'Your teacher'
                 : isSupport ? 'We usually reply within a day'
                 : isSchool ? "Goes to the school's front office"
+                : memberOrgName ? `Member of ${memberOrgName}`
                 : 'Direct message'}
             </p>
           </div>

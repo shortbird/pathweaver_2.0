@@ -195,17 +195,23 @@ def can_message_school(user_id: str, target_id: str) -> bool:
     return sis_service.member_org_id(other) == org['id']
 
 
-def admin_recipient_ids(org_id: str) -> List[str]:
+def admin_recipients(org_id: str) -> List[Dict[str, Any]]:
     """Staff who share the inbox — the ADMIN tier (org_admin + campus
-    coordinator). These are who get notified when a member writes in."""
+    coordinator) — as full staff records (id, name, email, is_placeholder).
+    These are who get notified when a member writes in."""
     from services import sis_service
     try:
         staff = sis_service.list_org_staff(org_id)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"school inbox: staff lookup failed for org {org_id}: {e}")
         return []
-    return [s['id'] for s in staff
+    return [s for s in staff
             if {'org_admin', 'campus_coordinator'} & set(s.get('roles') or [])]
+
+
+def admin_recipient_ids(org_id: str) -> List[str]:
+    """Just the ids of :func:`admin_recipients` — for in-app notifications."""
+    return [s['id'] for s in admin_recipients(org_id)]
 
 
 def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
@@ -230,6 +236,89 @@ def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
             )
     except Exception as e:  # noqa: BLE001
         logger.warning(f"school inbox: admin notification failed for org {org.get('id')}: {e}")
+
+
+def org_admin_recipients(org_id: str) -> List[Dict[str, Any]]:
+    """The org admins a forwarded support message goes to.
+
+    Narrower than :func:`admin_recipients` on purpose. The forward is delivered
+    as a normal DM from the member, and `can_message_user` only opens that door
+    for org_admin ("anyone in the same org can reply to their org admin") — a
+    student DMing a campus coordinator is refused, which would fail the whole
+    forward. Coordinators still share the school inbox; they just aren't a
+    forward target.
+    """
+    return [s for s in admin_recipients(org_id)
+            if 'org_admin' in set(s.get('roles') or [])]
+
+
+# Where a forwarded message is answered. Two addresses because two kinds of
+# school — see org_uses_school_inbox.
+LEARNING_APP_URL = 'https://www.optioeducation.com'
+SIS_INBOX_URL = 'https://sis.optioeducation.com/inbox'
+
+
+def forward_reply_url(member_id: str) -> str:
+    """The member's thread in the web app's Messages. ?user= opens it directly."""
+    return f"{LEARNING_APP_URL}/messages?user={member_id}"
+
+
+def org_uses_school_inbox(org: Dict[str, Any]) -> bool:
+    """Does this school answer members in the shared inbox, or in each admin's
+    own Messages?
+
+    The inbox is a SIS-console surface, so sis_enabled is the honest test.
+    iCreate runs its front office there and wants every message in one place,
+    answered as the school. Hearthwood never opens the console — a forward left
+    in that inbox would sit unread — so its admins get the message as a normal
+    DM instead. Fails closed to the DM route, which always reaches a person.
+    """
+    from utils.org_features import org_has_feature
+    return org_has_feature(org.get('id'), 'sis_enabled')
+
+
+def email_admins_of_forwarded_message(org: Dict[str, Any],
+                                      recipients: List[Dict[str, Any]],
+                                      member_name: str, message_text: str,
+                                      reply_url: str,
+                                      school_inbox: bool = False) -> int:
+    """Email the org admins a forwarded support message was just delivered to.
+    Returns how many emails went out.
+
+    `recipients` is the same list the DM went to, so the mail and the thread
+    can never disagree about who was told.
+
+    Best-effort — a mail failure must never undo a forward that already landed
+    in someone's messages.
+    """
+    from services.email_service import EmailService
+    sent = 0
+    try:
+        email_service = EmailService()
+        for staff in recipients:
+            email = (staff.get('email') or '').strip()
+            # Placeholder addresses belong to accounts created by roster import
+            # that nobody has claimed; mail to them bounces.
+            if not email or staff.get('is_placeholder'):
+                continue
+            try:
+                ok = email_service.send_forwarded_support_message_email(
+                    to_email=email,
+                    staff_name=staff.get('first_name') or staff.get('name') or 'there',
+                    org_name=org.get('name') or 'your school',
+                    member_name=member_name,
+                    message_text=message_text,
+                    reply_url=reply_url,
+                    school_inbox=school_inbox,
+                )
+            except Exception as send_err:  # noqa: BLE001
+                logger.warning(f"forward email to {email} failed: {send_err}")
+                continue
+            if ok:
+                sent += 1
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"forward email fan-out failed for org {org.get('id')}: {e}")
+    return sent
 
 
 def conversation_for_inbox(conversation_id: str, inbox_user_id: str) -> Optional[Dict[str, Any]]:

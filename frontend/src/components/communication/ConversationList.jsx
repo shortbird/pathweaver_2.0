@@ -101,6 +101,10 @@ const ConversationItem = React.memo(({ conversation, isSelected, onSelect }) => 
   const displayName = `${conversation.other_user?.first_name || ''} ${conversation.other_user?.last_name || ''}`.trim() ||
     conversation.other_user?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
+  // Only the backend fills this in, and only for superadmin viewers: which
+  // school this person belongs to, so the support inbox knows whose member
+  // is writing without opening another tab.
+  const orgName = conversation.other_user?.organization_name
 
   return (
     <button
@@ -144,9 +148,19 @@ const ConversationItem = React.memo(({ conversation, isSelected, onSelect }) => 
       {/* Content */}
       <div className="flex-1 min-w-0 text-left">
         <div className="flex items-center justify-between gap-2">
-          <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
-            {displayName}
-          </h3>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
+              {displayName}
+            </h3>
+            {orgName && (
+              <span
+                title={orgName}
+                className="flex-shrink-0 max-w-[45%] truncate text-[11px] font-medium text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded-full"
+              >
+                {orgName}
+              </span>
+            )}
+          </div>
           {hasThread && (
             <span className="text-xs text-gray-400 flex-shrink-0">
               {formatTime(conversation.last_message_at)}

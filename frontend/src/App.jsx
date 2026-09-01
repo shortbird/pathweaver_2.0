@@ -1,5 +1,5 @@
 import React, { useEffect, useState, lazy, Suspense, startTransition } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
@@ -59,6 +59,15 @@ const RequiredDocumentsPage = lazy(() => import('./pages/RequiredDocumentsPage')
 const PhoneVerificationPage = lazy(() => import('./pages/PhoneVerificationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
+
+// /communication is the retired name of /messages. DM notifications and
+// forwarded-support emails link "?user=<id>" to open one thread, so the query
+// string has to survive the redirect — a bare <Navigate to="/messages"> drops
+// it and lands the reader on the list.
+const CommunicationRedirect = () => {
+  const { search } = useLocation()
+  return <Navigate to={`/messages${search}`} replace />
+}
 // RoleHome renders each role's own home at /dashboard (it bundles the student
 // DashboardPage internally) — see pages/home/RoleHome.jsx.
 const RoleHome = lazy(() => import('./pages/home/RoleHome'))
@@ -632,8 +641,11 @@ function App() {
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />
                 <Route path="connections" element={<Navigate to="/dashboard" replace />} />
                 <Route path="messages" element={<CommunicationPage />} />
-                {/* Old /communication URL retired — redirect to /messages. */}
-                <Route path="communication" element={<Navigate to="/messages" replace />} />
+                {/* Old /communication URL retired — redirect to /messages,
+                    carrying the query string: DM notifications link
+                    "/communication?user=<sender>", and dropping the param
+                    landed the reader on the list instead of the thread. */}
+                <Route path="communication" element={<CommunicationRedirect />} />
                 {/* Personal student journal — parents use the child journal at
                     /parent/child/:childId/journal instead. */}
                 <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>

@@ -184,6 +184,40 @@ def _append_support_contact(supabase, contacts, user_id):
     return deduped
 
 
+def _label_member_orgs(viewer_id: str, people: list) -> None:
+    """Superadmin view only: tag each person with the school they belong to
+    (`organization_name`), so Optio Support can tell whose member is writing
+    in without opening a second tab. Mutates in place.
+
+    Superadmin-only on purpose — for everyone else this is a fact about
+    another user they have no reason to be handed. Best-effort: a failed
+    lookup just leaves the rows unlabeled.
+    """
+    try:
+        people = [p for p in people
+                  if isinstance(p, dict) and p.get('id') and not p.get('is_school')]
+        if not people:
+            return
+        from database import get_supabase_admin_client
+        from utils.roles import get_effective_role
+        from services import sis_service
+        # admin client justified: resolves OTHER users' org membership for the
+        # superadmin support inbox; the superadmin check below is the gate.
+        supabase = get_supabase_admin_client()
+        viewer = supabase.table('users').select('role, org_role') \
+            .eq('id', viewer_id).limit(1).execute().data
+        if not viewer or get_effective_role(viewer[0]) != 'superadmin':
+            return
+        orgs = sis_service.member_orgs_by_user([p['id'] for p in people])
+        for person in people:
+            org = orgs.get(person['id'])
+            if org:
+                person['organization_id'] = org['id']
+                person['organization_name'] = org['name']
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Org labeling failed for viewer {viewer_id}: {e}")
+
+
 @bp.route('/conversations', methods=['GET'])
 @require_auth
 def get_conversations(user_id: str):
@@ -193,6 +227,7 @@ def get_conversations(user_id: str):
     """
     try:
         conversations = message_service.get_user_conversations(user_id)
+        _label_member_orgs(user_id, [c.get('other_user') for c in conversations])
 
         return success_response({
             'conversations': conversations,
@@ -404,17 +439,80 @@ def check_can_message(user_id: str, target_user_id: str):
         )
 
 
+def _deliver_forward(org, member_id, body, attachments, forwarded_by):
+    """Put a forwarded support message where this school actually answers mail.
+
+    Two shapes, because there are two kinds of school (school_inbox_service.
+    org_uses_school_inbox):
+
+    - SIS orgs (iCreate) run the front office in the shared school inbox. One
+      message to the inbox account; the whole front office reads it there and
+      answers as the school.
+    - Everyone else (Hearthwood) never opens the SIS console, so a message left
+      in that inbox would go unread. It goes as a normal DM to each org admin's
+      own Messages instead — and only org admins, because can_message_user lets
+      a member write to their org admin but not to a campus coordinator, which
+      would refuse the whole forward.
+
+    Returns ({messages, recipients, reply_url, via}, None), or (None, error).
+    """
+    from services import school_inbox_service
+
+    if school_inbox_service.org_uses_school_inbox(org):
+        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
+        if not inbox_user_id:
+            return None, error_response('School inbox is unavailable',
+                                        status_code=500, error_code='internal_error')
+        forwarded = message_service.send_message(
+            member_id, inbox_user_id, body,
+            attachments=attachments, sent_by_user_id=forwarded_by,
+        )
+        return {
+            'messages': [forwarded],
+            'recipients': school_inbox_service.admin_recipients(org['id']),
+            'reply_url': school_inbox_service.SIS_INBOX_URL,
+            'via': 'school_inbox',
+        }, None
+
+    admins = school_inbox_service.org_admin_recipients(org['id'])
+    if not admins:
+        return None, error_response(f"{org['name']} has no org admin to forward this to",
+                                    status_code=400, error_code='validation_error')
+    delivered = []
+    reached = []   # the admins whose thread actually got it — who to email
+    failures = []
+    for admin_staff in admins:
+        try:
+            delivered.append(message_service.send_message(
+                member_id, admin_staff['id'], body,
+                attachments=attachments, sent_by_user_id=forwarded_by,
+            ))
+            reached.append(admin_staff)
+        except Exception as send_err:  # noqa: BLE001
+            # One admin's thread failing must not lose the others.
+            failures.append(str(send_err))
+            logger.warning(f"Forward to admin {admin_staff['id']} failed: {send_err}")
+    if not delivered:
+        raise ValueError(failures[0] if failures else 'Could not deliver the forward')
+    return {
+        'messages': delivered,
+        'recipients': reached,
+        'reply_url': school_inbox_service.forward_reply_url(member_id),
+        'via': 'org_admins',
+    }, None
+
+
 @bp.route('/<message_id>/forward-to-school', methods=['POST'])
 @require_auth
 def forward_to_school(user_id: str, message_id: str):
     """
-    Superadmin-only: forward a message a member sent to Optio Support into that
-    member's school inbox, so the school's front office handles it instead.
+    Superadmin-only: forward a message a member sent to Optio Support to their
+    school, so the school handles it instead.
 
-    Two messages result: the member's original lands in their school thread
-    (prefixed so everyone can see where it came from, front office notified as
-    usual), and Optio Support sends the member a courtesy note that the school
-    will follow up.
+    Where it lands depends on the school — the shared SIS inbox, or each org
+    admin's own Messages; see _deliver_forward. Either way the people who can
+    answer it also get an email with a button that opens it, and Optio Support
+    sends the member a courtesy note that the school will follow up.
     """
     try:
         from database import get_supabase_admin_client
@@ -451,22 +549,29 @@ def forward_to_school(user_id: str, message_id: str):
         if not org:
             return error_response("This person isn't a member of any school",
                                   status_code=400, error_code='validation_error')
-        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
-        if not inbox_user_id:
-            return error_response('School inbox is unavailable', status_code=500,
-                                  error_code='internal_error')
-
-        # The member's words, into their school thread. Sent as the member so
-        # the school replies to them directly; the prefix keeps the provenance
-        # honest on every surface, and sent_by_user_id records who forwarded it.
+        # The member's words, wherever this school answers mail. Sent as the
+        # member so the reply goes straight back to them; the prefix keeps the
+        # provenance honest on every surface, and sent_by_user_id records who
+        # forwarded it.
         original = (msg.get('message_content') or '').strip()
-        forwarded = message_service.send_message(
-            member_id, inbox_user_id,
-            f"Forwarded from Optio Support:\n\n{original}" if original
-            else "Forwarded from Optio Support (attachment)",
-            attachments=msg.get('attachments') or [],
-            sent_by_user_id=user_id,
-        )
+        body = (f"Forwarded from Optio Support:\n\n{original}" if original
+                else "Forwarded from Optio Support (attachment)")
+        delivery, err = _deliver_forward(
+            org, member_id, body, msg.get('attachments') or [], user_id)
+        if err:
+            return err
+
+        # Everyone who got the message also gets an email: the in-app bell from
+        # send_message never reaches someone who isn't logged in today.
+        member = supabase.table('users').select('display_name, first_name, last_name') \
+            .eq('id', member_id).limit(1).execute().data
+        member = member[0] if member else {}
+        member_name = (member.get('display_name')
+                       or f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+                       or 'A member')
+        emailed = school_inbox_service.email_admins_of_forwarded_message(
+            org, delivery['recipients'], member_name, original,
+            delivery['reply_url'], school_inbox=delivery['via'] == 'school_inbox')
 
         # Courtesy note back in the support thread, from the support account.
         ack_text = (f"Your message has been sent to {org['name']} — "
@@ -478,14 +583,16 @@ def forward_to_school(user_id: str, message_id: str):
             logger.warning(f"Forward ack failed for message {message_id}: {ack_err}")
 
         return success_response({
-            'forwarded_message_id': forwarded['id'],
-            'conversation_id': forwarded['conversation_id'],
+            'forwarded_message_id': delivery['messages'][0]['id'],
+            'conversation_id': delivery['messages'][0]['conversation_id'],
             'organization': {'id': org['id'], 'name': org['name']},
+            'via': delivery['via'],
+            'emailed_admins': emailed,
         })
 
     except ValueError as e:
         # send_message permission refusal (e.g. inactive org).
-        logger.warning(f"Forward to school refused: {str(e)}")
+        logger.warning(f"Forward to org admin refused: {str(e)}")
         return error_response(str(e), status_code=403, error_code='forbidden')
     except Exception as e:
         logger.error(f"Error forwarding message to school: {str(e)}")
@@ -536,6 +643,23 @@ def get_contacts(user_id: str):
                         'relationship': effective_role or 'user',
                         'organization_id': org_id  # Include for superadmin context
                     })
+
+            # Name the org, not just its uuid: the support inbox needs to know
+            # whose member it is talking to. One query for the whole list.
+            org_ids = list({c['organization_id'] for c in contacts if c.get('organization_id')})
+            if org_ids:
+                try:
+                    from utils.db_fetch import fetch_all_rows
+                    org_rows = fetch_all_rows(lambda: (
+                        supabase.table('organizations').select('id, name').in_('id', org_ids)
+                    ))
+                    names = {o['id']: o.get('name') for o in org_rows}
+                    for contact in contacts:
+                        name = names.get(contact.get('organization_id'))
+                        if name:
+                            contact['organization_name'] = name
+                except Exception as org_err:  # noqa: BLE001
+                    logger.warning(f"Contact org names failed: {org_err}")
 
             # Avatars live in private buckets and the list draws them at 40px,
             # so serve thumbnails -- a full-size user photo averages 1.3 MB.
