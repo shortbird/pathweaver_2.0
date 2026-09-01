@@ -83,11 +83,7 @@ const ReceiptPrintView = ({ receipt }) => (
           <span>Discount</span><span>-{money(receipt.invoice.discount_cents)}</span>
         </div>
       )}
-      {(receipt.invoice?.processing_fee_cents || 0) > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#555' }}>
-          <span>Processing fee</span><span>{money(receipt.invoice.processing_fee_cents)}</span>
-        </div>
-      )}
+      {/* No fee row: the card fee is one of the line items above. */}
       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #999', marginTop: '4px', paddingTop: '4px' }}>
         <span>Invoice total</span><span>{money(receipt.invoice?.total_cents)}</span>
       </div>
@@ -162,7 +158,9 @@ const StatementPrintView = ({ household }) => {
 }
 
 const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline, onSetupPlan, planning }) => {
-  const amountDue = (invoice.total_cents || 0) + (invoice.processing_fee_cents || 0) - (invoice.amount_paid_cents || 0)
+  // total_cents already carries the card fee as a line item. Adding the column
+  // on top charged it twice; leaving it out of a total showed it as a credit.
+  const amountDue = (invoice.total_cents || 0) - (invoice.amount_paid_cents || 0)
   const payable = canPayOnline && amountDue > 0 && !['paid', 'void', 'draft'].includes(invoice.status)
   const hasPlan = !!(invoice.installments || []).length
   return (

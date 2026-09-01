@@ -73,6 +73,55 @@ def compute_processing_fee(org_id: str, base_cents: int) -> int:
     return max(0, int(fee))
 
 
+# The fee is a LINE ITEM on the invoice, inside subtotal_cents and total_cents.
+# It is not a number added on top at display time.
+#
+# It was, until 2026-09-01: it lived only in sis_invoices.processing_fee_cents
+# and every surface had to remember to add it. Surfaces kept forgetting. On
+# 2026-08-19 the office read "Paid" on three invoices while the family portal
+# billed those families the whole tuition a second time; on 2026-09-01 five
+# iCreate families were shown a CREDIT of exactly the card fee they had just
+# paid, because the household balance summed total_cents and the fee was not in
+# it. A line item cannot be forgotten by a surface that renders line items.
+#
+# processing_fee_cents survives as "how much of this total is fee" -- for the
+# record, and for the staff waive/override. It is never added to a total again.
+PROCESSING_FEE_DESCRIPTION = 'Card processing fee'
+
+
+def _apply_processing_fee(org_id: str, invoice_id: str, fee_cents: int) -> Dict[str, Any]:
+    """Put `fee_cents` on the invoice as its card-fee line and fold it into the
+    totals. Returns the updated invoice row.
+
+    Replaces the fee line already there rather than adding to it, so the three
+    paths a card payment arrives from (portal return, emailed pay link, nightly
+    sweep) can all call this for the same payment and the family is charged the
+    fee once. 0 removes the line -- that is the staff waive.
+    """
+    fee = max(0, int(fee_cents or 0))
+    (_admin().table('sis_invoice_line_items').delete()
+     .eq('invoice_id', invoice_id).eq('kind', 'fee')
+     .eq('description', PROCESSING_FEE_DESCRIPTION).execute())
+    if fee > 0:
+        _admin().table('sis_invoice_line_items').insert({
+            'invoice_id': invoice_id, 'description': PROCESSING_FEE_DESCRIPTION,
+            'amount_cents': fee, 'kind': 'fee', 'quantity': 1, 'class_id': None,
+        }).execute()
+    # Bounded by one invoice, so a plain read is safe here.
+    lines = (_admin().table('sis_invoice_line_items').select('amount_cents')
+             .eq('invoice_id', invoice_id).execute()).data or []
+    subtotal = sum(li.get('amount_cents') or 0 for li in lines)
+    row = (_admin().table('sis_invoices').select('discount_cents')
+           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
+    discount = min((row[0].get('discount_cents') or 0) if row else 0, subtotal)
+    return (_admin().table('sis_invoices').update({
+        'subtotal_cents': subtotal,
+        'total_cents': subtotal - discount,
+        'processing_fee_cents': fee,
+        'updated_at': _now(),
+    }).eq('id', invoice_id).execute()).data[0]
+
+
 # ── Invoice numbers ──────────────────────────────────────────────────────────
 def _make_invoice_number(invoice_id: str, created_at: Optional[str] = None) -> str:
     """Human-friendly, collision-free number derived from the invoice id, e.g.
@@ -448,8 +497,7 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
 def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
                    line_items: Optional[List[Dict[str, Any]]] = None,
                    discount_cents: Optional[int] = None,
-                   due_date: Any = _UNSET,
-                   processing_fee_cents: Optional[int] = None) -> Dict[str, Any]:
+                   due_date: Any = _UNSET) -> Dict[str, Any]:
     """Correct an invoice that has already been sent.
 
     Before this existed, an invoice sent for the wrong amount could only be
@@ -492,8 +540,12 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
                              'total_cents': total, 'updated_at': _now()}
     if due_date is not _UNSET:
         patch['due_date'] = due_date or None
-    if processing_fee_cents is not None:
-        patch['processing_fee_cents'] = max(0, int(processing_fee_cents))
+    # The card fee is one of the lines the editor sends. Keep the column in step
+    # with it, or it goes on claiming a fee the invoice no longer carries.
+    if clean is not None:
+        patch['processing_fee_cents'] = sum(
+            li['amount_cents'] for li in clean
+            if li['description'] == PROCESSING_FEE_DESCRIPTION and li.get('kind') == 'fee')
 
     if clean is not None:
         _admin().table('sis_invoice_line_items').delete().eq('invoice_id', invoice_id).execute()
@@ -773,18 +825,19 @@ def create_payment_plan(org_id: str, invoice_id: str, cadence: str,
 
 # ── Payments ─────────────────────────────────────────────────────────────────
 def amount_due_cents(invoice: Dict[str, Any]) -> int:
-    """PURE. What is still owed on an invoice: total + processing fee - paid.
+    """PURE. What is still owed on an invoice: total - paid.
 
-    The processing fee belongs in this sum — a card payment collects it — and
-    every surface has to use the SAME sum. They did not: _recompute_invoice_status
-    and the family portal added the fee while the staff ledger and the
-    outstanding report did not, so an invoice could read "Paid" in the office and
-    still bill the family. On 2026-08-19 three iCreate invoices were saved with a
-    processing fee equal to the whole tuition, and only the families saw it.
+    The card processing fee is INSIDE total_cents, as a line item — see
+    _apply_processing_fee. Do NOT add processing_fee_cents to this or to any
+    other total; that column now says how much of the total is fee, and adding
+    it charges the fee twice.
+
+    It used to be added here, and every surface had to remember to do the same.
+    Two rounds of bugs came out of that: 2026-08-19, the office read "Paid"
+    while the family portal billed the whole tuition again; 2026-09-01, five
+    families were shown a credit of exactly the card fee they had just paid.
     """
-    return ((invoice.get('total_cents') or 0)
-            + (invoice.get('processing_fee_cents') or 0)
-            - (invoice.get('amount_paid_cents') or 0))
+    return (invoice.get('total_cents') or 0) - (invoice.get('amount_paid_cents') or 0)
 
 
 def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
@@ -796,7 +849,8 @@ def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
         .eq('invoice_id', invoice_id).execute()
     ).data or []
     paid = sum(p['amount_cents'] for p in payments)
-    amount_due = (inv['total_cents'] or 0) + (inv.get('processing_fee_cents') or 0)
+    # The card fee is a line item, so it is already in total_cents.
+    amount_due = inv['total_cents'] or 0
     if paid >= amount_due and amount_due > 0:
         status = 'paid'
     elif paid > 0:
@@ -949,8 +1003,9 @@ def set_processing_fee(org_id: str, invoice_id: str, processing_fee_cents: int,
     if not inv:
         return {'error': 'Invoice not found'}
     fee = max(0, int(processing_fee_cents or 0))
-    _admin().table('sis_invoices').update(
-        {'processing_fee_cents': fee, 'updated_at': _now()}).eq('id', invoice_id).execute()
+    # Writes the fee LINE, which is what the family's invoice shows and what
+    # the totals are built from. 0 waives it by removing the line.
+    _apply_processing_fee(org_id, invoice_id, fee)
     invoice = _recompute_invoice_status(invoice_id)
     _audit(org_id, invoice_id, actor_user_id, 'processing_fee_set',
            {'from_cents': inv[0].get('processing_fee_cents') or 0, 'to_cents': fee})
@@ -1197,6 +1252,10 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
         billable = [i for i in invoices if i.get('status') != 'void']
         invoiced = sum(i.get('total_cents') or 0 for i in billable)
         paid = sum(i.get('amount_paid_cents') or 0 for i in billable)
+        # amount_due_cents, not a second definition of it. Summing total - paid
+        # by hand here is what showed five families a credit for the card fees
+        # they had just paid (2026-09-01).
+        balance = sum(amount_due_cents(i) for i in billable)
         payments = [p for i in invoices for p in i.get('payments', [])]
         payments.sort(key=lambda p: p.get('recorded_at') or '', reverse=True)
         # Funding source gates the parent page: UFA / UFA-private families pay
@@ -1213,7 +1272,7 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
             'invoices': invoices,
             'payments': payments,
             'totals': {'invoiced_cents': invoiced, 'paid_cents': paid,
-                       'balance_cents': invoiced - paid},
+                       'balance_cents': balance},
         })
     return {'households': out}
 
@@ -1360,6 +1419,19 @@ def _org_stripe_secret(org_id: str) -> Optional[str]:
     return get_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
+def _fee_to_add(org_id: str, invoice: Dict[str, Any], balance_cents: int) -> int:
+    """The card fee to add to a Checkout for `balance_cents`.
+
+    Zero when the invoice already carries a fee line: that fee is inside the
+    balance being charged, and a fee computed on it would be a fee on a fee.
+    An unpaid invoice only carries one when staff set it by hand, and their
+    number is the one that stands.
+    """
+    if (invoice.get('processing_fee_cents') or 0) > 0:
+        return 0
+    return compute_processing_fee(org_id, balance_cents)
+
+
 def _guardian_invoice(user_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
     """Load an invoice only if `user_id` guards its household."""
     inv = (_admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()).data
@@ -1386,10 +1458,10 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
         return {'error': 'Online card payment is not set up for this school'}
     if not (return_url or '').startswith('http'):
         return {'error': 'Invalid return URL'}
-    balance = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+    balance = amount_due_cents(inv)
     if balance <= 0:
         return {'error': 'This invoice has no balance due'}
-    fee = compute_processing_fee(org_id, balance)
+    fee = _fee_to_add(org_id, inv, balance)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
@@ -1470,8 +1542,9 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
         fee = int((sess.get('metadata') or {}).get('fee_cents') or 0)
         amount_total = int(sess.get('amount_total') or (base + fee))
         if fee > 0:
-            _admin().table('sis_invoices').update(
-                {'processing_fee_cents': fee, 'updated_at': _now()}).eq('id', invoice_id).execute()
+            # Before record_payment: it recomputes the status against the total,
+            # which has to already carry the fee the family was charged.
+            _apply_processing_fee(org_id, invoice_id, fee)
         result = record_payment(
             org_id, invoice_id, amount_cents=amount_total, method='card',
             external_ref=pi or sid, installment_id=None,
@@ -1504,7 +1577,7 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
     inv = rows[0]
     if inv.get('status') in ('paid', 'void', 'draft'):
         return {'error': 'This invoice is not payable', 'reason': 'settled'}
-    balance = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+    balance = amount_due_cents(inv)
     if balance <= 0:
         return {'error': 'This invoice has no balance due', 'reason': 'settled'}
     org_id = inv['organization_id']
@@ -1513,7 +1586,7 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
         return {'error': 'Online card payment is not set up for this school',
                 'reason': 'not_configured'}
 
-    fee = compute_processing_fee(org_id, balance)
+    fee = _fee_to_add(org_id, inv, balance)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     try:
@@ -1605,8 +1678,7 @@ def sweep_online_payments(org_id: Optional[str] = None) -> Dict[str, Any]:
 def _household_open_invoices(org_id: str, household_id: str) -> List[Dict[str, Any]]:
     """Open, non-void invoices for a household that still have a tuition balance."""
     return [i for i in list_invoices(org_id, household_id=household_id)
-            if i.get('status') in OPEN_INVOICE_STATUSES
-            and (i.get('total_cents') or 0) > (i.get('amount_paid_cents') or 0)]
+            if i.get('status') in OPEN_INVOICE_STATUSES and amount_due_cents(i) > 0]
 
 
 def create_family_checkout(user_id: str, household_id: str, return_url: str) -> Dict[str, Any]:
@@ -1623,11 +1695,16 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
     if not (return_url or '').startswith('http'):
         return {'error': 'Invalid return URL'}
     invoices = _household_open_invoices(org_id, household_id)
-    balances = {i['id']: (i.get('total_cents') or 0) - (i.get('amount_paid_cents') or 0) for i in invoices}
+    balances = {i['id']: amount_due_cents(i) for i in invoices}
     base_total = sum(b for b in balances.values() if b > 0)
     if base_total <= 0:
         return {'error': 'This family has no balance due'}
-    fee = compute_processing_fee(org_id, base_total)
+    # An invoice already carrying a fee has it inside its balance; charging on
+    # that would be a fee on a fee, so it is out of the base and out of the
+    # allocation on the way back (confirm_family_payment).
+    fee_base = sum(b for i, b in ((i, balances[i['id']]) for i in invoices)
+                   if b > 0 and not (i.get('processing_fee_cents') or 0))
+    fee = compute_processing_fee(org_id, fee_base)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
@@ -1663,7 +1740,8 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
             api_key=secret, mode='payment', line_items=line_items,
             customer_email=guardian.get('email') or None,
             metadata={'kind': 'family', 'household_id': household_id,
-                      'fee_cents': fee, 'base_total_cents': base_total},
+                      'fee_cents': fee, 'base_total_cents': base_total,
+                      'fee_base_cents': fee_base},
             success_url=f'{return_url}{sep}payment=return',
             cancel_url=f'{return_url}{sep}payment=canceled')
     except Exception as e:  # noqa: BLE001
@@ -1717,10 +1795,13 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
         pi = sess.get('payment_intent')
         fee_total = int(md.get('fee_cents') or 0)
         base_total = int(md.get('base_total_cents') or 0)
+        # Older sessions predate fee_base_cents; their fee was computed on the
+        # whole base, so that is what it has to be allocated over.
+        fee_base = int(md.get('fee_base_cents') or base_total)
         covered = [i for i in invoices if sid in (i.get('stripe_session_ids') or [])]
         recorded = 0
         for inv in covered:
-            base = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+            base = amount_due_cents(inv)
             if base <= 0:
                 continue
             ext = f"{pi or sid}:{inv['id']}"
@@ -1728,10 +1809,10 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
                        .eq('invoice_id', inv['id']).eq('external_ref', ext).limit(1).execute()).data
             if already:
                 continue
-            fee_share = round(fee_total * base / base_total) if base_total else 0
+            carries_fee = (inv.get('processing_fee_cents') or 0) > 0
+            fee_share = 0 if carries_fee or not fee_base else round(fee_total * base / fee_base)
             if fee_share > 0:
-                _admin().table('sis_invoices').update(
-                    {'processing_fee_cents': fee_share, 'updated_at': _now()}).eq('id', inv['id']).execute()
+                _apply_processing_fee(org_id, inv['id'], fee_share)
             record_payment(org_id, inv['id'], amount_cents=base + fee_share, method='card',
                            external_ref=ext, installment_id=None, recorded_by=user_id,
                            note='Online card payment — whole family (Stripe)')

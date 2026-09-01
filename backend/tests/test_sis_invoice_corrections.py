@@ -11,6 +11,12 @@ Two failures on 2026-08-19 motivate this file:
      families were shown a second full bill. amount_due_cents() is now the one
      definition, and these tests hold every surface to it.
 
+     The same column caused it again on 2026-09-01 in the other direction: the
+     family portal's HOUSEHOLD balance summed total_cents without the fee, so
+     five iCreate families who had just paid by card were shown a credit of
+     exactly the card fee. The fee is now a LINE ITEM inside total_cents and
+     nothing adds the column to a total -- see TestAmountDue.
+
   2. An invoice sent for the wrong amount could not be changed. The only remedy
      was a second invoice, which the tuition screen itself warns against.
      update_invoice/void_invoice are that remedy.
@@ -28,23 +34,26 @@ class TestAmountDue:
     """One sum, used by the ledger, the outstanding report, the family portal,
     the reminder emails and the status recompute."""
 
-    def test_includes_the_processing_fee(self):
+    def test_the_fee_is_inside_the_total_not_added_to_it(self):
+        """The fee is a line item, so total_cents already carries it. Adding the
+        column would bill the $3.00 fee twice."""
         assert billing.amount_due_cents(
-            {'total_cents': 10000, 'processing_fee_cents': 300, 'amount_paid_cents': 0}) == 10300
+            {'total_cents': 10300, 'processing_fee_cents': 300, 'amount_paid_cents': 0}) == 10300
 
     def test_subtracts_what_has_been_paid(self):
         assert billing.amount_due_cents(
-            {'total_cents': 10000, 'processing_fee_cents': 300, 'amount_paid_cents': 10300}) == 0
+            {'total_cents': 10300, 'processing_fee_cents': 300, 'amount_paid_cents': 10300}) == 0
 
     def test_missing_fields_are_zero(self):
         assert billing.amount_due_cents({}) == 0
 
-    def test_the_corrupted_iCreate_shape_is_not_settled(self):
-        """total == fee == paid. The ledger used to call this Paid while the
-        family's portal still billed them the whole tuition again."""
-        inv = {'total_cents': 295500, 'processing_fee_cents': 295500,
-               'amount_paid_cents': 295500}
-        assert billing.amount_due_cents(inv) == 295500
+    def test_paying_the_fee_is_not_an_overpayment(self):
+        """Susan Miller, 2026-09-01: $3,035.00 tuition + $88.32 card fee, paid in
+        full by card. The household balance read minus $88.32 -- a credit for the
+        fee she had just paid -- because it summed total_cents without the fee."""
+        inv = {'total_cents': 312332, 'processing_fee_cents': 8832,
+               'amount_paid_cents': 312332}
+        assert billing.amount_due_cents(inv) == 0
 
 
 @pytest.mark.unit
@@ -375,3 +384,135 @@ class TestLedgerReadsPastTheRowCap:
 
         assert rows['inv1150']['description'] == 'Charge 1150'
 
+
+
+class _FakeDb:
+    """Just enough Supabase to run _apply_processing_fee end to end: an invoice
+    and its line items, mutated by the delete/insert the helper issues.
+
+    Filters are ignored (there is one invoice), so what these tests check is the
+    arithmetic and the write, not the query.
+    """
+
+    def __init__(self, lines, discount_cents=0):
+        self.lines = [dict(li) for li in lines]
+        self.discount_cents = discount_cents
+        self.invoice_patch = None
+        self._table = self._op = self._payload = None
+
+    def table(self, name):
+        self._table = name
+        return self
+
+    def select(self, *_a, **_kw):
+        self._op = 'select'
+        return self
+
+    def insert(self, payload):
+        self._op, self._payload = 'insert', payload
+        return self
+
+    def update(self, payload):
+        self._op, self._payload = 'update', payload
+        return self
+
+    def delete(self):
+        self._op = 'delete'
+        return self
+
+    def eq(self, *_a):
+        return self
+
+    def limit(self, *_a):
+        return self
+
+    @property
+    def fee_lines(self):
+        return [li for li in self.lines
+                if li.get('kind') == 'fee'
+                and li['description'] == billing.PROCESSING_FEE_DESCRIPTION]
+
+    def execute(self):
+        if self._table == 'sis_invoice_line_items':
+            if self._op == 'delete':
+                self.lines = [li for li in self.lines if li not in self.fee_lines]
+                return Mock(data=[])
+            if self._op == 'insert':
+                self.lines.append(dict(self._payload))
+                return Mock(data=[self._payload])
+            return Mock(data=[{'amount_cents': li['amount_cents']} for li in self.lines])
+        if self._op == 'update':
+            self.invoice_patch = self._payload
+            return Mock(data=[{'id': 'inv1', **self._payload}])
+        return Mock(data=[{'discount_cents': self.discount_cents}])
+
+
+@pytest.mark.unit
+class TestProcessingFeeIsALineItem:
+    """Susan Miller, 2026-09-01: paid $3,035.00 tuition plus an $88.32 card fee
+    and her family portal said she was $88.32 in credit. The fee lived only in
+    sis_invoices.processing_fee_cents, and the household balance -- like the
+    printed statement next to it -- summed total_cents, which did not carry it.
+
+    So the fee is a line item now. A surface that renders line items cannot
+    forget it, and total_cents is the whole bill.
+    """
+
+    TUITION = [{'description': 'Fall tuition', 'amount_cents': 303500, 'kind': 'tuition'}]
+
+    def test_the_fee_lands_in_the_total(self):
+        db = _FakeDb(self.TUITION)
+        with patch('services.sis_billing_service._admin', return_value=db):
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+        assert db.invoice_patch['subtotal_cents'] == 312332
+        assert db.invoice_patch['total_cents'] == 312332
+        assert db.invoice_patch['processing_fee_cents'] == 8832
+        assert [li['amount_cents'] for li in db.fee_lines] == [8832]
+
+    def test_settling_the_same_payment_twice_charges_one_fee(self):
+        """The portal return, the emailed pay link and the nightly sweep all
+        settle the same card payment; a second fee line would be a second bill."""
+        db = _FakeDb(self.TUITION)
+        with patch('services.sis_billing_service._admin', return_value=db):
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+        assert len(db.fee_lines) == 1
+        assert db.invoice_patch['total_cents'] == 312332
+
+    def test_zero_waives_it(self):
+        db = _FakeDb(self.TUITION)
+        with patch('services.sis_billing_service._admin', return_value=db):
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+            billing._apply_processing_fee('org1', 'inv1', 0)
+        assert db.fee_lines == []
+        assert db.invoice_patch['total_cents'] == 303500
+        assert db.invoice_patch['processing_fee_cents'] == 0
+
+    def test_the_discount_still_comes_off(self):
+        db = _FakeDb([{'description': 'Fall tuition', 'amount_cents': 368500, 'kind': 'tuition'}],
+                     discount_cents=65000)
+        with patch('services.sis_billing_service._admin', return_value=db):
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+        assert db.invoice_patch['total_cents'] == 368500 + 8832 - 65000
+
+    def test_a_paid_invoice_reads_as_settled_not_overpaid(self):
+        """The whole point: what the family was charged and what the invoice
+        totals are the same number."""
+        db = _FakeDb(self.TUITION)
+        with patch('services.sis_billing_service._admin', return_value=db):
+            billing._apply_processing_fee('org1', 'inv1', 8832)
+        invoice = {**db.invoice_patch, 'amount_paid_cents': 312332}
+        assert billing.amount_due_cents(invoice) == 0
+
+
+@pytest.mark.unit
+class TestNoFeeOnAFee:
+    """A fee already on the invoice is inside the balance being charged."""
+
+    def test_an_invoice_carrying_a_fee_adds_none(self):
+        with patch('services.sis_billing_service.compute_processing_fee', return_value=999):
+            assert billing._fee_to_add('org1', {'processing_fee_cents': 8832}, 312332) == 0
+
+    def test_a_plain_invoice_gets_the_rate(self):
+        with patch('services.sis_billing_service.compute_processing_fee', return_value=8832):
+            assert billing._fee_to_add('org1', {'processing_fee_cents': 0}, 303500) == 8832

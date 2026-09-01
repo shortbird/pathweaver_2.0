@@ -106,6 +106,39 @@ describe('FamilyBillingPage', () => {
     await waitFor(() => expect(window.print).toHaveBeenCalled())
   })
 
+  // Susan Miller, 2026-09-01: $3,035.00 tuition plus an $88.32 card fee, paid in
+  // full by card, and this page told her she was $88.32 in credit. The fee sat
+  // in processing_fee_cents, outside total_cents, and the balance summed totals.
+  it('reads a paid card invoice as settled, not as a credit', async () => {
+    const settled = {
+      household_id: 'hh9',
+      household_name: 'Miller Family',
+      organization: { id: 'org-1', name: 'iCreate', logo_url: null },
+      pay_through_ufa: false,
+      invoices: [{
+        id: 'inv9', status: 'paid', total_cents: 312332, amount_paid_cents: 312332,
+        discount_cents: 0, processing_fee_cents: 8832,
+        issued_at: '2026-08-28T00:00:00Z', student_name: 'Reese Miller',
+        line_items: [
+          { id: 'l1', description: 'Fall tuition', amount_cents: 303500, quantity: 1 },
+          { id: 'l2', description: 'Card processing fee', amount_cents: 8832, quantity: 1 },
+        ],
+        installments: [], payments: [],
+      }],
+      payments: [],
+      totals: { invoiced_cents: 312332, paid_cents: 312332, balance_cents: 0 },
+    }
+    api.get.mockResolvedValueOnce({ data: { households: [settled] } })
+    render(<FamilyBillingPage />)
+    // The whole bill, fee included — not the tuition with the fee hanging off it.
+    expect(await screen.findByText('$3123.32 · Reese Miller')).toBeInTheDocument()
+    expect(screen.getByText('$0.00')).toBeInTheDocument()
+    expect(screen.queryByText(/^-\$/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('$3123.32 · Reese Miller'))
+    // Once, as a line item. It used to print again under the totals.
+    expect(await screen.findAllByText('Card processing fee')).toHaveLength(1)
+  })
+
   it('shows an empty state when the family has no billing', async () => {
     api.get.mockResolvedValueOnce({ data: { households: [] } })
     render(<FamilyBillingPage />)

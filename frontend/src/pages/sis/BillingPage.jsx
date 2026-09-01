@@ -65,6 +65,54 @@ const rowPill = (row) => {
   return { text: 'Outstanding', cls: 'bg-blue-100 text-blue-700' }
 }
 
+// ── Search ──────────────────────────────────────────────────────────────────
+// One box per table, matching every column that table shows. The office looks
+// a row up by whatever it has to hand — a family name, an invoice number, the
+// amount on a cheque stub — so the haystack is the row as it READS on screen:
+// an amount is "$120.00" here and 12000 in the record, and nobody types cents.
+// Every word has to match, so "bowman tuition" narrows instead of widening.
+const matches = (query, fields) => {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!terms.length) return true
+  const hay = fields.filter((v) => v != null && v !== '').join(' ').toLowerCase()
+  return terms.every((t) => hay.includes(t))
+}
+
+const day = (v) => (v ? String(v).slice(0, 10) : '')
+
+const ledgerText = (row) => [
+  row.family_name, row.student_name, row.description, day(row.due_date),
+  money(row.total_cents), rowPill(row).text, row.invoice_number,
+]
+
+const outstandingText = (row) => [
+  row.family_name, row.student_name, row.invoice_number,
+  money(row.amount_due_cents),
+  row.days_overdue > 0 ? String(row.days_overdue) : '',
+  day(row.due_date),
+]
+
+const detailRowText = (r) => [
+  r.family_name, r.student_name, r.invoice_number, r.description,
+  KIND_LABEL[r.kind] || r.kind, money(r.amount_cents), money(r.invoice_balance_cents),
+]
+
+const paymentText = (p) => [
+  p.family_name, p.student_name, p.invoice_number, payLabel(p),
+  p.note, p.external_ref, day(p.recorded_at), money(p.amount_cents),
+]
+
+const SearchBox = ({ value, onChange, label }) => (
+  <input
+    type="search"
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder="Search…"
+    aria-label={label}
+    className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-optio-purple"
+  />
+)
+
 const Modal = ({ title, onClose, children }) => (
   <ModalOverlay onClose={onClose}>
     <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -117,6 +165,9 @@ const BillingPage = () => {
     writeSortPrefs(merged)
     return merged
   })
+  // One query, kept across tabs: looking a family up on Charges and then
+  // flipping to Outstanding is the same question asked twice.
+  const [search, setSearch] = useState('')
   const [ledger, setLedger] = useState(null)
   const [households, setHouseholds] = useState([])
 
@@ -145,6 +196,36 @@ const BillingPage = () => {
     : [...rows].sort((a, b) =>
         (a.family_name || '').localeCompare(b.family_name || '')
         || (a.student_name || '').localeCompare(b.student_name || ''))
+
+  const visibleLedger = useMemo(
+    () => (ledger || []).filter((r) => matches(search, ledgerText(r))), [ledger, search])
+  const visibleOutstanding = useMemo(
+    () => (outstanding || []).filter((r) => matches(search, outstandingText(r))), [outstanding, search])
+  const visibleDetailRows = useMemo(
+    () => (detail?.rows || []).filter((r) => matches(search, detailRowText(r))), [detail, search])
+  const visibleDetailPayments = useMemo(
+    () => (detail?.payments || []).filter((p) => matches(search, paymentText(p))), [detail, search])
+
+  // Totals follow the search. Left describing every row, they would be read as
+  // the total of what is on screen. Counted the way the server counts them:
+  // charges line by line, invoice-level money once per invoice however many of
+  // its lines matched.
+  const detailTotals = useMemo(() => {
+    if (!detail) return {}
+    if (!search.trim()) return detail.totals || {}
+    const once = (field) => {
+      const seen = new Map()
+      visibleDetailRows.forEach((r) => {
+        if (!seen.has(r.invoice_id)) seen.set(r.invoice_id, r[field] || 0)
+      })
+      return [...seen.values()].reduce((n, v) => n + v, 0)
+    }
+    return {
+      charged_cents: visibleDetailRows.reduce((n, r) => n + (r.amount_cents || 0), 0),
+      paid_cents: once('invoice_paid_cents'),
+      balance_cents: once('invoice_balance_cents'),
+    }
+  }, [detail, search, visibleDetailRows])
 
   // ── Charges ledger ──────────────────────────────────────────────────────
   // Resolves to the rows it loaded: correcting a payment from a receipt reopens
@@ -205,7 +286,10 @@ const BillingPage = () => {
   const downloadDetailCsv = useCallback(async () => {
     try {
       const path = detailPath()
-      const res = await api.get(withOrg(`${path}${path.includes('?') ? '&' : '?'}format=csv`, orgId),
+      // The download is of what the office is looking at, search included —
+      // a CSV of rows the screen filtered out is the wrong reconciliation.
+      const q = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''
+      const res = await api.get(withOrg(`${path}${path.includes('?') ? '&' : '?'}format=csv${q}`, orgId),
         { responseType: 'blob' })
       const url = window.URL.createObjectURL(res.data)
       const a = document.createElement('a')
@@ -216,7 +300,7 @@ const BillingPage = () => {
       a.remove()
       window.URL.revokeObjectURL(url)
     } catch { toast.error('Failed to download CSV') }
-  }, [orgId, detailPath])
+  }, [orgId, detailPath, search])
 
   const sendReminders = async () => {
     setSendingReminders(true)
@@ -282,6 +366,7 @@ const BillingPage = () => {
               <option value="default">Owed first</option>
               <option value="family">Family (A–Z)</option>
             </select>
+            <SearchBox value={search} onChange={setSearch} label="Search charges" />
             <div className="flex-1" />
             <Button size="sm" onClick={() => setShowAdd(true)}>+ Add charge</Button>
           </div>
@@ -290,7 +375,10 @@ const BillingPage = () => {
           {ledger?.length === 0 && (
             <p className="text-neutral-500">No charges here yet. Add a charge to get started.</p>
           )}
-          {!!ledger?.length && (
+          {!!ledger?.length && !visibleLedger.length && (
+            <p className="text-neutral-500">No charges match “{search}”.</p>
+          )}
+          {!!visibleLedger.length && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -305,7 +393,7 @@ const BillingPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {byFamily(ledger).map((row) => {
+                  {byFamily(visibleLedger).map((row) => {
                     const pill = rowPill(row)
                     const balance = row.balance_cents ?? ((row.total_cents || 0) - (row.amount_paid_cents || 0))
                     return (
@@ -356,6 +444,7 @@ const BillingPage = () => {
             </Button>
             <Button size="sm" variant="secondary" onClick={printArea}>Print</Button>
             <div className="flex-1" />
+            <SearchBox value={search} onChange={setSearch} label="Search outstanding balances" />
             <select
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort"
@@ -366,7 +455,10 @@ const BillingPage = () => {
           </div>
           {outstanding === null && <p className="text-neutral-500">Loading…</p>}
           {outstanding?.length === 0 && <p className="text-neutral-500">No outstanding balances. Every charge is paid up.</p>}
-          {!!outstanding?.length && (
+          {!!outstanding?.length && !visibleOutstanding.length && (
+            <p className="text-neutral-500">No balances match “{search}”.</p>
+          )}
+          {!!visibleOutstanding.length && (
             <div className="print-area bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -383,7 +475,7 @@ const BillingPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {byFamily(outstanding).map((row) => (
+                  {byFamily(visibleOutstanding).map((row) => (
                     // The row opens what was actually sent. Chasing a payment
                     // starts with "what did we send them?", and reading it off a
                     // summary line is how the office and the family end up
@@ -439,8 +531,9 @@ const BillingPage = () => {
               <option value="fee">Other fees</option>
               <option value="unclassified">Unclassified</option>
             </select>
+            <SearchBox value={search} onChange={setSearch} label="Search charge detail" />
             <div className="flex-1" />
-            <Button size="sm" variant="secondary" onClick={downloadDetailCsv} disabled={!detail?.rows?.length}>
+            <Button size="sm" variant="secondary" onClick={downloadDetailCsv} disabled={!visibleDetailRows.length}>
               Download CSV
             </Button>
             <Button size="sm" variant="secondary" onClick={printArea}>Print</Button>
@@ -450,18 +543,22 @@ const BillingPage = () => {
           {detail?.rows?.length === 0 && (
             <p className="text-neutral-500">No charges match this filter.</p>
           )}
-          {!!detail?.rows?.length && (
+          {!!detail?.rows?.length && !visibleDetailRows.length && (
+            <p className="text-neutral-500">No charges match “{search}”.</p>
+          )}
+          {!!visibleDetailRows.length && (
             <div className="print-area space-y-6">
               <div className="flex flex-wrap gap-4 text-sm no-print">
                 <span className="text-neutral-500">
-                  Charged <span className="font-semibold text-neutral-900">{money(detail.totals?.charged_cents)}</span>
+                  Charged <span className="font-semibold text-neutral-900">{money(detailTotals.charged_cents)}</span>
                 </span>
                 <span className="text-neutral-500">
-                  Paid <span className="font-semibold text-green-700">{money(detail.totals?.paid_cents)}</span>
+                  Paid <span className="font-semibold text-green-700">{money(detailTotals.paid_cents)}</span>
                 </span>
                 <span className="text-neutral-500">
-                  Balance <span className="font-semibold text-neutral-900">{money(detail.totals?.balance_cents)}</span>
+                  Balance <span className="font-semibold text-neutral-900">{money(detailTotals.balance_cents)}</span>
                 </span>
+                {!!search.trim() && <span className="text-neutral-400">matching “{search}”</span>}
               </div>
 
               <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -478,7 +575,7 @@ const BillingPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {detail.rows.map((r, i) => (
+                    {visibleDetailRows.map((r, i) => (
                       <tr key={`${r.invoice_id}-${i}`}
                         onClick={() => setInvoiceFor(r.invoice_id)}
                         className="cursor-pointer hover:bg-neutral-50"
@@ -500,7 +597,7 @@ const BillingPage = () => {
                 </table>
               </div>
 
-              {!!detail.payments?.length && (
+              {!!visibleDetailPayments.length && (
                 <div>
                   <h2 className="font-semibold text-neutral-900 mb-2">Payments recorded</h2>
                   <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -518,7 +615,7 @@ const BillingPage = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {detail.payments.map((pmt, i) => (
+                        {visibleDetailPayments.map((pmt, i) => (
                           <tr key={pmt.id || `${pmt.invoice_id}-pay-${i}`}>
                             <td className="px-4 py-2 font-medium text-neutral-900">{pmt.family_name || '—'}</td>
                             <td className="px-4 py-2">{pmt.student_name || '—'}</td>
@@ -1013,11 +1110,8 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
                   <span>Discount</span><span>−{money(doc.discount_cents)}</span>
                 </div>
               )}
-              {!!doc.processing_fee_cents && (
-                <div className="flex justify-between text-neutral-600">
-                  <span>Processing fee</span><span>{money(doc.processing_fee_cents)}</span>
-                </div>
-              )}
+              {/* No fee row: the card fee is a line item above, already in the
+                  subtotal. Showing it here too reads as a second charge. */}
               <div className="flex justify-between font-semibold text-neutral-900">
                 <span>Total</span><span>{money(doc.total_cents)}</span>
               </div>
@@ -1097,7 +1191,6 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
     kind: li.kind || null,
   })))
   const [discountStr, setDiscountStr] = useState(((doc.discount_cents || 0) / 100).toFixed(2))
-  const [feeStr, setFeeStr] = useState(((doc.processing_fee_cents || 0) / 100).toFixed(2))
   const [dueDate, setDueDate] = useState(doc.due_date ? String(doc.due_date).slice(0, 10) : '')
   const [saving, setSaving] = useState(false)
 
@@ -1107,7 +1200,8 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
   }
   const subtotal = lines.reduce((s, l) => s + toCents(l.amountStr), 0)
   const discount = Math.max(0, Math.min(toCents(discountStr), subtotal))
-  const fee = Math.max(0, toCents(feeStr))
+  // The card processing fee is one of the lines above — waiving it is deleting
+  // that line, not typing into a separate box that the total forgot to include.
   const total = subtotal - discount
 
   const setLine = (i, patch) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
@@ -1130,7 +1224,6 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
           kind: l.kind,
         })),
         discount_cents: discount,
-        processing_fee_cents: fee,
         due_date: dueDate || null,
       })
       toast.success('Invoice updated')
@@ -1182,18 +1275,12 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
             onChange={(e) => setDiscountStr(e.target.value)} aria-label="Discount" />
         </div>
         <div className="flex items-center justify-between gap-3 text-neutral-600">
-          <span>Card processing fee ($)</span>
-          <input className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            type="number" min="0" step="0.01" value={feeStr}
-            onChange={(e) => setFeeStr(e.target.value)} aria-label="Processing fee" />
-        </div>
-        <div className="flex items-center justify-between gap-3 text-neutral-600">
           <span>Due date</span>
           <input className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
             type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="Due date" />
         </div>
         <div className="flex justify-between font-semibold text-neutral-900 pt-1">
-          <span>Total</span><span>{money(total + fee)}</span>
+          <span>Total</span><span>{money(total)}</span>
         </div>
       </div>
 
