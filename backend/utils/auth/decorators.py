@@ -15,7 +15,7 @@ from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
 from utils.logger import get_logger
-from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole, apply_role_view
+from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole, apply_role_view, VALID_ROLES, VALID_ORG_ROLES
 
 logger = get_logger(__name__)
 
@@ -247,6 +247,17 @@ def require_role(*allowed_roles):
 
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
+    # A role name that isn't real never matches anyone, so the route silently
+    # becomes superadmin-only — and silently becomes a grant if the name is ever
+    # added as a role. Seven routes shipped with @require_role('admin') that way
+    # (SEC-01, 2026-08-31). Fail at import so it can't register at all.
+    for role in allowed_roles:
+        if not isinstance(role, str) or role not in (VALID_ROLES | VALID_ORG_ROLES):
+            raise ValueError(
+                f"require_role({role!r}): not a valid role. "
+                f"Valid: {sorted(VALID_ROLES | VALID_ORG_ROLES)}. "
+                "Tuples must be unpacked: require_role(*ADMIN_ROLES)."
+            )
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):

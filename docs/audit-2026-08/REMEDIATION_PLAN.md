@@ -50,7 +50,7 @@ shared tree at `~/pathweaver_2.0`, where other agents hold uncommitted work.
 
 ## Phase 0 — Quick, safe security fixes
 
-### SEC-01 — `@require_role('admin')` names a role that does not exist `[TODO]`
+### SEC-01 — `@require_role('admin')` names a role that does not exist `[DONE]`
 Routes fail closed today but silently become a privilege grant if `'admin'` ever
 appears in a role column. Evidence: `routes/admin/task_flags.py:21,51,79,112`,
 `routes/parental_consent/admin_review.py:67,124,205` (includes COPPA consent
@@ -60,6 +60,17 @@ rejects role names not in `VALID_ROLES`, plus a unit test.
 Accept: no `require_role` call with an invalid role can register; tests pass.
 Log:
 - 2026-08-31: Plan created.
+- 2026-08-31: Verified. Found 11 sites, not 7: the audit's list plus 4x
+  `require_role('advisor', 'admin')` in advisor_notes.py (dead 'admin' term).
+  task_flags + admin_review -> @require_superadmin (preserves effective
+  behavior; broadening consent review to org admins would be a product
+  decision — flag if wanted). advisor_notes -> ('advisor', 'superadmin').
+  require_role now raises ValueError at decoration time for any role not in
+  VALID_ROLES | VALID_ORG_ROLES (also catches the un-unpacked-tuple mistake).
+  New guard: tests/unit/test_require_role_names_are_real.py (behavior + static
+  sweep of routes/). Checked the audit's implied 51-route un-unpacked-tuple
+  bug: false alarm — those matches were justification comments, all real
+  decorators unpack correctly. 117 related tests + new guards pass.
 
 ### SEC-02 — Unauthenticated `/api/auth/cookie-debug` discloses config `[TODO]`
 `routes/auth/login/diagnostics.py:142-291` leaks FLASK_ENV, cookie config,
