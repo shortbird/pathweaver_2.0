@@ -87,6 +87,27 @@ def student_attendance(user_id, student_id):
     return jsonify({'success': True, **attendance.student_history(org_id, student_id)})
 
 
+@bp.route('/students/<student_id>/attendance/day', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def student_attendance_day(user_id, student_id):
+    """One student's whole day (?date=YYYY-MM-DD): every class they meet that
+    day and the status the roll recorded for each.
+
+    Answers "were they in their other classes?" from an accountability alert
+    without opening each class's roster in turn (iCreate, 2026-09-01).
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    on_date = request.args.get('date')
+    if not on_date:
+        return jsonify({'success': False, 'error': 'date query param is required (YYYY-MM-DD)'}), 400
+    result = attendance.student_day(org_id, student_id, on_date)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/attendance/absences', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def upcoming_absences(user_id):

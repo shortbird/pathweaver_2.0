@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { classLabel, meetingText } from '../../components/sis/classLabel'
+import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import { isSisAdmin } from './sisRole'
 
 /**
@@ -54,6 +55,14 @@ const AttendancePage = () => {
   // reported" notification lands on. Admin-only (the endpoint 403s teachers).
   const admin = isSisAdmin(user)
   const [absences, setAbsences] = useState([])
+  // The student-accountability board, the same one the coordinator dashboard
+  // shows (iCreate, 2026-09-01). The "Student not accounted for" notification
+  // lands here, and this is where the front office chases it down — so the
+  // alerts have to be resolvable here, not only on the dashboard. Org-wide and
+  // date-independent on purpose: an alert stays open until somebody says what
+  // happened, and yesterday's unresolved student is still unaccounted for.
+  const [alerts, setAlerts] = useState([])
+  const [resolutions, setResolutions] = useState([])
 
   const myClasses = useMemo(
     () => classes.filter((c) => c.primary_instructor_id && c.primary_instructor_id === user?.id),
@@ -99,6 +108,15 @@ const AttendancePage = () => {
       .catch(() => setAbsences([]))
   }, [orgId, admin])
 
+  const loadAlerts = useCallback(() => {
+    if (!orgId || !admin) { setAlerts([]); return }
+    api.get(withOrg('/api/sis/attendance/alerts', orgId))
+      .then((r) => { setAlerts(r.data?.alerts || []); setResolutions(r.data?.resolutions || []) })
+      .catch(() => setAlerts([]))
+  }, [orgId, admin])
+
+  useEffect(() => { loadAlerts() }, [loadAlerts])
+
   const visibleRoster = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return roster
@@ -133,6 +151,9 @@ const AttendancePage = () => {
       toast.success(exceptions ? `Saved — ${exceptions}` : `Saved — all ${entries.length} present`)
       setAlreadyTaken(true)
       setDirty(false)
+      // Saving an absence with no guardian report opens an alert — show it now,
+      // rather than leaving the board stale until the next page load.
+      loadAlerts()
     } catch { toast.error('Could not save attendance') }
     finally { setSaving(false) }
   }
@@ -190,6 +211,17 @@ const AttendancePage = () => {
           aria-label="Search students"
         />
       </div>
+
+      {admin && (
+        <AttendanceAlerts
+          alerts={alerts}
+          resolutions={resolutions}
+          orgId={orgId}
+          onResolved={loadAlerts}
+          onOpenRoster={(cid, d) => { setDate(d); setClassId(cid) }}
+          className="mb-6"
+        />
+      )}
 
       {admin && absences.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">

@@ -407,3 +407,119 @@ def student_history(org_id: str, student_user_id: str) -> Dict[str, Any]:
         .order('date', desc=True).execute()
     ).data or []
     return {'records': records, 'summary': summarize(records)}
+
+
+def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, Any]:
+    """One student's whole day: every class they are enrolled in that meets on
+    `on_date`, with the status the roll recorded for each.
+
+    The question a coordinator asks the moment an alert says a student is not
+    accounted for is "were they in their other classes?" (iCreate, 2026-09-01).
+    A student absent first period and present the next three was on campus and
+    the alert is a mismark; absent all day is a phone call home. Answering it by
+    opening each class's roster in turn is exactly the work this replaces.
+
+    Classes with no roll taken come back as status None ("not taken") rather
+    than being dropped — "no attendance recorded" is a different answer from
+    "absent", and collapsing the two is how a student looks accounted for when
+    nobody has actually looked.
+    """
+    from datetime import date as _date
+
+    try:
+        dow = (_date.fromisoformat(str(on_date)[:10]).weekday() + 1) % 7  # 0=Sun..6=Sat
+    except (TypeError, ValueError):
+        return {'error': 'date must be YYYY-MM-DD'}
+
+    admin = _admin()
+    student = (
+        admin.table('users')
+        .select('id, display_name, first_name, last_name, preferred_name, username, email')
+        .eq('id', student_user_id).limit(1).execute()
+    ).data
+    student_name = _student_name(student[0]) if student else 'Unnamed'
+
+    # Bounded by one student's enrollments — no paging needed.
+    enr = (
+        admin.table('class_enrollments').select('class_id')
+        .eq('student_id', student_user_id).eq('status', 'active').execute()
+    ).data or []
+    class_ids = [e['class_id'] for e in enr]
+
+    classes = {}
+    if class_ids:
+        classes = {c['id']: c for c in (
+            admin.table('org_classes')
+            .select('id, name, location, primary_instructor_id')
+            .in_('id', class_ids).eq('organization_id', org_id).execute()
+        ).data or []}
+
+    meetings = []
+    if classes:
+        rows = (admin.table('class_meetings').select('*')
+                .in_('class_id', list(classes.keys())).execute()).data or []
+        meetings = [m for m in rows
+                    if m.get('specific_date') == on_date
+                    or (m.get('specific_date') is None and m.get('day_of_week') == dow)]
+
+    # What the roll actually says for this student on this date, across every
+    # class — including a class that does not appear in the day's meetings, so
+    # a recorded status is never hidden by a stale schedule.
+    recorded = {r['class_id']: r for r in (
+        admin.table('sis_attendance').select('*')
+        .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+        .eq('date', on_date).execute()
+    ).data or []}
+
+    planned = {}
+    for p in (admin.table('student_planned_absences').select('*')
+              .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+              .eq('absence_date', on_date).eq('status', 'active').execute()).data or []:
+        # A whole-day report (class_id NULL) covers every class.
+        planned[p.get('class_id')] = {'scope': 'day' if p.get('class_id') is None else 'class',
+                                      'reason': p.get('reason')}
+
+    teacher_ids = list({c.get('primary_instructor_id') for c in classes.values()
+                        if c.get('primary_instructor_id')})
+    teachers = {}
+    if teacher_ids:
+        teachers = {u['id']: _student_name(u) for u in (
+            admin.table('users')
+            .select('id, display_name, first_name, last_name, preferred_name, username, email')
+            .in_('id', teacher_ids).execute()
+        ).data or []}
+
+    def _entry(class_id, meeting=None):
+        cls = classes.get(class_id) or {}
+        rec = recorded.get(class_id) or {}
+        cover = planned.get(class_id) or planned.get(None)
+        return {
+            'class_id': class_id,
+            'class_name': cls.get('name') or 'Unknown class',
+            'start_time': (meeting or {}).get('start_time'),
+            'end_time': (meeting or {}).get('end_time'),
+            'location': (meeting or {}).get('location') or cls.get('location'),
+            'teacher_name': teachers.get(cls.get('primary_instructor_id')),
+            'status': rec.get('status'),  # None = roll not taken for this class
+            'notes': rec.get('notes'),
+            'planned_absence': cover,
+            'scheduled': meeting is not None,
+        }
+
+    entries = [_entry(m['class_id'], m) for m in meetings]
+    seen = {e['class_id'] for e in entries}
+    entries += [_entry(cid) for cid in recorded if cid not in seen]
+    entries.sort(key=lambda e: (e.get('start_time') or '99:99', e['class_name'].lower()))
+
+    counts = {s: 0 for s in ATTENDANCE_STATUSES}
+    for e in entries:
+        if e['status'] in counts:
+            counts[e['status']] += 1
+    return {
+        'student_user_id': student_user_id,
+        'student_name': student_name,
+        'date': on_date,
+        'classes': entries,
+        'counts': counts,
+        'not_taken': sum(1 for e in entries if e['status'] is None),
+    }
