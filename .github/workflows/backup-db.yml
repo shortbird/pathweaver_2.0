@@ -72,7 +72,22 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+
+          # Installing the package is not enough. The runner image ships PG16
+          # binaries earlier on PATH, so a bare `pg_dump` stays 16.15 and aborts
+          # with "server version mismatch" against our 17.4 server. Put the 17
+          # bin dir first for the later steps ($GITHUB_PATH applies to those, not
+          # to this one — hence the absolute path in the check below).
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+          # Assert the version rather than just printing it: the old step printed
+          # 16.15 and passed, which is why this went unnoticed.
+          VER="$(/usr/lib/postgresql/17/bin/pg_dump --version | awk '{print $3}')"
+          echo "pg_dump: $VER"
+          case "$VER" in
+            17.*) ;;
+            *) echo "::error::Expected pg_dump 17.x, got $VER"; exit 1 ;;
+          esac
 
       - name: Dump production database
         env:
