@@ -216,6 +216,16 @@ class Config:
         ).split(',') if m.strip()
     ]
 
+    # Daily advisor summary rollout gate (SEC-06, audit 2026-08-31). The job
+    # ran with a whitelist hardcoded to one personal inbox; the gate now lives
+    # here. Comma-separated advisor emails, or '*' for every advisor with
+    # students. The default preserves the pilot cohort exactly — widening the
+    # rollout is a product decision made by setting this env var, never by
+    # editing code.
+    ADVISOR_SUMMARY_EMAIL_ALLOWLIST = os.getenv(
+        'ADVISOR_SUMMARY_EMAIL_ALLOWLIST', 'tannerbowman@gmail.com'
+    )
+
     # The curriculum pipeline (structure detection / philosophy alignment /
     # content generation) follows GEMINI_MODEL by default. It ran on
     # gemini-2.5-pro until 2026-08-13; set GEMINI_CURRICULUM_MODEL to pin it

@@ -110,7 +110,7 @@ Accept: filter active on all app loggers incl. root handlers Sentry sees; test.
 Log:
 - 2026-08-31: Plan created.
 
-### SEC-06 — `daily_advisor_summary` may still be hard-routed to one inbox `[TODO]`
+### SEC-06 — `daily_advisor_summary` may still be hard-routed to one inbox `[DONE]`
 `backend/jobs/daily_advisor_summary.py:71` carries `# TESTING MODE: Only send to
 tannerbowman@gmail.com` on a production cron job. Investigate whether the
 restriction is live; if so this is a silent product bug (advisors get no
@@ -118,6 +118,17 @@ summaries). Fix or document.
 Accept: job's recipient logic matches intent; comment reflects reality.
 Log:
 - 2026-08-31: Plan created.
+- 2026-08-31: Confirmed live: the job runs daily via the consolidated prod
+  cron and filtered every advisor except the hardcoded inbox — a deliberate
+  soft-launch gate implemented as a personal email in code. Moved the gate to
+  `Config.ADVISOR_SUMMARY_EMAIL_ALLOWLIST` (comma-separated emails, `*` = all;
+  default preserves the pilot cohort exactly). Extracted testable
+  `filter_to_rollout()`; new tests in tests/unit/test_advisor_summary_rollout.py
+  (6 pass). Documented in ENV_KEYS_REFERENCE.md. Quirk noted: the
+  `advisor_ids` job path builds dicts without emails, so a cohort allowlist
+  filters them all out — unchanged behavior, revisit if that path matters.
+  USER DECISION QUEUED: set `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod when
+  ready to roll summaries out to every advisor.
 
 ### SEC-07 — Legacy `verify_token()` accepts refresh tokens as access tokens `[TODO]`
 `utils/auth/token_utils.py:33` accepts `type in ['access','refresh']` and skips
@@ -536,3 +547,5 @@ Log:
 - CI-05: should integration tests gate the prod deploy?
 - QB-06: fence the repository pattern (recommended) or fund the full migration?
 - HYG-02: keep or delete the `verify/` scripts?
+- SEC-06: advisor daily summaries are still pilot-only (one inbox). Set
+  `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod to roll out to all advisors.

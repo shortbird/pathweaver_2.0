@@ -16,6 +16,19 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def filter_to_rollout(advisors: List[Dict[str, Any]], allowlist: str) -> List[Dict[str, Any]]:
+    """Apply the rollout gate from Config.ADVISOR_SUMMARY_EMAIL_ALLOWLIST.
+
+    '*' means every advisor. Otherwise only advisors whose email is on the
+    comma-separated list receive a summary — the pilot cohort.
+    """
+    allowlist = (allowlist or '').strip()
+    if allowlist == '*':
+        return advisors
+    allowed = {e.strip().lower() for e in allowlist.split(',') if e.strip()}
+    return [a for a in advisors if (a.get('email') or '').lower() in allowed]
+
+
 class DailyAdvisorSummaryJob:
     """Job handler for sending daily advisor summary emails."""
 
@@ -68,12 +81,11 @@ class DailyAdvisorSummaryJob:
                     'summary_date': summary_date.isoformat()
                 }
 
-            # TESTING MODE: Only send to tannerbowman@gmail.com
-            # TODO: Remove this filter when ready for production rollout
-            TEST_EMAIL_WHITELIST = ['tannerbowman@gmail.com']
-            advisors = [a for a in advisors if a.get('email') in TEST_EMAIL_WHITELIST]
+            # Rollout gate: set ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*' to send to
+            # every advisor with students. Defaults to the pilot cohort.
+            advisors = filter_to_rollout(advisors, Config.ADVISOR_SUMMARY_EMAIL_ALLOWLIST)
             if not advisors:
-                logger.info("No whitelisted advisors found, skipping daily summary (testing mode)")
+                logger.info("No advisors on the summary rollout allowlist, skipping daily summary")
                 return {
                     'status': 'success',
                     'advisors_processed': 0,
@@ -81,7 +93,7 @@ class DailyAdvisorSummaryJob:
                     'skipped_no_activity': 0,
                     'errors': 0,
                     'summary_date': summary_date.isoformat(),
-                    'note': 'Testing mode - no whitelisted advisors'
+                    'note': 'No advisors on ADVISOR_SUMMARY_EMAIL_ALLOWLIST'
                 }
 
             # Process each advisor

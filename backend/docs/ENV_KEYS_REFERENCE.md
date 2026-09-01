@@ -19,6 +19,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 
 | Key | Purpose | Config Attribute | Provider |
 |-----|---------|-----------------|----------|
+| `ADVISOR_SUMMARY_EMAIL_ALLOWLIST` | Daily advisor summary rollout gate: comma-separated advisor emails, or `*` for all advisors with students | `Config.ADVISOR_SUMMARY_EMAIL_ALLOWLIST` | Default: the pilot cohort (see app_config.py) |
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
 | `SENDGRID_API_KEY` | SendGrid: ALL outbound email (transactional + CRM funnel mail) | `Config.SENDGRID_API_KEY` | SendGrid → Settings → API Keys (Mail Send permission) |
 | `SENDGRID_WEBHOOK_PUBLIC_KEY` | Verifies SendGrid's signed event webhook (CRM delivery/open/click/bounce) | `Config.SENDGRID_WEBHOOK_PUBLIC_KEY` | SendGrid → Settings → Mail Settings → Event Webhook → Signature Verification |
