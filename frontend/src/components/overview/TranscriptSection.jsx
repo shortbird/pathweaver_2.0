@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { isSchoolAdminUser } from '../../utils/userRoles';
 
 const SUBJECT_DISPLAY_NAMES = {
   'language_arts': 'Language Arts',
@@ -17,12 +19,24 @@ const SUBJECT_DISPLAY_NAMES = {
 };
 
 const TranscriptSection = ({ studentId }) => {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exists, setExists] = useState(false);
 
+  // Both endpoints below are @require_school_admin, and this component renders
+  // inside StudentOverviewSections, which parents, students and observers all
+  // see. Without this gate every parent viewing their child fired a request
+  // that could only ever 403 — invisible to them (the catch renders null) but
+  // 30 events from 23 parents in Sentry (OPTIO-WEB-3). The transcript is also
+  // admin-shaped: its footer links into /admin.
+  const canViewTranscript = isSchoolAdminUser(user);
+
   useEffect(() => {
-    if (!studentId) return;
+    if (!studentId || !canViewTranscript) {
+      setLoading(false);
+      return;
+    }
 
     const check = async () => {
       try {
@@ -40,9 +54,9 @@ const TranscriptSection = ({ studentId }) => {
       }
     };
     check();
-  }, [studentId]);
+  }, [studentId, canViewTranscript]);
 
-  if (loading || !exists || !data) return null;
+  if (!canViewTranscript || loading || !exists || !data) return null;
 
   const { student, earned_credits, class_credits, transfer_credits, planned_credits, overrides, totals } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;

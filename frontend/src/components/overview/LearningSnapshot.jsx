@@ -90,20 +90,36 @@ const MiniHeatMap = ({ days }) => {
 };
 
 // Active quest card with engagement metrics
-const ActiveQuestCard = ({ quest, studentId, isDependent = false, dependentName = null }) => {
+const ActiveQuestCard = ({
+  quest,
+  studentId,
+  isDependent = false,
+  dependentName = null,
+  viewerMode = 'student'
+}) => {
   const questData = quest.quests || quest;
   const questId = questData.id || quest.quest_id;
   const { setActingAs } = useActingAs();
   const [switching, setSwitching] = useState(false);
 
-  // Fetch quest-specific engagement data. In the parent view (studentId set),
-  // scope it to the child via the parent endpoint; the self-scoped quest
-  // endpoint would query the parent's own (empty) activity and always show
-  // "Ready to Begin".
-  const isParentView = !!studentId;
-  const { data: ownEngagement } = useQuestEngagement(questId, { enabled: !isParentView });
-  const { data: childEngagement } = useStudentQuestEngagement(studentId, questId, { enabled: isParentView });
-  const engagement = isParentView ? childEngagement : ownEngagement;
+  // Which engagement endpoint to ask depends on WHO is looking, not on whether
+  // a studentId was passed — every caller passes one, including
+  // StudentOverviewPage, which passes the viewer's own id. Reading `!!studentId`
+  // as "parent view" sent students to the parent endpoint for themselves and
+  // teachers to it for their students; /api/parent/:id/engagement verifies a
+  // guardian or observer link, so both got a 403 and a permanently blank
+  // "Ready to Begin" (Sentry OPTIO-WEB-6).
+  //
+  // Only a guardian or observer can read the child-scoped endpoint. A student
+  // reads their own. A teacher has neither route to this metric, so they ask
+  // for nothing rather than for the wrong person's activity.
+  const readsChildEngagement = viewerMode === 'parent' || viewerMode === 'observer';
+  const readsOwnEngagement = viewerMode === 'student';
+  const { data: ownEngagement } = useQuestEngagement(questId, { enabled: readsOwnEngagement });
+  const { data: childEngagement } = useStudentQuestEngagement(
+    studentId, questId, { enabled: readsChildEngagement }
+  );
+  const engagement = readsChildEngagement ? childEngagement : ownEngagement;
 
   // Get rhythm state from quest-specific engagement data
   const rhythmState = engagement?.rhythm?.state || 'ready_to_begin';
@@ -296,7 +312,11 @@ const LearningSnapshot = ({
   hideHeader = false,
   studentId = null, // For parent view - prefixes quest links with /parent/quest/{studentId}/
   isDependent = false, // For dependent children - links to standard quest page instead of parent view
-  dependentName = null // Display name of the dependent (for act-as switching)
+  dependentName = null, // Display name of the dependent (for act-as switching)
+  // Who is looking: 'student' (their own overview), 'parent', 'observer', or
+  // 'advisor'. Decides which engagement endpoint the quest cards may call —
+  // studentId cannot, because every caller passes one.
+  viewerMode = 'student'
 }) => {
   const { calendar = [], rhythm, summary } = engagementData;
   const { user } = useAuth();
@@ -338,6 +358,7 @@ const LearningSnapshot = ({
                 studentId={studentId}
                 isDependent={isDependent}
                 dependentName={dependentName}
+                viewerMode={viewerMode}
               />
             ))
           ) : (
@@ -387,6 +408,7 @@ const LearningSnapshot = ({
                 studentId={studentId}
                 isDependent={isDependent}
                 dependentName={dependentName}
+                viewerMode={viewerMode}
               />
             ))}
           </div>
@@ -455,7 +477,8 @@ LearningSnapshot.propTypes = {
   }),
   activeQuests: PropTypes.array,
   recentCompletions: PropTypes.array,
-  studentId: PropTypes.string
+  studentId: PropTypes.string,
+  viewerMode: PropTypes.oneOf(['student', 'parent', 'observer', 'advisor'])
 };
 
 export default LearningSnapshot;

@@ -79,14 +79,38 @@ function StudentDays({ classes }: { classes: ScheduledClass[] }) {
   );
 }
 
-export default function ClassSchedule({ organizationId }: { organizationId?: string | null }) {
+export default function ClassSchedule({
+  organizationId,
+  studentId,
+  defaultOpen = false,
+}: {
+  organizationId?: string | null;
+  /**
+   * Narrow to one child. The child's own profile is about that child, so the
+   * other siblings' sections would be noise there.
+   *
+   * Five separate reports asked for a schedule on the child's page: "I would
+   * really like to be able to see my child's schedule under their profile and
+   * not just by scrolling to the bottom of the building icon", and four more
+   * like it (iCreate/Optio families, 2026-08-25 to 09-01). The schedule was
+   * only ever on the school hub — the building icon — and at the bottom of it.
+   */
+  studentId?: string | null;
+  /** Open on arrival. The child page shows one schedule and it is the point of
+   *  being there; the school hub stacks several and stays closed. */
+  defaultOpen?: boolean;
+}) {
   const { schedules, loading, hasAny } = useClassSchedule(organizationId);
 
   // Nothing to say beats an empty box: a member with no classes at all should
   // not get a "Schedule" heading over blank space.
   if (loading || !hasAny) return null;
 
-  const withClasses = schedules.filter((s) => s.classes.length > 0);
+  const withClasses = schedules
+    .filter((s) => s.classes.length > 0)
+    .filter((s) => !studentId || s.student_id === studentId);
+
+  if (!withClasses.length) return null;
 
   // One section PER STUDENT, not one section holding all of them. A parent with
   // three children was opening a single "Class schedule" block and getting
@@ -101,9 +125,13 @@ export default function ClassSchedule({ organizationId }: { organizationId?: str
       {withClasses.map((s: StudentSchedule) => (
         <SchoolSection
           key={s.student_id}
-          title={s.student_name === 'My schedule' ? 'Class schedule' : s.student_name}
+          // Narrowed to one child, the heading is about the schedule rather
+          // than about which child it belongs to — their name is already on
+          // the page.
+          title={s.student_name === 'My schedule' || studentId ? 'Class schedule' : s.student_name}
           icon="time-outline"
           count={s.classes.length}
+          defaultOpen={defaultOpen}
         >
           <StudentDays classes={s.classes} />
         </SchoolSection>

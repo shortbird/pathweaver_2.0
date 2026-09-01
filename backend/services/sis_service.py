@@ -116,6 +116,86 @@ def member_org_id(user_id: str) -> Optional[str]:
     return None
 
 
+# PostgREST `in_` filters ride in the query string, so long id lists are chunked.
+_ORG_LOOKUP_CHUNK = 100
+
+
+def _chunks(items: List[str]):
+    for i in range(0, len(items), _ORG_LOOKUP_CHUNK):
+        yield items[i:i + _ORG_LOOKUP_CHUNK]
+
+
+def member_orgs_by_user(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """The batch form of :func:`member_org_id`, as {user_id: {id, name}}.
+
+    Same three routes to membership — organization_id, then dependents, then
+    approved parent links — but four queries for the whole list instead of
+    three per user. Anything annotating a LIST of people with their school
+    should use this; per-user calls in a loop are what made the old inbox
+    load spend seconds on single-row lookups.
+
+    Never raises: a lookup that fails simply leaves those users unlabeled.
+    """
+    ids = [uid for uid in dict.fromkeys(user_ids) if uid]
+    if not ids:
+        return {}
+    admin = _admin()
+    org_by_user: Dict[str, str] = {}
+    try:
+        for chunk in _chunks(ids):
+            rows = (admin.table('users').select('id, organization_id')
+                    .in_('id', chunk).execute()).data or []
+            for r in rows:
+                if r.get('organization_id'):
+                    org_by_user[r['id']] = r['organization_id']
+
+        # Parents sit outside the org: they belong through their children.
+        unresolved = [uid for uid in ids if uid not in org_by_user]
+        if unresolved:
+            for chunk in _chunks(unresolved):
+                deps = (admin.table('users').select('managed_by_parent_id, organization_id')
+                        .in_('managed_by_parent_id', chunk)
+                        .not_.is_('organization_id', 'null').execute()).data or []
+                for d in deps:
+                    org_by_user.setdefault(d['managed_by_parent_id'], d['organization_id'])
+
+        unresolved = [uid for uid in ids if uid not in org_by_user]
+        if unresolved:
+            for chunk in _chunks(unresolved):
+                links = (admin.table('parent_student_links')
+                         .select('parent_user_id, student_user_id')
+                         .in_('parent_user_id', chunk)
+                         .eq('status', 'approved').execute()).data or []
+                student_ids = [l['student_user_id'] for l in links if l.get('student_user_id')]
+                if not student_ids:
+                    continue
+                student_orgs: Dict[str, str] = {}
+                for sub in _chunks(list(dict.fromkeys(student_ids))):
+                    rows = (admin.table('users').select('id, organization_id')
+                            .in_('id', sub)
+                            .not_.is_('organization_id', 'null').execute()).data or []
+                    for r in rows:
+                        student_orgs[r['id']] = r['organization_id']
+                for l in links:
+                    org_id = student_orgs.get(l.get('student_user_id'))
+                    if org_id:
+                        org_by_user.setdefault(l['parent_user_id'], org_id)
+
+        org_ids = list(dict.fromkeys(org_by_user.values()))
+        names: Dict[str, str] = {}
+        for chunk in _chunks(org_ids):
+            rows = (admin.table('organizations').select('id, name')
+                    .in_('id', chunk).execute()).data or []
+            for r in rows:
+                names[r['id']] = r.get('name')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'member_orgs_by_user: lookup failed: {e}')
+        return {}
+
+    return {uid: {'id': org_id, 'name': names.get(org_id)}
+            for uid, org_id in org_by_user.items() if names.get(org_id)}
+
+
 def _org_users(org_id: str) -> List[Dict[str, Any]]:
     # Paged: this is every account in the school and it grows with every family
     # that joins. iCreate is at 334 and adding families daily; at the 1000-row

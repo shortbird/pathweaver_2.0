@@ -67,7 +67,11 @@ const StudentOverviewSections = ({
   journalMoments,
   afterPortfolio,
   afterJournal,
-  onEvidenceDeleted
+  onEvidenceDeleted,
+  // Who is looking. Sections that read viewer-specific endpoints need to be
+  // told — studentId is passed by every caller (including a student viewing
+  // their own overview) and so cannot stand in for it.
+  viewerMode = 'student'
 }) => {
   // Determine which sections have data (for hideEmptySections mode)
   const hasSnapshotData = !hideEmptySections || (data.activeQuests?.length > 0) || (data.recentCompletions?.length > 0);
@@ -103,6 +107,7 @@ const StudentOverviewSections = ({
             studentId={studentId}
             isDependent={isDependent}
             dependentName={dependentName}
+            viewerMode={viewerMode}
           />
         </CollapsibleSection>
       )}
@@ -187,6 +192,7 @@ StudentOverviewSections.propTypes = {
   onPrivacyToggle: PropTypes.func,
   privacyLoading: PropTypes.bool,
   journalViewMode: PropTypes.oneOf(['student', 'parent', 'observer']),
+  viewerMode: PropTypes.oneOf(['student', 'parent', 'observer', 'advisor']),
   journalMoments: PropTypes.array,
   afterPortfolio: PropTypes.node,
   afterJournal: PropTypes.node,

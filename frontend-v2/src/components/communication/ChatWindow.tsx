@@ -201,17 +201,23 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   };
 
   // Superadmin (Optio Support): hand a member's message off to their school's
-  // shared inbox. The member gets an automatic note that the school will follow up.
+  // org admins — it lands in the admins' own Messages and in their email. The
+  // member gets an automatic note that the school will follow up.
   const handleForwardToSchool = async (msg: Message) => {
     const confirmed = await confirmAlert({
-      title: 'Forward to school inbox',
-      message: "Forward this message to the sender's school? They'll be told the school will get back to them.",
+      title: "Forward to the school's admins",
+      message: "Forward this message to the sender's school? Their org admins get it in their Optio messages and by email, and the sender is told the school will follow up.",
       confirmText: 'Forward',
     });
     if (!confirmed) return;
     try {
       const res = await forwardMessageToSchool(msg.id);
-      toast.success(`Forwarded to ${res?.organization?.name || 'the school'}`);
+      const emailed = res?.emailed_admins || 0;
+      toast.success(
+        emailed
+          ? `Forwarded to ${res?.organization?.name || 'the school'} and emailed ${emailed} admin${emailed === 1 ? '' : 's'}`
+          : `Forwarded to ${res?.organization?.name || 'the school'}`
+      );
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Could not forward this message');
     }

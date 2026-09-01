@@ -825,50 +825,59 @@ def add_dependent_login(user_id, dependent_id):
         if existing_email and not existing_email.endswith('@optio-internal-placeholder.local'):
             raise ValidationError("This dependent already has login credentials")
 
-        # Check if email is already in use
+        # Cheap pre-check against the profile table. It cannot be complete --
+        # a dependent's login email lives only in auth.users (see below), and
+        # auth has no indexed lookup exposed here -- so GoTrue's own duplicate
+        # error is translated below rather than left to surface as a 500.
         email_check = supabase.table('users').select('id').eq('email', email).execute()
         if email_check.data:
             raise ValidationError("This email is already in use")
 
-        # Create Supabase Auth account for the dependent
-        auth_response = supabase.auth.admin.create_user({
-            'email': email,
-            'password': password,
-            'email_confirm': True,  # Skip email verification since parent is authorizing
-            'user_metadata': {
-                'display_name': dependent.get('display_name'),
-                'is_dependent': True,
-                'managed_by_parent_id': user_id
-            }
-        })
+        # Update the dependent's EXISTING auth account rather than creating a
+        # second one. create_dependent already made one (a stub with a
+        # placeholder email) whose id IS this profile's id.
+        #
+        # The old code created a new auth user and then tried to repoint
+        # users.id at it, which failed twice over (Sentry OPTIO-BACKEND-7M/7N):
+        #
+        #   * `check_dependent_no_email` is CHECK (NOT is_dependent OR email IS
+        #     NULL) -- a dependent may not carry an email in public.users at
+        #     all, which is the COPPA shape create_dependent deliberately
+        #     writes. Setting one raised 23514 every single time, so this
+        #     endpoint could never once have succeeded.
+        #   * The raise happened before the rollback (which only ran when the
+        #     update returned no rows, not when it threw), so each attempt
+        #     leaked an orphaned auth user holding the address. The parent's
+        #     next try then failed with "A user with this email address has
+        #     already been registered" -- a different error for the same cause.
+        #
+        # Updating in place also avoids rewriting a primary key that ~40 tables
+        # reference.
+        try:
+            supabase.auth.admin.update_user_by_id(dependent_id, {
+                'email': email,
+                'password': password,
+                'email_confirm': True,  # parent is authorizing; skip verification
+            })
+        except Exception as e:
+            message = str(e).lower()
+            if 'already been registered' in message or 'already exists' in message:
+                # Held by another auth account the profile-table check can't see.
+                raise ValidationError("This email is already in use")
+            logger.error(f"Failed to set login credentials for dependent {dependent_id}: {e}")
+            raise ValidationError("Failed to add login credentials")
 
-        if not auth_response.user:
-            raise ValidationError("Failed to create login credentials")
-
-        new_auth_id = auth_response.user.id
-
-        # Update the user record with the new email and auth ID
-        # IMPORTANT: Keep is_dependent=True and managed_by_parent_id set
-        update_result = supabase.table('users').update({
-            'email': email,
-            'id': new_auth_id  # Link to new Supabase Auth account
-        }).eq('id', dependent_id).execute()
-
-        if not update_result.data:
-            # Rollback: delete the auth user if profile update failed
-            try:
-                supabase.auth.admin.delete_user(new_auth_id)
-            except Exception:
-                logger.debug("intentional swallow", exc_info=True)
-            raise ValidationError("Failed to link login credentials to profile")
-
+        # public.users is deliberately NOT given the email: the CHECK constraint
+        # forbids it while is_dependent is true, and the child stays a dependent
+        # under parental oversight. Login resolves the profile by auth id, which
+        # is unchanged, so nothing here needs to move.
         logger.info(f"Parent {user_id} added login credentials for dependent {dependent_id}")
 
         return jsonify({
             'success': True,
             'message': 'Login credentials added successfully',
             'dependent': {
-                'id': new_auth_id,
+                'id': dependent_id,
                 'email': email,
                 'display_name': dependent.get('display_name'),
                 'is_dependent': True

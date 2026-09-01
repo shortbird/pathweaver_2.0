@@ -19,6 +19,9 @@ from zoneinfo import ZoneInfo
 from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_notifications
+# One definition of "a phone number", shared with the SMS verification flow, so
+# a number typed on the staff profile is stored in the shape verification reads.
+from services.phone_verification_service import normalize_phone
 from utils import blank_values
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
@@ -144,10 +147,25 @@ def upsert_staff_profile(org_id: str, user_id: str, fields: Dict[str, Any],
     # phone_number is the one editable field that lives on `users`, not on the
     # staff profile row. Handled here so Employment can save it in the same form
     # as everything else.
+    #
+    # Stored in E.164, the same shape the SMS verification writes on success
+    # (phone_verification_service.verify_code). This path used to keep whatever
+    # was typed, so one column held both "+15551234567" and "(555) 123-4567"
+    # depending on which screen last wrote it -- and the verification screen
+    # prefills from this column, so a raw string went straight back into a flow
+    # that expects a real number. An unparseable number is refused rather than
+    # stored: a number nobody can text is not worth recording, and the caller
+    # gets told which field to fix.
     if 'phone_number' in fields and 'phone_number' in allowed:
-        phone = fields['phone_number']
-        if isinstance(phone, str):
-            phone = phone.strip() or None
+        raw = fields['phone_number']
+        raw = raw.strip() if isinstance(raw, str) else raw
+        if not raw:
+            phone = None
+        else:
+            phone = normalize_phone(raw)
+            if not phone:
+                return {'error': 'That phone number does not look right. '
+                                 'Use a 10-digit US number, or +country code.'}
         try:
             _admin().table('users').update({'phone_number': phone}).eq('id', user_id).execute()
         except Exception as e:  # noqa: BLE001

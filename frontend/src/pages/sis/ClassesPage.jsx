@@ -21,7 +21,7 @@ import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useAuth } from '../../contexts/AuthContext'
-import { canSeeFinance } from './sisRole'
+import { canSeeFinance, isSisAdmin } from './sisRole'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -74,6 +74,7 @@ const stripHtml = (html) => {
 const ClassesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
+  const isAdmin = isSisAdmin(user)
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
@@ -125,8 +126,16 @@ const ClassesPage = () => {
     Promise.all([
       api.get(withOrg(`/api/sis/classes${showArchived ? '?include_archived=true' : ''}`, orgId)),
       api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
+      // Both are ADMIN_ROLES-gated, and this page is open to teachers too. The
+      // .catch kept the page working but every teacher who opened /classes
+      // still fired two guaranteed 403s (Sentry OPTIO-WEB-4/5). Neither answer
+      // is used outside the admin-only editor, so teachers simply don't ask.
+      isAdmin
+        ? api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} }))
+        : Promise.resolve({ data: {} }),
+      isAdmin
+        ? api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} }))
+        : Promise.resolve({ data: {} }),
       // Rooms + school-day blocks. Deliberately NOT /api/admin/organizations/:id:
       // that endpoint is org_admin-gated, so a campus coordinator got a 403 here
       // and the editor silently degraded to a free-text classroom box and raw
@@ -150,7 +159,7 @@ const ClassesPage = () => {
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
-  }, [orgId, showArchived])
+  }, [orgId, showArchived, isAdmin])
 
   useEffect(() => { load() }, [load])
 
