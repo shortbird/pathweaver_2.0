@@ -30,6 +30,19 @@ def _author_name(user):
             or 'User')
 
 
+def _is_optio_voice(author_role):
+    """Whether a reviewer speaks as "Optio" rather than as themselves.
+
+    Only Optio's own review (superadmin; 'reviewer' is the legacy row value)
+    is branded. A school's teacher shows their real name -- the student knows
+    them, and "Optio replied to your work" gave them no reason to connect the
+    feedback to the person who wrote it (Gryffin, 2026-08-31).
+
+    The thread display and the notification MUST agree, so both call this.
+    """
+    return author_role in ('superadmin', 'reviewer')
+
+
 def _load_context(user_id, completion_id, admin):
     comp = admin.table('quest_task_completions')\
         .select('id, user_id, quest_id, user_quest_task_id, credit_reviewer_id, org_reviewer_id')\
@@ -109,12 +122,8 @@ def get_credit_messages(user_id, completion_id):
             names = {p['id']: _author_name(p) for p in (people.data or [])}
 
         for m in messages:
-            # Only Optio's own (superadmin) review is branded "Optio". Org teachers
-            # (org_admin/advisor) show their real name. 'reviewer' = legacy rows.
-            if m.get('author_role') in ('superadmin', 'reviewer'):
-                m['author_name'] = 'Optio'
-            else:
-                m['author_name'] = names.get(m['author_id'], 'User')
+            m['author_name'] = ('Optio' if _is_optio_voice(m.get('author_role'))
+                                else names.get(m['author_id'], 'User'))
             m['is_mine'] = m['author_id'] == user_id
 
         return jsonify({'success': True, 'messages': messages})
@@ -175,13 +184,19 @@ def post_credit_message(user_id, completion_id):
                         metadata={'completion_id': completion_id},
                     )
             else:
-                # Notify the student — branded as Optio
+                # Name the sender the same way the thread itself does: only
+                # Optio's own (superadmin) review is branded "Optio"; a school's
+                # teacher shows their real name. A student who is told "Optio
+                # replied" has no reason to connect it to the teacher sitting
+                # across from them (Gryffin, 2026-08-31).
+                sender = ('Optio' if _is_optio_voice(author_role)
+                          else _author_name(user))
                 link = f'/quests/{quest_id}?task={task_id}' if quest_id else '/dashboard'
                 notifier.create_notification(
                     user_id=completion['user_id'],
                     notification_type='message_received',
-                    title='Optio replied to your work',
-                    message='Optio left a reply on your submitted work.',
+                    title=f'{sender} left feedback on your work',
+                    message=f'{sender} left feedback on your submitted work.',
                     link=link,
                     metadata={'completion_id': completion_id},
                 )

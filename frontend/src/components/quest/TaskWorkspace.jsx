@@ -20,6 +20,7 @@ import { getPillarData } from '../../utils/pillarMappings';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
 import EvidenceDisplay from '../evidence/EvidenceDisplay';
+import CreditFeedbackThread from '../credit/CreditFeedbackThread';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
@@ -1159,6 +1160,20 @@ const TaskWorkspace = ({
                     onEdit={handleEditEvidence}
                     emptyMessage="No evidence yet. Click 'Add Evidence' to show your work."
                   />
+                )}
+
+                {/* A teacher's feedback on submitted work, where the student is
+                    already standing. The thread existed and was written to from
+                    the SIS submissions inbox, but the student's only view of it
+                    was folded inside the Diploma page's credit tracker, so
+                    feedback landed somewhere they never looked -- and the
+                    notification pointed here, at a page that showed none of it
+                    (Gryffin, 2026-08-31: "I submitted feedback on one of the
+                    submissions, and the student doesn't see it anywhere").
+                    completionId comes from loadPortfolioPick, already fetched
+                    for every completed task. */}
+                {task.is_completed && portfolioPick?.completionId && (
+                  <CreditFeedbackThread completionId={portfolioPick.completionId} />
                 )}
               </div>
             </div>
