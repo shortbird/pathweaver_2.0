@@ -19,7 +19,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
 from utils.auth.org_scope import caller_can_access_user
 from utils.api_response_v1 import success_response, error_response
-from utils.roles import get_effective_role
+from utils.roles import get_effective_roles
 
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -27,6 +27,15 @@ from utils.storage_urls import sign_in_place
 logger = get_logger(__name__)
 
 from . import bp
+
+# Returned by _scoped_student_ids for a caller who reviews across every org.
+# Distinct from None, which used to mean the same thing implicitly and was also
+# what an unrecognized role fell through to -- see the docstring below.
+UNRESTRICTED = object()
+
+# Roles that review their whole organization's queue. Coordinators sit with
+# org admins: the coordinator restriction is financial, not scope-based.
+ORG_WIDE_ROLES = ('org_admin', 'campus_coordinator')
 
 
 def resolve_user_name(user_data):
@@ -39,6 +48,45 @@ def resolve_user_name(user_data):
         or user_data.get('email')
         or 'Unknown'
     )
+
+
+def _org_student_ids(admin, org_id):
+    """Every user id in an org. Empty list when the org is missing."""
+    if not org_id:
+        return []
+    rows = admin.table('users').select('id').eq('organization_id', org_id).execute()
+    return [s['id'] for s in (rows.data or [])]
+
+
+def _scoped_student_ids(admin, user_id, user_data, org_id_filter):
+    """Which students this caller may review: a list of ids, or UNRESTRICTED.
+
+    Two bugs are closed here, and both handlers below share the fix:
+
+    1. Role resolution used the singular effective role, which is only the FIRST
+       of an account's org roles. A teacher who is also a parent resolves to
+       'parent' and matched no branch (the same mistake as Sentry OPTIO-WEB-7/8).
+    2. Falling through every branch left the scope unset, and unset meant "no
+       filter" -- every org's submissions. That is unreachable behind the
+       current decorator, where only superadmin falls through and is meant to
+       see everything, but it made the safety of this query depend on a
+       decorator two hundred lines away. An unrecognized role now scopes to
+       nothing instead of to everything.
+    """
+    roles = get_effective_roles(user_data)
+    if 'superadmin' in roles:
+        # Scoped when previewing one org (embedded in org management), else the
+        # platform-wide review queue.
+        return _org_student_ids(admin, org_id_filter) if org_id_filter else UNRESTRICTED
+    if any(r in ORG_WIDE_ROLES for r in roles):
+        # org_id param is ignored on purpose: they can never widen their scope.
+        return _org_student_ids(admin, user_data.get('organization_id'))
+    if 'advisor' in roles:
+        rows = admin.table('advisor_student_assignments') \
+            .select('student_id').eq('advisor_id', user_id) \
+            .eq('is_active', True).execute()
+        return [a['student_id'] for a in (rows.data or [])]
+    return []
 
 
 @bp.route('/items', methods=['GET'])
@@ -57,7 +105,6 @@ def get_dashboard_items(user_id: str):
             .execute()
 
         user_data = user_result.data or {}
-        effective_role = get_effective_role(user_data)
 
         # Parse query params
         status_filter = request.args.get('status')
@@ -70,41 +117,10 @@ def get_dashboard_items(user_id: str):
         per_page = min(int(request.args.get('per_page', 50)), 100)
 
         # Determine which student IDs to scope to
-        student_ids = None
-
-        if effective_role == 'org_admin':
-            # Org admins see only students in their organization (org_id param
-            # is ignored -- they can never widen their scope)
-            org_id = user_data.get('organization_id')
-            if org_id:
-                org_students = admin_supabase.table('users') \
-                    .select('id') \
-                    .eq('organization_id', org_id) \
-                    .execute()
-                student_ids = [s['id'] for s in (org_students.data or [])]
-            if not student_ids:
-                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
-            # No default status filter -- org_admin sees all actionable items from their org
-        elif effective_role == 'superadmin' and org_id_filter:
-            # Superadmin viewing a specific org's credit review (embedded in the
-            # org management page): scope to that org's students only
-            org_students = admin_supabase.table('users') \
-                .select('id') \
-                .eq('organization_id', org_id_filter) \
-                .execute()
-            student_ids = [s['id'] for s in (org_students.data or [])]
-            if not student_ids:
-                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
-        elif effective_role == 'advisor':
-            # Advisors see only their assigned students
-            assignments = admin_supabase.table('advisor_student_assignments') \
-                .select('student_id') \
-                .eq('advisor_id', user_id) \
-                .eq('is_active', True) \
-                .execute()
-            student_ids = [a['student_id'] for a in (assignments.data or [])]
-            if not student_ids:
-                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
+        scope = _scoped_student_ids(admin_supabase, user_id, user_data, org_id_filter)
+        student_ids = None if scope is UNRESTRICTED else scope
+        if student_ids is not None and not student_ids:
+            return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
 
         # Build query
         query = admin_supabase.table('quest_task_completions') \
@@ -289,16 +305,26 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             .single() \
             .execute()
 
-        # Verify org_admin can only view their own org's students
+        # Verify a non-superadmin caller only views their own org's students.
+        #
+        # This check silently did nothing. It selected `role, organization_id`
+        # without org_role/org_roles, so get_effective_role saw role
+        # 'org_managed' with nothing to resolve it to and fell through to its
+        # 'student' default -- meaning `caller_eff == 'org_admin'` was False for
+        # every org admin alive, and the org comparison was never reached. Any
+        # org admin could open any completion in any other organization.
+        #
+        # Stated the other way round now: superadmin reviews across orgs,
+        # everyone else must share the student's org. A future role added to the
+        # decorator is then denied by default rather than admitted silently.
         if student.data:
             caller = admin_supabase.table('users') \
-                .select('role, organization_id') \
+                .select('role, org_role, org_roles, organization_id') \
                 .eq('id', user_id) \
                 .single() \
                 .execute()
             caller_data = caller.data or {}
-            caller_eff = get_effective_role(caller_data)
-            if caller_eff == 'org_admin':
+            if 'superadmin' not in get_effective_roles(caller_data):
                 caller_org = caller_data.get('organization_id')
                 student_org = student.data.get('organization_id')
                 if not caller_org or caller_org != student_org:
@@ -381,54 +407,17 @@ def get_dashboard_stats(user_id: str):
             .single() \
             .execute()
         user_data = user_result.data or {}
-        effective_role = get_effective_role(user_data)
 
-        student_ids = None
         org_id_filter = request.args.get('org_id')
-        if effective_role == 'org_admin':
-            org_id = user_data.get('organization_id')
-            if org_id:
-                org_students = admin_supabase.table('users') \
-                    .select('id') \
-                    .eq('organization_id', org_id) \
-                    .execute()
-                student_ids = [s['id'] for s in (org_students.data or [])]
-            if not student_ids:
-                return success_response(data={
-                    'pending_org_approval': 0,
-                    'pending_review': 0,
-                    'finalized': 0,
-                    'merged_this_week': 0
-                })
-        elif effective_role == 'superadmin' and org_id_filter:
-            # Superadmin viewing a specific org's credit review: scope counts
-            # to that org's students only
-            org_students = admin_supabase.table('users') \
-                .select('id') \
-                .eq('organization_id', org_id_filter) \
-                .execute()
-            student_ids = [s['id'] for s in (org_students.data or [])]
-            if not student_ids:
-                return success_response(data={
-                    'pending_org_approval': 0,
-                    'pending_review': 0,
-                    'finalized': 0,
-                    'merged_this_week': 0
-                })
-        elif effective_role == 'advisor':
-            assignments = admin_supabase.table('advisor_student_assignments') \
-                .select('student_id') \
-                .eq('advisor_id', user_id) \
-                .eq('is_active', True) \
-                .execute()
-            student_ids = [a['student_id'] for a in (assignments.data or [])]
-            if not student_ids:
-                return success_response(data={
-                    'pending_org_approval': 0,
-                    'pending_review': 0,
-                    'finalized': 0,
-                    'merged_this_week': 0
-                })
+        scope = _scoped_student_ids(admin_supabase, user_id, user_data, org_id_filter)
+        student_ids = None if scope is UNRESTRICTED else scope
+        if student_ids is not None and not student_ids:
+            return success_response(data={
+                'pending_org_approval': 0,
+                'pending_review': 0,
+                'finalized': 0,
+                'merged_this_week': 0
+            })
 
         # Count by status
         def count_status(diploma_status=None):

@@ -198,8 +198,8 @@ export const MessageActionBar = ({
         {canForward && (
           <button
             type="button"
-            title="Forward to school inbox"
-            aria-label="Forward to school inbox"
+            title="Forward to the school's admins"
+            aria-label="Forward to the school's admins"
             onClick={onForward}
             className={itemClass}
           >

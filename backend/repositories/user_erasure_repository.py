@@ -125,6 +125,18 @@ OWNED_ROWS: Tuple[Tuple[str, str], ...] = (
 # Verified against the live schema (2026-08-15).
 ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('advisor_student_assignments', 'assigned_by'),
+    # These three reference auth.users DIRECTLY rather than public.users, on
+    # ON DELETE NO ACTION, and were in neither list -- so a staff member who had
+    # reviewed an AI quest, run a generation job or written a docs article would
+    # have blocked at the auth delete with GoTrue's unattributable "Database
+    # error deleting user", and _blocking_refs could not have named the holder
+    # either. All three are nullable, so the authorship trail anonymizes rather
+    # than blocking. (Audited against the live schema 2026-09-01: these were the
+    # only non-cascading FKs to auth.users besides lesson_reflections, which is
+    # already deleted in OWNED_ROWS.)
+    ('ai_generated_quests', 'reviewer_id'),
+    ('ai_generation_jobs', 'created_by'),
+    ('docs_articles', 'created_by'),
     ('ai_prompt_components', 'modified_by'),
     # Self-service family registration stamps the PARENT here
     # (sis_parent_service.register_for_class), so this is the one actor column a
