@@ -113,6 +113,7 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
         portfolioReadOnly
         showDiplomaCredits={!isDependent}
         journalViewMode={isObserver ? 'observer' : 'parent'}
+        viewerMode={isObserver ? 'observer' : 'parent'}
         afterJournal={communicationsSection}
       />
     </div>
