@@ -14,9 +14,9 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
  * directory; the teacher self-serves it here via the shared user endpoints
  * (PUT /api/users/profile, POST /api/users/avatar) rather than needing an admin.
  * Employment details (position, type, status) stay read-only (an admin maintains
- * them on the Staff page); the teacher also edits their emergency contact — the
- * self-service subset the SIS backend allows (SELF_PROFILE_FIELDS).
- * GET/PATCH /api/sis/teacher/profile.
+ * them on the Staff page); the teacher also edits their own phone number and
+ * their emergency contact — the self-service subset the SIS backend allows
+ * (SELF_PROFILE_FIELDS). GET/PATCH /api/sis/teacher/profile.
  */
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
@@ -39,6 +39,12 @@ const MyProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  // The teacher's OWN number, distinct from the emergency contact's. The page
+  // only ever offered the latter, so staff asked to "add your phone number" had
+  // nowhere to put it and reported it as broken (iCreate, 2026-08-29, twice).
+  // The backend already accepted it: phone_number is in SELF_PROFILE_FIELDS and
+  // is written through to users.phone_number.
+  const [myPhone, setMyPhone] = useState('')
   const [saving, setSaving] = useState(false)
   // Public profile (photo + bio). In preview, an admin sees the previewed
   // teacher's values read-only; otherwise it's the signed-in user's own.
@@ -57,6 +63,7 @@ const MyProfilePage = () => {
         setProfile(p)
         setName(p.emergency_contact_name || '')
         setPhone(p.emergency_contact_phone || '')
+        setMyPhone(p.phone_number || '')
       })
       .catch((e) => toast.error(e?.response?.data?.error || 'Failed to load your profile'))
       .finally(() => setLoading(false))
@@ -109,11 +116,12 @@ const MyProfilePage = () => {
     try {
       const r = await api.patch(withOrg('/api/sis/teacher/profile', orgId), {
         organization_id: orgId,
+        phone_number: myPhone.trim() || null,
         emergency_contact_name: name.trim() || null,
         emergency_contact_phone: phone.trim() || null,
       })
       if (r.data?.profile) setProfile(r.data.profile)
-      toast.success('Emergency contact saved')
+      toast.success('Contact details saved')
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not save your changes')
     } finally {
@@ -126,14 +134,15 @@ const MyProfilePage = () => {
   const p = profile || {}
   const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
   const dirty = (name.trim() || '') !== (p.emergency_contact_name || '') ||
-    (phone.trim() || '') !== (p.emergency_contact_phone || '')
+    (phone.trim() || '') !== (p.emergency_contact_phone || '') ||
+    (myPhone.trim() || '') !== (p.phone_number || '')
 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
         <BackToDashboard className="mb-1" />
         <h1 className="text-2xl font-bold text-neutral-900">My profile</h1>
-        <p className="text-neutral-500 mt-1">Your staff details and emergency contact.</p>
+        <p className="text-neutral-500 mt-1">Your staff details and contact information.</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -197,16 +206,26 @@ const MyProfilePage = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h2 className="font-semibold text-neutral-900 mb-1">Emergency contact</h2>
-        <p className="text-xs text-neutral-400 mb-4">Who your school should call if something happens to you on site.</p>
+        <h2 className="font-semibold text-neutral-900 mb-1">Contact details</h2>
+        <p className="text-xs text-neutral-400 mb-4">Your own number, and who your school should call if something happens to you on site.</p>
 
         {preview ? (
-          <p className="text-sm text-neutral-500">
-            {p.emergency_contact_name || 'No contact on file'}
-            {p.emergency_contact_phone ? ` · ${p.emergency_contact_phone}` : ''}. Editing is disabled in preview.
-          </p>
+          <>
+            <p className="text-sm text-neutral-500 mb-1">
+              {p.phone_number || 'No phone number on file'}
+            </p>
+            <p className="text-sm text-neutral-500">
+              Emergency contact: {p.emergency_contact_name || 'none on file'}
+              {p.emergency_contact_phone ? ` · ${p.emergency_contact_phone}` : ''}. Editing is disabled in preview.
+            </p>
+          </>
         ) : (
           <>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Your phone number</label>
+            <input value={myPhone} onChange={(e) => setMyPhone(e.target.value)} className={`${field} mb-5`} placeholder="e.g. (555) 123-4567" />
+
+            <p className="text-xs font-medium text-neutral-500 mb-2 border-t border-gray-100 pt-4">Emergency contact</p>
+
             <label className="block text-xs font-medium text-neutral-500 mb-1">Contact name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className={`${field} mb-4`} placeholder="e.g. Jordan Lee" />
 
@@ -215,7 +234,7 @@ const MyProfilePage = () => {
 
             <button onClick={save} disabled={saving || !dirty}
               className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save emergency contact'}
+              {saving ? 'Saving…' : 'Save contact details'}
             </button>
           </>
         )}
