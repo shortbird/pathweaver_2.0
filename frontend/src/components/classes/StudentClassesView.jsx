@@ -17,7 +17,7 @@ import { useAuth } from '../../contexts/AuthContext'
 /**
  * StudentClassesView - Shows enrolled classes for students
  *
- * Uses URL params for class selection (/classes/:classId) so
+ * Uses URL params for class selection (<listPath>/:classId) so
  * back navigation from quests can return directly to the class.
  */
 export default function StudentClassesView({ basePath = null } = {}) {
@@ -26,6 +26,13 @@ export default function StudentClassesView({ basePath = null } = {}) {
   const { classId } = useParams()
   // basePath lets this view be mounted under a branded route (e.g. /gryffin) and keep
   // its list/detail navigation self-contained. Defaults preserve the /org-classes flow.
+  //
+  // Every link out of this view goes through listPath. Three of them used to
+  // fall back to `/classes/:id` when basePath was null, which is the PUBLIC
+  // marketing page's URL, not this one's — it has no :classId route, so the
+  // catch-all bounced the student to their dashboard. From the sidebar's
+  // "Classes" (which mounts at /org-classes, no basePath) that made every
+  // class card look like it led to a generic page (Gryffin, 2026-08-31).
   const listPath = basePath || '/org-classes'
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,7 +74,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
       <StudentClassDetail
         classData={selectedClass}
         orgId={selectedClass.organization_id || user?.organization_id}
-        basePath={basePath}
+        listPath={listPath}
         onBack={() => navigate(listPath)}
       />
     )
@@ -79,7 +86,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
       <StudentClassDetail
         classId={classId}
         orgId={user?.organization_id}
-        basePath={basePath}
+        listPath={listPath}
         onBack={() => navigate(listPath)}
       />
     )
@@ -104,7 +111,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
               <StudentClassCard
                 key={cls.id}
                 classData={cls}
-                onClick={() => navigate(basePath ? `${basePath}/${cls.id}` : `/classes/${cls.id}`)}
+                onClick={() => navigate(`${listPath}/${cls.id}`)}
               />
             ))}
           </div>
@@ -180,7 +187,7 @@ function StudentClassCard({ classData, onClick }) {
  *
  * Can receive classData from parent (fast path) or classId to fetch independently.
  */
-function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, basePath = null }) {
+function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, listPath = '/org-classes' }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
@@ -272,7 +279,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   const isComplete = progress.is_complete
 
   const openQuest = (quest) => {
-    sessionStorage.setItem('classReturnPath', basePath ? `${basePath}/${classId}` : `/classes/${classId}`)
+    sessionStorage.setItem('classReturnPath', `${listPath}/${classId}`)
     navigate(`/quests/${quest.id}`)
   }
 
