@@ -56,6 +56,11 @@ PARENT_FORM_TYPES = {
     'general_request': 'General request',
     'records_request': 'Records request',
     'meeting_request': 'Request a meeting',
+    # Filed from the Schedule Builder once self-service add/drop has closed, and
+    # only while the org's add/drop window is open — see
+    # sis_parent_service.add_drop_open. The office works it here rather than the
+    # family emailing the front desk (iCreate, 2026-09-01).
+    'schedule_change': 'Add/drop request',
 }
 
 

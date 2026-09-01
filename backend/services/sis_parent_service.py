@@ -454,6 +454,61 @@ def _changes_locked(org_id: str) -> bool:
         return False
 
 
+# ── Add/drop requests (after self-service closes) ────────────────────────────
+# Once the year starts the builder is read-only, and the only way a family could
+# change a schedule was to phone the office. iCreate, 2026-09-01: "on the
+# schedule builder page, have an add/drop button there that sends a request to
+# say what changes they want to make to that child's schedule. Then we get the
+# task in the task center." The window is the school's own add/drop period,
+# which ends on a date they set (theirs is Sept 8) — after it, the button is
+# gone and the school is back to making changes itself.
+SIS_DEFAULT_TZ = 'America/Denver'
+
+
+def _org_today(org_id: str, now=None):
+    """Today's date in the ORG's timezone (`now` overridable for tests).
+
+    A deadline day has to end at the school's midnight. Server-local (UTC in
+    production) would retire the button at 6pm Mountain on the deadline day,
+    while families were still using it.
+    """
+    from datetime import datetime, timezone as _tz
+    from zoneinfo import ZoneInfo
+    row = (
+        _admin().table('organizations').select('timezone')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    name = (row[0].get('timezone') if row else None) or SIS_DEFAULT_TZ
+    moment = now or datetime.now(_tz.utc)
+    try:
+        zone = ZoneInfo(name)
+    except Exception:  # noqa: BLE001 - unknown tz string on the org row
+        zone = ZoneInfo(SIS_DEFAULT_TZ)
+    return moment.astimezone(zone).date()
+
+
+def add_drop_deadline(org_id: str) -> Optional[str]:
+    """ISO date (YYYY-MM-DD) from feature_flags.sis_settings.add_drop_deadline."""
+    return _sis_settings(org_id).get('add_drop_deadline') or None
+
+
+def add_drop_open(org_id: str) -> bool:
+    """May families file an add/drop request right now?
+
+    Only with a deadline configured — no date means the school never opened an
+    add/drop period, and a button that files requests nobody agreed to work is
+    worse than no button. The deadline day itself counts in full.
+    """
+    deadline = add_drop_deadline(org_id)
+    if not deadline:
+        return False
+    from datetime import date as _date
+    try:
+        return _org_today(org_id) <= _date.fromisoformat(str(deadline)[:10])
+    except ValueError:
+        return False
+
+
 # ── Family registration gates: hold + staggered tier opening ─────────────────
 def _sis_settings(org_id: str) -> Dict[str, Any]:
     row = (
@@ -702,6 +757,10 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'optio_courses_enabled': _optio_courses_enabled(org_id),
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
+        # The read-only builder's one remaining action: ask the office to make
+        # the change. Only inside the school's add/drop window.
+        'add_drop_deadline': settings.get('add_drop_deadline') or None,
+        'add_drop_open': add_drop_open(org_id),
         'registration_hold': bool((household or {}).get('registration_hold')),
         'registration_hold_reason': (household or {}).get('registration_hold_reason'),
         'enrollment_waitlist': {

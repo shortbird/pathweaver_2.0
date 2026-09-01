@@ -14,7 +14,9 @@ import { useConfirm } from '../contexts/ConfirmContext'
 //     up the classes offered at that time
 // Self-service is open until the org's first day of school
 // (feature_flags.sis_settings.first_day_of_school); after that, changes are
-// staff-only and this page is read-only.
+// staff-only and this page is read-only. During the school's add/drop window
+// (sis_settings.add_drop_deadline) the read-only page still has one action:
+// "Request an add/drop", which files a task in the office's Task Center.
 //
 // /schedule-builder/preview/:previewCode — staff walkthrough (public route,
 // reached from the registration funnel's ?preview=1 final step): the org's real
@@ -142,10 +144,12 @@ const ScheduleBuilderPage = () => {
   const [detail, setDetail] = useState(null)     // { item, enrolled }
   const [myAvatar, setMyAvatar] = useState(null)
   const [photoBusy, setPhotoBusy] = useState(null) // student_id or 'me' mid-upload
+  const [addDropOpen, setAddDropOpen] = useState(false) // add/drop request modal
+  const [myRequests, setMyRequests] = useState([])      // this family's open form submissions
   const confirm = useConfirm()
 
   // Modals for one child's week don't carry over to another schedule.
-  useEffect(() => { setSlotModal(null); setDetail(null) }, [orgId, studentId])
+  useEffect(() => { setSlotModal(null); setDetail(null); setAddDropOpen(false) }, [orgId, studentId])
 
   useEffect(() => {
     if (previewCode) {
@@ -222,6 +226,11 @@ const ScheduleBuilderPage = () => {
     api.get(`/api/sis/parent/classes?organization_id=${orgId}`)
       .then((r) => setCatalog(r.data?.classes || []))
       .catch(() => { /* catalog list is supplementary */ })
+    // So a family that already asked sees "we have your request" instead of a
+    // button that invites them to file the same one again.
+    api.get(`/api/sis/parent/forms?organization_id=${orgId}`)
+      .then((r) => setMyRequests(r.data?.submissions || []))
+      .catch(() => { /* the button still works without this */ })
   }, [orgId, studentId, previewCode])
 
   useEffect(() => { reload() }, [reload])
@@ -232,6 +241,13 @@ const ScheduleBuilderPage = () => {
   const locked = !!schedule?.changes_locked
   const firstDay = schedule?.first_day_of_school
   const studentAge = ageOn(student?.date_of_birth, firstDay)
+  // The school's add/drop window. Server-computed in the ORG's timezone, so a
+  // Sept 8 deadline retires the button at the school's midnight, not the
+  // server's. Never in the staff preview: it files a real task.
+  const canRequestAddDrop = !previewCode && !!schedule?.add_drop_open
+  const addDropDeadline = schedule?.add_drop_deadline
+  const pendingAddDrop = myRequests.find((r) => r.form_type === 'schedule_change'
+    && r.status !== 'resolved' && r.student_user_id === studentId)
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
@@ -482,6 +498,36 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // Ask the office to add or drop classes for this child, once the year has
+  // started and the builder is read-only. It files a parent-tagged submission
+  // in the same queue the office already triages (Task Center -> Requests),
+  // rather than an email to a person who may be out.
+  const submitAddDrop = async ({ drops, adds, note }) => {
+    const name = (c) => `${c.name}${meetingText(c.meetings) ? ` (${meetingText(c.meetings)})` : ''}`
+    const lines = [
+      ...drops.map((c) => `Drop: ${name(c)}`),
+      ...adds.map((c) => `Add: ${name(c)}`),
+    ]
+    if (note.trim()) lines.push('', note.trim())
+    setBusy('add-drop')
+    try {
+      await api.post('/api/sis/parent/forms', {
+        organization_id: orgId,
+        form_type: 'schedule_change',
+        title: `Add/drop — ${student?.name || 'student'}`,
+        body: lines.join('\n'),
+        student_user_id: studentId,
+      })
+      toast.success(`Request sent — ${org?.organization_name || 'the office'} will make the change and follow up.`)
+      setAddDropOpen(false)
+      reload()
+      return true
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not send the request')
+      return false
+    } finally { setBusy(null) }
+  }
+
   // UFA learning-day choice (Quest Learning Day / Elementary At-Home). A
   // recorded choice, not an enrollment; preview mode keeps it in memory.
   const selectLearningDay = async (choice) => {
@@ -693,13 +739,44 @@ const ScheduleBuilderPage = () => {
       {locked ? (
         <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           The school year has started{firstDay ? ` (first day was ${fmtDate(firstDay)})` : ''} — schedule changes are now made by
-          the school. Contact {org?.organization_name || 'your school'} to add or drop classes.
+          the school.{' '}
+          {canRequestAddDrop
+            ? 'Send an add/drop request below and the office will make the change for you.'
+            : `Contact ${org?.organization_name || 'your school'} to add or drop classes.`}
         </div>
       ) : firstDay ? (
         <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-gray-600">
           You can make schedule changes until the first day of school, <span className="font-medium text-gray-800">{fmtDate(firstDay)}</span>.
         </div>
       ) : null}
+
+      {/* The read-only page's one remaining action. iCreate, 2026-09-01: the
+          office wants add/drop asks as tasks they can work, not phone calls. */}
+      {canRequestAddDrop && student && (
+        pendingAddDrop ? (
+          <div className="mb-5 rounded-lg border border-optio-purple/20 bg-optio-purple/5 px-4 py-3 text-sm text-gray-600">
+            <span className="font-medium text-gray-800">Your add/drop request is in.</span>{' '}
+            {org?.organization_name || 'The school'} will make the change and follow up. Need to
+            change something else?{' '}
+            <button type="button" onClick={() => setAddDropOpen(true)}
+              className="font-medium text-optio-purple hover:underline">
+              Send another request
+            </button>.
+          </div>
+        ) : (
+          <div className="mb-5 rounded-lg border border-optio-purple/20 bg-optio-purple/5 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium text-gray-800">Need a different class?</span>{' '}
+              Tell {org?.organization_name || 'the school'} what to add or drop and the office will
+              make the change.
+              {addDropDeadline ? ` Add/drop closes after ${fmtDate(addDropDeadline)}.` : ''}
+            </div>
+            <button type="button" onClick={() => setAddDropOpen(true)} className="btn-primary shrink-0">
+              Request an add/drop
+            </button>
+          </div>
+        )
+      )}
 
       {/* The calendar is the schedule: gray boxes are open slots, colored blocks
           are enrolled classes. */}
@@ -769,6 +846,19 @@ const ScheduleBuilderPage = () => {
           }}
           onAdd={async (c) => { const ok = await addClass(c); if (ok) setSlotModal(null) }}
           onDrop={async (c) => { const ok = await dropClass(c); if (ok) setSlotModal(null) }}
+        />
+      )}
+
+      {addDropOpen && (
+        <AddDropRequestModal
+          studentName={student?.name}
+          orgName={org?.organization_name}
+          enrolled={enrolled}
+          catalog={openClasses}
+          deadline={addDropDeadline}
+          busy={busy === 'add-drop'}
+          onClose={() => setAddDropOpen(false)}
+          onSubmit={submitAddDrop}
         />
       )}
 
@@ -1049,6 +1139,125 @@ const AgeExceptionFooter = ({ ageHidden, requestedIds, busy, onRequest }) => {
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * Add/drop request — what a family can still do once the builder is read-only.
+ *
+ * Deliberately built out of the schedule itself rather than a blank "describe
+ * your request" box: the office has to act on this, and "can Charlotte switch
+ * out of the Tuesday art one" is not something a coordinator can enter into the
+ * SIS without a phone call back. Picking real classes produces a request that
+ * names the class, the day and the time, so the change can be made from the
+ * task alone.
+ */
+const AddDropRequestModal = ({ studentName, orgName, enrolled, catalog, deadline, busy, onClose, onSubmit }) => {
+  const [drops, setDrops] = useState([])   // class ids
+  const [adds, setAdds] = useState([])     // class ids
+  const [note, setNote] = useState('')
+  const [picking, setPicking] = useState('')
+
+  const dropList = enrolled.filter((c) => drops.includes(c.id))
+  const addList = adds.map((id) => catalog.find((c) => c.id === id)).filter(Boolean)
+  const addable = catalog.filter((c) => !adds.includes(c.id))
+  const nothingPicked = !dropList.length && !addList.length
+
+  const toggleDrop = (id) => setDrops((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]))
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
+        <div className="flex items-start justify-between px-4 pt-4 pb-2 shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Request an add/drop</h2>
+            <p className="text-xs text-gray-400">
+              {orgName || 'The office'} makes the change and follows up
+              {studentName ? ` about ${studentName.split(' ')[0]}` : ''}.
+              {deadline ? ` Requests close after ${fmtDate(deadline)}.` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Classes to drop</p>
+            {enrolled.length === 0 ? (
+              <p className="text-sm text-gray-400">No classes are scheduled yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {enrolled.map((c) => (
+                  <label key={c.id}
+                    className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer ${drops.includes(c.id) ? 'border-red-300 bg-red-50/60' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="checkbox" className="mt-1" checked={drops.includes(c.id)}
+                      onChange={() => toggleDrop(c.id)} />
+                    <span className="min-w-0">
+                      <span className="block font-medium text-gray-900 truncate">{c.name}</span>
+                      <span className="block text-xs text-gray-500">{meetingText(c.meetings)}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Classes to add</p>
+            {addList.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {addList.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between rounded-lg border border-optio-purple/40 bg-optio-purple/5 px-3 py-2">
+                    <span className="min-w-0">
+                      <span className="block font-medium text-gray-900 truncate">{c.name}</span>
+                      <span className="block text-xs text-gray-500">{meetingText(c.meetings)}</span>
+                    </span>
+                    <button type="button" onClick={() => setAdds((a) => a.filter((x) => x !== c.id))}
+                      className="text-sm text-gray-400 hover:text-gray-600 shrink-0 ml-3">Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {addable.length > 0 ? (
+              <select className={`${field} w-full`} value={picking} aria-label="Class to add"
+                onChange={(e) => {
+                  if (!e.target.value) return
+                  setAdds((a) => [...a, e.target.value])
+                  setPicking('')
+                }}>
+                <option value="">Pick a class to add…</option>
+                {addable.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{meetingText(c.meetings) ? ` — ${meetingText(c.meetings)}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-gray-400">No other classes are open right now.</p>
+            )}
+          </div>
+
+          <label className="block">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+              Anything else the office should know?
+            </span>
+            <textarea className={`${field} w-full`} rows={3} value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional — timing, a preferred teacher, why the change." />
+          </label>
+        </div>
+
+        <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
+          <button type="button" onClick={onClose} className="text-sm text-gray-400 hover:underline">Cancel</button>
+          <button type="button" disabled={busy || nothingPicked}
+            title={nothingPicked ? 'Pick at least one class to add or drop' : undefined}
+            onClick={() => onSubmit({ drops: dropList, adds: addList, note })}
+            className="btn-primary disabled:opacity-50">
+            {busy ? 'Sending…' : 'Send request'}
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
   )
 }
 

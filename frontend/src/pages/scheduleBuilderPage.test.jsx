@@ -19,12 +19,13 @@ import { withConfirm } from '../tests/confirmTestUtils'
 
 const ORG = { organization_id: 'org1', organization_name: 'Micro School', students: [{ student_id: 's1', name: 'Kid One', avatar_url: 'x.jpg' }] }
 
-const mockApi = ({ orgs = [ORG], schedule = {}, classes = [] } = {}) => (url) => {
+const mockApi = ({ orgs = [ORG], schedule = {}, classes = [], submissions = [] } = {}) => (url) => {
   if (url.includes('/parent/context')) return Promise.resolve({ data: { orgs, my_avatar_url: 'me.jpg' } })
   if (url.includes('/schedule')) {
     return Promise.resolve({ data: { classes: [], waitlist: [], time_blocks: [], first_day_of_school: null, changes_locked: false, ...schedule } })
   }
   if (url.includes('/parent/classes')) return Promise.resolve({ data: { classes } })
+  if (url.includes('/parent/forms')) return Promise.resolve({ data: { submissions } })
   return Promise.resolve({ data: {} })
 }
 
@@ -132,6 +133,75 @@ describe('ScheduleBuilderPage', () => {
     fireEvent.click(screen.getByText('Pottery'))
     expect(await screen.findByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Drop class|Add class|Join waitlist/ })).not.toBeInTheDocument()
+  })
+
+  // ── Add/drop requests: the read-only page's one remaining action ──────────
+  // iCreate, 2026-09-01. Their window closes Sept 8, so the button has to be
+  // gone on Sept 9 without anyone deploying anything.
+  const LOCKED_IN_WINDOW = {
+    classes: [POTTERY], changes_locked: true, first_day_of_school: '2026-08-24',
+    add_drop_open: true, add_drop_deadline: '2026-09-08',
+  }
+
+  it('offers an add/drop request while the window is open', async () => {
+    api.get.mockImplementation(mockApi({ schedule: LOCKED_IN_WINDOW }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByRole('button', { name: 'Request an add/drop' })).toBeInTheDocument()
+    expect(screen.getByText(/Add\/drop closes after September 8, 2026/)).toBeInTheDocument()
+    // The locked banner points at the button instead of the front desk.
+    expect(screen.getByText(/Send an add\/drop request below/)).toBeInTheDocument()
+  })
+
+  it('hides the request button once the deadline has passed', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: { ...LOCKED_IN_WINDOW, add_drop_open: false },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/schedule changes are now made by/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request an add/drop' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Contact Micro School to add or drop classes/)).toBeInTheDocument()
+  })
+
+  it('files a request naming the classes to drop and add', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: LOCKED_IN_WINDOW,
+      classes: [{ ...POTTERY, id: 'c2', name: 'Woodshop' }],
+    }))
+    api.post.mockResolvedValue({ data: { submission: { id: 'sub1' } } })
+    render(<ScheduleBuilderPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Request an add/drop' }))
+
+    // Nothing picked yet — there is nothing for the office to do.
+    expect(await screen.findByRole('button', { name: 'Send request' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Pottery/ }))
+    fireEvent.change(screen.getByLabelText('Class to add'), { target: { value: 'c2' } })
+    fireEvent.change(screen.getByPlaceholderText(/Optional/), { target: { value: 'Mornings work better.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
+
+    // The office can make this change from the task alone — every line names a
+    // real class with its day and time.
+    const when = 'Tue \u00b7 9am\u201310:30am'
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/forms', {
+      organization_id: 'org1',
+      form_type: 'schedule_change',
+      title: 'Add/drop — Kid One',
+      body: `Drop: Pottery (${when})\nAdd: Woodshop (${when})\n\nMornings work better.`,
+      student_user_id: 's1',
+    }))
+  })
+
+  it('says the request is in rather than inviting a duplicate', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: LOCKED_IN_WINDOW,
+      submissions: [{ id: 'sub1', form_type: 'schedule_change', status: 'under_review', student_user_id: 's1' }],
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/Your add\/drop request is in/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request an add/drop' })).not.toBeInTheDocument()
+    // A resolved one would not hold the button back, and neither does a
+    // sibling's — this one is open and belongs to the student on screen.
+    expect(screen.getByRole('button', { name: 'Send another request' })).toBeInTheDocument()
   })
 
   it('blocks adding a class that overlaps an enrolled class', async () => {
