@@ -89,12 +89,15 @@ masquerade tests pass.
 Log:
 - 2026-08-31: Plan created.
 
-### SEC-04 — `.env.example` ships the production Supabase project ref `[TODO]`
+### SEC-04 — `.env.example` ships the production Supabase project ref `[DONE]`
 Replace `https://vvfgxcykxjybtvpfzwyx.supabase.co` (and related refs) in tracked
 `.env.example` files with placeholders.
 Accept: no tracked example file names the prod project.
 Log:
 - 2026-08-31: Plan created.
+- 2026-08-31: Fixed backend/.env.example:14 and frontend/.env.example:11 ->
+  `your-project-ref` placeholder. Other tracked refs (workflows, email
+  templates with public storage asset URLs, docs) are operational, left alone.
 
 ### SEC-05 — PII log scrubber exists but is not installed `[TODO]`
 `utils/log_scrubber.py` (mask_email/mask_pii) is never attached as a logging
