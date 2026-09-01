@@ -24,6 +24,7 @@ from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from services.portfolio_service import PortfolioService
 from utils.accreditation import resolve_transcript_accreditation
+from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
 from app_config import Config
 
@@ -124,7 +125,8 @@ def get_transcript_data(admin_user_id, user_id):
         # Whose accreditation this transcript is issued under (Optio Academy WASC,
         # the org's own, or none). Frontend shows the WASC mark only for 'optio'.
         accreditation = resolve_transcript_accreditation(
-            student.get('organization_id'), org_row
+            student.get('organization_id'), org_row,
+            academy_enrolled=academy_enrollment.is_academy_student(user_id, client=supabase),
         )
 
         # Transfer credits (all records) - fetch first to subtract from earned
@@ -577,7 +579,21 @@ def get_transfer_history(admin_user_id, user_id):
         result = supabase.table('transcript_transfer_log').select(
             'id, school_name, recipient_name, recipient_email, status, created_at'
         ).eq('user_id', user_id).order('created_at', desc=True).limit(20).execute()
-        return success_response({'transfers': result.data or []})
+
+        # The school of record the family named when they enrolled, so the send
+        # form opens pre-filled instead of asking an admin to look up a
+        # registrar the student already told us about.
+        dest = academy_enrollment.get_destination(user_id, client=supabase) or {}
+        return success_response({
+            'transfers': result.data or [],
+            'records_destination': {
+                'destination_type': dest.get('destination_type'),
+                'school_name': dest.get('school_name'),
+                'recipient_name': dest.get('registrar_name'),
+                'recipient_email': dest.get('registrar_email'),
+                'auto_send_consent': bool(dest.get('auto_send_consent')),
+            } if dest else None,
+        })
     except Exception as e:
         logger.error(f"Error fetching transfer history: {str(e)}")
         return error_response(str(e), status_code=500)
@@ -648,7 +664,8 @@ def send_transcript_to_school(admin_user_id, user_id):
             except Exception:
                 org_row = None
         accreditation = resolve_transcript_accreditation(
-            student.get('organization_id'), org_row
+            student.get('organization_id'), org_row,
+            academy_enrolled=academy_enrollment.is_academy_student(user_id, client=supabase),
         )
 
         # Overrides may carry a corrected display name / issue date / DOB.

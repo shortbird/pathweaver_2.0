@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
 from utils.accreditation import resolve_transcript_accreditation
+from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
 
 logger = get_logger(__name__)
@@ -272,7 +273,8 @@ def get_public_transcript(user_id):
         # the org's own accreditation, or none.) Frontend renders the WASC mark
         # only when source == 'optio'.
         accreditation = resolve_transcript_accreditation(
-            student.get('organization_id'), org_row
+            student.get('organization_id'), org_row,
+            academy_enrolled=academy_enrollment.is_academy_student(user_id, client=client),
         )
 
         XP_PER_CREDIT = 2000

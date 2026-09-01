@@ -19,11 +19,31 @@ const TransferToSchoolModal = ({ userId, studentName, generatePdfBase64, onClose
   const [sending, setSending] = useState(false);
   const [history, setHistory] = useState(null);
 
+  // Whether the school of record came from the family rather than this admin's
+  // typing — worth saying on screen, since it is the family's own answer.
+  const [prefilled, setPrefilled] = useState(false);
+
   const loadHistory = () => {
     api.get(`/api/admin/transcript/${userId}/transfers`)
       .then((res) => {
         const body = res.data?.data || res.data;
         setHistory(body?.transfers || []);
+        // Prefill from the school of record captured at enrollment. Only fills
+        // BLANK fields, so an admin who has already started typing (or reopened
+        // the modal after editing) never has their entry overwritten.
+        const dest = body?.records_destination;
+        if (dest?.destination_type === 'school' && dest.school_name) {
+          setForm((prev) => {
+            if (prev.school_name || prev.recipient_email) return prev;
+            setPrefilled(true);
+            return {
+              ...prev,
+              school_name: dest.school_name || '',
+              recipient_name: dest.recipient_name || '',
+              recipient_email: dest.recipient_email || '',
+            };
+          });
+        }
       })
       .catch(() => setHistory([]));
   };
@@ -70,6 +90,12 @@ const TransferToSchoolModal = ({ userId, studentName, generatePdfBase64, onClose
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+          {prefilled && (
+            <p className="text-sm text-optio-purple bg-optio-purple/5 rounded-lg px-3 py-2">
+              Pre-filled with the school {studentName} named at enrollment. Edit anything that
+              has changed.
+            </p>
+          )}
           <p className="text-sm text-gray-600">
             Sends the official transcript for <span className="font-semibold">{studentName}</span> as
             a PDF attachment from support@optioeducation.com, with a verification link for the
