@@ -34,6 +34,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Required for Workload Identity Federation: lets the job mint the short-lived
+  # OIDC token that GCP trades for storage access. Without it the auth step fails
+  # with a missing-token error, not a permission error.
+  id-token: write
 
 jobs:
   backup:
@@ -268,24 +272,51 @@ jobs:
           rm -f "$DUMP"
           ls -lh "$DUMP.gpg"
 
-      - name: Upload to object storage
-        # S3-compatible on purpose: the same code works against Backblaze B2,
-        # Cloudflare R2, or AWS S3. Only the endpoint/region secrets change.
+      - name: Check storage configuration
+        # Fail loudly and by name, the way the DB and GPG steps do. These are
+        # vars rather than secrets on purpose: none of them is confidential, and
+        # a wrong provider path is far easier to debug when you can read it back.
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION }}
-          ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
-          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          WIF_PROVIDER: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::Variable $1 is not set — see backend/docs/BACKUP_RESTORE.md"; exit 1; }
+          [ -n "${WIF_PROVIDER:-}" ]    || fail BACKUP_GCP_WIF_PROVIDER
+          [ -n "${SERVICE_ACCOUNT:-}" ] || fail BACKUP_GCP_SERVICE_ACCOUNT
+          [ -n "${BUCKET:-}" ]          || fail BACKUP_GCS_BUCKET
+          echo "Target: gs://$BUCKET as $SERVICE_ACCOUNT"
+
+      - name: Authenticate to Google Cloud
+        # Workload Identity Federation: GitHub's OIDC token is exchanged for a
+        # short-lived GCP credential. Nothing long-lived is stored in the repo,
+        # which is also why HMAC keys are blocked by org policy.
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+
+      - name: Upload to object storage
+        env:
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
         run: |
           set -euo pipefail
           KEY="daily/$(date -u +%Y)/$(date -u +%m)/$DUMP.gpg"
-          aws s3 cp "$DUMP.gpg" "s3://$BUCKET/$KEY" --endpoint-url "$ENDPOINT" --only-show-errors
+          gcloud storage cp "$DUMP.gpg" "gs://$BUCKET/$KEY"
+
           # Read it back. `cp` reporting success is not proof the object landed
-          # intact and is listable; a HEAD against the key is.
-          aws s3api head-object --bucket "$BUCKET" --key "$KEY" --endpoint-url "$ENDPOINT" > /tmp/head.json
-          echo "Uploaded s3://$BUCKET/$KEY"
-          echo "Remote size: $(python3 -c 'import json;print(json.load(open("/tmp/head.json"))["ContentLength"])') bytes"
+          # intact and is listable; describing the key is.
+          REMOTE_BYTES="$(gcloud storage objects describe "gs://$BUCKET/$KEY" --format='value(size)')"
+          LOCAL_BYTES="$(stat -c%s "$DUMP.gpg")"
+          echo "Uploaded gs://$BUCKET/$KEY"
+          echo "Remote size: $REMOTE_BYTES bytes (local $LOCAL_BYTES)"
+
+          # A short write is worse than a failed one: it looks like a backup.
+          if [ "$REMOTE_BYTES" != "$LOCAL_BYTES" ]; then
+            echo "::error::Uploaded size $REMOTE_BYTES != local size $LOCAL_BYTES"
+            exit 1
+          fi
 
       - name: Summary
         if: always()
