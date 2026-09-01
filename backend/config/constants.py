@@ -5,15 +5,6 @@ All magic numbers, thresholds, and configuration values go here.
 This eliminates duplicate constants across the codebase.
 """
 
-# XP Progression Thresholds
-XP_THRESHOLDS = {
-    'explorer': 0,
-    'builder': 250,
-    'creator': 750,
-    'scholar': 1500,
-    'sage': 3000,
-}
-
 # File Upload Limits
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget; applies to legacy multipart POSTs)
@@ -45,8 +36,7 @@ ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.do
 # a direct-navigation to a student-uploaded SVG would be a stored-XSS vector.
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif'}
 # csv is here because the paperwork a family brings from another school is often
-# an export, not a scan (2026-08-14: a parent's first prior-learning upload was
-# two Skill Struck CSVs and both were refused). It is plain text to the magic-byte
+# an export, not a scan. It is plain text to the magic-byte
 # check and is only ever stored and downloaded, never rendered by the app.
 # Spreadsheets proper (xls/xlsx) are still refused: xlsx is a zip to magic, so
 # accepting it would mean accepting application/zip for everything.
