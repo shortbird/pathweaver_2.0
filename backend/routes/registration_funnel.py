@@ -105,6 +105,8 @@ from services.registration_identity_service import (
 )
 from utils.logger import get_logger
 from services.email_service import email_service
+# One definition of "a phone number", shared with the SMS verification flow.
+from services.phone_verification_service import normalize_phone
 
 logger = get_logger(__name__)
 
@@ -1081,9 +1083,18 @@ def submit_family(reg_id):
     # left every funnel-registered parent looking phoneless there (iCreate,
     # 2026-08-28: "Are we still not capturing phone numbers?"). Fill, never
     # clobber — staff may have typed a corrected number by hand.
+    #
+    # Stored in E.164, matching the SMS verification flow that prefills from
+    # this column. Unlike the staff profile, an unparseable number is kept as
+    # typed rather than refused: this is a public funnel, and turning a family
+    # away at enrollment over phone formatting is worse than a number a human
+    # still has to read.
     try:
         if phone and not (parent.get('phone_number') or '').strip():
-            admin.table('users').update({'phone_number': phone}).eq('id', parent_id).execute()
+            stored = normalize_phone(phone) or phone
+            if stored != phone:
+                logger.info(f'Registration phone normalized for parent {parent_id[:8]}')
+            admin.table('users').update({'phone_number': stored}).eq('id', parent_id).execute()
     except Exception as e:  # noqa: BLE001 — registration must not fail over this
         logger.warning(f'Could not copy registration phone to parent {parent_id}: {e}')
 
