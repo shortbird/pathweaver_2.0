@@ -7,85 +7,82 @@ import { useAuth } from '../../contexts/AuthContext'
 import { canSeeHr } from './sisRole'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ModalOverlay from '../../components/ui/ModalOverlay'
-import SendForSignatureModal from '../../components/sis/tasks/SendForSignatureModal'
+import AssignComposer from '../../components/sis/tasks/AssignComposer'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
-import SignatureBatches from '../../components/sis/tasks/SignatureBatches'
+import AssignedWork from '../../components/sis/tasks/AssignedWork'
 import FormRoutingModal from '../../components/sis/tasks/FormRoutingModal'
 import { AdminQueue, SubmitForm } from './StaffFormsPage'
 import FormBuilder from '../../components/sis/tasks/FormBuilder'
-import { AdminOnboarding } from './OnboardingPage'
+import { awaitingReviewOf } from './OnboardingPage'
+import { SecureDocumentsPanel } from './SecureDocumentsPage'
+import { isPathHidden } from './sisModules'
 
 /**
- * Task Center — the office's side of everything it asks people to do.
+ * Task Center — organized by direction, because that is how the office thinks:
  *
- * Three tabs rather than one grid: a request has a status, an assignee and a
- * comment thread; a checklist is a template assigned to a person; a sent
- * document is one file and a list of who has signed it. They are genuinely
- * different records, and flattening them into one table would make all three
- * worse. What IS unified is the entry point — one page, one "Assign or send"
- * menu — so nobody has to know which of the three a piece of work belongs to
- * before they can start it.
+ *   Requests   what people send US (the queue, plus the forms that shape it)
+ *   Assigned   what WE asked of people — tasks, checklists and documents out
+ *              for signature, one list (they are one table underneath)
+ *   Documents  the filing cabinet (the HR-only secure store)
  *
- * The tab labels carry counts because the bar is the triage surface: "Requests ·
- * Checklists · Sent paperwork" told an admin nothing about where the work was,
- * so finding it meant opening all three.
+ * Five nouns used to live here — requests, tasks, checklists, forms, paperwork
+ * — and neither iCreate's admin nor ours could say what did what (2026-08-31).
+ * They were tabs by record type, which is the implementation's view. The two
+ * verbs the office actually has are "someone asked us" and "we asked someone";
+ * everything else is an option inside the Assign composer, not a concept to
+ * learn first.
  *
- * HR paperwork is the same send flow with sensitivity='hr' on the HR-gated
- * endpoints. A campus coordinator reaches this page and sends campus paperwork;
- * the HR sends are neither listed nor sendable for them, enforced server-side.
+ * Authoring (request forms, checklist templates) is collapsed inside the tab
+ * whose output it shapes — rare acts must not sit on top of daily triage.
+ *
+ * HR paperwork is the same send with sensitivity='hr' on the HR-gated
+ * endpoints. A campus coordinator sees campus paperwork in Assigned and no
+ * Documents tab at all; both enforced server-side, this is just the chrome.
  */
 
-const TABS = [
+// The Documents tab exists only for HR — for everyone else the store is not
+// theirs to see and the tab would be empty chrome.
+const tabsFor = (hr) => [
   ['requests', 'Requests'],
-  // Named for what it holds now: the school's own forms are built here too,
-  // alongside the checklists (b0d6324a, 16b736f3).
-  ['checklists', 'Forms & checklists'],
-  ['paperwork', 'Sent paperwork'],
+  ['assigned', 'Assigned'],
+  ...(hr ? [['documents', 'Documents']] : []),
 ]
 
-// "form" leads the create action because it is the word staff use for these —
-// teachers submit from a page called Forms — and it appeared nowhere on the
-// admin side. The office looked at this menu, read "request or task", and
-// concluded the console could not create a form at all (iCreate, 2026-08-20:
-// "I see checklists in the task center, but no way to create a form"). Same
-// record, same component, one vocabulary.
+// Every tab name this page has ever had, mapped to where that work lives now —
+// old notification links and bookmarks must keep landing on the right list.
+const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned' }
+
 const CREATE_ACTIONS = [
-  ['request', 'New form, request, or task'],
-  ['checklist', 'Assign a checklist'],
-  ['signature', 'Send a document for signature'],
+  ['assign', 'Assign a task'],
+  ['request', 'New request'],
 ]
 
-// Each tab's own create action, promoted to the button. iCreate, 2026-08-21:
-// "'new form, request or task' is still under the assign or send button. Why
-// have a button? Why not just have those be tabs like the other ones?"
-//
-// They are not tabs because a tab is somewhere you go and come back from, and
-// creating is neither — switching to a "new form" tab would take away the queue
-// you were reading. But the ask underneath is right: the action was two clicks
-// behind a label ("Assign or send") that named none of the three things it did.
-// So the primary button now says what THIS tab makes, and the other two stay
-// one click away under the caret.
 const PRIMARY_ACTION = {
   requests: 'request',
-  checklists: 'checklist',
-  paperwork: 'signature',
+  assigned: 'assign',
+  documents: 'assign',
 }
 
 const TaskCenterPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = TABS.some(([t]) => t === searchParams.get('tab')) ? searchParams.get('tab') : 'requests'
-  const openSubmissionId = searchParams.get('submission')
   const hr = canSeeHr(user)
+  const showDocuments = hr && !isPathHidden('/secure-documents', activeOrg)
+  const TABS = tabsFor(showDocuments)
+  const rawTab = searchParams.get('tab')
+  const mapped = TABS.some(([t]) => t === rawTab) ? rawTab : LEGACY_TABS[rawTab]
+  const tab = TABS.some(([t]) => t === mapped) ? mapped : 'requests'
+  const openSubmissionId = searchParams.get('submission')
   const sigEndpoint = hr ? '/api/sis/secure-documents/signature-requests'
     : '/api/sis/staff-admin/signature-requests'
 
   const [staff, setStaff] = useState([])
   const [formTypes, setFormTypes] = useState({})
-  const [creating, setCreating] = useState(null) // null | 'request' | 'checklist' | 'signature'
+  const [creating, setCreating] = useState(null) // null | 'assign' | 'request' | 'checklist'
   const [menuOpen, setMenuOpen] = useState(false)
-  const [routing, setRouting] = useState(false)   // "Where forms go" editor
+  const [routing, setRouting] = useState(false)   // "Where requests go" editor
+  const [manageFormsOpen, setManageFormsOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [counts, setCounts] = useState({})
 
@@ -102,31 +99,24 @@ const TaskCenterPage = () => {
   // Stable identities: each tab reports its own count while it is mounted, and
   // an unstable callback here would re-run the child's reporting effect forever.
   const countRequests = useCallback((n) => setCounts((p) => (p.requests === n ? p : { ...p, requests: n })), [])
-  const countChecklists = useCallback((n) => setCounts((p) => (p.checklists === n ? p : { ...p, checklists: n })), [])
-  const countPaperwork = useCallback((n) => setCounts((p) => (p.paperwork === n ? p : { ...p, paperwork: n })), [])
+  const countAssigned = useCallback((n) => setCounts((p) => (p.assigned === n ? p : { ...p, assigned: n })), [])
 
   // The tabs that are NOT mounted cannot report, so fetch theirs here. Skipping
   // the active one keeps this from duplicating the request the tab itself makes.
+  // Counts are what needs the OFFICE: open requests, finished items awaiting an
+  // approval — not work that is waiting on other people.
   useEffect(() => {
     if (!orgId) return
     if (tab !== 'requests') {
       api.get(withOrg('/api/sis/staff-admin/forms?status=open', orgId))
         .then((r) => countRequests(r.data?.counts?.open ?? 0)).catch(() => {})
     }
-    if (tab !== 'checklists') {
+    if (tab !== 'assigned') {
       api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId))
-        .then((r) => countChecklists((r.data?.assignments || []).reduce(
-          (n, a) => n + (a.items || []).filter(
-            (i) => i.needs_approval && i.status === 'complete').length, 0)))
+        .then((r) => countAssigned(awaitingReviewOf(r.data?.assignments || []).length))
         .catch(() => {})
     }
-    if (tab !== 'paperwork') {
-      api.get(withOrg(sigEndpoint, orgId))
-        .then((r) => countPaperwork((r.data?.batches || []).filter(
-          (b) => b.signed_count < b.total_count).length))
-        .catch(() => {})
-    }
-  }, [orgId, tab, sigEndpoint, refreshKey, countRequests, countChecklists, countPaperwork])
+  }, [orgId, tab, refreshKey, countRequests, countAssigned])
 
   const setTab = (next) => {
     const params = new URLSearchParams(searchParams)
@@ -181,10 +171,6 @@ const TaskCenterPage = () => {
                         {label}
                       </button>
                     ))}
-                    <button role="menuitem" onClick={() => { setMenuOpen(false); setRouting(true) }}
-                      className="block w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-gray-50 border-t border-gray-100">
-                      Where forms go
-                    </button>
                   </div>
                 </>
               )}
@@ -193,8 +179,7 @@ const TaskCenterPage = () => {
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">
-          Forms, requests and tasks, onboarding checklists, and documents sent out for signature.
-          Build your own forms and checklists under Forms & checklists.
+          What people send the office, and what the office asks of people.
         </p>
       </div>
 
@@ -220,38 +205,48 @@ const TaskCenterPage = () => {
       </div>
 
       {tab === 'requests' && (
-        <AdminQueue key={`req-${refreshKey}`} orgId={orgId} staff={staff}
-          openSubmissionId={openSubmissionId} onCount={countRequests} />
-      )}
-      {tab === 'checklists' && (
-        // One place to build paperwork: the school's own forms and its
-        // checklists, side by side. They stay separate records underneath --
-        // a checklist carries signatures and per-item document review, a form
-        // carries questions and routing, and flattening them would cost both.
-        // But building them was two different screens, which is what "combine
-        // onboarding with forms" was really about (b0d6324a, 16b736f3).
         <div className="space-y-4">
-          <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} />
-          <AdminOnboarding key={`chk-${refreshKey}`} orgId={orgId} onCount={countChecklists} />
+          <AdminQueue key={`req-${refreshKey}`} orgId={orgId} staff={staff}
+            openSubmissionId={openSubmissionId} onCount={countRequests} />
+          {/* Authoring, collapsed to one row: the forms people file, and where
+              each kind goes. A form template shapes a REQUEST, so it lives
+              here, under the queue it feeds — not on top of it. */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <button type="button" onClick={() => setManageFormsOpen((v) => !v)}
+                aria-expanded={manageFormsOpen}
+                className="flex items-center gap-2 font-semibold text-neutral-900">
+                <span className={`text-neutral-400 text-xs transition-transform ${manageFormsOpen ? 'rotate-90' : ''}`}
+                  aria-hidden="true">▶</span>
+                Manage forms
+              </button>
+              <button onClick={() => setRouting(true)}
+                className="text-sm text-optio-purple font-medium hover:underline">
+                Where requests go
+              </button>
+            </div>
+            {manageFormsOpen && (
+              <div className="mt-3">
+                <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} />
+              </div>
+            )}
+          </div>
         </div>
       )}
-      {tab === 'paperwork' && (
-        <SignatureBatches
-          orgId={orgId}
-          // HR sees every send including employment paperwork; the front
-          // office sees campus paperwork. Two endpoints, one component.
-          endpoint={sigEndpoint}
-          reloadKey={refreshKey}
-          onCount={countPaperwork}
-        />
+      {tab === 'assigned' && (
+        <AssignedWork key={`asg-${refreshKey}`} orgId={orgId} sigEndpoint={sigEndpoint}
+          reloadKey={refreshKey} onCount={countAssigned} />
+      )}
+      {tab === 'documents' && showDocuments && (
+        <SecureDocumentsPanel key={`docs-${refreshKey}`} orgId={orgId} />
       )}
 
       {creating === 'request' && (
         <ModalOverlay onClose={() => setCreating(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4"
-            role="dialog" aria-modal="true" aria-label="New form, request, or task">
+            role="dialog" aria-modal="true" aria-label="New request">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-neutral-900">New form, request, or task</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">New request</h2>
               <button onClick={() => setCreating(null)} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
             </div>
             <SubmitForm orgId={orgId} formTypes={formTypes} admin staff={staff} embedded
@@ -264,19 +259,16 @@ const TaskCenterPage = () => {
         <FormRoutingModal orgId={orgId} staff={staff} onClose={() => setRouting(false)} />
       )}
 
-      {creating === 'checklist' && (
-        <AssignChecklistModal orgId={orgId} onClose={() => setCreating(null)}
-          onAssigned={() => afterCreate('checklists')} />
+      {creating === 'assign' && (
+        <AssignComposer orgId={orgId} sigEndpoint={sigEndpoint} allowHr={hr}
+          onClose={() => setCreating(null)}
+          onAssigned={() => afterCreate('assigned')}
+          onUseTemplate={() => setCreating('checklist')} />
       )}
 
-      {creating === 'signature' && (
-        <SendForSignatureModal
-          orgId={orgId}
-          endpoint={sigEndpoint}
-          allowHr={hr}
-          onClose={() => setCreating(null)}
-          onSent={() => afterCreate('paperwork')}
-        />
+      {creating === 'checklist' && (
+        <AssignChecklistModal orgId={orgId} onClose={() => setCreating(null)}
+          onAssigned={() => afterCreate('assigned')} />
       )}
     </div>
   )

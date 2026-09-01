@@ -142,7 +142,9 @@ describe('removing a checklist', () => {
     // A destructive action a pixel from the expand target is a mis-click
     // waiting to happen; it lives in the body now.
     expect(within(summary).queryByText(/Unassign/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Unassign this checklist/ })).toBeInTheDocument()
+    // Says "Unassign" alone now: the same card renders ad-hoc tasks, where
+    // "this checklist" would be the wrong noun.
+    expect(screen.getByRole('button', { name: /^Unassign$/ })).toBeInTheDocument()
   })
 })
 

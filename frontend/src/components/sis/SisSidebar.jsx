@@ -76,24 +76,20 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    // Things people owe, and the paperwork behind them. Forms and Onboarding
-    // used to sit here as separate entries; both are now reached through My
-    // Tasks (what I owe) and Task Center (what the office is asking of people).
-    // Their own paths still work for deep links and old notifications.
+    // Things people owe, and the paperwork behind them — two entries, one per
+    // side of the desk. Forms, Onboarding, Secure Documents and My Documents
+    // all used to sit here separately; they are now tabs inside My Tasks (what
+    // I owe, and my documents) and Task Center (what the office asks, and the
+    // secure store). Their own paths still work for deep links and old
+    // notifications.
     label: 'Tasks & Documents',
     items: [
-      // hideInPreview: the inbox is always the CALLER's own (routes/sis/tasks.py
-      // takes no ?teacher_id=), so under a teacher preview this link would put
-      // the admin's own tasks behind the teacher's name.
-      { name: 'My Tasks', path: '/my-tasks', hideInPreview: true, d: ICONS.check },
+      // Visible in preview: the page lands a preview on its Documents tab
+      // (which supports ?teacher_id=) and keeps the task inbox — always the
+      // CALLER's own, routes/sis/tasks.py takes no ?teacher_id= — behind a
+      // banner naming whose list it is.
+      { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
-      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
-      // Every staff member has documents of their own -- a contract, a signed
-      // policy -- and the page has always worked for admins and coordinators;
-      // only this link was hidden from them, so they had no way to reach it
-      // (iCreate, 2026-08-26: "None of the staff members (admin, campus
-      // coordinator) have a My Documents section showing").
-      { name: 'My Documents', path: '/my-documents', d: ICONS.doc },
     ],
   },
   {

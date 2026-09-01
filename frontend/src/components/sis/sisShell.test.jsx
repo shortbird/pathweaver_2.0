@@ -131,12 +131,10 @@ describe('SisSidebar', () => {
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
     expect(screen.getByText('Registration')).toBeInTheDocument()
-    // Their own documents, though: everyone on staff has a contract or a signed
-    // policy, and the page and its endpoint always allowed admins and
-    // coordinators — only this link was hidden from them (iCreate, 2026-08-26:
-    // "None of the staff members (admin, campus coordinator) have a My
-    // Documents section showing").
-    expect(screen.getByText('My Documents')).toBeInTheDocument()
+    // Their own tasks and documents: one entry, tabs inside (the old My
+    // Documents link — iCreate, 2026-08-26 — is a tab of My Tasks now).
+    expect(screen.getByText('My Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Task Center')).toBeInTheDocument()
     // Not the teacher portal — a coordinator is not a teacher.
     expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
     expect(screen.queryByText('My Schedule')).not.toBeInTheDocument()
@@ -151,24 +149,29 @@ describe('SisSidebar', () => {
     expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
   })
 
-  it('keeps Secure Documents for an org admin', () => {
+  it('has no separate document entries — the stores live inside the two task pages', () => {
+    // Secure Documents is the Documents tab of Task Center (HR only, enforced
+    // there and on the server); My Documents is a tab of My Tasks. Two entries
+    // per side of the desk, not four nouns.
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('Secure Documents')).toBeInTheDocument()
+    expect(screen.getByText('My Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Task Center')).toBeInTheDocument()
+    expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Documents')).not.toBeInTheDocument()
   })
 
-  it('drops My Tasks while previewing a teacher — that inbox is always the admin\u2019s own', () => {
-    // Everything else in the teacher nav follows ?teacher_id=; /api/sis/my-tasks
-    // deliberately does not, so leaving the link up puts the admin's own tasks
-    // behind the teacher's name (the shape of the iCreate 2026-08-19 report,
-    // where My Documents did exactly that with the admin's background check).
+  it('keeps My Tasks while previewing a teacher — the page lands the preview on documents', () => {
+    // /api/sis/my-tasks deliberately takes no ?teacher_id=, so the task inbox
+    // cannot answer for the teacher — but the Documents tab can, and the page
+    // opens there under a preview (with a banner on the tasks tab naming whose
+    // list it would be). Hiding the entry would strand the preview with no way
+    // to reach the teacher's documents at all.
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     setPreviewTeacher({ id: 'teach-1', name: 'Ana Rogers' })
     try {
       render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-      expect(screen.queryByText('My Tasks')).not.toBeInTheDocument()
-      // The rest of the teacher portal is still there — it can answer for her.
-      expect(screen.getByText('My Documents')).toBeInTheDocument()
+      expect(screen.getByText('My Tasks')).toBeInTheDocument()
       expect(screen.getByText('My Classes')).toBeInTheDocument()
     } finally {
       clearPreviewTeacher()

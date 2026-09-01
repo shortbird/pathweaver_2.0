@@ -374,7 +374,20 @@ def assign_onboarding(user_id):
         return err
     data = request.get_json() or {}
     if not data.get('template_id'):
-        return jsonify({'success': False, 'error': 'template_id is required'}), 400
+        # No template: a one-off task ("do this one thing"). Same record as a
+        # checklist underneath, so the recipient's inbox and the roll-up need
+        # no new shape — see onboarding.assign_task.
+        if data.get('title'):
+            result = onboarding.assign_task(
+                org_id, data['title'], data.get('user_ids') or [], assigned_by=user_id,
+                description=data.get('description'), due_date=data.get('due_date'),
+                audience=data.get('audience') or 'staff',
+                items=data.get('items') or None,
+                needs_document=bool(data.get('needs_document')))
+            if result.get('error'):
+                return jsonify({'success': False, 'error': result['error']}), 400
+            return jsonify({'success': True, **result}), 201
+        return jsonify({'success': False, 'error': 'template_id or title is required'}), 400
     # Accept a single user_id OR a list of user_ids (bulk assign).
     user_ids = data.get('user_ids')
     if isinstance(user_ids, list) and user_ids:

@@ -464,6 +464,88 @@ def assign_many(org_id: str, template_id: str, user_ids: List[str],
     return {'assigned': assigned, 'errors': errors}
 
 
+def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
+                description: Optional[str] = None, due_date: Optional[str] = None,
+                audience: str = 'staff', items: Optional[List[Dict[str, Any]]] = None,
+                needs_document: bool = False) -> Dict[str, Any]:
+    """An ad-hoc task: "do this thing (or these few things), tick when done."
+
+    Stored as an assignment with no template — the same record a checklist
+    uses, so it shows up in My Tasks, the admin roll-up and the completion flow
+    without any of them learning a new shape. The template_name carries the
+    task's title, which is what the roll-up displays.
+
+    With no `items`, the title IS the single item (plus `needs_document` when
+    the task is "send me a file"). With `items`, each becomes a step — the
+    composer's "add steps", which is all a checklist ever was.
+    """
+    title = (title or '').strip()
+    if not title:
+        return {'error': 'The task needs a title'}
+    ids = [u for u in dict.fromkeys(user_ids or []) if u]
+    if not ids:
+        return {'error': 'Pick at least one person'}
+    try:
+        assert_recipients_in_org(org_id, ids)
+    except RecipientNotInOrg as e:
+        return {'error': str(e)}
+    audience = _clean_audience(audience)
+    is_family = audience == 'family'
+    link = '/family/portal' if is_family else '/my-tasks'
+
+    if items:
+        cleaned = _clean_items(items)
+        if cleaned is None:
+            return {'error': 'Every step needs a title'}
+        # A step never signs (that is the signature-send flow, which brings the
+        # document) and never demands office approval — the whole point of an
+        # ad-hoc task is that ticking it is the end of it.
+        for it in cleaned:
+            it['needs_signature'] = False
+            it['needs_approval'] = False
+            it['document_id'] = None
+            it['due_date'] = it['due_date'] or due_date or None
+    else:
+        cleaned = [{
+            'key': f'item_{_uuid.uuid4().hex[:12]}',
+            'title': title,
+            'description': (description or '').strip() or None,
+            'required': True,
+            'needs_document': bool(needs_document),
+            'needs_signature': False, 'needs_approval': False,
+            'due_date': due_date or None, 'link': None, 'document_id': None,
+        }]
+    fresh = [{**it, 'status': 'pending', 'document_url': None, 'documents': [],
+              'submitted_at': None, 'approved_by': None, 'approved_at': None,
+              'admin_notes': None, 'signature': None}
+             for it in cleaned]
+
+    assigned, errors = 0, []
+    for uid in ids:
+        try:
+            (_admin().table('sis_onboarding_assignments').insert({
+                'organization_id': org_id, 'user_id': uid,
+                'template_id': None, 'template_name': title,
+                'description': (description or '').strip() or None if items else None,
+                'audience': audience,
+                # An ad-hoc task never gates the portal.
+                'blocks_access': False,
+                'items': [dict(it) for it in fresh], 'assigned_by': assigned_by,
+            }).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'[Onboarding] Ad-hoc task insert failed for org {org_id}: {e}')
+            errors.append('Could not assign to one recipient')
+            continue
+        assigned += 1
+        n = len(fresh)
+        sis_notifications.notify(
+            uid, 'New task',
+            f'"{title}"' + (f' — {n} steps' if n > 1 else '')
+            + (f' — due {due_date}' if due_date else ''),
+            link=link, organization_id=org_id)
+    return {'assigned': assigned, 'errors': errors}
+
+
 def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]]:
     """People an admin can assign a template to, by audience. 'family' returns the
     org's guardians (parents); 'staff' returns teachers/admins."""

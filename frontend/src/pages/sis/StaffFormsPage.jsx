@@ -466,7 +466,10 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <h2 className="font-semibold text-neutral-900">Forms, requests and tasks</h2>
+        {/* One word. "Forms, requests and tasks" listed every noun this record
+            has ever been called, and reading three nouns to find one queue is
+            the confusion the 2026-08-31 redesign exists to end. */}
+        <h2 className="font-semibold text-neutral-900">Requests</h2>
         <div className="flex items-center gap-3 flex-wrap">
         <label className="text-xs text-neutral-500 flex items-center gap-1">
           Assigned to
