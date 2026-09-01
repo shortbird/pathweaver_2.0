@@ -136,15 +136,15 @@ def class_roster(user_id, class_id):
 @bp.route('/classes/<class_id>/messaging', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def class_messaging(user_id, class_id):
-    """Everything the class Messages tab needs: the class group chat and the
-    people a teacher can message one-to-one (students on the roster, plus any
-    co-teachers).
+    """Everything the class Messages tab needs: the class's two group chats
+    (the parent chat and the student chat) and the people a teacher can message
+    one-to-one (students on the roster, plus any co-teachers).
 
-    The group is synced from the roster on every call, so opening the tab both
-    creates the chat for a class that never had one and repairs membership after
-    an enrollment change. The caller is ensured into it as an admin — reading a
-    group requires membership, and staff who can reach this class administer
-    its chat.
+    The groups are synced from the roster on every call, so opening the tab
+    both creates the chats for a class that never had them and repairs
+    membership after an enrollment change. The caller is ensured into both as
+    an admin — reading a group requires membership, and staff who can reach
+    this class administer its chats.
 
     Deliberately NOT the roster endpoint: this returns no health or guardian
     data, so it does not belong in student_access_logs.
@@ -165,10 +165,12 @@ def class_messaging(user_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     cls = cls[0]
 
-    from services.class_group_sync_service import sync_class_group
-    group_id = sync_class_group(class_id, actor_id=user_id)
+    from services.class_group_sync_service import sync_class_groups
+    group_ids = sync_class_groups(class_id, actor_id=user_id)
 
-    if group_id:
+    def _load_group(group_id, fallback_name):
+        if not group_id:
+            return None
         me = (admin.table('group_members').select('id, role')
               .eq('group_id', group_id).eq('user_id', user_id).limit(1).execute()).data
         if not me:
@@ -178,14 +180,15 @@ def class_messaging(user_id, class_id):
             }).execute()
         elif me[0].get('role') != 'admin':
             admin.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()
-
-    group = None
-    if group_id:
         rows = (admin.table('group_conversations')
                 .select('id, name, announcement_only, last_message_at')
                 .eq('id', group_id).limit(1).execute()).data
-        group = rows[0] if rows else {'id': group_id, 'name': f"{cls.get('name')} Class Chat"}
+        group = rows[0] if rows else {'id': group_id, 'name': fallback_name}
         group['source_class_id'] = class_id
+        return group
+
+    group = _load_group(group_ids.get('family'), f"{cls.get('name')} Class Chat")
+    student_group = _load_group(group_ids.get('student'), f"{cls.get('name')} Student Chat")
 
     student_ids = membership.class_student_ids(class_id)
 
@@ -228,6 +231,7 @@ def class_messaging(user_id, class_id):
         'success': True,
         'class': {'id': cls['id'], 'name': cls['name']},
         'group': group,
+        'student_group': student_group,
         'students': _people(student_ids, 'student'),
         'teachers': _people(teacher_ids, 'teacher'),
     })

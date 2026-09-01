@@ -2,8 +2,8 @@
 Per-class curriculum materials (2026-07-27) — documents and links a teacher
 shares with a single SIS class (an org_classes row).
 
-Additive, prefix /api/sis. Like class_discussions (and unlike the rest of the
-staff-only SIS console), these endpoints are open to any authenticated user,
+Additive, prefix /api/sis. Unlike the rest of the staff-only SIS console,
+these endpoints are open to any authenticated user,
 because a class's materials are read by its enrolled STUDENTS as well as its
 teacher(s). Authorization is a per-class participant gate enforced here in
 Python, NOT a role check:
@@ -69,8 +69,8 @@ def _load_org_class(admin, class_id):
 
 
 def _access(user_id, class_row, admin):
-    """(allowed, is_moderator) for this user against this class. Mirrors the
-    class_discussions gate: teachers/admins moderate, enrolled students read."""
+    """(allowed, is_moderator) for this user against this class:
+    teachers/admins moderate, enrolled students read."""
     org_id = class_row.get('organization_id')
 
     if sis_service.caller_is_admin(user_id):

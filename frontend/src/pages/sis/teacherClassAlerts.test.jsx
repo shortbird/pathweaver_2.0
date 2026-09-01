@@ -30,7 +30,6 @@ vi.mock('./useSisOrg', () => ({
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
 vi.mock('../../components/sis/StudentProgressTab', () => ({ default: () => <div /> }))
-vi.mock('../../components/discussion/ClassDiscussion', () => ({ default: () => <div /> }))
 vi.mock('../../components/discussion/ClassCurriculum', () => ({ default: () => <div /> }))
 vi.mock('../../components/sis/ClassCurriculumLibrary', () => ({ default: () => <div /> }))
 vi.mock('../../components/sis/ClassQuestsManager', () => ({ default: () => <div /> }))

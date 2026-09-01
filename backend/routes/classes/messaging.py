@@ -1,11 +1,11 @@
 """
 Class group chat.
 
-Creates (or syncs) a group conversation from a class roster: members are the
-guardians of the class's active students plus its teachers (students are not in
-the class chat — they DM their teachers instead). Idempotent via
-group_conversations.source_class_id — a second call syncs membership instead of
-creating a duplicate group.
+Creates (or syncs) the class's group conversations from its roster: a parent
+chat (guardians of active students + teachers) and a student chat (active
+students + teachers). Idempotent via group_conversations (source_class_id,
+audience) — a second call syncs membership instead of creating duplicates.
+This endpoint returns the parent chat's id.
 """
 
 from flask import request, jsonify
