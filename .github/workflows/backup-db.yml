@@ -198,8 +198,15 @@ jobs:
             --no-privileges \
             --jobs=4 \
             "$DUMP" 2> /tmp/restore.err || true
-          echo "Restore stderr (last 20 lines):"
-          tail -20 /tmp/restore.err || true
+          # Diagnostics show the FIRST failures and a deduped tally, not just the
+          # tail. A tail only ever shows knock-on constraint errors; the failure
+          # that actually matters is the earliest one.
+          echo "Restore errors: $(grep -c 'pg_restore: error:' /tmp/restore.err || true)"
+          echo "--- first 40 lines of restore stderr ---"
+          head -40 /tmp/restore.err || true
+          echo "--- distinct errors, most frequent first ---"
+          grep -oE 'ERROR:.*' /tmp/restore.err \
+            | sed -E 's/"[^"]*"/"X"/g' | sort | uniq -c | sort -rn | head -15 || true
 
           # 4. Assert the core tables came back with plausible volume. Floors are
           #    set well under the current counts (users 736, quests 1031,
