@@ -82,6 +82,19 @@ const priceLabel = (cents) => (cents ? `$${(cents / 100).toFixed(cents % 100 ? 2
 
 const dollars = (n) => `$${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`
 
+// Sortable "when does this class first meet" key: day * 1440 + start minutes.
+// Unscheduled classes sort to the end.
+const firstSlot = (c) => {
+  let best = Infinity
+  for (const m of c.meetings || []) {
+    if (m.day_of_week == null) continue
+    const mins = toMinutes(m.start_time)
+    const key = m.day_of_week * 1440 + (mins == null ? 0 : mins)
+    if (key < best) best = key
+  }
+  return best
+}
+
 // Does this class admit a student of `age`? Unknown ages and unbounded classes pass.
 const fitsAge = (cls, age) => {
   if (age == null) return true
@@ -417,6 +430,11 @@ const ClpPage = () => {
       .filter((c) => (fitsOnly ? !conflictsWithSchedule(c, schedule) : true))
       .filter((c) => (timeFocus ? c.meetings.some((m) => timeFocus.meetings.some((fm) => meetingsOverlap(m, fm))) : true))
       .map((c) => ({ ...c, conflicts: conflictsWithSchedule(c, schedule) }))
+      // Day, then time, then name. A CLP meeting walks the week in order —
+      // "what else is open Tuesday morning?" — and an alphabetical list made
+      // staff re-sort it in their heads against the family's schedule
+      // (iCreate, 2026-09-02). Classes with no weekly meeting sort last.
+      .sort((a, b) => firstSlot(a) - firstSlot(b) || (a.name || '').localeCompare(b.name || ''))
   }, [student, classSearch, hideFull, fitsOnly, allAges, studentAge, timeFocus, schedule])
 
   // ── Render helpers (plain functions → stable DOM, no remount) ───────────────
@@ -632,6 +650,22 @@ const ClpPage = () => {
             <div className="text-neutral-500 mt-0.5 text-sm">
               {student.family?.name && <span>{student.family.name}</span>}
             </div>
+            {/* Guardian phone right here — building a schedule meant switching
+                to the family directory and back for every call (iCreate,
+                2026-09-02). Hidden with the screen turned to the family: they
+                know their own number, and it is one more thing on the page. */}
+            {!presentation && student.family?.guardians?.length > 0 && (
+              <div className="text-sm text-neutral-500 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                {student.family.guardians.map((g) => (
+                  <span key={g.name + (g.phone || g.email || '')}>
+                    <span className="text-neutral-600">{g.name}</span>
+                    {g.phone
+                      ? <a href={`tel:${g.phone}`} className="ml-1.5 text-optio-purple hover:underline">{g.phone}</a>
+                      : <span className="ml-1.5 text-neutral-300">no phone on file</span>}
+                  </span>
+                ))}
+              </div>
+            )}
             {/* School of record. Read-only with the screen turned to the family;
                 staff can set it right here during the meeting, which is what
                 iCreate asked for ("maybe we could check the box during the

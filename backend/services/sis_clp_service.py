@@ -206,6 +206,10 @@ def _family_and_siblings(org_id: str, student_id: str):
     sib_ids = [m['user_id'] for m in members
                if m.get('relationship') == 'student' and m['user_id'] != student_id]
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') != 'student']
+    # Guardian contact on the meeting screen itself. Working a student's
+    # schedule meant flipping to the family directory for a phone number and
+    # back again, all meeting long (iCreate, 2026-09-02).
+    family['guardians'] = _guardian_contacts(guardian_ids)
     siblings: List[Dict[str, Any]] = []
     if sib_ids:
         rows = (
@@ -217,6 +221,26 @@ def _family_and_siblings(org_id: str, student_id: str):
                      'age': _age(r.get('date_of_birth'))} for r in rows]
         siblings.sort(key=lambda s: s['name'].lower())
     return family, siblings, guardian_ids
+
+
+def _guardian_contacts(guardian_ids: List[str]) -> List[Dict[str, Any]]:
+    """[{name, phone, email}] for a household's guardians, name-sorted."""
+    if not guardian_ids:
+        return []
+    try:
+        rows = (
+            _admin().table('users')
+            .select('id, first_name, last_name, display_name, username, email, '
+                    'phone_number, preferred_name')
+            .in_('id', guardian_ids).execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001 — contact info is decoration, not the meeting
+        logger.warning(f'CLP: guardian contact lookup failed: {e}')
+        return []
+    out = [{'name': _full_name(r), 'phone': r.get('phone_number'), 'email': r.get('email')}
+           for r in rows]
+    out.sort(key=lambda g: (g['name'] or '').lower())
+    return out
 
 
 def _family_payment_intent(org_id: str, guardian_ids: List[str]) -> Optional[List[str]]:

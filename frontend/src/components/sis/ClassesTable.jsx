@@ -47,6 +47,7 @@ const SORT_VALUE = {
     const first = (c.meetings || []).find((m) => m.start_time)
     return first ? hhmm(first.start_time) : '99:99'
   },
+  room: (c) => (c.location || '\uffff').toLowerCase(),   // unassigned rooms sort last
   ages: (c) => (c.min_age != null ? c.min_age : 999),
   enrolled: (c) => c.enrolled_count ?? 0,
   waitlist: (c) => c.waitlist_count ?? 0,
@@ -54,7 +55,7 @@ const SORT_VALUE = {
 
 const SORT_LABELS = {
   name: 'Name', teacher: 'Teacher', days: 'Days', time: 'Time',
-  ages: 'Ages', enrolled: 'Enrolled', waitlist: 'Waitlist',
+  room: 'Room', ages: 'Ages', enrolled: 'Enrolled', waitlist: 'Waitlist',
 }
 
 // Multi-level sort: `sort` is an ordered list of {key, dir}. Index 0 is the
@@ -178,13 +179,16 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onT
           <span className="text-neutral-300 hidden sm:inline">· Click a column to add a deeper level; click again to flip or remove it.</span>
         </div>
       )}
-      <table className="w-full text-sm min-w-[700px]">
+      <table className="w-full text-sm min-w-[780px]">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
             <SortHeader label="Name" sortKey="name" sort={sort} onSort={onSort} />
             <SortHeader label="Teacher" sortKey="teacher" sort={sort} onSort={onSort} />
             <SortHeader label="Days" sortKey="days" sort={sort} onSort={onSort} />
             <SortHeader label="Time" sortKey="time" sort={sort} onSort={onSort} />
+            {/* Assigning rooms meant opening every class in turn to see which
+                room it already had (iCreate, 2026-09-02). */}
+            <SortHeader label="Room" sortKey="room" sort={sort} onSort={onSort} />
             <SortHeader label="Ages" sortKey="ages" sort={sort} onSort={onSort} />
             <SortHeader label="Enrolled" sortKey="enrolled" sort={sort} onSort={onSort} />
             <SortHeader label="Waitlist" sortKey="waitlist" sort={sort} onSort={onSort} />
@@ -228,6 +232,9 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onT
                   </td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{daysText(c.meetings)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{timeText(c.meetings)}</td>
+                  <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
+                    {c.location || <span className="text-neutral-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{agesText(c)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
                     {c.enrolled_count ?? 0}{c.capacity != null ? `/${c.capacity}` : ''}
@@ -294,7 +301,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onT
                 </tr>
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
-                    <td colSpan={8} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td colSpan={9} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <ClassFieldsEditor
                         draft={d}
                         onChange={(patch) => edit(c, patch)}
