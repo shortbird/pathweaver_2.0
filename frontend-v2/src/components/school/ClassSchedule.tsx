@@ -9,11 +9,12 @@
  *
  * Laid out day by day, in time order, since 2026-08-25 — see StudentDays.
  */
-import React from 'react';
-import { View } from 'react-native';
+import React, { useState } from 'react';
+import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { UIText, VStack, HStack } from '@/src/components/ui';
+import { UIText, VStack, HStack, toast } from '@/src/components/ui';
 import { SchoolSection } from './SchoolSection';
+import { printSchedule } from './printSchedule';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   useClassSchedule, meetingsByDay, meetingTime,
@@ -79,6 +80,49 @@ function StudentDays({ classes }: { classes: ScheduledClass[] }) {
   );
 }
 
+/**
+ * Print or save this week as a PDF.
+ *
+ * iCreate, 2026-08-31: "Would be nice if we could print the schedule." Sits
+ * under the week rather than in a menu — a parent who wants it on the fridge is
+ * looking at the schedule when they decide that.
+ */
+function PrintScheduleButton({ studentName, classes }: {
+  studentName: string; classes: ScheduledClass[];
+}) {
+  const c = useThemeColors();
+  const [busy, setBusy] = useState(false);
+
+  const onPress = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await printSchedule(studentName, classes);
+    } catch {
+      // Backing out of the OS sheet is not a failure; a real one (no print
+      // service on the device) should still say something rather than nothing.
+      toast.error('Could not open the print options');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      accessibilityRole="button"
+      accessibilityLabel="Print or save as PDF"
+      className="mt-3 flex-row items-center justify-center gap-2 rounded-xl border border-surface-200 dark:border-dark-surface-300 py-2.5"
+    >
+      <Ionicons name="print-outline" size={16} color={c.brand} />
+      <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+        {busy ? 'Opening…' : 'Print or save as PDF'}
+      </UIText>
+    </Pressable>
+  );
+}
+
 export default function ClassSchedule({
   organizationId,
   studentId,
@@ -134,6 +178,10 @@ export default function ClassSchedule({
           defaultOpen={defaultOpen}
         >
           <StudentDays classes={s.classes} />
+          <PrintScheduleButton
+            studentName={s.student_name === 'My schedule' ? 'Class schedule' : s.student_name}
+            classes={s.classes}
+          />
         </SchoolSection>
       ))}
     </View>

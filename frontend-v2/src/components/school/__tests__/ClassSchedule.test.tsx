@@ -14,7 +14,8 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import * as Print from 'expo-print';
 import ClassSchedule from '../ClassSchedule';
 import type { StudentSchedule } from '@/src/hooks/useClassSchedule';
 
@@ -76,6 +77,35 @@ describe('narrowed to one child', () => {
     withSchedules([CHARLOTTE]);
     const { queryByTestId } = render(<ClassSchedule studentId="kid-1" />);
     expect(queryByTestId('class-schedule')).toBeNull();
+  });
+});
+
+// ── Printing ────────────────────────────────────────────────────────────────
+// iCreate, 2026-08-31: "Would be nice if we could print the schedule." The web
+// app could since August; the app could not, and iCreate's families are in the
+// app.
+describe('printing the week', () => {
+  it('offers it under the schedule', () => {
+    withSchedules([MADELEINE]);
+    const { queryByLabelText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByLabelText('Print or save as PDF')).toBeTruthy();
+  });
+
+  it('prints the child whose schedule it sits under, not a sibling', async () => {
+    withSchedules([MADELEINE, CHARLOTTE]);
+    const { getByLabelText } = render(<ClassSchedule studentId="kid-2" defaultOpen />);
+    fireEvent.press(getByLabelText('Print or save as PDF'));
+    await waitFor(() => expect(Print.printAsync).toHaveBeenCalled());
+    const { html } = (Print.printAsync as jest.Mock).mock.calls[0][0];
+    expect(html).toContain('Charlotte Myers');
+    expect(html).toContain('Earth Science');
+    expect(html).not.toContain('Pottery');
+  });
+
+  it('is not offered when there is no schedule to print', () => {
+    mockUseClassSchedule.mockReturnValue({ schedules: [], loading: false, hasAny: false });
+    const { queryByLabelText } = render(<ClassSchedule studentId="kid-1" defaultOpen />);
+    expect(queryByLabelText('Print or save as PDF')).toBeNull();
   });
 });
 
