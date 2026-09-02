@@ -87,24 +87,40 @@ export default function MessagesScreen() {
 
   const handleBack = () => setSelected(null);
 
-  // A DM push notification arrives as "/(tabs)/messages?user=<sender>" (the
-  // deep-link router carries the param through — see deepLinkRouter). Open
-  // that conversation directly instead of leaving the user on the list; this
-  // is the whole tap-through for carpool replies. Consumed once per param
-  // value so pressing Back doesn't bounce straight back into the chat.
-  const params = useLocalSearchParams<{ user?: string }>();
-  const openedForUser = useRef<string | null>(null);
+  // A message notification arrives as "/(tabs)/messages?user=<sender>" for a DM
+  // and "?group=<id>" for a group/class chat (the deep-link router carries the
+  // param through — see deepLinkRouter). Open that conversation directly instead
+  // of leaving the user on the list; this is the whole tap-through for carpool
+  // replies and class-chat posts. Consumed once per param value so pressing Back
+  // doesn't bounce straight back into the chat.
+  const params = useLocalSearchParams<{ user?: string; group?: string }>();
+  const openedFor = useRef<string | null>(null);
   useEffect(() => {
     const targetUser = typeof params.user === 'string' ? params.user : null;
-    if (!targetUser || openedForUser.current === targetUser) return;
+    if (!targetUser || openedFor.current === `user:${targetUser}`) return;
     if (convoLoading || contactsLoading) return;
     const convo = conversations.find((cv: any) => cv.other_user?.id === targetUser);
     const contact = contacts.find((ct: any) => ct.id === targetUser) || convo?.other_user;
     if (!contact) return; // sender not reachable for this account — stay on the list
-    openedForUser.current = targetUser;
+    openedFor.current = `user:${targetUser}`;
     setShowChildMessages(false);
     setSelected({ id: convo?.id || contact.id, type: 'dm', contact });
   }, [params.user, convoLoading, contactsLoading, conversations, contacts]);
+
+  // Same, for group chats. Every class chat notification links this way
+  // ("/communication?group=<id>"), so without this a tapped class-chat push
+  // dropped the parent on the inbox list and they had to find the thread
+  // themselves — and the notification stayed unread until they did.
+  useEffect(() => {
+    const targetGroup = typeof params.group === 'string' ? params.group : null;
+    if (!targetGroup || openedFor.current === `group:${targetGroup}`) return;
+    if (groupsLoading) return;
+    const group = groups.find((g: any) => g.id === targetGroup);
+    if (!group) return; // not a member of that group — stay on the list
+    openedFor.current = `group:${targetGroup}`;
+    setShowChildMessages(false);
+    setSelected({ id: group.id, type: 'group', group });
+  }, [params.group, groupsLoading, groups]);
 
   // When a thread is read, refresh the conversation-list unread dots AND ask the
   // notification bell to refetch — reading a thread clears its 'message_received'
@@ -151,6 +167,7 @@ export default function MessagesScreen() {
           <GroupChatWindow
             group={selected.group}
             onBack={handleBack}
+            onRead={handleThreadRead}
             onDeleted={() => { setSelected(null); refetchGroups(); }}
           />
         );
@@ -225,6 +242,7 @@ export default function MessagesScreen() {
         ) : selected?.type === 'group' && selected.group ? (
           <GroupChatWindow
             group={selected.group}
+            onRead={handleThreadRead}
             onDeleted={() => { setSelected(null); refetchGroups(); }}
           />
         ) : (

@@ -261,6 +261,44 @@ class NotificationService(BaseService):
             logger.error(f"Error marking message notifications as read: {str(e)}")
             return 0
 
+    def mark_group_message_notifications_read(self, user_id: str, group_id: str) -> int:
+        """
+        Mark a member's 'message_received' notifications for a group chat as read.
+
+        The group-chat equivalent of mark_message_notifications_read. Group reads
+        only stamped group_members.last_read_at, so opening a class chat left the
+        bell holding one unread notification per message ("I still need to click
+        into the message inbox itself to clear the notification" — bug report
+        2026-09-02). Call this whenever a group thread is read.
+
+        Args:
+            user_id: Member who is reading the group
+            group_id: The group whose messages were just read
+
+        Returns:
+            Number of notifications updated
+        """
+        try:
+            result = self.supabase.table('notifications')\
+                .update({'is_read': True})\
+                .eq('user_id', user_id)\
+                .eq('type', 'message_received')\
+                .eq('is_read', False)\
+                .eq('metadata->>group_id', group_id)\
+                .execute()
+
+            count = len(result.data) if result.data else 0
+            if count:
+                logger.info(
+                    f"Marked {count} group message notifications read for user "
+                    f"{user_id[:8]} in group {group_id[:8]}"
+                )
+            return count
+
+        except Exception as e:
+            logger.error(f"Error marking group message notifications as read: {str(e)}")
+            return 0
+
     def mark_all_as_read(self, user_id: str) -> int:
         """
         Mark all notifications as read for a user.

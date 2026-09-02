@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UIText, toast } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
+import { MediaModal } from '@/src/components/feed/MediaModal';
 import type { MessageReaction, ReplyPreview } from '@/src/hooks/useMessages';
 
 /** The only reactions the backend accepts (ALLOWED_REACTIONS). */
@@ -151,19 +152,39 @@ export function MessageAttachments({
   isMine: boolean;
 }) {
   const c = useThemeColors();
+  // Photos and videos open in the app's full-screen viewer (pinch-to-zoom, tap
+  // to dismiss). Handing them to Linking instead sent the OS to the browser,
+  // where the only offer was a download — "I would really like to be able to
+  // click on pictures sent from teachers and see them better without having to
+  // download them" (bug report 2026-08-31).
+  const [preview, setPreview] = useState<{ type: 'image' | 'video'; uri: string; name?: string } | null>(null);
+
   if (!attachments || attachments.length === 0) return null;
 
-  const open = (url: string) => {
-    Linking.openURL(url).catch(() => toast.error('Could not open the attachment'));
+  const open = (a: MessageAttachment) => {
+    if (a.type === 'image' || a.type === 'video') {
+      setPreview({ type: a.type, uri: a.url, name: a.name });
+      return;
+    }
+    Linking.openURL(a.url).catch(() => toast.error('Could not open the attachment'));
   };
 
   return (
     <View style={{ gap: 6, marginBottom: 4 }}>
+      {preview && (
+        <MediaModal
+          visible
+          onClose={() => setPreview(null)}
+          type={preview.type}
+          uri={preview.uri}
+          title={preview.name}
+        />
+      )}
       {attachments.map((a, i) =>
         a.type === 'image' ? (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => open(a)}
             accessibilityRole="imagebutton"
             accessibilityLabel={a.name || 'Image attachment'}
           >
@@ -176,7 +197,7 @@ export function MessageAttachments({
         ) : (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => open(a)}
             accessibilityRole="button"
             accessibilityLabel={`Open ${a.name || 'attachment'}`}
             className="flex-row items-center"

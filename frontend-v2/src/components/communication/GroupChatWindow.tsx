@@ -58,6 +58,8 @@ interface Props {
   onBack?: () => void;
   /** Called after the group is deleted so the parent can clear selection + refetch. */
   onDeleted?: () => void;
+  /** Called once the group has been marked read, so the bell can drop its count. */
+  onRead?: () => void;
 }
 
 function formatTime(ts: string) {
@@ -169,7 +171,7 @@ function AdminSettings({
   );
 }
 
-export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
+export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const isSuperadmin = user?.role === 'superadmin';
@@ -227,12 +229,17 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
 
   // Mark as read when viewing. E4: if the call fails (transient 5xx, offline)
   // we retry once on the next poll tick rather than losing the read state.
+  // onRead is held in a ref so a new callback identity doesn't re-run the effect
+  // (and re-POST /read) on every parent render.
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
   useEffect(() => {
     if (!group.id) return;
     let cancelled = false;
     const attempt = async (retriesLeft: number) => {
       try {
         await markGroupRead(group.id);
+        if (!cancelled) onReadRef.current?.();
       } catch {
         if (!cancelled && retriesLeft > 0) {
           setTimeout(() => attempt(retriesLeft - 1), 15000);

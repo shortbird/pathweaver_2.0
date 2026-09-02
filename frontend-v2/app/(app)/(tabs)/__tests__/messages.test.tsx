@@ -5,6 +5,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
 import MessagesScreen from '../messages';
 import { useConversations, useContacts, useGroups, useChildren } from '@/src/hooks/useMessages';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
@@ -105,6 +106,8 @@ beforeEach(() => {
   (useContacts as jest.Mock).mockReturnValue({ contacts: [], loading: false, refetch: jest.fn() });
   (useGroups as jest.Mock).mockReturnValue({ groups: [], loading: false, refetch: jest.fn() });
   (useChildren as jest.Mock).mockReturnValue({ children: [], loading: false });
+  // No deep link by default — individual tests opt in.
+  (useLocalSearchParams as jest.Mock).mockReturnValue({});
 });
 
 afterEach(() => {
@@ -186,6 +189,52 @@ describe('MessagesScreen - mobile', () => {
 
     fireEvent.press(getByTestId('back-button'));
     expect(getByText('Messages (mobile)')).toBeTruthy();
+  });
+
+  // A tapped message notification lands here with the conversation in the query
+  // string. Without these the tap dropped the user on the inbox list and they
+  // had to find the thread themselves (bug report 2026-09-02, class chats).
+  describe('notification deep link', () => {
+    it('opens the group chat named by ?group=', () => {
+      const groups = [createMockGroup({ id: 'class-chat-1', name: 'ALD Class Chat' })];
+      (useGroups as jest.Mock).mockReturnValue({ groups, loading: false, refetch: jest.fn() });
+      (useLocalSearchParams as jest.Mock).mockReturnValue({ group: 'class-chat-1' });
+
+      const { getByText, queryByText } = render(<MessagesScreen />);
+
+      expect(getByText('Group: ALD Class Chat')).toBeTruthy();
+      expect(queryByText('Messages (mobile)')).toBeNull();
+    });
+
+    it('stays on the list when ?group= names a group the user is not in', () => {
+      (useGroups as jest.Mock).mockReturnValue({ groups: [createMockGroup()], loading: false, refetch: jest.fn() });
+      (useLocalSearchParams as jest.Mock).mockReturnValue({ group: 'someone-elses-group' });
+
+      const { getByText } = render(<MessagesScreen />);
+
+      expect(getByText('Messages (mobile)')).toBeTruthy();
+    });
+
+    it('back out of a deep-linked group chat stays on the list', () => {
+      const groups = [createMockGroup({ id: 'class-chat-1', name: 'ALD Class Chat' })];
+      (useGroups as jest.Mock).mockReturnValue({ groups, loading: false, refetch: jest.fn() });
+      (useLocalSearchParams as jest.Mock).mockReturnValue({ group: 'class-chat-1' });
+
+      const { getByText, getByTestId } = render(<MessagesScreen />);
+
+      fireEvent.press(getByTestId('back-button'));
+      expect(getByText('Messages (mobile)')).toBeTruthy();
+    });
+
+    it('opens the DM named by ?user=', () => {
+      const contacts = [createMockContact()];
+      (useContacts as jest.Mock).mockReturnValue({ contacts, loading: false, refetch: jest.fn() });
+      (useLocalSearchParams as jest.Mock).mockReturnValue({ user: contacts[0].id });
+
+      const { getByText } = render(<MessagesScreen />);
+
+      expect(getByText('Chat with Jane Smith')).toBeTruthy();
+    });
   });
 
   it('shows loading state while data is fetching', () => {

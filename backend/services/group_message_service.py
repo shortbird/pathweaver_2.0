@@ -814,6 +814,17 @@ class GroupMessageService(BaseService):
                 'last_read_at': datetime.utcnow().isoformat()
             }).eq('group_id', group_id).eq('user_id', user_id).execute()
 
+            # Keep the notification bell in sync with the thread, same as DMs do.
+            # Without this, opening a class chat cleared the unread dot but left
+            # one bell notification per message sitting there unread.
+            try:
+                NotificationService().mark_group_message_notifications_read(
+                    user_id=user_id,
+                    group_id=group_id,
+                )
+            except Exception as notif_err:
+                logger.warning(f"Failed to clear group message notifications on read: {notif_err}")
+
             return True
 
         except Exception as e:
