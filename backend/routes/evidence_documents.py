@@ -174,12 +174,25 @@ def save_evidence_document(user_id: str, task_id: str):
 
         quest_id = task_check.data[0]['quest_id']
 
-        # Check if user is enrolled in the quest
+        # Check if the user has an enrollment in the quest.
+        #
+        # Deliberately NOT filtered on is_active. That column is false for three
+        # different states -- finished, archived, and set down -- and in all
+        # three the enrollment, the task and the evidence are still the
+        # student's. Filtering on it meant that the moment a student completed a
+        # quest their own evidence became unsaveable, and the page told them
+        # "You must be enrolled in the quest" while they were looking at the
+        # work they had just finished (Sentry OPTIO-WEB-G). The upload endpoint
+        # below never had the restriction, so a file could be uploaded and then
+        # not saved into the document that referenced it.
+        #
+        # Nothing downstream re-awards anything: the XP branch is guarded by an
+        # existing quest_task_completions row, so re-saving a finished task's
+        # evidence updates text and nothing else.
         enrollment = admin_supabase.table('user_quests')\
             .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
             .execute()
 
         if not enrollment.data:
