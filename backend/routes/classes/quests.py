@@ -8,24 +8,12 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
-from utils.roles import get_effective_role
+from ._caller import get_caller, is_superadmin, is_staff
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from datetime import datetime
 
 logger = get_logger(__name__)
-
-
-def get_user_info(user_id: str):
-    """Get user role and organization info"""
-    # admin client justified: classes module helper; cross-class quest assignment reads/writes gated by org admin / advisor role checks at route handler level
-    supabase = get_supabase_admin_client()
-    user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
-    if not user.data:
-        return None, None
-    user_data = user.data[0]
-    effective_role = get_effective_role(user_data)
-    return effective_role, user_data.get('organization_id')
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['GET'])
@@ -56,17 +44,20 @@ def get_class_quests(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check access
-        if not service.can_access_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         # Students only see quests whose scheduled publish time has arrived (or that
         # have no schedule). Teachers/admins/superadmin see scheduled quests too.
-        only_published = (effective_role == 'student')
+        # Asked of the full role list: a teacher who is also enrolled somewhere
+        # as a learner resolved to 'student' when that sorted first, and lost
+        # sight of her own scheduled quests.
+        only_published = not is_staff(effective_roles)
         quests = service.get_class_quests(class_id, only_published=only_published)
 
         return jsonify({
@@ -101,12 +92,12 @@ def add_class_quest(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -155,7 +146,7 @@ def add_class_quest(user_id, org_id, class_id):
         publish_at = data.get('publish_at')
         if publish_at:
             from utils.org_features import org_has_feature
-            if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'scheduled_publish'):
+            if not is_superadmin(effective_roles) and not org_has_feature(class_org_id, 'scheduled_publish'):
                 return jsonify({'success': False, 'error': 'Scheduled publishing is not enabled for this organization'}), 403
             try:
                 datetime.fromisoformat(str(publish_at).replace('Z', '+00:00'))
@@ -195,12 +186,12 @@ def remove_class_quest(user_id, org_id, class_id, quest_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         success = service.remove_quest(class_id, quest_id, user_id)
@@ -238,18 +229,18 @@ def set_class_quest_schedule(user_id, org_id, class_id, quest_id):
     (superadmin bypass).
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         cls = service.get_class(class_id)
         class_org_id = cls.get('organization_id') if cls else None
 
         from utils.org_features import org_has_feature
-        if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'scheduled_publish'):
+        if not is_superadmin(effective_roles) and not org_has_feature(class_org_id, 'scheduled_publish'):
             return jsonify({'success': False, 'error': 'Scheduled publishing is not enabled for this organization'}), 403
 
         data = request.json or {}
@@ -289,18 +280,18 @@ def set_class_quest_due_date(user_id, org_id, class_id, quest_id):
     `due_dates` (superadmin bypass).
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         cls = service.get_class(class_id)
         class_org_id = cls.get('organization_id') if cls else None
 
         from utils.org_features import org_has_feature
-        if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'due_dates'):
+        if not is_superadmin(effective_roles) and not org_has_feature(class_org_id, 'due_dates'):
             return jsonify({'success': False, 'error': 'Due dates are not enabled for this organization'}), 403
 
         data = request.json or {}
@@ -361,12 +352,12 @@ def reorder_class_quests(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -412,12 +403,12 @@ def create_and_add_class_quest(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -518,10 +509,10 @@ def get_available_quests(user_id, org_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         # Authorization
-        if effective_role != 'superadmin' and user_org_id != org_id:
+        if not is_superadmin(effective_roles) and user_org_id != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         search = request.args.get('search', '').strip()

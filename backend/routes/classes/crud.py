@@ -8,23 +8,10 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role, require_auth
-from utils.roles import get_effective_role
-from database import get_supabase_admin_client
+from ._caller import get_caller, is_superadmin
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def get_user_info(user_id: str):
-    """Get user role and organization info"""
-    # admin client justified: classes module helper; class CRUD under org_admin/superadmin role checks
-    supabase = get_supabase_admin_client()
-    user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
-    if not user.data:
-        return None, None, None
-    user_data = user.data[0]
-    effective_role = get_effective_role(user_data)
-    return effective_role, user_data.get('organization_id'), user_data
 
 
 @bp.route('/organizations/<org_id>/classes', methods=['GET'])
@@ -43,10 +30,10 @@ def list_org_classes(user_id, org_id):
     }
     """
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         # Authorization: superadmin can access any org, others only their own
-        if effective_role != 'superadmin' and user_org_id != org_id:
+        if not is_superadmin(effective_roles) and user_org_id != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         status = request.args.get('status', 'active')
@@ -87,10 +74,10 @@ def create_class(user_id, org_id):
     }
     """
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         # Authorization: superadmin can create in any org, org_admin only in their own
-        if effective_role != 'superadmin' and user_org_id != org_id:
+        if not is_superadmin(effective_roles) and user_org_id != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -138,12 +125,12 @@ def get_class(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check access
-        if not service.can_access_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         cls = service.get_class(class_id)
@@ -183,12 +170,12 @@ def update_class(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -236,12 +223,12 @@ def archive_class(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         service.archive_class(class_id, user_id)
@@ -266,9 +253,9 @@ def archive_class(user_id, org_id, class_id):
 def restore_class(user_id, org_id, class_id):
     """Un-archive a class (status back to active)."""
     try:
-        effective_role, user_org_id, _ = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
         service = ClassService()
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service.restore_class(class_id, user_id)
         return jsonify({'success': True, 'message': 'Class restored successfully'})

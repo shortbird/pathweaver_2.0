@@ -8,23 +8,12 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
-from utils.roles import get_effective_role
+from utils.roles import get_effective_roles
+from ._caller import get_caller, is_superadmin
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def get_user_info(user_id: str):
-    """Get user role and organization info"""
-    # admin client justified: classes module helper; class student enrollment mgmt under org_admin/advisor role checks
-    supabase = get_supabase_admin_client()
-    user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
-    if not user.data:
-        return None, None
-    user_data = user.data[0]
-    effective_role = get_effective_role(user_data)
-    return effective_role, user_data.get('organization_id')
 
 
 @bp.route('/organizations/<org_id>/students', methods=['GET'])
@@ -46,9 +35,9 @@ def list_org_students(user_id, org_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
-        if effective_role != 'superadmin' and user_org_id != org_id:
+        if not is_superadmin(effective_roles) and user_org_id != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         # admin client justified: org-scoped student listing under @require_role;
@@ -68,7 +57,7 @@ def list_org_students(user_id, org_id):
                 'email': u.get('email')
             }
             for u in (result.data or [])
-            if get_effective_role(u) == 'student'
+            if 'student' in get_effective_roles(u)
         ]
 
         return jsonify({
@@ -121,12 +110,12 @@ def get_class_students(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check access
-        if not service.can_access_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         with_progress = request.args.get('with_progress', 'true').lower() == 'true'
@@ -168,12 +157,12 @@ def enroll_students(user_id, org_id, class_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         data = request.json or {}
@@ -202,12 +191,12 @@ def enroll_students(user_id, org_id, class_id):
 
         valid_student_ids = []
         for student in students.data:
-            student_effective_role = get_effective_role(student)
-            # Only allow enrolling students (not advisors or admins)
-            if student_effective_role not in ['student']:
+            # Only allow enrolling students (not advisors or admins), asked of
+            # every role the account holds.
+            if 'student' not in get_effective_roles(student):
                 continue
             # For non-superadmins, verify student is in the same org as the class
-            if effective_role != 'superadmin':
+            if not is_superadmin(effective_roles):
                 if student.get('organization_id') != class_org_id:
                     continue
             valid_student_ids.append(student['id'])
@@ -247,12 +236,12 @@ def withdraw_student(user_id, org_id, class_id, student_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check management access
-        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         success = service.withdraw_student(class_id, student_id, user_id)
@@ -294,12 +283,12 @@ def get_student_progress(user_id, org_id, class_id, student_id):
     }
     """
     try:
-        effective_role, user_org_id = get_user_info(user_id)
+        effective_roles, user_org_id, _ = get_caller(user_id)
 
         service = ClassService()
 
         # Check access
-        if not service.can_access_class(class_id, user_id, effective_role, user_org_id):
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         progress = service.calculate_student_class_progress(class_id, student_id)
