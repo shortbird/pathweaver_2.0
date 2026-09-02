@@ -221,6 +221,78 @@ class TestChargeDue:
         assert all(p['last_charged_on'] == '2026-09-01' for p in patches)
 
 
+# ── Sending the card-setup link ──────────────────────────────────────────────
+
+@pytest.mark.unit
+class TestSendSetupLink:
+    """Optio Academy, 2026-09-02: the office set up monthly tuition, sent the
+    link, and had no way to tell afterwards whether the parent got anything.
+    A send that happened has to leave a mark on the row."""
+
+    ORG = 'org-1'
+    SCHEDULE = {'id': 'r1', 'organization_id': ORG, 'household_id': HOUSEHOLD_ID,
+                'student_user_id': 's1', 'monthly_cents': 100000,
+                'day_of_month': 1, 'status': 'active', 'description': None}
+
+    @contextmanager
+    def _sending(self, guardians, sends=True):
+        def _table(name):
+            t = Mock()
+            for chained in ('select', 'eq', 'update', 'neq', 'in_', 'order', 'limit'):
+                getattr(t, chained).return_value = t
+            t.execute.return_value = Mock(
+                data=[{'name': 'Optio Academy'}] if name == 'organizations'
+                else [dict(self.SCHEDULE)])
+            tables.setdefault(name, t)
+            return tables[name]
+
+        tables = {}
+        client = Mock()
+        client.table.side_effect = _table
+        mailer = Mock()
+        mailer.return_value.send_email.return_value = sends
+        with patch.object(recurring, '_admin', return_value=client), \
+             patch.object(recurring, 'household_guardians', return_value=guardians), \
+             patch.object(recurring, '_hydrate',
+                          side_effect=lambda rows: [dict(r, student_name='Banks Hanna')
+                                                    for r in rows]), \
+             patch('services.email_service.EmailService', mailer):
+            yield tables, mailer
+
+    def test_records_the_send_on_the_family_s_rows(self):
+        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'}]
+        with self._sending(guardians) as (tables, _):
+            result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
+        assert result['emailed'] == 1
+        assert result['sent_to'] == ['Paige Hanna']
+        patch_written = tables['sis_recurring_tuition'].update.call_args.args[0]
+        assert patch_written['setup_link_sent_at'] == result['sent_at']
+
+    def test_both_parents_are_emailed_and_both_named(self):
+        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'},
+                     {'user_id': 'p2', 'email': 'johnny@example.com', 'name': 'Johnny Hanna'}]
+        with self._sending(guardians) as (_, mailer):
+            result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
+        assert result['emailed'] == 2
+        assert result['sent_to'] == ['Paige Hanna', 'Johnny Hanna']
+        assert mailer.return_value.send_email.call_count == 2
+
+    def test_a_family_with_nobody_to_email_says_what_to_do(self):
+        with self._sending([]) as (tables, _):
+            result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
+        assert 'Add a parent' in result['error']
+        assert 'sis_recurring_tuition' not in tables
+
+    def test_a_failed_send_is_not_recorded_as_sent(self):
+        # The stamp is the office's evidence. Stamping a send that bounced tells
+        # them next week that the family was asked, and they stop chasing.
+        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'}]
+        with self._sending(guardians, sends=False) as (tables, _):
+            result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
+        assert 'could not be sent' in result['error']
+        tables['sis_recurring_tuition'].update.assert_not_called()
+
+
 # ── Card-setup link ──────────────────────────────────────────────────────────
 
 @pytest.mark.unit

@@ -6,6 +6,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 import RecurringTuitionModal from './RecurringTuitionModal'
+import { useRecurringTuition } from './RecurringTuitionList'
 import { isClpEnabled } from './sisModules'
 
 /**
@@ -59,6 +60,10 @@ const TuitionApprovalPage = () => {
   // Schools that bill a monthly rate have no priced schedule to seed the queue
   // from, so their route to an invoice cannot run through it.
   const [monthlyOpen, setMonthlyOpen] = useState(false)
+  // The count goes on the button. For a school that bills monthly the queue
+  // beside it is permanently empty, so an unadorned button left the page
+  // looking like the school had nothing set up at all.
+  const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
   const previewRef = useRef(null)
 
   const loadQueue = useCallback(() => {
@@ -228,7 +233,7 @@ const TuitionApprovalPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Tuition</h1>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => setMonthlyOpen(true)} disabled={!orgId}>
-            Monthly tuition
+            Monthly tuition{recurring?.length ? ` (${recurring.length})` : ''}
           </Button>
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
@@ -248,7 +253,7 @@ const TuitionApprovalPage = () => {
 
       <RecurringTuitionModal
         isOpen={monthlyOpen}
-        onClose={() => setMonthlyOpen(false)}
+        onClose={() => { setMonthlyOpen(false); loadRecurring() }}
         orgId={orgId}
       />
 

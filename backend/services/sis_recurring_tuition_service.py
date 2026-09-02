@@ -104,8 +104,20 @@ def first_charge_date(today: date, day_of_month: int) -> date:
 
 # ── Reads ────────────────────────────────────────────────────────────────────
 
+def household_guardians(household_id: str) -> List[Dict[str, Any]]:
+    """[{user_id, email, name}] the setup link would go to for this family.
+
+    The same resolution the send itself uses, so the screen cannot promise an
+    email the send would then refuse.
+    """
+    return billing._guardian_emails_for_household(  # noqa: SLF001 — same package
+        household_id, billing._household_primary_contact(household_id))
+
+
 def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Attach student and family names, and the household's card, for display."""
+    """Attach student and family names, the household's card, and who the setup
+    link can reach — everything the office needs to see why a schedule is or
+    isn't billing yet, on the row itself."""
     if not rows:
         return []
     student_ids = list({r['student_user_id'] for r in rows})
@@ -116,18 +128,23 @@ def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     households = {h['id']: h for h in (
         _admin().table('households').select('id, name')
         .in_('id', hh_ids).execute()).data or []}
-    cards = {}
+    cards: Dict[str, Any] = {}
+    guardians: Dict[str, List[Dict[str, Any]]] = {}
     for r in rows:
         oid, hh = r['organization_id'], r['household_id']
         if hh not in cards:
             saved = billing.household_saved_card(oid, hh)
             cards[hh] = ({'brand': saved.get('card_brand'), 'last4': saved.get('card_last4')}
                          if saved else None)
+        if hh not in guardians:
+            guardians[hh] = [{'name': g['name'], 'email': g['email']}
+                             for g in household_guardians(hh)]
     for r in rows:
         u = users.get(r['student_user_id']) or {}
         r['student_name'] = person_name.full_name(u, 'Unknown')
         r['household_name'] = (households.get(r['household_id']) or {}).get('name')
         r['card'] = cards.get(r['household_id'])
+        r['guardians'] = guardians.get(r['household_id'], [])
     return rows
 
 
@@ -391,10 +408,10 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     from services.sis_pay_links import setup_url
     from services.email_service import EmailService
 
-    guardians = billing._guardian_emails_for_household(  # noqa: SLF001 — same package
-        household_id, billing._household_primary_contact(household_id))
+    guardians = household_guardians(household_id)
     if not guardians:
-        return {'error': 'This family has no guardian email on file'}
+        return {'error': 'Nobody on this family can be emailed. Add a parent to '
+                         'the family in People, then send the link.'}
     rows = (_admin().table('sis_recurring_tuition').select('*')
             .eq('household_id', household_id).eq('organization_id', org_id)
             .eq('status', 'active').execute()).data or []
@@ -430,12 +447,26 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
         f"<p>Thank you,<br/>{org_name}</p>")
 
     svc = EmailService()
-    emailed = 0
+    emailed, sent_to = 0, []
     for g in guardians:
         try:
             if svc.send_email(to_email=g['email'], subject=subject,
                               html_body=html, text_body=text):
                 emailed += 1
+                sent_to.append(g['name'])
         except Exception as e:  # noqa: BLE001 — one bad address must not stop the rest
             logger.warning(f"[recurring tuition] setup email to {g['email']} failed: {e}")
-    return {'emailed': emailed, 'monthly_cents': total}
+    if not emailed:
+        # Every address failed. Saying so beats a green toast and a silent stamp
+        # that tells the office next week that the family was asked.
+        return {'error': 'The setup email could not be sent. Check the email '
+                         'settings for this school and try again.'}
+    # Stamped on the whole family's active rows: the link is per household, and
+    # the office reads it off whichever child's row they happen to be looking at.
+    sent_at = _now_iso()
+    _admin().table('sis_recurring_tuition').update(
+        {'setup_link_sent_at': sent_at, 'updated_at': sent_at}
+    ).eq('household_id', household_id).eq('organization_id', org_id) \
+     .eq('status', 'active').execute()
+    return {'emailed': emailed, 'monthly_cents': total,
+            'sent_to': sent_to, 'sent_at': sent_at}

@@ -2396,16 +2396,49 @@ def billing_detail(org_id: str, household_id: Optional[str] = None,
 
 
 # ── Automated payment reminders ──────────────────────────────────────────────
+def _linked_parents_for_household(household_id: str) -> set:
+    """The approved parents of a household's students — the fallback guardians.
+
+    A household is the billing unit, but "who guards it" is a SECOND thing the
+    office has to record, separate from the parent-student link they already
+    approved. When they don't, every billing email for that family silently goes
+    to nobody: the invoice email reports `emailed: 0`, the reminder sweep skips
+    them, and the monthly-tuition card-setup link refuses to send at all — while
+    the schedule on screen still says active. Optio Academy hit exactly this on
+    2026-09-02 (the Hanna family: two students, no guardian member, two verified
+    parents sitting right there in parent_student_links).
+
+    Only consulted when the household names NOBODY. A recorded guardian is the
+    office stating who pays, and a second parent deliberately left off that list
+    must not be added back by a fallback.
+    """
+    members = (_admin().table('household_members').select('user_id, relationship')
+               .eq('household_id', household_id).execute()).data or []
+    students = [m['user_id'] for m in members if m.get('relationship') == 'student']
+    if not students:
+        return set()
+    links = (_admin().table('parent_student_links').select('parent_user_id')
+             .in_('student_user_id', students).eq('status', 'approved')
+             .execute()).data or []
+    return {r['parent_user_id'] for r in links if r.get('parent_user_id')}
+
+
 def _guardian_emails_for_household(household_id: str,
                                    primary_contact_user_id: Optional[str]) -> List[Dict[str, Any]]:
     """[{user_id, email, name}] for the household's guardians (members with a
-    guardian/other relationship plus the primary contact), deduped by email."""
+    guardian/other relationship plus the primary contact), deduped by email.
+
+    Falls back to the students' approved parents when the household records no
+    guardian of its own — see _linked_parents_for_household.
+    """
     ids = {m['user_id'] for m in (
         _admin().table('household_members').select('user_id, relationship')
         .eq('household_id', household_id).execute()
     ).data or [] if m.get('relationship') in ('guardian', 'other')}
     if primary_contact_user_id:
         ids.add(primary_contact_user_id)
+    if not ids:
+        ids = _linked_parents_for_household(household_id)
     users = _users_map(list(ids))
     seen, out = set(), []
     for u in users.values():

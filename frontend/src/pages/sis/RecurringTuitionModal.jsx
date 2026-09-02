@@ -5,6 +5,7 @@ import { Modal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { withOrg } from './useSisOrg'
+import RecurringTuitionList, { money } from './RecurringTuitionList'
 
 /**
  * Monthly tuition — a set amount per student, charged every month until it is
@@ -20,8 +21,6 @@ import { withOrg } from './useSisOrg'
  * the family" rather than looking active but silently never charging.
  */
 
-const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
-
 const toCents = (str) => {
   const n = parseFloat(str)
   return Number.isFinite(n) ? Math.round(n * 100) : 0
@@ -30,15 +29,9 @@ const toCents = (str) => {
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const label = 'block text-xs font-medium text-neutral-600 mb-1'
 
-const STATUS_STYLE = {
-  active: 'bg-green-100 text-green-800',
-  paused: 'bg-amber-100 text-amber-800',
-}
-
 const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
   const [roster, setRoster] = useState(null)
   const [schedules, setSchedules] = useState(null)
-  const [busyId, setBusyId] = useState(null)
 
   const [studentId, setStudentId] = useState('')
   const [monthlyStr, setMonthlyStr] = useState('')
@@ -96,37 +89,15 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
         description: description.trim() || undefined,
         day_of_month: Number(dayOfMonth) || 1,
       })
-      toast.success('Monthly tuition added')
+      // Adding a schedule emails nobody — billing starts when the family saves a
+      // card. "Added" on its own reads as done, and the office walks away from a
+      // schedule that will never charge.
+      toast.success('Added. Email the family the setup link to start billing.')
       setStudentId(''); setMonthlyStr(''); setDescription('')
       load()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not add monthly tuition')
     } finally { setAdding(false) }
-  }
-
-  const setStatus = async (row, status) => {
-    setBusyId(row.id)
-    try {
-      await api.post(withOrg(`/api/sis/tuition/recurring/${row.id}/status`, orgId), { status })
-      toast.success(status === 'canceled' ? 'Monthly tuition ended'
-        : status === 'paused' ? 'Paused' : 'Resumed')
-      load()
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not update the schedule')
-    } finally { setBusyId(null) }
-  }
-
-  const sendSetupLink = async (row) => {
-    setBusyId(row.id)
-    try {
-      const r = await api.post(
-        withOrg(`/api/sis/tuition/recurring/households/${row.household_id}/setup-link`, orgId), {})
-      const n = r.data?.emailed || 0
-      toast.success(n ? `Setup link emailed to ${n} guardian${n === 1 ? '' : 's'}`
-        : 'No guardian email on file')
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not send the setup link')
-    } finally { setBusyId(null) }
   }
 
   return (
@@ -159,53 +130,12 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
             Current schedules
           </h3>
-          {schedules === null && <p className="text-sm text-neutral-400">Loading…</p>}
-          {schedules?.length === 0 && (
-            <p className="text-sm text-neutral-400">
-              No monthly tuition set up yet. Add a student below.
-            </p>
-          )}
-          <div className="space-y-2">
-            {(schedules || []).map((s) => (
-              <div key={s.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-neutral-800">{s.student_name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_STYLE[s.status] || 'bg-neutral-100 text-neutral-700'}`}>
-                      {s.status}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
-                    <span>{money(s.monthly_cents)}/month</span>
-                    <span>·</span>
-                    <span>{s.household_name || 'No family'}</span>
-                    {s.card
-                      ? <><span>·</span><span>card {s.card.brand} ····{s.card.last4}</span></>
-                      : <><span>·</span><span className="text-amber-700">waiting on the family</span></>}
-                    {s.next_charge_on && (<><span>·</span><span>next {s.next_charge_on}</span></>)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {!s.card && (
-                    <Button size="sm" variant="secondary" disabled={busyId === s.id}
-                      onClick={() => sendSetupLink(s)}>
-                      Email setup link
-                    </Button>
-                  )}
-                  {s.status === 'active' ? (
-                    <Button size="sm" variant="secondary" disabled={busyId === s.id}
-                      onClick={() => setStatus(s, 'paused')}>Pause</Button>
-                  ) : (
-                    <Button size="sm" variant="secondary" disabled={busyId === s.id}
-                      onClick={() => setStatus(s, 'active')}>Resume</Button>
-                  )}
-                  <Button size="sm" variant="secondary" disabled={busyId === s.id}
-                    onClick={() => setStatus(s, 'canceled')}>End</Button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <RecurringTuitionList
+            orgId={orgId}
+            schedules={schedules}
+            onChanged={load}
+            emptyHint="No monthly tuition set up yet. Add a student below."
+          />
         </div>
 
         {/* ── Add ────────────────────────────────────────────────────────── */}

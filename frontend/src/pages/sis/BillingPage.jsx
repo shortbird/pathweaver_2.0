@@ -6,6 +6,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import RecurringTuitionList, { useRecurringTuition } from './RecurringTuitionList'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const money = (cents) => (cents == null ? '—' : `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toFixed(2)}`)
@@ -156,7 +157,11 @@ const writeSortPrefs = (prefs) => {
 
 const BillingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'detail'
+  const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'monthly' | 'detail'
+  // A school billing a monthly rate has no invoice until the first month is
+  // charged, so Charges and Outstanding are both empty while real money is
+  // scheduled. Without this tab the Billing page said the school bills nothing.
+  const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
   const [month, setMonth] = useState('all')
   // "I need to be able to sort the billing page by family as well to make it
   // easier to record payments" (d406dd7a). Recording a stack of cheques means
@@ -349,7 +354,9 @@ const BillingPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 no-print">
-        {[['charges', 'Charges'], ['outstanding', 'Outstanding'], ['detail', 'Charge detail']].map(([v, label]) => (
+        {[['charges', 'Charges'], ['outstanding', 'Outstanding'],
+          ['monthly', `Monthly tuition${recurring?.length ? ` (${recurring.length})` : ''}`],
+          ['detail', 'Charge detail']].map(([v, label]) => (
           <button
             key={v} onClick={() => setView(v)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${view === v
@@ -360,6 +367,34 @@ const BillingPage = () => {
           </button>
         ))}
       </div>
+
+      {/* ── Monthly tuition ─────────────────────────────────────────────── */}
+      {view === 'monthly' && (
+        <div>
+          <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
+            Students on a set monthly rate, charged automatically until the school stops it.
+            A schedule only starts billing once the family saves a card, so anything below
+            still marked as waiting has not been charged yet. Add and edit these on the{' '}
+            <a href="/tuition" className="text-optio-purple hover:underline">Tuition</a> page.
+          </p>
+          <RecurringTuitionList
+            orgId={orgId}
+            schedules={recurring}
+            onChanged={loadRecurring}
+            emptyHint="No student is on a monthly rate. Set one up from the Tuition page."
+          />
+          {!!recurring?.length && (
+            <p className="mt-4 text-sm text-neutral-500">
+              Billing{' '}
+              <strong className="text-neutral-800">
+                {money(recurring.filter((s) => s.status === 'active')
+                  .reduce((sum, s) => sum + (s.monthly_cents || 0), 0))}
+              </strong>{' '}
+              a month across this school.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Charges ─────────────────────────────────────────────────────── */}
       {view === 'charges' && (
