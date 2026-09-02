@@ -387,6 +387,23 @@
   font-size: 2em;
 }
 
+/* Links inside the editor and in rendered announcement HTML. @tailwindcss/typography
+   is not installed, so the `prose` class carries no styling of its own: a link
+   the author had just added looked exactly like plain text, and staff concluded
+   linking was broken until they sent the message and saw it styled (iCreate,
+   2026-09-02). */
+.ProseMirror a,
+.prose a {
+  color: #6d469b;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover,
+.prose a:hover {
+  color: #ef597b;
+}
+
 /* TipTap/ProseMirror editor list styles */
 .ProseMirror ul,
 .prose ul {
