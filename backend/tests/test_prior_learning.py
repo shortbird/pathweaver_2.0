@@ -401,3 +401,208 @@ class _FakeClient:
 
     def execute(self):
         return type('R', (), {'data': [{'id': 'r1'}]})()
+
+
+@pytest.mark.unit
+class TestTheOfficeFilesItsOwnRecords:
+    """Transcripts arrive at the school directly — mailed, emailed, handed over
+    at enrollment — and never pass through the family. What matters is that a
+    record the office files is the same record a family files everywhere it
+    counts (same queue, same review, same credit path), and differs only where
+    it must: it is not waiting to be submitted, and it says where it came from.
+    """
+
+    def _capture_insert(self, monkeypatch):
+        captured = {}
+
+        class _Insert:
+            def table(self, name):
+                captured['table'] = name
+                return self
+
+            def insert(self, row):
+                captured['row'] = row
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': [{'id': 'r1', **captured['row']}]})()
+
+        monkeypatch.setattr(prior, '_admin', _Insert)
+        return captured
+
+    def test_a_student_who_is_not_in_this_school_cannot_be_filed_for(self, monkeypatch):
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        result = prior.staff_create_record('o1', 'admin-1', 'someone-elses-kid', {'title': 'T'})
+        assert result['status'] == 400
+        assert 'student in this school' in result['error']
+
+    def test_no_student_at_all_is_refused(self, monkeypatch):
+        monkeypatch.setattr(prior, 'student_options', lambda oid: [])
+        assert prior.staff_create_record('o1', 'admin-1', None, {'title': 'T'})['status'] == 400
+
+    def test_it_opens_in_review_rather_than_as_a_draft(self, monkeypatch):
+        """A draft is invisible to list_for_org, so a staff record parked in one
+        would vanish from the only page that can see it."""
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        captured = self._capture_insert(monkeypatch)
+
+        prior.staff_create_record('o1', 'admin-1', 'kid-1',
+                                  {'title': 'Transcript from Riverside High'})
+
+        assert captured['row']['status'] == 'under_review'
+        assert captured['row']['status'] not in prior.FAMILY_EDITABLE
+
+    def test_it_is_marked_as_the_offices_own(self, monkeypatch):
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        captured = self._capture_insert(monkeypatch)
+
+        prior.staff_create_record('o1', 'admin-1', 'kid-1', {'title': 'T'})
+
+        assert captured['row']['source'] == prior.SOURCE_STAFF
+        assert captured['row']['submitted_by'] == 'admin-1'
+        assert captured['row']['organization_id'] == 'o1'
+
+    def test_a_family_record_is_still_marked_as_the_familys(self, monkeypatch):
+        captured = self._capture_insert(monkeypatch)
+        prior.create_record('o1', 'parent-1', 'kid-1', {'title': 'T'})
+        assert captured['row']['source'] == prior.SOURCE_FAMILY
+        assert captured['row']['status'] == 'draft'
+
+    def test_the_office_cannot_award_itself_credit_while_filing(self, monkeypatch):
+        """staff_create_record takes the same family-writable half as everything
+        else — the award still has to go through review()."""
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        captured = self._capture_insert(monkeypatch)
+
+        prior.staff_create_record('o1', 'admin-1', 'kid-1', {
+            'title': 'T', 'awarded_credits': {'math': 4}, 'status': 'accepted',
+        })
+
+        assert 'awarded_credits' not in captured['row']
+        assert captured['row']['status'] == 'under_review'
+
+    def test_a_titleless_record_is_refused(self, monkeypatch):
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        assert 'title' in prior.staff_create_record('o1', 'admin-1', 'kid-1', {})['error']
+
+
+@pytest.mark.unit
+class TestStaffAttachDocumentsDuringReview:
+    """The office adds paperwork exactly when the family side is frozen: the
+    record it just filed is already under_review, and the second page of a
+    transcript turns up a week after the first.
+    """
+
+    RECORD = {'id': 'r1', 'status': 'under_review', 'evidence': []}
+    EVIDENCE = {'evidence_type': 'document', 'url': 'https://x/scan.pdf',
+                'title': 'Transcript', 'file_name': 'scan.pdf'}
+
+    def test_the_family_is_locked_out_of_a_record_in_review(self, monkeypatch):
+        monkeypatch.setattr(prior, 'get_own_record', lambda rid, oid, uid: dict(self.RECORD))
+        result = prior.add_evidence('r1', 'o1', 'parent-1', dict(self.EVIDENCE))
+        assert 'reviewing' in result['error']
+
+    def test_staff_are_not(self, monkeypatch):
+        inserted = {}
+
+        class _Insert:
+            def table(self, name):
+                return self
+
+            def insert(self, row):
+                inserted.update(row)
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': [dict(inserted)]})()
+
+        monkeypatch.setattr(prior, 'get_record', lambda rid, oid: dict(self.RECORD))
+        monkeypatch.setattr(prior, '_admin', _Insert)
+
+        result = prior.staff_add_evidence('r1', 'o1', 'admin-1', dict(self.EVIDENCE))
+
+        assert 'error' not in result
+        assert inserted['record_id'] == 'r1'
+        # Whoever actually uploaded it, so provenance survives on the row.
+        assert inserted['uploaded_by'] == 'admin-1'
+
+    def test_a_record_in_another_org_is_not_found(self, monkeypatch):
+        monkeypatch.setattr(prior, 'get_record', lambda rid, oid: None)
+        result = prior.staff_add_evidence('r1', 'other-org', 'admin-1', dict(self.EVIDENCE))
+        assert result['status'] == 404
+
+    def test_the_cap_holds_for_staff_too(self, monkeypatch):
+        full = {'id': 'r1', 'status': 'under_review',
+                'evidence': [{'id': str(i)} for i in range(prior.MAX_EVIDENCE_PER_RECORD)]}
+        monkeypatch.setattr(prior, 'get_record', lambda rid, oid: full)
+        assert 'can hold' in prior.staff_add_evidence('r1', 'o1', 'a1', dict(self.EVIDENCE))['error']
+
+
+@pytest.mark.unit
+class TestPostedEvidenceIsValidatedTheSameWayForBothSurfaces:
+    """build_evidence is shared by the family and staff routes on purpose: two
+    copies drift, and the drift shows up as one surface accepting a file the
+    other refuses, which reads as a broken upload rather than a rule.
+    """
+
+    def test_an_unknown_kind_is_refused(self):
+        _evidence, bad = prior.build_evidence({'evidence_type': 'interpretive_dance'}, None,
+                                              uploader_id='u1', record_id='r1')
+        assert bad['status'] == 400
+
+    def test_text_evidence_needs_words(self):
+        _evidence, bad = prior.build_evidence({'evidence_type': 'text', 'content': '  '}, None,
+                                              uploader_id='u1', record_id='r1')
+        assert 'Write something' in bad['error']
+
+    def test_a_link_must_be_a_real_link(self):
+        _evidence, bad = prior.build_evidence({'evidence_type': 'link', 'url': 'riverside.org'},
+                                              None, uploader_id='u1', record_id='r1')
+        assert 'full link' in bad['error']
+        evidence, bad = prior.build_evidence(
+            {'evidence_type': 'link', 'url': 'https://riverside.org/t'}, None,
+            uploader_id='u1', record_id='r1')
+        assert bad is None and evidence['url'] == 'https://riverside.org/t'
+
+    def test_a_document_without_a_file_is_refused_before_anything_is_written(self):
+        _evidence, bad = prior.build_evidence({'evidence_type': 'document'}, None,
+                                              uploader_id='u1', record_id='r1')
+        assert 'Choose a file' in bad['error']
+
+    def test_a_failed_upload_carries_the_reason_back(self, monkeypatch):
+        """"Did not upload" with no why is what made the first refused CSV
+        impossible to act on."""
+        import services.media_upload_service as media
+        monkeypatch.setattr(media, 'MediaUploadService', lambda _client: Mock(
+            upload_evidence_file=Mock(return_value=Mock(
+                success=False, error_message='.xlsx files are not allowed'))))
+        monkeypatch.setattr(prior, '_admin', lambda: Mock())
+
+        _evidence, bad = prior.build_evidence(
+            {'evidence_type': 'document'}, Mock(filename='grades.xlsx'),
+            uploader_id='u1', record_id='r1')
+
+        assert bad['error'] == '.xlsx files are not allowed'
+
+    def test_an_uploaded_file_carries_its_note_into_the_evidence_row(self, monkeypatch):
+        """The note is what tells a reviewer which year a scan belongs to."""
+        import services.media_upload_service as media
+        monkeypatch.setattr(media, 'MediaUploadService', lambda _client: Mock(
+            upload_evidence_file=Mock(return_value=Mock(
+                success=True, file_url='https://s/o/scan.pdf', display_url='https://signed',
+                filename='scan.pdf', file_size=1234, content_type='application/pdf'))))
+        monkeypatch.setattr(prior, '_admin', lambda: Mock())
+
+        evidence, bad = prior.build_evidence(
+            {'evidence_type': 'document', 'note': 'Sealed copy, mailed 8/28'},
+            Mock(filename='scan.pdf'), uploader_id='admin-1', record_id='r1')
+
+        assert bad is None
+        assert evidence['content'] == 'Sealed copy, mailed 8/28'
+        assert evidence['url'] == 'https://s/o/scan.pdf'
+        assert evidence['file_name'] == 'scan.pdf'

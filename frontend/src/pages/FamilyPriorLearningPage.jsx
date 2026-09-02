@@ -3,6 +3,10 @@ import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
+// Shared with the SIS Prior Learning page, which uploads into the same pipeline.
+import {
+  ACCEPT_ATTR, MAX_FILES, isSupported, kindFor, prettySize,
+} from '../utils/priorLearningFiles'
 
 /**
  * Prior learning (Learning app) — the family's side.
@@ -49,31 +53,7 @@ const SUBJECT_NAMES = {
   digital_literacy: 'Digital Literacy', electives: 'Electives',
 }
 
-const MAX_FILES = 25
-
-// Mirrors backend/config/constants.py ALLOWED_IMAGE_EXTENSIONS +
-// ALLOWED_DOCUMENT_EXTENSIONS. The backend is the real gate; this exists so a
-// parent who drops in a spreadsheet finds out immediately, instead of after
-// waiting through an eleven-file upload (2026-08-14: two CSV exports were
-// refused with a message that didn't say why).
-const ACCEPTED_EXTENSIONS = [
-  'pdf', 'doc', 'docx', 'txt', 'csv',
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif',
-]
-
-const extensionOf = (name) => (name.includes('.') ? name.split('.').pop().toLowerCase() : '')
-
-const isSupported = (file) => ACCEPTED_EXTENSIONS.includes(extensionOf(file.name))
-
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
-// An image gets 'image' evidence so the portfolio can show it inline; everything
-// else is a 'document'. Same two kinds a student picks by hand on a task.
-const kindFor = (file) => (file.type?.startsWith('image/') ? 'image' : 'document')
-
-const prettySize = (bytes) => (
-  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
-)
 
 const creditSummary = (awarded) => Object.entries(awarded || {})
   .map(([subject, credits]) => `${credits} ${SUBJECT_NAMES[subject] || subject}`)
@@ -312,7 +292,7 @@ const FamilyPriorLearningPage = () => {
             Choose files
           </button>
           <input ref={fileInput} type="file" multiple className="sr-only"
-                 accept={ACCEPTED_EXTENSIONS.map((e) => `.${e}`).join(',')}
+                 accept={ACCEPT_ATTR}
                  aria-label="Choose documents to upload"
                  onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
         </div>

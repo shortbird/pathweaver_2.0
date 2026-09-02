@@ -1,6 +1,11 @@
 """
-SIS staff prior-learning review — the office's queue of guardian-submitted
-prior-learning records, and where credit is awarded.
+SIS staff prior-learning review — the office's queue of prior-learning records,
+and where credit is awarded.
+
+Two ways a record gets here: a guardian files it (parent_prior_learning.py), or
+the office files it themselves for a transcript that arrived straight from the
+student's previous school. Both end up in the same queue, with the same review,
+analyzer and transcript conversion; `source` says which.
 
 NEW, additive (/api/sis/prior-learning), ADMIN_ROLES: this is front-office
 paperwork, not money, so a campus coordinator runs it alongside registration and
@@ -28,7 +33,10 @@ bp = Blueprint('sis_prior_learning', __name__, url_prefix='/api/sis/prior-learni
 
 def _org_or_error(user_id):
     body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
+    # request.form too: a file upload is multipart, so its organization_id (the
+    # one a superadmin has to pass) is not in a JSON body.
+    requested = (request.args.get('organization_id') or body.get('organization_id')
+                 or request.form.get('organization_id'))
     org_id = sis_service.resolve_org_id(user_id, requested)
     if not org_id:
         return None, (jsonify({
@@ -69,6 +77,81 @@ def list_records(user_id):
         'subjects': [{'key': key, 'name': SCHOOL_SUBJECT_DISPLAY_NAMES.get(key, key)}
                      for key in SCHOOL_SUBJECTS],
     })
+
+
+@bp.route('/students', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_students(user_id):
+    """The student picker for a record the office files itself.
+
+    Its own endpoint rather than a field on the queue: the queue is loaded on
+    every tab change, and the roster it would carry is only ever read when
+    somebody opens the upload form.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'students': prior.student_options(org_id)})
+
+
+@bp.route('', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_record(user_id):
+    """File a record for a transcript the office received directly.
+
+    Schools mail, email and hand over transcripts for a student who has just
+    enrolled, and none of that passes through the family. Before this, an admin
+    holding such a PDF either sat on it or asked the parent to upload a document
+    the school already had.
+
+    Opens at under_review — the office is already looking at it — so it lands in
+    the queue immediately and runs through the same analyze/accept/transcribe
+    steps as anything a family sent.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    result = prior.staff_create_record(org_id, user_id, data.get('student_user_id'), data)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    logger.info(f'[PRIOR LEARNING] {user_id[:8]} filed a staff record for student '
+                f'{(data.get("student_user_id") or "")[:8]}')
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/<record_id>/evidence', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_evidence(user_id, record_id):
+    """Attach one document to a record in this org.
+
+    The same pipeline, bucket and evidence kinds as a family upload
+    (prior.build_evidence), so a transcript the office scanned and a transcript
+    a parent photographed are the same artifact to the reviewer, the analyzer
+    and the portfolio.
+
+    Works on a record at any status, unlike the family's own upload: the office
+    adds paperwork during review, which is exactly when the family side locks.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+
+    body = request.form if request.files or request.form else (request.json or {})
+    # Establish the record is in this org BEFORE a blob is written, or a bad
+    # record id turns into an orphaned upload.
+    if not prior.get_record(record_id, org_id):
+        return jsonify({'success': False, 'error': 'Record not found'}), 404
+
+    evidence, bad = prior.build_evidence(body, request.files.get('file'),
+                                         uploader_id=user_id, record_id=record_id)
+    if bad:
+        return jsonify({'success': False, 'error': bad['error']}), bad['status']
+
+    saved = prior.staff_add_evidence(record_id, org_id, user_id, evidence)
+    if saved.get('error'):
+        return jsonify({'success': False, 'error': saved['error']}), saved.get('status', 400)
+    return jsonify({'success': True, **saved}), 201
 
 
 @bp.route('/<record_id>', methods=['GET'])
