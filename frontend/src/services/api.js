@@ -415,8 +415,14 @@ api.interceptors.response.use(
         // anonymous families; the app-load session check 401s for them by
         // design and must not eat the link with a bounce to /login.
         const isRegistrationFunnel = currentPath.startsWith('/enroll/') || currentPath.startsWith('/register/icreate/')
+        // POE pilot pages. authPaths lists '/poe' as an exact match, which left
+        // the deeper ones (/poe/showcase, the key-gated summary sent to POE
+        // leadership) bouncing anonymous visitors to /login on the app-load
+        // session check — the link looked broken to exactly the people it was
+        // sent to. Prefix-match the whole area.
+        const isPoePage = currentPath === '/poe' || currentPath.startsWith('/poe/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel && !isPoePage) {
           window.location.href = '/login'
         }
 

@@ -14,6 +14,17 @@ const VIEW_CONTENT_ROUTES = {
 }
 
 /**
+ * Public pages the pixel must never see at all — not even a PageView.
+ *
+ * These are link-gated pages whose URL carries the secret that grants access,
+ * and whose content is student work. A PageView sends the full document
+ * location, so firing one here would hand the access key to Meta and log a
+ * page of minors' evidence as ad-targetable browsing. Anonymous is not the
+ * same as public.
+ */
+const isPixelExcluded = (pathname) => pathname.startsWith('/poe/showcase')
+
+/**
  * Drives Meta Pixel events for client-side (SPA) navigation.
  *
  * Deliberate constraints:
@@ -38,6 +49,7 @@ export default function MetaPixelTracker() {
   useEffect(() => {
     if (loading) return
     if (isAuthenticated) return
+    if (isPixelExcluded(pathname)) return
 
     const justLoadedPixel =
       typeof window.__optioLoadMetaPixel === 'function'

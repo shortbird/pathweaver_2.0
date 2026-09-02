@@ -14,3 +14,11 @@ export const enrollInPoe = async (body) => {
   const response = await api.post('/api/public/poe/enroll', body)
   return response.data
 }
+
+// Every non-private piece of POE evidence, grouped camp -> camper -> day.
+// Gated on an unguessable link key rather than a login: POE/AGO leadership have
+// no Optio accounts. A wrong or missing key returns 404.
+export const getPoeShowcase = async (key) => {
+  const response = await api.get('/api/public/poe/showcase', { params: { key } })
+  return response.data
+}

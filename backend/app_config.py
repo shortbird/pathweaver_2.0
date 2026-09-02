@@ -462,6 +462,13 @@ class Config:
     # case sends without it are rejected (and every push silently fails).
     EXPO_ACCESS_TOKEN = os.getenv('EXPO_ACCESS_TOKEN')
 
+    # POE 2026 pilot showcase. The read-only summary of the summer's evidence at
+    # /poe/showcase is shared with AGO/POE leadership, who have no Optio account,
+    # so it cannot sit behind a login. Instead it takes an unguessable key in the
+    # URL. Unset => the endpoint 404s, which is the correct default everywhere
+    # except the one deploy that is meant to serve the link. Rotate the value to
+    # revoke every link already sent.
+    POE_SHOWCASE_KEY = os.getenv('POE_SHOWCASE_KEY')
 
     @classmethod
     def validate(cls) -> None:

@@ -147,6 +147,7 @@ const TreehouseFacilitatorPage = lazy(() => import('./treehouse/TreehouseFacilit
 const TreehouseKioskPage = lazy(() => import('./treehouse/TreehouseKioskPage'))
 const GryffinPage = lazy(() => import('./gryffin/GryffinPage'))
 const PoePage = lazy(() => import('./poe/PoePage'))
+const PoeShowcasePage = lazy(() => import('./poe/PoeShowcasePage'))
 
 const PROGRAM_ROUTES = {
   app: [
@@ -164,6 +165,8 @@ const PROGRAM_ROUTES = {
   ],
   public: [
     { path: 'poe', element: <PoePage /> },
+    // Link-keyed pilot summary for POE leadership (?key=...). No auth, no nav.
+    { path: 'poe/showcase', element: <PoeShowcasePage /> },
   ],
   standalone: [
     { path: 'treehouse-kiosk', element: <TreehouseKioskPage /> },

@@ -193,4 +193,18 @@ describe('401 refresh — a rejected refresh token still ends the session', () =
     await expect(api.get('/api/me')).rejects.toMatchObject({ response: { status: 401 } })
     expect(window.location.href).toBe('/portfolio/abc')
   })
+
+  // The public-page list matched '/poe' exactly, so every deeper POE page
+  // bounced anonymous visitors to /login on the app-load session check — the
+  // key-gated showcase link looked broken to the POE leadership it was sent to.
+  it.each(['/poe', '/poe/showcase'])('stays put on the public POE page %s', async (pathname) => {
+    window.location = { pathname, href: pathname }
+    api.defaults.adapter = vi.fn(async (config) => {
+      if (config.url === '/api/auth/refresh') reject(config, 401, { error: 'SESSION_EXPIRED' })
+      reject(config, 401, { error: 'expired' })
+    })
+
+    await expect(api.get('/api/me')).rejects.toMatchObject({ response: { status: 401 } })
+    expect(window.location.href).toBe(pathname)
+  })
 })
