@@ -215,3 +215,109 @@ class TestEveryReuseBranchReports:
         assert outcome == rf.GRACE
         assert not revoke.called
         assert not report.called
+
+
+@pytest.mark.unit
+class TestALostRotationIsRecoveredNotRevoked:
+    """The shape behind Sentry OPTIO-BACKEND-7E: 23 revocations, 22 users, six
+    days, every one of them a client that never received the token its own
+    rotation minted.
+
+    `last_used_at == rotated_at` is what says so -- `_advance` writes both in
+    one statement, so their being equal means nothing has presented the new jti
+    since. Serving the live jti there is not the grace window with a bigger
+    number; it is a different question, and it is asked of the client
+    fingerprint as well.
+    """
+
+    def _rotate_with(self, row, presented_jti):
+        client = MagicMock()
+        (client.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = MagicMock(data=[row])
+        with patch.object(rf, '_admin', return_value=client), \
+             patch.object(rf, '_revoke') as revoke, \
+             patch.object(rf, '_report_reuse') as report:
+            outcome, family_id, next_jti = rf.rotate(
+                USER, FAMILY, presented_jti, timedelta(days=30))
+        return outcome, next_jti, revoke, report
+
+    def _lost(self, app, **overrides):
+        """A family whose last rotation went nowhere, fingerprinted to the
+        client that is about to present the superseded token."""
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            fp = rf._client_fp(FAMILY)
+        row = _row(rotated_at=_ago(minutes=10), last_used_at=_ago(minutes=10),
+                   last_client_fp=fp)
+        row.update(overrides)
+        return row
+
+    def test_the_same_client_keeps_its_session(self, app):
+        row = self._lost(app)
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            outcome, next_jti, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.RECOVERED
+        assert outcome not in rf.DENY
+        assert next_jti == CURRENT       # the token it never received
+        assert not revoke.called
+        assert not report.called
+
+    def test_a_stranger_is_still_a_replay(self, app):
+        """Condition 3, and the one the grace window never applied at all: the
+        request has to fingerprint as the client that performed the rotation."""
+        row = self._lost(app)
+        with app.test_request_context(headers={'User-Agent': 'curl/8'}):
+            outcome, _, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_a_rotation_whose_output_was_used_is_still_a_replay(self, app):
+        """The decisive condition. Once the new jti has been presented by
+        anybody, a replay of the old one is a second party in the chain."""
+        row = self._lost(app, last_used_at=_ago(minutes=2))
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            outcome, _, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_an_older_jti_is_never_recovered(self, app):
+        """Only the immediately-preceding token. `unknown_jti` is the shape a
+        stolen token makes and stays a revocation whatever the timings say."""
+        row = self._lost(app)
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            outcome, _, revoke, report = self._rotate_with(row, ANCIENT)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_the_recovery_is_bounded(self, app):
+        """Finite exposure: past LOST_ROTATION_SECONDS a superseded token is
+        refused however honest it looks."""
+        row = self._lost(app, rotated_at=_ago(hours=30), last_used_at=_ago(hours=30))
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            outcome, _, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_an_unfingerprinted_family_is_not_recovered(self, app):
+        """'unknown' is not evidence. Families predating the fingerprint column
+        must not get the benefit of a test that was never run on them."""
+        row = self._lost(app, last_client_fp=None)
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            outcome, _, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_the_recovery_is_logged_with_its_facts(self, app):
+        """Sentry no longer sees these, so the log line is the only record that
+        the path fired -- and the only way to notice if it starts firing a lot."""
+        row = self._lost(app)
+        client = MagicMock()
+        (client.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = MagicMock(data=[row])
+        with app.test_request_context(headers={'User-Agent': 'Chrome/151'}):
+            with patch.object(rf, '_admin', return_value=client), \
+                 patch.object(rf, 'logger') as log:
+                rf.rotate(USER, FAMILY, PREVIOUS, timedelta(days=30))
+        line = log.warning.call_args.args[0]
+        assert 'Lost rotation recovered' in line
+        assert 'same_client=yes' in line
+        assert PREVIOUS[:8] in line

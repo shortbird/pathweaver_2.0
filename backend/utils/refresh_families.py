@@ -58,9 +58,20 @@ reuse now carries:
     it was last used, plus 8-character jti prefixes for correlating the chain
     across events without putting live credentials in an error tracker.
 
-`GRACE` hits are logged with their age too. Nothing is wrong when one happens,
-but the distribution of those ages is the only evidence for whether
-REPLAY_GRACE_SECONDS is set anywhere near right.
+**A lost rotation is not a replay.** When the jti a rotation minted has never
+been presented by anyone, the chain has only ever had one party in it: the
+client rotated and never received the response. That reads as
+`stale_previous` at whatever distance the client next retries -- minutes or
+hours, far outside any stopwatch -- so it is recognised by its shape instead
+(`_rotation_was_lost`, and LOST_ROTATION_SECONDS for why). Those are served,
+not revoked, and not reported: they are the honest half of what OPTIO-BACKEND-7E
+was counting.
+
+`GRACE` and `RECOVERED` hits are logged with their age. Nothing is wrong when
+one happens, but the distribution of those ages is the only evidence for
+whether REPLAY_GRACE_SECONDS is set anywhere near right -- and a rising rate of
+recoveries would mean rotation responses are going missing somewhere upstream,
+which is worth knowing on its own.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -93,9 +104,40 @@ TABLE = 'refresh_token_families'
 # older token, and any token from a revoked family, is still refused outright.
 REPLAY_GRACE_SECONDS = 120
 
+# The grace window above is a stopwatch, and a lost rotation is not a timing
+# problem -- so widening it again was never going to help. Sentry
+# OPTIO-BACKEND-7E: 23 revocations across 22 distinct users in six days, all
+# shape=stale_previous, 18 of them from the SAME client as the rotation they
+# replayed, at distances of 158s, 180s, 443s, 520s, 1339s, 4964s, 19933s. Well
+# outside any window worth having.
+#
+# What every one of them has in common is the giveaway: seconds_since_last_use
+# == seconds_since_rotation, exactly. `last_used_at` is written on each
+# rotation, so the two being equal means the jti that rotation MINTED was never
+# presented -- not once, by anybody. The client rotated, never received or
+# never stored the response, and went on holding the only token it has. There
+# is no second party in the chain at all.
+#
+# So a stale_previous is served rather than revoked when all three hold:
+#
+#   1. the presented jti is the immediately-preceding one (never `unknown_jti`,
+#      which is the shape a replayed stolen token makes),
+#   2. the jti that rotation produced has never been used, and
+#   3. the request fingerprints as the same client that performed the rotation.
+#
+# A thief clears (1) only by holding the one specific superseded token, clears
+# (2) only while the victim is idle, and clears (3) only from the victim's own
+# user agent AND IP -- and even then receives the family's live jti, the same
+# token the victim already holds, exactly as the 120s window has always handed
+# out. Condition (3) is a stricter test than the existing grace window applies
+# at all. The bound below keeps the exposure finite rather than lasting the
+# refresh token's full 30 days.
+LOST_ROTATION_SECONDS = 24 * 3600
+
 # Rotation outcomes.
 OK = 'ok'                    # current jti presented; rotated
 GRACE = 'grace'              # superseded jti, inside the race window; rotated
+RECOVERED = 'recovered'      # superseded jti, rotation's output never used, same client
 LEGACY = 'legacy'            # token predates rotation; new family started
 ADOPTED = 'adopted'          # token names a family we have no row for; started
 REUSE = 'reuse'              # replay of a spent token; family revoked
@@ -319,11 +361,55 @@ def rotate(user_id: str, family_id: Optional[str], jti: Optional[str],
             f"{_same_client(row.get('last_client_fp'), family_id)}")
         return GRACE, family_id, current
 
+    if previous and jti == previous and _rotation_was_lost(row, family_id):
+        # The rotation this replays produced a jti nobody has ever presented,
+        # and the request looks like the client that performed it. Nothing was
+        # spent; the client simply never got the new token. See
+        # LOST_ROTATION_SECONDS for why this is not the grace window with a
+        # bigger number. Hand back the live jti, as the grace path does.
+        logger.warning(
+            f"[RefreshFamilies] Lost rotation recovered on family "
+            f"{family_id[:8]}... | user {str(user_id)[:8]}... | "
+            f"age={_age_seconds(rotated_at)}s of {LOST_ROTATION_SECONDS}s | "
+            f"same_client=yes | presented_jti_prefix={_prefix(jti)} "
+            f"current_jti_prefix={_prefix(current)} | the jti this rotation "
+            f"minted was never used; serving it rather than revoking")
+        return RECOVERED, family_id, current
+
     # A jti of this family that is neither current nor a just-superseded one.
     # It was signed by us, so it was issued -- and it has already been spent.
     _revoke(family_id, 'reuse_detected')
     _report_reuse(user_id, family_id, row, jti)
     return REUSE, family_id, None
+
+
+def _rotation_was_lost(row: dict, family_id: str) -> bool:
+    """Whether this family's last rotation went nowhere.
+
+    True only when the jti that rotation minted has never been presented
+    (`last_used_at` still equal to `rotated_at`, since `_advance` writes both),
+    the rotation is recent enough to bound the exposure, and the caller
+    fingerprints as the client that performed it. `same_client` must be a
+    positive 'yes': 'unknown' (no fingerprint recorded, no request context) is
+    not evidence and must not open the path.
+    """
+    rotated_at = _parse_ts(row.get('rotated_at'))
+    if rotated_at is None:
+        return False
+
+    age = (datetime.now(timezone.utc) - rotated_at).total_seconds()
+    if not 0 <= age <= LOST_ROTATION_SECONDS:
+        return False
+
+    last_used_at = _parse_ts(row.get('last_used_at'))
+    if last_used_at is None:
+        return False
+    # Written in the same statement, so equality is exact; a second of slack
+    # costs nothing and survives any future clock or serialization rounding.
+    if abs((last_used_at - rotated_at).total_seconds()) > 1:
+        return False
+
+    return _same_client(row.get('last_client_fp'), family_id) == 'yes'
 
 
 def _within_grace(rotated_at: Optional[datetime]) -> bool:
