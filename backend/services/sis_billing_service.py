@@ -2447,6 +2447,11 @@ def _guardian_emails_for_household(household_id: str,
             continue
         seen.add(email)
         out.append({'user_id': u['id'], 'email': u['email'], 'name': _display_name(u)})
+    # Stable order. _pay_link_guardian takes the first of these as the family's
+    # payer whenever no primary contact is set, and a Supabase .in_() returns
+    # rows in whatever order it likes — so without this the parent named on the
+    # screen and the parent the card ends up under could differ between reads.
+    out.sort(key=lambda g: (g['name'].lower(), g['email'].lower()))
     return out
 
 

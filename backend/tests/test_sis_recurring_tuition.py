@@ -235,7 +235,7 @@ class TestSendSetupLink:
                 'day_of_month': 1, 'status': 'active', 'description': None}
 
     @contextmanager
-    def _sending(self, guardians, sends=True):
+    def _sending(self, guardian, sends=True):
         def _table(name):
             t = Mock()
             for chained in ('select', 'eq', 'update', 'neq', 'in_', 'order', 'limit'):
@@ -252,33 +252,35 @@ class TestSendSetupLink:
         mailer = Mock()
         mailer.return_value.send_email.return_value = sends
         with patch.object(recurring, '_admin', return_value=client), \
-             patch.object(recurring, 'household_guardians', return_value=guardians), \
+             patch.object(recurring, 'billing_contact', return_value=guardian), \
              patch.object(recurring, '_hydrate',
                           side_effect=lambda rows: [dict(r, student_name='Banks Hanna')
                                                     for r in rows]), \
              patch('services.email_service.EmailService', mailer):
             yield tables, mailer
 
+    PAYER = {'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'}
+
     def test_records_the_send_on_the_family_s_rows(self):
-        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'}]
-        with self._sending(guardians) as (tables, _):
+        with self._sending(self.PAYER) as (tables, _):
             result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
         assert result['emailed'] == 1
         assert result['sent_to'] == ['Paige Hanna']
         patch_written = tables['sis_recurring_tuition'].update.call_args.args[0]
         assert patch_written['setup_link_sent_at'] == result['sent_at']
 
-    def test_both_parents_are_emailed_and_both_named(self):
-        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'},
-                     {'user_id': 'p2', 'email': 'johnny@example.com', 'name': 'Johnny Hanna'}]
-        with self._sending(guardians) as (_, mailer):
+    def test_one_email_for_one_card_setup(self):
+        # A household saves ONE card against ONE Stripe customer. Mailing every
+        # guardian sent two parents two links to the same one-time action, and
+        # only one of them was ever going to be the payer on record.
+        with self._sending(self.PAYER) as (_, mailer):
             result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
-        assert result['emailed'] == 2
-        assert result['sent_to'] == ['Paige Hanna', 'Johnny Hanna']
-        assert mailer.return_value.send_email.call_count == 2
+        assert mailer.return_value.send_email.call_count == 1
+        assert result['emailed'] == 1
+        assert mailer.return_value.send_email.call_args.kwargs['to_email'] == 'paige@example.com'
 
     def test_a_family_with_nobody_to_email_says_what_to_do(self):
-        with self._sending([]) as (tables, _):
+        with self._sending(None) as (tables, _):
             result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
         assert 'Add a parent' in result['error']
         assert 'sis_recurring_tuition' not in tables
@@ -286,8 +288,7 @@ class TestSendSetupLink:
     def test_a_failed_send_is_not_recorded_as_sent(self):
         # The stamp is the office's evidence. Stamping a send that bounced tells
         # them next week that the family was asked, and they stop chasing.
-        guardians = [{'user_id': 'p1', 'email': 'paige@example.com', 'name': 'Paige Hanna'}]
-        with self._sending(guardians, sends=False) as (tables, _):
+        with self._sending(self.PAYER, sends=False) as (tables, _):
             result = recurring.send_setup_link(self.ORG, HOUSEHOLD_ID)
         assert 'could not be sent' in result['error']
         tables['sis_recurring_tuition'].update.assert_not_called()

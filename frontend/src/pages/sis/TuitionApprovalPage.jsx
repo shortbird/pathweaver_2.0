@@ -6,7 +6,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 import RecurringTuitionModal from './RecurringTuitionModal'
-import { useRecurringTuition } from './RecurringTuitionList'
+import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
 import { isClpEnabled } from './sisModules'
 
 /**
@@ -60,10 +60,14 @@ const TuitionApprovalPage = () => {
   // Schools that bill a monthly rate have no priced schedule to seed the queue
   // from, so their route to an invoice cannot run through it.
   const [monthlyOpen, setMonthlyOpen] = useState(false)
-  // The count goes on the button. For a school that bills monthly the queue
-  // beside it is permanently empty, so an unadorned button left the page
-  // looking like the school had nothing set up at all.
+  // Rendered on the page below, not inside the dialog that creates it: for a
+  // school that bills a monthly rate the invoice queue is permanently empty, so
+  // hiding this behind a button left the whole page looking like the school had
+  // nothing set up at all.
   const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
+  const monthlyTotal = (recurring || [])
+    .filter((s) => s.status === 'active')
+    .reduce((sum, s) => sum + (s.monthly_cents || 0), 0)
   const previewRef = useRef(null)
 
   const loadQueue = useCallback(() => {
@@ -232,13 +236,49 @@ const TuitionApprovalPage = () => {
       <div className="flex items-center justify-between mb-4 gap-3">
         <h1 className="text-2xl font-bold text-neutral-900">Tuition</h1>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => setMonthlyOpen(true)} disabled={!orgId}>
-            Monthly tuition{recurring?.length ? ` (${recurring.length})` : ''}
-          </Button>
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
-      <p className="text-sm text-neutral-500 mb-6 max-w-2xl">
+      <RecurringTuitionModal
+        isOpen={monthlyOpen}
+        onClose={() => setMonthlyOpen(false)}
+        onAdded={loadRecurring}
+        orgId={orgId}
+      />
+
+      {/* ── Monthly tuition ───────────────────────────────────────────────
+          On the page, not behind the button that creates it. A school billing
+          a monthly rate has no invoice until the first month is charged, so the
+          queue below is permanently empty for them and this IS their tuition. */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">Monthly tuition</h2>
+            <p className="text-sm text-neutral-500">
+              A set amount per student, charged automatically every month until you stop it.
+              Billing starts once the family saves a card — one card and one setup link per
+              family, however many children they have.
+              {!!monthlyTotal && <>
+                {' '}Billing{' '}
+                <strong className="text-neutral-800">{monthlyMoney(monthlyTotal)}</strong>
+                {' '}a month across this school.
+              </>}
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => setMonthlyOpen(true)} disabled={!orgId}>
+            + Add student
+          </Button>
+        </div>
+        <RecurringTuitionList
+          orgId={orgId}
+          schedules={recurring}
+          onChanged={loadRecurring}
+          emptyHint="No student is on a monthly rate yet. Add one to get started."
+        />
+      </section>
+
+      <h2 className="text-lg font-semibold text-neutral-900">Invoices</h2>
+      <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
         {showClp
           ? <>Students whose CLP is done, waiting on a tuition invoice. Open one to verify the
             tuition against their schedule, adjust it if needed, and send the invoice to the
@@ -246,16 +286,7 @@ const TuitionApprovalPage = () => {
             to look them up.</>
           : <>Students waiting on a tuition invoice, seeded from their schedule. Open one to
             verify the tuition, adjust it if needed, and send the invoice to the family.</>}
-        {' '}If your school charges a set monthly rate, use <strong>Monthly tuition</strong>
-        {' '}instead — a set amount per student, charged automatically every month until you
-        stop it.
       </p>
-
-      <RecurringTuitionModal
-        isOpen={monthlyOpen}
-        onClose={() => { setMonthlyOpen(false); loadRecurring() }}
-        orgId={orgId}
-      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] items-start gap-6">
         {/* ── Queue ─────────────────────────────────────────────────────── */}

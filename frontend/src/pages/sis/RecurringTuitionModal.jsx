@@ -5,20 +5,21 @@ import { Modal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { withOrg } from './useSisOrg'
-import RecurringTuitionList, { money } from './RecurringTuitionList'
 
 /**
- * Monthly tuition — a set amount per student, charged every month until it is
- * turned off (Optio Academy, 2026-08-31).
+ * Put one student on monthly tuition — a set amount charged every month until
+ * it is turned off (Optio Academy, 2026-08-31).
  *
  * Not a payment plan: there is no total and no end date, so nothing here asks
  * for a number of months. One schedule per student, so each child's tuition can
  * be changed, paused or ended on its own; the monthly sweep then bills a family
  * ONCE, on one invoice with a line per child.
  *
- * Billing does not start until the family saves a card, which they do through a
- * no-login link this screen emails them. Until then a schedule reads "waiting on
- * the family" rather than looking active but silently never charging.
+ * The ADD form only. What the school already bills is listed on the Tuition
+ * page itself (RecurringTuitionList) rather than in here — a record the office
+ * has to open a dialog to see is a record they reasonably conclude isn't there.
+ * It still loads the schedules, to keep a student who already has one out of
+ * the picker instead of failing at the save.
  */
 
 const toCents = (str) => {
@@ -29,7 +30,7 @@ const toCents = (str) => {
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const label = 'block text-xs font-medium text-neutral-600 mb-1'
 
-const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
+const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
   const [roster, setRoster] = useState(null)
   const [schedules, setSchedules] = useState(null)
 
@@ -75,10 +76,6 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
   const monthlyCents = toCents(monthlyStr)
   const canAdd = !!studentId && monthlyCents > 0 && !noHousehold && !adding
 
-  const activeTotal = (schedules || [])
-    .filter((s) => s.status === 'active')
-    .reduce((sum, s) => sum + (s.monthly_cents || 0), 0)
-
   const add = async () => {
     if (!canAdd) return
     setAdding(true)
@@ -95,6 +92,7 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
       toast.success('Added. Email the family the setup link to start billing.')
       setStudentId(''); setMonthlyStr(''); setDescription('')
       load()
+      onAdded?.()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not add monthly tuition')
     } finally { setAdding(false) }
@@ -104,15 +102,10 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Monthly tuition"
-      size="xl"
+      title="Add monthly tuition"
+      size="lg"
       footer={(
-        <div className="flex items-center justify-between w-full gap-3">
-          <span className="text-sm text-neutral-500">
-            {activeTotal > 0
-              ? <>Billing <strong className="text-neutral-800">{money(activeTotal)}</strong> a month across this school</>
-              : 'Nothing is being billed monthly yet'}
-          </span>
+        <div className="flex items-center justify-end w-full gap-3">
           <Button variant="secondary" onClick={onClose}>Done</Button>
         </div>
       )}
@@ -125,24 +118,7 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId }) => {
           one charge, itemised per child.
         </p>
 
-        {/* ── Existing schedules ─────────────────────────────────────────── */}
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-            Current schedules
-          </h3>
-          <RecurringTuitionList
-            orgId={orgId}
-            schedules={schedules}
-            onChanged={load}
-            emptyHint="No monthly tuition set up yet. Add a student below."
-          />
-        </div>
-
-        {/* ── Add ────────────────────────────────────────────────────────── */}
-        <div className="border-t border-gray-200 pt-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-            Add a student
-          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className={label}>Student</label>

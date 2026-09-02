@@ -89,7 +89,7 @@ const { api } = vi.hoisted(() => {
         id: 'r1', student_user_id: 's1', student_name: 'Banks Hanna',
         household_id: 'hh2', household_name: 'Hanna', monthly_cents: 100000,
         status: 'active', next_charge_on: null, card: null,
-        guardians: [{ name: 'Paige Hanna', email: 'p@x.com' }],
+        billing_contact: { name: 'Paige Hanna', email: 'p@x.com' },
         setup_link_sent_at: null,
       }], active_monthly_cents: 100000 } }
     }
@@ -506,7 +506,7 @@ describe('charge detail', () => {
       render(<BillingPage />)
       fireEvent.click(await screen.findByRole('button', { name: /Monthly tuition/ }))
       expect(await screen.findByText('Banks Hanna')).toBeInTheDocument()
-      expect(screen.getByText(/\$1000\.00\/month/)).toBeInTheDocument()
+      expect(screen.getAllByText(/\$1000\.00\/month/).length).toBeGreaterThan(0)
       expect(screen.getByText(/setup link not sent yet/)).toBeInTheDocument()
       expect(screen.getByText(/a month across this school/)).toBeInTheDocument()
     })

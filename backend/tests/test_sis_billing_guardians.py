@@ -160,6 +160,18 @@ class TestGuardianResolution:
             links=[], users=[])
         assert found == []
 
+    def test_the_order_is_stable_whatever_the_database_returns(self):
+        # _pay_link_guardian takes the first of these as the payer when no
+        # primary contact is set, so an arbitrary order means the parent named
+        # on screen and the parent the card lands under can disagree.
+        rows = [{'student_user_id': 's-banks', 'parent_user_id': 'p-paige', 'status': 'approved'},
+                {'student_user_id': 's-banks', 'parent_user_id': 'p-johnny', 'status': 'approved'}]
+        members = [{'user_id': 's-banks', 'relationship': 'student'}]
+        forward = _resolve(members=members, links=rows, users=[PAIGE, JOHNNY])
+        backward = _resolve(members=members, links=rows, users=[JOHNNY, PAIGE])
+        assert [g['name'] for g in forward] == [g['name'] for g in backward]
+        assert forward[0]['name'] == 'Johnny Hanna'
+
     def test_a_parent_with_no_email_is_not_a_recipient(self):
         found = _resolve(
             members=[{'user_id': 's-banks', 'relationship': 'student'}],

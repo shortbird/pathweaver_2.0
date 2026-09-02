@@ -104,14 +104,17 @@ def first_charge_date(today: date, day_of_month: int) -> date:
 
 # ── Reads ────────────────────────────────────────────────────────────────────
 
-def household_guardians(household_id: str) -> List[Dict[str, Any]]:
-    """[{user_id, email, name}] the setup link would go to for this family.
+def billing_contact(household_id: str) -> Optional[Dict[str, Any]]:
+    """The ONE parent who sets up and holds the family's monthly payment.
 
-    The same resolution the send itself uses, so the screen cannot promise an
-    email the send would then refuse.
+    A household saves a single card, and Stripe records it against a single
+    customer — whichever guardian `_pay_link_guardian` picks (the primary
+    contact, else another non-dependent guardian). Emailing the setup link to
+    every guardian therefore sent two parents two links to the same one-time
+    action, and only one of them was ever going to be the payer on record.
+    So the link goes to the payer, and the screen names them before you send.
     """
-    return billing._guardian_emails_for_household(  # noqa: SLF001 — same package
-        household_id, billing._household_primary_contact(household_id))
+    return billing._pay_link_guardian({'household_id': household_id})  # noqa: SLF001 — same package
 
 
 def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -129,22 +132,22 @@ def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         _admin().table('households').select('id, name')
         .in_('id', hh_ids).execute()).data or []}
     cards: Dict[str, Any] = {}
-    guardians: Dict[str, List[Dict[str, Any]]] = {}
+    contacts: Dict[str, Any] = {}
     for r in rows:
         oid, hh = r['organization_id'], r['household_id']
         if hh not in cards:
             saved = billing.household_saved_card(oid, hh)
             cards[hh] = ({'brand': saved.get('card_brand'), 'last4': saved.get('card_last4')}
                          if saved else None)
-        if hh not in guardians:
-            guardians[hh] = [{'name': g['name'], 'email': g['email']}
-                             for g in household_guardians(hh)]
+        if hh not in contacts:
+            g = billing_contact(hh)
+            contacts[hh] = {'name': g['name'], 'email': g['email']} if g else None
     for r in rows:
         u = users.get(r['student_user_id']) or {}
         r['student_name'] = person_name.full_name(u, 'Unknown')
         r['household_name'] = (households.get(r['household_id']) or {}).get('name')
         r['card'] = cards.get(r['household_id'])
-        r['guardians'] = guardians.get(r['household_id'], [])
+        r['billing_contact'] = contacts.get(r['household_id'])
     return rows
 
 
@@ -408,8 +411,8 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     from services.sis_pay_links import setup_url
     from services.email_service import EmailService
 
-    guardians = household_guardians(household_id)
-    if not guardians:
+    guardian = billing_contact(household_id)
+    if not guardian:
         return {'error': 'Nobody on this family can be emailed. Add a parent to '
                          'the family in People, then send the link.'}
     rows = (_admin().table('sis_recurring_tuition').select('*')
@@ -446,19 +449,19 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
         f"the school stops it.</p>"
         f"<p>Thank you,<br/>{org_name}</p>")
 
+    # ONE email, to the parent who will hold the card. Two parents receiving two
+    # links to the same one-time setup reads as two things to do, and only one of
+    # them can be the payer on record.
     svc = EmailService()
-    emailed, sent_to = 0, []
-    for g in guardians:
-        try:
-            if svc.send_email(to_email=g['email'], subject=subject,
-                              html_body=html, text_body=text):
-                emailed += 1
-                sent_to.append(g['name'])
-        except Exception as e:  # noqa: BLE001 — one bad address must not stop the rest
-            logger.warning(f"[recurring tuition] setup email to {g['email']} failed: {e}")
+    try:
+        emailed = bool(svc.send_email(to_email=guardian['email'], subject=subject,
+                                      html_body=html, text_body=text))
+    except Exception as e:  # noqa: BLE001 — the office gets told, not a stack trace
+        logger.warning(f"[recurring tuition] setup email to {guardian['email']} failed: {e}")
+        emailed = False
     if not emailed:
-        # Every address failed. Saying so beats a green toast and a silent stamp
-        # that tells the office next week that the family was asked.
+        # Saying so beats a green toast and a silent stamp that tells the office
+        # next week that the family was asked.
         return {'error': 'The setup email could not be sent. Check the email '
                          'settings for this school and try again.'}
     # Stamped on the whole family's active rows: the link is per household, and
@@ -468,5 +471,5 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
         {'setup_link_sent_at': sent_at, 'updated_at': sent_at}
     ).eq('household_id', household_id).eq('organization_id', org_id) \
      .eq('status', 'active').execute()
-    return {'emailed': emailed, 'monthly_cents': total,
-            'sent_to': sent_to, 'sent_at': sent_at}
+    return {'emailed': 1, 'monthly_cents': total,
+            'sent_to': [guardian['name']], 'sent_at': sent_at}
