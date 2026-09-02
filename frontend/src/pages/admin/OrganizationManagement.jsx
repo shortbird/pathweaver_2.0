@@ -260,6 +260,7 @@ export default function OrganizationManagement() {
           orgData={orgData}
           onUpdate={fetchOrganizationData}
           onLogoChange={refreshOrganization}
+          canEditSlug={isSuperadmin}
         />
       )}
 

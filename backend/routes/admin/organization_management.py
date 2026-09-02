@@ -235,7 +235,9 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
             # branding, AI entitlements or visibility policies.
             allowed_fields = ['feature_flags']
         elif is_superadmin:
-            allowed_fields = ['name', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
+            # Slug is superadmin-only: it is the school's login URL (/login/<slug>),
+            # so renaming it invalidates every link and printed QR an org has handed out.
+            allowed_fields = ['name', 'slug', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
                             'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled',
                             'feature_flags']
         else:
@@ -247,6 +249,42 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
         if not update_data:
             return jsonify({'error': 'No valid fields to update'}), 400
+
+        # Slug rename. It is the org's login URL and its identity in the program
+        # registry, so it is validated here rather than passed straight to the
+        # repository (where a duplicate surfaces as an unreadable 500).
+        if 'slug' in update_data:
+            from repositories.organization_repository import OrganizationRepository as _SlugRepo
+            slug_repo = _SlugRepo()
+            new_slug = (update_data['slug'] or '').strip().lower()
+            current_org = slug_repo.find_by_id(org_id)
+            if not current_org:
+                return jsonify({'error': 'Organization not found'}), 404
+            current_slug = current_org.get('slug')
+
+            if new_slug == current_slug:
+                del update_data['slug']
+            else:
+                if not re.match(r'^[a-z0-9-]+$', new_slug):
+                    return jsonify({'error': 'Slug must contain only lowercase letters, numbers, and hyphens'}), 400
+
+                existing = slug_repo.get_by_slug(new_slug)
+                if existing and existing.get('id') != org_id:
+                    return jsonify({'error': f"Another organization already uses the slug '{new_slug}'"}), 400
+
+                # Programs are wired to a member org by slug (backend/programs/registry.py
+                # and frontend/src/programs/registry.jsx). Renaming out from under the
+                # registry would silently turn the program's tab and rules off.
+                from programs.registry import program_for_org_slug
+                program = program_for_org_slug(current_slug)
+                if program:
+                    return jsonify({'error': (
+                        f"'{current_slug}' is wired to the {program.name} program by slug. "
+                        f"Update org_slugs in backend/programs/registry.py and "
+                        f"frontend/src/programs/registry.jsx first, then rename."
+                    )}), 400
+
+                update_data['slug'] = new_slug
 
         # The Stripe secret key is submitted through the same feature_flags blob
         # the settings UI round-trips, but it must never be STORED there:

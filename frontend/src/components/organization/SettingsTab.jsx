@@ -4,13 +4,16 @@ import api, { oeaAPI } from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
 import SchoolLoginLinkCard from './SchoolLoginLinkCard'
 
-function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
+function EditOrganizationModal({ orgId, orgData, onClose, onSuccess, canEditSlug }) {
+  const currentSlug = orgData?.organization?.slug || ''
   const [formData, setFormData] = useState({
     name: orgData?.organization?.name || '',
-    slug: orgData?.organization?.slug || ''
+    slug: currentSlug
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const slugChanged = canEditSlug && formData.slug !== currentSlug
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -18,7 +21,10 @@ function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
     setError('')
 
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, formData)
+      // Only superadmin may rename the slug; sending it otherwise is dropped
+      // server-side, which reads as a silent failure.
+      const payload = slugChanged ? formData : { name: formData.name }
+      await api.put(`/api/admin/organizations/${orgId}`, payload)
       onSuccess()
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update organization')
@@ -50,11 +56,27 @@ function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none disabled:bg-gray-50 disabled:text-gray-500"
               pattern="[a-z0-9-]+"
+              disabled={!canEditSlug}
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Lowercase letters, numbers, hyphens only. This changes the registration URL.</p>
+            {canEditSlug ? (
+              <p className="text-xs text-gray-500 mt-1">
+                Lowercase letters, numbers, hyphens only. The school login link becomes
+                <span className="font-mono"> /login/{formData.slug || '...'}</span>.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">
+                The slug sets the school login link and can only be changed by Optio staff.
+              </p>
+            )}
+            {slugChanged && (
+              <p className="text-xs text-amber-700 mt-1">
+                Renaming breaks the old login link and any printed QR codes. Share the new
+                link and reprint after saving.
+              </p>
+            )}
           </div>
 
           {error && (
@@ -85,7 +107,7 @@ function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
   )
 }
 
-export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) {
+export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false }) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [logoUrl, setLogoUrl] = useState(orgData?.organization?.branding_config?.logo_url || '')
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -720,6 +742,7 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
         <EditOrganizationModal
           orgId={orgId}
           orgData={orgData}
+          canEditSlug={canEditSlug}
           onClose={() => setShowEditModal(false)}
           onSuccess={() => {
             setShowEditModal(false)
