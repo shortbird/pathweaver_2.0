@@ -113,14 +113,23 @@ const SearchBox = ({ value, onChange, label }) => (
   />
 )
 
+// iCreate, 2026-09-02: a long invoice could not be scrolled back to the top.
+// The card had no height cap, so a twenty-line invoice grew taller than the
+// screen -- and the overlay centres its child, which pushes the overflow above
+// the scroll origin where no scrollbar reaches it. Cap the card at the viewport
+// and scroll its body instead: the title stays pinned, and every line item and
+// the buttons under it stay reachable while viewing and while editing.
 const Modal = ({ title, onClose, children }) => (
   <ModalOverlay onClose={onClose}>
-    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-4">
+    <div
+      className="w-full max-w-md max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-white p-6 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <h3 className="font-semibold text-neutral-900">{title}</h3>
         <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 text-lg" aria-label="Close">×</button>
       </div>
-      {children}
+      <div className="modal-scroll min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   </ModalOverlay>
 )
@@ -322,6 +331,9 @@ const BillingPage = () => {
           .print-area, .print-area * { visibility: visible; }
           .print-area { position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
+          /* Print the whole invoice, not the slice that happens to be
+             scrolled into view. */
+          .modal-scroll { overflow: visible !important; max-height: none !important; }
         }
       `}</style>
 

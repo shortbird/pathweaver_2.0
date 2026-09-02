@@ -50,6 +50,11 @@ export default function ModalOverlay({
   return createPortal(
     <div
       className={`fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto ${className}`}
+      // `safe center` keeps the modal centred while it fits, but falls back to
+      // start-aligned the moment it is taller than the screen. Plain centring
+      // pushes the overflow above the scroll origin, where no scrollbar can
+      // reach it -- which is how a long invoice lost its own header.
+      style={{ alignItems: 'safe center' }}
       onMouseDown={handleOverlayMouseDown}
     >
       {children}

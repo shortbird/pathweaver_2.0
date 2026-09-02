@@ -269,6 +269,30 @@ describe('opening the invoice a family was sent', () => {
     // The payment modal opened; the invoice document was never fetched.
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/document'))
   })
+
+  // iCreate, 2026-09-02: "when invoices are very long we are unable to scroll
+  // to the top of them." The card had no height cap, and the overlay centres
+  // its child -- so an invoice taller than the screen overflowed above the
+  // scroll origin, where the header and the first line items were unreachable.
+  it('keeps a long invoice scrollable inside the modal', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const number = await screen.findByText('INV-2026-3B3796')
+    const card = number.closest('.max-h-\\[calc\\(100vh-2rem\\)\\]')
+    expect(card).not.toBeNull()
+    // The body scrolls; the title bar it is next to does not move.
+    expect(card.querySelector('.overflow-y-auto')).not.toBeNull()
+  })
+
+  // Editing runs through the same card, and an invoice with many lines is
+  // exactly when the Save button ends up below the fold.
+  it('keeps the edit form scrollable too', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const save = await screen.findByRole('button', { name: 'Save invoice' })
+    expect(save.closest('.overflow-y-auto')).not.toBeNull()
+  })
 })
 
 /**
