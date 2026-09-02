@@ -136,6 +136,11 @@ rest of the path; Render passes query strings through):
 | `/lti-error` | `https://app.optioeducation.com/lti-error` |
 | `/sis-launch` | `https://app.optioeducation.com/sis-launch` |
 | `/mobile` | `https://app.optioeducation.com/mobile` |
+| `/treehouse-kiosk` | `https://app.optioeducation.com/treehouse-kiosk` |
+| `/treehouse` + `/treehouse/*` | `https://app.optioeducation.com/treehouse...` |
+| `/hearthwood` + `/hearthwood/*` | `https://app.optioeducation.com/hearthwood...` |
+| `/gryffin` + `/gryffin/*` | `https://app.optioeducation.com/gryffin...` |
+| `/poe` + `/poe/*` | `https://app.optioeducation.com/poe...` |
 
 Notes:
 - `/embed/*` and `/schedule-embed/*` are iframed on partner-school websites; a
@@ -147,21 +152,38 @@ Notes:
 - Do NOT add a catch-all `/* -> app` rule: unknown paths should 404 on the
   marketing site (its 404 page links both surfaces).
 - **MAINTENANCE: the rules are an explicit allowlist, so every NEW top-level app
-  route needs a rule added, or bookmarks to it will 404 after cutover.** This
-  already bit once: the original table covered 46 of the app's 128 routes, and
-  35 top-level segments (`/profile`, `/messages`, `/transcript`, `/admin`,
-  `/bounties`, `/learning-journal`, ...) had no rule. Re-run the audit after
+  route needs a rule added, or bookmarks to it will 404.** Re-run the audit after
   adding routes:
 
   ```bash
-  # every top-level segment the SPA serves
-  grep -oE '<Route path="[^"]+"' frontend/src/App.jsx | sed 's/.*path="//;s/"//' \
-    | cut -d/ -f1 | sort -u
-  # compare against the rules on the service
-  curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
-    "https://api.render.com/v1/services/srv-dab249vavr4c73einci0/routes?limit=100" \
-    | python3 -c "import json,sys; print(sorted({r['route']['source'] for r in json.load(sys.stdin)}))"
+  python3 marketing/scripts/audit-redirects.py           # report gaps
+  python3 marketing/scripts/audit-redirects.py --emit    # + JSON body to PUT
   ```
+
+  It has bitten twice:
+
+  1. At cutover, the original table covered 46 of the app's 128 routes; 35
+     top-level segments (`/profile`, `/messages`, `/transcript`, `/admin`,
+     `/bounties`, `/learning-journal`, ...) had no rule.
+  2. 2026-09-02, one day after cutover: **`/treehouse-kiosk` 404'd**, reported by
+     the Treehouse ALC admin whose classroom iPads were bookmarked to the www
+     URL. Missing with it: `/treehouse`, `/hearthwood`, `/gryffin`, `/poe`, plus
+     bare `/quests` and `/schedule-builder`.
+
+  Cause of (2), and the two traps the script now handles:
+
+  - **Program routes are NOT in `App.jsx`.** They live in
+    `frontend/src/programs/registry.jsx` (`PROGRAM_ROUTES`), spliced in by
+    `getProgramRoutes()`. The old audit grepped only `App.jsx`, so every program
+    route was invisible to it. Adding a program = adding public URLs; add the
+    rules in the same change.
+  - **`?limit=100` silently truncates the comparison** — there are 131 rules, and
+    Render's cursor pagination walks *backwards one item per page*, so a naive
+    loop looks like it terminated when it has only crawled a few rules. The
+    script pages until the deduped id set stops growing.
+
+  Note `PUT /routes` **replaces the entire list**. Always build the new body from
+  a fresh GET (`--emit` does), never from the table above.
 
 ## Rollback
 
