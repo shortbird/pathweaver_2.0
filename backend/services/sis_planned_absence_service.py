@@ -59,9 +59,20 @@ def _org_admin_ids(org_id: str) -> List[str]:
     Paged: this reads every user in the org, which grows past the PostgREST cap
     as families join — and a truncated read is an admin who silently stops
     being notified.
+
+    Memoized for the life of the request. Reporting four children absent calls
+    this four times, and at iCreate that is four paged reads of 361 users to
+    arrive at the same eight admins — a third of the ~18s that pushed the POST
+    past the mobile client's timeout (Sentry OPTIO-MOBILE-4). The roster cannot
+    change mid-request, so the repeats were never buying anything.
     """
     from utils.db_fetch import fetch_all_rows
     from utils.sis_roles import CAMPUS_COORDINATOR
+
+    cache = _request_cache()
+    key = f'org_admin_ids:{org_id}'
+    if cache is not None and key in cache:
+        return cache[key]
 
     rows = fetch_all_rows(lambda: (
         _admin().table('users').select('id, org_role, org_roles')
@@ -76,7 +87,36 @@ def _org_admin_ids(org_id: str) -> List[str]:
             roles.update(u['org_roles'])
         if roles & wanted:
             admins.append(u['id'])
+    if cache is not None:
+        cache[key] = admins
     return admins
+
+
+def _request_cache() -> Optional[Dict[str, Any]]:
+    """A dict living as long as the current request, or None outside one.
+
+    Hung off the request object, NOT off `g`: `g` belongs to the APPLICATION
+    context, which usually lasts one request but does not have to — anything
+    that pushes an app context around several requests would carry the cache
+    between them, and a stale admin roster means notifying someone the office
+    removed this morning. The request is the actual lifetime we want, and
+    attaching to it is the pattern the auth decorators already use
+    (`request.user_id`).
+
+    Outside a request context (scripts, tests) this returns None and every
+    lookup goes to the database, unchanged.
+    """
+    try:
+        from flask import has_request_context, request
+        if not has_request_context():
+            return None
+        cache = getattr(request, '_planned_absence_cache', None)
+        if cache is None:
+            cache = {}
+            request._planned_absence_cache = cache
+        return cache
+    except Exception:  # noqa: BLE001 — a cache must never break the caller
+        return None
 
 
 # ── Staff read: planned absences for a class on a date ───────────────────────
@@ -367,7 +407,14 @@ def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
                        class_id: Optional[str], title: str, template: str,
                        extra_metadata: Optional[Dict[str, Any]] = None,
                        end_date: Optional[str] = None) -> None:
-    """Notify every org_admin/campus_coordinator about an absence event."""
+    """Notify every org_admin/campus_coordinator about an absence event.
+
+    One NotificationService for the whole team, not one per recipient:
+    NotificationService.__init__ builds a fresh Supabase client every time, and
+    a four-child report to an eight-person office was constructing thirty-two
+    of them inside a request the client only waits fifteen seconds for
+    (OPTIO-MOBILE-4).
+    """
     from services import sis_notifications
 
     admin_ids = _org_admin_ids(org_id)
@@ -390,10 +437,12 @@ def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
                 'class_id': class_id, **({'end_date': end_date} if end_date else {}),
                 **(extra_metadata or {})}
     message = template.format(name=name, scope=scope, when=when)
+    service = sis_notifications.shared_service()
     for admin_id in admin_ids:
         sis_notifications.notify(
             admin_id, title, message,
             link='/attendance',
             organization_id=org_id,
             metadata=metadata,
+            service=service,
         )
