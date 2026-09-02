@@ -222,13 +222,15 @@ def shares_class(teacher_id: str, student_id: str) -> bool:
     return False
 
 
-def parents_of_students(student_ids) -> Set[str]:
-    """Every guardian of these students, through both link types the platform
-    has: users.managed_by_parent_id (dependent accounts) and an approved
-    parent_student_links row (independent accounts). Best-effort like the rest
-    of this module — a lookup failure returns what was found so far."""
+def guardians_by_student(student_ids) -> Dict[str, Set[str]]:
+    """{student_id: {guardian_id, ...}} for these students, through both link
+    types the platform has: users.managed_by_parent_id (dependent accounts) and
+    an approved parent_student_links row (independent accounts). Best-effort
+    like the rest of this module — a lookup failure returns what was found so
+    far. Two queries per chunk however many students are asked for, so callers
+    that need the mapping never loop children_of_parent."""
     wanted = [sid for sid in set(student_ids or []) if sid]
-    out: Set[str] = set()
+    out: Dict[str, Set[str]] = {}
     if not wanted:
         return out
     try:
@@ -236,15 +238,26 @@ def parents_of_students(student_ids) -> Set[str]:
         for chunk in _chunks(wanted):
             rows = (admin.table('users').select('id, managed_by_parent_id')
                     .in_('id', chunk).execute()).data or []
-            out.update(r['managed_by_parent_id'] for r in rows
-                       if r.get('managed_by_parent_id'))
+            for r in rows:
+                if r.get('managed_by_parent_id'):
+                    out.setdefault(r['id'], set()).add(r['managed_by_parent_id'])
             links = (admin.table('parent_student_links')
                      .select('parent_user_id, student_user_id')
                      .in_('student_user_id', chunk)
                      .eq('status', 'approved').execute()).data or []
-            out.update(l['parent_user_id'] for l in links if l.get('parent_user_id'))
+            for l in links:
+                if l.get('parent_user_id') and l.get('student_user_id'):
+                    out.setdefault(l['student_user_id'], set()).add(l['parent_user_id'])
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'parents_of_students failed: {e}')
+        logger.warning(f'guardians_by_student failed: {e}')
+    return out
+
+
+def parents_of_students(student_ids) -> Set[str]:
+    """Every guardian of these students (see guardians_by_student)."""
+    out: Set[str] = set()
+    for guardians in guardians_by_student(student_ids).values():
+        out |= guardians
     return out
 
 

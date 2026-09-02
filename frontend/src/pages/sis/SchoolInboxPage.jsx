@@ -13,6 +13,7 @@ import api from '../../services/api'
 import { AttachmentList } from '../../components/communication/MessageParts'
 import { splitUrls, hostLabel } from '../../components/announcements/AnnouncementBody'
 import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
+import SearchSelect from '../../components/ui/SearchSelect'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -65,6 +66,13 @@ const listTime = (timestamp) => {
   return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+// The picker says who somebody is: two Bennetts in a school are a parent and
+// a teacher, and only the label tells them apart.
+const ROLE_LABELS = {
+  student: 'student', parent: 'parent', advisor: 'teacher',
+  org_admin: 'admin', campus_coordinator: 'coordinator', observer: 'observer',
+}
+
 const memberName = (convo) =>
   `${convo.other_user?.first_name || ''} ${convo.other_user?.last_name || ''}`.trim() ||
   convo.other_user?.display_name || 'Member'
@@ -105,6 +113,13 @@ const SchoolInboxPage = () => {
   const [sending, setSending] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [uploadingAtt, setUploadingAtt] = useState(false)
+  // Starting a thread, rather than answering one. The inbox could only ever
+  // reply, so reaching ONE family meant an announcement to everybody or a
+  // phone call (iCreate, 2026-09-02: "allow us to message an individual person
+  // here too").
+  const [composing, setComposing] = useState(false)
+  const [people, setPeople] = useState([])
+  const [pickedPerson, setPickedPerson] = useState('')
   const fileRef = useRef(null)
   const endRef = useRef(null)
 
@@ -139,6 +154,32 @@ const SchoolInboxPage = () => {
     const timer = setInterval(() => loadConversations(true), POLL_LIST_MS)
     return () => clearInterval(timer)
   }, [loadConversations, isSuperadmin, orgId, admin, tab])
+
+  useEffect(() => {
+    if (!composing || !admin || people.length) return
+    api.get(withOrg('/api/sis/roster', isSuperadmin ? orgId : null))
+      .then((r) => setPeople(r.data?.roster || []))
+      .catch(() => toast.error('Could not load the school directory'))
+  }, [composing, admin, isSuperadmin, orgId, people.length])
+
+  // Open a thread with somebody who has never written in. It has no
+  // conversation id until the first message lands, which handleSend adopts
+  // from the response.
+  const startThread = (person) => {
+    setSelected({
+      id: null,
+      other_user: {
+        id: person.student_id,
+        first_name: person.first_name,
+        last_name: person.last_name,
+        display_name: person.name,
+        avatar_url: person.avatar_url,
+      },
+    })
+    setMessages([])
+    setComposing(false)
+    setPickedPerson('')
+  }
 
   const loadMessages = useCallback((conversationId, quiet = false) => {
     if (!conversationId) return
@@ -215,10 +256,12 @@ const SchoolInboxPage = () => {
       // Durable pointers only — never the signed display twins.
       attachments: attachments.map(({ url: u, type, name, size }) => ({ url: u, type, name, size })),
     })
-      .then(() => {
+      .then((r) => {
         setDraft('')
         setAttachments([])
-        loadMessages(selected.id, true)
+        const convoId = selected.id || r?.data?.data?.conversation_id
+        if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
+        if (convoId) loadMessages(convoId, true)
         loadConversations(true)
       })
       .catch((e2) => toast.error(e2?.response?.data?.error || 'Could not send the reply'))
@@ -266,6 +309,37 @@ const SchoolInboxPage = () => {
         {/* Thread list */}
         <div className={`w-full md:w-[300px] lg:w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col ${
           selected ? 'hidden md:flex' : 'flex'}`}>
+          {admin && (
+            <div className="border-b border-gray-100 p-3">
+              {composing ? (
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1" htmlFor="inbox-new-message">
+                    Message one person
+                  </label>
+                  <SearchSelect
+                    value={pickedPerson}
+                    onChange={(id) => {
+                      const person = people.find((p) => p.student_id === id)
+                      if (person) startThread(person)
+                    }}
+                    options={people.filter((p) => p.student_id !== inboxUserId)}
+                    getId={(p) => p.student_id}
+                    getLabel={(p) => (p.role ? `${p.name} (${ROLE_LABELS[p.role] || p.role})` : p.name)}
+                    placeholder="Search families and staff…"
+                  />
+                  <button type="button" onClick={() => { setComposing(false); setPickedPerson('') }}
+                    className="mt-2 text-xs text-neutral-500 hover:underline">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setComposing(true)}
+                  className="w-full rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+                  New message
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-40">
@@ -362,7 +436,11 @@ const SchoolInboxPage = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <p className="text-center text-sm text-neutral-400 py-8">No messages in this thread yet.</p>
+                  <p className="text-center text-sm text-neutral-400 py-8">
+                    {selected.id
+                      ? 'No messages in this thread yet.'
+                      : `Write the first message to ${memberName(selected)}.`}
+                  </p>
                 ) : (
                   messages.map((message) => {
                     const fromMe = message.sender_id === selfId

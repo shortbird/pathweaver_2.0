@@ -90,12 +90,16 @@ class DirectMessageService(BaseService):
             sender_effective_role = get_effective_role(sender.data) if sender.data else None
             sender_org_id = sender.data.get('organization_id') if sender.data else None
             target_org_id = target.data.get('organization_id') if target.data else None
-            if sender_effective_role == 'org_admin' and sender_org_id and sender_org_id == target_org_id:
-                print(f"[can_message_user] ALLOWED: Org admin can message anyone in their org", file=sys.stderr, flush=True)
+            # campus_coordinator included: the front office runs the campus, and
+            # messaging is operational, not financial (the one thing the
+            # coordinator tier withholds).
+            ORG_OFFICE_ROLES = ('org_admin', 'campus_coordinator')
+            if sender_effective_role in ORG_OFFICE_ROLES and sender_org_id and sender_org_id == target_org_id:
+                print(f"[can_message_user] ALLOWED: Org office role can message anyone in their org", file=sys.stderr, flush=True)
                 return True
             # Anyone in the same org can reply to their org_admin
             target_effective_role = get_effective_role(target.data) if target.data else None
-            if target_effective_role == 'org_admin' and target_org_id and sender_org_id == target_org_id:
+            if target_effective_role in ORG_OFFICE_ROLES and target_org_id and sender_org_id == target_org_id:
                 print(f"[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
                 return True
 

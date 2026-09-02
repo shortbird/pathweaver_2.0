@@ -99,7 +99,9 @@ def create_announcement(user_id):
         if scope is not None:
             if teacher_ids:
                 return jsonify({'success': False,
-                                'error': 'Only the front office can message other teachers'}), 403
+                                'error': 'Only the front office can message other teachers. '
+                                         "You're sending as a teacher right now — switch back "
+                                         'to your admin view to message staff.'}), 403
             if not class_ids:
                 return jsonify({'success': False,
                                 'error': 'Pick one of your classes to message'}), 403

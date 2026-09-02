@@ -36,7 +36,7 @@ vi.mock('../../components/communication/MessageParts', () => ({
 
 const { api, state } = vi.hoisted(() => {
   const state = {
-    schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [],
+    schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
   }
   const apiData = (url) => {
     if (url.includes('/api/school-inbox/conversations/')) {
@@ -54,6 +54,7 @@ const { api, state } = vi.hoisted(() => {
     if (url.includes('/api/messages/conversations')) {
       return { data: { data: { conversations: state.myConvos, total: state.myConvos.length } } }
     }
+    if (url.includes('/api/sis/roster')) return { data: { roster: state.roster } }
     return { data: {} }
   }
   return {
@@ -92,6 +93,7 @@ beforeEach(() => {
   state.schoolMessages = []
   state.myConvos = []
   state.myMessages = []
+  state.roster = []
   vi.clearAllMocks()
 })
 
@@ -165,6 +167,37 @@ describe('SchoolInboxPage — combined inbox', () => {
     const link = await screen.findByRole('link', { name: 'docs.acme.com' })
     expect(link).toHaveAttribute('href', 'https://docs.acme.com/form')
     expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  // iCreate, 2026-09-02: the inbox could only ever REPLY, so reaching one
+  // family meant an announcement to the whole school or a phone call.
+  it('starts a thread with somebody who has never written in', async () => {
+    state.roster = [
+      { student_id: 'u9', name: 'Ada Bennett', first_name: 'Ada', last_name: 'Bennett', role: 'parent' },
+      { student_id: 'inbox-1', name: 'Hearthwood', role: null },
+    ]
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New message' }))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/roster'))
+    fireEvent.focus(await screen.findByPlaceholderText('Search families and staff…'))
+    fireEvent.change(screen.getByPlaceholderText('Search families and staff…'),
+      { target: { value: 'Ada' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: /Ada Bennett \(parent\)/ }))
+
+    expect(await screen.findByText(/Write the first message to Ada Bennett/)).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Reply as Hearthwood...'),
+      { target: { value: 'Your spot is ready' } })
+    fireEvent.click(screen.getByLabelText('Send reply'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/school-inbox/conversations/u9/send',
+        { content: 'Your spot is ready', attachments: [] }))
+  })
+
+  it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />)
+    await screen.findByRole('button', { name: /^Messages/ })
+    expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
   })
 
   it('shows the announcements composer on its tab, for teachers too', async () => {

@@ -138,7 +138,7 @@ def class_roster(user_id, class_id):
 def class_messaging(user_id, class_id):
     """Everything the class Messages tab needs: the class's two group chats
     (the parent chat and the student chat) and the people a teacher can message
-    one-to-one (students on the roster, plus any co-teachers).
+    one-to-one (students on the roster, their guardians, plus any co-teachers).
 
     The groups are synced from the roster on every call, so opening the tab
     both creates the chats for a class that never had them and repairs
@@ -201,7 +201,7 @@ def class_messaging(user_id, class_id):
     if user_id in membership.class_teacher_ids(class_id, class_row=cls):
         teacher_ids = membership.class_teacher_ids(class_id, class_row=cls) - {user_id}
 
-    def _people(ids, relationship):
+    def _people(ids, relationship, subtitles=None):
         ids = [i for i in ids if i]
         if not ids:
             return []
@@ -221,11 +221,37 @@ def class_messaging(user_id, class_id):
                     'preferred_name': u.get('preferred_name'),
                     'avatar_url': u.get('avatar_url'),
                     'relationship': relationship,
+                    **({'subtitle': (subtitles or {}).get(u['id'])} if subtitles else {}),
                 })
         out.sort(key=lambda p: p['name'].lower())
         # Private-bucket photos, signed one batch per bucket for the group.
         sign_in_place(out, ['avatar_url'])
         return out
+
+    # Guardians of the enrolled students, one-to-one. The parent chat reaches
+    # them all at once; a teacher wanting a word with ONE family had nowhere to
+    # go from here (iCreate, 2026-09-02: "could we have a way to message the
+    # individual parents here?"). Each is labelled with whose parent they are,
+    # because a surname alone doesn't say which child.
+    guardians_by_student = membership.guardians_by_student(student_ids)
+    guardian_ids = {g for gs in guardians_by_student.values() for g in gs} - set(teacher_ids) - {user_id}
+    child_names = {}
+    if guardian_ids:
+        student_names = {}
+        sids = [i for i in student_ids if i]
+        for i in range(0, len(sids), 100):
+            for u in (admin.table('users')
+                      .select('id, first_name, last_name, display_name, preferred_name')
+                      .in_('id', sids[i:i + 100]).execute()).data or []:
+                student_names[u['id']] = ((u.get('preferred_name') or u.get('first_name') or '').strip()
+                                          or u.get('display_name') or 'a student')
+        kids_by_guardian = {}
+        for sid, gids in guardians_by_student.items():
+            for gid in gids:
+                if sid in student_names:
+                    kids_by_guardian.setdefault(gid, set()).add(student_names[sid])
+        for gid, kids in kids_by_guardian.items():
+            child_names[gid] = 'Parent of ' + ' and '.join(sorted(kids))
 
     return jsonify({
         'success': True,
@@ -233,6 +259,7 @@ def class_messaging(user_id, class_id):
         'group': group,
         'student_group': student_group,
         'students': _people(student_ids, 'student'),
+        'guardians': _people(guardian_ids, 'parent', subtitles=child_names),
         'teachers': _people(teacher_ids, 'teacher'),
     })
 

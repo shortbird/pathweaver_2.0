@@ -40,6 +40,10 @@ const PAYLOAD = {
     { id: 's1', name: 'Ada Byron', preferred_name: null, avatar_url: null, relationship: 'student' },
     { id: 's2', name: 'Blaise Pascal', preferred_name: null, avatar_url: null, relationship: 'student' },
   ],
+  guardians: [
+    { id: 'p1', name: 'Mary Byron', preferred_name: null, avatar_url: null,
+      relationship: 'parent', subtitle: 'Parent of Ada' },
+  ],
   teachers: [
     { id: 't2', name: 'Grace Hopper', preferred_name: null, avatar_url: null, relationship: 'teacher' },
   ],
@@ -92,6 +96,19 @@ describe('ClassMessagesTab', () => {
     render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument()
     expect(screen.getByText('Students (2)')).toBeInTheDocument()
+  })
+
+  // iCreate, 2026-09-02: "Could we have a way to message the individual parents
+  // here?" The rail had the whole-class parent chat and nothing narrower.
+  it('opens a one-to-one conversation with a parent, labelled by their child', async () => {
+    api.get.mockResolvedValue({ data: PAYLOAD })
+    render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
+    expect(await screen.findByText('Parents (1)')).toBeInTheDocument()
+    expect(screen.getByText('Parent of Ada')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('Mary Byron'))
+
+    expect(await screen.findByTestId('dm-chat')).toHaveTextContent('dm:p1')
   })
 
   it('filters the people list by search', async () => {

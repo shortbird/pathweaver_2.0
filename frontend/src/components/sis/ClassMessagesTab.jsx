@@ -65,6 +65,7 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
   const parentGroup = data?.group || null
   const studentGroup = data?.student_group || null
   const students = data?.students || []
+  const guardians = data?.guardians || []
   const teachers = data?.teachers || []
 
   const unreadByUser = useMemo(() => {
@@ -87,28 +88,32 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
     return `${person.name} ${person.preferred_name || ''}`.toLowerCase().includes(q)
   }
   const shownStudents = students.filter(matches)
+  const shownGuardians = guardians.filter(
+    (g) => matches(g) || (g.subtitle || '').toLowerCase().includes(search.trim().toLowerCase()),
+  )
   const shownTeachers = teachers.filter(matches)
 
   // ChatWindow works off { id, other_user } — the backend accepts a user id in
   // place of a conversation id and opens (or creates) the DM.
   const selectedPerson = selected?.kind === 'dm'
-    ? [...students, ...teachers].find((p) => p.id === selected.id)
+    ? [...students, ...guardians, ...teachers].find((p) => p.id === selected.id)
     : null
 
   const selectedGroup = selected?.kind === 'group'
     ? [parentGroup, studentGroup].find((g) => g && g.id === selected.id)
     : null
 
+  const DM_ROLE = { teacher: 'advisor', parent: 'parent', student: 'student' }
   const conversation = selectedPerson ? {
     id: selectedPerson.id,
-    type: selectedPerson.relationship === 'teacher' ? 'advisor' : 'student',
+    type: DM_ROLE[selectedPerson.relationship] || 'student',
     other_user: {
       id: selectedPerson.id,
       display_name: selectedPerson.name,
       first_name: selectedPerson.name.split(' ')[0],
       last_name: selectedPerson.name.split(' ').slice(1).join(' '),
       avatar_url: selectedPerson.avatar_url,
-      role: selectedPerson.relationship === 'teacher' ? 'advisor' : 'student',
+      role: DM_ROLE[selectedPerson.relationship] || 'student',
     },
   } : null
 
@@ -128,7 +133,8 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
     <div>
       <p className="text-sm text-neutral-500 mb-3">
         The parent chat reaches the parents of everyone enrolled; the student chat reaches
-        the students. Each group only sees its own chat.
+        the students. Each group only sees its own chat. For a word with one family,
+        message a parent directly from the list.
       </p>
 
       <div className="flex h-[70vh] min-h-[420px] bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -196,6 +202,17 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
               onSelect={(p) => setSelected({ kind: 'dm', id: p.id })}
               emptyLabel={search ? 'No match.' : 'No students enrolled yet.'}
             />
+
+            {guardians.length > 0 && (
+              <PersonSection
+                title={`Parents (${guardians.length})`}
+                people={shownGuardians}
+                selectedId={selected?.kind === 'dm' ? selected.id : null}
+                unreadByUser={unreadByUser}
+                onSelect={(p) => setSelected({ kind: 'dm', id: p.id })}
+                emptyLabel="No match."
+              />
+            )}
 
             {teachers.length > 0 && (
               <PersonSection
@@ -271,6 +288,10 @@ const PersonSection = ({ title, people, selectedId, unreadByUser, onSelect, empt
             </span>
             {p.preferred_name && !p.name.toLowerCase().includes(p.preferred_name.toLowerCase()) && (
               <span className="block text-xs text-neutral-400 truncate">Goes by {p.preferred_name}</span>
+            )}
+            {/* Whose parent — a surname alone doesn't say which child. */}
+            {p.subtitle && (
+              <span className="block text-xs text-neutral-400 truncate">{p.subtitle}</span>
             )}
           </span>
         </button>
