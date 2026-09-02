@@ -144,6 +144,7 @@ def register_all(app):
         masquerade,
         course_import,
         organization_management,
+        organization_courses,
         observer_audit,
         ferpa_compliance,
         bulk_import,
@@ -185,6 +186,10 @@ def register_all(app):
     app.register_blueprint(course_refine.bp)
     app.register_blueprint(plan_mode.bp)
     app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')
+    # Same prefix, second blueprint: the course-registration endpoints were
+    # split out of organization_management to get that file back under its
+    # size cap. Paths do not overlap, so the URLs are unchanged.
+    app.register_blueprint(organization_courses.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)
