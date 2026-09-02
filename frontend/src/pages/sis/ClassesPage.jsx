@@ -1226,6 +1226,9 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   // they want exists, just at another time (iCreate, 2026-07-31).
   const [sections, setSections] = useState([])
   const [movingId, setMovingId] = useState(null)   // entry whose section picker is open
+  const [people, setPeople] = useState([])         // org students, for the add picker
+  const [adding, setAdding] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
 
   const reload = useCallback(() => {
     api.get(`/api/sis/classes/${classId}/waitlist?organization_id=${orgId}`)
@@ -1240,7 +1243,35 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     api.get(withOrg(`/api/sis/classes/${classId}/sibling-sections`, orgId))
       .then((r) => setSections(r.data?.sections || []))
       .catch(() => setSections([]))
+    api.get(withOrg('/api/sis/roster', orgId))
+      .then((r) => setPeople((r.data?.roster || []).filter((p) => p.is_student)))
+      .catch(() => setPeople([]))
   }, [classId, orgId])
+
+  // Put a student on this waitlist by hand. Families join it themselves in the
+  // Schedule Builder, but the office takes the ask on the phone and at the desk
+  // and had nowhere to record it (iCreate, 2026-09-02). Same 409-then-confirm
+  // shape as the roster's Add: a student still waiting for a place at the
+  // SCHOOL is a warning, not a wall.
+  const addToWaitlist = async (force = false) => {
+    if (!adding) return
+    setAddBusy(true)
+    try {
+      await api.post(`/api/sis/classes/${classId}/waitlist`,
+        { organization_id: orgId, student_user_id: adding, force })
+      toast.success('Added to the waitlist')
+      setAdding('')
+      reload()
+      onChanged?.()
+    } catch (e) {
+      if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
+        setAddBusy(false)
+        if (await confirm(`${e.response.data.error}\n\nAdd them anyway?`)) return addToWaitlist(true)
+        return
+      }
+      toast.error(e?.response?.data?.error || 'Could not add the student')
+    } finally { setAddBusy(false) }
+  }
 
   // A seat can only be offered when one is actually open. Offering into a full
   // class enrolls someone over capacity, so the button is disabled until a seat
@@ -1363,8 +1394,36 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     } catch { toast.error('Could not remove the entry') } finally { setBusy(null) }
   }
 
+  const queuedIds = new Set(entries.filter((e) => e.status === 'waiting' || e.status === 'offered')
+    .map((e) => e.student_user_id))
+  const addRow = (
+    <div className="flex items-end gap-2 mb-3">
+      <div className="flex-1 min-w-0">
+        <label className="block text-xs text-neutral-500 mb-1" htmlFor={`wl-add-${classId}`}>
+          Add a student to the waitlist
+        </label>
+        <SearchSelect
+          value={adding}
+          onChange={setAdding}
+          options={people.filter((p) => !queuedIds.has(p.student_id))}
+          getId={(p) => p.student_id}
+          getLabel={(p) => (p.age != null ? `${p.name} (age ${p.age})` : p.name)}
+          placeholder="Search students…"
+        />
+      </div>
+      <Button size="sm" disabled={!adding || addBusy} onClick={() => addToWaitlist()}>
+        {addBusy ? 'Adding…' : 'Add'}
+      </Button>
+    </div>
+  )
+
   if (loaded && !entries.length) {
-    return <div className="border-t border-gray-100 mt-3 pt-3 text-sm text-neutral-400">No one on the waitlist.</div>
+    return (
+      <div className="border-t border-gray-100 mt-3 pt-3">
+        {addRow}
+        <p className="text-sm text-neutral-400">No one on the waitlist.</p>
+      </div>
+    )
   }
 
   return (
@@ -1390,6 +1449,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
           Class is full ({enrolled}/{capacity}). Drop a student or raise the capacity to offer a seat.
         </p>
       )}
+      {addRow}
       <div className="space-y-1">
         {entries.map((e) => {
           const meta = WAITLIST_STATUS[e.status] || { label: e.status, tone: 'text-neutral-400' }

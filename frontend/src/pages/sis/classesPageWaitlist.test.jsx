@@ -28,11 +28,20 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 const WAITLIST = [
-  { id: 'w1', position: 1, student_name: 'Van Stanfill', student_age: 9, status: 'offered',
-    offer_expires_at: new Date(Date.now() + 3.5 * 86400000).toISOString() },
-  { id: 'w2', position: 2, student_name: 'Nora Candland', student_age: 8, status: 'expired',
-    offer_expires_at: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'w3', position: 3, student_name: 'Milo Larson', student_age: 10, status: 'waiting' },
+  { id: 'w1', student_user_id: 'v1', position: 1, student_name: 'Van Stanfill', student_age: 9,
+    status: 'offered', offer_expires_at: new Date(Date.now() + 3.5 * 86400000).toISOString() },
+  { id: 'w2', student_user_id: 'n1', position: 2, student_name: 'Nora Candland', student_age: 8,
+    status: 'expired', offer_expires_at: new Date(Date.now() - 86400000).toISOString() },
+  { id: 'w3', student_user_id: 'w3', position: 3, student_name: 'Milo Larson', student_age: 10,
+    status: 'waiting' },
+]
+
+// Whoever the office might queue by hand. w1-w3 above are already on this
+// waitlist and must not be offered again.
+const PEOPLE = [
+  { student_id: 's9', name: 'Ryder Swenson', age: 9, is_student: true },
+  { student_id: 'w3', name: 'Milo Larson', age: 10, is_student: true },
+  { student_id: 'p1', name: 'Pat Parent', is_student: false },
 ]
 
 const { api } = vi.hoisted(() => ({
@@ -61,6 +70,7 @@ beforeEach(() => {
       ] } })
     }
     if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: WAITLIST } })
+    if (url.includes('/api/sis/roster')) return Promise.resolve({ data: { roster: PEOPLE } })
     if (url.includes('/api/sis/classes')) {
       return Promise.resolve({ data: { classes: [
         { id: 'c1', name: 'Lego Robotics', enrolled_count: 15, capacity: 15, is_full: true,
@@ -234,6 +244,30 @@ describe('class waitlist — staff actions', () => {
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
     expect(await screen.findByText(/3 seat\(s\)/)).toBeInTheDocument()
+  })
+
+  // iCreate, 2026-09-02: "It would help if we could manually add people to the
+  // waitlist." Families queue themselves in the Schedule Builder; the office
+  // takes the same ask at the desk and had nowhere to put it.
+  it('queues a student the office adds by hand', async () => {
+    await openWaitlistTab()
+    fireEvent.focus(screen.getByPlaceholderText('Search students…'))
+    fireEvent.change(screen.getByPlaceholderText('Search students…'),
+      { target: { value: 'Ryder' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: /Ryder Swenson/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/classes/c1/waitlist',
+      { organization_id: 'org-1', student_user_id: 's9', force: false }))
+  })
+
+  it('does not offer somebody already in this queue', async () => {
+    await openWaitlistTab()
+    fireEvent.focus(screen.getByPlaceholderText('Search students…'))
+    expect(await screen.findByText(/Ryder Swenson/)).toBeInTheDocument()
+    // Milo is on the waitlist already (w3) — listed as an entry, not as an option.
+    const options = [...document.querySelectorAll('li,button')].map((n) => n.textContent)
+    expect(options.filter((t) => t === 'Milo Larson (age 10)')).toHaveLength(0)
   })
 
   it('offers no other-section picker when every sibling is full', async () => {
