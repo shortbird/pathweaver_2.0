@@ -39,25 +39,10 @@ export interface ScheduledClass {
   teacher_name?: string | null;
 }
 
-/**
- * The school's add/drop window for this child, as the read-only schedule sees
- * it. `open` is computed server-side in the ORG's timezone — a Sept 8 deadline
- * has to survive the evening of Sept 8 in Utah, not end at 6pm when a UTC box
- * rolls over.
- */
-export interface AddDropInfo {
-  open: boolean;
-  deadline: string | null;
-  /** The family already has an unresolved request in for this child. */
-  pending: boolean;
-}
-
 export interface StudentSchedule {
   student_id: string;
   student_name: string;
   classes: ScheduledClass[];
-  organization_id?: string | null;
-  add_drop?: AddDropInfo;
 }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -203,21 +188,6 @@ export function useClassSchedule(organizationId?: string | null) {
       }
 
       if (!children.length || !orgId) { setSchedules([]); return; }
-      // Add/drop requests the family already has open, one call for the whole
-      // family rather than one per child. Best-effort: a school with no
-      // add/drop window still gets its schedule.
-      const pendingByStudent = new Set<string>();
-      try {
-        const { data } = await api.get('/api/sis/parent/forms',
-          { params: { organization_id: orgId } });
-        for (const f of data?.submissions || []) {
-          if (f.form_type === 'schedule_change' && f.status !== 'resolved' && f.student_user_id) {
-            pendingByStudent.add(f.student_user_id);
-          }
-        }
-      } catch {
-        /* the request button still works without this */
-      }
       // One request per child, and one slow child must not blank the rest.
       const results = await Promise.all(children.map(async (kid: any) => {
         try {
@@ -229,12 +199,6 @@ export function useClassSchedule(organizationId?: string | null) {
             student_id: kid.id,
             student_name: kid.display_name || kid.first_name || 'Student',
             classes: (data?.classes || []).map(normalizeClass).sort(bySchedulePresence),
-            organization_id: orgId,
-            add_drop: {
-              open: !!data?.add_drop_open,
-              deadline: data?.add_drop_deadline || null,
-              pending: pendingByStudent.has(kid.id),
-            },
           };
         } catch {
           return null;
