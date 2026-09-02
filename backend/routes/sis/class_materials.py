@@ -33,6 +33,7 @@ from utils.validation import validate_uuid
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
+from services.sis_curriculum_sync import curriculum_materials_for_class
 
 logger = get_logger(__name__)
 
@@ -161,24 +162,54 @@ def _serialize(m, can_manage, is_admin=False, user_id=None):
         'url': m.get('url'),
         'created_at': m.get('created_at'),
         'can_delete': can_delete,
+        # Staff see the switch; a student only ever receives rows already on.
+        'visible_to_students': bool(m.get('visible_to_students', True)),
     }
 
 
-def _list_materials(admin, class_id):
-    return (
+def _list_materials(admin, class_id, visible_only=False):
+    """This class's own materials.
+
+    visible_only is the student read. Staff get the whole list so they can see
+    what is staged and switch it on; a student is never sent a hidden row at all
+    rather than sent one the client is trusted to hide.
+    """
+    query = (
         admin.table('class_materials')
-        .select('id, kind, title, url, created_at, created_by')
+        .select('id, kind, title, url, visible_to_students, created_at, created_by')
         .eq('class_id', class_id)
-        .order('created_at', desc=True)
-        .execute()
-    ).data or []
+    )
+    if visible_only:
+        query = query.eq('visible_to_students', True)
+    return (query.order('created_at', desc=True).execute()).data or []
 
 
-def _serialize_many(rows, can_manage, is_admin=False, user_id=None):
+def _serialize_many(rows, can_manage, is_admin=False, user_id=None, inherited=()):
     """Serialize a material list and sign every uploaded file's URL in ONE
     batched call. A class can carry dozens of handouts; signing per row would be
-    one HTTP round trip each. Plain links are left alone by the signer."""
+    one HTTP round trip each. Plain links are left alone by the signer.
+
+    `inherited` are the curriculum's resources (2026-09-02). They join the same
+    list because to whoever is reading, a handout is a handout -- but they are
+    never deletable from here: the curriculum owns them, and removing one on a
+    class would have to mean removing it from every class teaching that
+    curriculum. They are pruned in the curriculum screen instead.
+
+    Both go through one sign_in_place so an uploaded curriculum document is
+    signed exactly like an uploaded class one.
+    """
     out = [_serialize(m, can_manage, is_admin, user_id) for m in rows]
+    for m in inherited:
+        out.append({
+            'id': m['id'],
+            'kind': m.get('kind'),
+            'title': m.get('title'),
+            'url': m.get('url'),
+            'created_at': m.get('created_at'),
+            'can_delete': False,
+            'source': 'curriculum',
+            'curriculum_title': m.get('curriculum_title'),
+        })
     # No bucket hint: stored values are full URLs, so the bucket is read out of
     # each one and an external link can never be mistaken for an object path.
     sign_in_place(out, ['url'])
@@ -195,11 +226,16 @@ def list_materials(user_id, class_id):
         return err
     # admin client justified: RLS-deny-all class_materials read; per-class participant gate already passed in _authorize_class
     admin = get_supabase_admin_client()
-    rows = _list_materials(admin, class_row['id'])
+    rows = _list_materials(admin, class_row['id'], visible_only=not is_moderator)
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)
+    # Staff see both whole lists (including what isn't shown to students yet);
+    # students see only the switched-on ones.
+    inherited = curriculum_materials_for_class(
+        admin, class_row['id'], visible_only=not is_moderator)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': _serialize_many(rows, is_moderator, is_admin, user_id)})
+                    'materials': _serialize_many(rows, is_moderator, is_admin,
+                                                 user_id, inherited)})
 
 
 @bp.route('/classes/<class_id>/materials', methods=['POST'])
@@ -228,6 +264,7 @@ def add_link_material(user_id, class_id):
         'kind': 'link',
         'title': title,
         'url': url,
+        'visible_to_students': bool(data.get('visible_to_students', True)),
         'created_by': user_id,
         'created_at': _now_iso(),
     }).execute().data
@@ -293,6 +330,9 @@ def upload_material(user_id, class_id):
         'title': title,
         'url': url,
         'file_path': path,
+        # Multipart, so the flag arrives as a form field rather than JSON.
+        'visible_to_students': (request.form.get('visible_to_students') or 'true')
+                               .lower() not in ('false', '0', 'no'),
         'created_by': user_id,
         'created_at': _now_iso(),
     }).execute().data
@@ -303,6 +343,49 @@ def upload_material(user_id, class_id):
     # to render the just-uploaded file.
     material['url'] = sign_stored_url(material.get('url'), _MATERIALS_BUCKET)
     return jsonify({'success': True, 'material': material})
+
+
+@bp.route('/classes/<class_id>/materials/<material_id>', methods=['PATCH'])
+@require_auth
+def set_material_visibility(user_id, class_id, material_id):
+    """Show this material to the class's students, or stop showing it.
+
+    Teacher/admin only, and the only editable field: a material is a title and a
+    pointer, so changing what it points at is a delete and a re-add. Unlike
+    DELETE, ANY moderator may flip ANY of the class's materials -- hiding is
+    reversible and is how a teacher stages next week's handout, whereas deleting
+    somebody else's upload is not theirs to do.
+    """
+    class_row, is_moderator, err = _authorize_class(user_id, class_id)
+    if err:
+        return err
+    if not is_moderator:
+        return jsonify({'success': False,
+                        'error': 'Only the class teacher can change materials.'}), 403
+    if _bad_uuid(material_id):
+        return jsonify({'success': False, 'error': 'Invalid material id'}), 400
+    data = request.get_json(silent=True) or {}
+    if 'visible_to_students' not in data:
+        return jsonify({'success': False, 'error': 'Nothing to change.'}), 400
+
+    # admin client justified: RLS-deny-all class_materials read/update; moderator gate checked above and the row is re-scoped to this class below
+    admin = get_supabase_admin_client()
+    rows = (admin.table('class_materials').select('id, class_id')
+            .eq('id', material_id).limit(1).execute()).data
+    material = rows[0] if rows else None
+    # Scoped to THIS class: the id alone would let a teacher flip a material on
+    # a class they have nothing to do with.
+    if not material or material.get('class_id') != class_row['id']:
+        return jsonify({'success': False, 'error': 'Material not found'}), 404
+
+    updated = (admin.table('class_materials')
+               .update({'visible_to_students': bool(data['visible_to_students'])})
+               .eq('id', material_id).execute()).data
+    if not updated:
+        return jsonify({'success': False, 'error': 'Could not update the material.'}), 500
+    is_admin = sis_service.caller_is_admin(user_id)
+    return jsonify({'success': True,
+                    'material': _serialize(updated[0], True, is_admin, user_id)})
 
 
 @bp.route('/classes/<class_id>/materials/<material_id>', methods=['DELETE'])
@@ -347,8 +430,11 @@ def list_materials_by_quest(user_id, quest_id):
         return err
     # admin client justified: RLS-deny-all class_materials read; participant gate already passed in _resolve_class_for_quest
     admin = get_supabase_admin_client()
-    rows = _list_materials(admin, class_row['id'])
+    rows = _list_materials(admin, class_row['id'], visible_only=not is_moderator)
     is_admin = is_moderator and sis_service.caller_is_admin(user_id)
+    inherited = curriculum_materials_for_class(
+        admin, class_row['id'], visible_only=not is_moderator)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': _serialize_many(rows, is_moderator, is_admin, user_id)})
+                    'materials': _serialize_many(rows, is_moderator, is_admin,
+                                                 user_id, inherited)})

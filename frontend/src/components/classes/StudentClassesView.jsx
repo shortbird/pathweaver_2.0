@@ -4,6 +4,8 @@ import {
   AcademicCapIcon,
   ArrowLeftIcon,
   BookOpenIcon,
+  DocumentTextIcon,
+  LinkIcon,
   UserGroupIcon,
   CheckCircleIcon,
   ChevronDownIcon,
@@ -199,6 +201,14 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   // used purely presentationally to fold finished quests into a collapsed section.
   const [completedQuestIds, setCompletedQuestIds] = useState(new Set())
   const [showCompleted, setShowCompleted] = useState(false)
+  // Courses the class inherits from its SIS curriculum. A live link rather than
+  // a copy, so this is whatever the school's library currently says.
+  const [courses, setCourses] = useState([])
+  // Handouts: the class's own materials plus anything its curriculum shares
+  // with students. Until 2026-09-02 a student could only reach these from
+  // inside a quest page, so a document shared with the class was invisible from
+  // the class itself — the one place they would look for it.
+  const [materials, setMaterials] = useState([])
 
   const classId = initialClassData?.id || propClassId
 
@@ -222,6 +232,9 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
       const requests = [
         classService.getClassQuests(orgId, classId).catch(() => ({ success: false })),
         classService.getClassAdvisors(orgId, classId).catch(() => ({ success: false })),
+        classService.getClassCourses(orgId, classId).catch(() => ({ success: false })),
+        api.get(`/api/sis/classes/${classId}/materials`)
+          .then((r) => r.data).catch(() => ({ success: false })),
       ]
 
       // If we don't have classData yet, fetch student classes to get progress
@@ -233,16 +246,22 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       const results = await Promise.all(requests)
 
-      const [questsRes, advisorsRes] = results
+      const [questsRes, advisorsRes, coursesRes, materialsRes] = results
       if (questsRes.success) {
         setQuests(questsRes.quests || [])
       }
       if (advisorsRes.success) {
         setAdvisors(advisorsRes.advisors || [])
       }
+      if (coursesRes?.success) {
+        setCourses(coursesRes.courses || [])
+      }
+      if (materialsRes?.success) {
+        setMaterials(materialsRes.materials || [])
+      }
 
       // Set class data from student classes response if needed
-      if (!initialClassData && results[2]?.success) {
+      if (!initialClassData && results[4]?.success) {
         const cls = (results[2].classes || []).find(c => c.id === classId)
         if (cls) {
           setClassData(cls)
@@ -420,6 +439,77 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           </div>
         )}
       </div>
+
+      {/* Materials Section — handouts for this class: its own, plus whatever its
+          curriculum shares with students. Hidden when empty, like Courses. */}
+      {materials.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+            Class Materials
+          </h3>
+          <div className="space-y-3">
+            {materials.map((m) => (
+              <a
+                key={m.id}
+                href={m.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-optio-purple/40 hover:shadow-sm transition-all"
+              >
+                <div className="w-10 h-10 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+                  {m.kind === 'file'
+                    ? <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+                    : <LinkIcon className="w-5 h-5 text-optio-purple" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">{m.title}</h4>
+                  {m.curriculum_title && (
+                    <p className="text-sm text-gray-500 truncate">{m.curriculum_title}</p>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-optio-purple flex-shrink-0">
+                  Open
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Courses Section — what the class inherits from the school's curriculum.
+          Hidden entirely when there are none, so a class that doesn't work this
+          way doesn't grow an empty heading. */}
+      {courses.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <AcademicCapIcon className="w-5 h-5 text-optio-purple" />
+            Class Courses
+          </h3>
+          <div className="space-y-3">
+            {courses.map((course) => (
+              <button
+                key={course.id}
+                onClick={() => navigate(`/courses/${course.id}`)}
+                className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-optio-purple/40 hover:shadow-sm transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+                  <AcademicCapIcon className="w-5 h-5 text-optio-purple" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">{course.title}</h4>
+                  {course.description && (
+                    <p className="text-sm text-gray-500 truncate">{course.description}</p>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-optio-purple flex-shrink-0">
+                  View Course
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Advisors Section */}
       {advisors.length > 0 && (

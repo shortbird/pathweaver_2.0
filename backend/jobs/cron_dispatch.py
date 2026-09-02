@@ -83,6 +83,13 @@ def main():
     # nothing is expired, so running it each cycle is safe.
     _run("sis-waitlist-offer-sweep", f"{base}/api/sis/internal/waitlist-offer-sweep", cron_secret, failures)
 
+    # Every run: enroll students in class quests whose scheduled publish time has
+    # arrived. Assignment enrolls the class immediately; a quest scheduled for
+    # later deliberately doesn't, so this is what delivers it on the day. Skips
+    # every pair that already has an enrollment, so re-runs cost one query.
+    _run("class-quest-publish-sweep",
+         f"{base}/api/sis/internal/publish-class-quests", cron_secret, failures)
+
     # Every run: CRM funnel sweep (scheduled nurture/onboarding sends). The
     # send window (9-19 Denver), per-lead throttle, and postal-address gate
     # are all enforced server-side, so off-hours runs no-op cheaply.

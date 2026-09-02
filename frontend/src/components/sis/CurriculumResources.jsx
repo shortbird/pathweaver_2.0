@@ -5,6 +5,7 @@ import {
   PencilSquareIcon, TrashIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import CurriculumMaterials from './CurriculumMaterials'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import SearchSelect from '../ui/SearchSelect'
 import QuestDraftForm, { blankTask } from './QuestDraftForm'
@@ -196,9 +197,13 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
   const saveQuests = async (next) => {
     setBusy(true)
     try {
-      await api.put(withOrg(`/api/sis/curriculum/${curriculumId}/quests`, orgId),
+      const { data } = await api.put(withOrg(`/api/sis/curriculum/${curriculumId}/quests`, orgId),
         { quest_ids: next.map((q) => q.id) })
       setQuests(next)
+      // Say where it landed. The bug this replaced was silent: an admin attached
+      // a quest, was told nothing, and the students never saw it.
+      const n = data?.pushed_to_classes || 0
+      if (n) toast.success(`Added to ${n} class${n === 1 ? '' : 'es'}`)
       onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the quest set')
@@ -225,12 +230,15 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
     if (!newTitle.trim()) { toast.error('Give the quest a title'); return }
     setCreating(true)
     try {
-      await api.post(withOrg(`/api/sis/curriculum/${curriculumId}/quests/create`, orgId), {
+      const created = await api.post(withOrg(`/api/sis/curriculum/${curriculumId}/quests/create`, orgId), {
         title: newTitle.trim(),
         description: newDesc.trim(),
         tasks: newTasks.filter((t) => t.title.trim()),
       })
-      toast.success('Quest created and added')
+      const n = created?.data?.pushed_to_classes || 0
+      toast.success(n
+        ? `Quest created and added to ${n} class${n === 1 ? '' : 'es'}`
+        : 'Quest created and added')
       resetNew()
       load()
       onChanged?.()
@@ -250,8 +258,9 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
           <h4 className="text-sm font-semibold text-neutral-800">Quests</h4>
         </div>
         <p className="text-xs text-neutral-400 mb-2">
-          The set a class starts from. Classes copy these, so a change here applies to the
-          next class set up from this curriculum — it never rewrites a class in progress.
+          Added here, a quest goes straight onto every active class on this curriculum, where
+          its students see it. Removing it here only takes it out of the library — classes keep
+          what they have, with their own due dates.
         </p>
         {!quests.length ? <Empty>Nothing saved yet.</Empty> : (
           <ul className="divide-y divide-gray-50 mb-2">
@@ -350,17 +359,24 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
         )}
       </div>
 
-      {/* Build a quest from material the school already has. Sits beside the
-          quest list rather than inside the create form because it is how most
-          quests here will start — the school has the material already, and
-          typing it in again is the work worth removing. */}
-      {canManage ? (
-        <QuestAiDraftPanel alwaysOpen hasDraft={hasDraft} onDrafted={acceptDraft} />
-      ) : (
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <Empty>Quests are set up by an administrator.</Empty>
-        </div>
-      )}
+      <div className="space-y-4">
+        {/* Resources: the links and documents this curriculum hands out. Beside
+            the quests rather than under them because a teacher opening a
+            curriculum is as likely to be sharing a video as assigning work. */}
+        <CurriculumMaterials orgId={orgId} curriculumId={curriculumId} />
+
+        {/* Build a quest from material the school already has. Sits beside the
+            quest list rather than inside the create form because it is how most
+            quests here will start — the school has the material already, and
+            typing it in again is the work worth removing. */}
+        {canManage ? (
+          <QuestAiDraftPanel alwaysOpen hasDraft={hasDraft} onDrafted={acceptDraft} />
+        ) : (
+          <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <Empty>Quests are set up by an administrator.</Empty>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

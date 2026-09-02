@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -318,6 +319,7 @@ def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=enrolled_by)
+    _enroll_in_class_quests(_admin(), class_id, entry['student_user_id'])
     clear_entry_for_enrollment(org_id, class_id, entry['student_user_id'])
 
     resp = (
@@ -604,6 +606,7 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(entry['class_id'], actor_id=enrolled_by)
+    _enroll_in_class_quests(_admin(), entry['class_id'], entry['student_user_id'])
     # Siblings first, then this entry explicitly: clear_entry_for_enrollment
     # swallows its own errors by design, so the accepted entry's own status is
     # never left to it.

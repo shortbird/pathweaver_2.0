@@ -193,6 +193,19 @@ const classService = {
   },
 
   /**
+   * Get the courses this class inherits from its SIS curriculum.
+   *
+   * Quests are copied onto the class; courses are a live link through the
+   * curriculum, so they are resolved on read. Returns { success, courses }.
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   */
+  getClassCourses: async (orgId, classId) => {
+    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/courses`)
+    return response.data
+  },
+
+  /**
    * Add a quest to a class
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID

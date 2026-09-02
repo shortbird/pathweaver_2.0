@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -239,6 +240,7 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         }, on_conflict='class_id,student_id').execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(req['class_id'], actor_id=resolved_by)
+        _enroll_in_class_quests(_admin(), req['class_id'], req['student_user_id'])
         # A now-enrolled student shouldn't linger on this or sibling class waitlists.
         from services import sis_waitlist_service
         sis_waitlist_service.clear_entry_for_enrollment(

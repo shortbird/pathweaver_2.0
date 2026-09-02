@@ -11,10 +11,11 @@ class endpoints (class_advisors-only) do not. A moderator is:
   - an org_admin/superadmin of the class's org, OR
   - the class's primary instructor (org_classes.primary_instructor_id), OR
   - an active co-teacher (class_advisors row, is_active).
-Students never reach these endpoints; they see assigned quests through the
-existing dashboard "assigned to you" surface and self-start them, at which point
-the quest's template tasks are copied into their user_quest_tasks (unchanged
-enrollment flow).
+Students never reach these endpoints. Since 2026-09-02 they don't need to:
+assigning a quest ENROLLS the class's active students in it (user_quests +
+their copy of the template tasks, via services/class_quest_enrollment), so the
+quest shows up wherever a student's quests show up rather than only in a
+separate "assigned to you, start it" tray. Unassigning does not unenroll.
 
 SAFETY: template-task authoring is allowed ONLY on quests owned by the class's
 organization. Global/Optio-library quests are assigned as-is and their tasks are
@@ -45,6 +46,12 @@ from services.sis_quest_authoring import (
     clean_task as _clean_task,
     create_org_quest,
     norm_pillar as _norm_pillar,
+)
+from services.sis_curriculum_sync import assignable_quest_ids
+from services.class_quest_enrollment import (
+    enroll_class_in_quests,
+    enroll_safe,
+    publish_due_class_quests,
 )
 from database import get_supabase_admin_client
 
@@ -245,7 +252,10 @@ def assign_quest(user_id, class_id):
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
     _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
-    return jsonify({'success': True})
+    # An assigned quest is a quest: enroll the class so it lands in each
+    # student's account like any other, not in a separate "assigned" tray.
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
+    return jsonify({'success': True, 'students_enrolled': enrolled['enrolled']})
 
 
 # ── The curriculum round trip ─────────────────────────────────────────────────
@@ -307,24 +317,11 @@ def _attach_quest_to_class_curricula(admin, class_id, quest_id, user_id):
         logger.warning(f'Quest {quest_id} assigned but curriculum attach failed: {e}')
 
 
-def _assignable(admin, quest_ids, org_id):
-    """Of `quest_ids`, the ones this org may actually assign — its own, plus the
-    public Optio library. A curriculum can outlive a quest (deleted, archived, or
-    a school-owned quest whose org changed), so the set is re-checked on every
-    copy rather than trusted from when it was saved."""
-    if not quest_ids:
-        return []
-    rows = (admin.table('quests')
-            .select('id, organization_id, is_public, is_active')
-            .in_('id', list(quest_ids)).execute()).data or []
-    ok = set()
-    for q in rows:
-        if q.get('is_active') is False:
-            continue
-        if q.get('organization_id') == org_id or (
-                q.get('organization_id') is None and q.get('is_public')):
-            ok.add(q['id'])
-    return [qid for qid in quest_ids if qid in ok]
+# Of a set of quest ids, the ones this org may actually assign — its own, plus
+# the public Optio library. Shared with the library's push in the other
+# direction (services/sis_curriculum_sync) so the two can't disagree about what
+# is assignable; a curriculum outliving its quests is the case both must handle.
+_assignable = assignable_quest_ids
 
 
 @bp.route('/classes/<class_id>/curriculum-quests', methods=['GET'])
@@ -407,9 +404,12 @@ def copy_quests_from_curriculum(user_id, class_id):
     if rows:
         admin.table('class_quests').upsert(
             rows, on_conflict='class_id,quest_id').execute()
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'],
+                           [r['quest_id'] for r in rows])
     return jsonify({'success': True, 'added': len(rows),
                     'skipped_already_present': len(wanted) - len(rows),
-                    'skipped_unavailable': len(saved) - len(wanted)})
+                    'skipped_unavailable': len(saved) - len(wanted),
+                    'students_enrolled': enrolled['enrolled']})
 
 
 @bp.route('/classes/<class_id>/quests/to-curriculum', methods=['POST'])
@@ -539,8 +539,10 @@ def create_quest_with_tasks(user_id, class_id):
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
     _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
 
-    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count']})
+    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count'],
+                    'students_enrolled': enrolled['enrolled']})
 
 
 # ── Preset (template) tasks on an assigned, org-owned quest ────────────────────
@@ -1024,3 +1026,32 @@ def remind_student(user_id, class_id, student_id):
             logger.warning(f'Reminder to {recipient[:8]} failed: {e}')
 
     return jsonify({'success': True, 'notified': sent, 'outstanding': len(outstanding)})
+
+
+@bp.route('/internal/publish-class-quests', methods=['POST'])
+def publish_class_quests_sweep():
+    """Cron entrypoint: enroll students in class quests whose publish time passed.
+
+    Assigning a quest enrolls the class, but a quest scheduled for LATER
+    deliberately doesn't -- so this is what enrolls it when its time arrives.
+    Without it a scheduled quest would never reach anyone, now that the
+    dashboard's separate "assigned to you" tray is gone.
+
+    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering --
+    mirrors /api/sis/internal/engagement-sweep exactly. Idempotent, so running it
+    every cycle is safe.
+    """
+    secret = request.headers.get('X-Cron-Secret')
+    from utils.cron_auth import is_valid_cron_secret
+    if not is_valid_cron_secret(secret):
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            # admin client justified: superadmin check for the manual trigger of a cron-only sweep; the role lookup IS the access check
+            row = (get_supabase_admin_client().table('users').select('role')
+                   .eq('id', uid).limit(1).execute()).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **publish_due_class_quests(get_supabase_admin_client())})

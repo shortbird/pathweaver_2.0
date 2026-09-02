@@ -17,6 +17,7 @@ from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -530,6 +531,7 @@ def enroll_student(user_id, class_id):
         'enrolled_by': user_id, 'status': 'active',
     }).execute()
     sync_class_group(class_id, actor_id=user_id)
+    _enroll_in_class_quests(supabase, class_id, student_id)
     # They're in the class now — don't leave them queued for it as well, or the
     # family keeps seeing "Waitlist #2" for a class their child already attends.
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)

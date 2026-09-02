@@ -20,6 +20,7 @@ from services import sis_eligibility as elig
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils import person_name
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -444,6 +445,7 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
             }, on_conflict='class_id,student_id').execute()
             from services.class_group_sync_service import sync_class_group
             sync_class_group(item['class_id'], actor_id=completed_by)
+            _enroll_in_class_quests(_admin(), item['class_id'], student_id)
             # Re-registering into a class they were queued for clears the queue
             # entry — otherwise the family sees enrolled and waitlisted at once.
             from services import sis_waitlist_service

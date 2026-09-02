@@ -9,9 +9,12 @@
  * and opening it is where an admin attaches more — or builds one, from scratch
  * or from material the school already has (2026-08-12).
  *
- * The copy has to keep saying that quests are COPIED onto a class, because "why
- * did my change not show up on the class I already set up" is the bad surprise
- * this panel invites.
+ * That question -- "why did my change not show up on the class I already set
+ * up" -- was not a copy problem in the end. Attaching a quest here wrote
+ * sis_curriculum_quests and nothing else, while students read class_quests, so
+ * the answer was that it never would (fixed 2026-09-02). Attaching now pushes
+ * onto every active class on the curriculum; removing still does not pull back,
+ * and the copy has to keep saying so.
  *
  * Courses were removed from this panel on 2026-08-12 (iCreate will not attach
  * courses to curriculum), so the assertions here are that the way to add one is
@@ -46,6 +49,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
+import { toast } from 'react-hot-toast'
 import CurriculumPage from './CurriculumPage'
 
 const RESOURCES = {
@@ -86,10 +90,25 @@ describe('what a curriculum carries', () => {
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
   })
 
-  it('says quests are copied onto a class, so the delay is not a surprise', async () => {
+  it('says an attached quest reaches the classes now, and that removing it does not', async () => {
+    // There is no delay to warn about any more (2026-09-02): attaching pushes the
+    // quest onto every active class on this curriculum, which is what an admin
+    // assumed all along. The half still worth saying out loud is the asymmetry —
+    // removing here does NOT pull it back off a class in progress.
     render(<CurriculumPage />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
-    expect(await screen.findByText(/applies to the\s+next class set up from this curriculum/i)).toBeInTheDocument()
+    expect(await screen.findByText(/goes straight onto every active class/i)).toBeInTheDocument()
+    expect(screen.getByText(/classes keep\s+what they have/i)).toBeInTheDocument()
+  })
+
+  it('tells the admin how many classes the quest reached', async () => {
+    api.put.mockResolvedValue({ data: { success: true, attached: 2, pushed_to_classes: 3 } })
+    render(<CurriculumPage />)
+    fireEvent.click(await screen.findByText('Reading Workshop'))
+    const picker = await screen.findByPlaceholderText('Add a quest…')
+    fireEvent.focus(picker)
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Book report' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Added to 3 classes'))
   })
 
   it('attaches a quest from the library screen, without going via a class', async () => {

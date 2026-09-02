@@ -25,6 +25,7 @@ from utils import person_name
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -930,6 +931,7 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
+    _enroll_in_class_quests(_admin(), class_id, student_user_id)
     from services import sis_waitlist_service
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_user_id)
     return {'enrolled': True}

@@ -9,6 +9,7 @@ from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
 from ._caller import get_caller, is_superadmin, is_staff
+from services.sis_curriculum_sync import curriculum_courses_for_class
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from datetime import datetime
@@ -599,3 +600,46 @@ def get_available_quests(user_id, org_id):
             'success': False,
             'error': 'Failed to get available quests'
         }), 500
+
+
+@bp.route('/organizations/<org_id>/classes/<class_id>/courses', methods=['GET'])
+@require_role('student', 'org_admin', 'advisor', 'campus_coordinator', 'superadmin')
+def get_class_courses(user_id, org_id, class_id):
+    """The courses this class inherits from its curriculum.
+
+    Sibling of the quests read above, and the student's half of what the SIS
+    curriculum library attaches. Quests are copied onto the class and live in
+    class_quests; courses are a live link through sis_curriculum_courses, so
+    they are resolved on read -- fixing the library fixes every class at once.
+    Until this endpoint existed a course attached to a curriculum had no student
+    surface at all: it was reachable only from the staff curriculum screens.
+
+    Returns:
+    {
+        "success": true,
+        "courses": [
+            {"id": "...", "title": "...", "description": "...", "status": "published",
+             "cover_image_url": "...", "curriculum_id": "...", "curriculum_title": "..."}
+        ]
+    }
+    """
+    try:
+        effective_roles, user_org_id, _ = get_caller(user_id)
+
+        service = ClassService()
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # Same split the quest read makes: staff see drafts and archived courses,
+        # everyone else sees only what the school has actually published.
+        published_only = not is_staff(effective_roles)
+        # admin client justified: resolves the curriculum -> course links behind
+        # deny-all-RLS SIS tables, after can_access_class has authorized the caller
+        courses = curriculum_courses_for_class(
+            get_supabase_admin_client(), class_id, published_only=published_only)
+
+        return jsonify({'success': True, 'courses': courses})
+
+    except Exception as e:
+        logger.error(f"Error getting class courses: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to get courses'}), 500

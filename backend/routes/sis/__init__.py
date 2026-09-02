@@ -1059,6 +1059,11 @@ def register_sis_routes(app):
     app.register_blueprint(class_quests_bp)
     from routes.sis.curriculum import bp as sis_curriculum_bp
     app.register_blueprint(sis_curriculum_bp)
+
+    # Curriculum resources: links and documents a teacher saves on a curriculum
+    # and can show to the students of every class teaching it.
+    from routes.sis.curriculum_materials import bp as sis_curriculum_materials_bp
+    app.register_blueprint(sis_curriculum_materials_bp)
     from routes.sis.quest_drafts import bp as quest_drafts_bp
     app.register_blueprint(quest_drafts_bp)
     from routes.sis.staff_training import bp as staff_training_bp

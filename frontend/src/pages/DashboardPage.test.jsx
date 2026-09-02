@@ -333,8 +333,39 @@ describe('DashboardPage', () => {
   })
 
   // --- Assigned class quests ---
-  describe('assigned class quests', () => {
-    it('renders quests a teacher assigned that the student has not started', () => {
+  describe('quests assigned through a class', () => {
+    /**
+     * There is no separate section for these any more (2026-09-02: "rory
+     * already sees the science quest in a separate section in his homepage. I
+     * just want it to appear like other quests instead of different").
+     *
+     * Assigning a quest now ENROLLS the class's students in it
+     * (services/class_quest_enrollment), so it arrives in active_quests like a
+     * quest the student started themselves, and the backend's
+     * assigned_class_quests — which only ever listed assignments with no
+     * enrollment — has nothing left to report.
+     */
+    it('shows an assigned quest in the ordinary quest list, not a tray of its own', () => {
+      dashboardHookData = {
+        data: {
+          active_quests: [
+            { id: 'uq-1', quest_id: 'q-assigned', quests: { id: 'q-assigned', title: 'Tide Pool Field Guide' } }
+          ],
+          enrolled_courses: [],
+          stats: {},
+        },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.getByText('Tide Pool Field Guide')).toBeInTheDocument()
+      expect(screen.queryByText('From Your Classes')).not.toBeInTheDocument()
+    })
+
+    it('renders no separate section even if the API still sends assignments', () => {
+      // The field is still on the payload for the mobile app; web must ignore it
+      // rather than grow the tray back.
       dashboardHookData = {
         data: {
           active_quests: [],
@@ -345,7 +376,7 @@ describe('DashboardPage', () => {
               class_id: 'cls-1',
               class_name: 'Marine Biology',
               due_date: '2026-09-01',
-              quest: { id: 'q-assigned', title: 'Tide Pool Field Guide', image_url: null, header_image_url: null }
+              quest: { id: 'q-assigned', title: 'Tide Pool Field Guide' }
             }
           ]
         },
@@ -354,38 +385,8 @@ describe('DashboardPage', () => {
         refetch: vi.fn()
       }
       renderDashboard()
-      expect(screen.getByText('From Your Classes')).toBeInTheDocument()
-      expect(screen.getByText('Tide Pool Field Guide')).toBeInTheDocument()
-      expect(screen.getByText(/Marine Biology/)).toBeInTheDocument()
-      expect(screen.getByText('Tide Pool Field Guide').closest('a'))
-        .toHaveAttribute('href', '/quests/q-assigned')
-    })
-
-    it('renders nothing when there are no assignments', () => {
-      dashboardHookData = {
-        data: { active_quests: [], enrolled_courses: [], stats: {}, assigned_class_quests: [] },
-        isLoading: false,
-        error: null,
-        refetch: vi.fn()
-      }
-      renderDashboard()
       expect(screen.queryByText('From Your Classes')).not.toBeInTheDocument()
-    })
-
-    it('skips malformed assignments without a quest', () => {
-      dashboardHookData = {
-        data: {
-          active_quests: [],
-          enrolled_courses: [],
-          stats: {},
-          assigned_class_quests: [{ class_id: 'cls-1', class_name: 'Orphaned', quest: null }]
-        },
-        isLoading: false,
-        error: null,
-        refetch: vi.fn()
-      }
-      renderDashboard()
-      expect(screen.queryByText('From Your Classes')).not.toBeInTheDocument()
+      expect(screen.queryByText('Tide Pool Field Guide')).not.toBeInTheDocument()
     })
   })
 

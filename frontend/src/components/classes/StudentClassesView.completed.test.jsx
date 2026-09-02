@@ -32,6 +32,7 @@ const { classService, api, state } = vi.hoisted(() => {
       getMyStudentClasses: vi.fn(() => Promise.resolve({ success: true, classes: state.classes })),
       getClassQuests: vi.fn(() => Promise.resolve({ success: true, quests: state.classQuests })),
       getClassAdvisors: vi.fn(() => Promise.resolve({ success: true, advisors: [] })),
+      getClassCourses: vi.fn(() => Promise.resolve({ success: true, courses: [] })),
     },
     api: {
       get: vi.fn((url) => {

@@ -230,6 +230,13 @@ class ClassService(BaseService):
         result = self.class_repo.enroll_student(class_id, student_id, enrolled_by)
         logger.info(f"Student {student_id} enrolled in class {class_id} by {enrolled_by}")
 
+        # Joining the class means joining its quests — otherwise the fix only
+        # works for students who were already on the roster when the teacher
+        # assigned, and everyone who joins later is back to the original bug.
+        from services.class_quest_enrollment import enroll_student_in_class_quests, enroll_safe
+        enroll_safe(enroll_student_in_class_quests, self.class_repo.admin_client,
+                    class_id, student_id)
+
         # Check if student already has enough XP to complete
         self._check_student_completion(class_id, student_id)
 
@@ -252,6 +259,11 @@ class ClassService(BaseService):
 
         results = self.class_repo.enroll_students_bulk(class_id, student_ids, enrolled_by)
         logger.info(f"{len(student_ids)} students enrolled in class {class_id} by {enrolled_by}")
+
+        from services.class_quest_enrollment import (
+            class_quest_ids, enroll_students_in_quests, enroll_safe)
+        enroll_safe(enroll_students_in_quests, self.class_repo.admin_client,
+                    student_ids, class_quest_ids(self.class_repo.admin_client, class_id))
 
         # Check completion status for all enrolled students
         for student_id in student_ids:
@@ -319,6 +331,13 @@ class ClassService(BaseService):
 
         result = self.class_repo.add_quest(class_id, quest_id, added_by, sequence_order)
         logger.info(f"Quest {quest_id} added to class {class_id} by {added_by}")
+
+        # Assigning enrolls: the quest has to reach the student's account the
+        # same way one they started themselves does, or it only exists on the
+        # class page. Best-effort — the assignment itself has already committed.
+        from services.class_quest_enrollment import enroll_class_in_quests, enroll_safe
+        enroll_safe(enroll_class_in_quests, self.class_repo.admin_client,
+                    class_id, [quest_id])
 
         return result
 

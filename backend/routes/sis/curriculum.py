@@ -46,6 +46,7 @@ from services.sis_quest_authoring import (
     clean_task as _clean_task,
     norm_pillar as _norm_pillar,
 )
+from services.sis_curriculum_sync import push_curriculum_quests_safe
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
@@ -284,12 +285,26 @@ def set_curriculum_classes(user_id, curriculum_id):
         valid = {r['id'] for r in rows}
     rejected = [c for c in requested if c not in valid]
 
+    before = {r['class_id'] for r in (
+        _admin().table('sis_curriculum_classes').select('class_id')
+        .eq('curriculum_id', curriculum_id).execute()).data or []}
+
     _admin().table('sis_curriculum_classes').delete().eq('curriculum_id', curriculum_id).execute()
     if valid:
         _admin().table('sis_curriculum_classes').insert(
             [{'curriculum_id': curriculum_id, 'class_id': c} for c in valid]
         ).execute()
-    return jsonify({'success': True, 'attached': len(valid), 'rejected': len(rejected)})
+
+    # A class joining a curriculum inherits its quests. Only the NEW ones: a
+    # class already on this curriculum has its own list by now, and re-seeding it
+    # on an unrelated edit to the class selector would resurrect quests its
+    # teacher had deliberately taken off the section.
+    newly = [c for c in valid if c not in before]
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         class_ids=newly) if newly else {'classes': 0, 'assignments': 0}
+    return jsonify({'success': True, 'attached': len(valid), 'rejected': len(rejected),
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
 
 
 # ── The curriculum's teaching material: its quests and its courses ───────────
@@ -493,8 +508,16 @@ def set_curriculum_quests(user_id, curriculum_id):
                 valid_order.append(q)
 
     _replace_links('sis_curriculum_quests', curriculum_id, 'quest_id', valid_order, user_id)
+    # Additive push, so the students in this curriculum's classes actually see
+    # what was just attached. Removals are deliberately not mirrored: pulling a
+    # quest off a section mid-term would take its due dates and its students'
+    # place in it with it. See services/sis_curriculum_sync.
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         quest_ids=valid_order)
     return jsonify({'success': True, 'attached': len(valid_order),
-                    'rejected': len(requested) - len(valid_order)})
+                    'rejected': len(requested) - len(valid_order),
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/create', methods=['POST'])
@@ -541,8 +564,12 @@ def create_curriculum_quest(user_id, curriculum_id):
         'added_by': user_id,
     }).execute()
 
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         quest_ids=[created['quest_id']])
     return jsonify({'success': True, 'quest_id': created['quest_id'],
-                    'task_count': created['task_count']})
+                    'task_count': created['task_count'],
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
 
 
 # ── One quest, as the curriculum carries it ───────────────────────────────────

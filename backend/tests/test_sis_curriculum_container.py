@@ -143,8 +143,12 @@ class TestTheQuestSet:
         other school can resolve is a row that renders as nothing forever."""
         tables = {'quests': [{'id': Q1, 'organization_id': OTHER_ORG}]}
         body, _, log = _put(curriculum.set_curriculum_quests, {'quest_ids': [Q1]}, tables)
-        assert body == {'success': True, 'attached': 0, 'rejected': 1}
+        assert body['success'] is True
+        assert (body['attached'], body['rejected']) == (0, 1)
         assert _inserted(log, 'sis_curriculum_quests') is None
+        # Nothing was attached, so nothing is pushed at the classes either.
+        assert body['pushed_assignments'] == 0
+        assert _inserted(log, 'class_quests') is None
 
     def test_duplicates_collapse(self):
         tables = {'quests': [{'id': Q1, 'organization_id': ORG}]}
