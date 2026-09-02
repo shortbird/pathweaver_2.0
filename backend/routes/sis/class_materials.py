@@ -9,8 +9,9 @@ teacher(s). Authorization is a per-class participant gate enforced here in
 Python, NOT a role check:
 
   READ  (list): org_admin/superadmin of the class's org, the class's teacher(s)
-                (primary_instructor_id or an active class_advisors row), OR an
-                actively enrolled student (class_enrollments status='active').
+                (primary_instructor_id, a named assistant_instructor_ids entry,
+                or an active class_advisors row), OR an actively enrolled
+                student (class_enrollments status='active').
   WRITE (add/upload/delete): the class's teacher(s) or an org_admin/superadmin
                 (the "moderators"); students never write.
 
@@ -62,7 +63,7 @@ def _bad_uuid(*values):
 def _load_org_class(admin, class_id):
     rows = (
         admin.table('org_classes')
-        .select('id, organization_id, name, primary_instructor_id, status')
+        .select('id, organization_id, name, primary_instructor_id, assistant_instructor_ids, status')
         .eq('id', class_id).limit(1).execute()
     ).data or []
     return rows[0] if rows else None
@@ -79,6 +80,12 @@ def _access(user_id, class_row, admin):
         return False, False
 
     if class_row.get('primary_instructor_id') == user_id:
+        return True, True
+    # A named assistant moderates too — same rule as class_quests._is_moderator.
+    # The class is already in their portal (sis_service.advisor_class_ids), so
+    # without this the Curriculum tab 403'd for the assistant who teaches it
+    # (Sentry OPTIO-WEB-3 / OPTIO-WEB-E).
+    if user_id in (class_row.get('assistant_instructor_ids') or []):
         return True, True
     co_teacher = (
         admin.table('class_advisors').select('id')
@@ -132,7 +139,7 @@ def _resolve_class_for_quest(user_id, quest_id):
         return None, False, (jsonify({'success': False, 'error': 'No class materials for this quest'}), 404)
     classes = (
         admin.table('org_classes')
-        .select('id, organization_id, name, primary_instructor_id, status')
+        .select('id, organization_id, name, primary_instructor_id, assistant_instructor_ids, status')
         .in_('id', class_ids).execute()
     ).data or []
     for class_row in classes:

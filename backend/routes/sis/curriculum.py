@@ -824,13 +824,19 @@ def _class_access(user_id, class_id):
     """Resolve a caller's relationship to a class.
 
     Returns (class_row, is_teacher, is_admin). class_row is None when the class
-    doesn't exist. is_teacher covers the primary instructor and active
-    co-teachers (class_advisors); is_admin covers org admins / superadmins whose
-    resolved org matches the class's org.
+    doesn't exist. is_teacher covers the primary instructor, named assistants,
+    and active co-teachers (class_advisors); is_admin covers org admins /
+    superadmins whose resolved org matches the class's org.
+
+    Assistants count for the same reason they do in class_quests: the class is
+    already in their portal (sis_service.advisor_class_ids lists it, and the
+    roster loads), so leaving them out here gave them a class page whose
+    Curriculum tab 403'd on open — Sentry OPTIO-WEB-3, an assistant reloading
+    the tab four times.
     """
     admin = _admin()
     rows = (admin.table('org_classes')
-            .select('id, organization_id, primary_instructor_id')
+            .select('id, organization_id, primary_instructor_id, assistant_instructor_ids')
             .eq('id', class_id).limit(1).execute()).data or []
     if not rows:
         return None, False, False
@@ -839,7 +845,8 @@ def _class_access(user_id, class_id):
 
     is_admin = (sis_service.caller_is_admin(user_id)
                 and sis_service.resolve_org_id(user_id, org_id) == org_id)
-    is_teacher = class_row.get('primary_instructor_id') == user_id
+    is_teacher = (class_row.get('primary_instructor_id') == user_id
+                  or user_id in (class_row.get('assistant_instructor_ids') or []))
     if not is_teacher and not is_admin:
         co_teacher = (admin.table('class_advisors').select('id')
                       .eq('class_id', class_id).eq('advisor_id', user_id)

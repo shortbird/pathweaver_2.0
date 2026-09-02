@@ -649,15 +649,21 @@ const StaffFormsPage = () => {
 
   // Rosters for the student / class questions an org-defined form can ask.
   // Best-effort: a form that does not ask for one never notices these missing.
+  // The student roster is admin-gated server-side (ADMIN_ROLES), so asking for
+  // it as a teacher only ever produced a 403 and an empty list — every advisor
+  // opening Forms reported one to Sentry (OPTIO-WEB-3). Classes stay ungated:
+  // /api/sis/classes is STAFF_ROLES and answers for teachers.
   useEffect(() => {
     if (!orgId) return
-    api.get(withOrg('/api/sis/roster', orgId))
-      .then((r) => setStudents((r.data?.roster || []).filter((p) => p.is_student)))
-      .catch(() => setStudents([]))
+    if (admin) {
+      api.get(withOrg('/api/sis/roster', orgId))
+        .then((r) => setStudents((r.data?.roster || []).filter((p) => p.is_student)))
+        .catch(() => setStudents([]))
+    }
     api.get(withOrg('/api/sis/classes', orgId))
       .then((r) => setClasses(r.data?.classes || []))
       .catch(() => setClasses([]))
-  }, [orgId])
+  }, [orgId, admin])
 
   return (
     <div className="space-y-6">

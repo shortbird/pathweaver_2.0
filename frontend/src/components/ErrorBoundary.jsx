@@ -2,6 +2,7 @@ import React from 'react';
 import { captureError } from '../services/posthog';
 import { captureException } from '../services/sentry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
+import { isChunkLoadError, recoverFromChunkError } from '../utils/liveReload';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -20,6 +21,15 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // A lazy route whose hashed chunk was replaced by a deploy throws here, not
+    // at window level: React turns the rejected import() into a boundary catch,
+    // so installChunkErrorRecovery's global listeners never fire and the reader
+    // got the crash screen instead of the new build (Sentry OPTIO-WEB-A/D —
+    // QuestDetail, RoleHome, ParentDashboardPage, AdvisorClassesPage, all within
+    // hours of a release). Reload once, debounced; if the reload already
+    // happened the chunk is genuinely broken, so fall through and report it.
+    if (isChunkLoadError(error?.message) && recoverFromChunkError()) return;
+
     // Log error to console in development
     console.error('Error caught by ErrorBoundary:', error, errorInfo);
 
