@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ClipboardDocumentCheckIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
@@ -43,6 +43,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const { activeOrg } = useSisOrg()
   const hidden = getHiddenModules(activeOrg)
   const [data, setData] = useState(null)
+  const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [clockBusy, setClockBusy] = useState(false)
   const [alerts, setAlerts] = useState([])
@@ -70,6 +71,40 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   }, [orgId, preview?.id])
 
   useEffect(() => { load() }, [load])
+
+  // Unread counts per class chat, so a teacher can see which class is waiting
+  // without opening all of them ("I don't think I see it unless I look at
+  // specific students individually" — Gryffin, Perch d7300f59). /api/groups
+  // already carries both source_class_id and unread_count, so this is the list
+  // the messages page loads anyway, keyed by class. Non-critical: on failure
+  // the cards simply render without badges, exactly as before.
+  //
+  // Not while previewing: /api/groups answers for whoever is signed in, so an
+  // admin previewing a teacher's portal would otherwise see their OWN unread
+  // counts pinned to that teacher's classes.
+  useEffect(() => {
+    if (preview) { setGroups([]); return }
+    let cancelled = false
+    api.get('/api/groups')
+      .then((r) => {
+        if (cancelled) return
+        const payload = r.data?.data || r.data
+        setGroups(payload?.groups || [])
+      })
+      .catch(() => { if (!cancelled) setGroups([]) })
+    return () => { cancelled = true }
+  }, [preview?.id])
+
+  // A class has both a parent chat and a student chat, so sum rather than
+  // overwrite — the badge counts everything waiting in that class.
+  const unreadByClass = useMemo(() => {
+    const map = {}
+    for (const g of groups) {
+      if (!g.source_class_id) continue
+      map[g.source_class_id] = (map[g.source_class_id] || 0) + (g.unread_count || 0)
+    }
+    return map
+  }, [groups])
 
   const resolveAlert = async (alertId) => {
     setResolvingId(alertId)
@@ -190,6 +225,14 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                     </Link>
                     <Link to={`/my-classes/${c.id}?tab=messages`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
                       <ChatBubbleLeftRightIcon className="w-4 h-4" /> Message
+                      {unreadByClass[c.id] > 0 && (
+                        <span
+                          className="ml-0.5 inline-flex items-center justify-center rounded-full bg-optio-pink px-1.5 min-w-[18px] h-[18px] text-[11px] font-bold leading-none text-white"
+                          aria-label={`${unreadByClass[c.id]} unread`}
+                        >
+                          {unreadByClass[c.id] > 99 ? '99+' : unreadByClass[c.id]}
+                        </span>
+                      )}
                     </Link>
                   </div>
                 </div>

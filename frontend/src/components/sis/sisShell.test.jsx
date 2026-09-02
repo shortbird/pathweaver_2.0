@@ -178,3 +178,20 @@ describe('SisSidebar', () => {
     }
   })
 })
+
+describe('SisLayout notifications', () => {
+  // The console shipped without any notification surface: no bell, no unread
+  // count in the chrome. Teachers in SIS-enabled orgs only found a student's
+  // message by opening each class in turn (Gryffin, Perch d7300f59).
+  it('mounts the notification bell for staff', () => {
+    renderLayout()
+    expect(screen.getByLabelText(/notifications/i)).toBeInTheDocument()
+  })
+
+  it('keeps the bell at desktop width — it is not part of the mobile-only header', () => {
+    // The menu button and wordmark are lg:hidden; the bell must not inherit
+    // that, or the surface where teachers actually work still has no bell.
+    renderLayout()
+    expect(screen.getByLabelText(/notifications/i).closest('.lg\\:hidden')).toBeNull()
+  })
+})
