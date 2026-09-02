@@ -15,17 +15,22 @@ import BackToSchool from '../components/navigation/BackToSchool'
  */
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const today = () => new Date().toISOString().slice(0, 10)
+// The school's day, not UTC's. toISOString() rolls over at 6pm Mountain, so an
+// evening report defaulted to TOMORROW and the date picker would not let a
+// guardian choose the day that was actually missed — the office then got
+// "will be absent" for the day AFTER the child was already out (iCreate,
+// 2026-09-02).
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const today = () => iso(new Date())
 
 const meetingText = (meetings = []) => meetings
   .map((m) => `${m.day_of_week != null ? DAYS[m.day_of_week] : m.specific_date} ${m.start_time}–${m.end_time}`)
   .join(', ')
 
 // Timezone-safe day increment for YYYY-MM-DD strings (Date('YYYY-MM-DD') is UTC).
-const nextDay = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  const t = new Date(y, m - 1, d + 1)
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+const nextDay = (day) => {
+  const [y, m, d] = day.split('-').map(Number)
+  return iso(new Date(y, m - 1, d + 1))
 }
 
 /**

@@ -34,7 +34,21 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _today() -> _date:
+def _today(org_id: Optional[str] = None) -> _date:
+    """The school's today, not UTC's.
+
+    UTC rolls over at 6pm Mountain, so from late afternoon on, "today" was
+    already tomorrow: a guardian could not report the day their child was
+    actually out, and the office got "will be absent" notifications dated the
+    day AFTER the absence (iCreate, 2026-09-02). Falls back to UTC only when no
+    org is in hand.
+    """
+    if org_id:
+        try:
+            from services.sis_parent_service import _org_today
+            return _org_today(org_id)
+        except Exception as e:  # noqa: BLE001 — a timezone lookup must never block a report
+            logger.warning(f'planned absence: org timezone lookup failed for {org_id[:8]}: {e}')
     return datetime.now(timezone.utc).date()
 
 
@@ -159,7 +173,7 @@ def list_upcoming(org_id: str) -> List[Dict[str, Any]]:
     rows = fetch_all_rows(lambda: (
         _admin().table('student_planned_absences').select('*')
         .eq('organization_id', org_id).eq('status', 'active')
-        .gte('absence_date', _today().isoformat())
+        .gte('absence_date', _today(org_id).isoformat())
         .order('absence_date')
     ))
     student_ids = list({r['student_user_id'] for r in rows})
@@ -202,7 +216,7 @@ def list_for_student(org_id: str, student_user_id: str,
         .eq('status', 'active')
     )
     if upcoming_only:
-        q = q.gte('absence_date', _today().isoformat())
+        q = q.gte('absence_date', _today(org_id).isoformat())
     rows = q.order('absence_date').execute().data or []
     class_ids = [r['class_id'] for r in rows if r.get('class_id')]
     names = {}
@@ -260,8 +274,11 @@ def get_many(absence_ids: List[str]) -> List[Dict[str, Any]]:
     ).data or []
 
 
-def _parse_span(absence_date: str, end_date: Optional[str]):
-    """Validate a single date or inclusive range. Returns (start, end, error)."""
+def _parse_span(absence_date: str, end_date: Optional[str],
+                org_id: Optional[str] = None):
+    """Validate a single date or inclusive range. Returns (start, end, error).
+
+    "Past" is judged in the SCHOOL's timezone — see _today()."""
     try:
         start = _date.fromisoformat(absence_date)
     except (TypeError, ValueError):
@@ -273,7 +290,7 @@ def _parse_span(absence_date: str, end_date: Optional[str]):
             return None, None, 'end_date must be YYYY-MM-DD'
     else:
         end = start
-    if start < _today():
+    if start < _today(org_id):
         return None, None, 'absence_date cannot be in the past'
     if end < start:
         return None, None, 'end_date cannot be before absence_date'
@@ -291,7 +308,7 @@ def create(org_id: str, student_user_id: str, reported_by: str, absence_date: st
     the admin team gets ONE notification covering the span, not one per day.
     A day already reported is skipped, not fatal. Returns {'absence': first
     row, 'absences': rows, 'skipped_dates': [...]} or {'error': msg}."""
-    start, end, err = _parse_span(absence_date, end_date)
+    start, end, err = _parse_span(absence_date, end_date, org_id)
     if err:
         return {'error': err}
 

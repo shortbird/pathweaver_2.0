@@ -34,7 +34,12 @@ const CARD = {
 }
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-const today = () => new Date().toISOString().slice(0, 10)
+// Local date, not UTC: toISOString() rolls over at 6pm Mountain, so an evening
+// visit opened TOMORROW's roster (iCreate, 2026-09-02).
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const AttendancePage = () => {
   const { user } = useAuth()
