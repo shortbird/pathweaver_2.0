@@ -57,7 +57,7 @@ describe('StudentProgressTab', () => {
     })
     render(<StudentProgressTab classId="c1" className="Art" />)
     const link = await screen.findByRole('link', { name: /Review submissions/i })
-    expect(link).toHaveAttribute('href', '/submissions?class_id=c1')
+    expect(link).toHaveAttribute('href', '/submissions?class_id=c1&from=progress')
   })
 
   it('says the roster is empty rather than showing a bare table', async () => {

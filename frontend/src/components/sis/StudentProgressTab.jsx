@@ -117,7 +117,7 @@ const StudentProgressTab = ({ classId, className }) => {
               progress. It is hard to figure out where to find that"). Linked,
               not duplicated, and pre-filtered to this class. */}
           <Link
-            to={`/submissions?class_id=${classId}`}
+            to={`/submissions?class_id=${classId}&from=progress`}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
           >
             <InboxIcon className="w-4 h-4" /> Review submissions
@@ -267,7 +267,7 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
                         submission"). */}
                     {t.done && t.completion_id ? (
                       <Link
-                        to={`/submissions?class_id=${classId}&completion_id=${t.completion_id}`}
+                        to={`/submissions?class_id=${classId}&completion_id=${t.completion_id}&from=progress`}
                         className="text-neutral-500 line-through hover:text-optio-purple hover:no-underline"
                         title="See the submission"
                       >

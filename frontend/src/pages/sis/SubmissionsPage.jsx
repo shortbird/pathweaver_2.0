@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { safeHref } from '../../utils/safeHref'
+import { blockItems, isImageUrl, itemLabel } from '../../utils/evidenceItems'
 import { getPillarName } from '../../utils/pillarMappings'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
@@ -40,57 +42,60 @@ const blockText = (content) => {
   if (content && typeof content === 'object') return content.text || content.url || JSON.stringify(content)
   return String(content ?? '')
 }
-const blockItems = (content) => {
-  if (!content || typeof content !== 'object') return []
-  if (Array.isArray(content.items)) return content.items
-  if (content.url) return [content]
-  return []
-}
+
+const EvidenceImage = ({ item }) => (
+  <div>
+    <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
+      <img src={item.url} alt={item.alt || itemLabel(item, 'Evidence')} loading="lazy"
+           className="max-w-full max-h-72 object-contain rounded border" />
+    </a>
+    {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
+  </div>
+)
+
+// break-all matters as much as the label does: a storage URL is one
+// unbreakable 200-character word, and without it the pane grows to fit and
+// carries the Accept button off the right of the screen.
+const EvidenceLink = ({ item, prefix }) => (
+  <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer"
+     className="block text-sm text-optio-purple hover:underline break-all">
+    {prefix}{itemLabel(item)}
+  </a>
+)
 
 const EvidenceBlock = ({ block }) => {
+  const items = blockItems(block.content)
   switch (block.block_type) {
     case 'text':
-      return <p className="text-sm text-gray-700 whitespace-pre-wrap">{blockText(block.content)}</p>
+      return <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{blockText(block.content)}</p>
     case 'image':
       return (
         <div className="space-y-2">
-          {blockItems(block.content).map((item, j) => (
-            <div key={j}>
-              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-                <img src={item.url} alt={item.alt || 'Evidence'} loading="lazy"
-                     className="max-w-full max-h-72 object-contain rounded border" />
-              </a>
-              {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
-            </div>
-          ))}
+          {items.map((item, j) => <EvidenceImage key={j} item={item} />)}
         </div>
       )
     case 'video':
       return (
         <div className="space-y-2">
-          {blockItems(block.content).map((item, j) => (
-            <a key={j} href={safeHref(item.url)} target="_blank" rel="noopener noreferrer"
-               className="text-sm text-optio-purple hover:underline">
-              Video: {item.title || item.url}
-            </a>
-          ))}
+          {items.map((item, j) => <EvidenceLink key={j} item={item} prefix="Video: " />)}
         </div>
       )
     case 'link':
     case 'file':
     case 'document':
+      // The picker the student opened is not a fact about the file they
+      // attached. Show a photo as a photo even when it arrived in a Link block.
       return (
         <div className="space-y-2">
-          {blockItems(block.content).map((item, j) => (
-            <a key={j} href={safeHref(item.url)} target="_blank" rel="noopener noreferrer"
-               className="block text-sm text-optio-purple hover:underline">
-              {item.title || item.filename || item.url}
-            </a>
+          {items.map((item, j) => (
+            isImageUrl(item.url)
+              ? <EvidenceImage key={j} item={item} />
+              : <EvidenceLink key={j} item={item} />
           ))}
         </div>
       )
     default:
-      return <p className="text-sm text-gray-500">{blockText(block.content)}</p>
+      return <p className="text-sm text-gray-500 whitespace-pre-wrap break-words">{blockText(block.content)}</p>
   }
 }
 
@@ -201,6 +206,10 @@ const SubmissionsPage = () => {
   // completion may already be reviewed, so if the New list doesn't hold it we
   // flip to Reviewed once before giving up.
   const targetCompletion = useRef(searchParams.get('completion_id') || null)
+  // Only the class page sends ?from=progress, so picking a class from the
+  // filter below never invents a "back" link to somewhere you have not been.
+  const [cameFromClassId] = useState(
+    () => (searchParams.get('from') === 'progress' && searchParams.get('class_id')) || '')
   const [classes, setClasses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [counts, setCounts] = useState({ new: 0, reviewed: 0 })
@@ -328,6 +337,19 @@ const SubmissionsPage = () => {
 
   return (
     <div>
+      {/* Arrived from a class's Student Progress tab? Offer the way back.
+          Without it the return trip is the sidebar, then the class, then
+          re-picking the tab (Gryffin, 2026-09-02: "regularly going back and
+          forth ... especially on the return trip back to progress as I also
+          then have to reclick the correct tab"). */}
+      {cameFromClassId && (
+        <Link
+          to={`/my-classes/${cameFromClassId}?tab=progress`}
+          className="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-optio-purple mb-2"
+        >
+          <ArrowLeftIcon className="w-4 h-4" /> Back to student progress
+        </Link>
+      )}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Submissions</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
@@ -384,8 +406,11 @@ const SubmissionsPage = () => {
             ))}
           </div>
 
-          {/* Main pane: selected submission */}
-          <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5">
+          {/* Main pane: selected submission.
+              min-w-0 is load-bearing — a flex item defaults to min-width:auto,
+              so one wide child (a long URL, a big table pasted into text) grows
+              this pane past the viewport and takes Accept with it. */}
+          <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 p-5">
             {!selected ? (
               <p className="text-neutral-500">Select a submission from the list.</p>
             ) : (

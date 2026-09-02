@@ -743,6 +743,26 @@ def delete_preset_task(user_id, class_id, quest_id, task_id):
 
 # ── Student progress ──────────────────────────────────────────────────────────
 
+def _is_done(user_quest, done, total):
+    """Is this student finished with this quest, as a teacher means it?
+
+    `user_quests.completed_at` is NOT the answer on its own. Nothing on the
+    platform sets it automatically: finishing the last task only makes the
+    student's own app offer a celebration modal, and ending the quest there is
+    the student's choice — they are equally free to keep it open and add more
+    tasks ("The Process Is The Goal"). A student who finishes everything and
+    dismisses that modal leaves completed_at NULL forever.
+
+    Read literally, that left this grid saying "1/1" in amber for work that was
+    checked off everywhere else on the platform (Gryffin, 2026-09-02: "why
+    Presley's reading appreciation task doesn't say 'done' in the progress, but
+    is checked off everywhere else"). 35 enrollments across 7 orgs were in that
+    state. A teacher asking "is this student done" means every assigned task is
+    turned in, so answer that question instead.
+    """
+    return bool(user_quest and user_quest.get('completed_at')) or (total > 0 and done >= total)
+
+
 @bp.route('/classes/<class_id>/progress', methods=['GET'])
 @require_auth
 def class_student_progress(user_id, class_id):
@@ -828,7 +848,7 @@ def class_student_progress(user_id, class_id):
             cells.append({
                 'quest_id': q['quest_id'],
                 'started': True,
-                'completed': bool(uq.get('completed_at')),
+                'completed': _is_done(uq, done, len(own)),
                 'done': done,
                 'total': len(own),
                 'started_at': uq.get('started_at'),
@@ -899,7 +919,7 @@ def _student_work(admin, class_row, student_id):
             'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
             'due_date': link.get('due_date'),
             'started': bool(uq),
-            'completed': bool(uq and uq.get('completed_at')),
+            'completed': _is_done(uq, len([t for t in own if t['id'] in done_ids]), len(own)),
             'tasks': [{
                 'id': t['id'],
                 'title': t.get('title'),
