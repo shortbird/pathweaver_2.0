@@ -35,7 +35,7 @@ const { api, contextPayload, schedulePayload } = vi.hoisted(() => {
   return {
     contextPayload,
     schedulePayload,
-    api: { get: vi.fn() },
+    api: { get: vi.fn(), post: vi.fn() },
   }
 })
 vi.mock('../services/api', () => ({ default: api }))
@@ -138,6 +138,29 @@ describe('FamilyStudentSchedulePage', () => {
     })
     renderPage()
     expect(await screen.findByText(/not enrolled at a school/i)).toBeInTheDocument()
+  })
+
+  // An offered seat has to be claimable from here — "seat offered" with no
+  // button was a dead end for an iCreate family on 2026-09-02.
+  it('claims an offered waitlist seat', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/parent/context')) return Promise.resolve({ data: contextPayload })
+      return Promise.resolve({ data: {
+        ...schedulePayload,
+        waitlist: [{ entry_id: 'w2', class_id: 'c9', class_name: 'Miniatures', status: 'offered' }],
+      } })
+    })
+    api.post.mockResolvedValue({ data: { success: true, enrolled: true } })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Claim spot' }))
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/classes/c9/claim', { organization_id: 'org-1' })
+  })
+
+  it('shows no claim button for a seat that is only queued', async () => {
+    renderPage()
+    expect(await screen.findByText(/Ceramics II/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Claim spot' })).not.toBeInTheDocument()
   })
 
   it('does not offer a week to print when there are no classes', async () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
@@ -29,6 +30,24 @@ const FamilyStudentSchedulePage = () => {
   const { studentId } = useParams()
   const [state, setState] = useState(null)
   const [error, setError] = useState(null)
+  const [claiming, setClaiming] = useState(null)   // class_id mid-claim
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // A family reading this page is looking at the same waitlist the Schedule
+  // Builder shows, so an offered seat has to be claimable here too — "seat
+  // offered" with no button read as a dead end (iCreate, 2026-09-02).
+  const claimSpot = async (w, orgId) => {
+    setClaiming(w.class_id)
+    try {
+      await api.post(`/api/sis/parent/students/${studentId}/classes/${w.class_id}/claim`,
+        { organization_id: orgId })
+      toast.success(`Enrolled in ${w.class_name}`)
+      setReloadKey((k) => k + 1)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not claim the spot')
+      setReloadKey((k) => k + 1)
+    } finally { setClaiming(null) }
+  }
 
   useEffect(() => {
     let alive = true
@@ -48,6 +67,7 @@ const FamilyStudentSchedulePage = () => {
             schedule: sched.data || {},
             studentName: student?.name || 'Student',
             orgName: org.organization_name || '',
+            orgId: org.organization_id,
           })
         }
       })
@@ -55,12 +75,12 @@ const FamilyStudentSchedulePage = () => {
         if (alive) setError(e?.response?.data?.error || 'Could not load the schedule')
       })
     return () => { alive = false }
-  }, [studentId])
+  }, [studentId, reloadKey])
 
   if (error) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">{error}</div>
   if (!state) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">Loading…</div>
 
-  const { schedule, studentName, orgName } = state
+  const { schedule, studentName, orgName, orgId } = state
   const classes = schedule.classes || []
   const waitlist = schedule.waitlist || []
   const homeCourses = schedule.courses || []
@@ -136,12 +156,23 @@ const FamilyStudentSchedulePage = () => {
 
       {waitlist.length > 0 && (
         <Card title="Waitlist">
-          <ul className="text-sm text-gray-800 space-y-1">
+          <ul className="text-sm text-gray-800 space-y-1.5">
             {waitlist.map((w) => (
-              <li key={w.entry_id}>
-                {w.class_name}
-                {w.position ? <span className="text-gray-500"> · #{w.position} in line</span> : null}
-                {w.status === 'offered' ? <span className="text-gray-500"> · seat offered</span> : null}
+              <li key={w.entry_id} className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  {w.class_name}
+                  {w.position ? <span className="text-gray-500"> · #{w.position} in line</span> : null}
+                  {w.status === 'offered'
+                    ? <span className="text-green-700 font-medium"> · a spot is being held</span>
+                    : null}
+                </span>
+                {w.status === 'offered' && (
+                  <button type="button" onClick={() => claimSpot(w, orgId)}
+                    disabled={claiming === w.class_id}
+                    className="shrink-0 print:hidden text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                    {claiming === w.class_id ? 'Claiming…' : 'Claim spot'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

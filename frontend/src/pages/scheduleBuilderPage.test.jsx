@@ -609,4 +609,47 @@ describe('ScheduleBuilderPage', () => {
     await screen.findByTestId('schedule-day-2')
     expect(screen.queryByText(/birthdate/)).not.toBeInTheDocument()
   })
+
+  // ── Waitlist offers ─────────────────────────────────────────────────────────
+  // The school offers a seat; the family has to be able to say yes. Both of
+  // these failed for iCreate on 2026-09-02 ("no button that allows her to claim
+  // the spot").
+  const OFFER = {
+    entry_id: 'w1', class_id: 'c9', class_name: 'Miniatures', status: 'offered',
+    meetings: [{ day_of_week: 2, start_time: '13:00', end_time: '14:00' }],
+  }
+
+  it('offers the seat at the top of the page, and claims it, even after the lock', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: { waitlist: [OFFER], changes_locked: true, first_day_of_school: '2026-08-25' },
+    }))
+    api.post.mockResolvedValue({ data: { success: true, enrolled: true } })
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/A spot is being held for Kid One/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Claim Miniatures/ }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/students/s1/classes/c9/claim',
+        { organization_id: 'org1' }),
+    )
+  })
+
+  it('opens the child named in ?student, not the first one', async () => {
+    const TWO_KIDS = {
+      ...ORG,
+      students: [{ student_id: 's1', name: 'Kid One', avatar_url: 'x.jpg' },
+                 { student_id: 's2', name: 'Kid Two', avatar_url: 'x.jpg' }],
+    }
+    api.get.mockImplementation(mockApi({ orgs: [TWO_KIDS] }))
+    rtlRender(
+      <MemoryRouter initialEntries={['/schedule-builder?student=s2']}>
+        <Routes>
+          <Route path="/schedule-builder" element={withConfirm(<ScheduleBuilderPage />)} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(
+        '/api/sis/parent/students/s2/schedule?organization_id=org1'),
+    )
+  })
 })

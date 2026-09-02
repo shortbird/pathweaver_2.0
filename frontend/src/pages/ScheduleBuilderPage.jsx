@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
@@ -133,6 +133,11 @@ const PREVIEW_STUDENT = { student_id: 'preview-student', name: 'Casey Sample', a
 
 const ScheduleBuilderPage = () => {
   const { previewCode } = useParams()           // staff walkthrough — see header comment
+  // ?student=<id> — where a waitlist-offer email or notification lands. Without
+  // it the page opened the FIRST child's week, and a parent of two looking for
+  // the offered seat found no Claim button (iCreate, 2026-09-02).
+  const [searchParams] = useSearchParams()
+  const wantedStudent = searchParams.get('student')
   const [ctx, setCtx] = useState(null)          // { orgs: [{organization_id, organization_name, students[]}] }
   const [orgId, setOrgId] = useState(null)
   const [studentId, setStudentId] = useState(null)
@@ -181,13 +186,15 @@ const ScheduleBuilderPage = () => {
         setCtx({ orgs })
         setMyAvatar(r.data?.my_avatar_url || null)
         if (orgs.length) {
-          setOrgId(orgs[0].organization_id)
-          setStudentId(orgs[0].students?.[0]?.student_id || null)
+          const asked = wantedStudent
+            && orgs.find((o) => (o.students || []).some((s) => s.student_id === wantedStudent))
+          setOrgId((asked || orgs[0]).organization_id)
+          setStudentId(asked ? wantedStudent : (orgs[0].students?.[0]?.student_id || null))
         }
       })
       .catch(() => toast.error('Could not load your family'))
       .finally(() => setLoading(false))
-  }, [previewCode])
+  }, [previewCode, wantedStudent])
 
   // Soft prompt: the school asks every family member to have a photo. Uploads
   // happen inline; nothing is blocked while photos are missing.
@@ -251,6 +258,12 @@ const ScheduleBuilderPage = () => {
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
+  // Seats the school has actually offered this child. These live at the top of
+  // the page as well as under the calendar: the waitlist strip is below a full
+  // week of blocks, and after the first day of school the rest of the page is
+  // read-only, so an offer buried down there reads as "there is no button"
+  // (iCreate, 2026-09-02).
+  const offeredSeats = waitlist.filter((w) => w.status === 'offered')
   // Enrollment age-gate: the student themself is waitlisted (not per-class) —
   // the week renders read-only until the school releases them.
   const enrollmentWaitlist = schedule?.enrollment_waitlist || null
@@ -736,6 +749,28 @@ const ScheduleBuilderPage = () => {
           </div>
         )
       })()}
+      {offeredSeats.length > 0 && !previewCode && (
+        <div className="mb-5 rounded-lg border border-green-300 bg-green-50 px-4 py-3">
+          <div className="text-sm font-semibold text-green-900 mb-1">
+            {offeredSeats.length === 1 ? 'A spot is being held' : 'Spots are being held'} for {student?.name || 'your student'}
+          </div>
+          <p className="text-sm text-green-800 mb-2.5">
+            {org?.organization_name || 'The school'} offered {offeredSeats.length === 1 ? 'a seat' : 'seats'} off the waitlist.
+            Claim {offeredSeats.length === 1 ? 'it' : 'them'} to enroll — the offer expires if it isn't claimed.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {offeredSeats.map((w) => (
+              <button key={w.entry_id} onClick={() => claimSpot(w)} disabled={busy === w.class_id}
+                className="text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                {busy === w.class_id ? 'Claiming…' : `Claim ${w.class_name}`}
+                {meetingText(w.meetings) && (
+                  <span className="font-normal text-green-100"> · {meetingText(w.meetings)}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {locked ? (
         <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           The school year has started{firstDay ? ` (first day was ${fmtDate(firstDay)})` : ''} — schedule changes are now made by
