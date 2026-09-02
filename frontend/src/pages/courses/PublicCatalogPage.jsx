@@ -9,6 +9,7 @@ import {
 import api from '../../services/api'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import CourseInterestModal from '../../components/marketing/CourseInterestModal'
+import { marketingUrl } from '../../utils/marketingUrl'
 
 const COURSE_PRICE = '$149'
 
@@ -165,12 +166,12 @@ const ClassesOrCourses = () => {
               like Math, English, or PE and building it from what they already love
               doing. An Optio teacher reviews the work. Your first class is free.
             </p>
-            <Link
-              to="/classes"
+            <a
+              href={marketingUrl('/academy#free-class')}
               className="text-sm font-semibold text-optio-purple hover:text-optio-pink transition-colors"
             >
               Explore classes &rarr;
-            </Link>
+            </a>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <h3 className="font-bold text-gray-900 mb-2">Courses: pre-designed, still personal</h3>
@@ -209,9 +210,9 @@ const PricingBand = ({ onGetCourse }) => {
           </p>
           <p className="text-sm text-gray-500 mt-2">
             Schools &amp; organizations: Optio courses are available at wholesale rates for your students.{' '}
-            <Link to="/for-schools" className="text-optio-purple hover:text-optio-pink font-medium transition-colors">
+            <a href={marketingUrl('/schools')} className="text-optio-purple hover:text-optio-pink font-medium transition-colors">
               Learn more
-            </Link>
+            </a>
           </p>
         </div>
         <button
@@ -437,8 +438,8 @@ const PublicCatalogPage = () => {
                   ? 'Try adjusting your search terms'
                   : 'Check back soon for new learning opportunities'}
               </p>
-              <Link
-                to="/how-it-works"
+              <a
+                href={marketingUrl('/academy#how-it-works')}
                 className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink font-medium transition-colors"
               >
                 Learn how Optio works

@@ -1,0 +1,105 @@
+---
+/**
+ * The free-class lead form: email only, on purpose. Posts type
+ * 'claim_free_class' with the placeholder name the backend convention expects,
+ * so these leads filter the same way in contact_submissions as the ones the
+ * app's FreeClassModal produced.
+ */
+import { SITE } from '../data/site'
+
+export interface Props {
+  source: string
+  /** Set on gradient/dark backgrounds: white button instead of the gradient one */
+  inverse?: boolean
+  class?: string
+}
+const { source, inverse = false, class: className = '' } = Astro.props
+---
+
+<div class={`optio-free-class ${className}`}>
+  <form
+    class="free-class-form flex flex-col sm:flex-row gap-3"
+    data-source={source}
+    action={`${SITE.apiUrl}/api/contact`}
+    method="post"
+  >
+    <label for={`${source}-fc-email`} class="sr-only">Email address</label>
+    <input
+      id={`${source}-fc-email`}
+      name="email"
+      type="email"
+      required
+      autocomplete="email"
+      placeholder="you@email.com"
+      class="flex-1 px-4 py-3.5 rounded-full border border-neutral-300 text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent text-base"
+    />
+    <button type="submit" class={`${inverse ? 'btn-inverse' : 'btn-primary'} btn-lg whitespace-nowrap`}>Get my free class</button>
+  </form>
+  <p class="form-error hidden text-red-600 text-sm mt-2" role="alert"></p>
+  <p class="form-note text-neutral-500 text-xs mt-3">
+    No credit card, no commitment. We'll email you personally with everything you need.
+  </p>
+
+  <div class="form-success hidden bg-white rounded-2xl border border-green-200 p-6 text-left" role="status">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <div>
+        <p class="font-bold text-neutral-900 mb-1">Check your inbox</p>
+        <p class="text-neutral-500 text-sm font-medium">
+          Your free class details are on the way. We'll email you back personally, no automated spam.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>('.free-class-form').forEach((form) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const wrap = form.closest('.optio-free-class')!
+      const errorEl = wrap.querySelector<HTMLElement>('.form-error')!
+      const successEl = wrap.querySelector<HTMLElement>('.form-success')!
+      const noteEl = wrap.querySelector<HTMLElement>('.form-note')
+      const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!
+      const email = (new FormData(form).get('email') as string).trim()
+
+      errorEl.classList.add('hidden')
+      button.disabled = true
+      button.textContent = 'Sending...'
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            // Backend requires a name; the form is intentionally email-only for
+            // friction. The placeholder name makes these leads easy to filter.
+            name: 'Free Class Lead',
+            email,
+            type: 'claim_free_class',
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || 'Something went wrong. Try again.')
+        }
+        form.classList.add('hidden')
+        noteEl?.classList.add('hidden')
+        successEl.classList.remove('hidden')
+        const w = window as any
+        w.optioTrack?.('marketing_form_submitted', { source: form.dataset.source, lead_type: 'claim_free_class' })
+        w.gtag?.('event', 'generate_lead', { source: form.dataset.source, lead_type: 'claim_free_class' })
+        w.fbq?.('track', 'Lead', { content_name: 'Free Class' })
+      } catch (err: any) {
+        errorEl.textContent = err.message || 'Something went wrong. Try again.'
+        errorEl.classList.remove('hidden')
+        button.disabled = false
+        button.textContent = 'Get my free class'
+      }
+    })
+  })
+</script>

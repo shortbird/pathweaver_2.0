@@ -1,0 +1,168 @@
+---
+/**
+ * The inquiry form, posting to the same backend the app's marketing forms use:
+ * POST {api}/api/contact with { name, email, message, type }. A selected
+ * choice rides at the top of the message, exactly as the app's
+ * InlineContactForm does, so submissions look identical in contact_submissions.
+ *
+ * Plain fetch without credentials: no cookies ride along, so the request is
+ * outside the backend's cookie-CSRF gate by design.
+ */
+import { SITE } from '../data/site'
+
+export interface Props {
+  source: string
+  heading: string
+  subheading?: string
+  placeholder?: string
+  choicesLabel?: string
+  choices?: string[]
+  buttonLabel?: string
+  id?: string
+}
+const {
+  source,
+  heading,
+  subheading = "Drop your info and we'll reach out with everything you need.",
+  placeholder = 'Tell us about your situation...',
+  choicesLabel,
+  choices = [],
+  buttonLabel = 'Send',
+  id = 'get-info',
+} = Astro.props
+---
+
+<section id={id} class="py-16 sm:py-20 px-4 bg-neutral-900 text-white">
+  <div class="max-w-lg mx-auto text-center">
+    <h2 class="text-3xl sm:text-4xl font-bold mb-3">{heading}</h2>
+    <p class="text-neutral-300 mb-8 text-lg font-medium">{subheading}</p>
+
+    <form
+      class="optio-contact-form space-y-4 text-left"
+      data-source={source}
+      data-choices-label={choicesLabel || ''}
+      action={`${SITE.apiUrl}/api/contact`}
+      method="post"
+    >
+      <div>
+        <label for={`${source}-name`} class="block text-sm font-medium text-neutral-300 mb-1">Your name</label>
+        <input
+          id={`${source}-name`}
+          name="name"
+          type="text"
+          required
+          autocomplete="name"
+          placeholder="First and last name"
+          class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent"
+        />
+      </div>
+      <div>
+        <label for={`${source}-email`} class="block text-sm font-medium text-neutral-300 mb-1">Email</label>
+        <input
+          id={`${source}-email`}
+          name="email"
+          type="email"
+          required
+          autocomplete="email"
+          placeholder="you@email.com"
+          class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent"
+        />
+      </div>
+      {choices.length > 0 && (
+        <fieldset>
+          <legend class="block text-sm font-medium text-neutral-300 mb-2">{choicesLabel}</legend>
+          <div class="space-y-2">
+            {choices.map((choice) => (
+              <label class="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/20 bg-white/10 cursor-pointer transition-colors hover:bg-white/15 has-[:checked]:bg-white/20 has-[:checked]:border-optio-pink">
+                <input type="radio" name="choice" required value={choice} class="w-4 h-4 accent-optio-pink flex-shrink-0" />
+                <span class="text-white text-sm sm:text-base">{choice}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <div>
+        <label for={`${source}-message`} class="block text-sm font-medium text-neutral-300 mb-1">
+          Message <span class="text-neutral-400">(optional)</span>
+        </label>
+        <textarea
+          id={`${source}-message`}
+          name="message"
+          rows="3"
+          placeholder={placeholder}
+          class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-optio-pink focus:border-transparent resize-none"
+        ></textarea>
+      </div>
+
+      <p class="form-error hidden text-red-400 text-sm" role="alert"></p>
+
+      <button type="submit" class="btn-inverse btn-lg w-full">{buttonLabel}</button>
+      <p class="text-center text-neutral-400 text-xs mt-2">
+        We'll email you back personally. No automated spam.
+      </p>
+    </form>
+
+    <div class="form-success hidden bg-white/10 rounded-2xl p-8" role="status">
+      <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h3 class="text-2xl font-bold mb-2">You're in!</h3>
+      <p class="text-neutral-300 font-medium">We'll be in touch soon with next steps.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  // One handler for every contact form on the page.
+  document.querySelectorAll<HTMLFormElement>('.optio-contact-form').forEach((form) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const errorEl = form.querySelector<HTMLElement>('.form-error')!
+      const successEl = form.parentElement!.querySelector<HTMLElement>('.form-success')!
+      const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!
+      const data = new FormData(form)
+      const choicesLabel = form.dataset.choicesLabel
+      const choice = data.get('choice') as string | null
+      const rawMessage = ((data.get('message') as string) || '').trim()
+      // The backend stores only name/email/message, so the selected choice
+      // rides at the top of the message (same convention as the app).
+      const message = choice
+        ? `${choicesLabel} ${choice}${rawMessage ? `\n\n${rawMessage}` : ''}`
+        : rawMessage
+
+      errorEl.classList.add('hidden')
+      button.disabled = true
+      button.textContent = 'Sending...'
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: (data.get('name') as string).trim(),
+            email: (data.get('email') as string).trim(),
+            message: message || undefined,
+            type: form.dataset.source,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || 'Something went wrong. Try again.')
+        }
+        form.classList.add('hidden')
+        successEl.classList.remove('hidden')
+        const w = window as any
+        w.optioTrack?.('marketing_form_submitted', { source: form.dataset.source, has_message: !!rawMessage, choice: choice || undefined })
+        w.gtag?.('event', 'generate_lead', { source: form.dataset.source })
+        w.fbq?.('track', 'Lead', { content_name: form.dataset.source })
+      } catch (err: any) {
+        errorEl.textContent = err.message || 'Something went wrong. Try again.'
+        errorEl.classList.remove('hidden')
+      } finally {
+        button.disabled = false
+        button.textContent = button.textContent === 'Sending...' ? 'Send' : button.textContent
+      }
+    })
+  })
+</script>

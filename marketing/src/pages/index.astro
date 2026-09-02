@@ -1,0 +1,207 @@
+---
+import Marketing from '../layouts/Marketing.astro'
+import Receipt from '../components/Receipt.astro'
+import TestimonialRow from '../components/TestimonialRow.astro'
+import FreeClassForm from '../components/FreeClassForm.astro'
+import WascBadge from '../components/WascBadge.astro'
+import { SITE, SOCIAL_LINKS, OFFER } from '../data/site'
+import { testimonials } from '../data/testimonials'
+import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
+
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Optio',
+    url: SITE.url,
+    logo: `${SITE.url}/images/OptioLogo-FullColor.png`,
+    slogan: 'Real credit for real life',
+    email: SITE.supportEmail,
+    sameAs: SOCIAL_LINKS.map((s) => s.href),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Optio',
+    url: SITE.url,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'School',
+    name: 'Optio Academy',
+    url: `${SITE.url}/academy`,
+    description: `A fully online private school. ${WASC_ACCREDITED_PHRASE}.`,
+    email: SITE.academyEmail,
+    parentOrganization: { '@type': 'Organization', name: 'Optio' },
+  },
+]
+---
+
+<Marketing
+  title="Optio | Real Credit for Real Life"
+  description="Real life is the best education. Optio makes it count: official, WASC-accredited high school credit for the learning your kid already does. First class free."
+  ogImage="/images/og/home.png"
+  schema={schema}
+>
+  <!-- ========== HERO ========== -->
+  <section class="bg-gradient-primary text-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-24 text-center">
+      <h1 class="text-4xl sm:text-6xl font-bold leading-tight mb-6">
+        Real life is the best education.
+      </h1>
+      <p class="text-lg sm:text-xl text-white/90 font-medium max-w-2xl mx-auto leading-relaxed mb-8">
+        Optio makes it count: official, WASC-accredited credit for the learning your kid already does.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/academy#free-class" data-track="hero_free_class" class="btn-inverse btn-lg">Try a free class</a>
+        <a href="/schools" data-track="hero_for_schools" class="btn-ghost-inverse btn-lg">For schools</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== RECEIPT STRIP ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+      <p class="text-center text-sm font-semibold uppercase tracking-wider text-optio-purple mb-8">
+        It counted
+      </p>
+      <div class="grid md:grid-cols-3 gap-5">
+        <Receipt
+          activity="A season of club soccer"
+          course="Physical Education"
+          credit="0.5 credit"
+          image="https://images.pexels.com/photos/15825071/pexels-photo-15825071.jpeg?auto=compress&cs=tinysrgb&w=800"
+        />
+        <Receipt
+          activity="A game they built and shipped"
+          course="Computer Science"
+          credit="0.5 credit"
+          image="https://images.pexels.com/photos/4709289/pexels-photo-4709289.jpeg?auto=compress&cs=tinysrgb&w=800"
+        />
+        <Receipt
+          activity="A semester of piano lessons"
+          course="Music"
+          credit="0.5 credit"
+          image="https://images.pexels.com/photos/6647418/pexels-photo-6647418.jpeg?auto=compress&cs=tinysrgb&w=800"
+        />
+      </div>
+      <p class="text-center text-neutral-500 font-medium mt-8">
+        Capture it, and it counts. Snap a photo, log the work, and a licensed teacher turns it into official credit.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== TWO DOORS ========== -->
+  <section class="bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- Family door: warm, brand-tinted -->
+        <div class="rounded-2xl border border-optio-purple/20 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 p-8 flex flex-col">
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">For Families</p>
+          <h2 class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-3">Turn your kid's passion projects into real credit.</h2>
+          <p class="text-neutral-500 font-medium mb-6 flex-1">
+            Optio Academy is a WASC-accredited online private school built around the projects, sports, and passions your kid already has.
+          </p>
+          <a href="/academy" data-track="door_academy" class="btn-primary self-start">Explore Optio Academy</a>
+        </div>
+        <!-- School door: institutional, dark -->
+        <div class="rounded-2xl bg-neutral-900 text-white p-8 flex flex-col">
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-pink mb-3">For Microschools</p>
+          <h2 class="text-2xl sm:text-3xl font-bold mb-3">Offer accredited diplomas to your students.</h2>
+          <p class="text-neutral-300 font-medium mb-6 flex-1">
+            Run your program on Optio's platform and graduate students under Optio Academy's WASC accreditation, even before your school earns its own.
+          </p>
+          <a href="/schools" data-track="door_schools" class="btn-inverse self-start">See the platform</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PROOF ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="grid md:grid-cols-[auto_1fr] gap-10 items-center mb-14">
+        <div class="mx-auto md:mx-0">
+          <WascBadge variant="card" class="max-w-xs" />
+        </div>
+        <div>
+          <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">The credit is official.</h2>
+          <p class="text-lg text-neutral-500 font-medium leading-relaxed mb-6">
+            Optio Academy is accredited by the Accrediting Commission for Schools, Western Association of
+            Schools and Colleges, the same commission that accredits thousands of public and private
+            schools. Transcripts and diplomas are recognized by colleges and employers nationwide.
+          </p>
+          <div class="flex items-center gap-4">
+            <img
+              src="/images/head-of-school.png"
+              alt="Dr. Tanner Bowman, Head of School"
+              class="w-16 h-16 rounded-full bg-white ring-2 ring-optio-purple/20"
+              width="64"
+              height="64"
+              loading="lazy"
+            />
+            <div>
+              <p class="font-bold text-neutral-900">Dr. Tanner Bowman</p>
+              <p class="text-sm text-neutral-500 font-medium">Head of School, Optio Academy</p>
+              <a href="/academy" data-track="proof_head_of_school" class="text-sm font-semibold text-optio-purple hover:text-optio-pink transition-colors">
+                Read his note on the Academy page
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-5">
+        {testimonials.map((t) => (
+          <TestimonialRow {...t} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PHILOSOPHY TEASER ========== -->
+  <section class="bg-neutral-900 text-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+      <div class="flex flex-col sm:flex-row items-center gap-8">
+        <div class="flex-1 text-center sm:text-left">
+          <p class="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-2">Our philosophy</p>
+          <h2 class="text-2xl sm:text-3xl font-bold mb-3">The Process Is The Goal</h2>
+          <p class="text-white/70 leading-relaxed font-medium">
+            We believe students thrive when education celebrates curiosity and effort today. The
+            diploma is the byproduct of real learning, and the learning is designed around what
+            actually motivates people: choice, competence, and connection.
+          </p>
+        </div>
+        <a href="/philosophy" data-track="philosophy_teaser" class="btn-ghost-inverse flex-shrink-0">
+          Read the philosophy
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== TRANSFER GUARANTEE ========== -->
+  <section class="bg-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500 text-white mb-5" aria-hidden="true">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </span>
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">The Transfer Guarantee</h2>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed">
+        When you finish an Optio class, we send your school an official transcript from Optio
+        Academy. If your school doesn't accept it, we'll refund you in full.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== FINAL CTA ========== -->
+  <section class="bg-gradient-primary text-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <h2 class="text-3xl sm:text-5xl font-bold mb-8 leading-tight">Try your first class free.</h2>
+      <div class="max-w-md mx-auto [&_.form-note]:text-white/60 [&_.form-note]:text-center [&_.form-error]:text-center">
+        <FreeClassForm source="homepage" inverse />
+      </div>
+    </div>
+  </section>
+</Marketing>

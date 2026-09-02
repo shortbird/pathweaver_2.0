@@ -1,0 +1,74 @@
+---
+import Marketing from '../../layouts/Marketing.astro'
+import { getCollection, render } from 'astro:content'
+import { SITE } from '../../data/site'
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog', ({ data }: any) => !data.draft)
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }))
+}
+
+const { post } = Astro.props
+const { Content } = await render(post)
+
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.data.title,
+    description: post.data.description,
+    datePublished: post.data.pubDate.toISOString(),
+    ...(post.data.updatedDate ? { dateModified: post.data.updatedDate.toISOString() } : {}),
+    author: {
+      '@type': 'Person',
+      name: post.data.author,
+      jobTitle: post.data.authorTitle,
+    },
+    publisher: { '@type': 'Organization', name: 'Optio', url: SITE.url },
+    mainEntityOfPage: `${SITE.url}/blog/${post.id}/`,
+  },
+]
+---
+
+<Marketing
+  title={`${post.data.title} | Optio`}
+  description={post.data.description}
+  ogImage={post.data.ogImage || '/images/og/blog.png'}
+  ogType="article"
+  schema={schema}
+>
+  <article class="bg-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-20">
+      <p class="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-4">
+        {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+      </p>
+      <h1 class="text-3xl sm:text-5xl font-bold text-neutral-900 leading-tight mb-6">{post.data.title}</h1>
+      <div class="flex items-center gap-3 pb-8 mb-8 border-b border-neutral-100">
+        <img
+          src="/images/head-of-school.png"
+          alt={post.data.author}
+          class="w-10 h-10 rounded-full bg-white ring-1 ring-neutral-100"
+          width="40"
+          height="40"
+        />
+        <div>
+          <p class="text-sm font-semibold text-neutral-900">{post.data.author}</p>
+          <p class="text-xs text-neutral-500 font-medium">{post.data.authorTitle}</p>
+        </div>
+      </div>
+
+      <div class="prose-optio">
+        <Content />
+      </div>
+
+      <div class="mt-12 rounded-2xl bg-gradient-primary text-white p-8 text-center">
+        <p class="text-xl font-bold mb-2">Real credit for real life.</p>
+        <p class="text-white/80 font-medium mb-5">Your first class is free.</p>
+        <a href="/academy#free-class" data-track="blog_post_cta" class="btn-inverse">Try a free class</a>
+      </div>
+    </div>
+  </article>
+</Marketing>
