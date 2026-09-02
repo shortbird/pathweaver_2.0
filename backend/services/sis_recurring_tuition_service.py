@@ -406,6 +406,42 @@ def household_org_id(household_id: str) -> Optional[str]:
     return rows[0]['organization_id'] if rows else None
 
 
+def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
+                       link: str) -> Dict[str, str]:
+    """PURE. The card-setup email a family receives: {subject, text, html}.
+
+    Separate from the send so the exact message can be rendered without one —
+    for a preview, a test, or answering "what does the parent actually get?"
+    without mailing a real parent to find out.
+
+    `students` are hydrated schedule rows: student_name and monthly_cents.
+    """
+    total = sum(r['monthly_cents'] for r in students)
+    breakdown = '\n'.join(
+        f"  {r['student_name']}: {_money(r['monthly_cents'])}" for r in students)
+    breakdown_html = ''.join(
+        f"<li>{r['student_name']}: <strong>{_money(r['monthly_cents'])}</strong></li>"
+        for r in students)
+    return {
+        'subject': f'{org_name}: set up your monthly tuition payment',
+        'text': (
+            f"Hello,\n\n{org_name} has set up monthly tuition for your family:\n\n"
+            f"{breakdown}\n\n"
+            f"Total: {_money(total)} per month.\n\n"
+            f"Save a card here and the first payment is taken right away; after that "
+            f"it is charged automatically each month until the school stops it:\n{link}\n\n"
+            f"Thank you,\n{org_name}"),
+        'html': (
+            f"<p>Hello,</p><p>{org_name} has set up monthly tuition for your family:</p>"
+            f"<ul>{breakdown_html}</ul>"
+            f"<p>Total: <strong>{_money(total)} per month</strong>.</p>"
+            f'<p><a href="{link}"><strong>Set up your monthly payment</strong></a> — the first '
+            f"payment is taken right away, then it is charged automatically each month until "
+            f"the school stops it.</p>"
+            f"<p>Thank you,<br/>{org_name}</p>"),
+    }
+
+
 def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     """Email the family a link to put a card on file and start monthly billing."""
     from services.sis_pay_links import setup_url
@@ -425,29 +461,8 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     org = (_admin().table('organizations').select('name')
            .eq('id', org_id).limit(1).execute()).data
     org_name = (org[0]['name'] if org else None) or 'Your school'
-    link = setup_url(household_id)
-    breakdown = '\n'.join(
-        f"  {r['student_name']}: {_money(r['monthly_cents'])}" for r in hydrated)
-    breakdown_html = ''.join(
-        f"<li>{r['student_name']}: <strong>{_money(r['monthly_cents'])}</strong></li>"
-        for r in hydrated)
-
-    subject = f'{org_name}: set up your monthly tuition payment'
-    text = (
-        f"Hello,\n\n{org_name} has set up monthly tuition for your family:\n\n"
-        f"{breakdown}\n\n"
-        f"Total: {_money(total)} per month.\n\n"
-        f"Save a card here and the first payment is taken right away; after that "
-        f"it is charged automatically each month until the school stops it:\n{link}\n\n"
-        f"Thank you,\n{org_name}")
-    html = (
-        f"<p>Hello,</p><p>{org_name} has set up monthly tuition for your family:</p>"
-        f"<ul>{breakdown_html}</ul>"
-        f"<p>Total: <strong>{_money(total)} per month</strong>.</p>"
-        f'<p><a href="{link}"><strong>Set up your monthly payment</strong></a> — the first '
-        f"payment is taken right away, then it is charged automatically each month until "
-        f"the school stops it.</p>"
-        f"<p>Thank you,<br/>{org_name}</p>")
+    bodies = setup_email_bodies(org_name, hydrated, setup_url(household_id))
+    subject, text, html = bodies['subject'], bodies['text'], bodies['html']
 
     # ONE email, to the parent who will hold the card. Two parents receiving two
     # links to the same one-time setup reads as two things to do, and only one of

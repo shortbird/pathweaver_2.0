@@ -158,11 +158,6 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
         {loadError && (
           <p className="px-1 text-[11px] text-red-600">{loadError}</p>
         )}
-        {!loadError && people?.length === 0 && (
-          <p className="px-1 text-[11px] text-neutral-500">
-            No teachers or coordinators at this school yet.
-          </p>
-        )}
         {/* Role views are no longer started from here, but one can still be
             active (older session, TopNavbar); leave a way back. */}
         {active && (
@@ -174,9 +169,6 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
             Exit {ROLE_LABELS[active] || active} view
           </button>
         )}
-        <p className="px-1 text-[11px] text-neutral-500">
-          Open someone&rsquo;s account to see the platform exactly as they do.
-        </p>
       </div>
     )
   }
