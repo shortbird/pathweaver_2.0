@@ -468,7 +468,6 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
           mode="edit"
           quest={editingQuest}
           organizationId={orgId}
-          templateTasksEndpoint={`/api/admin/quests/${editingQuest.id}/template-tasks`}
           onClose={() => setEditingQuest(null)}
           onSuccess={() => { setEditingQuest(null); fetchQuests() }}
         />

@@ -415,6 +415,7 @@ const QuestForm = ({
   canDelete = false,
   onDelete = null,
   createEndpoint = '/api/admin/quests/create',
+  // A URL, or a (questId) => url builder. Defaults to the admin route.
   templateTasksEndpoint = null
 }) => {
   const confirm = useConfirm()
@@ -668,9 +669,14 @@ const QuestForm = ({
           })
         };
 
-        const templateUrl = templateTasksEndpoint
+        // Callers pass this either as a builder or as an already-built URL.
+        // It used to be called unconditionally, so a string prop threw
+        // "is not a function" *after* the quest itself had saved -- the
+        // teacher saw "Failed to save quest" while their tasks were the only
+        // thing actually lost (Perch 1fd7a872).
+        const templateUrl = typeof templateTasksEndpoint === 'function'
           ? templateTasksEndpoint(questId)
-          : `/api/admin/quests/${questId}/template-tasks`;
+          : templateTasksEndpoint || `/api/admin/quests/${questId}/template-tasks`;
         await api.put(templateUrl, tasksPayload);
       }
 
