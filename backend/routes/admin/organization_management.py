@@ -598,6 +598,24 @@ def list_organization_quests(current_user_id, current_org_id, is_superadmin, org
 
         quests = result.data or []
 
+        # Attach the template-task count. A quest saved with no tasks still
+        # works (students get the create-your-own wizard) but that is almost
+        # never what an org admin intended, and without this count the
+        # dashboard gives them no way to notice.
+        quest_ids = [q['id'] for q in quests]
+        task_counts = {}
+        if quest_ids:
+            task_rows = fetch_all_rows(lambda: (
+                client.table('quest_template_tasks')
+                .select('id, quest_id')
+                .in_('quest_id', quest_ids)
+            ))
+            for row in task_rows:
+                task_counts[row['quest_id']] = task_counts.get(row['quest_id'], 0) + 1
+
+        for quest in quests:
+            quest['template_task_count'] = task_counts.get(quest['id'], 0)
+
         return jsonify({
             'quests': quests,
             'total': len(quests)
