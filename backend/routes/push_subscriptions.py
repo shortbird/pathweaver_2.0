@@ -103,10 +103,7 @@ def subscribe(user_id: str):
 
     except Exception as e:
         logger.error(f"Error saving push subscription: {str(e)}")
-        return jsonify({
-            'error': 'Failed to save subscription',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/unsubscribe', methods=['POST'])
@@ -143,10 +140,7 @@ def unsubscribe(user_id: str):
 
     except Exception as e:
         logger.error(f"Error removing push subscription: {str(e)}")
-        return jsonify({
-            'error': 'Failed to remove subscription',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/subscriptions', methods=['GET'])
@@ -187,10 +181,7 @@ def list_subscriptions(user_id: str):
 
     except Exception as e:
         logger.error(f"Error listing push subscriptions: {str(e)}")
-        return jsonify({
-            'error': 'Failed to list subscriptions',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/expo-token', methods=['POST'])
@@ -313,7 +304,4 @@ def test_push(user_id: str):
 
     except Exception as e:
         logger.error(f"Error sending test push: {str(e)}")
-        return jsonify({
-            'error': 'Failed to send test notification',
-            'details': str(e)
-        }), 500
+        raise

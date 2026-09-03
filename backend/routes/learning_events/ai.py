@@ -50,7 +50,7 @@ def snap_to_learn(user_id):
 
     except Exception as e:
         logger.error(f"Snap-to-Learn error for user {user_id[:8]}: {str(e)}")
-        return jsonify({'error': 'Failed to analyze image', 'message': str(e)}), 500
+        raise
 
 
 @learning_events_bp.route('/api/learning-events/voice', methods=['POST'])
@@ -97,4 +97,4 @@ def voice_journal(user_id):
 
     except Exception as e:
         logger.error(f"Voice journal error for user {user_id[:8]}: {str(e)}")
-        return jsonify({'error': 'Failed to process audio', 'message': str(e)}), 500
+        raise

@@ -124,10 +124,7 @@ def generate_sample_tasks_for_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error generating sample tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to generate sample tasks: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/sample-tasks', methods=['GET'])
@@ -236,10 +233,7 @@ def create_sample_task(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error creating sample task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create sample task: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/sample-tasks/<task_id>', methods=['PUT'])
@@ -306,10 +300,7 @@ def update_sample_task(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error updating sample task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update sample task: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/sample-tasks/<task_id>', methods=['DELETE'])
@@ -333,7 +324,4 @@ def delete_sample_task(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting sample task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete sample task: {str(e)}'
-        }), 500
+        raise

@@ -161,10 +161,7 @@ def get_generation_jobs(user_id):
 
     except Exception as e:
         logger.error(f"Get jobs error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/jobs/<job_id>', methods=['GET'])
@@ -220,10 +217,7 @@ def get_job_status(user_id, job_id):
 
     except Exception as e:
         logger.error(f"Get job status error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/jobs/<job_id>/start', methods=['POST'])
@@ -393,10 +387,7 @@ def process_next_job(user_id):
 
     except Exception as e:
         logger.error(f"Process job error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================

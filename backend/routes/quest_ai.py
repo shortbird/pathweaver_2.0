@@ -611,10 +611,11 @@ def health_check():
             'model': ai_service.model_name
         }), 200
 
-    except Exception as e:
+    except Exception:
+        logger.exception("Quest AI health check failed")
         return jsonify({
             'success': False,
             'status': 'unhealthy',
-            'error': str(e),
+            'error': 'The AI service is not reachable right now.',
             'ai_service': 'unavailable'
         }), 503

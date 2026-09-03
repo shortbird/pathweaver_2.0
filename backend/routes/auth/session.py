@@ -74,4 +74,4 @@ def mark_tutorial_completed(user_id):
 
     except Exception as e:
         logger.error(f"Error marking tutorial completed: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise

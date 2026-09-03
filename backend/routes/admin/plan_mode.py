@@ -120,17 +120,11 @@ def start_plan_session(user_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error in start_plan_session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to generate outline: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error starting plan session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<session_id>/refine', methods=['POST'])
@@ -186,17 +180,11 @@ def refine_outline(user_id, session_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error in refine_outline: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to refine outline: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error refining outline: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<session_id>', methods=['GET'])
@@ -237,10 +225,7 @@ def get_session(user_id, session_id):
 
     except Exception as e:
         logger.error(f"Error getting session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/sessions', methods=['GET'])
@@ -271,10 +256,7 @@ def list_sessions(user_id):
 
     except Exception as e:
         logger.error(f"Error listing sessions: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<session_id>', methods=['PUT'])
@@ -327,10 +309,7 @@ def update_session(user_id, session_id):
 
     except Exception as e:
         logger.error(f"Error updating session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -375,10 +354,7 @@ def approve_and_generate(user_id, session_id):
 
     except Exception as e:
         logger.error(f"Error approving session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<session_id>/progress', methods=['GET'])
@@ -420,7 +396,4 @@ def get_progress(user_id, session_id):
 
     except Exception as e:
         logger.error(f"Error getting progress: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise

@@ -350,10 +350,7 @@ def upload_curriculum(user_id):
 
     except Exception as e:
         logger.error(f"Error in curriculum upload: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Upload failed: {str(e)}'
-        }), 500
+        raise
 
 
 def _check_rate_limit(supabase, user_id: str, organization_id: str) -> dict:
@@ -783,10 +780,7 @@ def generate_course(user_id):
 
     except Exception as e:
         logger.error(f"Error in course generation: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Generation failed: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/upload/<upload_id>/status', methods=['GET'])
@@ -844,10 +838,7 @@ def get_upload_status(user_id, upload_id):
 
     except Exception as e:
         logger.error(f"Error getting upload status: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to get status: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/upload/<upload_id>/resume', methods=['POST'])
@@ -909,10 +900,7 @@ def resume_curriculum_upload(user_id, upload_id):
 
     except Exception as e:
         logger.error(f"Error resuming upload: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to resume: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/upload/<upload_id>/approve-structure', methods=['POST'])
@@ -987,10 +975,7 @@ def approve_structure(user_id, upload_id):
 
     except Exception as e:
         logger.error(f"Error approving structure: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to approve structure: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/upload/<upload_id>/structure', methods=['GET'])
@@ -1033,10 +1018,7 @@ def get_upload_structure(user_id, upload_id):
 
     except Exception as e:
         logger.error(f"Error getting structure: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to get structure: {str(e)}'
-        }), 500
+        raise
 
 
 def _resume_curriculum_background(app, upload_id: str, user_id: str, organization_id: str, options: dict):
@@ -1222,10 +1204,7 @@ def delete_upload(user_id, upload_id):
 
     except Exception as e:
         logger.error(f"Error deleting upload: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/uploads', methods=['GET'])
@@ -1309,10 +1288,7 @@ def list_uploads(user_id):
 
     except Exception as e:
         logger.error(f"Error listing uploads: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to list uploads: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/diagnose', methods=['POST'])
@@ -1393,7 +1369,4 @@ def diagnose_curriculum(user_id):
 
     except Exception as e:
         logger.error(f"Error diagnosing curriculum: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Diagnosis failed: {str(e)}'
-        }), 500
+        raise

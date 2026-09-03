@@ -85,11 +85,7 @@ def get_review_queue(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching review queue: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch review queue',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_quest_review_bp.route('/<quest_review_id>/approve', methods=['POST'])
@@ -181,11 +177,7 @@ def approve_quest(user_id, quest_review_id):
 
     except Exception as e:
         logger.error(f"Error approving quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to approve quest',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_quest_review_bp.route('/<quest_review_id>/reject', methods=['POST'])
@@ -236,11 +228,7 @@ def reject_quest(user_id, quest_review_id):
 
     except Exception as e:
         logger.error(f"Error rejecting quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to reject quest',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_quest_review_bp.route('/bulk-approve', methods=['POST'])
@@ -348,8 +336,4 @@ def bulk_approve_quests(user_id):
 
     except Exception as e:
         logger.error(f"Error in bulk approval: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to perform bulk approval',
-            'details': str(e)
-        }), 500
+        raise

@@ -664,10 +664,7 @@ def end_quest(user_id: str, quest_id: str):
 
     except Exception as e:
         logger.error(f"Error ending quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<quest_id>/reopen', methods=['POST'])
@@ -729,7 +726,7 @@ def reopen_quest(user_id: str, quest_id: str):
         return jsonify({'success': True, 'message': 'Quest reopened'}), 200
     except Exception as e:
         logger.error(f"Error reopening quest: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])
@@ -798,7 +795,7 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
 
     except Exception as e:
         logger.error(f"Error reordering tasks for quest {quest_id}: {str(e)}", exc_info=True)
-        return jsonify({'error': f'Failed to reorder tasks: {str(e)}'}), 500
+        raise
 
 
 @bp.route('/<quest_id>/display-mode', methods=['PUT'])

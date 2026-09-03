@@ -193,10 +193,7 @@ def bulk_generate(user_id):
 
     except Exception as e:
         logger.error(f"Bulk generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/fix-images', methods=['POST'])
@@ -417,10 +414,7 @@ def fix_images(user_id):
 
     except Exception as e:
         logger.error(f"Fix images error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/fix-images/status', methods=['GET'])
@@ -494,7 +488,4 @@ def bulk_status(user_id):
 
     except Exception as e:
         logger.error(f"Bulk status error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise

@@ -68,7 +68,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error getting quests for course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/quests', methods=['POST'])
@@ -145,7 +145,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error adding quest to course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/quests/<quest_id>', methods=['DELETE'])
@@ -229,7 +229,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error removing quest from course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/quests/<quest_id>', methods=['PUT'])
@@ -304,7 +304,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error updating quest in course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/projects/<quest_id>', methods=['PUT'])
@@ -408,7 +408,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error updating project in course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/quests/reorder', methods=['PUT'])
@@ -478,5 +478,5 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error reordering quests in course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 

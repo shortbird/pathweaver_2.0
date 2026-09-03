@@ -367,7 +367,7 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
 
     except Exception as e:
         logger.error(f"Error registering student for courses in org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/course-enrollments', methods=['GET'])
@@ -436,7 +436,7 @@ def list_org_course_enrollments(current_user_id, current_org_id, is_superadmin, 
 
     except Exception as e:
         logger.error(f"Error listing course enrollments for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/course-enrollments/remove', methods=['POST'])
@@ -478,4 +478,4 @@ def remove_org_course_enrollment(current_user_id, current_org_id, is_superadmin,
 
     except Exception as e:
         logger.error(f"Error removing course enrollment in org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

@@ -464,10 +464,7 @@ def export_user_data(user_id):
         import traceback
         logger.error(f"Error exporting user data: {str(e)}")
         logger.info(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'error': 'Failed to export user data',
-            'details': str(e) if Config.FLASK_ENV == 'development' else None
-        }), 500
+        raise
 
 @bp.route('/users/delete-account-permanent', methods=['DELETE'])
 @require_auth
@@ -525,10 +522,7 @@ def delete_user_account_permanent(user_id):
         logger.error(f"Error during permanent account deletion: {str(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'error': 'Failed to permanently delete account',
-            'details': str(e) if Config.FLASK_ENV == 'development' else None
-        }), 500
+        raise
 
 
 # ── Internal cron entrypoints ────────────────────────────────────────────────

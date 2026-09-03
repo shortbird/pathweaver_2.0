@@ -47,10 +47,7 @@ def backfill_single_task(user_id: str, task_id: str):
 
     except Exception as e:
         logger.error(f"Error backfilling task {task_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/all', methods=['POST'])
@@ -84,10 +81,7 @@ def backfill_all_tasks(user_id: str):
 
     except Exception as e:
         logger.error(f"Error in backfill_all_tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/preview/<task_id>', methods=['GET'])
@@ -141,10 +135,7 @@ def preview_task_classification(user_id: str, task_id: str):
 
     except Exception as e:
         logger.error(f"Error previewing task {task_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/stats', methods=['GET'])
@@ -199,10 +190,7 @@ def get_backfill_stats(user_id: str):
 
     except Exception as e:
         logger.error(f"Error getting backfill stats: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/tasks', methods=['GET'])
@@ -252,10 +240,7 @@ def list_tasks_for_review(user_id: str):
 
     except Exception as e:
         logger.error(f"Error listing tasks for review: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/task/<task_id>/distribution', methods=['PUT'])
@@ -323,10 +308,7 @@ def update_task_distribution(user_id: str, task_id: str):
 
     except Exception as e:
         logger.error(f"Error updating task distribution: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/task/<task_id>/regenerate', methods=['POST'])
@@ -382,7 +364,4 @@ def regenerate_task_distribution(user_id: str, task_id: str):
 
     except Exception as e:
         logger.error(f"Error regenerating task distribution: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise

@@ -61,11 +61,8 @@ def get_all_pillars():
             'pillars': PILLARS,
             'keys': get_all_pillar_keys(),
         }), 200
-    except Exception as e:
-        return jsonify({
-            'error': 'Failed to retrieve pillar data',
-            'message': str(e)
-        }), 500
+    except Exception:
+        raise
 
 
 @pillars_bp.route('/pillars/<pillar_key>', methods=['GET'])
@@ -90,11 +87,8 @@ def get_pillar(pillar_key):
             'pillar': get_pillar_data(pillar_key),
             'key': pillar_key.lower()
         }), 200
-    except Exception as e:
-        return jsonify({
-            'error': 'Failed to retrieve pillar data',
-            'message': str(e)
-        }), 500
+    except Exception:
+        raise
 
 
 @pillars_bp.route('/pillars/validate/<pillar_key>', methods=['GET'])

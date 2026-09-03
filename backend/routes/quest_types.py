@@ -142,10 +142,7 @@ def add_sample_task_to_user_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error adding sample task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to add sample task: {str(e)}'
-        }), 500
+        raise
 
 
 def get_sample_tasks_for_quest(quest_id: str, randomize: bool = True):

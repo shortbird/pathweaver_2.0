@@ -237,10 +237,7 @@ def create_course_quest(user_id):
 
     except Exception as e:
         logger.error(f"Error creating course quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create course quest: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/course-tasks', methods=['GET'])
@@ -492,10 +489,7 @@ def update_course_tasks(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error updating course tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update course tasks: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/course-tasks/<task_id>', methods=['DELETE'])
@@ -536,10 +530,7 @@ def delete_course_task(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting course task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete course task: {str(e)}'
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -735,10 +726,7 @@ def update_template_tasks(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error updating template tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update template tasks: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/template-tasks/<task_id>', methods=['DELETE'])
@@ -778,10 +766,7 @@ def delete_template_task(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting template task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete template task: {str(e)}'
-        }), 500
+        raise
 
 
 def _sync_to_legacy_table(quest_id: str, tasks_data: list, supabase):

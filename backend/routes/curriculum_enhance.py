@@ -107,6 +107,4 @@ def enhance_content(user_id: str):
 
     except Exception as e:
         logger.error(f"Error enhancing content: {str(e)}")
-        return jsonify({
-            'error': f'Enhancement failed: {str(e)}'
-        }), 500
+        raise

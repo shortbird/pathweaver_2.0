@@ -148,17 +148,11 @@ def start_refine_session(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error in start_refine_session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI analysis failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error starting refine session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/answer', methods=['POST'])
@@ -250,17 +244,11 @@ def process_answers(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error in process_answers: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error processing answers: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/apply', methods=['POST'])
@@ -325,10 +313,7 @@ def apply_changes(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Error applying changes: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/generate-prompt-update', methods=['POST'])
@@ -399,17 +384,11 @@ def generate_prompt_update(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error in generate_prompt_update: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error generating prompt update: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/session/<session_id>', methods=['GET'])
@@ -467,10 +446,7 @@ def get_session(user_id, course_id, session_id):
 
     except Exception as e:
         logger.error(f"Error getting session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/session/<session_id>', methods=['DELETE'])
@@ -518,7 +494,4 @@ def cancel_session(user_id, course_id, session_id):
 
     except Exception as e:
         logger.error(f"Error cancelling session: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise

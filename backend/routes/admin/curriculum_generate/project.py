@@ -142,10 +142,7 @@ def add_project(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Add project error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/project/<quest_id>', methods=['PUT'])
@@ -190,10 +187,7 @@ def update_project(user_id, course_id, quest_id):
 
     except Exception as e:
         logger.error(f"Update project error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/project/<quest_id>', methods=['DELETE'])
@@ -246,10 +240,7 @@ def delete_project(user_id, course_id, quest_id):
 
     except Exception as e:
         logger.error(f"Delete project error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================

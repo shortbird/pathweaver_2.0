@@ -87,7 +87,7 @@ def get_cost_summary(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching cost summary: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @ai_costs_bp.route('/costs/by-service', methods=['GET'])
@@ -170,7 +170,7 @@ def get_costs_by_service(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching costs by service: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @ai_costs_bp.route('/costs/trends', methods=['GET'])
@@ -236,4 +236,4 @@ def get_cost_trends(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching cost trends: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

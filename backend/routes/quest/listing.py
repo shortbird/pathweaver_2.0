@@ -440,7 +440,4 @@ def backfill_quest_topics():
 
     except Exception as e:
         logger.error(f"Error backfilling topics: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to backfill topics: {str(e)}'
-        }), 500
+        raise

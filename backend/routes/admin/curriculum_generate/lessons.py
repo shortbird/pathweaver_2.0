@@ -89,17 +89,11 @@ def generate_lessons(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI lesson generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Lesson generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/lessons/<quest_id>', methods=['POST'])
@@ -133,10 +127,7 @@ def generate_lessons_for_project(user_id, course_id, quest_id):
 
     except Exception as e:
         logger.error(f"Project lesson generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -182,17 +173,11 @@ def generate_lesson_content_all(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI content generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Lesson content generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/lesson-content/<lesson_id>', methods=['POST'])
@@ -226,17 +211,11 @@ def generate_lesson_content_single(user_id, course_id, lesson_id):
 
     except AIGenerationError as e:
         logger.error(f"AI content generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Lesson content generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -302,10 +281,7 @@ def regenerate_lesson(user_id, course_id, lesson_id):
 
     except Exception as e:
         logger.error(f"Regenerate lesson error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/lesson', methods=['POST'])
@@ -362,9 +338,6 @@ def save_lesson(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Save lesson error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 

@@ -58,7 +58,4 @@ def search_quest_image_route(user_id):
 
     except Exception as e:
         logger.error(f"Error searching for quest image: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to search for image: {str(e)}'
-        }), 500
+        raise

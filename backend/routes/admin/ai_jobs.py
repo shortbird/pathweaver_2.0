@@ -54,8 +54,8 @@ def schedule_job(user_id):
             'scheduled_for': scheduled_for.isoformat() if scheduled_for else datetime.utcnow().isoformat()
         }), 201
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        raise
 
 
 @ai_jobs_bp.route('/jobs/run', methods=['POST'])
@@ -73,8 +73,8 @@ def run_jobs(user_id):
             'summary': result
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        raise
 
 
 @ai_jobs_bp.route('/jobs/history', methods=['GET'])
@@ -97,8 +97,8 @@ def get_job_history(user_id):
             'jobs': history
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        raise
 
 
 # Removed 2026-04-13 (M1 cleanup): /content/generate, /quality/audit,
@@ -123,8 +123,8 @@ def cleanup_old_jobs(user_id):
             'deleted_count': deleted_count
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        raise
 
 
 @ai_jobs_bp.route('/recurring/setup', methods=['POST'])
@@ -138,8 +138,8 @@ def setup_recurring_jobs(user_id):
             'message': 'Recurring jobs scheduled successfully'
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        raise
 
 
 @ai_jobs_bp.route('/advisor-summary/test', methods=['POST'])
@@ -255,7 +255,7 @@ def test_advisor_summary(user_id):
 
     except Exception as e:
         logger.error(f"Error testing advisor summary: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @ai_jobs_bp.route('/advisor-summary/trigger', methods=['POST'])
@@ -358,4 +358,4 @@ def trigger_advisor_summary_job():
     except Exception as e:
         _checkin('error')
         logger.error(f"Error triggering advisor summary job: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

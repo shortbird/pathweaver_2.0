@@ -111,7 +111,7 @@ def create_family_quest(user_id):
 
     except Exception as e:
         logger.error(f"Error creating quest for user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to create quest: {str(e)}'}), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/enroll-children', methods=['POST'])
@@ -219,7 +219,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error enrolling children in quest: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to enroll children: {str(e)}'}), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/tasks', methods=['POST'])
@@ -311,7 +311,7 @@ def create_task_for_dependent(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error creating task for dependent: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to create task: {str(e)}'}), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
@@ -361,7 +361,7 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting task for dependent: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to delete task: {str(e)}'}), 500
+        raise
 
 
 @bp.route('/quests/<quest_id>/tasks/<task_id>/uncomplete', methods=['POST'])
@@ -457,4 +457,4 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error uncompleting task for dependent: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to uncomplete task: {str(e)}'}), 500
+        raise

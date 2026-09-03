@@ -117,10 +117,7 @@ def get_pending_verifications(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching pending verifications: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': f'Failed to fetch pending verifications: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/verification-history', methods=['GET'])

@@ -89,17 +89,11 @@ def generate_tasks(user_id, course_id):
 
     except AIGenerationError as e:
         logger.error(f"AI task generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Task generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/<course_id>/tasks/<lesson_id>', methods=['POST'])
@@ -154,10 +148,7 @@ def generate_tasks_for_lesson(user_id, course_id, lesson_id):
 
     except Exception as e:
         logger.error(f"Lesson task generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -223,10 +214,7 @@ def regenerate_tasks(user_id, course_id, lesson_id):
 
     except Exception as e:
         logger.error(f"Regenerate tasks error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -287,9 +275,6 @@ def save_task(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Save task error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 

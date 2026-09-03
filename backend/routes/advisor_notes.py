@@ -64,7 +64,7 @@ def get_subject_notes(user_id, subject_id):
 
     except Exception as e:
         logger.error(f"Error fetching advisor notes: {str(e)}")
-        return jsonify({'error': f'Failed to fetch notes: {str(e)}'}), 500
+        raise
 
 
 @notes_bp.route('/api/advisor/notes', methods=['POST', 'OPTIONS'])
@@ -155,7 +155,7 @@ def create_note(user_id):
 
     except Exception as e:
         logger.error(f"Error creating advisor note: {str(e)}")
-        return jsonify({'error': f'Failed to create note: {str(e)}'}), 500
+        raise
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['PUT', 'OPTIONS'])
@@ -209,7 +209,7 @@ def update_note(user_id, note_id):
 
     except Exception as e:
         logger.error(f"Error updating advisor note: {str(e)}")
-        return jsonify({'error': f'Failed to update note: {str(e)}'}), 500
+        raise
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['DELETE', 'OPTIONS'])
@@ -251,4 +251,4 @@ def delete_note(user_id, note_id):
 
     except Exception as e:
         logger.error(f"Error deleting advisor note: {str(e)}")
-        return jsonify({'error': f'Failed to delete note: {str(e)}'}), 500
+        raise

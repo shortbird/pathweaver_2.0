@@ -120,10 +120,7 @@ def upload_quest_image(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error uploading quest image: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to upload quest image: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/quests/<quest_id>/refresh-image', methods=['POST'])
 @require_admin
@@ -164,10 +161,7 @@ def refresh_quest_image(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error refreshing quest image: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to refresh quest image: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/pexels/usage', methods=['GET'])
 @require_admin
@@ -317,8 +311,5 @@ def bulk_generate_images(user_id):
 
     except Exception as e:
         logger.error(f"Error in bulk image generation: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to generate images: {str(e)}'
-        }), 500
+        raise
 

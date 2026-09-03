@@ -483,10 +483,7 @@ def create_and_add_class_quest(user_id, org_id, class_id):
 
     except Exception as e:
         logger.error(f"Error creating and adding class quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create quest: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/organizations/<org_id>/available-quests', methods=['GET'])

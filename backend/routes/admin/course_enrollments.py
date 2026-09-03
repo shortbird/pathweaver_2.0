@@ -110,7 +110,7 @@ def get_enrollable_users(current_user_id, current_org_id, is_superadmin, course_
 
     except Exception as e:
         logger.error(f"Error getting enrollable users for course {course_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<course_id>/bulk-enroll', methods=['POST'])
@@ -277,7 +277,7 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
 
     except Exception as e:
         logger.error(f"Error bulk enrolling users in course {course_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<course_id>/enrollments', methods=['GET'])
@@ -371,7 +371,7 @@ def get_course_enrollments(current_user_id, current_org_id, is_superadmin, cours
 
     except Exception as e:
         logger.error(f"Error getting enrollments for course {course_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<course_id>/bulk-unenroll', methods=['POST'])
@@ -492,7 +492,7 @@ def bulk_unenroll_users(current_user_id, current_org_id, is_superadmin, course_i
 
     except Exception as e:
         logger.error(f"Error bulk unenrolling users from course {course_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/user-enrollments', methods=['GET'])
@@ -567,4 +567,4 @@ def get_user_enrollments(current_user_id, current_org_id, is_superadmin):
 
     except Exception as e:
         logger.error(f"Error getting enrollments for user {user_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

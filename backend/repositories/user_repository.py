@@ -370,8 +370,6 @@ class UserRepository(BaseRepository):
         except NotFoundError:
             logger.warning(f"User {user_id} not found when updating last_active")
             return False
-        except DatabaseError:
-            raise
 
     # ========================================================================
     # ADMIN USER MANAGEMENT METHODS

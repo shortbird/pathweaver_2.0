@@ -44,7 +44,7 @@ def pickup_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error picking up quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/setdown', methods=['POST'])
@@ -74,7 +74,7 @@ def set_down_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error setting down quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/pickup-history', methods=['GET'])
@@ -95,7 +95,7 @@ def get_pickup_history(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error getting pickup history for quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/enrollment', methods=['DELETE'])
@@ -158,7 +158,7 @@ def delete_enrollment(user_id, quest_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error deleting enrollment for quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/archive', methods=['POST'])
@@ -190,7 +190,7 @@ def archive_enrollment(user_id, quest_id):
         return jsonify({'success': True, 'archived': len(res.data)}), 200
     except Exception as e:
         logger.error(f"Error archiving enrollment for quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/unarchive', methods=['POST'])
@@ -209,7 +209,7 @@ def unarchive_enrollment(user_id, quest_id):
         return jsonify({'success': True, 'restored': len(res.data)}), 200
     except Exception as e:
         logger.error(f"Error unarchiving enrollment for quest {quest_id}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @quest_lifecycle_bp.route('/reflection-prompts', methods=['GET'])

@@ -274,10 +274,7 @@ def create_student_task(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error creating student task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create task: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/batch', methods=['POST'])
 @require_admin
@@ -406,10 +403,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error batch copying tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to copy tasks: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['GET'])
 @require_role('advisor', 'org_admin', 'superadmin')
@@ -491,10 +485,7 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error getting student quest tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to get tasks: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['PUT'])
 @require_role('advisor', 'org_admin', 'superadmin')
@@ -612,10 +603,7 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error updating student task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update task: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
 @require_role('advisor', 'org_admin', 'superadmin')
@@ -680,10 +668,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting student task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete task: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/reorder', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
@@ -752,7 +737,4 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error reordering student tasks: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to reorder tasks: {str(e)}'
-        }), 500
+        raise

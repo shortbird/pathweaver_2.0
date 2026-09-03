@@ -436,7 +436,7 @@ Log:
 
   Tests: 4714 passed, 160 skipped, 0 failed. pyflakes clean.
 
-### SEC-11 — 123 handlers return raw exception text in 500 bodies `[TODO]`
+### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`
 (e.g. `routes/advisor_checkins.py:85,137,159,198,242,266`). The centralized
 fail-closed handler already exists (`middleware/error_handler.py`). Fix: let these
@@ -446,6 +446,41 @@ interpolation into 5xx responses under broad excepts. Distinguish the ~176 benig
 Accept: guard test green and enforcing; no 500 body carries exception text.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: DONE. 242 sites, not 123 — the plan's number came from grepping a
+  literal, an AST sweep finds the f-string and concat forms too.
+  240 returned 500 and now `raise`, letting middleware/error_handler answer:
+  fixed "An internal error occurred" in production, full detail in development,
+  keyed off Config.FLASK_ENV and failing CLOSED on an unknown env, plus
+  capture_exception so Sentry groups by stack rather than by timestamp. Every
+  hand-built 500 was routing around all of that. Logging lines above the return
+  were kept.
+  The other 2 returned 503 from AI health checks, where the status is right and
+  only the text leaked; those keep 503 and say "The AI service is not reachable
+  right now" instead of whatever the exception said.
+
+  ONE THING I GOT WRONG AND HAD TO UNDO. After converting, 70 handlers were left
+  as `except X: raise`, which looks like a no-op. I deleted the 58 whose try had
+  another handler — and five registration tests went red. A bare-raise handler
+  placed BEFORE a broader one is not a no-op: `except ValidationError: raise`
+  ahead of `except Exception:` is what stops the broad catch from swallowing
+  validation errors, and removing it rerouted them into a 500. Restored the
+  files from HEAD, re-ran the conversion (deterministic), and re-did the cleanup
+  under the correct rule: delete only when the handler is LAST, so nothing after
+  it could have caught the exception instead. That is 3 handlers, not 58.
+  (It also surfaced a live latent bug it hit on the way through: registration.py
+  reads Config in a branch where the name is only imported locally further down,
+  so that path raises UnboundLocalError. Left alone — it is unreachable again
+  now — but it wants its own item.)
+
+  Guard: tests/unit/test_no_exception_text_in_5xx.py. 4xx is deliberately NOT
+  banned — `except ValueError as e: return jsonify({'error': str(e)}), 400` is
+  how a validation message reaches the caller who asked for it. The line is the
+  status code.
+  The guard's own first version globbed 'backend/**' from a root that already
+  WAS backend/, scanned zero files and passed unconditionally. Caught only
+  because the planted offender failed to trip it. It now carries a floor
+  assertion for exactly that failure, as SEC-13's does.
+  Tests: 4718 passed, 0 failed. ruff clean, mypy clean.
 
 ### SEC-12 — OAuth provider mints full-privilege session tokens, scope decorative `[TODO]`
 `routes/auth/oauth.py:302,372` issue first-party session tokens; no consent UI;

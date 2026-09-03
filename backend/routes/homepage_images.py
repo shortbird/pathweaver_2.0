@@ -178,11 +178,7 @@ def get_homepage_images():
 
     except Exception as e:
         logger.error(f"Error in get_homepage_images: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch homepage images',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/api/homepage/images/specs', methods=['GET'])

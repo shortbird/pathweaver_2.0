@@ -63,11 +63,7 @@ def get_all_components(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching components: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch components',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_prompts_bp.route('/prompts/components/<name>', methods=['GET'])
@@ -99,11 +95,7 @@ def get_component(user_id, name):
 
     except Exception as e:
         logger.error(f"Error fetching component {name}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch component',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_prompts_bp.route('/prompts/components/<name>', methods=['PUT'])
@@ -235,11 +227,7 @@ def validate_component_content(user_id, name):
 
     except Exception as e:
         logger.error(f"Error validating content: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Validation failed',
-            'details': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -318,11 +306,7 @@ def get_metrics_summary(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching metrics summary: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch metrics',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_prompts_bp.route('/metrics/trends', methods=['GET'])
@@ -384,11 +368,7 @@ def get_metrics_trends(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching metrics trends: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch trends',
-            'details': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -455,11 +435,7 @@ def test_generation(user_id):
 
     except Exception as e:
         logger.error(f"Error in test generation: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Test generation failed',
-            'details': str(e)
-        }), 500
+        raise
 
 
 @ai_prompts_bp.route('/health', methods=['GET'])
@@ -508,12 +484,13 @@ def ai_health_check(user_id):
             'health': health
         }), status_code
 
-    except Exception as e:
-        logger.error(f"Error in health check: {e}")
+    except Exception:
+        # The caller learns the dependency is down, not what it said on the way.
+        logger.exception("AI prompts health check failed")
         return jsonify({
             'success': False,
             'health': {
                 'status': 'unhealthy',
-                'error': str(e)
+                'error': 'The AI service is not reachable right now.'
             }
         }), 503

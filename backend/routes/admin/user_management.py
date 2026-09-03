@@ -152,7 +152,7 @@ def get_user_details(admin_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error fetching user details: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 @bp.route('/users/<target_user_id>', methods=['PUT'])
 @require_school_admin
@@ -244,7 +244,7 @@ def update_user_profile(admin_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 @bp.route('/users/<target_user_id>/role', methods=['PUT'])
 @require_admin
@@ -336,10 +336,7 @@ def update_user_role(admin_id, target_user_id):
         error_trace = traceback.format_exc()
         logger.error(f"Error updating role: {str(e)}")
         logger.error(f"Full traceback: {error_trace}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update role: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
 @require_admin
@@ -380,7 +377,7 @@ def delete_user(admin_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error deleting user: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/users/bulk-delete', methods=['POST'])
@@ -411,10 +408,7 @@ def bulk_delete_users(user_id):
 
     except Exception as e:
         logger.error(f"Error in bulk delete: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete users: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/users/<target_user_id>/reset-password', methods=['POST'])
@@ -494,10 +488,7 @@ def admin_reset_password(user_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error resetting password: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to reset password: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/users/<target_user_id>/toggle-status', methods=['POST'])
 @require_admin
@@ -534,7 +525,7 @@ def toggle_user_status(admin_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error toggling user status: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/users/bulk-email', methods=['POST'])
@@ -574,7 +565,7 @@ def send_bulk_email(admin_id):
 
     except Exception as e:
         logger.error(f"Error sending bulk email: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/users/<target_user_id>/verify-email', methods=['POST'])
@@ -621,10 +612,7 @@ def admin_verify_email(user_id, target_user_id):
 
     except Exception as e:
         logger.error(f"Error verifying email: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to verify email: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/users/<user_id>/conversations', methods=['GET'])
 @require_admin

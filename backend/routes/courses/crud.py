@@ -162,7 +162,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error listing courses: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/', methods=['POST'])
@@ -234,7 +234,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error creating course: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>', methods=['GET'])
@@ -272,7 +272,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error getting course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>', methods=['PUT'])
@@ -369,7 +369,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error updating course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/generate-showcase', methods=['POST'])
@@ -450,7 +450,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error generating showcase fields for course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/cover-image/generate', methods=['POST'])
@@ -502,7 +502,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error generating cover image for course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/cover-image', methods=['POST'])
@@ -572,7 +572,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error uploading cover image for course {course_id}: {str(e)}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/quests/<quest_id>/header-image', methods=['POST'])
@@ -644,7 +644,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error uploading header image for quest {quest_id}: {str(e)}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>', methods=['DELETE'])
@@ -775,5 +775,5 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error deleting course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 

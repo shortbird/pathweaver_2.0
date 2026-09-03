@@ -108,17 +108,11 @@ def generate_outline(user_id):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI generation failed: {str(e)}'
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Outline generation error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 @bp.route('/outline/select', methods=['POST'])
@@ -171,10 +165,7 @@ def select_outline(user_id):
 
     except Exception as e:
         logger.error(f"Select outline error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -226,10 +217,7 @@ def get_generation_state(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Get generation state error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -290,9 +278,6 @@ def regenerate_outline(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Regenerate outline error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 

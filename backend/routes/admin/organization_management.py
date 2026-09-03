@@ -155,7 +155,7 @@ def list_organizations(superadmin_user_id):
         }), 200
     except Exception as e:
         logger.error(f"Error listing organizations: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('', methods=['POST'])
@@ -184,7 +184,7 @@ def create_organization(superadmin_user_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating organization: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 # Front office, not finance: the SIS console reads this for the rooms, blocks and
@@ -210,7 +210,7 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify(org), 200
     except Exception as e:
         logger.error(f"Error getting organization {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>', methods=['PUT'])
@@ -415,7 +415,7 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error updating organization {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/archive', methods=['POST'])
@@ -440,7 +440,7 @@ def archive_organization(superadmin_user_id, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error archiving organization {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/restore', methods=['POST'])
@@ -464,7 +464,7 @@ def restore_organization(superadmin_user_id, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error restoring organization {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/deletion-preview', methods=['GET'])
@@ -481,7 +481,7 @@ def preview_organization_deletion(superadmin_user_id, org_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"Error building deletion preview for {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>', methods=['DELETE'])
@@ -512,7 +512,7 @@ def delete_organization(superadmin_user_id, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error deleting organization {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/quests/grant', methods=['POST'])
@@ -538,7 +538,7 @@ def grant_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error granting quest access to org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/quests/revoke', methods=['POST'])
@@ -565,7 +565,7 @@ def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
             return jsonify({'error': 'Failed to revoke access'}), 500
     except Exception as e:
         logger.error(f"Error revoking quest access from org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/quests', methods=['GET'])
@@ -623,7 +623,7 @@ def list_organization_quests(current_user_id, current_org_id, is_superadmin, org
 
     except Exception as e:
         logger.error(f"Error listing quests for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/courses/grant', methods=['POST'])
@@ -649,7 +649,7 @@ def grant_course_access(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error granting course access to org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/courses/revoke', methods=['POST'])
@@ -676,7 +676,7 @@ def revoke_course_access(current_user_id, current_org_id, is_superadmin, org_id)
             return jsonify({'error': 'Failed to revoke access'}), 500
     except Exception as e:
         logger.error(f"Error revoking course access from org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users', methods=['GET'])
@@ -700,7 +700,7 @@ def list_organization_users(current_user_id, current_org_id, is_superadmin, org_
         }), 200
     except Exception as e:
         logger.error(f"Error listing users for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/analytics', methods=['GET'])
@@ -719,7 +719,7 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
         return jsonify(analytics), 200
     except Exception as e:
         logger.error(f"Error getting analytics for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/ai-access', methods=['POST'])
@@ -777,7 +777,7 @@ def toggle_organization_ai_access(current_user_id, current_org_id, is_superadmin
 
     except Exception as e:
         logger.error(f"Error toggling AI access for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users/add', methods=['POST'])
@@ -862,7 +862,7 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
         }), 200
     except Exception as e:
         logger.error(f"Error adding users to org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users/remove', methods=['POST'])
@@ -945,7 +945,7 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
             }), 200
     except Exception as e:
         logger.error(f"Error removing user from org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users/bulk-remove', methods=['POST'])
@@ -1008,7 +1008,7 @@ def bulk_remove_users_from_organization(current_user_id, current_org_id, is_supe
         }), 200
     except Exception as e:
         logger.error(f"Error bulk removing users from org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/students/progress', methods=['GET'])
@@ -1226,7 +1226,7 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
     except Exception as e:
         logger.error(f"Error getting student progress for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users/create-username', methods=['POST'])
@@ -1444,11 +1444,11 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
 
         except Exception as auth_error:
             logger.error(f"Error creating auth account for username student: {auth_error}")
-            return jsonify({'error': f'Failed to create account: {str(auth_error)}'}), 500
+            raise
 
     except Exception as e:
         logger.error(f"Error creating username student in org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/users/<user_id>/reset-password', methods=['POST'])
@@ -1549,4 +1549,4 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
 
     except Exception as e:
         logger.error(f"Error resetting password for user {user_id} in org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

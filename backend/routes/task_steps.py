@@ -76,10 +76,7 @@ def generate_steps(user_id: str, task_id: str):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error generating steps for task {task_id}: {e}")
@@ -135,10 +132,7 @@ def drill_down_step(user_id: str, task_id: str, step_id: str):
 
     except AIGenerationError as e:
         logger.error(f"AI generation error: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
     except Exception as e:
         logger.error(f"Error drilling down step {step_id}: {e}")

@@ -178,10 +178,7 @@ def clone_quest_to_optio(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error cloning quest to Optio: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to clone quest: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/fix-course-enrollments', methods=['POST'])
@@ -346,7 +343,4 @@ def fix_course_quest_enrollments(user_id):
 
     except Exception as e:
         logger.error(f"[FIX_COURSE_ENROLLMENTS] Error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to fix course enrollments: {str(e)}'
-        }), 500
+        raise

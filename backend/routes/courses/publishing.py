@@ -74,5 +74,5 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error publishing course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 

@@ -50,4 +50,4 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error getting course homepage for {course_id}: {str(e)}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            raise

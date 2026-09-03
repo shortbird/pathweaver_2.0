@@ -110,10 +110,7 @@ def preview_imscc_import(user_id):
 
     except Exception as e:
         logger.error(f"Error in IMSCC preview: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to process file: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/import/confirm', methods=['POST'])
@@ -204,10 +201,7 @@ def confirm_imscc_import(user_id):
 
     except Exception as e:
         logger.error(f"Error confirming IMSCC import: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to import quest: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/import/validate', methods=['POST'])
@@ -256,10 +250,7 @@ def validate_imscc_file_endpoint(user_id):
 
     except Exception as e:
         logger.error(f"Error validating IMSCC file: {str(e)}")
-        return jsonify({
-            'is_valid': False,
-            'error': f'Validation error: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/import/status', methods=['GET'])

@@ -81,8 +81,6 @@ def create_checkin(user_id):
 
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        return jsonify({'error': f'Failed to create check-in: {str(e)}'}), 500
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/quests/<quest_id>/end', methods=['POST', 'OPTIONS'])
@@ -134,7 +132,7 @@ def advisor_end_student_quest(user_id, student_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error ending quest: {str(e)}")
-        return jsonify({'error': f'Failed to end quest: {str(e)}'}), 500
+        raise
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])
@@ -155,8 +153,8 @@ def get_advisor_checkins(user_id):
             'checkins': checkins
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch check-ins: {str(e)}'}), 500
+    except Exception:
+        raise
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
@@ -194,8 +192,8 @@ def get_student_checkins(user_id, student_id):
             'checkins': checkins
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch student check-ins: {str(e)}'}), 500
+    except Exception:
+        raise
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
@@ -238,8 +236,8 @@ def get_checkin_data(user_id, student_id):
             'last_checkin': last_checkin_info
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch check-in data: {str(e)}'}), 500
+    except Exception:
+        raise
 
 
 @checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET', 'OPTIONS'])
@@ -262,8 +260,6 @@ def get_checkin_by_id(user_id, checkin_id):
 
     except PermissionError as e:
         return jsonify({'error': str(e)}), 403
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch check-in: {str(e)}'}), 500
 
 
 @checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET', 'OPTIONS'])
@@ -285,7 +281,7 @@ def get_checkin_analytics(user_id):
         import traceback
         logger.error(f"Error in get_checkin_analytics: {str(e)}")
         logger.info(traceback.format_exc())
-        return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
+        raise
 
 
 @checkins_bp.route('/api/advisor/checkins/generate-email', methods=['POST', 'OPTIONS'])
@@ -397,7 +393,7 @@ def generate_checkin_email(user_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error generating check-in email: {str(e)}")
-        return jsonify({'error': f'Failed to generate email: {str(e)}'}), 500
+        raise
 
 
 @checkins_bp.route('/api/advisor/checkins/send-email', methods=['POST', 'OPTIONS'])
@@ -540,7 +536,7 @@ def send_checkin_email(user_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error sending check-in email: {str(e)}")
-        return jsonify({'error': f'Failed to send email: {str(e)}'}), 500
+        raise
 
 
 @checkins_bp.route('/api/admin/checkins', methods=['GET', 'OPTIONS'])
@@ -562,8 +558,8 @@ def get_all_checkins_admin(user_id):
             **result
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch check-ins: {str(e)}'}), 500
+    except Exception:
+        raise
 
 
 @checkins_bp.route('/api/admin/checkins/analytics', methods=['GET', 'OPTIONS'])
@@ -582,5 +578,5 @@ def get_admin_analytics(user_id):
             'analytics': analytics
         }), 200
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
+    except Exception:
+        raise

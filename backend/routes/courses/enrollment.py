@@ -187,7 +187,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error enrolling in course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/unenroll', methods=['POST'])
@@ -262,7 +262,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error unenrolling from course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/end', methods=['POST'])
@@ -435,7 +435,7 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error ending course {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 
 
     @bp.route('/<course_id>/progress', methods=['GET'])
@@ -533,5 +533,5 @@ def register_routes(bp):
 
         except Exception as e:
             logger.error(f"Error getting course progress for {course_id}: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            raise
 

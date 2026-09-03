@@ -101,10 +101,7 @@ def create_observer_request(user_id):
 
     except Exception as e:
         logger.error(f"Error creating observer request: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create observer request: {str(e)}'
-        }), 500
+        raise
 
 
 @observer_requests_bp.route('/api/observer-requests', methods=['GET'])
@@ -143,10 +140,7 @@ def get_observer_requests(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching observer requests: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to fetch observer requests: {str(e)}'
-        }), 500
+        raise
 
 
 @observer_requests_bp.route('/api/admin/observer-requests/<request_id>', methods=['PUT'])
@@ -201,10 +195,7 @@ def update_observer_request(user_id, request_id):
 
     except Exception as e:
         logger.error(f"Error updating observer request: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update observer request: {str(e)}'
-        }), 500
+        raise
 
 
 @observer_requests_bp.route('/api/admin/observer-requests', methods=['GET'])
@@ -230,7 +221,4 @@ def get_all_observer_requests(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching all observer requests: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to fetch observer requests: {str(e)}'
-        }), 500
+        raise

@@ -48,7 +48,7 @@ def update_settings(current_user):
 
     except Exception as e:
         logger.error(f"Error updating site settings: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 @settings_bp.route('/settings/upload-logo', methods=['POST'])
 @require_admin
@@ -96,4 +96,4 @@ def upload_logo(current_user):
 
     except Exception as e:
         logger.error(f"Error uploading logo: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise

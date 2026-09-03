@@ -85,10 +85,7 @@ def finalize_course(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Finalize course error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================
@@ -126,10 +123,7 @@ def delete_draft(user_id, course_id):
 
     except Exception as e:
         logger.error(f"Delete draft error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise
 
 
 # =============================================================================

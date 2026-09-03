@@ -125,7 +125,7 @@ def get_organization_modules(superadmin_user_id, org_id):
         return jsonify({'success': True, 'modules': rows}), 200
     except Exception as e:
         logger.error(f"Error reading modules for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/<org_id>/modules', methods=['PATCH'])
@@ -182,4 +182,4 @@ def patch_organization_modules(superadmin_user_id, org_id):
         return jsonify({'success': True, 'modules': rows}), 200
     except Exception as e:
         logger.error(f"Error updating modules for org {org_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise

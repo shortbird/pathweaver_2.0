@@ -106,11 +106,7 @@ def suggest_improvements(user_id):
 
     except Exception as e:
         logger.error(f"Error getting AI suggestions: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to get AI suggestions",
-            "details": str(e)
-        }), 500
+        raise
 
 
 @student_ai_bp.route('/similar-quests', methods=['POST'])
@@ -207,11 +203,7 @@ def find_similar_quests(user_id):
 
     except Exception as e:
         logger.error(f"Error finding similar quests: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to find similar quests",
-            "details": str(e)
-        }), 500
+        raise
 
 
 @student_ai_bp.route('/validate-idea', methods=['POST'])
@@ -286,11 +278,7 @@ def validate_idea(user_id):
 
     except Exception as e:
         logger.error(f"Error validating quest idea: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to validate quest idea",
-            "details": str(e)
-        }), 500
+        raise
 
 
 @student_ai_bp.route('/recommend-tasks', methods=['POST'])
@@ -371,8 +359,4 @@ def recommend_tasks(user_id):
 
     except Exception as e:
         logger.error(f"Error recommending tasks: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to recommend tasks",
-            "details": str(e)
-        }), 500
+        raise

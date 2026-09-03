@@ -200,10 +200,7 @@ def create_quest_v3_clean(user_id):
 
     except Exception as e:
         logger.error(f"Error creating quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create quest: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/bulk-delete', methods=['POST'])
@@ -244,10 +241,7 @@ def bulk_delete_quests(user_id):
 
     except Exception as e:
         logger.error(f"Error in bulk delete: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to delete quests: {str(e)}'
-        }), 500
+        raise
 
 
 @bp.route('/quests/bulk-update', methods=['POST'])
@@ -303,10 +297,7 @@ def bulk_update_quests(user_id):
 
     except Exception as e:
         logger.error(f"Error in bulk update: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update quests: {str(e)}'
-        }), 500
+        raise
 
 
 def _quest_edit_rights(supabase, user_id, quest):
@@ -478,10 +469,7 @@ def update_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error updating quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update quest: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/quests/<quest_id>/ai-cleanup', methods=['POST'])
 @require_advisor
@@ -534,10 +522,7 @@ def ai_cleanup_quest(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error cleaning up quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to cleanup quest: {str(e)}'
-        }), 500
+        raise
 
 @bp.route('/quests/<quest_id>', methods=['DELETE'])
 @require_advisor

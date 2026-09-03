@@ -86,7 +86,7 @@ def get_audit_logs(current_user_id, current_org_id, is_superadmin):
 
     except Exception as e:
         logger.error(f"Error fetching audit logs: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/audit-logs/admin/<admin_id>', methods=['GET'])
@@ -142,7 +142,7 @@ def get_admin_activity(current_user_id, current_org_id, is_superadmin, admin_id)
 
     except Exception as e:
         logger.error(f"Error fetching admin activity for {admin_id[:8]}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/audit-logs/resource/<resource_type>/<resource_id>', methods=['GET'])
@@ -187,7 +187,7 @@ def get_resource_history(current_user_id, current_org_id, is_superadmin, resourc
         logger.error(
             f"Error fetching resource history for {resource_type}/{resource_id[:8]}: {e}"
         )
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/audit-logs/organization/<org_id>', methods=['GET'])
@@ -248,7 +248,7 @@ def get_organization_activity(current_user_id, current_org_id, is_superadmin, or
 
     except Exception as e:
         logger.error(f"Error fetching organization activity for {org_id[:8]}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/audit-logs/recent', methods=['GET'])
@@ -286,7 +286,7 @@ def get_recent_activity(admin_user_id):
 
     except Exception as e:
         logger.error(f"Error fetching recent activity: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
 
 
 @bp.route('/audit-logs/statistics/<admin_id>', methods=['GET'])
@@ -337,4 +337,4 @@ def get_admin_statistics(current_user_id, current_org_id, is_superadmin, admin_i
 
     except Exception as e:
         logger.error(f"Error fetching admin statistics for {admin_id[:8]}: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise
