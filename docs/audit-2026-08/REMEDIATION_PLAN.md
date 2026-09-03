@@ -1242,7 +1242,7 @@ Log:
   rewriting 662 lines: a stale P0 that reads as live is what gets actioned by
   the next person who opens it.
 
-### FU-03 — `public.bug_reports` is deny-all RLS with 356 rows `[TODO]`
+### FU-03 — `public.bug_reports` is deny-all RLS with 356 rows `[DONE]`
 Found by SEC-14. RLS is on with zero policies, so the superadmin triage
 endpoints return an empty list rather than the reports. Route-level gating is
 already superadmin-only, so the honest fix is to give `BugReportRepository` the
@@ -1251,6 +1251,47 @@ a policy that widens reach.
 Log:
 - 2026-09-03: Carried in from SEC-14's Log. Not yet verified against the current
   repository code.
+- 2026-09-03: Verified and FIXED in code — no migration, no new policy.
+
+  Confirmed against prod: `bug_reports` has `relrowsecurity = true` and 0 rows
+  in pg_policies, holding 356 reports. The mechanism is
+  `BugReportRepository(user_id=user_id)` at routes/bug_reports.py — passing
+  user_id makes BaseRepository derive a user-scoped client from the request's
+  Supabase token, and against a table with no policies that reads nothing.
+  What the superadmin saw was HTTP 200, `count: 0`, no error and no log line:
+  indistinguishable from "no reports yet".
+
+  Fix: the three triage routes (GET list, GET one, PATCH) now build the repo
+  with `client=_triage_client()`, one helper carrying the justification the
+  SEC-13 gate requires. Authorization is unchanged and was never RLS —
+  `@require_role('superadmin')` at the route is what gates these, and RLS was
+  only ever able to silence them.
+
+  A policy was considered and rejected. Reports carry reporter email, role and
+  a diagnostics blob; nothing but the Flask backend reads this table (both
+  frontends use the Supabase client for OAuth only), so a policy would open a
+  PostgREST path to that data that no caller needs.
+
+  CENSUSED THE CLASS rather than assuming this was the only one. Nine
+  `Repository(user_id=...)` constructions exist in backend/; three are these,
+  and the other live ones are quest/listing.py (`quests`, 4 policies) and
+  admin_audit_service.py (`admin_audit_logs`, 2 policies). Checked every one
+  against pg_policies: `bug_reports` is the ONLY user-client repository whose
+  table is deny-all. So the blast radius is this table and these three routes.
+
+  Guard, two parts, because the existing tests could not have caught this —
+  they patch BugReportRepository wholesale, so how it is constructed is
+  invisible to them. (1) a test that asserts the list route builds the repo
+  with the admin client and no user_id; (2) a static scan banning
+  `BugReportRepository(user_id=...)` anywhere in backend/. Proven to have teeth
+  by planting a call site and watching it fail.
+
+  NOT changed: `create_bug_report`'s `BugReportRepository()` (no args) already
+  gets the admin client and works. It does make BaseRepository log "Using admin
+  client for bug_reports repository. Ensure this is intentional" on every
+  submission, which is a misleading WARNING but not this item's bug.
+
+  ruff clean, mypy clean, 4735 passed / 160 skipped / 0 failed.
 
 ### FU-04 — `[DIPLOMA]` and `[DEBUG]` traces log at WARNING in hot paths `[TODO]`
 Trace-level breadcrumbs emitted at WARNING, which is the level Sentry and the

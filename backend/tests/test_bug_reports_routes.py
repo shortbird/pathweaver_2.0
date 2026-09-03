@@ -140,3 +140,72 @@ class TestTriageEndpoints:
             resp = client.patch('/api/bug-reports/r1', headers=auth_headers, json={'status': 'fixing'})
         assert resp.status_code == 200
         assert mock_repo.update_status.call_args.kwargs['status'] == 'fixing'
+
+
+@pytest.mark.unit
+class TestTriageReadsThroughTheAdminClient:
+    """`bug_reports` has RLS on and ZERO policies, which is deny-all.
+
+    A user-scoped client therefore reads no rows from it no matter who holds
+    the token, so the triage endpoints returned 200 with an empty list while
+    356 reports sat in the table -- no error, no log line, nothing to notice.
+    Superadmin is not an exception to a policy that does not exist.
+
+    The tests above cannot see this, and that is why it survived: they patch
+    BugReportRepository wholesale, so how it is constructed is invisible to
+    them. These two look at the construction itself.
+    """
+
+    def test_list_constructs_the_repository_with_the_admin_client(
+        self, client, auth_headers, mock_verify_token
+    ):
+        admin = _admin_client_for_role('superadmin')
+        mock_repo = Mock()
+        mock_repo.list_recent.return_value = []
+        with patch('database.get_supabase_admin_client', return_value=admin), \
+             patch('routes.bug_reports.get_supabase_admin_client', return_value=admin), \
+             patch('routes.bug_reports.BugReportRepository', return_value=mock_repo) as repo_cls:
+            resp = client.get('/api/bug-reports', headers=auth_headers)
+
+        assert resp.status_code == 200
+        kwargs = repo_cls.call_args.kwargs
+        assert kwargs.get('client') is admin, (
+            'triage must read through the admin client; a user client sees '
+            'nothing because bug_reports is deny-all RLS')
+        assert 'user_id' not in kwargs, (
+            'passing user_id makes BaseRepository build a user-scoped client, '
+            'which is the bug this test exists for')
+
+    def test_no_call_site_hands_the_repository_a_user_id(self):
+        """The regression is one keyword argument wide, so ban it by name.
+
+        BugReportRepository(user_id=...) makes BaseRepository derive a
+        user-scoped client from the request's Supabase token. Against a
+        deny-all table that fails silently -- an empty list, a 200, and no
+        way to tell it apart from "no reports yet".
+        """
+        import ast
+        from pathlib import Path
+
+        backend = Path(__file__).resolve().parents[1]
+        offenders = []
+        for path in sorted(backend.glob('**/*.py')):
+            if '__pycache__' in path.parts or path.name == Path(__file__).name:
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding='utf-8'))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == 'BugReportRepository'
+                        and any(kw.arg == 'user_id' for kw in node.keywords)):
+                    offenders.append(f'{path.relative_to(backend)}:{node.lineno}')
+
+        assert not offenders, (
+            'BugReportRepository built with a user client at: '
+            + ', '.join(offenders)
+            + '. bug_reports is deny-all RLS, so that reads zero rows and '
+              'reports success. Pass client=get_supabase_admin_client() and '
+              'keep the superadmin gate at the route.')
