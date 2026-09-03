@@ -54,7 +54,7 @@ def get_public_portfolio(portfolio_slug):
 @cross_origin()
 @require_auth
 @require_relationship_to('user_id', allow=(
-    'self', 'parent', 'advisor', 'teacher', 'observer', 'peer', 'org_staff'))
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'peer', 'org_staff'), discloses='portfolio')
 def get_user_portfolio(auth_user_id: str, user_id: str):
     """
     Get portfolio data for a specific user.

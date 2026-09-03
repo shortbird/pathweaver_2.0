@@ -1142,7 +1142,7 @@ Log:
   Rollback is symmetric: put the old value back in JWT_SECRET_KEY. Any token
   minted during the window verifies under either key.
 
-### SEC-15 — FERPA disclosure logging covers only observer/advisor reads `[TODO]`
+### SEC-15 — FERPA disclosure logging covers only observer/advisor reads `[DONE]`
 `utils/access_logger.py` is written to from only ~5 route modules. Extend to
 parent dashboards, SIS staff student-record reads (`routes/sis/student_records.py`),
 transcripts, and admin student views. Prefer a helper/decorator over 30 hand
@@ -1150,6 +1150,42 @@ inserts.
 Accept: every student-record read path writes `student_access_logs`; test.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Done as a decorator argument, not thirty hand inserts — the plan
+  asked for a helper and SEC-10 had just built the right place to put it.
+
+  `@require_relationship_to(..., discloses='transcript')`. The gate is the only
+  place that already knows all four things a disclosure record needs: who
+  asked, whose record it was, which route, and — the part a hand-written insert
+  usually gets wrong — WHICH RELATIONSHIP let them in. That last one is the
+  difference between "a parent read their child's file" and "an org admin read
+  a student's file", and a report that cannot tell them apart is not a
+  disclosure report. `DISCLOSURE_PURPOSE` maps each relationship to its FERPA
+  purpose; the platform-staff branch logs `admin_review`.
+
+  Applied to 18 read routes: the whole transcript surface including
+  `send_transcript_to_school` (a disclosure to a third-party registrar, which
+  is the most FERPA-relevant event in the codebase and logged nothing before),
+  SIS student profile / schedule / emergency contacts, the portfolio read,
+  advisor progress and quests and check-ins, dependent progress reports, the
+  helper-evidence task list, and the SIS family schedule.
+
+  FOUR DELIBERATE NON-BEHAVIOURS, each tested:
+    - `self` is never logged. A student reading their own record is not a
+      disclosure, and logging it would bury the ones that matter.
+    - A DENIED caller is not logged. Nothing was disclosed; an access log that
+      records attempts as accesses cannot answer "who saw this".
+    - Opt-in, not automatic. A write route is not a disclosure of a record, and
+      turning it on for all 113 declared routes would drown the log in
+      non-events — and add a write to every request on the hottest read paths.
+    - Logging failure never breaks the read. A compliance log that can take the
+      feature down with it gets deleted the first time it misfires, and then
+      there is no log at all.
+
+  The six existing hand-written call sites are LEFT ALONE and deliberately not
+  given `discloses` — they record a `fields` list the decorator cannot know,
+  and double-logging one read as two disclosures would be worse than either.
+
+  ruff clean, mypy clean. Tests: 4825 passed, 160 skipped, 0 failed.
 
 ### SEC-16 — Org Stripe keys stored application-readable in plaintext `[TODO]`
 `utils/org_secrets.py:104-128`. Add envelope encryption (Fernet via a Config key)

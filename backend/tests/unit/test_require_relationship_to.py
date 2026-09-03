@@ -275,3 +275,128 @@ def test_relationships_delegate_to_portfolio_access(monkeypatch):
                             lambda c, t, _n=name: seen.append(_n) or True)
         assert RELATIONSHIPS[name](CALLER, STUDENT) is True
     assert seen == ['parent', 'advisor', 'observer', 'teacher', 'peer']
+
+
+# --- FERPA disclosure logging (SEC-15) ---------------------------------------
+
+def _disclosing_view(allow, discloses='portfolio'):
+    @require_relationship_to('student_id', allow=allow, discloses=discloses)
+    def view(**kwargs):
+        return 'ok'
+
+    return view
+
+
+def test_a_disclosure_is_logged_with_the_relationship_that_allowed_it(app, monkeypatch):
+    """The purpose is the point.
+
+    "Someone with access looked" is not an answer a school can give a family.
+    A parent reading their own child and an org admin reading the same record
+    are different events in a disclosure report, and the gate is the only place
+    that knows which one just happened.
+    """
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+
+    view = _disclosing_view(('parent',))
+    with app.test_request_context('/api/parent/children/x'):
+        assert view(student_id=STUDENT) == 'ok'
+
+    assert len(calls) == 1
+    assert calls[0]['student_id'] == STUDENT
+    assert calls[0]['accessor_id'] == CALLER
+    assert calls[0]['data_type'] == 'portfolio'
+    assert calls[0]['purpose'] == 'parent_request'
+
+
+def test_the_same_route_logs_a_different_purpose_for_a_different_relationship(
+        app, monkeypatch):
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    monkeypatch.setitem(RELATIONSHIPS, 'org_staff', lambda c, t: True)
+
+    view = _disclosing_view(('parent', 'org_staff'))
+    with app.test_request_context('/api/sis/students/x'):
+        view(student_id=STUDENT)
+
+    assert calls[0]['purpose'] == 'legitimate_educational_interest'
+
+
+def test_reading_your_own_record_is_not_a_disclosure(app, monkeypatch):
+    """`self` is the one relationship that discloses nothing.
+
+    Logging it would bury the disclosures that matter under every student who
+    opened their own portfolio.
+    """
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+
+    view = _disclosing_view(('self',))
+    with app.test_request_context('/'):
+        assert view(student_id=CALLER) == 'ok'
+
+    assert calls == []
+
+
+def test_platform_staff_access_is_logged_as_admin_review(app, monkeypatch):
+    """The staff bypass is a disclosure too, and the least self-evident one."""
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff',
+                        lambda _caller: True)
+
+    view = _disclosing_view(('parent',))
+    with app.test_request_context('/'):
+        view(student_id=STUDENT)
+
+    assert calls[0]['purpose'] == 'admin_review'
+
+
+def test_a_route_that_does_not_declare_discloses_logs_nothing(app, monkeypatch):
+    """Opt-in, deliberately. A write route is not a disclosure of a record, and
+    logging all 113 declared routes would drown the log in non-events."""
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+
+    view, _ = _view(('parent',))
+    with app.test_request_context('/'):
+        view(student_id=STUDENT)
+
+    assert calls == []
+
+
+def test_a_broken_disclosure_log_does_not_break_the_read(app, monkeypatch):
+    """A compliance log that can take the feature down with it gets deleted the
+    first time it misfires, and then there is no log at all."""
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: (_ for _ in ()).throw(RuntimeError('log down')))
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+
+    view = _disclosing_view(('parent',))
+    with app.test_request_context('/'):
+        assert view(student_id=STUDENT) == 'ok'
+
+
+def test_a_denied_caller_is_not_logged_as_a_disclosure(app, monkeypatch):
+    """Nothing was disclosed, so nothing is a disclosure. An access log that
+    records attempts as accesses cannot be used to answer "who saw this"."""
+    calls = []
+    monkeypatch.setattr('utils.access_logger.AccessLogger.log_student_data_access',
+                        lambda **kw: calls.append(kw) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+
+    view = _disclosing_view(('parent',))
+    with app.test_request_context('/'):
+        with pytest.raises(AuthorizationError):
+            view(student_id=STUDENT)
+
+    assert calls == []

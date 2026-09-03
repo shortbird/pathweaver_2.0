@@ -103,7 +103,7 @@ VALID_SUBJECTS = list(SUBJECT_DISPLAY_NAMES.keys())
 
 @bp.route('/<user_id>', methods=['GET'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def get_transcript_data(admin_user_id, user_id):
     """
     Get all data needed to generate a formal academic transcript.
@@ -320,7 +320,7 @@ def get_transcript_data(admin_user_id, user_id):
 
 @bp.route('/<user_id>/planned-credits', methods=['GET'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def get_planned_credits(admin_user_id, user_id):
     """Get all planned/in-progress credits for a student."""
     try:
@@ -506,7 +506,7 @@ def update_course_names(admin_user_id, transfer_credit_id):
 
 @bp.route('/<user_id>/exists', methods=['GET'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def check_transcript_exists(admin_user_id, user_id):
     """Check if a transcript has been created for this student."""
     try:
@@ -522,7 +522,7 @@ def check_transcript_exists(admin_user_id, user_id):
 
 @bp.route('/<user_id>/overrides', methods=['GET'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def get_overrides(admin_user_id, user_id):
     """Get transcript field overrides for a student."""
     try:
@@ -579,7 +579,7 @@ MAX_TRANSCRIPT_PDF_BYTES = 15 * 1024 * 1024
 
 @bp.route('/<user_id>/transfers', methods=['GET'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def get_transfer_history(admin_user_id, user_id):
     """List prior transcript transfers for a student (most recent first)."""
     try:
@@ -610,7 +610,7 @@ def get_transfer_history(admin_user_id, user_id):
 
 @bp.route('/<user_id>/send', methods=['POST'])
 @require_school_admin
-@require_relationship_to('user_id', allow=('org_staff',))
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transcript')
 def send_transcript_to_school(admin_user_id, user_id):
     """
     Email the official transcript PDF to a registrar at another school.

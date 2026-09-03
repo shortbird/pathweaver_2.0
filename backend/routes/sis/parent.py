@@ -430,7 +430,7 @@ def cancel_absences(user_id):
 @bp.route('/students/<student_id>/schedule', methods=['GET'])
 @require_auth
 @require_module('classes')
-@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'), discloses='schedule')
 def student_schedule(user_id, student_id):
     """The student's current schedule (active classes + waitlist) plus whether
     self-service changes are still open (locks on the first day of school)."""

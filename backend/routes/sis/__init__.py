@@ -742,7 +742,7 @@ def update_user_role(user_id, target_id):
 
 @bp.route('/students/<student_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_relationship_to('student_id', allow=('org_staff',))
+@require_relationship_to('student_id', allow=('org_staff',), discloses='profile')
 def get_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -755,7 +755,7 @@ def get_student(user_id, student_id):
 
 @bp.route('/students/<student_id>/classes', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_relationship_to('student_id', allow=('org_staff',))
+@require_relationship_to('student_id', allow=('org_staff',), discloses='schedule')
 def student_classes(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -791,7 +791,7 @@ def message_student(user_id, student_id):
 # a minor's emergency-contact PII (names, phones, pickup authorization).
 @bp.route('/students/<student_id>/emergency-contacts', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_relationship_to('student_id', allow=('org_staff',))
+@require_relationship_to('student_id', allow=('org_staff',), discloses='emergency_contacts')
 def list_emergency_contacts(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:

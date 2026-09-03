@@ -89,7 +89,7 @@ def assign_student(user_id, student_id):
 
 @advisor_bp.route('/students/<student_id>/progress', methods=['GET'])
 @require_advisor
-@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'), discloses='progress')
 def get_student_progress(user_id, student_id):
     """Get comprehensive progress report for a student"""
     try:
@@ -151,7 +151,7 @@ def get_advisor_dashboard(user_id):
 
 @advisor_bp.route('/students/<student_id>/quests-with-tasks', methods=['GET'])
 @require_advisor
-@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'), discloses='quests')
 def get_student_quests_with_tasks(user_id, student_id):
     """Get all active quests for a student with their tasks - for task management interface"""
     try:

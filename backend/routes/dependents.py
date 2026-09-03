@@ -1214,7 +1214,7 @@ def stop_acting_as():
 @bp.route('/<dependent_id>/progress-report', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
-@require_relationship_to('dependent_id', allow=('parent',))
+@require_relationship_to('dependent_id', allow=('parent',), discloses='progress')
 def get_dependent_progress_report(user_id, dependent_id):
     """
     Get comprehensive progress report for a dependent.
@@ -1270,7 +1270,7 @@ def get_dependent_progress_report(user_id, dependent_id):
 @bp.route('/<dependent_id>/progress-report/export', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
-@require_relationship_to('dependent_id', allow=('parent',))
+@require_relationship_to('dependent_id', allow=('parent',), discloses='progress')
 def export_dependent_progress_report(user_id, dependent_id):
     """
     Export progress report as CSV or JSON.

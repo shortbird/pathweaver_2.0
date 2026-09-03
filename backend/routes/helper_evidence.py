@@ -543,7 +543,7 @@ def delete_helper_evidence_block(user_id, block_id):
 # for an org_admin, unlike the shared helper of the same name in
 # routes/advisor/student_overview.py. Declaring org_staff here would
 # describe a permission the view does not grant.
-@require_relationship_to('student_id', allow=('advisor', 'parent'))
+@require_relationship_to('student_id', allow=('advisor', 'parent'), discloses='tasks')
 def get_student_tasks_for_evidence(user_id, student_id):
     """
     Get list of active tasks for a student (for advisors/parents to add evidence).

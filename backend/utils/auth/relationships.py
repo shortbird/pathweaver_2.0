@@ -38,7 +38,7 @@ Policy notes:
 """
 
 from functools import wraps
-from typing import Callable, Dict, Sequence
+from typing import Callable, Dict, Optional, Sequence
 
 from flask import request
 
@@ -122,6 +122,24 @@ RELATIONSHIPS: Dict[str, Callable[[str, str], bool]] = {
     'org_staff': _org_staff,
 }
 
+#: FERPA purpose for a disclosure made under each relationship. The reason a
+#: record was shown is part of the disclosure, not decoration: a parent reading
+#: their own child and an org admin reading the same record are different
+#: events in a compliance report, and "someone with access looked" is not an
+#: answer a school can give a family.
+DISCLOSURE_PURPOSE = {
+    'parent': 'parent_request',
+    'household_guardian': 'parent_request',
+    'observer': 'observer_view',
+    'advisor': 'legitimate_educational_interest',
+    'teacher': 'legitimate_educational_interest',
+    'org_staff': 'legitimate_educational_interest',
+    'peer': 'peer_connection',
+}
+
+#: Purpose recorded when the platform-staff branch is what let the caller in.
+STAFF_DISCLOSURE_PURPOSE = 'admin_review'
+
 #: Marker attribute the guard test looks for. Set on the wrapper; functools.wraps
 #: propagates it outward through any decorator stacked above.
 ENFORCED_ATTR = '_relationship_enforced'
@@ -142,7 +160,32 @@ def _is_platform_staff(caller_id: str) -> bool:
     return bool(rows) and is_optio_platform_user(rows[0])
 
 
-def require_relationship_to(param: str, allow: Sequence[str]):
+def _log_disclosure(caller_id: str, student_id: str, data_type: str,
+                    matched: Optional[str]) -> None:
+    """Record a FERPA disclosure. Never raises, never blocks the read.
+
+    A compliance log that can take the feature down with it gets removed the
+    first time it misfires, and then there is no log at all.
+    """
+    if matched == 'self':
+        return  # reading your own record is not a disclosure
+    try:
+        from utils.access_logger import AccessLogger
+        AccessLogger.log_student_data_access(
+            student_id=student_id,
+            accessor_id=caller_id,
+            data_type=data_type,
+            purpose=(DISCLOSURE_PURPOSE.get(matched) if matched
+                     else STAFF_DISCLOSURE_PURPOSE),
+            endpoint=request.path,
+        )
+    except Exception:
+        logger.exception('relationship gate: disclosure log failed on %s',
+                         request.path)
+
+
+def require_relationship_to(param: str, allow: Sequence[str],
+                           discloses: Optional[str] = None):
     """Require the caller to stand in one of ``allow`` relationships to ``param``.
 
     ``param`` names a path parameter holding a user id, e.g.::
@@ -157,6 +200,26 @@ def require_relationship_to(param: str, allow: Sequence[str]):
     itself rather than trusting a positional argument, because the decorators
     above it disagree about what they pass (``require_org_admin`` passes three
     values, the rest pass one).
+
+    ``discloses`` names the kind of education record the route hands over
+    ('portfolio', 'grades', 'attendance', ...) and turns the gate into the
+    FERPA disclosure log for that route::
+
+        @require_relationship_to('student_id', allow=('parent', 'advisor'),
+                                 discloses='progress')
+
+    SEC-15 asked for a helper rather than thirty hand-written inserts, and the
+    gate is the only place that already knows all four things a disclosure
+    record needs: who asked, whose record it was, which route, and -- the part
+    a hand-written insert usually gets wrong -- WHICH RELATIONSHIP let them in.
+    That last one is the difference between "a parent read their child's file"
+    and "an org admin read a student's file", which are different events in a
+    compliance report.
+
+    Access by ``self`` is not logged: a student reading their own record is not
+    a disclosure. Logging is best-effort and never breaks the request --
+    AccessLogger swallows its own failures, and this catches anything it does
+    not.
     """
     if not param:
         raise ValueError('require_relationship_to needs a path parameter name')
@@ -203,10 +266,12 @@ def require_relationship_to(param: str, allow: Sequence[str]):
             # staff branch below returns outside any try, so a superadmin
             # reproducing the report saw the real error.
             allowed = False
+            matched = None
             for name in allow:
                 try:
                     if RELATIONSHIPS[name](caller_id, target_id):
                         allowed = True
+                        matched = name
                         break
                 except Exception:
                     # A predicate that blows up is a predicate that did not say
@@ -221,8 +286,13 @@ def require_relationship_to(param: str, allow: Sequence[str]):
             # essentially all of this traffic, to answer a question that is
             # False for all of them. Now only a caller who has already failed
             # every declared relationship pays for it.
-            if not allowed and not _is_platform_staff(caller_id):
-                raise AuthorizationError('Not authorized to access this student')
+            if not allowed:
+                if not _is_platform_staff(caller_id):
+                    raise AuthorizationError('Not authorized to access this student')
+                matched = None  # got in as staff, not by a declared relationship
+
+            if discloses:
+                _log_disclosure(caller_id, target_id, discloses, matched)
 
             return f(*args, **kwargs)
 
