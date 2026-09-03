@@ -15,10 +15,20 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
  * brought the user here and send them to its real destination (the messages
  * tab, a bounty, etc.). If there's no notification link to recover, fall back to
  * the index, which routes to the user's auth-appropriate landing.
+ *
+ * The resolved PARAMS travel with the target. This path used to keep only the
+ * target, so a cold start — which is what a push tap does when the app is not
+ * already running — dropped them: a DM notification lost its ?user= and landed
+ * on the conversation list rather than the conversation, and a view-on-web
+ * handoff lost the path it was supposed to offer and fell back to the site
+ * root. The warm handlers in (app)/_layout.tsx and notifications.tsx have
+ * always passed params through; this one was the odd one out.
  */
 export default function NotFound() {
   const c = useThemeColors();
-  const [href, setHref] = useState<string | null>(null);
+  const [href, setHref] = useState<
+    string | { pathname: string; params?: Record<string, string> } | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +37,9 @@ export default function NotFound() {
         const link = await getInitialNotificationLink();
         const resolved = resolveDeepLink(link);
         if (!cancelled && resolved?.target) {
-          setHref(resolved.target);
+          setHref(resolved.params
+            ? { pathname: resolved.target, params: resolved.params }
+            : resolved.target);
           return;
         }
       } catch {
