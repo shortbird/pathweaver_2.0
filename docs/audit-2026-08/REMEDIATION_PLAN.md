@@ -1627,13 +1627,58 @@ sub-batch, full related-test run each.
 Log:
 - 2026-08-31: Plan created.
 
-### QB-05 — Three migration directories with ambiguous authority `[TODO]`
+### QB-05 — Three migration directories with ambiguous authority `[DONE]`
 `supabase/migrations/` is current; `backend/migrations/` (80 files, 4 naming
 conventions) and root `migrations/` (8 files) are legacy. Archive the legacy two
 with READMEs stating provenance; note the 8-digit naming outlier
 (`20260824_admin_platform_metrics_daily.sql`).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Archived both legacy directories, and found something bigger than
+  the naming outlier while checking the live one.
+
+  `backend/migrations/` (80 files, four naming conventions) and root
+  `migrations/` (8) are now `docs/archive/legacy-migrations/`, with a README
+  giving provenance and saying why they are kept rather than deleted: several
+  are the only written record of a schema decision, and one
+  (`20251226_create_oauth2_infrastructure.sql`) is what SEC-12's comment points
+  at when explaining why the OAuth tables do not exist.
+
+  Two runner scripts DELETED rather than moved:
+  `backend/scripts/apply_ai_review_migration.py` and `run_ai_jobs_migration.py`
+  apply migrations that create `ai_quest_review_queue`, `ai_generation_metrics`,
+  `ai_prompt_versions` and `quality_action_logs` — every one of which CLAUDE.md
+  lists under "Deleted Tables (Don't Query)". A script whose only effect is to
+  recreate a dropped table is worse than no script.
+
+  THE REAL FINDING, which the item only glimpsed as "the 8-digit naming
+  outlier". Diffed all 64 files in `supabase/migrations/` against
+  `supabase_migrations.schema_migrations`:
+    - **56 of 64 carry a version stamp that differs from the recorded one.**
+      Not one outlier — the norm. Hand-application timestamps the history row at
+      apply time while the filename was written earlier, so they drift by
+      hours.
+    - 3 files appear in no history row: the baseline, plus
+      `20260825120000_hearthwood_hide_pillars` and
+      `20260827150000_announcement_board_link`.
+
+  Checked those two against production rather than assuming: the
+  `announcements.source_announcement_id` column exists and both Hearthwood orgs
+  carry `hide_pillars: true`. They were applied by hand and never recorded — so
+  nothing is MISSING from production, the HISTORY is incomplete.
+
+  Consequence, now written at the top of `supabase/migrations/README.md`:
+  `supabase db push` would attempt ~59 already-applied migrations. Many are
+  `IF NOT EXISTS`-guarded; not all are. Do not run it against prod until the
+  history is reconciled.
+
+  DELIBERATELY NOT RENAMED. A rename changes nothing in the database, and
+  tooling that diffs by filename would read 56 renames as 56 NEW migrations —
+  trading a quiet inconsistency for a loud one, on the exact path that reaches
+  production. Reconciling means writing history rows, which is a change to
+  production state and belongs with OPS-03's decision rather than ahead of it.
+
+  Tests: 4843 passed, 160 skipped, 0 failed.
 
 ### QB-06 — Repository-pattern endgame decision `[NEEDS-USER]`
 Full migration is 1-2 engineers x 2-3 quarters; fencing (CI-02 + require repos
