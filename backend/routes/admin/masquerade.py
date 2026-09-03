@@ -16,6 +16,7 @@ from utils.token_authority import caller_may_masquerade
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place, sign_stored_url
 from middleware.rate_limiter import get_real_ip
+from routes.auth.token_delivery import masquerade_body_tokens, refresh_body_tokens
 from datetime import datetime, timezone
 
 logger = get_logger(__name__)
@@ -93,9 +94,12 @@ def start_masquerade(admin_id, target_user_id):
         # Set the masquerade JWT as an httpOnly cookie so it survives page reloads
         # under the in-memory-only token model (C2). Cookie takes precedence over
         # the admin's access_token cookie in session_manager resolution.
+        # Body tokens only for clients that cannot use the cookie set below --
+        # the mobile app, and browsers that block our cookies. A cookie-capable
+        # browser authenticates the masquerade from the httpOnly cookie, so
+        # putting the same JWT in readable JSON only widens what an XSS can take.
         response = make_response(jsonify({
-            'masquerade_token': masquerade_token,
-            'masquerade_refresh_token': masquerade_refresh_token,
+            **masquerade_body_tokens(masquerade_token, masquerade_refresh_token),
             'log_id': log_id,
             'target_user': {
                 'id': target_user_data['id'],
@@ -166,9 +170,11 @@ def exit_masquerade():
         admin_user = supabase.table('users').select('*').eq('id', admin_id).execute()
         admin_data = admin_user.data[0] if admin_user.data else {}
 
+        # Same gate as the start of the session, and it matters more here: these
+        # are the admin's OWN tokens, and the refresh token lives 30 days.
+        # set_auth_cookies() below restores the cookie session either way.
         response = make_response(jsonify({
-            'access_token': admin_access_token,
-            'refresh_token': admin_refresh_token,
+            **refresh_body_tokens(admin_access_token, admin_refresh_token),
             'user': {
                 'id': admin_data['id'],
                 'display_name': admin_data.get('display_name'),

@@ -152,3 +152,22 @@ def refresh_body_tokens(access_token: str, refresh_token: str) -> Dict[str, str]
     if not needs_header_auth():
         return {}
     return {'access_token': access_token, 'refresh_token': refresh_token}
+
+
+def masquerade_body_tokens(access_token: str, refresh_token: str) -> Dict[str, str]:
+    """Same decision for POST /api/admin/masquerade/<id>, which names its fields
+    `masquerade_token` / `masquerade_refresh_token`.
+
+    This one lives outside routes/auth/, which is why it kept handing both
+    tokens to every caller long after login stopped. The response already sets
+    the httpOnly `masquerade_token` cookie, and get_effective_user_id() reads
+    it, so a cookie-capable browser needs nothing in the body -- v1 reloads the
+    page immediately after starting a masquerade anyway, which throws away
+    whatever it had in memory.
+    """
+    if not needs_header_auth():
+        return {}
+    return {
+        'masquerade_token': access_token,
+        'masquerade_refresh_token': refresh_token,
+    }

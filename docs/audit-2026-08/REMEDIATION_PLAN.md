@@ -96,7 +96,7 @@ Log:
   Tests: backend auth/route guards 34 passed 1 skipped; web
   browserDetection + AuthContext 50 passed.
 
-### SEC-03 — Masquerade tokens returned in JSON body unconditionally `[TODO]`
+### SEC-03 — Masquerade tokens returned in JSON body unconditionally `[DONE]`
 `routes/admin/masquerade.py:97-98` returns both impersonation tokens in the body
 even for cookie-capable browsers; login gates this behind
 `token_delivery.needs_header_auth()`. Fix: apply the same gate.
@@ -104,6 +104,33 @@ Accept: cookie-capable clients get cookies only; header-auth fallback still work
 masquerade tests pass.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Confirmed, and `/exit` was worse than the start endpoint the
+  finding named: it returned the admin's OWN access + 30-day refresh token in
+  the body to everyone. Both now go through token_delivery — a new
+  `masquerade_body_tokens()` for the start endpoint's field names, and the
+  existing `refresh_body_tokens()` for /exit. Cookie-capable v1 browsers lose
+  nothing: start sets the httpOnly masquerade_token cookie that
+  get_effective_user_id() reads, /exit calls set_auth_cookies(), and v1 does a
+  full page reload after both, so the in-memory copy was discarded a moment
+  later anyway. Safari/iOS/Firefox and the mobile app still get both tokens
+  (v2's web target too, via its Origin).
+  Client: masqueradeService.js only calls setTokens when the body carried a
+  token, and on exit clears memory otherwise — a leftover masquerade JWT would
+  keep going out as a Bearer and outrank the admin cookies just set
+  (get_effective_user_id prefers the header). v2's actingAsStore is unchanged:
+  it always qualifies for header auth.
+  Guard: test_token_delivery.py's bypass scan covered only routes/auth/, which
+  is exactly why masquerade.py drifted — it now walks all of routes/ and checks
+  four credential field names, with a reasoned allowlist for the three genuine
+  token-issuing endpoints, plus a test that the allowlist entries still exist.
+  Tests: token_delivery + masquerade + security-audit regressions 51 passed;
+  import layers/route registration/CSRF 29 passed; web masquerade/api/sidebar/
+  role-switcher 50 passed.
+  FOLLOW-UP (new finding, not in the audit): acting-as (parent -> dependent,
+  routes/dependents.py `/`<id>`/act-as` and `/stop-acting-as`) has no cookie of
+  its own — the token is body-only and replayed as a Bearer, so the same gate
+  cannot be applied without first giving it a cookie the way masquerade has
+  one. Allowlisted with that reason. Worth its own item.
 
 ### SEC-04 — `.env.example` ships the production Supabase project ref `[DONE]`
 Replace `https://vvfgxcykxjybtvpfzwyx.supabase.co` (and related refs) in tracked

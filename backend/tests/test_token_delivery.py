@@ -68,6 +68,16 @@ class TestCookieCapableBrowsersGetNothing:
         with ctx(ua=CHROME, origin=_v1_origin()):
             assert token_delivery.refresh_body_tokens('a', 'r') == {}
 
+    def test_starting_a_masquerade_returns_no_token_to_a_cookie_client(self, ctx):
+        """The same response sets the httpOnly masquerade_token cookie, and
+        get_effective_user_id() reads it. Putting the impersonation JWT in the
+        body as well only widened what an XSS on an admin's session could take
+        -- and v1 reloads the page immediately afterwards, so it never used the
+        copy it was given."""
+        from routes.auth import token_delivery
+        with ctx(ua=CHROME, origin=_v1_origin()):
+            assert token_delivery.masquerade_body_tokens('mq', 'mqr') == {}
+
     def test_a_client_may_decline_body_tokens(self, ctx):
         """A client-supplied flag is honoured in one direction only: it can take
         a credential out of the response, never put one in."""
@@ -114,6 +124,17 @@ class TestClientsThatCannotUseCookiesStillWork:
         with ctx(ua=CHROME, origin='http://localhost:8081'):
             assert token_delivery.body_tokens('a', 'r')
 
+    @pytest.mark.parametrize('ua', [SAFARI, IPHONE, EXPO_ANDROID, EXPO_IOS])
+    def test_masquerade_still_reaches_clients_without_a_cookie_jar(self, ctx, ua):
+        """The mobile app switches identity by swapping the token it holds, and
+        needs the masquerade refresh token specifically: refreshing with the
+        admin's own would silently drop it back into its own account."""
+        from routes.auth import token_delivery
+        with ctx(ua=ua, origin=_v1_origin()):
+            tokens = token_delivery.masquerade_body_tokens('mq', 'mqr')
+        assert tokens == {'masquerade_token': 'mq',
+                          'masquerade_refresh_token': 'mqr'}
+
     def test_an_unknown_caller_is_not_broken(self, ctx):
         """No Origin means not the v1 web app: that call is cross-origin in
         every environment we run, so the browser always attaches one. Anything
@@ -124,35 +145,75 @@ class TestClientsThatCannotUseCookiesStillWork:
             assert token_delivery.body_tokens('a', 'r')
 
 
+# Endpoints whose job IS to hand a token to a machine, where a body token is the
+# protocol rather than a convenience. Each needs a reason, and none of them serve
+# a browser session.
+_LEGITIMATE_TOKEN_ISSUERS = {
+    # OAuth 2.0 token endpoint. RFC 6749 s5.1 defines the response body; there
+    # is no cookie in this exchange and the caller is a server.
+    'routes/auth/oauth.py',
+    # LTI 1.3 client-credentials grant, same shape, same reason.
+    'routes/lti/token.py',
+    # Acting-as (parent -> dependent) has NO cookie of its own: the token is
+    # delivered in the body and replayed as a Bearer, so gating it would delete
+    # the feature rather than harden it. Giving it a cookie the way masquerade
+    # has one is the fix, and it is not this test's job to pretend otherwise.
+    'routes/dependents.py',
+}
+
+# Response-body field names that carry a durable credential.
+_CREDENTIAL_FIELDS = (
+    'app_refresh_token',
+    'refresh_token',
+    'masquerade_refresh_token',
+    'acting_as_refresh_token',
+)
+
+
 @pytest.mark.unit
 class TestNoEndpointBypassesTheGate:
-    def test_no_auth_route_hands_out_tokens_unconditionally(self):
+    def test_no_route_hands_out_a_refresh_token_unconditionally(self):
         """The gate is only worth having if every emitter goes through it.
 
         There were seven separate places building a login response, each with
         its own literal `'app_refresh_token': ...`, which is how the same 30-day
         credential ended up in the JSON of endpoints nobody thought of as login
-        (verify-email-otp, change-password, the OAuth TOS-acceptance step). A new
-        one added by hand would reopen this silently, so fail here instead.
+        (verify-email-otp, change-password, the OAuth TOS-acceptance step).
+
+        This scan covered only routes/auth/ at first, and
+        routes/admin/masquerade.py sat outside it returning both impersonation
+        tokens to everyone -- and, on /exit, the admin's own 30-day refresh
+        token (SEC-03). So it now walks every route module.
         """
         from pathlib import Path
-        auth_dir = Path(__file__).resolve().parents[1] / 'routes/auth'
+        routes_dir = Path(__file__).resolve().parents[1] / 'routes'
         offenders = []
-        for path in sorted(auth_dir.rglob('*.py')):
-            if path.name == 'token_delivery.py':
+        for path in sorted(routes_dir.rglob('*.py')):
+            rel = path.relative_to(routes_dir.parent).as_posix()
+            if rel == 'routes/auth/token_delivery.py' or rel in _LEGITIMATE_TOKEN_ISSUERS:
                 continue
-            for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            for lineno, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
                 stripped = line.strip()
                 if stripped.startswith('#'):
                     continue
                 # A dict literal KEY, i.e. a hand-built response field. Reading
                 # the field back off a request is fine, and so is passing the
-                # variable into body_tokens().
-                if "'app_refresh_token':" in stripped or '"app_refresh_token":' in stripped:
-                    offenders.append(f'{path.name}:{lineno}')
+                # variable into one of the *_body_tokens() helpers.
+                if any(f"'{f}':" in stripped or f'"{f}":' in stripped
+                       for f in _CREDENTIAL_FIELDS):
+                    offenders.append(f'{rel}:{lineno}')
         assert not offenders, (
             'these build a response body with a refresh token directly instead '
-            f'of going through token_delivery.body_tokens(): {offenders}')
+            'of going through token_delivery: ' + ', '.join(offenders))
+
+    def test_the_allowlist_names_files_that_exist(self):
+        """An allowlist entry that no longer matches a file is a hole nobody
+        can see -- the guard would skip nothing and report green."""
+        from pathlib import Path
+        backend = Path(__file__).resolve().parents[1]
+        missing = [rel for rel in sorted(_LEGITIMATE_TOKEN_ISSUERS)
+                   if not (backend / rel).exists()]
+        assert not missing, f'allowlisted files no longer exist: {missing}'
 
 
 @pytest.mark.unit
