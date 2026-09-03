@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
@@ -30,7 +30,14 @@ const TEMPLATE = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.get.mockResolvedValue({ data: { templates: [TEMPLATE] } })
+  api.get.mockResolvedValue({ data: {
+    templates: [TEMPLATE],
+    builtins: [
+      { key: 'incident', name: 'Incident report', hidden: false },
+      { key: 'reimbursement', name: 'Reimbursement request', hidden: false },
+      { key: 'injury', name: 'Injury report', hidden: true },
+    ],
+  } })
   api.post.mockResolvedValue({ data: { success: true } })
   api.put.mockResolvedValue({ data: { success: true } })
   api.delete.mockResolvedValue({ data: { success: true } })
@@ -40,6 +47,39 @@ describe('FormBuilder', () => {
   const open = async () => {
     fireEvent.click(await screen.findByRole('button', { name: /Forms/ }))
   }
+
+  // iCreate, 2026-09-02: "remove the purchase requests, class prep,
+  // reimbursement request, etc." The built-ins belong to every school, so one
+  // school hides what it does not use rather than deleting it for everyone.
+  it('lists the built-in forms and says which are hidden', async () => {
+    render(<FormBuilder orgId="org-1" />)
+    await open()
+    expect(await screen.findByText('Built-in forms')).toBeInTheDocument()
+    expect(screen.getByText('Incident report')).toBeInTheDocument()
+    expect(screen.getByText('Hidden')).toBeInTheDocument()   // Injury report
+  })
+
+  it('hides a built-in for this school only', async () => {
+    api.patch.mockResolvedValue({ data: { success: true } })
+    render(<FormBuilder orgId="org-1" />)
+    await open()
+    const row = (await screen.findByText('Reimbursement request')).closest('li')
+    fireEvent.click(within(row).getByRole('button', { name: 'Hide' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/staff-admin/form-templates/builtin/reimbursement?organization_id=org-1',
+      { organization_id: 'org-1', hidden: true }))
+  })
+
+  it('brings a hidden built-in back', async () => {
+    api.patch.mockResolvedValue({ data: { success: true } })
+    render(<FormBuilder orgId="org-1" />)
+    await open()
+    const row = (await screen.findByText('Injury report')).closest('li')
+    fireEvent.click(within(row).getByRole('button', { name: 'Show' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      expect.stringContaining('/builtin/injury'),
+      { organization_id: 'org-1', hidden: false }))
+  })
 
   it('lists the school’s own forms with their question count', async () => {
     render(<FormBuilder orgId="org-1" />)
