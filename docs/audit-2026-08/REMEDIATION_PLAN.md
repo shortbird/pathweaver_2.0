@@ -320,7 +320,7 @@ Accept: test enforcing in CI; zero unjustified sites; suspicious sites logged.
 Log:
 - 2026-08-31: Plan created.
 
-### SEC-14 — Verify the RLS backstop: does prod `JWT_SECRET_KEY` match Supabase? `[NEEDS-USER]`
+### SEC-14 — Verify the RLS backstop: does prod `JWT_SECRET_KEY` match Supabase? `[NEEDS-USER(answered: NO. Which remediation — rotate the secret, or drop the RLS pretense?)]`
 `app_config.py:302` falls back to the Flask secret; if prod's value is not the
 Supabase JWT secret, the 28 "RLS-enforced" paths run as `anon`. Needs a prod env
 read (Render dashboard/API) and a Supabase JWT-secret comparison — user should run
@@ -328,6 +328,61 @@ or authorize this check. Outcome decides whether RLS is a degraded backstop or n
 backstop.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-03: ANSWERED, with the user's authorization to read prod env. The
+  secrets DO NOT match, and the consequence is not "degraded RLS" — it is no
+  RLS at all.
+  Evidence, two independent proofs:
+  (1) Prod `JWT_SECRET_KEY` IS set (64 chars, sha256 259794b5..., distinct from
+      FLASK_SECRET_KEY e8535ea2...), so the `or SECRET_KEY` fallback is not
+      what is wrong. But the Supabase anon key is itself a JWT the project
+      signed with its own JWT secret, and neither prod value verifies it.
+  (2) Probed prod PostgREST with a token minted exactly the way
+      session_manager.generate_access_token() does, sent exactly the way
+      database.get_user_client() sends it (apikey = anon key, Authorization =
+      app JWT). Response:
+        401 PGRST301 "None of the keys was able to decode the JWT"
+      The same request with the anon key as bearer returns 200. So every query
+      through get_user_client() fails outright in production.
+  Why nobody noticed — and why Sentry holds zero PGRST301 in 90 days: almost
+  every RLS call site is dead code. Census of the 7 real ones:
+    - repositories/base_repository.py:115 — live, but only 5 construction sites
+      pass user_id. QuestRepository(user_id=...) in quest/listing.py is
+      DECORATIVE (get_quests_for_user builds its own admin client) and
+      observer_audit_service passes user_id=None. Only BugReportRepository
+      (superadmin triage GET/PATCH) actually reaches self.client, and no client
+      calls those endpoints.
+    - services/quest_lifecycle_service.py:27 — backs 10 registered routes
+      (pickup/setdown/archive/enrollment/quest-invitations). No caller in v1 or
+      v2 for any of them.
+    - routes/users/transcript.py:41 — GET /api/users/transcript, no caller.
+    - routes/evidence_documents.py:1444,1656 — the service methods exist
+      (completeTask, deleteBlockFile) but no component calls them; the live
+      editor path is saveDocument -> PUT /documents/<id>, on the admin client.
+    - routes/observer/student_invitations.py:119 and
+      routes/observer_requests.py:118 — no caller; observer_requests' table is
+      on CLAUDE.md's dropped list anyway.
+    - utils/database_policy.py:41 — no importers, and it calls
+      get_user_client(user_id) with a UUID, which that function explicitly
+      rejects. Dead and broken.
+  Confirmed while here: the app's tokens carry `sub` (prod's auth.uid() reads
+  exactly that claim — checked against pg_proc) but no `role` claim, so even
+  with a matching secret they would evaluate as `anon`. 265 of 302 public
+  policies are `TO public` and would still apply; 16 policies across 7 tables
+  are `authenticated`-only and would silently never match (transfer_credits,
+  contact_submissions, task_feedback, feed_item_views, direct_messages,
+  message_conversations, user_subject_xp, ai_usage_logs).
+  DECISION NEEDED — two remediations pointing opposite ways:
+  (A) Make it real. Set prod JWT_SECRET_KEY to the Supabase JWT secret, move
+      the current value to FLASK_SECRET_KEY_OLD so live sessions survive the
+      cutover, and add `"role": "authenticated"` to the payload. The caveat
+      that stops this being a safe default: it switches on 265 RLS policies
+      that have never once executed against production traffic. They want
+      reviewing before, not after.
+  (B) Stop pretending. get_user_client() advertises enforcement it has never
+      delivered; move the 7 call sites to the admin client with explicit
+      ownership checks and let SEC-10 be the actual control. No prod change, no
+      session churn, and new code stops trusting a backstop that is not there.
+  Either way SEC-10 stops being defense-in-depth and becomes load-bearing.
 
 ### SEC-15 — FERPA disclosure logging covers only observer/advisor reads `[TODO]`
 `utils/access_logger.py` is written to from only ~5 route modules. Extend to
