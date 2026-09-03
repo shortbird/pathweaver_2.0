@@ -494,6 +494,46 @@ Log:
   Remaining clusters after this one, descending: admin/transcript_generator
   (10), sis/__init__ (8), sis/parent (8), advisor/learning_moments (7),
   portfolio (7), oea (6), admin/transfer_credits (5), then a tail of 1-4.
+- 2026-09-03: (c) continues — `routes/admin/transcript_generator.py` migrated
+  AND collapsed, 10 routes. Declared 49 -> 59, allowlist 117 -> 107,
+  superadmin 21. 59 + 21 + 107 = 187.
+
+  All ten declare `allow=('org_staff',)` on `user_id`, and the ten inline
+  `caller_can_access_user(...)` blocks are gone. Collapsing was right here and
+  wrong for dependents, for a reason worth keeping straight: `org_staff` calls
+  the SAME `caller_can_access_user`, with the same admin client and the same
+  caller id — `require_school_admin` resolves its caller through
+  `authorizing_user_id()`, exactly as the decorator does. That is an identity,
+  not a superset. The decorator's extra platform-staff grant adds nobody:
+  `caller_can_access_user` already returns True for superadmin, and the only
+  other address in OPTIO_STAFF_EMAILS belongs to an org 'parent' (checked in
+  prod) whom `require_school_admin` refuses long before the gate.
+
+  What the move buys beyond the declaration: `/send` now refuses FIRST. Its
+  inline check sat after school-name, recipient-email, base64, PDF-magic-byte
+  and 15MB size validation, so a caller with no business near the student could
+  distinguish those errors from one another and push a 15MB base64 decode,
+  before being told no. `test_the_refusal_comes_before_the_payload_is_even_looked_at`
+  pins that: an empty body is 400 for an in-org admin and 403 for an out-of-org
+  one, so the order cannot silently slip back.
+
+  These routes had NO tests — the full suite stayed green through both the
+  migration and the collapse, which is not reassurance. New
+  tests/unit/test_transcript_org_scope_gate.py: the declaration of all ten
+  (param and allow, read off the registered app), an accounted-for check so an
+  eleventh route cannot slip in, and the two behavioral tests above driven
+  through the real Flask client.
+
+  IDOR-C1's provenance moved with the code rather than being deleted with the
+  comments: the module docstring now records what the gate is, that it is the
+  IDOR-C1 fix, and that `update_course_names` keeps its inline check because it
+  takes a transfer-credit id and resolves the student from the row.
+
+  ruff clean, mypy clean. Tests: 4766 passed, 160 skipped, 0 failed.
+
+  Remaining clusters, descending: sis/__init__ (8), sis/parent (8),
+  advisor/learning_moments (7), portfolio (7), oea (6),
+  admin/transfer_credits (5), then a tail of 1-4.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

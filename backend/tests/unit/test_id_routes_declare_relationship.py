@@ -122,18 +122,19 @@ _reviewed(
 )
 
 # --- org staff -> student in the same org -----------------------------------
+#
+# MIGRATED 2026-09-03: routes/admin/transcript_generator.py (10 routes) declares
+# @require_relationship_to('user_id', allow=('org_staff',)) and its ten inline
+# checks are gone. Collapsing was safe here in a way it was NOT for dependents:
+# `org_staff` calls the very same caller_can_access_user, with the same admin
+# client and the same caller id (require_school_admin resolves the caller
+# through authorizing_user_id(), exactly as the decorator does). Identity, not
+# a superset. The decorator's extra platform-staff grant adds nobody in
+# practice -- caller_can_access_user already returns True for superadmin, and
+# the one non-superadmin address in OPTIO_STAFF_EMAILS is an org 'parent' whom
+# require_school_admin refuses before the gate is reached.
 _reviewed(
     'caller_can_access_user(admin, caller, target) from utils.auth.org_scope',
-    'admin_transcript_generator.add_planned_credit',
-    'admin_transcript_generator.check_transcript_exists',
-    'admin_transcript_generator.delete_planned_credit',
-    'admin_transcript_generator.get_overrides',
-    'admin_transcript_generator.get_planned_credits',
-    'admin_transcript_generator.get_transcript_data',
-    'admin_transcript_generator.get_transfer_history',
-    'admin_transcript_generator.save_overrides',
-    'admin_transcript_generator.send_transcript_to_school',
-    'admin_transcript_generator.update_planned_credit',
     'admin_transfer_credits.delete_all_transfer_credits',
     'admin_transfer_credits.delete_single_transfer_credit',
     'admin_transfer_credits.get_transfer_credits',
