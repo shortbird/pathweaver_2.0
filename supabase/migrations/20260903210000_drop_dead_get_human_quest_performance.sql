@@ -1,0 +1,39 @@
+-- ============================================================================
+-- Drop public.get_human_quest_performance. It cannot run, and nothing calls it.
+-- ============================================================================
+-- The body reads two tables that no longer exist:
+--
+--   quest_ratings          -- dropped
+--   quest_tasks_archived   -- dropped
+--
+-- so every invocation raises 42P01 before returning a row. It also carries the
+-- empty-search_path defect that 20260903200000 fixed across the rest of that
+-- batch, and was deliberately skipped there: qualifying the names would only
+-- swap one 42P01 for another.
+--
+-- Rewriting it was considered and rejected. Two of the four columns it returns
+-- (avg_rating, avg_engagement_score) are computed from those dropped tables --
+-- there is no rating source in the schema any more and no per-quest task table
+-- to divide by. A rewrite would be a new metric, not a repair, and nothing is
+-- asking for one.
+--
+-- Verified dead on 2026-09-03 before dropping:
+--   - No caller anywhere in the repo. Its one caller,
+--     services/ai_performance_analytics_service.py, was deleted along with the
+--     ai_* metrics tables (see CLAUDE.md "Deleted Tables").
+--   - No other function in public or private references it (pg_proc.prosrc).
+--   - No pg_cron job references it (cron.job is empty).
+--   - EXECUTE is granted to postgres and service_role only -- never to anon or
+--     authenticated -- so it was not reachable through PostgREST either.
+--
+-- Also clears the stale Supabase advisor entry for it, and retires the last
+-- open "CRITICAL" item in backend/docs/RPC_SECURITY_AUDIT.md (Dec 2025), whose
+-- SQL-injection finding had already been fixed in place by
+-- 20260112_fix_security_warnings.sql.
+--
+-- Reversal, if the metric is ever wanted again: write it fresh against the
+-- current schema. The old body is preserved in git history at
+-- supabase/migrations/20260812000000_baseline_prod_schema.sql.
+-- ============================================================================
+
+DROP FUNCTION IF EXISTS public.get_human_quest_performance(integer);

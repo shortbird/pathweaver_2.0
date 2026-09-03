@@ -1197,13 +1197,50 @@ Log:
   `if 'response_text' in locals()`. The test's docstring says so.
   ruff/mypy clean; 4733 passed, 160 skipped, 0 failed.
 
-### FU-02 — `public.get_human_quest_performance` reads two dropped tables `[TODO]`
+### FU-02 — `public.get_human_quest_performance` reads two dropped tables `[DONE]`
 The function body references `quest_ratings` and `quest_tasks_archived`, neither
 of which exists any more, so it cannot run. Decide between deleting it and
 rewriting it against the current schema — check for callers (backend, RPC from
 either frontend, Supabase dashboard saved queries) before either.
 Log:
 - 2026-09-03: Carried in from a prior session's notes. Not yet verified.
+- 2026-09-03: Verified against the live DB and DROPPED —
+  `supabase/migrations/20260903210000_drop_dead_get_human_quest_performance.sql`.
+  NOT APPLIED to prod; the file is written and waiting, like 20260903200000
+  before it (see OPS-03).
+
+  Confirmed broken: `quest_ratings` and `quest_tasks_archived` are both absent
+  from pg_class, so the body raises 42P01 on every call. It also still carries
+  the empty-search_path defect that 20260903200000 fixed for the rest of that
+  batch and deliberately skipped here — qualifying the names would have swapped
+  one 42P01 for another.
+
+  Rewrite was considered and rejected, not skipped for effort: two of the four
+  columns it returns (avg_rating, avg_engagement_score) are computed FROM the
+  dropped tables. There is no rating source in the schema any more and no
+  per-quest task table to divide by, so a rewrite would be a new metric nobody
+  asked for rather than a repair.
+
+  Verified dead four ways before dropping: no caller in the repo (its one
+  caller, services/ai_performance_analytics_service.py, was deleted with the
+  `ai_*` metrics tables); no other function in public or private names it
+  (pg_proc.prosrc scan); no pg_cron job names it (cron.job is empty); and
+  EXECUTE is granted to postgres and service_role only, never anon or
+  authenticated, so PostgREST never exposed it.
+
+  No guard test: whether a function's tables exist is a property of the live
+  catalog, which no offline test can see. The `requires_db` suite could hold one
+  eventually; not worth inventing here for a single dead function.
+
+  Doc debt closed with it: `backend/docs/RPC_SECURITY_AUDIT.md` (Dec 2025) leads
+  with "CRITICAL ACTION REQUIRED" over this function and lists two more
+  findings. Re-checked all three — the injection was fixed in place back in
+  20260112, and the other two (`add_user_skill_xp`, `bypass_friendship_update`)
+  are moot because both calling files were deleted and `friendships` was dropped
+  in the March 2026 audit. Every file:line link in it now points at a file that
+  no longer exists. Added a dated HISTORICAL banner saying so rather than
+  rewriting 662 lines: a stale P0 that reads as live is what gets actioned by
+  the next person who opens it.
 
 ### FU-03 — `public.bug_reports` is deny-all RLS with 356 rows `[TODO]`
 Found by SEC-14. RLS is on with zero policies, so the superadmin triage

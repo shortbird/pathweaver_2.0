@@ -1,8 +1,30 @@
 # Supabase RPC Function Security Audit
 
+> **HISTORICAL — all three findings are closed. Do not action this document.**
+> Re-checked 2026-09-03 against the live database and the current tree. Its
+> file:line links point at files that have since been deleted, so following
+> them leads nowhere. Kept for the record of what was audited, not as a
+> worklist. What happened to each finding:
+>
+> - **`get_human_quest_performance` (the CRITICAL one).** The injection itself
+>   was fixed in place by `backend/migrations/20260112_fix_security_warnings.sql`
+>   — the live body builds its interval by multiplication and validates the
+>   1–365 range, exactly as the plan below proposed. The function was then
+>   dropped entirely on 2026-09-03
+>   (`supabase/migrations/20260903210000_drop_dead_get_human_quest_performance.sql`):
+>   it reads `quest_ratings` and `quest_tasks_archived`, both since dropped, so
+>   it could no longer run, and its only caller
+>   (`services/ai_performance_analytics_service.py`) went with the `ai_*`
+>   metrics tables.
+> - **`add_user_skill_xp` missing.** Moot: `routes/parent_evidence.py`, the
+>   only caller, no longer exists.
+> - **`bypass_friendship_update` missing.** Moot:
+>   `repositories/friendship_repository.py` no longer exists, and the
+>   `friendships` table was dropped in the March 2026 audit.
+
 **Audit Date**: December 17, 2025
 **Priority**: P0-SEC-3 (OWASP A03:2021 - Injection)
-**Status**: 1 CRITICAL vulnerability found, 2 missing functions found
+**Status**: CLOSED 2026-09-03. As written: 1 CRITICAL vulnerability found, 2 missing functions found
 
 ---
 
