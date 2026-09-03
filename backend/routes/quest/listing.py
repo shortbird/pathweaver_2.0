@@ -139,7 +139,6 @@ def list_quests():
 
             # Use organization-aware filtering from repository
             # This respects the user's organization quest visibility policy
-            logger.warning(f"[DEBUG] Calling get_quests_for_user: user_id={user_id}, filters={filters}, page={page}, limit={per_page}")
             org_result = quest_repo.get_quests_for_user(
                 user_id=user_id,
                 filters=filters,
@@ -147,7 +146,6 @@ def list_quests():
                 limit=per_page,
                 sort=sort or None
             )
-            logger.warning(f"[DEBUG] get_quests_for_user returned {len(org_result.get('quests', []))} quests, total={org_result.get('total', 0)}")
 
             # Return the organization-filtered result
             # Process quest data the same way

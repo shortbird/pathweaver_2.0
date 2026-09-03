@@ -210,11 +210,14 @@ def register():
                 }
             })
         except Exception as auth_error:
-            # Log error without exposing sensitive data
-            logger.error(f"[DEBUG] Full Supabase auth error: {auth_error}")
-            logger.error(f"[DEBUG] Error type: {type(auth_error)}")
-            if hasattr(auth_error, 'args'):
-                logger.error(f"[DEBUG] Error args: {auth_error.args}")
+            # The exception text goes in the MESSAGE, not exc_info: the PII
+            # filter in utils/logger scrubs record.msg and record.args and does
+            # not reach a formatted traceback, and Supabase auth errors quote
+            # the email that failed.
+            logger.error(
+                f"[REGISTRATION] Supabase sign_up failed "
+                f"({type(auth_error).__name__}): {auth_error}"
+            )
 
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()

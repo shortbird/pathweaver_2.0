@@ -1293,12 +1293,60 @@ Log:
 
   ruff clean, mypy clean, 4735 passed / 160 skipped / 0 failed.
 
-### FU-04 — `[DIPLOMA]` and `[DEBUG]` traces log at WARNING in hot paths `[TODO]`
+### FU-04 — `[DIPLOMA]` and `[DEBUG]` traces log at WARNING in hot paths `[DONE]`
 Trace-level breadcrumbs emitted at WARNING, which is the level Sentry and the
 Render log filters treat as "someone should look". Drop them to DEBUG, or delete
 the ones that were scaffolding.
 Log:
 - 2026-09-03: Carried in from a prior session's notes. Not yet verified.
+- 2026-09-03: Verified and DELETED — 11 lines, which is wider than the WARNING
+  six the note named. Deleting beat demoting: an f-string argument is built
+  before the logger sees it, so `logger.debug(f"...")` on a hot path still pays
+  for a message nobody reads.
+
+    - routes/quest/listing.py x2, WARNING. The quest listing is the app's
+      busiest read and both lines fired on every request, one of them carrying
+      a raw user_id.
+    - routes/parent/child_overview.py x7 — four `[DIPLOMA]` at WARNING, three
+      `[DEBUG]` at INFO, one of those inside a per-task loop. The worst is not
+      the level: `[DIPLOMA] Raw query result: {completed_tasks_subjects.data}`
+      logged the raw PostgREST rows of a student's completed tasks, at WARNING,
+      on the parent dashboard's main read. Student record data into the logs
+      and on to Sentry. The PII filter from SEC-05 masks emails; it has no way
+      to know a list of task rows is a student record.
+    - routes/auth/registration.py x3, ERROR. One exception logged across three
+      records, all tagged `[DEBUG]`, under a comment claiming it logged
+      "without exposing sensitive data" while the third line printed
+      `auth_error.args`. Now one line.
+
+  FOUND WHILE DOING IT, and it constrains SEC-05: the PII scrubber does NOT
+  reach `exc_info`. `_scrub_record_extras` skips every standard LogRecord
+  attribute and `exc_info` is one, so a formatted traceback goes out unmasked.
+  That is why registration's replacement keeps the exception in the MESSAGE
+  (scrubbed) instead of switching to `exc_info=True` — Supabase auth errors
+  quote the email that failed. Worth its own item if anyone wants tracebacks
+  scrubbed too.
+
+  ORIGIN, checked rather than assumed: `git log -S` puts these in commits from
+  2025-12-27 and 2026-01-29. They are hand-written scaffolding, NOT fallout
+  from QB-03's print-to-logger conversion — that script explicitly skipped any
+  print containing 'DEBUG'.
+
+  Guard: tests/unit/test_no_debug_tagged_logs.py bans a `[DEBUG]`-tagged log
+  message at any level across routes/services/repositories/utils/jobs/
+  middleware. The rule is the TAG, not the level, because the tag is the
+  decidable part — module tags like `[REGISTRATION]` and `[BugReport]` are the
+  house convention and are explicitly tested as allowed. Proven to have teeth
+  with a planted call site.
+
+  PROCESS NOTE FOR THE NEXT SESSION (cost 10 minutes here): child_overview.py
+  and quest/listing.py are CRLF files, and editing them through Python's
+  default text mode silently rewrote both to LF — an 1800-line diff hiding an
+  8-line change. Read/write `'rb'`/`'wb'`, or check `grep -c $'\r$'` against
+  HEAD before staging. Normalizing line endings is OPS-09's scheduled job, not
+  a side effect of an unrelated commit.
+
+  ruff clean, mypy clean, 4739 passed / 160 skipped / 0 failed.
 
 ### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[TODO]`
 Found by SEC-03. Parent -> dependent acting-as (`routes/dependents.py`

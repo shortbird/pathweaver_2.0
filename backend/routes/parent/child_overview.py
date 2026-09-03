@@ -568,8 +568,6 @@ def get_child_overview(user_id, student_id):
             id, task_id, quest_id, status, completed_at
         ''').eq('user_id', student_id).eq('status', 'completed').execute()
 
-        logger.info(f"[DEBUG] Found {len(all_evidence_docs.data or [])} completed evidence documents for student {student_id}")
-
         # Fetch evidence blocks separately for each document
         evidence_blocks_map = {}
         if all_evidence_docs.data:
@@ -577,8 +575,6 @@ def get_child_overview(user_id, student_id):
             blocks_response = supabase.table('evidence_document_blocks').select(
                 'id, document_id, block_type, content, order_index'
             ).in_('document_id', doc_ids).execute()
-
-            logger.info(f"[DEBUG] Found {len(blocks_response.data or [])} evidence blocks")
 
             for block in (blocks_response.data or []):
                 doc_id = block.get('document_id')
@@ -624,8 +620,6 @@ def get_child_overview(user_id, student_id):
                 # Get blocks from the separate query result
                 blocks = evidence_blocks_map.get(doc_id, [])
 
-                logger.info(f"[DEBUG] Task '{task_title}' has {len(blocks)} evidence blocks")
-
                 quest_evidence_map[quest_id][task_title] = {
                     'title': task_title,
                     'pillar': get_pillar_name(task.get('pillar', 0)),
@@ -669,19 +663,14 @@ def get_child_overview(user_id, student_id):
                 subject_xp[subject] = row.get('xp_amount', 0)
 
         # If no subject XP in table, calculate from completed tasks' diploma_subjects
-        logger.warning(f"[DIPLOMA] subject_xp from table: {subject_xp}")
         if not subject_xp or all(v == 0 for v in subject_xp.values()):
-            logger.warning(f"[DIPLOMA] Calculating from completed tasks for student {student_id}")
             completed_tasks_subjects = supabase.table('quest_task_completions').select('''
                 user_quest_task_id,
                 user_quest_tasks!quest_task_completions_user_quest_task_id_fkey(xp_value, diploma_subjects)
             ''').eq('user_id', student_id).execute()
 
-            logger.warning(f"[DIPLOMA] Raw query result: {completed_tasks_subjects.data}")
-
             # Use helper function for proper subject name normalization
             subject_xp = calculate_subject_xp_from_tasks(completed_tasks_subjects.data or [])
-            logger.warning(f"[DIPLOMA] Calculated subject_xp: {subject_xp}")
 
         # 8. Get visibility status
         visibility_status = {
