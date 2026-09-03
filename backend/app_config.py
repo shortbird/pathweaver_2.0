@@ -162,6 +162,26 @@ class Config:
     # Scope is AI tutor chat only. Evidence, task completions, XP, transcripts
     # and enrollment history are education records a school may be required to
     # retain; nothing here touches them.
+    # OAuth 2.0 PROVIDER (Optio as an identity provider for third-party apps).
+    # OFF by default, and it has never been on: the tables its endpoints read --
+    # public.oauth_clients, oauth_authorization_codes, oauth_access_tokens --
+    # do not exist in production. backend/migrations/20251226_create_oauth2_
+    # infrastructure.sql creates them and was never applied, so every one of
+    # these endpoints raises 42P01 the moment it touches the database.
+    #
+    # Do NOT set this true to "fix" that. Two things are missing before the
+    # surface should exist at all (SEC-12): there is no consent screen, so an
+    # authenticated user navigating to /authorize with a registered client_id
+    # grants access with no prompt; and the token minted is a full Optio
+    # SESSION token, with the requested `scope` recorded and enforced nowhere.
+    # Creating the tables without those would turn a dead endpoint into a live
+    # full-privilege grant.
+    #
+    # This does NOT affect signing in to Optio WITH Google or Apple -- that is
+    # OAuth in the other direction and lives in routes/auth/google_oauth.py and
+    # routes/auth/apple_oauth.py, neither of which reads this flag.
+    OAUTH_PROVIDER_ENABLED = os.getenv('OAUTH_PROVIDER_ENABLED', 'false').lower() == 'true'
+
     TUTOR_RETENTION_ENABLED = os.getenv('TUTOR_RETENTION_ENABLED', 'false').lower() == 'true'
     TUTOR_RETENTION_MONTHS = int(os.getenv('TUTOR_RETENTION_MONTHS', '12'))
     TUTOR_RETENTION_BATCH = int(os.getenv('TUTOR_RETENTION_BATCH', '200'))

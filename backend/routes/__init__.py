@@ -31,9 +31,18 @@ def register_all(app):
     from routes.auth import register_auth_routes
     register_auth_routes(app)
 
-    # OAuth 2.0 authorization flow for LMS integrations
-    from routes.auth.oauth import bp as oauth_bp
-    app.register_blueprint(oauth_bp)
+    # OAuth 2.0 PROVIDER (Optio as an identity provider for other apps).
+    # Not registered unless Config.OAUTH_PROVIDER_ENABLED, which defaults off.
+    # The endpoints read public.oauth_clients and friends, and those tables have
+    # never existed in production -- so what this closes is a surface that
+    # 500s, not one anybody uses. It stays closed until there is a consent
+    # screen and the minted token is scoped rather than a full session token
+    # (SEC-12). Absent is better than broken: a 404 says "no such endpoint",
+    # which is true, where a 500 invites someone to go and create the tables.
+    from app_config import Config as _Config
+    if _Config.OAUTH_PROVIDER_ENABLED:
+        from routes.auth.oauth import bp as oauth_bp
+        app.register_blueprint(oauth_bp)
 
     # Phone verification (SMS code). The flow that lifts the phone-verification
     # hold (middleware/phone_verification_gate.py); url_prefix on the blueprint.

@@ -867,7 +867,7 @@ Log:
 - 2026-09-03: The registration.py `Config` note above is now FU-01, and its
   "unreachable again now" read was wrong — see that item. Fixed there.
 
-### SEC-12 — OAuth provider mints full-privilege session tokens, scope decorative `[TODO]`
+### SEC-12 — OAuth provider mints full-privilege session tokens, scope decorative `[DONE]`
 `routes/auth/oauth.py:302,372` issue first-party session tokens; no consent UI;
 scope enforced nowhere. Interim fix (autonomous): gate `/oauth/authorize` and
 client registration behind a Config flag, default OFF, so the surface is closed
@@ -876,6 +876,44 @@ type + consent screen.
 Accept: flag off by default; existing tests updated; full-fix scoped as follow-up.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Verified, and the finding is BOTH worse and less urgent than
+  written. Fixed with the interim flag, which turns out to cost nothing.
+
+  The surface does not work AT ALL in production. Its endpoints read
+  `public.oauth_clients`, `oauth_authorization_codes` and
+  `oauth_access_tokens`; none of those tables exists — checked the live
+  database, where the only oauth-named tables anywhere are Supabase's own
+  `auth.*` internals. `backend/migrations/20251226_create_oauth2_infrastructure.sql`
+  creates them and was never applied (QB-05's legacy migration directory, and
+  OPS-03's missing apply step). Every endpoint raises 42P01 on first contact
+  with the database, so nothing can be using it and closing it breaks nobody.
+  The audit's "mints full-privilege session tokens" was never realised: it
+  mints 500s.
+
+  Less urgent, then — but the trap is sharper than the finding describes. The
+  one change a well-meaning person makes on seeing a 500 here is to apply the
+  missing migration, and that single step converts a dead endpoint into "any
+  registered client gets a full-privilege session token for any user who clicks
+  a link, with no consent prompt and `scope` enforced nowhere". The risk is not
+  today's state; it is how short the path from here to a real vulnerability is.
+
+  So: `Config.OAUTH_PROVIDER_ENABLED`, default false, and the blueprint is NOT
+  REGISTERED unless it is set. Absent beats broken — a 404 says "no such
+  endpoint", which is true, where a 500 invites exactly the fix that would arm
+  it. Both the flag's comment and the guard test say plainly that this is a
+  lock with a note on it, not a toggle waiting to be flipped.
+
+  Guard: tests/unit/test_oauth_provider_disabled.py — default off, no provider
+  rule registered, each path answers 404 rather than 500, and Google sign-in
+  still works. That last one matters: signing in TO Optio with Google or Apple
+  is OAuth in the other direction, lives in different modules, and does not
+  read this flag.
+
+  STILL TODO, now developable behind the flag: a consent screen and a scoped,
+  non-session token type. Both are product decisions rather than autonomous
+  work.
+
+  ruff clean, mypy clean. Tests: 4818 passed, 160 skipped, 0 failed.
 
 ### SEC-13 — Re-arm the admin-client justification gate `[DONE]`
 `test_admin_client_justified` is deselected from CI; ~93 construction sites (audit
