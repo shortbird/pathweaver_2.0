@@ -19,7 +19,7 @@ Split the mega-file into 4 focused modules organized in `backend/routes/auth/`:
 
 | Module | Lines | Responsibility | Endpoints |
 |--------|-------|----------------|-----------|
-| **login.py** | ~550 | Login, logout, session management | /login, /logout, /me, /refresh, /token-health, /cookie-debug |
+| **login.py** | ~550 | Login, logout, session management | /login, /logout, /me, /refresh, /token-health |
 | **registration.py** | ~360 | User registration & verification | /register, /resend-verification |
 | **password.py** | ~260 | Password reset functionality | /forgot-password, /reset-password |
 | **session.py** | ~50 | CSRF token management | /csrf-token |
@@ -33,7 +33,6 @@ Split the mega-file into 4 focused modules organized in `backend/routes/auth/`:
   - `GET /api/auth/me` - Get current user profile
   - `POST /api/auth/refresh` - Token refresh with logout check
   - `GET /api/auth/token-health` - Check token compatibility
-  - `GET /api/auth/cookie-debug` - Safari/iOS cookie diagnostics
 
 - **Helper Functions**:
   - `check_account_lockout()` - Verify account not locked
@@ -141,7 +140,6 @@ backend/routes/auth/
 - `/api/auth/csrf-token`
 - `/api/auth/resend-verification`
 - `/api/auth/token-health`
-- `/api/auth/cookie-debug`
 
 ### Testing
 All existing auth tests continue to work without modification. The refactoring is purely structural.

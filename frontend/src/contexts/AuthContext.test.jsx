@@ -52,7 +52,6 @@ vi.mock('../utils/browserDetection', () => ({
   isIOS: vi.fn().mockReturnValue(false),
   shouldUseAuthHeaders: vi.fn().mockReturnValue(false),
   setAuthMethodPreference: vi.fn(),
-  testCookieSupport: vi.fn(),
   logBrowserInfo: vi.fn()
 }))
 

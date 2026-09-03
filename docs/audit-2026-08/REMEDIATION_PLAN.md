@@ -72,13 +72,29 @@ Log:
   bug: false alarm — those matches were justification comments, all real
   decorators unpack correctly. 117 related tests + new guards pass.
 
-### SEC-02 — Unauthenticated `/api/auth/cookie-debug` discloses config `[TODO]`
+### SEC-02 — Unauthenticated `/api/auth/cookie-debug` discloses config `[DONE]`
 `routes/auth/login/diagnostics.py:142-291` leaks FLASK_ENV, cookie config,
 FRONTEND_URL, remote_addr. Fix: require superadmin (or delete the endpoint if
 unused — grep frontend for callers first).
 Accept: endpoint 401/403s anonymously or is gone; test added.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Confirmed live and unauthenticated. Deleted the endpoint rather
+  than gating it: its one frontend caller (`testCookieSupport` in
+  browserDetection.js) was imported by AuthContext.jsx and never invoked, so
+  nothing called it; and superadmin-gating a pre-auth diagnostic makes it
+  useless for the Safari case it exists for. `/api/auth/token-health` already
+  answers "is my auth reaching the server, over which transport" for both
+  transports with no config in the response. Removed the route plus its two
+  helpers (diagnostics.py 315 -> 88 lines), the dead frontend function and its
+  import/mock, and updated ADR-004 Rule 5 (marked superseded) and
+  P2-ARCH-1-AUTH-REFACTORING.md. Guard: renamed
+  tests/unit/test_no_test_config_route.py ->
+  test_no_config_disclosure_routes.py, parametrized over retired
+  config-disclosure routes (/test-config and /api/auth/cookie-debug both 404),
+  plus an assertion that token-health's anonymous body carries no config keys.
+  Tests: backend auth/route guards 34 passed 1 skipped; web
+  browserDetection + AuthContext 50 passed.
 
 ### SEC-03 — Masquerade tokens returned in JSON body unconditionally `[TODO]`
 `routes/admin/masquerade.py:97-98` returns both impersonation tokens in the body
