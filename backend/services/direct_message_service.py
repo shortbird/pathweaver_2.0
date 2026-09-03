@@ -3,7 +3,6 @@ Direct Message Service - Manages direct messaging between users
 Handles advisor-student and friend-to-friend messaging
 """
 
-import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import uuid
@@ -46,7 +45,7 @@ class DirectMessageService(BaseService):
         """
         try:
             supabase = self._get_client()
-            print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
+            logger.debug(f"[can_message_user] Checking permission: {user_id} -> {target_id}")
 
             # Block check (bidirectional): either party blocking the other blocks messaging.
             try:
@@ -61,22 +60,22 @@ class DirectMessageService(BaseService):
                     .limit(1) \
                     .execute()
                 if block_check.data:
-                    print(f"[can_message_user] DENIED: user_blocks row between {user_id} and {target_id}", file=sys.stderr, flush=True)
+                    logger.debug(f"[can_message_user] DENIED: user_blocks row between {user_id} and {target_id}")
                     return False
             except Exception as block_err:
-                print(f"[can_message_user] block check failed (allowing): {block_err}", file=sys.stderr, flush=True)
+                logger.error(f"[can_message_user] block check failed (allowing): {block_err}")
 
             # SUPERADMIN: Can message anyone, and anyone can reply to superadmin
             from utils.roles import get_effective_role
             sender = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
             if sender.data and sender.data.get('role') == 'superadmin':
-                print("[can_message_user] ALLOWED: Superadmin can message anyone", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Superadmin can message anyone")
                 return True
 
             # Check if target is superadmin - anyone can message superadmin
             target = supabase.table('users').select('role, org_role, organization_id').eq('id', target_id).single().execute()
             if target.data and target.data.get('role') == 'superadmin':
-                print("[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Anyone can message superadmin")
                 return True
 
             # School inbox (2026-08-24): a member may DM their own org's
@@ -86,7 +85,7 @@ class DirectMessageService(BaseService):
             # of the org/relationship rules below would ever match it.
             from services import school_inbox_service
             if school_inbox_service.can_message_school(user_id, target_id):
-                print("[can_message_user] ALLOWED: School inbox <-> org member", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: School inbox <-> org member")
                 return True
 
             # ORG_ADMIN: Can message anyone in the same organization
@@ -98,12 +97,12 @@ class DirectMessageService(BaseService):
             # coordinator tier withholds).
             ORG_OFFICE_ROLES = ('org_admin', 'campus_coordinator')
             if sender_effective_role in ORG_OFFICE_ROLES and sender_org_id and sender_org_id == target_org_id:
-                print("[can_message_user] ALLOWED: Org office role can message anyone in their org", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Org office role can message anyone in their org")
                 return True
             # Anyone in the same org can reply to their org_admin
             target_effective_role = get_effective_role(target.data) if target.data else None
             if target_effective_role in ORG_OFFICE_ROLES and target_org_id and sender_org_id == target_org_id:
-                print("[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Anyone can message their org admin")
                 return True
 
             # Check for advisor-student relationship via advisor_student_assignments table
@@ -117,11 +116,11 @@ class DirectMessageService(BaseService):
                 'advisor_id', target_id
             ).eq('student_id', user_id).eq('is_active', True).execute()
 
-            print(f"[can_message_user] Advisor assignment check: a1={advisor_assignment1.data}, a2={advisor_assignment2.data}", file=sys.stderr, flush=True)
+            logger.debug(f"[can_message_user] Advisor assignment check: a1={advisor_assignment1.data}, a2={advisor_assignment2.data}")
 
             if (advisor_assignment1.data and len(advisor_assignment1.data) > 0) or \
                (advisor_assignment2.data and len(advisor_assignment2.data) > 0):
-                print("[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Advisor-student assignment exists")
                 return True
 
             # SIS class roster (bidirectional): a class's teacher and the students
@@ -132,7 +131,7 @@ class DirectMessageService(BaseService):
             from utils import class_membership
             if class_membership.shares_class(user_id, target_id) or \
                class_membership.shares_class(target_id, user_id):
-                print("[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Shared class roster (teacher-student)")
                 return True
 
             # Class families (2026-08-22): the class chat holds guardians and
@@ -140,7 +139,7 @@ class DirectMessageService(BaseService):
             # of a student they teach can DM each other.
             if class_membership.teaches_child_of(user_id, target_id) or \
                class_membership.teaches_child_of(target_id, user_id):
-                print("[can_message_user] ALLOWED: Teacher-guardian via class roster", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Teacher-guardian via class roster")
                 return True
 
             # Friendship check removed (March 2026 - Feature pruning)
@@ -155,11 +154,11 @@ class DirectMessageService(BaseService):
                 'parent_user_id', target_id
             ).eq('student_user_id', user_id).execute()
 
-            print(f"[can_message_user] Parent link check: pl1={parent_link1.data}, pl2={parent_link2.data}", file=sys.stderr, flush=True)
+            logger.debug(f"[can_message_user] Parent link check: pl1={parent_link1.data}, pl2={parent_link2.data}")
 
             if (parent_link1.data and len(parent_link1.data) > 0) or \
                (parent_link2.data and len(parent_link2.data) > 0):
-                print("[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Parent-student link exists")
                 return True
 
             # Check for observer-student link (bidirectional)
@@ -171,11 +170,11 @@ class DirectMessageService(BaseService):
                 'observer_id', target_id
             ).eq('student_id', user_id).execute()
 
-            print(f"[can_message_user] Observer link check: ol1={observer_link1.data}, ol2={observer_link2.data}", file=sys.stderr, flush=True)
+            logger.debug(f"[can_message_user] Observer link check: ol1={observer_link1.data}, ol2={observer_link2.data}")
 
             if (observer_link1.data and len(observer_link1.data) > 0) or \
                (observer_link2.data and len(observer_link2.data) > 0):
-                print("[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Observer-student link exists")
                 return True
 
             # A school's adults are contacts of each other (2026-08-27): every
@@ -188,14 +187,14 @@ class DirectMessageService(BaseService):
             if self._org_adult_connection(user_id, target_id,
                                           sender_role=sender_effective_role,
                                           target_role=target_effective_role):
-                print("[can_message_user] ALLOWED: Adults of the same school", file=sys.stderr, flush=True)
+                logger.debug("[can_message_user] ALLOWED: Adults of the same school")
                 return True
 
-            print("[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
+            logger.debug("[can_message_user] DENIED: No valid relationship found")
             return False
 
         except Exception as e:
-            print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"[can_message_user] ERROR: {str(e)}")
             return False
 
     def _org_adult_connection(self, user_id: str, target_id: str,
@@ -218,7 +217,7 @@ class DirectMessageService(BaseService):
             org = sis_service.member_org_id(user_id)
             return bool(org) and sis_service.member_org_id(target_id) == org
         except Exception as e:
-            print(f"[can_message_user] org adult check failed (denying): {e}", file=sys.stderr, flush=True)
+            logger.error(f"[can_message_user] org adult check failed (denying): {e}")
             return False
 
     # ==================== Conversation Management ====================
@@ -275,7 +274,7 @@ class DirectMessageService(BaseService):
             return result.data[0]
 
         except Exception as e:
-            print(f"Error getting or creating conversation: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting or creating conversation: {str(e)}")
             raise
 
     def get_user_conversations(self, user_id: str) -> List[Dict[str, Any]]:
@@ -359,7 +358,7 @@ class DirectMessageService(BaseService):
                     convo['unread_count'] = unread_by_convo.get(convo['id'], 0)
             except Exception as recount_err:
                 # Non-fatal: fall back to the cached counters already set above.
-                print(f"Unread recount failed (using cached counters): {recount_err}", file=sys.stderr, flush=True)
+                logger.error(f"Unread recount failed (using cached counters): {recount_err}")
 
             # Threads with a school inbox render as the school, not as the
             # observer account that backs it (other_user.is_school).
@@ -367,7 +366,7 @@ class DirectMessageService(BaseService):
                 from services import school_inbox_service
                 school_inbox_service.mark_school_conversations(all_conversations)
             except Exception as school_err:  # noqa: BLE001
-                print(f"School conversation flagging failed: {school_err}", file=sys.stderr, flush=True)
+                logger.error(f"School conversation flagging failed: {school_err}")
 
             # Sort by last_message_at descending. A thread that has never been
             # written in carries NULL there (see get_or_create_conversation), and
@@ -388,7 +387,7 @@ class DirectMessageService(BaseService):
             return all_conversations
 
         except Exception as e:
-            print(f"Error getting user conversations: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting user conversations: {str(e)}")
             raise
 
     def _get_user_info(self, user_id: str) -> Dict[str, Any]:
@@ -427,7 +426,7 @@ class DirectMessageService(BaseService):
                 for row in rows:
                     out[row['id']] = row
         except Exception as e:  # noqa: BLE001
-            print(f"Batch user lookup failed: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Batch user lookup failed: {e}")
         return out
 
     # ==================== Message Operations ====================
@@ -497,7 +496,7 @@ class DirectMessageService(BaseService):
             return enriched
 
         except Exception as e:
-            print(f"Error sending message: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error sending message: {str(e)}")
             raise
 
     def _notify_recipient(self, sender_id: str, recipient_id: str, content: str) -> None:
@@ -611,7 +610,7 @@ class DirectMessageService(BaseService):
             return extras.enrich_messages('dm', list(reversed(messages.data or [])), user_id)
 
         except Exception as e:
-            print(f"Error getting conversation messages: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting conversation messages: {str(e)}")
             raise
 
     def mark_as_read(self, message_id: str, user_id: str) -> bool:
@@ -667,7 +666,7 @@ class DirectMessageService(BaseService):
             return True
 
         except Exception as e:
-            print(f"Error marking message as read: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error marking message as read: {str(e)}")
             raise
 
     def _find_conversation(self, conversation_or_user_id: str,
@@ -767,7 +766,7 @@ class DirectMessageService(BaseService):
             return len(rows)
 
         except Exception as e:
-            print(f"Error marking conversation as read: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error marking conversation as read: {str(e)}")
             raise
 
     def get_unread_count(self, user_id: str) -> int:
@@ -799,7 +798,7 @@ class DirectMessageService(BaseService):
             return len(resp.data or [])
 
         except Exception as e:
-            print(f"Error getting unread count: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting unread count: {str(e)}")
             return 0
 
     # ==================== Parent / Guardian Read Access ====================
@@ -825,7 +824,7 @@ class DirectMessageService(BaseService):
             return bool(link.data)
 
         except Exception as e:
-            print(f"Error checking parent-child link: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error checking parent-child link: {str(e)}")
             return False
 
     def get_child_conversation_messages(
@@ -874,7 +873,7 @@ class DirectMessageService(BaseService):
             return rows
 
         except Exception as e:
-            print(f"Error getting child conversation messages: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting child conversation messages: {str(e)}")
             raise
 
     # ==================== Helper Methods ====================
@@ -916,7 +915,7 @@ class DirectMessageService(BaseService):
             ).execute()
 
         except Exception as e:
-            print(f"Error updating conversation metadata: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error updating conversation metadata: {str(e)}")
 
     def _decrement_unread_count(
         self,
@@ -950,4 +949,4 @@ class DirectMessageService(BaseService):
                 }).eq('id', conversation_id).execute()
 
         except Exception as e:
-            print(f"Error decrementing unread count: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error decrementing unread count: {str(e)}")

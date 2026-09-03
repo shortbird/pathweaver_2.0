@@ -212,11 +212,10 @@ def register():
             })
         except Exception as auth_error:
             # Log error without exposing sensitive data
-            import sys
-            print(f"[DEBUG] Full Supabase auth error: {auth_error}", file=sys.stderr)
-            print(f"[DEBUG] Error type: {type(auth_error)}", file=sys.stderr)
+            logger.error(f"[DEBUG] Full Supabase auth error: {auth_error}")
+            logger.error(f"[DEBUG] Error type: {type(auth_error)}")
             if hasattr(auth_error, 'args'):
-                print(f"[DEBUG] Error args: {auth_error.args}", file=sys.stderr)
+                logger.error(f"[DEBUG] Error args: {auth_error.args}")
 
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()

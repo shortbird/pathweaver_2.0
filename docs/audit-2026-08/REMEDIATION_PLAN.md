@@ -812,12 +812,17 @@ Ask the user whether the 128 enforcing integration tests should now gate deploy.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### CI-06 — Ban raw `print()` in app code (408 today) `[TODO]`
+### CI-06 — Ban raw `print()` in app code (408 today) `[DONE]`
 Guard test (or ruff T201 with per-file ignores for scripts/) after QB-03 converts
 existing calls.
 Accept: enforcing after QB-03; scripts/ exempt.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: `tests/unit/test_no_raw_print_in_app_code.py`, enforcing now
+  that QB-03 has cleared the app-code calls. Exemptions are by file with a
+  written reason rather than a blanket directory rule, so adding one is a
+  visible decision. Verified with a planted print: build red. Carries the same
+  floor assertion as the other guards.
 
 ---
 
@@ -931,11 +936,26 @@ migrate call sites mechanically.
 Log:
 - 2026-08-31: Plan created.
 
-### QB-03 — Replace 408 raw `print()` calls with the logger `[TODO]`
+### QB-03 — Replace 408 raw `print()` calls with the logger `[DONE]`
 Routes/services only (scripts/ exempt). Preserve message content; pick levels
 sensibly (errors in except blocks -> logger.error). Then arm CI-06.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: 114 in app code today, not 408 (the plan's figure counted
+  scripts/ and tests/). Converted 64; the rest are legitimately exempt.
+  The reason this mattered more than tidiness: services/direct_message_service
+  held 34 prints tracing message-permission decisions, each putting TWO user
+  UUIDs on stdout — where utils/log_scrubber, installed by SEC-05 to stop
+  exactly that, never saw them. print() also skips the JSON formatter, the
+  correlation id, the level filter and Sentry's logging integration.
+  Levels chosen from the message: error/exception/traceback/fail -> logger.error,
+  everything else -> logger.debug. `file=sys.stderr, flush=True` dropped as
+  print-only plumbing, which left `sys` unused in four modules (ruff caught it).
+  Left alone, deliberately: CLI entry points (jobs/*trigger*, cron_dispatch,
+  generate_spec, api_spec_generator, the log_scrubber demo) where stdout IS the
+  interface, and app_config.py's two import-time warnings, which the file
+  already documents as unavoidable — a real circular dependency, no logger
+  yet.
 
 ### QB-04 — Decompose the top god route files `[TODO]`
 `registration_funnel.py` (2,143 — payments+OTP+provisioning in the route layer),

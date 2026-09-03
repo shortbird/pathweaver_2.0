@@ -164,11 +164,11 @@ def google_oauth_callback():
         - User data with app tokens for session
     """
     import sys
-    print("[GOOGLE_OAUTH] === CALLBACK STARTED ===", flush=True)
+    logger.debug("[GOOGLE_OAUTH] === CALLBACK STARTED ===")
     sys.stdout.flush()
     try:
         data = request.json
-        print(f"[GOOGLE_OAUTH] Request data keys: {list(data.keys()) if data else 'None'}", flush=True)
+        logger.debug(f"[GOOGLE_OAUTH] Request data keys: {list(data.keys()) if data else 'None'}")
 
         if not data:
             return error_response(
@@ -414,8 +414,8 @@ def google_oauth_callback():
         import traceback
         logger.error(f"[GOOGLE_OAUTH] Unexpected error: {str(e)}")
         logger.error(f"[GOOGLE_OAUTH] Traceback: {traceback.format_exc()}")
-        print(f"[GOOGLE_OAUTH] EXCEPTION: {str(e)}")
-        print(f"[GOOGLE_OAUTH] TRACEBACK:\n{traceback.format_exc()}")
+        logger.error(f"[GOOGLE_OAUTH] EXCEPTION: {str(e)}")
+        logger.error(f"[GOOGLE_OAUTH] TRACEBACK:\n{traceback.format_exc()}")
         return error_response(
             code='OAUTH_ERROR',
             message='Failed to complete Google sign-in',

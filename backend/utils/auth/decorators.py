@@ -6,7 +6,6 @@ All decorators now use httpOnly cookies exclusively for enhanced security.
 Authorization header fallback removed to prevent XSS token theft via localStorage.
 """
 
-import sys
 from functools import wraps
 from flask import request, jsonify
 from middleware.error_handler import AuthenticationError, AuthorizationError, ValidationError
@@ -220,11 +219,11 @@ def require_admin(f):
             except Exception as e:
                 if attempt < max_retries - 1:
                     # Retry on connection errors
-                    print(f"Retrying admin verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                    logger.debug(f"Retrying admin verification (attempt {attempt + 1}/{max_retries}): {str(e)}")
                     continue
                 else:
                     # Final attempt failed
-                    print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
+                    logger.error(f"Error verifying admin status: {str(e)}")
                     raise AuthorizationError('Failed to verify admin status') from e
 
         return f(user_id, *args, **kwargs)
@@ -312,11 +311,11 @@ def require_role(*allowed_roles):
                 except Exception as e:
                     if attempt < max_retries - 1:
                         # Retry on connection errors
-                        print(f"Retrying role verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                        logger.debug(f"Retrying role verification (attempt {attempt + 1}/{max_retries}): {str(e)}")
                         continue
                     else:
                         # Final attempt failed
-                        print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
+                        logger.error(f"Error verifying user role: {str(e)}")
                         raise AuthorizationError('Failed to verify user role') from e
 
             return f(user_id, *args, **kwargs)
@@ -405,7 +404,7 @@ def require_admin_identity(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying admin identity: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying admin identity: {str(e)}")
             raise AuthorizationError('Failed to verify admin status') from e
 
         return f(user_id, *args, **kwargs)
@@ -485,7 +484,7 @@ def require_advisor(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying advisor status: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying advisor status: {str(e)}")
             raise AuthorizationError('Failed to verify advisor status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -565,7 +564,7 @@ def require_advisor_for_student(f):
         except (AuthenticationError, AuthorizationError, ValidationError):
             raise
         except Exception as e:
-            print(f"Error verifying advisor-student assignment: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying advisor-student assignment: {str(e)}")
             raise AuthorizationError('Failed to verify access permissions') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -612,7 +611,7 @@ def require_superadmin(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying superadmin status: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying superadmin status: {str(e)}")
             raise AuthorizationError('Failed to verify superadmin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -672,7 +671,7 @@ def require_school_admin(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying org admin status: {str(e)}")
             raise AuthorizationError('Failed to verify org admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -748,7 +747,7 @@ def require_org_admin(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying org admin status: {str(e)}")
             raise AuthorizationError('Failed to verify organization admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -818,7 +817,7 @@ def require_org_front_office(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying org front-office status: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying org front-office status: {str(e)}")
             raise AuthorizationError('Failed to verify organization admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
@@ -871,7 +870,7 @@ def get_advisor_assigned_students(advisor_id):
         return []
 
     except Exception as e:
-        print(f"Error getting advisor assigned students: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error getting advisor assigned students: {str(e)}")
         return []
 
 def require_parental_consent(f):

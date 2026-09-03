@@ -3,7 +3,6 @@ Advisor Service - Manages advisor-specific functionality
 Handles student monitoring and advisor-student relationships
 """
 
-import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from services.base_service import BaseService
@@ -136,8 +135,8 @@ class AdvisorService(BaseService):
 
         except Exception as e:
             import traceback
-            print(f"Error fetching student advisors: {str(e)}", file=sys.stderr, flush=True)
-            print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
+            logger.error(f"Error fetching student advisors: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
@@ -254,8 +253,8 @@ class AdvisorService(BaseService):
 
         except Exception as e:
             import traceback
-            print(f"Error fetching advisor students: {str(e)}", file=sys.stderr, flush=True)
-            print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
+            logger.error(f"Error fetching advisor students: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     def _get_class_roster_map(self, advisor_id: str) -> Dict[str, List[str]]:
@@ -343,7 +342,7 @@ class AdvisorService(BaseService):
             return True
 
         except Exception as e:
-            print(f"Error assigning student to advisor: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error assigning student to advisor: {str(e)}")
             raise
 
     def _get_bulk_student_xp_totals(self, student_ids: List[str]) -> Dict[str, int]:
@@ -380,7 +379,7 @@ class AdvisorService(BaseService):
 
             return xp_totals
         except Exception as e:
-            print(f"Error getting bulk XP totals: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting bulk XP totals: {str(e)}")
             return {student_id: 0 for student_id in student_ids}
 
     def _get_bulk_student_quest_counts(self, student_ids: List[str]) -> Dict[str, int]:
@@ -418,7 +417,7 @@ class AdvisorService(BaseService):
 
             return quest_counts
         except Exception as e:
-            print(f"Error getting bulk quest counts: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting bulk quest counts: {str(e)}")
             return {student_id: 0 for student_id in student_ids}
 
     def _get_student_quest_count(self, student_id: str) -> int:
@@ -432,7 +431,7 @@ class AdvisorService(BaseService):
                 .execute()
             return response.count if response.count else 0
         except Exception as e:
-            print(f"Error getting quest count for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting quest count for student {student_id}: {str(e)}")
             return 0
 
     def get_student_progress_report(self, student_id: str, advisor_id: str) -> Dict[str, Any]:
@@ -510,7 +509,7 @@ class AdvisorService(BaseService):
             }
 
         except Exception as e:
-            print(f"Error generating progress report: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error generating progress report: {str(e)}")
             raise
 
     # ==================== Task Management ====================
@@ -625,7 +624,7 @@ class AdvisorService(BaseService):
             return result
 
         except Exception as e:
-            print(f"Error getting student active quests with tasks: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting student active quests with tasks: {str(e)}")
             raise
 
     def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
@@ -660,5 +659,5 @@ class AdvisorService(BaseService):
             return len(result.data) > 0
 
         except Exception as e:
-            print(f"Error verifying advisor-student relationship: {str(e)}", file=sys.stderr, flush=True)
+            logger.error(f"Error verifying advisor-student relationship: {str(e)}")
             return False
