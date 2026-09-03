@@ -1534,11 +1534,42 @@ Log:
   section to agree with Rule 12 and say why it changed, and dropped Rule 12's
   "overrides…" clause, which now referred to text that no longer exists.
 
-### DOC-05 — ~20 planning/audit docs clutter the repo root `[TODO]` (low)
+### DOC-05 — ~20 planning/audit docs clutter the repo root `[DONE]` (low)
 Move to `docs/` (or `docs/archive/`), updating inbound links (CLAUDE.md references
 AUDIT_IMPLEMENTATION_PLAN.md).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: 16 files moved; the root is down to four .md files —
+  README, CLAUDE.md, core_philosophy.md and LOCAL_DEVELOPMENT.md, all four of
+  which CLAUDE.md links or is.
+
+  Sorted by whether they are still true, not by age:
+    - `docs/archive/` (8): AUDIT.md, AUDIT_IMPLEMENTATION_PLAN.md,
+      H1_ADMIN_CLIENT_AUDIT.md, BUG_TRIAGE_PLAN_2026-06-06.md,
+      TASK_DIFFICULTY_IMPLEMENTATION_PLAN.md, MOBILE_APP_LAUNCH_PLAN.md,
+      OPTIO_COURSE_PATH_PITCH.md, POE_Fine_Arts_Credit_Proposal.md. A README
+      there says what each one was and that the code wins on any disagreement —
+      the point of an archive is that a reader knows not to act on it.
+    - `docs/` (5): OPTIO_BRAND_GUIDELINES, COLOR_REFERENCE, command_reference,
+      course_overview, POE_LAUNCH_PLAN. POE is live (the 2026 pilot), so it is
+      NOT archive.
+    - `docs/play-store/` (3): the three release-time Play Store docs, which are
+      operational rather than historical.
+
+  Seven inbound markdown links checked and fixed. One was ALREADY BROKEN and
+  the move repaired it: frontend/src/config/COLOR_MIGRATION_GUIDE.md pointed at
+  `../../docs/COLOR_REFERENCE.md`, which did not exist until now.
+
+  LEFT ALONE deliberately: ~20 code comments citing `AUDIT.md` by name ("AUDIT.md
+  C1"). They are prose citations, not links; the finding ids still grep; and
+  rewriting twenty comments in files other sessions are actively editing costs
+  more than it buys. The archive README says so.
+
+  CLAUDE.md's Extended Documentation index gains the three new locations, so the
+  moves are discoverable from the file everyone reads first.
+
+  Backend suite 4843 passed / 160 skipped / 0 failed (docs moves touch no code,
+  but two guard tests read file paths).
 
 ---
 

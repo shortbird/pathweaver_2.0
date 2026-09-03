@@ -596,5 +596,10 @@ Auto-deploy: ON for dev services, OFF for prod (CI-triggered only). All backends
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
 - **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md)
-- **Audit Implementation Plan**: [AUDIT_IMPLEMENTATION_PLAN.md](AUDIT_IMPLEMENTATION_PLAN.md) — historical (2026-04)
+- **Audit Implementation Plan**: [docs/archive/AUDIT_IMPLEMENTATION_PLAN.md](docs/archive/AUDIT_IMPLEMENTATION_PLAN.md) — historical (2026-04)
 - **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)
+- **Brand / colors**: [docs/OPTIO_BRAND_GUIDELINES.md](docs/OPTIO_BRAND_GUIDELINES.md), [docs/COLOR_REFERENCE.md](docs/COLOR_REFERENCE.md)
+- **Play Store release docs**: [docs/play-store/](docs/play-store/)
+- **Archive (point-in-time, unmaintained)**: [docs/archive/](docs/archive/) — moved
+  out of the repo root 2026-09-03. If one of those disagrees with the code, the
+  code is right.

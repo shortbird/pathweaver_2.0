@@ -8,7 +8,7 @@ participation turn into high school credit on an accredited transcript that
 Optio delivers to the family's school of record.
 
 This generalizes the AGO Pipe Organ Encounter pilot
-([POE_LAUNCH_PLAN.md](../POE_LAUNCH_PLAN.md)) from one hardcoded program into a
+([POE_LAUNCH_PLAN.md](POE_LAUNCH_PLAN.md)) from one hardcoded program into a
 repeatable one. Nothing here is subject-specific.
 
 ---

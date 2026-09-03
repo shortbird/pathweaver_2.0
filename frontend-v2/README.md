@@ -30,4 +30,4 @@ When opening a PR, if you change any of the below, apply it in **both**
 - [ ] **Copy / terminology** — quest vs project, pillar display names, etc.
 - [ ] **Navigation** — new routes should exist on the corresponding v2 surface unless the route is web-only (admin/course-builder).
 
-See [AUDIT_IMPLEMENTATION_PLAN.md](../AUDIT_IMPLEMENTATION_PLAN.md) for the broader backlog.
+See [AUDIT_IMPLEMENTATION_PLAN.md](../docs/archive/AUDIT_IMPLEMENTATION_PLAN.md) for the broader backlog.
