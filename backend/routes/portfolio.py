@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 from services.portfolio_service import PortfolioService
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.api_response_v1 import success_response, error_response
 from utils.session_manager import session_manager
 from utils.logger import get_logger
@@ -52,6 +53,8 @@ def get_public_portfolio(portfolio_slug):
 @bp.route('/user/<user_id>', methods=['GET'])
 @cross_origin()
 @require_auth
+@require_relationship_to('user_id', allow=(
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'peer', 'org_staff'))
 def get_user_portfolio(auth_user_id: str, user_id: str):
     """
     Get portfolio data for a specific user.
@@ -307,6 +310,7 @@ def get_curated_completions(user_id):
 
 @bp.route('/user/<user_id>/visibility-status', methods=['GET'])
 @require_auth
+@require_relationship_to('user_id', allow=('self', 'parent', 'advisor', 'org_staff'))
 def get_visibility_status(authenticated_user_id, user_id):
     """
     Get portfolio visibility status including consent and minor status.
@@ -352,6 +356,7 @@ def get_visibility_status(authenticated_user_id, user_id):
 
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
 @require_auth
+@require_relationship_to('user_id', allow=('self', 'parent', 'advisor', 'org_staff'))
 def update_portfolio_privacy(authenticated_user_id, user_id):
     """Set who can see this portfolio.
 
@@ -507,6 +512,7 @@ def update_portfolio_privacy(authenticated_user_id, user_id):
 
 @bp.route('/user/<user_id>/transcript-shares', methods=['GET'])
 @require_auth
+@require_relationship_to('user_id', allow=('self', 'parent', 'advisor', 'org_staff'))
 def list_transcript_shares(authenticated_user_id, user_id):
     """Every transcript link issued for this student, so whoever is
     accountable can see exactly who holds one and revoke it."""
@@ -528,6 +534,7 @@ def list_transcript_shares(authenticated_user_id, user_id):
 
 @bp.route('/user/<user_id>/transcript-shares', methods=['POST'])
 @require_auth
+@require_relationship_to('user_id', allow=('self', 'parent', 'advisor', 'org_staff'))
 def create_transcript_share(authenticated_user_id, user_id):
     """Issue a revocable transcript link. Body: {"label": "State University"}"""
     try:
@@ -558,6 +565,7 @@ def create_transcript_share(authenticated_user_id, user_id):
 
 @bp.route('/user/<user_id>/transcript-shares/<grant_id>', methods=['DELETE'])
 @require_auth
+@require_relationship_to('user_id', allow=('self', 'parent', 'advisor', 'org_staff'))
 def revoke_transcript_share(authenticated_user_id, user_id, grant_id):
     """Revoke a transcript link. Takes effect on the next request."""
     try:

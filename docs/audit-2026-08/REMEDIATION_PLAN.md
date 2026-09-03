@@ -779,6 +779,45 @@ Log:
   student id in the URL.
 
   ruff clean, mypy clean. Tests: 4811 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — PORTFOLIO (6) and OBSERVER (7). Declared
+  100 -> 113, allowlist 91 -> 78.
+
+  Portfolio splits by the question asked, not by the module:
+    - `get_user_portfolio` declares can_view_portfolio's seven grants —
+      `('self','parent','advisor','teacher','observer','peer','org_staff')`.
+    - visibility-status, privacy and the three transcript-share routes declare
+      `('self','parent','advisor','org_staff')`, matching can_manage_privacy,
+      which is deliberately narrower: a class teacher reads a portfolio but does
+      not get to publish it.
+  Not collapsed — can_manage_privacy also refuses a MINOR acting on their own
+  portfolio, and no relationship can express "self, if adult".
+
+  TWO PORTFOLIO ROUTES STAY, and the reason generalizes: `get_public_diploma_by_user_id`
+  and `learning_events.get_public_learning_events` carry no @require_auth at
+  all. They answer anonymous callers from the portfolio's own privacy setting
+  (plus, for the diploma, a signed LTI evidence token). @require_relationship_to
+  demands an authenticated caller, so decorating either would 403 every
+  legitimate anonymous visitor. A route with no caller is not a route with an
+  unchecked caller — the allowlist now says so in those words.
+
+  Observer needed four different allow sets across seven routes, because the
+  views admit different callers: `('self','parent','observer')` for the activity
+  feed, `('self','observer')` for comments (its own docstring says exactly
+  that), `('observer',)` for learning moments and portfolio, and
+  `('self','parent')` for the three parent_management routes, which are about
+  MANAGING a child's observers. A uniform set would have overstated three of
+  them.
+
+  Test fallout worth recording, because it is a seam future migrations will hit:
+  test_ferpa_access_logging stubbed the session with
+  `get_effective_user_id` only. @require_auth reads that; the relationship
+  decorator resolves the caller through `authorizing_user_id()`, which reads
+  `get_actual_admin_id()`. So six FERPA tests 401'd. Fixed by stubbing the
+  SESSION rather than the gate, which keeps the gate itself under test, and by
+  keying `is_observer_of` off the same `has_link` flag the in-view mock uses —
+  so the refusal test still refuses, now at the door.
+
+  ruff clean, mypy clean. Tests: 4811 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

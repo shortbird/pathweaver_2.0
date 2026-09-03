@@ -10,6 +10,7 @@ import threading
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
 from services.notification_service import NotificationService
@@ -313,6 +314,7 @@ def register_routes(bp):
     @bp.route('/api/observers/student/<student_id>/comments', methods=['GET'])
     @require_auth
     @validate_uuid_param('student_id')
+    @require_relationship_to('student_id', allow=('self', 'observer'))
     def get_student_comments(user_id, student_id):
         """
         Get all observer comments for a student

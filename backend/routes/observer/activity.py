@@ -9,6 +9,7 @@ import logging
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.rate_limiter import rate_limit
 from services.activity_feed_service import build_activity_feed
 from utils.access_logger import AccessLogger
@@ -21,6 +22,7 @@ def register_routes(bp):
     @bp.route('/api/observers/student/<student_id>/activity', methods=['GET'])
     @require_auth
     @validate_uuid_param('student_id')
+    @require_relationship_to('student_id', allow=('self', 'parent', 'observer'))
     def get_student_activity_feed(user_id, student_id):
         """
         Student views their own activity feed (same format as observer feed)

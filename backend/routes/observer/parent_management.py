@@ -13,6 +13,7 @@ from .helpers import get_frontend_url
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.rate_limiter import rate_limit
 
 from utils.roles import get_effective_roles
@@ -158,6 +159,7 @@ def register_routes(bp):
     @bp.route('/api/observers/parent-invitations/<student_id>', methods=['GET'])
     @require_auth
     @validate_uuid_param('student_id')
+    @require_relationship_to('student_id', allow=('self', 'parent'))
     def get_parent_observer_invitations(user_id, student_id):
         """
         Parent views invitations they've sent for a specific child
@@ -225,6 +227,7 @@ def register_routes(bp):
     @bp.route('/api/observers/student/<student_id>/observers', methods=['GET'])
     @require_auth
     @validate_uuid_param('student_id')
+    @require_relationship_to('student_id', allow=('self', 'parent'))
     def get_observers_for_student(user_id, student_id):
         """
         Get linked observers for a specific student (accessible by parents)
@@ -303,6 +306,7 @@ def register_routes(bp):
     @require_auth
     @validate_uuid_param('student_id')
     @validate_uuid_param('link_id')
+    @require_relationship_to('student_id', allow=('self', 'parent'))
     def remove_observer_for_student(user_id, student_id, link_id):
         """
         Parent removes an observer from their child

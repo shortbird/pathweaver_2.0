@@ -80,7 +80,13 @@ def _get_portfolio(client, has_link=True):
         'total_xp': 42,
     }
 
-    with patch('routes.observer.portfolio.get_supabase_admin_client',
+    # Two gates since 2026-09-03 (SEC-10). @require_relationship_to asks
+    # utils.portfolio_access.is_observer_of BEFORE the view; the
+    # observer_student_links lookup the mock client answers is the in-view
+    # check. Both are keyed off `has_link`, so the refusal test still refuses --
+    # now at the door, which is the stronger place for it.
+    with patch('utils.portfolio_access.is_observer_of', return_value=has_link), \
+         patch('routes.observer.portfolio.get_supabase_admin_client',
                return_value=_portfolio_client(has_link)), \
          patch('routes.observer.portfolio.PortfolioService',
                return_value=portfolio_service), \
@@ -89,7 +95,13 @@ def _get_portfolio(client, has_link=True):
          patch('routes.observer.portfolio.AccessLogger.log_student_data_access',
                side_effect=_capture_access_log), \
          patch('utils.session_manager.session_manager.get_effective_user_id',
+               return_value=OBSERVER_ID), \
+         patch('utils.session_manager.session_manager.get_actual_admin_id',
                return_value=OBSERVER_ID):
+        # get_actual_admin_id as well as get_effective_user_id: @require_auth
+        # resolves the caller through the second, @require_relationship_to
+        # through authorizing_user_id(), which reads the first. Stubbing the
+        # session rather than the gate keeps the gate itself under test.
         response = client.get(f'/api/observers/student/{STUDENT_ID}/portfolio')
 
     return response, logged, audited, portfolio_service
@@ -150,7 +162,8 @@ class TestObserverPortfolioRoute:
             'student': {'portfolio_slug': 'ada'}, 'total_xp': 7,
         }
 
-        with patch('routes.observer.portfolio.get_supabase_admin_client',
+        with patch('utils.portfolio_access.is_observer_of', return_value=True), \
+             patch('routes.observer.portfolio.get_supabase_admin_client',
                    return_value=_portfolio_client()), \
              patch('routes.observer.portfolio.PortfolioService',
                    return_value=portfolio_service), \
@@ -159,6 +172,8 @@ class TestObserverPortfolioRoute:
              patch('routes.observer.portfolio.AccessLogger.log_student_data_access',
                    side_effect=RuntimeError('logger down')), \
              patch('utils.session_manager.session_manager.get_effective_user_id',
+                   return_value=OBSERVER_ID), \
+             patch('utils.session_manager.session_manager.get_actual_admin_id',
                    return_value=OBSERVER_ID):
             response = client.get(f'/api/observers/student/{STUDENT_ID}/portfolio')
 

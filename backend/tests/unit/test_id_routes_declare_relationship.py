@@ -117,19 +117,20 @@ def _reviewed(reason, *endpoints):
 #                                an org_admin, so org_staff would overstate it
 
 # --- observer -> linked student ---------------------------------------------
-_reviewed(
-    'observer_student_links row for (caller, student) is required in the view',
-    'observer.get_student_activity_feed',
-    'observer.get_student_comments',
-    'observer.get_student_learning_moments_for_observer',
-    'observer.get_student_portfolio_for_observer',
-)
-_reviewed(
-    'the caller must be the student\'s parent to see or remove their observers',
-    'observer.get_observers_for_student',
-    'observer.get_parent_observer_invitations',
-    'observer.remove_observer_for_student',
-)
+# MIGRATED 2026-09-03, seven routes, and NOT with one allow set -- these four
+# views admit different callers and a uniform declaration would have overstated
+# three of them:
+#   ('self', 'parent', 'observer')  activity feed: the student, a parent by
+#                                   either link, or a linked observer
+#   ('self', 'observer')            comments: its docstring says exactly this
+#   ('observer',)                   learning moments and portfolio: an
+#                                   observer_student_links row, nothing else
+#   ('self', 'parent')              the three parent_management routes, which
+#                                   are about MANAGING a child's observers
+# Superadmin reaches all seven through the decorator's platform-staff branch,
+# which is where each view's own `role == 'superadmin'` check already put them.
+# Not collapsed: the portfolio route additionally reads can_view_evidence off
+# the link row, and the comment route separately checks comment permission.
 
 # --- org staff -> student in the same org -----------------------------------
 #
@@ -328,15 +329,27 @@ _reviewed(
 )
 
 # --- portfolio / transcript: the consent model, not a relationship -----------
+# MIGRATED 2026-09-03: the six AUTHENTICATED portfolio routes declare, split by
+# which question they ask:
+#   reads   (get_user_portfolio)     -> can_view_portfolio's seven grants:
+#           ('self','parent','advisor','teacher','observer','peer','org_staff')
+#   manage  (visibility-status, privacy, the three transcript-share routes)
+#           -> ('self','parent','advisor','org_staff'), matching
+#           can_manage_privacy, which is deliberately NARROWER than viewing:
+#           a class teacher reads a portfolio but does not get to publish it.
+# Not collapsed -- can_manage_privacy also refuses a MINOR acting on their own
+# portfolio, and no relationship can express "self, if adult".
+#
+# What stays here, and must: `learning_events.get_public_learning_events` and
+# `portfolio.get_public_diploma_by_user_id` take no @require_auth at all. They
+# answer for anonymous callers and decide inside the view from the portfolio's
+# own privacy setting (plus, for the diploma, a signed LTI evidence token).
+# @require_relationship_to demands an authenticated caller, so putting it on
+# either would 403 every legitimate anonymous visitor. A route with no caller
+# is not a route with an unchecked caller.
 _reviewed(
-    'utils.portfolio_access.can_view_portfolio / can_manage_privacy -- the '
-    'module that unified these rules on 2026-08-01',
-    'portfolio.create_transcript_share',
-    'portfolio.get_user_portfolio',
-    'portfolio.get_visibility_status',
-    'portfolio.list_transcript_shares',
-    'portfolio.revoke_transcript_share',
-    'portfolio.update_portfolio_privacy',
+    'unauthenticated by design: answers from the portfolio\'s own privacy '
+    'setting, never from who is asking',
     'learning_events.get_public_learning_events',
 )
 _reviewed(
