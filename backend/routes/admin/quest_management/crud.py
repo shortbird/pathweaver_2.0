@@ -435,9 +435,13 @@ def update_quest(user_id, quest_id):
                 update_data['is_active'] = data['is_active']
             # Silently ignore is_active changes from advisors
 
-        # Only superadmins can change is_public (make quests available in public quest library)
+        # Only superadmins can change is_public (make quests available in public
+        # quest library). Resolved here: `is_superadmin` was a bare undefined
+        # name, so any save that carried is_public raised a NameError and the
+        # handler answered 500 — including saves from a superadmin, the only
+        # people the branch exists for.
         if 'is_public' in data:
-            if is_superadmin:
+            if UserRepository().is_superadmin(user_id):
                 # Validate course quests have preset tasks before making public
                 if data['is_public']:
                     from utils.quest_validation import can_make_public

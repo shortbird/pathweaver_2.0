@@ -10,6 +10,7 @@ This endpoint returns the parent chat's id.
 
 from flask import request, jsonify
 from . import bp
+from database import get_supabase_admin_client
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
 from ._caller import get_caller

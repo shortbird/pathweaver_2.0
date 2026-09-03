@@ -17,7 +17,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_org_admin
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from datetime import datetime
+from datetime import datetime, date
 from urllib.parse import quote
 import re
 import secrets
