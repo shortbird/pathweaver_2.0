@@ -11,6 +11,7 @@ Handles student monitoring and advisor-student management.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role, require_advisor
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import ValidationError, NotFoundError
 from services.advisor_service import AdvisorService
 from services.quest_invitation_service import QuestInvitationService
@@ -60,6 +61,9 @@ def get_students(user_id):
 
 @advisor_bp.route('/students/<student_id>/assign', methods=['POST'])
 @require_advisor
+# org_staff ONLY, not advisor: assigning IS what creates the advisor
+# relationship, so requiring one first would deny every legitimate call.
+@require_relationship_to('student_id', allow=('org_staff',))
 def assign_student(user_id, student_id):
     """Assign a student to this advisor"""
     try:
@@ -85,6 +89,7 @@ def assign_student(user_id, student_id):
 
 @advisor_bp.route('/students/<student_id>/progress', methods=['GET'])
 @require_advisor
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_student_progress(user_id, student_id):
     """Get comprehensive progress report for a student"""
     try:
@@ -146,6 +151,7 @@ def get_advisor_dashboard(user_id):
 
 @advisor_bp.route('/students/<student_id>/quests-with-tasks', methods=['GET'])
 @require_advisor
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_student_quests_with_tasks(user_id, student_id):
     """Get all active quests for a student with their tasks - for task management interface"""
     try:

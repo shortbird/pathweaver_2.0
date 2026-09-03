@@ -11,6 +11,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from utils.auth.decorators import require_role, require_admin
+from utils.auth.relationships import require_relationship_to
 from services.checkin_service import CheckinService
 from services.checkin_email_service import CheckinEmailService
 from services.email_service import EmailService
@@ -85,6 +86,7 @@ def create_checkin(user_id):
 
 @checkins_bp.route('/api/advisor/students/<student_id>/quests/<quest_id>/end', methods=['POST', 'OPTIONS'])
 @require_role('advisor', 'superadmin')
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def advisor_end_student_quest(user_id, student_id, quest_id):
     """
     End an active quest for a student (advisor action during check-in).
@@ -159,6 +161,7 @@ def get_advisor_checkins(user_id):
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
 @require_role('advisor', 'superadmin')
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_student_checkins(user_id, student_id):
     """
     Get all check-ins for a specific student.
@@ -198,6 +201,7 @@ def get_student_checkins(user_id, student_id):
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
 @require_role('advisor', 'superadmin')
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_checkin_data(user_id, student_id):
     """
     Get pre-populated data for check-in form (active quests, etc.).

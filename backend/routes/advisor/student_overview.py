@@ -9,6 +9,7 @@ from collections import defaultdict
 from datetime import datetime
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.roles import get_effective_role
@@ -113,6 +114,7 @@ def verify_advisor_access(supabase, advisor_user_id, student_user_id):
 @bp.route('/student-overview/<student_id>', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_student_overview(user_id, student_id):
     """
     Get consolidated overview data for a student, matching StudentOverviewPage format.

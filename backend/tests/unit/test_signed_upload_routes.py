@@ -191,6 +191,13 @@ def test_parent_moment_block_upload_init_happy_path(client, mock_verify_token, m
 
 @pytest.fixture
 def mock_advisor_admin():
+    """Grant BOTH gates on the advisor learning-moment routes.
+
+    verify_advisor_access is the in-view check. @require_relationship_to
+    (SEC-10) runs before the view and asks utils.portfolio_access.is_advisor_of,
+    so patching only the inner one leaves the request refused at the door -- and
+    refused with a 403 that looks exactly like the thing this test is not about.
+    """
     admin = MagicMock()
     with patch(
         "routes.advisor.learning_moments.get_supabase_admin_client",
@@ -198,6 +205,9 @@ def mock_advisor_admin():
     ), patch(
         "routes.advisor.learning_moments.verify_advisor_access",
         return_value=None,
+    ), patch(
+        "utils.portfolio_access.is_advisor_of",
+        return_value=True,
     ):
         yield admin
 

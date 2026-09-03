@@ -98,29 +98,23 @@ def _reviewed(reason, *endpoints):
 # structural gate; the managed_by_parent_id checks stay as the precise one.
 
 # --- advisor -> assigned student --------------------------------------------
-_reviewed(
-    'verify_advisor_access(supabase, caller, student) -- active row in '
-    'advisor_student_assignments, or admin',
-    'advisor_learning_moments.create_student_learning_moment',
-    'advisor_learning_moments.delete_student_learning_moment',
-    'advisor_learning_moments.finalize_moment_signed_upload',
-    'advisor_learning_moments.get_student_learning_moments',
-    'advisor_learning_moments.init_moment_signed_upload',
-    'advisor_learning_moments.update_student_learning_moment',
-    'advisor_learning_moments.upload_moment_media',
-    'advisor_student_overview.get_student_overview',
-    'helper_evidence.get_student_tasks_for_evidence',
-)
-_reviewed(
-    'repository.verify_advisor_student_relationship(caller, student), or the '
-    'advisor-scoped query itself returns nothing for an unassigned student',
-    'advisor_checkins.advisor_end_student_quest',
-    'advisor_checkins.get_checkin_data',
-    'advisor_checkins.get_student_checkins',
-    'advisor.assign_student',
-    'advisor.get_student_progress',
-    'advisor.get_student_quests_with_tasks',
-)
+# MIGRATED 2026-09-03: the whole advisor surface, 15 routes across five modules,
+# declares @require_relationship_to('student_id', ...). NOT collapsed -- every
+# one of these inner checks additionally requires the caller and the student to
+# be in the same organization, which `advisor` alone does not, and several are
+# the union of an org check and an assignment check rather than either one.
+#
+# The declaration is the UNION of what each view grants, so it can only be an
+# outer gate, never a narrower one:
+#   ('advisor', 'org_staff')  -- 14 of the 15
+#   ('org_staff',)            -- advisor.assign_student, because assigning IS
+#                                what creates the advisor relationship; asking
+#                                for one first would deny every real call
+#   ('advisor', 'parent')     -- helper_evidence.get_student_tasks_for_evidence,
+#                                which serves parents too, and whose LOCAL
+#                                verify_advisor_access (not the shared one of
+#                                the same name) requires an assignment even for
+#                                an org_admin, so org_staff would overstate it
 
 # --- observer -> linked student ---------------------------------------------
 _reviewed(

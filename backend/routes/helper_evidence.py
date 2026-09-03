@@ -14,6 +14,7 @@ REPOSITORY MIGRATION: COMPLETE
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
 from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
@@ -537,6 +538,12 @@ def delete_helper_evidence_block(user_id, block_id):
 
 @bp.route('/student-tasks/<student_id>', methods=['GET'])
 @require_auth
+# ('advisor', 'parent'), NOT org_staff: this module's own
+# verify_advisor_access requires an advisor_student_assignments row even
+# for an org_admin, unlike the shared helper of the same name in
+# routes/advisor/student_overview.py. Declaring org_staff here would
+# describe a permission the view does not grant.
+@require_relationship_to('student_id', allow=('advisor', 'parent'))
 def get_student_tasks_for_evidence(user_id, student_id):
     """
     Get list of active tasks for a student (for advisors/parents to add evidence).

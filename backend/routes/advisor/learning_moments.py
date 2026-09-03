@@ -8,6 +8,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, ValidationError
 from routes.advisor.student_overview import verify_advisor_access
+from utils.auth.relationships import require_relationship_to
 from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
 from utils.storage_urls import canonical_stored_url
@@ -20,6 +21,7 @@ bp = Blueprint('advisor_learning_moments', __name__, url_prefix='/api/advisor')
 
 @bp.route('/students/<student_id>/learning-moments', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def create_student_learning_moment(user_id, student_id):
     """
     Advisor captures a learning moment for their student.
@@ -168,6 +170,7 @@ def create_student_learning_moment(user_id, student_id):
 
 @bp.route('/students/<student_id>/learning-moments/upload', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def upload_moment_media(user_id, student_id):
     """
     Upload photo or document for a learning moment.
@@ -216,6 +219,7 @@ def upload_moment_media(user_id, student_id):
 
 @bp.route('/students/<student_id>/learning-moments/upload-init', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def init_moment_signed_upload(user_id, student_id):
     """Begin a signed upload for an advisor-captured learning-moment file."""
     try:
@@ -255,6 +259,7 @@ def init_moment_signed_upload(user_id, student_id):
 
 @bp.route('/students/<student_id>/learning-moments/upload-finalize', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def finalize_moment_signed_upload(user_id, student_id):
     """Finalize a signed upload for an advisor-captured learning-moment file."""
     try:
@@ -312,6 +317,7 @@ def finalize_moment_signed_upload(user_id, student_id):
 
 @bp.route('/students/<student_id>/learning-moments', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def get_student_learning_moments(user_id, student_id):
     """
     Get learning moments for a student (advisor view).
@@ -395,6 +401,7 @@ def get_student_learning_moments(user_id, student_id):
 
 @bp.route('/students/<student_id>/learning-moments/<moment_id>', methods=['PUT'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def update_student_learning_moment(user_id, student_id, moment_id):
     """
     Advisor updates a learning moment they captured for a student.
@@ -474,6 +481,7 @@ def update_student_learning_moment(user_id, student_id, moment_id):
 
 @bp.route('/students/<student_id>/learning-moments/<moment_id>', methods=['DELETE'])
 @require_auth
+@require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def delete_student_learning_moment(user_id, student_id, moment_id):
     """
     Advisor deletes a learning moment they captured for a student.

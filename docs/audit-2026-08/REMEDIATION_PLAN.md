@@ -704,6 +704,36 @@ Log:
   and the two behavioral cases through the real client.
 
   Tests: 4792 passed, 160 skipped, 0 failed. ruff clean, mypy clean.
+- 2026-09-03: (c) continues — the ADVISOR surface, 15 routes across five
+  modules (advisor/learning_moments 7, advisor/main 3, advisor_checkins 3,
+  advisor/student_overview 1, helper_evidence 1). Declared 77 -> 92, allowlist
+  114 -> 99.
+
+  NOT collapsed. Every inner check here additionally requires the caller and
+  the student to be in the SAME ORGANIZATION, which the `advisor` predicate
+  does not test, and several are the union of an org check and an assignment
+  check rather than either alone. The declaration is therefore the union of
+  what each view grants — an outer gate, never a narrower one.
+
+  Three allow sets, because a uniform one would have lied about two routes:
+    - `('advisor', 'org_staff')` on 13 of the 15.
+    - `('org_staff',)` on advisor.assign_student. Assigning IS what creates the
+      advisor relationship, so requiring one first would deny every legitimate
+      call — the failure mode you only find by reading the view rather than
+      pattern-matching the module.
+    - `('advisor', 'parent')` on helper_evidence.get_student_tasks_for_evidence,
+      which serves parents as well. Its LOCAL verify_advisor_access — not the
+      shared function of the same name in routes/advisor/student_overview.py —
+      requires an assignment even for an org_admin, so declaring org_staff would
+      have described a permission the view does not grant. The allowlist had
+      grouped it with the shared helper; that grouping was wrong.
+
+  Test fallout, the same shape as every cluster so far: test_signed_upload_routes'
+  mock_advisor_admin fixture patched only the in-view verify_advisor_access, so
+  two happy-path tests were refused at the door by a 403 that looks exactly like
+  the thing they are not testing. It now grants both gates and says why.
+
+  ruff clean, mypy clean. Tests: 4810 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`
