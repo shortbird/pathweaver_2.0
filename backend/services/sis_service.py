@@ -1069,6 +1069,19 @@ def org_admin_ids(org_id: str) -> List[str]:
     return [s['id'] for s in list_org_staff(org_id) if 'org_admin' in s['roles']]
 
 
+def org_admin_emails(org_id: str) -> List[str]:
+    """Reachable email addresses for this org's admins, for staff-facing alerts.
+
+    Placeholder staff rows have no inbox behind them, so they are skipped: a
+    caller can read an empty list as "this school has nobody to email" and act
+    on it, which is what Optio Academy (no org admins at all — a superadmin runs
+    it) depends on.
+    """
+    return [s['email'] for s in list_org_staff(org_id)
+            if 'org_admin' in s['roles'] and s.get('email')
+            and not is_placeholder_staff_email(s['email'])]
+
+
 def _user_org_roles(u: Dict[str, Any]) -> List[str]:
     """All org roles held by a user (org_role + org_roles array), de-duped."""
     roles = []

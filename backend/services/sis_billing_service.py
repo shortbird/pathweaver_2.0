@@ -2059,6 +2059,11 @@ def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
         return {'ready': True, 'already': True, 'plan': existing[0], 'saved_card': _card_public(saved)}
     count = int(meta.get('installment_count') or installment_count or 10)
     result = _create_autopay_plan(org_id, inv, saved, count, start_date, secret)
+    if not result.get('error'):
+        # Both autopay paths — the emailed link and the signed-in portal — land
+        # here, so this is the one place that has to tell the office.
+        from services import sis_billing_alerts
+        sis_billing_alerts.notify_autopay_plan_created(org_id, inv, saved, result)
     return {'ready': True, 'saved_card': _card_public(saved), **result}
 
 
