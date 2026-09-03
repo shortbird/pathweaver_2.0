@@ -226,7 +226,7 @@ Log:
   are dead AND broken — generate_token() mints a payload with no `type`, so a
   token it issues cannot pass verify_token() at all. Candidates for QB-01.
 
-### SEC-08 — Admin decorators accept cookie fallback after a rejected Bearer `[TODO]`
+### SEC-08 — Admin decorators accept cookie fallback after a rejected Bearer `[DONE]`
 `get_effective_user_id` (session_manager.py:864-868) refuses cookie fallback on a
 bad Bearer; `get_current_user_id` (:772-829) falls through to cookies, and
 `authorizing_user_id()` (utils/auth/decorators.py:86) — used by require_admin /
@@ -238,6 +238,37 @@ Accept: a request with an invalid Bearer + valid cookies is rejected consistentl
 auth test suite green.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Confirmed and unified on the strict semantics.
+  `get_current_user_id()` now returns None when a Bearer was sent and verifies
+  as nothing, exactly as `get_effective_user_id()` already did;
+  `get_actual_admin_id()` inherits it, and with it every decorator that
+  authorizes through `authorizing_user_id()` (require_admin, require_superadmin,
+  require_org_admin, require_org_front_office, require_school_admin,
+  require_real_identity, require_admin_identity).
+  Worst case this closes: an EXPIRED masquerade token. Masquerade JWTs live one
+  hour and the admin's own access_token cookie outlives them, so when the
+  masquerade died mid-session the admin silently got their own authority back
+  on every admin route while the banner still said they were inside the
+  target's account.
+  Caller audit found two that genuinely must survive a dead Bearer, and they
+  are de-escalations, not grants: `/api/auth/logout` (an expired access token is
+  the normal way to arrive, and a logout that cannot name the caller writes no
+  last_logout_at and revokes no refresh families -- the session outlives the
+  logout that reported success) and `/api/dependents/stop-acting-as` (acting-as
+  tokens expire at 24h; the parent still needs the way out). Both now call a
+  named `session_manager.get_deescalation_user_id()`, which tries every
+  credential the request carries and is documented as usable only where the
+  outcome can exclusively REMOVE access. A test pins its call sites to exactly
+  those two files.
+  Checked and unaffected: /api/auth/refresh resolves through refresh_session(),
+  not these; password.py's self-check sits inside @require_auth already;
+  require_auth_cookie has no callers; every Authorization header any client
+  sends is an app-issued JWT (no client puts a Supabase token there), so no
+  caller loses a session it used to have.
+  Tests: tests/unit/test_auth_resolvers_fail_closed.py, 10 cases -- including
+  one that asserts the three resolvers agree across a matrix of credential
+  mixes, so two answers to "who is calling" fails whichever way round it
+  happens. Full backend suite: 4305 passed, 160 skipped.
 
 ---
 

@@ -893,8 +893,12 @@ def register_routes(bp):
 
         supabase = get_supabase_client()
 
-        # Get user ID for session invalidation
-        user_id = session_manager.get_current_user_id()
+        # Get user ID for session invalidation. De-escalation resolver on
+        # purpose: an expired access token is the NORMAL way to arrive here,
+        # and a logout that cannot name the caller writes no last_logout_at and
+        # revokes no refresh families -- so the session it reports as ended
+        # keeps working. Nothing below grants anything.
+        user_id = session_manager.get_deescalation_user_id()
 
         try:
             # Invalidate all tokens by recording logout timestamp
