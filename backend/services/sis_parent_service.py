@@ -23,6 +23,8 @@ from services import sis_service
 from utils.db_fetch import fetch_all_rows
 from utils import person_name
 from utils.org_features import org_has_feature
+from modules.enabled import effective_modules_for_row
+from modules.registry import surface_keys
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
@@ -241,6 +243,18 @@ def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str
         'organization_id': oid,
         'organization_name': row.get('name'),
         'is_guardian': is_guardian,
+        # Blocks P3: which family-surface modules this school runs. The hub and
+        # the family pages gate their cards off this instead of ad-hoc flags.
+        # The legacy keys below (post_registration_flow, prior_learning_enabled)
+        # stay during the transition — mobile still reads them. None (not [])
+        # when the org row could not be read: the frontend then falls back to
+        # its legacy card set rather than blanking the whole hub on a hiccup.
+        'modules': (sorted(effective_modules_for_row(row) & surface_keys('family'))
+                    if row else None),
+        # Blocks P4: the school's parents live on the family dashboard and the
+        # hub shows only its slimmed card set (promoted from the hardcoded
+        # Optio Academy org id in frontend config/optioAcademy.js).
+        'family_first_home': settings.get('family_first_home') is True,
         'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
         # Opt-in, so the Prior Learning card is absent for every school that
         # hasn't turned it on rather than present-and-403ing.

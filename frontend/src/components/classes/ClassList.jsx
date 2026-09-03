@@ -130,7 +130,10 @@ export default function ClassList({ orgId, isAdvisorView = false, onSelectClass 
           </button>
         </div>
 
-        {!isAdvisorView && !showArchived && (
+        {/* Advisors create too (blocks P2) — the backend auto-assigns the
+            creator, so the class lands in "My Classes" immediately. Needs an
+            org: platform advisors have no org to create classes in. */}
+        {orgId && !showArchived && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
@@ -151,11 +154,9 @@ export default function ClassList({ orgId, isAdvisorView = false, onSelectClass 
           <p className="text-gray-500 mb-4">
             {showArchived
               ? 'Archived classes will appear here'
-              : isAdvisorView
-                ? 'You have not been assigned to any classes yet'
-                : 'Create a class to group students and assign quests'}
+              : 'Create a class to group students and assign quests'}
           </p>
-          {!isAdvisorView && !showArchived && (
+          {orgId && !showArchived && (
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-optio-purple/90 transition-colors"

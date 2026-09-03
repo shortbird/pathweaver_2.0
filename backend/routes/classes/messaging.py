@@ -13,6 +13,7 @@ from . import bp
 from database import get_supabase_admin_client
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from ._caller import get_caller
 from utils.logger import get_logger
 
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/messaging-group', methods=['POST'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def create_class_group(user_id, org_id, class_id):
     """Create or sync a group chat for a class (families + teachers)."""
     try:

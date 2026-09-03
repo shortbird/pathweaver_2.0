@@ -1,0 +1,288 @@
+{
+  "ai": {
+    "default": "off",
+    "gate": "ai_columns",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "attendance": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "billing": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [
+      "registration"
+    ],
+    "requires_any": []
+  },
+  "bounties": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "calendar": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "catalog": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [
+      "classes"
+    ],
+    "requires_any": []
+  },
+  "classes": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "clp": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "community": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "community_enabled",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "course_builder": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "courses": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "credits": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "oea_enabled",
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "curriculum": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "forms": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "goals": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "goals_mode",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "journal": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "kiosk": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "kiosk_flag",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "messaging": {
+    "default": "core",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "observer": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "onboarding": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "portfolio": {
+    "default": "core",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "prior_learning": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "prior_learning_enabled",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "quests": {
+    "default": "core",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "registration": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "reports": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "resources": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "secure_documents": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "sis": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": "sis_enabled",
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "submissions": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "tasks": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "teaching": {
+    "default": "core",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
+  "timesheets": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "training": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": "hidden_modules",
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
+  "transcripts": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [
+      "credits"
+    ],
+    "requires_any": []
+  },
+  "xp": {
+    "default": "core",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  }
+}

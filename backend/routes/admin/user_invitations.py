@@ -875,6 +875,10 @@ def _create_parent_student_links(supabase, parent_user_id, student_ids, organiza
     return linked_students
 
 
+# The class-invite accept half lives in services/class_invite_service.py.
+from services.class_invite_service import enroll_class_invite as _enroll_class_invite
+
+
 # Public endpoints for accepting invitations (no auth required)
 
 @bp.route('/invitations/validate/<invitation_code>', methods=['GET'])
@@ -942,8 +946,24 @@ def validate_invitation_code(invitation_code):
             }
         }
 
-        # For parent invitations with student_ids, fetch student info
+        # For class invite links (blocks P2), name the class so the accept page
+        # can say what the student is joining. An archived class kills the link.
         metadata = inv.get('metadata') or {}
+        if metadata.get('invitation_type') == 'class' and metadata.get('class_id'):
+            cls = supabase.table('org_classes') \
+                .select('id, name, status, organization_id') \
+                .eq('id', metadata['class_id']) \
+                .maybe_single() \
+                .execute()
+            cls_row = cls.data if cls else None
+            if not cls_row or cls_row.get('organization_id') != inv['organization_id'] \
+                    or cls_row.get('status') != 'active':
+                return jsonify({'valid': False,
+                                'error': 'This class is no longer accepting new members'}), 400
+            response_data['invitation']['class'] = {'id': cls_row['id'], 'name': cls_row['name']}
+            response_data['invitation']['is_class_invitation'] = True
+
+        # For parent invitations with student_ids, fetch student info
         if metadata.get('invitation_type') == 'parent' and metadata.get('student_ids'):
             student_ids = metadata['student_ids']
             students_result = supabase.table('users') \
@@ -1086,8 +1106,16 @@ def accept_invitation(invitation_code):
         if not is_link_based and email != inv['email'].lower():
             return jsonify({'error': 'Email does not match invitation'}), 400
 
+        # A class invite link (blocks P2) is meant for existing members too — a
+        # teacher shares it with students already in the school, and accepting
+        # enrolls them in the class. Every other link-based invite still refuses
+        # an email that is already in the org.
+        invite_metadata = inv.get('metadata') or {}
+        is_class_invite = invite_metadata.get('invitation_type') == 'class' \
+            and bool(invite_metadata.get('class_id'))
+
         # For link-based invites, check if this email is already in the org
-        if is_link_based:
+        if is_link_based and not is_class_invite:
             existing_in_org = supabase.table('users') \
                 .select('id') \
                 .eq('email', email) \
@@ -1099,7 +1127,7 @@ def accept_invitation(invitation_code):
         # Check if user already exists (before validating all fields)
         # Existing users only need password verification
         existing_user = supabase.table('users') \
-            .select('id, organization_id, first_name, last_name') \
+            .select('id, organization_id, first_name, last_name, org_role, org_roles') \
             .eq('email', email) \
             .execute()
 
@@ -1175,6 +1203,29 @@ def accept_invitation(invitation_code):
                              'different email address.'
                 }), 409
 
+            # A class invite accepted by someone ALREADY in this org must not
+            # rewrite their roles — an advisor or parent clicking a student
+            # class link would otherwise be demoted to student. Members keep
+            # their roles; only students get enrolled.
+            already_in_org = user.get('organization_id') == inv['organization_id']
+            if is_class_invite and already_in_org:
+                member_roles = set(user.get('org_roles') or [])
+                if user.get('org_role'):
+                    member_roles.add(user['org_role'])
+                if 'student' not in member_roles:
+                    return jsonify({
+                        'error': 'This link enrolls students in a class. Your account '
+                                 'is not a student account — ask the teacher to add you directly.'
+                    }), 400
+                class_name = _enroll_class_invite(supabase, user['id'], inv)
+                return jsonify({
+                    'success': True,
+                    'message': f'You have joined {class_name}' if class_name
+                               else 'You are already a member of this organization',
+                    'existing_user': True,
+                    'joined_class': class_name,
+                }), 200
+
             # Identity verified - update user's organization and role
             # Organization users have role='org_managed' with actual role in org_role
             supabase.table('users') \
@@ -1207,11 +1258,15 @@ def accept_invitation(invitation_code):
                     supabase, user['id'], metadata['student_ids'], inv['organization_id']
                 )
 
+            joined_class = _enroll_class_invite(supabase, user['id'], inv)
+
             return jsonify({
                 'success': True,
-                'message': 'You have been added to the organization',
+                'message': f'You have joined {joined_class}' if joined_class
+                           else 'You have been added to the organization',
                 'existing_user': True,
-                'linked_students': linked_students
+                'linked_students': linked_students,
+                'joined_class': joined_class
             }), 200
 
         # Create new user
@@ -1310,12 +1365,15 @@ def accept_invitation(invitation_code):
                     supabase, user_id, metadata['student_ids'], inv['organization_id']
                 )
 
+            joined_class = _enroll_class_invite(supabase, user_id, inv)
+
             return jsonify({
                 'success': True,
                 'message': 'Account created! Check your email for a 6-digit verification code.',
                 'new_user': True,
                 'requires_verification': True,
-                'linked_students': linked_students
+                'linked_students': linked_students,
+                'joined_class': joined_class
             }), 201
 
         except Exception as e:

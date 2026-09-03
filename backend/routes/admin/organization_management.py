@@ -303,12 +303,13 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
         incoming_flags = update_data.get('feature_flags')
 
-        # Merged, not replaced, when the caller cannot see the prices — utils/org_finance_flags.py.
-        if isinstance(incoming_flags, dict) and not sees_finance:
-            from utils.org_finance_flags import guarded_flags_for_front_office
+        # Guarded blob write: restores superadmin-owned `modules`, merges the
+        # finance paths for non-finance writers — org_finance_flags.guard_org_flags_write.
+        if isinstance(incoming_flags, dict) and not is_superadmin:
+            from utils.org_finance_flags import guard_org_flags_write
             from repositories.organization_repository import OrganizationRepository as _OrgRepo
             stored_flags = (_OrgRepo().find_by_id(org_id) or {}).get('feature_flags') or {}
-            incoming_flags, blocked = guarded_flags_for_front_office(stored_flags, incoming_flags)
+            incoming_flags, blocked = guard_org_flags_write(stored_flags, incoming_flags, sees_finance)
             if blocked:
                 return jsonify({'error': 'Tuition and registration fees are managed by an organization admin.', 'fields': blocked}), 403
             update_data['feature_flags'] = incoming_flags

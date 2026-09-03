@@ -1,0 +1,959 @@
+{
+  "orgs": {
+    "arete": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": true,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "d02b5076-eeb1-4d86-95ae-9ee4da08c3a8",
+      "name": "Arete Academy ",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "artful-nest": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "c4efb0db-7527-4c00-aa43-ff4ed80ee0b4",
+      "name": "The Artful Nest Studio",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "disruption": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": true,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "d7df4378-d149-45cf-969b-ec510d0ac0e0",
+      "name": "Disruption",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "curated"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "gryffin": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": true,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": true,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "1c232a49-9e6f-4179-8921-c7d84b67930b",
+      "name": "Gryffin Learning Center",
+      "opt_ins": {
+        "community": false,
+        "goals": true,
+        "kiosk": true,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [
+          "attendance",
+          "billing",
+          "calendar",
+          "classes",
+          "curriculum",
+          "goals",
+          "reports",
+          "resources",
+          "secure_documents",
+          "tasks",
+          "training"
+        ],
+        "enabled": true,
+        "hidden_modules": [
+          "clp",
+          "forms",
+          "onboarding",
+          "timesheets"
+        ],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": "goals",
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "hearthwood": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": true,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "6e8beee3-32d7-4ef4-a718-e709534d866d",
+      "name": "Hearthwood Academy",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": [
+        "hide_pillars",
+        "oea_enabled"
+      ]
+    },
+    "hearthwood-test": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": true,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "54f8769b-4f3a-4b46-930e-0d2422d2bff5",
+      "name": "Hearthwood Academy (Test)",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": [
+        "hide_pillars",
+        "oea_enabled"
+      ]
+    },
+    "horizon": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": true,
+        "scheduled_publish": true,
+        "sis_enabled": true,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "240fb122-3d05-4700-8c23-506645b64dab",
+      "name": "Horizon",
+      "opt_ins": {
+        "community": false,
+        "goals": true,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [
+          "attendance",
+          "billing",
+          "calendar",
+          "classes",
+          "clp",
+          "curriculum",
+          "forms",
+          "goals",
+          "onboarding",
+          "reports",
+          "resources",
+          "secure_documents",
+          "tasks",
+          "timesheets",
+          "training"
+        ],
+        "enabled": true,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": "goals",
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "icreate": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": true,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": true,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "1340004f-d12f-44ae-9ec3-185af5240130",
+      "name": "iCreate",
+      "opt_ins": {
+        "community": true,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [
+          "attendance",
+          "billing",
+          "calendar",
+          "classes",
+          "clp",
+          "community",
+          "curriculum",
+          "forms",
+          "onboarding",
+          "reports",
+          "resources",
+          "secure_documents",
+          "tasks",
+          "timesheets",
+          "training"
+        ],
+        "enabled": true,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": true
+      },
+      "unknown_top_level_keys": []
+    },
+    "jsp": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "0c7db60f-9f28-436b-8fae-45c2f139f7c6",
+      "name": "Jefferson Scholar Program",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "lily-lake": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "3ef1773e-ccb6-44e9-a354-0aa8ec521e58",
+      "name": "Lily Lake",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "lk-ed": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "346167ee-1ddb-4b57-b7d9-642beba6e9a3",
+      "name": "Landon King",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "onfire-learning": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "1c675e5e-b455-452e-94cb-5927a3a9f407",
+      "name": "OnFire Learning",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "optio-academy": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": true,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": true,
+        "scheduled_publish": true,
+        "sis_enabled": true,
+        "step_printing": false,
+        "xp_goals": true
+      },
+      "id": "8ee22671-6e38-473c-a326-90ff86460310",
+      "name": "Optio Academy",
+      "opt_ins": {
+        "community": false,
+        "goals": true,
+        "kiosk": false,
+        "prior_learning": true
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [
+          "billing",
+          "goals",
+          "prior_learning",
+          "tasks"
+        ],
+        "enabled": true,
+        "hidden_modules": [
+          "attendance",
+          "calendar",
+          "classes",
+          "clp",
+          "curriculum",
+          "forms",
+          "onboarding",
+          "reports",
+          "resources",
+          "secure_documents",
+          "timesheets",
+          "training"
+        ],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": "goals",
+        "school_homepage": true
+      },
+      "unknown_top_level_keys": []
+    },
+    "test": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": false
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": true,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "73b80fef-b907-4cd8-bf6a-aebcb3287204",
+      "name": "Test-Org",
+      "opt_ins": {
+        "community": true,
+        "goals": true,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [
+          "attendance",
+          "billing",
+          "calendar",
+          "classes",
+          "clp",
+          "community",
+          "curriculum",
+          "forms",
+          "goals",
+          "onboarding",
+          "reports",
+          "resources",
+          "secure_documents",
+          "tasks",
+          "timesheets",
+          "training"
+        ],
+        "enabled": true,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": "goals",
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "test-academy": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Test Academy",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "treehouse": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": true,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": true,
+        "xp_goals": false
+      },
+      "id": "b657016b-876f-4146-98e0-92988008a803",
+      "name": "The Treehouse",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "curated"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "ues": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "1e3f1789-12e2-449c-bbcd-adda353ba614",
+      "name": "Utah Elite Sports",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    },
+    "williamsburg": {
+      "active": true,
+      "ai": {
+        "chatbot": true,
+        "features": true,
+        "lesson_helper": true,
+        "task_generation": true
+      },
+      "flat_gates": {
+        "due_dates": true,
+        "email_reply_to": false,
+        "hide_public_bounties": false,
+        "icreate_registration": false,
+        "kiosk": false,
+        "lock_xp_editing": false,
+        "registration": false,
+        "scheduled_publish": true,
+        "sis_enabled": false,
+        "step_printing": false,
+        "xp_goals": false
+      },
+      "id": "a2d48965-1354-4e75-b423-61b6da200769",
+      "name": "Williamsburg Learning",
+      "opt_ins": {
+        "community": false,
+        "goals": false,
+        "kiosk": false,
+        "prior_learning": false
+      },
+      "policies": {
+        "accreditation_source": "none",
+        "course_visibility": "all_optio",
+        "quest_visibility": "all_optio"
+      },
+      "sis": {
+        "effective_modules": [],
+        "enabled": false,
+        "hidden_modules": [],
+        "unknown_hidden_keys": []
+      },
+      "sis_settings_gates": {
+        "directory_default_in": false,
+        "optio_courses_enabled": false,
+        "post_registration_flow": null,
+        "school_homepage": false
+      },
+      "unknown_top_level_keys": []
+    }
+  },
+  "orgs_included": 18
+}

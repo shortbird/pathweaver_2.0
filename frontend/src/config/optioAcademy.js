@@ -1,35 +1,42 @@
 /**
- * Optio Academy — Optio's own school, which runs on the SIS but uses almost
- * none of the school-community surfaces the member orgs do.
+ * Family-first schools — schools that run on the SIS but use almost none of
+ * the school-community surfaces, so a parent's whole relationship with the
+ * school is their kids. Optio Academy is the original.
  *
- * Its sis_settings.hidden_modules already turns off calendar, resources,
- * classes, attendance and the rest on the console side. This module is the
- * learning-app half of the same fact, for the two places where "which school"
- * changes what a PARENT sees:
+ * Blocks P4: this is a per-org flag now — `sis_settings.family_first_home`,
+ * carried on the `school` payload (/me and login attach it) and on the
+ * school-context org entries. What it changes for a PARENT:
  *
- * - Their home is the family dashboard, not the /dashboard digest. An Academy
- *   parent's whole relationship with the school is their kids, so the Family
- *   tab IS home (Sidebar + getPostLoginPath).
- * - The "From <school>" section on /dashboard is hidden. Every card in it —
- *   Calendar, Resources, Directory — points at a module this school does not
- *   run, so the section was a row of doors onto empty rooms.
+ * - Their home is the family dashboard, not the /dashboard digest (Sidebar +
+ *   getPostLoginPath).
+ * - The "From <school>" section on /dashboard is hidden, and the school hub
+ *   carries only its slimmed card set.
  *
- * Deliberately an id list rather than a feature flag: this is one school, not
- * a capability other orgs would opt into. If a second school ever wants the
- * same shape, promote it to feature_flags then.
+ * The hardcoded org id below is the transition fallback for payloads that
+ * predate the flag and for prod until the flag is set on Optio Academy's row
+ * (docs/blocks/P4_NOTES.md). Delete it once that write has shipped.
  */
 export const OPTIO_ACADEMY_ORG_ID = '8ee22671-6e38-473c-a326-90ff86460310'
 
-/** True when this org id is Optio Academy. */
+/** Legacy fallback: true when this org id is Optio Academy. */
 export const isOptioAcademyOrg = (orgId) => !!orgId && orgId === OPTIO_ACADEMY_ORG_ID
 
 /**
- * True when the viewer belongs to Optio Academy.
+ * True when the viewer belongs to a family-first school.
  *
  * Checks BOTH sides because a parent reaches a school two different ways: org
  * members carry organization_id, while a platform parent belongs to the school
  * only through their child (OrganizationContext's `school`, resolved by /me).
+ * The flag wins wherever a payload carries it; the org-id check remains as the
+ * transition fallback.
  */
-export const inOptioAcademy = ({ user, school } = {}) => (
-  isOptioAcademyOrg(user?.organization_id) || isOptioAcademyOrg(school?.id)
-)
+export const inOptioAcademy = ({ user, school } = {}) => {
+  const s = school || user?.school
+  if (s?.family_first_home) return true
+  if (user?.organization?.feature_flags?.sis_settings?.family_first_home) return true
+  return isOptioAcademyOrg(user?.organization_id) || isOptioAcademyOrg(s?.id)
+}
+
+/** The same question asked of a school-context org entry (SchoolPage). */
+export const isFamilyFirstHubOrg = (org) =>
+  Boolean(org?.family_first_home) || isOptioAcademyOrg(org?.organization_id)

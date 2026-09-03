@@ -21,8 +21,10 @@ SENDGRID_TIMEOUT = 15
 
 # Orgs whose transactional emails should NOT be copied to SUPPORT_COPY_EMAIL.
 # iCreate's system emails are high-volume and stable, so the owner asked to stop
-# receiving [COPY] duplicates of them (2026-08-05). Add a slug here to opt another
-# org out of the monitoring copy.
+# receiving [COPY] duplicates of them (2026-08-05). Blocks P4: the opt-out is a
+# per-org flag now (feature_flags.suppress_support_copy); the slug set below is
+# the transition fallback until the flag is set on iCreate's row
+# (docs/blocks/P4_NOTES.md). Delete it once that write has shipped.
 SUPPORT_COPY_EXCLUDE_ORG_SLUGS = {'icreate'}
 
 
@@ -245,7 +247,12 @@ class EmailService(BaseService):
             elif support_copy is None:
                 # Skip the monitoring copy for opted-out orgs (e.g. iCreate) so
                 # their high-volume, stable system mail doesn't flood the inbox.
-                support_copy = (recipient_org or {}).get('slug') not in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
+                # Flag first (feature_flags.suppress_support_copy); the slug set
+                # remains as the transition fallback.
+                support_copy = not (
+                    org_flags.get('suppress_support_copy') is True
+                    or (recipient_org or {}).get('slug') in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
+                )
             if (support_copy
                     and support_email not in cc
                     and to_email.lower() != support_copy_email.lower()):

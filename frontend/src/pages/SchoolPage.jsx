@@ -11,7 +11,7 @@ import { useOrganization } from '../contexts/OrganizationContext'
 import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
-import { isOptioAcademyOrg } from '../config/optioAcademy'
+import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
@@ -60,15 +60,15 @@ const PAGE_SIZE = 20
 const SCHOOL_LIFE_CARDS = [
   {
     name: 'Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
-    description: 'Field trips, showcases and closures.',
+    description: 'Field trips, showcases and closures.', module: 'calendar', module: 'calendar',
   },
   {
     name: 'Resources', path: '/resources', Icon: BookOpenIcon,
-    description: 'Guidebooks, contracts and forms to refer back to.',
+    description: 'Guidebooks, contracts and forms to refer back to.', module: 'resources', module: 'resources',
   },
   {
     name: 'Directory', path: '/family-directory', Icon: UsersIcon,
-    description: 'Contact details for families who opted in.',
+    description: 'Contact details for families who opted in.', module: 'community', module: 'community',
   },
   // Everyone's card, not guardian-only: students see the board too (it may
   // explain their own ride) — the backend keeps posting adults-only.
@@ -81,19 +81,19 @@ const SCHOOL_LIFE_CARDS = [
 const FAMILY_CARDS = [
   {
     name: 'Absences', path: '/absences', Icon: CalendarIcon,
-    description: 'Let us know when your child will be out.', guardianOnly: true,
+    description: 'Let us know when your child will be out.', guardianOnly: true, module: 'attendance', module: 'attendance',
   },
   {
     name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
-    description: 'Your balance, invoices and receipts.', guardianOnly: true,
+    description: 'Your balance, invoices and receipts.', guardianOnly: true, module: 'billing',
   },
   {
     name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
-    description: 'Checklists assigned to your family.', guardianOnly: true,
+    description: 'Checklists assigned to your family.', guardianOnly: true, module: 'onboarding', module: 'onboarding',
   },
   {
     name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
-    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true,
+    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true, module: 'forms', module: 'forms',
   },
 ]
 
@@ -103,12 +103,12 @@ const flowCard = (postRegistrationFlow) => (
     ? {
       name: 'Goal Setting', path: '/family/goals', Icon: CheckCircleIcon,
       description: 'Set a direction and per-subject goals for each child.',
-      guardianOnly: true,
+      guardianOnly: true, module: 'goals', module: 'goals',
     }
     : {
       name: 'Schedule', path: '/schedule-builder', Icon: TableCellsIcon,
       description: 'Build and change your children’s class schedules.',
-      guardianOnly: true,
+      guardianOnly: true, module: 'classes', module: 'classes',
     }
 )
 
@@ -117,18 +117,18 @@ const flowCard = (postRegistrationFlow) => (
 const priorLearningCard = {
   name: 'Prior Learning', path: '/family/prior-learning', Icon: AcademicCapIcon,
   description: 'Submit learning done before Optio for high-school credit.',
-  guardianOnly: true,
+  guardianOnly: true, module: 'prior_learning', module: 'prior_learning',
 }
 
 /** The rail, grouped. A student gets only the School life group. */
 export function cardGroupsFor(org) {
   if (!org) return []
-  // Optio Academy runs almost none of the school-community surfaces (its
-  // hidden_modules turns off calendar, resources, classes, attendance and the
-  // rest), so the full card set was a row of doors onto empty rooms — which is
-  // why its parents had this page taken out of the nav entirely. It's back for
-  // Prior Learning, and that is ALL it carries for this school.
-  if (isOptioAcademyOrg(org.organization_id)) {
+  // A family-first school (sis_settings.family_first_home — Optio Academy is
+  // the original) runs almost none of the school-community surfaces, so the
+  // full card set was a row of doors onto empty rooms — which is why its
+  // parents had this page taken out of the nav entirely. It's back for Prior
+  // Learning, and that is ALL it carries for such a school.
+  if (isFamilyFirstHubOrg(org)) {
     return org.is_guardian && org.prior_learning_enabled
       ? [{ id: 'family', title: 'My family', cards: [priorLearningCard] }]
       : []
@@ -138,7 +138,14 @@ export function cardGroupsFor(org) {
   const groups = []
   if (org.is_guardian) groups.push({ id: 'family', title: 'My family', cards: family })
   groups.push({ id: 'school-life', title: 'School life', cards: SCHOOL_LIFE_CARDS })
+  // Blocks P3: the server names which family-surface modules this school runs
+  // (school_context orgs[].modules); a card whose module is off disappears, and
+  // a group left with no cards goes with it. An older payload without the list,
+  // or a card the registry has no key for (Carpool), keeps showing.
+  if (!Array.isArray(org.modules)) return groups
   return groups
+    .map((g) => ({ ...g, cards: g.cards.filter((c) => !c.module || org.modules.includes(c.module)) }))
+    .filter((g) => g.cards.length > 0)
 }
 
 /** Flat list — kept for callers that only care about which doors exist. */
@@ -305,11 +312,11 @@ export default function SchoolPage() {
   const hasMore = announcements.length < total
   const schoolName = school?.name || orgName
   const cardGroups = cardGroupsFor(schoolOrg)
-  // Optio Academy gets the rail and nothing beside it. The feed is the page
-  // for a school that talks to its families here; this school doesn't, so
+  // A family-first school gets the rail and nothing beside it. The feed is the
+  // page for a school that talks to its families here; this school doesn't, so
   // rendering it would put an empty shell next to the one card the page
   // exists to carry.
-  const cardsOnly = isOptioAcademyOrg(schoolOrg?.organization_id)
+  const cardsOnly = isFamilyFirstHubOrg(schoolOrg)
 
   // Wait for /me before deciding — redirecting on a not-yet-loaded context
   // would bounce every member of a school on a hard refresh. When the school

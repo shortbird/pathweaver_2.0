@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { isSimplifiedPartnerOrg } from '../../config/partnerOrgs'
+import { usesSimplifiedPartnerDashboard } from '../../config/partnerOrgs'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from '../sis/useSisOrg'
 import SisOrgPicker from '../sis/SisOrgPicker'
@@ -14,10 +14,12 @@ import AnnouncementsTab from '../../components/organization/AnnouncementsTab'
 import GettingStartedChecklist from '../../components/organization/GettingStartedChecklist'
 import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
 import BountyBoardPage from '../BountyBoardPage'
+import OrgStudentProgress from '../../components/admin/OrgStudentProgress'
 
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
+  { id: 'progress', label: 'Progress' },
   { id: 'classes', label: 'Classes' },
   { id: 'announcements', label: 'Announcements' },
   { id: 'quests', label: 'Quests' },
@@ -31,6 +33,7 @@ const TABS = [
 const TAB_DESCRIPTIONS = {
   settings: "Manage your organization's name, branding, and account settings.",
   people: 'Add and manage your students, parents, and advisors. Invite new members and set their roles.',
+  progress: "See every student's XP, quests, and activity at a glance — filter by date range and export to CSV.",
   classes: 'Group students into classes, assign quests, and schedule when each quest becomes available to the class.',
   announcements: 'Send a notification through Optio to everyone in your organization — students, advisors, and parents.',
   quests: 'Create organization-specific quests for your students and control which Optio quests are available to them.',
@@ -44,12 +47,12 @@ const TAB_DESCRIPTIONS = {
 // ('classes' is a live tab again as of 2026-06-15 — class management + quest scheduling.)
 // ('quests' is a live tab again as of 2026-06-25 — org-specific quest creation +
 //  visibility management, so it is no longer redirected to 'courses'.)
+// ('progress' is a live tab again as of blocks P2 — OrgStudentProgress mounted.)
 const TAB_REDIRECTS = {
   'overview': 'settings',
   'users': 'people',
   'connections': 'people',
-  'advisors': 'people',
-  'progress': 'settings'
+  'advisors': 'people'
 }
 
 export default function OrganizationManagement() {
@@ -74,7 +77,7 @@ export default function OrganizationManagement() {
   // Simplified-partner org admins (e.g. OnFire Learning) use the focused /onfire
   // dashboard, not the full org-management UI. Superadmins still see it normally.
   const redirectToPartnerDashboard =
-    user?.org_role === 'org_admin' && isSimplifiedPartnerOrg(user?.organization_id)
+    user?.org_role === 'org_admin' && usesSimplifiedPartnerDashboard(user)
 
   const [orgData, setOrgData] = useState(null)
   const [siteSettings, setSiteSettings] = useState(null)
@@ -272,6 +275,10 @@ export default function OrganizationManagement() {
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />
+      )}
+
+      {activeTab === 'progress' && (
+        <OrgStudentProgress orgId={orgId} />
       )}
 
       {activeTab === 'classes' && (

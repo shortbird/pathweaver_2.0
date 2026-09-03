@@ -24,3 +24,4 @@ from . import advisors
 from . import students
 from . import quests
 from . import messaging
+from . import invites

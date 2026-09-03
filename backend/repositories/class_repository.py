@@ -588,7 +588,9 @@ class ClassRepository(BaseRepository):
             return False
 
         # Org admins (and campus coordinators, who run the campus) can access
-        # classes in their org
+        # classes in their org -- class management is operational, not financial
+        # (sis_roles.ADMIN_ROLES). Tested against the whole role set, never a
+        # single collapsed role: see routes/classes/_caller.py.
         if roles & {'org_admin', 'campus_coordinator'} and user_org_id == cls.get('organization_id'):
             return True
 

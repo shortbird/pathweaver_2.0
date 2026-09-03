@@ -4,26 +4,18 @@ import api from '../../services/api'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
-import SisOrgSettings from '../../components/sis/SisOrgSettings'
-import ClassroomsCard from '../../components/sis/ClassroomsCard'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
-import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
-import CalendarCategoriesCard from '../../components/sis/CalendarCategoriesCard'
-import QuickLinksCard from '../../components/sis/QuickLinksCard'
-import KioskDevicesCard from '../../components/sis/KioskDevicesCard'
+import { SettingsCards } from '../../settings/settingsRegistry'
 
 /**
- * SIS Settings page — org details, branding/logo, AI feature toggles, and School
- * Jobs visibility. Renders SisOrgSettings -- the native SIS replacement for the
- * legacy org SettingsTab, NOT that component itself -- and resolves the org
- * through the SIS picker so superadmins can operate across any organization,
- * consistent with every other SIS page.
- *
- * Note for anyone adding an org setting: there are TWO surfaces. SIS orgs land
- * here (SisOrgSettings); non-SIS orgs use the legacy SettingsTab under
- * /admin/organizations/:orgId. A control added to only one is invisible to half
- * the customers.
+ * SIS Settings page — the console surface of the ONE settings registry
+ * (settings/settingsRegistry.jsx, blocks P3). Cards render when their module
+ * is on for the org and the caller's tier allows them; the same registry
+ * drives the learning app's /organization Settings tab, so a control added
+ * there appears here (and vice versa) without a second implementation.
+ * Resolves the org through the SIS picker so superadmins can operate across
+ * any organization, consistent with every other SIS page.
  *
  * Registration config lives on the Registration page (the editable funnel),
  * NOT here — it was moved twice and staff kept looking for it on /registration,
@@ -82,23 +74,16 @@ const SettingsPage = () => {
       ) : !orgData?.organization ? (
         <p className="text-neutral-500">Organization not found.</p>
       ) : (
-        <div className="grid gap-6">
-          {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
-          {seesOrgCard && (
-            <SisOrgSettings
-              key={orgId}
-              orgId={orgId}
-              orgData={orgData}
-              onUpdate={fetchOrg}
-              onLogoChange={refreshOrganization}
-            />
-          )}
-          <ClassroomsCard key={`rooms-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
-          <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
-          <CalendarCategoriesCard key={`cats-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
-          <QuickLinksCard key={`links-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
-          <KioskDevicesCard key={`kiosk-${orgId}`} orgId={orgId} />
-        </div>
+        /* per-card keys include orgId, remounting the uncontrolled forms when
+           the superadmin switches orgs */
+        <SettingsCards
+          surface="console"
+          orgId={orgId}
+          orgData={orgData}
+          seesFinance={seesOrgCard}
+          onUpdate={fetchOrg}
+          onLogoChange={refreshOrganization}
+        />
       )}
     </div>
   )

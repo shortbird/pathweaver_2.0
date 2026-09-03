@@ -18,6 +18,7 @@ import io
 from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
+from modules.gate import require_module
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_staff_service as staff
@@ -115,6 +116,7 @@ def delete_assignment(user_id, assignment_id):
 
 @bp.route('/forms', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def list_forms(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -127,6 +129,7 @@ def list_forms(user_id):
 
 @bp.route('/forms/<submission_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def update_form(user_id, submission_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -140,6 +143,7 @@ def update_form(user_id, submission_id):
 
 @bp.route('/forms', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def create_form(user_id):
     """Admin files a request/task, optionally already assigned, prioritised and
     dated — the internal task system's create door (iCreate Phase 2)."""
@@ -155,6 +159,7 @@ def create_form(user_id):
 
 @bp.route('/form-routing', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def get_form_routing(user_id):
     """Which form type is auto-assigned to whom.
 
@@ -171,6 +176,7 @@ def get_form_routing(user_id):
 
 @bp.route('/form-routing', methods=['PUT'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def put_form_routing(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -184,6 +190,7 @@ def put_form_routing(user_id):
 
 @bp.route('/forms/<submission_id>/comments', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def list_form_comments(user_id, submission_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -194,6 +201,7 @@ def list_form_comments(user_id, submission_id):
 
 @bp.route('/forms/<submission_id>/comments', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def add_form_comment(user_id, submission_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -213,6 +221,7 @@ def add_form_comment(user_id, submission_id):
 
 @bp.route('/form-templates', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def list_form_templates(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -244,6 +253,7 @@ def set_builtin_form_visibility(user_id, key):
 
 @bp.route('/form-templates', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def create_form_template(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -256,6 +266,7 @@ def create_form_template(user_id):
 
 @bp.route('/form-templates/<template_id>', methods=['PUT'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def update_form_template(user_id, template_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -269,6 +280,7 @@ def update_form_template(user_id, template_id):
 
 @bp.route('/form-templates/<template_id>/duplicate', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def duplicate_form_template(user_id, template_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -281,6 +293,7 @@ def duplicate_form_template(user_id, template_id):
 
 @bp.route('/form-templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_module('forms')
 def delete_form_template(user_id, template_id):
     """409 with submission_count when submissions exist, unless ?force=1."""
     org_id, err = _org_or_error(user_id)
@@ -296,6 +309,7 @@ def delete_form_template(user_id, template_id):
 
 @bp.route('/onboarding/templates', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def list_templates(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -305,6 +319,7 @@ def list_templates(user_id):
 
 @bp.route('/onboarding/templates', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def create_template(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -317,6 +332,7 @@ def create_template(user_id):
 
 @bp.route('/onboarding/templates/<template_id>', methods=['PUT'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def update_template(user_id, template_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -330,6 +346,7 @@ def update_template(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>/duplicate', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def duplicate_template(user_id, template_id):
     """Copy a template under a free "(Copy)" name. Server-side so the copy keeps
     blocks_access and drops the original's per-person document bindings."""
@@ -344,6 +361,7 @@ def duplicate_template(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>/sync', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def sync_template_assignments(user_id, template_id):
     """Push this template's current items onto checklists already assigned.
     Returns counts: what was added, updated, removed, and how many finished
@@ -359,6 +377,7 @@ def sync_template_assignments(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def delete_template(user_id, template_id):
     """Delete a template. 409 (with assigned_count) when people still hold a
     checklist from it, unless the caller passes ?force=1 after confirming."""
@@ -375,6 +394,7 @@ def delete_template(user_id, template_id):
 
 @bp.route('/onboarding/assignments', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def list_onboarding_assignments(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -388,6 +408,7 @@ def list_onboarding_assignments(user_id):
 
 @bp.route('/onboarding/assignments', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def assign_onboarding(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -424,6 +445,7 @@ def assign_onboarding(user_id):
 
 @bp.route('/onboarding/assignments/<assignment_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def unassign_onboarding(user_id, assignment_id):
     """Take a checklist back off someone. Their uploaded documents are kept."""
     org_id, err = _org_or_error(user_id)
@@ -465,6 +487,7 @@ def onboarding_admin_doc_url(user_id):
 
 @bp.route('/onboarding/recipients', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('onboarding')
 def onboarding_recipients(user_id):
     """People an admin can assign a template to. ?audience=staff returns staff;
     ?audience=family returns the org's guardians (parents) for family checklists."""
@@ -485,6 +508,7 @@ def onboarding_recipients(user_id):
 
 @bp.route('/signature-requests', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('tasks')
 def send_signature_request(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -494,6 +518,7 @@ def send_signature_request(user_id):
 
 @bp.route('/signature-requests', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_module('tasks')
 def list_signature_requests(user_id):
     """Campus paperwork sends only — HR sends stay invisible here even to an
     org_admin, who has the HR view for those."""
@@ -505,6 +530,7 @@ def list_signature_requests(user_id):
 
 @bp.route('/signature-requests/<assignment_id>/remind', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('tasks')
 def remind_signature_request(user_id, assignment_id):
     """Chase one person who has not signed. HR sends 404 here."""
     org_id, err = _org_or_error(user_id)
@@ -516,6 +542,7 @@ def remind_signature_request(user_id, assignment_id):
 
 @bp.route('/signature-requests/<assignment_id>/release', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_module('tasks')
 def release_signature_hold(user_id, assignment_id):
     """Let a family back into the platform without signing. HR sends 404 here."""
     org_id, err = _org_or_error(user_id)
@@ -538,6 +565,7 @@ def _period_or_error():
 
 @bp.route('/timesheets', methods=['GET'])
 @require_role(*FINANCE_ROLES)
+@require_module('timesheets')
 def timesheets(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -555,6 +583,7 @@ def timesheets(user_id):
 
 @bp.route('/time-entries/<entry_id>', methods=['PATCH'])
 @require_role(*FINANCE_ROLES)
+@require_module('timesheets')
 def edit_time_entry(user_id, entry_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -568,6 +597,7 @@ def edit_time_entry(user_id, entry_id):
 
 @bp.route('/timesheets/approve', methods=['POST'])
 @require_role(*FINANCE_ROLES)
+@require_module('timesheets')
 def approve_timesheet(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -582,6 +612,7 @@ def approve_timesheet(user_id):
 
 @bp.route('/payroll.csv', methods=['GET'])
 @require_role(*FINANCE_ROLES)
+@require_module('timesheets')
 def payroll_csv(user_id):
     org_id, err = _org_or_error(user_id)
     if err:

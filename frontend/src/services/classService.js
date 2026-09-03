@@ -83,6 +83,32 @@ const classService = {
     return response.data
   },
 
+  // ===== Invite Links (blocks P2) =====
+
+  /**
+   * Get the class's standing invite link ({ link: null } when none exists)
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   */
+  getClassInviteLink: async (orgId, classId) => {
+    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/invite-link`)
+    return response.data
+  },
+
+  /**
+   * Create the class's invite link, or rotate it (invalidates the old one)
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {object} options - { rotate: true } to replace an existing link
+   */
+  createClassInviteLink: async (orgId, classId, options = {}) => {
+    const response = await api.post(
+      `/api/organizations/${orgId}/classes/${classId}/invite-link`,
+      options.rotate ? { rotate: true } : {},
+    )
+    return response.data
+  },
+
   // ===== Advisor Management =====
 
   /**

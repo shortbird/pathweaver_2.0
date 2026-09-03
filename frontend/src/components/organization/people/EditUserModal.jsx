@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import api from '../../../services/api'
 import toast from 'react-hot-toast'
-import { TrashIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, NoSymbolIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 
 /**
  * Modal for editing organization user details.
@@ -29,6 +29,33 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
   const [resetLoading, setResetLoading] = useState(false)
 
   const isUsernameAccount = user.username && !user.email
+  const [accountStatus, setAccountStatus] = useState(user.status || 'active')
+  const [statusLoading, setStatusLoading] = useState(false)
+  // The backend refuses status changes on admin accounts; don't offer the button.
+  const isAdminTarget = user.is_org_admin || getEffectiveRoles().includes('org_admin')
+
+  const handleToggleStatus = async () => {
+    const disabling = accountStatus !== 'disabled'
+    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email
+    if (disabling && !confirm(`Disable ${name}'s account? They will not be able to log in until re-enabled.`)) {
+      return
+    }
+    setStatusLoading(true)
+    setError('')
+    try {
+      const response = await api.post(
+        `/api/admin/organizations/${orgId}/users/${user.id}/status`,
+        { status: disabling ? 'disabled' : 'active' }
+      )
+      setAccountStatus(response.data.status)
+      toast.success(response.data.message || 'Account updated')
+    } catch (err) {
+      const errorData = err.response?.data?.error || err.response?.data?.message
+      setError(typeof errorData === 'string' ? errorData : 'Failed to update account status')
+    } finally {
+      setStatusLoading(false)
+    }
+  }
 
   const handleRegeneratePassword = async () => {
     setResetLoading(true)
@@ -223,6 +250,7 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
           )}
 
           <div className="flex justify-between items-center">
+            <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => {
@@ -236,6 +264,28 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
               <TrashIcon className="w-4 h-4" />
               Remove
             </button>
+            {!isAdminTarget && (
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                disabled={statusLoading}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
+                  accountStatus === 'disabled'
+                    ? 'text-green-700 hover:bg-green-50'
+                    : 'text-amber-600 hover:bg-amber-50'
+                }`}
+                title={accountStatus === 'disabled'
+                  ? 'Let this person log in again'
+                  : 'Block logins without removing the account'}
+              >
+                {accountStatus === 'disabled' ? (
+                  <><ArrowPathIcon className="w-4 h-4" />{statusLoading ? 'Working…' : 'Enable'}</>
+                ) : (
+                  <><NoSymbolIcon className="w-4 h-4" />{statusLoading ? 'Working…' : 'Disable'}</>
+                )}
+              </button>
+            )}
+            </div>
             <div className="flex gap-3">
               <button
                 type="button"

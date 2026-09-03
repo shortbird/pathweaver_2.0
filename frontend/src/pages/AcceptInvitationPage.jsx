@@ -339,7 +339,12 @@ export default function AcceptInvitationPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome!</h1>
             <p className="text-gray-600 mb-2">
-              You've been added to <strong>{invitation?.organization?.name}</strong>.
+              {invitation?.is_class_invitation && invitation?.class?.name ? (
+                <>You've joined <strong>{invitation.class.name}</strong> at{' '}
+                <strong>{invitation?.organization?.name}</strong>.</>
+              ) : (
+                <>You've been added to <strong>{invitation?.organization?.name}</strong>.</>
+              )}
             </p>
             {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
               <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg text-sm text-optio-purple-dark mb-4">
@@ -424,7 +429,11 @@ export default function AcceptInvitationPage() {
               Join {invitation?.organization?.name}
             </h1>
             <p className="text-gray-600">
-              You're invited to join as a <strong>{invitation?.role}</strong>
+              {invitation?.is_class_invitation && invitation?.class?.name ? (
+                <>You're invited to join the class <strong>{invitation.class.name}</strong></>
+              ) : (
+                <>You're invited to join as a <strong>{invitation?.role}</strong></>
+              )}
             </p>
           </div>
 
@@ -523,7 +532,11 @@ export default function AcceptInvitationPage() {
             Join {invitation?.organization?.name}
           </h1>
           <p className="text-gray-600">
-            You've been invited to join as a <strong>{invitation?.role}</strong>
+            {invitation?.is_class_invitation && invitation?.class?.name ? (
+              <>You've been invited to join the class <strong>{invitation.class.name}</strong></>
+            ) : (
+              <>You've been invited to join as a <strong>{invitation?.role}</strong></>
+            )}
           </p>
           {/* Show students for parent invitations */}
           {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (

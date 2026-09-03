@@ -65,6 +65,10 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
+                                # empty, not absent: this fixture row has no
+                                # feature_flags, so every family module is off
+                                'modules': [],
+                                'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
@@ -78,6 +82,10 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
+                                # empty, not absent: this fixture row has no
+                                # feature_flags, so every family module is off
+                                'modules': [],
+                                'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
                                 'logo_url': 'data:image/png;base64,x',
@@ -262,6 +270,8 @@ class TestSuperadminPreviewListing:
         assert out['orgs'][0] == {'organization_id': 'org-1',
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
+                                  'modules': [],
+                                'family_first_home': False,
                                   'post_registration_flow': 'schedule',
                                   'prior_learning_enabled': False,
                                   'logo_url': 'data:image/png;base64,x',

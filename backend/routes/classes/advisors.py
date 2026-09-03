@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.roles import get_effective_roles
 from ._caller import get_caller, is_superadmin
 from database import get_supabase_admin_client
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/advisors', methods=['GET'])
-@require_role('student', 'org_admin', 'advisor', 'superadmin')
+@require_role('student', *STAFF_ROLES)
 def get_class_advisors(user_id, org_id, class_id):
     """
     Get all advisors assigned to a class.
@@ -65,7 +66,7 @@ def get_class_advisors(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/advisors', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def add_class_advisor(user_id, org_id, class_id):
     """
     Add an advisor to a class.
@@ -140,7 +141,7 @@ def add_class_advisor(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/advisors/<advisor_id>', methods=['DELETE'])
-@require_role('org_admin', 'superadmin')
+@require_role(*ADMIN_ROLES)
 def remove_class_advisor(user_id, org_id, class_id, advisor_id):
     """
     Remove an advisor from a class.

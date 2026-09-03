@@ -1,10 +1,15 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { moduleEnabled } from '../../modules/moduleEnabled'
 
-// Native SIS replacement for the legacy org SettingsTab: organization details +
+// The shared org identity + features card (settings/settingsRegistry.jsx
+// renders it on BOTH surfaces since blocks P3). Organization details +
 // branding merged into one card, and every feature toggle (AI master/granular,
-// bounty visibility) merged into another. Same endpoints as the legacy tab.
+// bounty visibility, XP policy) merged into another. SIS-specific rows
+// (Schedule Builder courses, materials allowance, family directory default)
+// render only when their building block is on, so a non-SIS org sees none
+// of them.
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -29,10 +34,15 @@ const ToggleRow = ({ label, description, on, onClick, disabled, indent = false }
   </div>
 )
 
-const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
+const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false }) => {
   const org = orgData?.organization || {}
   const [name, setName] = useState(org.name || '')
   const [slug, setSlug] = useState(org.slug || '')
+  // The slug is the school's login link, printed on QR codes families keep.
+  // Only Optio staff may rename it; for everyone else the field is read-only
+  // and the value is left out of the payload (the server drops it anyway,
+  // which reads as a silent failure).
+  const slugChanged = canEditSlug && slug !== (org.slug || '')
   const [savingDetails, setSavingDetails] = useState(false)
   const [logoUrl, setLogoUrl] = useState(org.branding_config?.logo_url || '')
   // Logo edits are staged and saved with the Save button alongside name/slug.
@@ -49,6 +59,14 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
   // backend/utils/xp_permissions.py. Mirrored on the legacy org SettingsTab --
   // SIS orgs land here, not there, so both surfaces carry the control.
   const [lockXpEditing, setLockXpEditing] = useState(org.feature_flags?.lock_xp_editing ?? false)
+  // Weekly XP goals. Off by default -- a target is a commitment a school makes
+  // to its families. Enforced server-side in backend/services/xp_goal_service.py.
+  const [xpGoals, setXpGoals] = useState(org.feature_flags?.xp_goals ?? false)
+  // Which SIS-specific rows this org gets (blocks P3): each is chrome over a
+  // module the Blocks panel controls; the backend gates the endpoints.
+  const showCourseRows = moduleEnabled(org, 'classes')
+  const showAllowance = moduleEnabled(org, 'billing')
+  const showDirectoryRow = moduleEnabled(org, 'community')
   // At-home learning: whether Optio platform courses appear in the family Schedule Builder.
   const [optioCourses, setOptioCourses] = useState(org.feature_flags?.sis_settings?.optio_courses_enabled ?? true)
   const [savingToggle, setSavingToggle] = useState(false)
@@ -107,10 +125,10 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
 
   const saveDetails = async () => {
     if (!name.trim()) return toast.error('Name is required')
-    if (!/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
+    if (canEditSlug && !/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
     setSavingDetails(true)
     try {
-      const payload = { name: name.trim(), slug }
+      const payload = canEditSlug ? { name: name.trim(), slug } : { name: name.trim() }
       if (pendingLogo !== undefined) {
         payload.branding_config = { ...org.branding_config, logo_url: pendingLogo }
       }
@@ -201,8 +219,28 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
             <input className={field} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="flex-1 min-w-[160px]">
-            <label className="block text-xs font-medium text-neutral-500 mb-1">Slug <span className="text-neutral-400">(changes the registration URL)</span></label>
-            <input className={`${field} font-mono`} value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Slug <span className="text-neutral-400">(sets the school login link)</span></label>
+            <input
+              className={`${field} font-mono disabled:bg-gray-50 disabled:text-gray-500`}
+              value={slug}
+              disabled={!canEditSlug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            />
+            {canEditSlug ? (
+              <p className="text-xs text-neutral-500 mt-1">
+                The school login link becomes<span className="font-mono"> /login/{slug || '...'}</span>.
+              </p>
+            ) : (
+              <p className="text-xs text-neutral-500 mt-1">
+                Changed by Optio staff only.
+              </p>
+            )}
+            {slugChanged && (
+              <p className="text-xs text-amber-700 mt-1">
+                Renaming breaks the old login link and any printed QR codes. Share the
+                new link and reprint after saving.
+              </p>
+            )}
           </div>
           <button onClick={saveDetails} disabled={savingDetails}
             className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium hover:opacity-90 disabled:opacity-50">
@@ -241,6 +279,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
                 onClick={() => toggleField({ ai_task_generation_enabled: !taskGen }, () => setTaskGen(!taskGen))} />
             </>
           )}
+          {showCourseRows && (
           <ToggleRow
             label="Optio courses"
             description="Families can add Optio courses as at-home learning in the Schedule Builder"
@@ -253,7 +292,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               () => setOptioCourses(!optioCourses),
             )}
           />
-          {optioCourses && (
+          )}
+          {showCourseRows && optioCourses && (
             <div className="flex items-center justify-between pl-6 py-2">
               <div>
                 <p className="text-sm font-medium text-neutral-800">Optio course tuition</p>
@@ -272,6 +312,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               </div>
             </div>
           )}
+          {showAllowance && (
           <div className="flex items-center justify-between py-2">
             <div>
               <p className="text-sm font-medium text-neutral-800">Materials allowance per student</p>
@@ -292,6 +333,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               />
             </div>
           </div>
+          )}
+          {showDirectoryRow && (
           <ToggleRow
             label="Family directory lists everyone by default"
             description="On: every family appears in the family directory unless they choose to be left out. Off: a family only appears once they opt in. Either way, each family picks whether their email, phone and street address are shown."
@@ -305,6 +348,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               () => setDirectoryDefaultIn(!directoryDefaultIn),
             )}
           />
+          )}
           <ToggleRow
             label="Public bounties"
             description="Students also see the platform-wide public bounty board. Bounties your organization posts always show."
@@ -321,6 +365,15 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
             onClick={() => toggleField(
               { feature_flags: { ...(org.feature_flags || {}), lock_xp_editing: !lockXpEditing } },
               () => setLockXpEditing(!lockXpEditing),
+            )}
+          />
+          <ToggleRow
+            label="Weekly XP goals"
+            description="Lets students, parents, and teachers set a weekly XP target that shows on the student's profile with live progress. Off by default; the goal is a target, not a grade."
+            on={xpGoals} disabled={savingToggle}
+            onClick={() => toggleField(
+              { feature_flags: { ...(org.feature_flags || {}), xp_goals: !xpGoals } },
+              () => setXpGoals(!xpGoals),
             )}
           />
         </div>

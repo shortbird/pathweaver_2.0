@@ -5,6 +5,12 @@ NEW, additive (/api/sis/parent). Unlike the rest of /api/sis (staff-gated), thes
 use @require_auth and authorize by family relationship inside sis_parent_service
 (the user must be a guardian of the student, in a SIS-enabled org). Self-service
 ends at the CLP meeting; staff invoice and full payment auto-enrolls.
+
+Blocks P3: routes are tagged per module with @require_module. Deliberately
+UNGATED (allowlisted in test_module_coverage): /context and /required-documents
+(both asked before the app knows what it may render — the gate must stay
+askable), /photo and /students/<id>/photo (profile basics, part of the sis
+core), and /quests (school-wide family engagement, no single module owns it).
 """
 
 import uuid
@@ -12,6 +18,7 @@ import uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
+from modules.gate import require_module
 from utils.logger import get_logger
 from services import sis_parent_service as parent
 from services import sis_access_gate
@@ -44,6 +51,7 @@ def get_context(user_id):
 
 @bp.route('/classes', methods=['GET'])
 @require_auth
+@require_module('classes')
 def open_classes(user_id):
     org_id = _org(request)
     if not org_id:
@@ -56,12 +64,14 @@ def open_classes(user_id):
 
 @bp.route('/registrations', methods=['GET'])
 @require_auth
+@require_module('registration')
 def list_registrations(user_id):
     return jsonify({'success': True, 'registrations': parent.list_my_registrations(user_id)})
 
 
 @bp.route('/registrations', methods=['POST'])
 @require_auth
+@require_module('registration')
 def create_registration(user_id):
     data = request.json or {}
     org_id = _org(request)
@@ -76,6 +86,7 @@ def create_registration(user_id):
 
 @bp.route('/registrations/<reg_id>', methods=['GET'])
 @require_auth
+@require_module('registration')
 def get_registration(user_id, reg_id):
     org_id = _org(request)
     if not org_id:
@@ -88,6 +99,7 @@ def get_registration(user_id, reg_id):
 
 @bp.route('/registrations/<reg_id>/items', methods=['POST'])
 @require_auth
+@require_module('registration')
 def add_item(user_id, reg_id):
     data = request.json or {}
     org_id = _org(request)
@@ -103,6 +115,7 @@ def add_item(user_id, reg_id):
 
 @bp.route('/registrations/<reg_id>/items/<item_id>', methods=['DELETE'])
 @require_auth
+@require_module('registration')
 def remove_item(user_id, reg_id, item_id):
     org_id = _org(request)
     if not org_id:
@@ -115,6 +128,7 @@ def remove_item(user_id, reg_id, item_id):
 
 @bp.route('/registrations/<reg_id>/quote', methods=['GET'])
 @require_auth
+@require_module('registration')
 def quote(user_id, reg_id):
     org_id = _org(request)
     if not org_id:
@@ -127,6 +141,7 @@ def quote(user_id, reg_id):
 
 @bp.route('/registrations/<reg_id>/submit', methods=['POST'])
 @require_auth
+@require_module('registration')
 def submit(user_id, reg_id):
     org_id = _org(request)
     if not org_id:
@@ -141,6 +156,7 @@ def submit(user_id, reg_id):
 # ── Family billing (balance, invoices, printable receipts) ───────────────────
 @bp.route('/billing', methods=['GET'])
 @require_auth
+@require_module('billing')
 def family_billing(user_id):
     """Balance + invoices (line items, installments) + payments for every
     household the caller guards (guardian household_member or the household's
@@ -151,6 +167,7 @@ def family_billing(user_id):
 
 @bp.route('/billing/receipts/<payment_id>', methods=['GET'])
 @require_auth
+@require_module('billing')
 def billing_receipt(user_id, payment_id):
     """Printable receipt payload for one recorded payment (guardian-only)."""
     from services import sis_billing_service as billing
@@ -163,6 +180,7 @@ def billing_receipt(user_id, payment_id):
 
 @bp.route('/billing/invoices/<invoice_id>/checkout', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_invoice_checkout(user_id, invoice_id):
     """Start an online card payment for an invoice on the school's own Stripe
     account. Body: {return_url}. Returns a hosted checkout URL."""
@@ -177,6 +195,7 @@ def billing_invoice_checkout(user_id, invoice_id):
 
 @bp.route('/billing/invoices/<invoice_id>/confirm-payment', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_invoice_confirm(user_id, invoice_id):
     """After returning from Stripe, verify a paid session and record the payment
     (idempotent). Returns {paid, payment?, invoice?}."""
@@ -197,6 +216,7 @@ def _installment_count(data):
 
 @bp.route('/billing/family-checkout', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_family_checkout(user_id):
     """One online payment covering every open invoice in a family. Body:
     {household_id, return_url}. Returns a hosted checkout URL."""
@@ -214,6 +234,7 @@ def billing_family_checkout(user_id):
 
 @bp.route('/billing/family-confirm', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_family_confirm(user_id):
     """After returning from a whole-family checkout, verify + record. Body:
     {household_id}. Returns {paid, recorded?}."""
@@ -230,6 +251,7 @@ def billing_family_confirm(user_id):
 
 @bp.route('/billing/invoices/<invoice_id>/autopay-setup', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_autopay_setup(user_id, invoice_id):
     """Start card setup for a 10-payment plan on an invoice. Body: {return_url,
     installment_count?}. Returns a hosted setup-checkout URL."""
@@ -246,6 +268,7 @@ def billing_autopay_setup(user_id, invoice_id):
 
 @bp.route('/billing/invoices/<invoice_id>/autopay-confirm', methods=['POST'])
 @require_auth
+@require_module('billing')
 def billing_autopay_confirm(user_id, invoice_id):
     """After returning from card setup, save the card + build the plan and charge
     the first installment. Body: {installment_count?, start_date?}. Returns
@@ -326,6 +349,7 @@ def upload_student_photo(user_id, student_id):
 # ── Planned absences (guardian reports a child will be out) ───────────────────
 @bp.route('/absences', methods=['GET'])
 @require_auth
+@require_module('attendance')
 def list_absences(user_id):
     org_id = _org(request)
     student_user_id = request.args.get('student_user_id')
@@ -339,6 +363,7 @@ def list_absences(user_id):
 
 @bp.route('/absences', methods=['POST'])
 @require_auth
+@require_module('attendance')
 def create_absence(user_id):
     """Report an absence for one child (student_user_id) or several at once
     (student_user_ids). Each child is written independently; the response lists
@@ -373,6 +398,7 @@ def create_absence(user_id):
 
 @bp.route('/absences/<absence_id>', methods=['DELETE'])
 @require_auth
+@require_module('attendance')
 def cancel_absence(user_id, absence_id):
     result = parent.cancel_absence(user_id, absence_id)
     if result.get('error'):
@@ -383,6 +409,7 @@ def cancel_absence(user_id, absence_id):
 
 @bp.route('/absences/cancel', methods=['POST'])
 @require_auth
+@require_module('attendance')
 def cancel_absences(user_id):
     """Cancel several absence reports in one call. The UI shows a reported
     date range as one row; cancelling it is one action and one office
@@ -400,6 +427,7 @@ def cancel_absences(user_id):
 # ── Schedule builder: add/drop/waitlist until the first day of school ─────────
 @bp.route('/students/<student_id>/schedule', methods=['GET'])
 @require_auth
+@require_module('classes')
 def student_schedule(user_id, student_id):
     """The student's current schedule (active classes + waitlist) plus whether
     self-service changes are still open (locks on the first day of school)."""
@@ -414,6 +442,7 @@ def student_schedule(user_id, student_id):
 
 @bp.route('/students/<student_id>/classes', methods=['POST'])
 @require_auth
+@require_module('classes')
 def add_student_class(user_id, student_id):
     """Add a class to the student's schedule: enrolls if there's a seat, joins
     the waitlist when full (and allowed)."""
@@ -431,6 +460,7 @@ def add_student_class(user_id, student_id):
 
 @bp.route('/students/<student_id>/classes/<class_id>', methods=['DELETE'])
 @require_auth
+@require_module('classes')
 def drop_student_class(user_id, student_id, class_id):
     """Drop a class from the student's schedule (and/or leave its waitlist)."""
     org_id = _org(request)
@@ -445,6 +475,7 @@ def drop_student_class(user_id, student_id, class_id):
 
 @bp.route('/students/<student_id>/classes/<class_id>/claim', methods=['POST'])
 @require_auth
+@require_module('classes')
 def claim_student_spot(user_id, student_id, class_id):
     """Claim a per-class waitlist spot the school offered: enrolls the student if
     the offer is still live and the seat is still open."""
@@ -461,6 +492,7 @@ def claim_student_spot(user_id, student_id, class_id):
 # ── UFA learning day ──────────────────────────────────────────────────────────
 @bp.route('/students/<student_id>/learning-day', methods=['PUT'])
 @require_auth
+@require_module('classes')
 def set_learning_day(user_id, student_id):
     """Save (or clear with choice=null) the student's learning-day choice —
     the UFA private school third instructional day (not an enrollable class)."""
@@ -517,6 +549,7 @@ def my_required_documents(user_id):
 # templates). A guardian only ever sees checklists assigned to their own user id.
 @bp.route('/onboarding', methods=['GET'])
 @require_auth
+@require_module('onboarding')
 def my_family_checklists(user_id):
     org_id = _org(request)
     if not org_id:
@@ -530,6 +563,7 @@ def my_family_checklists(user_id):
 
 @bp.route('/my-tasks', methods=['GET'])
 @require_auth
+@require_module('tasks')
 def my_family_tasks(user_id):
     """The guardian's side of the unified inbox: their checklists and any
     document the school has sent them to sign, in one list.
@@ -549,6 +583,7 @@ def my_family_tasks(user_id):
 
 @bp.route('/my-documents/<doc_id>/url', methods=['GET'])
 @require_auth
+@require_module('tasks', 'secure_documents', any_of=True)
 def family_office_document_url(user_id, doc_id):
     """Open a document the office put in this guardian's portal.
 
@@ -579,6 +614,7 @@ def family_office_document_url(user_id, doc_id):
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
 @require_auth
+@require_module('onboarding')
 def update_family_checklist_item(user_id, assignment_id, item_key):
     org_id = _org(request)
     if not org_id:
@@ -595,6 +631,7 @@ def update_family_checklist_item(user_id, assignment_id, item_key):
 
 @bp.route('/onboarding/upload', methods=['POST'])
 @require_auth
+@require_module('onboarding')
 def upload_family_checklist_doc(user_id):
     """Upload a document for a family checklist item to the PRIVATE family-documents
     bucket. Returns the storage path (read back via /onboarding/doc-url)."""
@@ -634,6 +671,7 @@ def upload_family_checklist_doc(user_id):
 
 @bp.route('/onboarding/doc-url', methods=['GET'])
 @require_auth
+@require_module('onboarding')
 def family_checklist_doc_url(user_id):
     """A short-lived signed URL for one of the guardian's own uploaded docs."""
     from database import get_supabase_admin_client
@@ -661,6 +699,7 @@ def family_checklist_doc_url(user_id):
 # ── Age-exception requests ─────────────────────────────────────────────────────
 @bp.route('/age-exception-requests', methods=['POST'])
 @require_auth
+@require_module('registration')
 def request_age_exception(user_id):
     """A guardian asks the school to allow a student into a class outside its
     posted age band. Timestamped; staff review on the SIS Registration page."""
@@ -682,6 +721,7 @@ def request_age_exception(user_id):
 # ── At-home learning: Optio courses (untimed) in the Schedule Builder ─────────
 @bp.route('/courses', methods=['GET'])
 @require_auth
+@require_module('courses')
 def home_learning_courses(user_id):
     """Optio courses a family can add for at-home learning (empty when the org
     has the Optio-courses toggle off)."""
@@ -696,6 +736,7 @@ def home_learning_courses(user_id):
 
 @bp.route('/students/<student_id>/courses', methods=['POST'])
 @require_auth
+@require_module('courses')
 def add_student_course(user_id, student_id):
     data = request.json or {}
     org_id = _org(request)
@@ -711,6 +752,7 @@ def add_student_course(user_id, student_id):
 
 @bp.route('/students/<student_id>/courses/<course_id>', methods=['DELETE'])
 @require_auth
+@require_module('courses')
 def drop_student_course(user_id, student_id, course_id):
     org_id = _org(request)
     if not org_id:
@@ -725,6 +767,7 @@ def drop_student_course(user_id, student_id, course_id):
 # ── Org resources (family document library) ───────────────────────────────────
 @bp.route('/resources', methods=['GET'])
 @require_auth
+@require_module('resources')
 def org_resources(user_id):
     org_id = _org(request)
     if not org_id:
@@ -738,6 +781,7 @@ def org_resources(user_id):
 # ── School calendar (family-visible events) ───────────────────────────────────
 @bp.route('/events', methods=['GET'])
 @require_auth
+@require_module('calendar')
 def org_events(user_id):
     """The school's event calendar for a guardian, windowed with ?from=&to=."""
     org_id = _org(request)
@@ -753,6 +797,7 @@ def org_events(user_id):
 
 @bp.route('/events/feed', methods=['GET'])
 @require_auth
+@require_module('calendar')
 def org_events_feed(user_id):
     """Subscribe URL for the school calendar — the .ics feed Google Calendar,
     Apple Calendar and Outlook can poll (family token: school events only)."""
@@ -768,6 +813,7 @@ def org_events_feed(user_id):
 # ── Family directory (opt-in) ─────────────────────────────────────────────────
 @bp.route('/directory', methods=['GET'])
 @require_auth
+@require_module('community')
 def family_directory(user_id):
     org_id = _org(request)
     if not org_id:
@@ -780,6 +826,7 @@ def family_directory(user_id):
 
 @bp.route('/directory/opt-in', methods=['GET'])
 @require_auth
+@require_module('community')
 def directory_opt_in_status(user_id):
     org_id = _org(request)
     if not org_id:
@@ -792,6 +839,7 @@ def directory_opt_in_status(user_id):
 
 @bp.route('/directory/opt-in', methods=['PUT'])
 @require_auth
+@require_module('community')
 def set_directory_opt_in(user_id):
     org_id = _org(request)
     if not org_id:

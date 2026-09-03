@@ -186,10 +186,16 @@ def register_all(app):
     app.register_blueprint(course_refine.bp)
     app.register_blueprint(plan_mode.bp)
     app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')
-    # Same prefix, second blueprint: the course-registration endpoints were
-    # split out of organization_management to get that file back under its
-    # size cap. Paths do not overlap, so the URLs are unchanged.
+    # Same prefix, more blueprints: each was split out of organization_management
+    # to get that file back under its size cap. Paths do not overlap, so the URLs
+    # are unchanged.
     app.register_blueprint(organization_courses.bp, url_prefix='/api/admin/organizations')
+    # The Blocks panel API (building-block toggles).
+    from routes.admin import org_modules
+    app.register_blueprint(org_modules.bp, url_prefix='/api/admin/organizations')
+    # Org-scoped account enable/disable (blocks P2).
+    from routes.admin import org_member_status
+    app.register_blueprint(org_member_status.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)

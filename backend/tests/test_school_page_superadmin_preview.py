@@ -57,6 +57,8 @@ class TestSchoolContextForOrg:
             'orgs': [{'organization_id': 'org-1',
                       'organization_name': 'iCreate',
                       'is_guardian': False,
+                      'modules': [],
+                      'family_first_home': False,
                       'post_registration_flow': 'goals',
                       'prior_learning_enabled': False,
                       'logo_url': 'data:image/png;base64,x',

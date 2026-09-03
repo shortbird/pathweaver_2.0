@@ -56,8 +56,10 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
     `overrides` is a dict of {attribute: patch} applied last, for the tests that
     need one source to explode.
     """
+    # sis_enabled matters since the module system: the dashboard's module skip
+    # cascades from the 'sis' block, and this dashboard only renders for SIS orgs.
     org_row = {'id': ORG, 'name': 'Org', 'slug': 'org',
-               'feature_flags': {'sis_settings': settings or {}}}
+               'feature_flags': {'sis_enabled': True, 'sis_settings': settings or {}}}
     rows = dict(rows or {})
     rows.setdefault('organizations', [org_row])
     admin = _table_mock(counts or {}, rows)
@@ -266,8 +268,12 @@ class TestTheRestOfThePayload:
         data = _run(settings={'hidden_modules': ['clp', 'billing'],
                               'prior_learning_enabled': True,
                               'post_registration_flow': 'goals'})
+        # hidden_modules is the module system's answer now, so the opt-in
+        # modules this org never turned on (community, kiosk) are reported
+        # off alongside the explicitly hidden ones — the frontend's filter
+        # vocabulary and the gate agree by construction.
         assert data['settings'] == {
-            'hidden_modules': ['billing', 'clp'],
+            'hidden_modules': ['billing', 'clp', 'community', 'kiosk'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

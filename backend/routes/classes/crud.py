@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role, require_auth
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from ._caller import get_caller, is_superadmin
 from utils.logger import get_logger
 
@@ -15,7 +16,7 @@ logger = get_logger(__name__)
 
 
 @bp.route('/organizations/<org_id>/classes', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def list_org_classes(user_id, org_id):
     """
     List all classes for an organization.
@@ -55,10 +56,14 @@ def list_org_classes(user_id, org_id):
 
 
 @bp.route('/organizations/<org_id>/classes', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def create_class(user_id, org_id):
     """
     Create a new class for an organization.
+
+    Any staff member may create one (blocks P2: the LMS-core teacher story).
+    An advisor creator is auto-assigned as the class advisor, so the class
+    they just made is immediately theirs to manage.
 
     Request body:
     {
@@ -76,7 +81,7 @@ def create_class(user_id, org_id):
     try:
         effective_roles, user_org_id, _ = get_caller(user_id)
 
-        # Authorization: superadmin can create in any org, org_admin only in their own
+        # Authorization: superadmin can create in any org, staff only in their own
         if not is_superadmin(effective_roles) and user_org_id != org_id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
@@ -97,6 +102,12 @@ def create_class(user_id, org_id):
             created_by=user_id
         )
 
+        # An advisor reaches a class only through a class_advisors row
+        # (can_user_access_class) — without this, they could create a class
+        # and immediately be locked out of it.
+        if not any(r in ADMIN_ROLES for r in effective_roles):
+            service.add_advisor(cls['id'], user_id, assigned_by=user_id)
+
         return jsonify({
             'success': True,
             'class': cls
@@ -113,7 +124,7 @@ def create_class(user_id, org_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>', methods=['GET'])
-@require_role('student', 'org_admin', 'advisor', 'superadmin')
+@require_role('student', *STAFF_ROLES)
 def get_class(user_id, org_id, class_id):
     """
     Get a class by ID with details.
@@ -151,7 +162,7 @@ def get_class(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>', methods=['PUT'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role(*STAFF_ROLES)
 def update_class(user_id, org_id, class_id):
     """
     Update a class.
@@ -211,7 +222,7 @@ def update_class(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>', methods=['DELETE'])
-@require_role('org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def archive_class(user_id, org_id, class_id):
     """
     Archive a class (soft delete).
@@ -249,7 +260,7 @@ def archive_class(user_id, org_id, class_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/restore', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def restore_class(user_id, org_id, class_id):
     """Un-archive a class (status back to active)."""
     try:
@@ -308,7 +319,7 @@ def get_student_classes(user_id):
 
 
 @bp.route('/advisor/classes', methods=['GET'])
-@require_role('advisor', 'org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def get_advisor_classes(user_id):
     """
     Get all classes the current user is assigned to as an advisor.

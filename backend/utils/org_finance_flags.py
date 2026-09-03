@@ -127,3 +127,31 @@ def guarded_flags_for_front_office(stored_flags: Any, incoming_flags: Any):
     if blocked:
         return None, blocked
     return merge_without_finance(stored_flags, incoming_flags), []
+
+
+def guard_org_flags_write(stored_flags, incoming_flags, sees_finance):
+    """One gate for browser feature_flags round-trips by NON-superadmin writers.
+
+    Two preservations against the settings UI's whole-blob read-modify-write:
+    - `modules` is superadmin-owned (the Blocks panel writes it via
+      PATCH .../modules), so a stale org-admin tab must not clobber it: the
+      stored value always replaces whatever the browser sent
+      (ARCHITECTURE_BLOCKS section 4.2);
+    - the finance paths merge rather than replace for non-finance writers,
+      exactly as guarded_flags_for_front_office always did.
+
+    The caller supplies the STORED flags (utils never reach into
+    repositories -- test_import_layers). Returns (flags, blocked_fields);
+    flags is None when a non-finance caller changed a price.
+    """
+    stored = stored_flags or {}
+
+    out = dict(incoming_flags)
+    if 'modules' in stored:
+        out['modules'] = stored['modules']
+    else:
+        out.pop('modules', None)
+
+    if not sees_finance:
+        return guarded_flags_for_front_office(stored, out)
+    return out, []

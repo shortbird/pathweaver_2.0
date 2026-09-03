@@ -120,7 +120,8 @@ def _count(table: str, org_id: str, **filters) -> int:
 
 
 def _org_settings(org_id: str) -> Dict[str, Any]:
-    row = (_admin().table('organizations').select('id, name, slug, feature_flags')
+    row = (_admin().table('organizations')
+           .select('id, name, slug, feature_flags, ai_features_enabled')
            .eq('id', org_id).limit(1).execute()).data or []
     org = row[0] if row else {'id': org_id}
     settings = (org.get('feature_flags') or {}).get('sis_settings') or {}
@@ -128,12 +129,22 @@ def _org_settings(org_id: str) -> Dict[str, Any]:
         'organization': {'id': org.get('id', org_id), 'name': org.get('name'),
                          'slug': org.get('slug')},
         'settings': settings,
+        # The raw row rides along so _disabled_modules can evaluate purely --
+        # a second fetch here would dodge test mocks and double the read.
+        'row': org,
     }
 
 
-def _hidden_modules(settings: Dict[str, Any]) -> set:
-    value = settings.get('hidden_modules')
-    return set(value) if isinstance(value, list) else set()
+def _disabled_modules(org_row: Dict[str, Any]) -> set:
+    """SIS modules that are OFF for this org row, in the vocabulary _build_jobs
+    skips by. Answered by the module system (modules/enabled.py) so explicit
+    feature_flags.modules entries and the legacy sis_settings.hidden_modules
+    agree by construction -- this was the one backend hidden_modules reader.
+    Pure: evaluates the row _org_settings already fetched."""
+    from modules import MODULES
+    from modules.enabled import effective_modules_for_row
+    enabled = effective_modules_for_row(org_row)
+    return {k for k, m in MODULES.items() if m.parent == 'sis' and k not in enabled}
 
 
 # ── The individual sources ───────────────────────────────────────────────────
@@ -298,7 +309,8 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
     meta = _safe('org', lambda: _org_settings(org_id),
                  {'organization': {'id': org_id}, 'settings': {}}) or {}
     settings: Dict[str, Any] = meta.get('settings') or {}
-    hidden = _hidden_modules(settings)
+    org_row = meta.get('row') or {'id': org_id}
+    hidden = _safe('modules', lambda: _disabled_modules(org_row), set()) or set()
 
     roles = set(_safe('roles', lambda: sis_service.caller_org_roles(caller_id), []) or [])
     is_full_admin = bool(roles & {'org_admin', 'superadmin'})

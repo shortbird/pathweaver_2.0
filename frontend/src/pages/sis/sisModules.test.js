@@ -1,21 +1,38 @@
 import { describe, it, expect } from 'vitest'
-import { getHiddenModules, isPathHidden, isCommunityEnabled, SIS_MODULE_BY_PATH } from './sisModules'
+import { getHiddenModules, isPathHidden, isCommunityEnabled, isGoalsEnabled, SIS_MODULE_BY_PATH } from './sisModules'
 
-const orgWith = (hidden) => ({ feature_flags: { sis_settings: { hidden_modules: hidden } } })
+// A SIS org (the console only exists for these); hidden_modules is the legacy
+// opt-out list the module system answers through.
+const orgWith = (hidden, extra = {}) => ({
+  feature_flags: { sis_enabled: true, sis_settings: { hidden_modules: hidden, ...extra } },
+})
 
 describe('sisModules', () => {
-  it('returns an empty set when no config is present', () => {
-    expect(getHiddenModules(null).size).toBe(0)
-    expect(getHiddenModules({}).size).toBe(0)
-    expect(getHiddenModules({ feature_flags: {} }).size).toBe(0)
-    expect(getHiddenModules(orgWith(undefined)).size).toBe(0)
+  it('an unconfigured SIS org hides only the opt-ins', () => {
+    const hidden = getHiddenModules(orgWith(undefined))
+    // Opt-out modules all show...
+    for (const key of ['billing', 'clp', 'tasks', 'classes', 'attendance']) {
+      expect(hidden.has(key)).toBe(false)
+    }
+    // ...and the opt-ins are off until enabled -- that is what a tile filter
+    // actually wants to know, which the old raw-array read couldn't say.
+    for (const key of ['community', 'prior_learning', 'goals']) {
+      expect(hidden.has(key)).toBe(true)
+    }
   })
 
-  it('reads hidden_modules from feature_flags.sis_settings', () => {
+  it('reads the legacy hidden_modules opt-outs', () => {
     const hidden = getHiddenModules(orgWith(['clp', 'forms']))
     expect(hidden.has('clp')).toBe(true)
     expect(hidden.has('forms')).toBe(true)
     expect(hidden.has('billing')).toBe(false)
+  })
+
+  it('a null org hides nothing (superadmin before selecting)', () => {
+    expect(getHiddenModules(null).size).toBe(0)
+    for (const path of Object.keys(SIS_MODULE_BY_PATH)) {
+      expect(isPathHidden(path, null)).toBe(false)
+    }
   })
 
   it('hides a path whose module is in the org list', () => {
@@ -50,16 +67,32 @@ describe('sisModules', () => {
     expect(isPathHidden('/messaging', academy)).toBe(false)
   })
 
-  it('never hides non-module paths', () => {
-    expect(isPathHidden('/goals', orgWith(['clp']))).toBe(false)
-    expect(isPathHidden('/submissions', orgWith(['clp']))).toBe(false)
-    expect(isPathHidden('/', orgWith(['clp']))).toBe(false)
+  it('opt-in paths hide until the org enables them; default-on paths show', () => {
+    const org = orgWith(['clp'])
+    // Goals and community are opt-ins -- hidden until enabled (the route
+    // guards now cover them, not just the sidebar's mode flags).
+    expect(isPathHidden('/goals', org)).toBe(true)
+    expect(isPathHidden('/community', org)).toBe(true)
+    // Submissions is default-on with its own (new) key.
+    expect(isPathHidden('/submissions', org)).toBe(false)
+    // Non-module paths are never hidden.
+    expect(isPathHidden('/', org)).toBe(false)
   })
 
-  it('hides nothing when there is no active org (e.g. superadmin before selecting)', () => {
-    for (const path of Object.keys(SIS_MODULE_BY_PATH)) {
-      expect(isPathHidden(path, null)).toBe(false)
-    }
+  it('the parent cascade: an org without the SIS has every module off', () => {
+    const noSis = { feature_flags: { sis_settings: { community_enabled: true } } }
+    expect(isPathHidden('/billing', noSis)).toBe(true)
+    expect(isCommunityEnabled(noSis)).toBe(false)
+    expect(getHiddenModules(noSis).has('billing')).toBe(true)
+  })
+
+  it('an explicit feature_flags.modules entry beats the legacy answer', () => {
+    const org = orgWith(['billing'])
+    org.feature_flags.modules = { billing: true }
+    expect(isPathHidden('/billing', org)).toBe(false)
+    const org2 = orgWith([])
+    org2.feature_flags.modules = { billing: false }
+    expect(isPathHidden('/billing', org2)).toBe(true)
   })
 
   describe('the unified task surfaces', () => {
@@ -91,14 +124,22 @@ describe('sisModules', () => {
     it('is false by default (no flag, no org)', () => {
       expect(isCommunityEnabled(null)).toBe(false)
       expect(isCommunityEnabled({})).toBe(false)
-      expect(isCommunityEnabled({ feature_flags: { sis_settings: {} } })).toBe(false)
+      expect(isCommunityEnabled(orgWith([]))).toBe(false)
     })
 
-    it('is true only when community_enabled === true', () => {
-      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: true } } })).toBe(true)
-      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: false } } })).toBe(false)
+    it('is true only when community_enabled === true (on a SIS org)', () => {
+      expect(isCommunityEnabled(orgWith([], { community_enabled: true }))).toBe(true)
+      expect(isCommunityEnabled(orgWith([], { community_enabled: false }))).toBe(false)
       // Truthy-but-not-true values do not enable it.
-      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: 'yes' } } })).toBe(false)
+      expect(isCommunityEnabled(orgWith([], { community_enabled: 'yes' }))).toBe(false)
+    })
+  })
+
+  describe('isGoalsEnabled (opt-in via the legacy flow enum)', () => {
+    it('follows post_registration_flow === "goals"', () => {
+      expect(isGoalsEnabled(orgWith([], { post_registration_flow: 'goals' }))).toBe(true)
+      expect(isGoalsEnabled(orgWith([]))).toBe(false)
+      expect(isGoalsEnabled(null)).toBe(false)
     })
   })
 })

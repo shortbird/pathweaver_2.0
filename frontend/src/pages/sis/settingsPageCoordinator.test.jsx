@@ -28,7 +28,10 @@ const ORG = {
   name: 'iCreate',
   slug: 'icreate',
   // Exactly what the backend hands a coordinator: rooms, no tuition.
-  feature_flags: { sis_settings: { rooms: [{ name: 'Kitchen', description: 'Cooking' }] } },
+  // sis_enabled matters since the settings registry (blocks P3): module-gated
+  // cards (rooms, blocks) cascade from the 'sis' block, and this page only
+  // renders for SIS orgs anyway.
+  feature_flags: { sis_enabled: true, sis_settings: { rooms: [{ name: 'Kitchen', description: 'Cooking' }] } },
 }
 
 const renderAs = (user) => render(

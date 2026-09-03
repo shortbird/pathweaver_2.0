@@ -14,6 +14,7 @@ import { getProgramNavItem } from '../../programs/registry'
 import { parentHomePath } from '../../utils/postLoginPath'
 import { useUnreadCount } from '../../hooks/api/useDirectMessages'
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
+import { moduleEnabled } from '../../modules/moduleEnabled'
 
 const HOME_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,11 +46,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const unreadMessages = unreadData?.unread_count || 0
   const { organization, school } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
-  // SIS carve-out: when the user's org has sis_enabled (or the local dev override
-  // is set), the school-management surfaces move to the SIS console — so hide them
-  // here and surface a launcher instead. Reversible per-org; default off. Read the
-  // flag straight off the loaded org (no extra hook) so it stays trivially mockable.
-  const sisEnabled = Boolean(organization?.feature_flags?.sis_enabled) || getSisFlagOverride()
+  // SIS carve-out: when the user's org has the sis module (or the local dev
+  // override is set), the school-management surfaces move to the SIS console — so
+  // hide them here and surface a launcher instead. Reversible per-org; default
+  // off. moduleEnabled is a pure function over the loaded org (no extra hook),
+  // so this stays trivially mockable; it prefers the server-computed
+  // effective_modules and falls back to legacy flags (sis_enabled).
+  const sisEnabled = (organization ? moduleEnabled(organization, 'sis') : false) || getSisFlagOverride()
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
@@ -418,6 +421,46 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Teaching (blocks P2): the LMS-only teacher's daily surfaces, so an advisor
+  // is not dependent on TeacherHome tiles to reach their own tools. On SIS orgs
+  // class work lives in the console (the launcher below), so only the
+  // verification queue — an LMS feature SIS teachers still use — stays here.
+  const teachingItems = []
+  if (userHasRole('advisor')) {
+    if (!sisEnabled) {
+      teachingItems.push({
+        name: 'My Classes',
+        path: '/org-classes',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+          </svg>
+        )
+      })
+    }
+    teachingItems.push({
+      name: 'Verifications',
+      path: '/advisor/verification',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      )
+    })
+    if (!sisEnabled) {
+      teachingItems.push({
+        name: 'Quest Invitations',
+        path: '/advisor/invitations',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+          </svg>
+        )
+      })
+    }
+  }
+
   const adminItems = []
 
   // Organization console for org admins or platform admins with an organization
@@ -459,6 +502,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   let navSections = [
     { key: 'primary', title: null, items: primaryItems },
     { key: 'learning', title: 'Learning', items: learningItems },
+    { key: 'teaching', title: 'Teaching', items: teachingItems },
     { key: 'community', title: 'Community', items: communityItems },
     { key: 'admin', title: 'Admin', items: adminItems },
   ]

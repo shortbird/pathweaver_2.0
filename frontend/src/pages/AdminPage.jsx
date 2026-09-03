@@ -1,6 +1,5 @@
 import React, { memo, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import GlassTabBar from '../components/ui/GlassTabBar'
 import { Spinner } from '../components/ui/Spinner'
 
@@ -28,47 +27,31 @@ const LoadingFallback = () => (
   </div>
 )
 
+// The whole /admin/* tree is superadmin-only (App.jsx wraps it in
+// PrivateRoute requiredRole="superadmin"), so this page renders for exactly
+// one role. It used to carry an unreachable "Teacher Panel" shell — role
+// branches for advisors and org_admins who can never get here (blocks P5).
+const ADMIN_TABS = [
+  { path: 'users', label: 'Users', pathMatch: ['admin', 'users', ''] },
+  { path: 'quests', label: 'Quests' },
+  { path: 'organizations', label: 'Organizations' },
+  { path: 'crm', label: 'CRM' },
+  { path: 'moderation', label: 'Moderation' },
+  { path: 'roster-import', label: 'Roster Import' },
+  { path: 'bulk-generate', label: 'Bulk Generate' },
+  { path: 'docs', label: 'Docs' }
+]
+
 const AdminPage = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const currentPath = location.pathname.split('/').pop()
-  const { user } = useAuth()
-
-  // Get effective role (resolves org_managed to org_role)
-  const getEffectiveRole = (user) => {
-    if (!user) return null
-    if (user.role === 'superadmin') return 'superadmin'
-    if (user.role === 'org_managed' && user.org_role) return user.org_role
-    return user.role
-  }
-
-  const effectiveRole = getEffectiveRole(user)
-
-  // Determine if user is admin or advisor
-  const isAdmin = effectiveRole === 'org_admin' || effectiveRole === 'superadmin'
-  const isSuperadmin = effectiveRole === 'superadmin'
-  const isAdvisor = effectiveRole === 'advisor'
-
-  // Define admin tabs for both mobile dropdown and desktop tabs
-  const adminTabs = [
-    { path: 'users', label: 'Users', pathMatch: ['admin', 'users', ''] },
-    { path: 'quests', label: 'Quests' },
-    { path: 'organizations', label: 'Organizations' }
-  ]
-
-  const superadminTabs = [
-    { path: 'crm', label: 'CRM' },
-    { path: 'moderation', label: 'Moderation' },
-    { path: 'roster-import', label: 'Roster Import' },
-    { path: 'bulk-generate', label: 'Bulk Generate' },
-    { path: 'docs', label: 'Docs' }
-  ]
 
   const getTabIsActive = (tab) => {
     if (tab.pathMatch) {
       return tab.pathMatch.includes(currentPath)
     }
-    return currentPath === tab.path
+    return location.pathname.startsWith(`/admin/${tab.path}`)
   }
 
   const handleMobileNavChange = (e) => {
@@ -78,9 +61,7 @@ const AdminPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-8">
-        {isAdvisor ? 'Teacher Panel' : 'Admin Panel'}
-      </h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-8">Admin Panel</h1>
 
       {/* Mobile: dropdown navigation */}
       <div className="md:hidden w-full mb-6">
@@ -90,15 +71,9 @@ const AdminPage = () => {
           className="w-full px-4 py-3 border border-gray-300 rounded-lg min-h-[44px] bg-white text-gray-900 font-medium focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
           aria-label="Navigate admin sections"
         >
-          {isAdmin && adminTabs.map(tab => (
+          {ADMIN_TABS.map(tab => (
             <option key={tab.path} value={tab.path}>{tab.label}</option>
           ))}
-          {isSuperadmin && superadminTabs.map(tab => (
-            <option key={tab.path} value={tab.path}>{tab.label}</option>
-          ))}
-          {isAdvisor && !isAdmin && (
-            <option value="quests">Quests</option>
-          )}
         </select>
       </div>
 
@@ -107,16 +82,8 @@ const AdminPage = () => {
         <GlassTabBar
           size="md"
           aria-label="Admin sections"
-          tabs={[
-            ...(isAdmin ? adminTabs : []),
-            ...(isSuperadmin ? superadminTabs : []),
-            ...(isAdvisor && !isAdmin ? [{ path: 'quests', label: 'Quests' }] : []),
-          ].map(tab => ({ id: tab.path, label: tab.label }))}
-          active={
-            (isAdmin && adminTabs.find(getTabIsActive)?.path) ||
-            (isSuperadmin && superadminTabs.find(tab => location.pathname.startsWith(`/admin/${tab.path}`))?.path) ||
-            (isAdvisor && !isAdmin && (currentPath === 'admin' || currentPath === 'quests') ? 'quests' : null)
-          }
+          tabs={ADMIN_TABS.map(tab => ({ id: tab.path, label: tab.label }))}
+          active={ADMIN_TABS.find(getTabIsActive)?.path}
           onSelect={(path) => navigate(`/admin/${path}`)}
         />
       </div>

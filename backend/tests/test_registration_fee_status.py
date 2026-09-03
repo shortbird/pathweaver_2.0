@@ -111,6 +111,7 @@ def _call(client, admin, path, reg, cfg=_CFG_STRIPE, directive=None, token='tok'
          patch('routes.registration_funnel._org_stripe_key', return_value=key), \
          patch('routes.registration_funnel._org_stripe_enabled', return_value=bool(key)), \
          patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+         patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
          patch('routes.registration_funnel._family_directive', return_value=directive):
         return client.post(path, json={'access_token': token})
 

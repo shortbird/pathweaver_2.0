@@ -93,7 +93,8 @@ def test_school_payload_never_leaks_the_flags_blob():
         'id': 'o1', 'name': 'Hearthwood Academy',
         'feature_flags': {'hide_pillars': True, 'stripe_secret': 'sk_live_nope'},
     })
-    assert set(payload) == {'id', 'name', 'homepage', 'hide_pillars'}
+    assert set(payload) == {'id', 'name', 'homepage', 'hide_pillars',
+                            'family_first_home'}
 
 
 # ── The write paths must not require a pillar ────────────────────────────────

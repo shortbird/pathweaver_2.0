@@ -35,11 +35,15 @@ logger = get_logger(__name__)
 
 def _school_payload(org_row):
     """The `school` dict the frontend routes on: {'id', 'name', 'homepage',
-    'hide_pillars'}.
+    'family_first_home', 'hide_pillars'}.
 
     `homepage` is the per-org opt-in (feature_flags.sis_settings.school_homepage)
     that makes /school the front door for the school's families — iCreate,
     2026-08-06.
+
+    `family_first_home` (blocks P4) marks a school whose parents' home IS the
+    family dashboard (Optio Academy's shape, promoted from the hardcoded org id
+    in frontend config/optioAcademy.js).
 
     `hide_pillars` is the per-org opt-out of Optio's five pillars
     (feature_flags.hide_pillars). It is carried here as well as on
@@ -47,12 +51,13 @@ def _school_payload(org_row):
     own — they belong to the school through their children, so `school` is the
     only place the flag can reach them.
 
-    Reads two booleans; never emits the feature_flags blob.
+    Reads three booleans; never emits the feature_flags blob.
     """
     flags = org_row.get('feature_flags') or {}
     settings = (flags.get('sis_settings') or {})
     return {'id': org_row['id'], 'name': org_row.get('name'),
             'homepage': bool(settings.get('school_homepage')),
+            'family_first_home': bool(settings.get('family_first_home')),
             'hide_pillars': bool(flags.get('hide_pillars'))}
 
 
@@ -214,7 +219,7 @@ def register_routes(bp):
                     if response_data.get('organization_id'):
                         try:
                             org_data = admin_client.table('organizations')\
-                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags')\
+                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags, ai_features_enabled')\
                                 .eq('id', response_data['organization_id'])\
                                 .maybe_single()\
                                 .execute()
@@ -224,6 +229,12 @@ def register_routes(bp):
                                 org_row['feature_flags'] = strip_secrets_from_feature_flags(
                                     org_row.get('feature_flags')
                                 )
+                                # The org's effective building blocks, computed
+                                # server-side so the frontend consumes the answer
+                                # instead of re-deriving gating semantics
+                                # (ARCHITECTURE_BLOCKS section 4.1).
+                                from modules import effective_modules_list
+                                org_row['effective_modules'] = effective_modules_list(org_row)
                                 response_data['organization'] = org_row
                                 # `school` is derived from the STRIPPED row, not
                                 # the raw one, so the credential-removal above

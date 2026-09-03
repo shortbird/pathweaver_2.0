@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
+import { moduleEnabled } from '../../modules/moduleEnabled'
 import api from '../../services/api'
 import { Spinner } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
@@ -286,8 +287,8 @@ function MyClasses({ classes, sisEnabled }) {
 export default function TeacherHome() {
   const { user } = useAuth()
   const firstName = user?.first_name || 'there'
-  // Same flag getPostLoginPath reads to front-door SIS staff into the console.
-  const sisEnabled = Boolean(user?.organization?.feature_flags?.sis_enabled)
+  // Same module getPostLoginPath reads to front-door SIS staff into the console.
+  const sisEnabled = user?.organization ? moduleEnabled(user.organization, 'sis') : false
   const { verifications, invitations, classes } = useTeacherHomeData(user?.id, sisEnabled)
 
   return (

@@ -110,6 +110,7 @@ def _call(client, admin, path, reg, directive):
          patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
          patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
          patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+         patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
          patch('routes.registration_funnel._family_directive', return_value=directive):
         return client.post(path, json={'access_token': 'tok'})
 
@@ -156,6 +157,7 @@ class TestPrepaidDirectiveFee:
              patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
              patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
              patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+             patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
              patch('routes.registration_funnel._family_directive',
                    return_value={'fee_prepaid': True}):
             resp = client.post('/api/registration/registrations/reg1/checkout',

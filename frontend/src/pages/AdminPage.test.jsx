@@ -136,33 +136,9 @@ expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
     })
   })
 
-  describe('advisor view', () => {
-    beforeEach(() => {
-      authState = { user: { id: 'advisor-1', role: 'advisor' } }
-    })
-
-    it('renders Teacher Panel heading', async () => {
-      renderAdmin()
-      await waitFor(() => {
-        expect(screen.getByText('Teacher Panel')).toBeInTheDocument()
-      })
-    })
-
-    it('shows Quests tab for advisors', async () => {
-      renderAdmin()
-      await waitFor(() => {
-        // Quests appears in both the tab and the rendered AdminQuests component
-        expect(screen.getAllByText(/Quests/).length).toBeGreaterThanOrEqual(1)
-      })
-    })
-
-    it('does not show admin-only tabs for advisors', async () => {
-      renderAdmin()
-      await waitFor(() => {
-        expect(screen.queryByText('Organizations')).not.toBeInTheDocument()
-      })
-    })
-  })
+  // The 'advisor view' tests are gone with the unreachable Teacher Panel
+  // shell (blocks P5): /admin/* is superadmin-only in App.jsx, so an advisor
+  // can never render this page.
 
   describe('route rendering', () => {
     it('renders users panel on /admin/users', async () => {

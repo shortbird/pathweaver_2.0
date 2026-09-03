@@ -108,10 +108,12 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
         )}
       </div>
 
-      {/* Quest Groups - subcategories for batch assignment. Treehouse-only:
-          built for the Treehouse Learning Center's pin sets and not offered
-          to other organizations. */}
-      {orgData?.organization?.slug === 'treehouse' && (
+      {/* Quest Groups - subcategories for batch assignment. Built for the
+          Treehouse Learning Center's pin sets; per-org opt-in via
+          feature_flags.quest_groups_enabled (blocks P4 — the treehouse slug
+          check is the transition fallback, docs/blocks/P4_NOTES.md). */}
+      {(orgData?.organization?.feature_flags?.quest_groups_enabled
+        || orgData?.organization?.slug === 'treehouse') && (
         <QuestGroupsManager orgId={orgId} refreshKey={refreshKey} />
       )}
 

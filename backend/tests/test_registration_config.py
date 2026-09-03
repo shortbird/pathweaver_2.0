@@ -31,12 +31,24 @@ class TestGetRegistrationConfig:
 
 
 class TestWithRegistrationConfig:
-    def test_mirrors_both_keys_and_keeps_other_flags(self):
+    def test_writes_only_the_canonical_key_and_keeps_other_flags(self):
+        """Blocks P4: the write mirror is gone — a row without the legacy key
+        never gains one."""
         cfg = {'enabled': True, 'questions': []}
         flags = with_registration_config({'sis_enabled': True}, cfg)
         assert flags['registration'] == cfg
-        assert flags['icreate_registration'] == cfg
+        assert 'icreate_registration' not in flags
         assert flags['sis_enabled'] is True
+
+    def test_refreshes_a_legacy_key_a_row_still_carries(self):
+        """Until the scrub, a stale legacy key must not disagree with the
+        canonical one (the read fallback would serve the stale copy to any
+        reader that lost the canonical key)."""
+        cfg = {'enabled': True}
+        flags = with_registration_config(
+            {'icreate_registration': {'enabled': False}}, cfg)
+        assert flags['registration'] == cfg
+        assert flags['icreate_registration'] == cfg
 
     def test_does_not_mutate_the_input(self):
         original = {'sis_enabled': True}

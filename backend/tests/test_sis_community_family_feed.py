@@ -241,7 +241,8 @@ class TestTheSchoolOnTheProfile:
         # opt-in); `hide_pillars` for the per-org pillars opt-out, which a
         # platform parent can only learn about through `school`.
         assert self._school('org-1', {'id': 'org-1', 'name': 'iCreate'}) == {
-            'id': 'org-1', 'name': 'iCreate', 'homepage': False, 'hide_pillars': False}
+            'id': 'org-1', 'name': 'iCreate', 'homepage': False,
+            'family_first_home': False, 'hide_pillars': False}
 
     def test_no_school_means_no_school_page(self):
         assert self._school(None, None) is None
