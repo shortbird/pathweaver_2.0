@@ -14,6 +14,17 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# PostgREST reads this claim and runs the query as that Postgres role. With no
+# `role` claim it falls back to its default, which on Supabase is `anon`, so
+# every policy written TO authenticated silently never matches.
+#
+# It must name a role Postgres actually has -- PostgREST issues SET LOCAL ROLE
+# and errors if it does not exist. That is why role-view tokens, whose narrowed
+# platform role ('advisor', 'parent', ...) is NOT a Postgres role, keep theirs
+# under `act_as_role` and are never handed to postgrest.auth().
+POSTGREST_ROLE = 'authenticated'
+
+
 class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     
@@ -244,6 +255,7 @@ class SessionManager:
             'sub': user_id,  # CRITICAL: Supabase RLS expects 'sub' claim for auth.uid()
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'access',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'dfp2': self._get_device_fingerprint(),  # Version-insensitive device binding
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
@@ -289,6 +301,7 @@ class SessionManager:
             'user_id': admin_id,  # Keep admin ID for audit trail
             'masquerade_as': target_user_id,
             'type': 'masquerade',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.masquerade_token_expiry,
             'iat': datetime.now(timezone.utc)
@@ -387,6 +400,7 @@ class SessionManager:
             'user_id': parent_id,  # Keep parent ID for audit trail
             'acting_as': dependent_id,
             'type': 'acting_as_dependent',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.acting_as_token_expiry,
             'iat': datetime.now(timezone.utc)
