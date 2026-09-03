@@ -100,8 +100,14 @@ class TestResendInvite:
         ]
         return admin
 
-    def _post(self, client, auth_headers, admin, sent=True, student_id='teen-1'):
+    def _post(self, client, auth_headers, admin, sent=True, student_id='teen-1',
+              is_parent=True):
+        # Two gates now, so two grants. @require_relationship_to (SEC-10) runs
+        # BEFORE the view and asks utils.portfolio_access.is_parent_of; the
+        # parent_student_links lookup the mock admin client answers is the
+        # in-view check. `is_parent=False` exercises the outer one on its own.
         with patch('routes.dependents.verify_parent_role', return_value=True), \
+             patch('utils.portfolio_access.is_parent_of', return_value=is_parent), \
              patch('routes.dependents.get_supabase_admin_client', return_value=admin), \
              patch('services.family_student_service.send_account_invite', return_value=sent), \
              patch('utils.session_manager.session_manager.get_effective_user_id',
@@ -122,6 +128,20 @@ class TestResendInvite:
         # No approved link between caller and student: the lookup IS the authz.
         admin = self._client([], None)
         resp = self._post(client, auth_headers, admin)
+        assert resp.status_code == 403
+
+    def test_the_relationship_gate_refuses_before_the_view_runs(
+            self, client, auth_headers, mock_verify_token):
+        """Deny at @require_relationship_to, with the in-view lookup set to allow.
+
+        The admin mock here would hand the view an approved link, so if the
+        request still 403s, the refusal came from the decorator -- and the
+        route is protected even if somebody later loosens what is inside it.
+        """
+        admin = self._client([{'id': 'link-1'}],
+                             {'id': 'teen-1', 'email': 'teen@example.com',
+                              'first_name': 'Alex', 'organization_id': 'org-1'})
+        resp = self._post(client, auth_headers, admin, is_parent=False)
         assert resp.status_code == 403
 
     def test_reports_a_failed_send_instead_of_claiming_success(self, client, auth_headers, mock_verify_token):

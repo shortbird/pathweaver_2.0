@@ -20,6 +20,7 @@ from repositories.dependent_repository import DependentRepository
 from repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
 from services.dependent_progress_service import DependentProgressService
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
@@ -378,6 +379,7 @@ def add_child(user_id):
 @bp.route('/<student_id>/resend-invite', methods=['POST'])
 @validate_uuid_param('student_id')
 @require_auth
+@require_relationship_to('student_id', allow=('parent',))
 def resend_student_invite(user_id, student_id):
     """Send the set-password email again for a teen the caller created.
 
@@ -436,6 +438,7 @@ def resend_student_invite(user_id, student_id):
 @bp.route('/<dependent_id>', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def get_dependent(user_id, dependent_id):
     """
     Get a specific dependent profile.
@@ -474,6 +477,7 @@ def get_dependent(user_id, dependent_id):
 @bp.route('/<dependent_id>', methods=['PUT'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def update_dependent(user_id, dependent_id):
     """
     Update a dependent profile.
@@ -556,6 +560,7 @@ def update_dependent(user_id, dependent_id):
 @bp.route('/<dependent_id>/avatar', methods=['POST'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def upload_dependent_avatar(user_id, dependent_id):
     """
     Upload avatar image for a dependent.
@@ -649,6 +654,7 @@ def upload_dependent_avatar(user_id, dependent_id):
 @bp.route('/<dependent_id>', methods=['DELETE'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def delete_dependent(user_id, dependent_id):
     """
     Delete a dependent profile.
@@ -691,6 +697,7 @@ def delete_dependent(user_id, dependent_id):
 @bp.route('/<dependent_id>/promote', methods=['POST'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def promote_dependent(user_id, dependent_id):
     """
     Promote a dependent to an independent account (when they turn 13).
@@ -768,6 +775,7 @@ def promote_dependent(user_id, dependent_id):
 @bp.route('/<dependent_id>/add-login', methods=['POST'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def add_dependent_login(user_id, dependent_id):
     """
     Give a dependent their own login credentials.
@@ -900,6 +908,7 @@ def add_dependent_login(user_id, dependent_id):
 @bp.route('/<child_id>/ai-access', methods=['POST'])
 @require_auth
 @validate_uuid_param('child_id')
+@require_relationship_to('child_id', allow=('parent',))
 def toggle_child_ai_access(user_id, child_id):
     """
     Enable or disable AI features for a child (dependent or linked student).
@@ -995,6 +1004,7 @@ def toggle_child_ai_access(user_id, child_id):
 @bp.route('/<string:child_id>/ai-features', methods=['PUT'])
 @require_auth
 @validate_uuid_param('child_id')
+@require_relationship_to('child_id', allow=('parent',))
 def update_child_ai_features(user_id: str, child_id: str):
     """
     Update granular AI feature settings for a child (dependent or linked student).
@@ -1091,6 +1101,7 @@ def update_child_ai_features(user_id: str, child_id: str):
 @bp.route('/<string:dependent_id>/act-as', methods=['POST'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def generate_acting_as_token(user_id, dependent_id):
     """
     Generate an acting-as token for a parent to act as their dependent.
@@ -1203,6 +1214,7 @@ def stop_acting_as():
 @bp.route('/<dependent_id>/progress-report', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def get_dependent_progress_report(user_id, dependent_id):
     """
     Get comprehensive progress report for a dependent.
@@ -1258,6 +1270,7 @@ def get_dependent_progress_report(user_id, dependent_id):
 @bp.route('/<dependent_id>/progress-report/export', methods=['GET'])
 @require_auth
 @validate_uuid_param('dependent_id')
+@require_relationship_to('dependent_id', allow=('parent',))
 def export_dependent_progress_report(user_id, dependent_id):
     """
     Export progress report as CSV or JSON.

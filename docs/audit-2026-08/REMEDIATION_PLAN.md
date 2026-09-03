@@ -435,6 +435,65 @@ Log:
   stronger than the mock-call assertion it replaces.
 
   Tests: 4714 passed, 160 skipped, 0 failed. pyflakes clean.
+- 2026-09-03: (c) continues — `routes/dependents.py` migrated, 12 routes.
+  Declared 37 -> 49, allowlist 129 -> 117, superadmin tier unchanged at 21;
+  49 + 21 + 117 = 187, still fully accounted.
+
+  All twelve declare `allow=('parent',)`. No observer read tier here, unlike
+  routes/parent/*: none of these is a read-only view of schoolwork. The mildest
+  is a profile read carrying the child's date of birth; the rest rename the
+  child, replace their avatar, DELETE the account, promote them to an adult
+  login, change AI permissions, or mint an act-as token that browses as them.
+
+  NOT COLLAPSED, and this is the part that differs from the parent cluster —
+  where the decorator replaced verify_parent_access outright because the two
+  were exactly equivalent on production data. Here they are NOT equivalent.
+  These routes gate on `users.managed_by_parent_id == caller`; the decorator's
+  `parent` predicate is `is_parent_of`, which ALSO accepts an approved
+  `parent_student_links` row. Measured, not assumed: of the 131 approved links
+  in prod, 129 point at a student whose managed_by_parent_id is somebody else.
+  Collapsing would have handed those 129 real pairs delete, promote and act-as
+  over a teen who is not their dependent. So the decorator is the outer
+  structural gate and the managed_by_parent_id checks stay as the precise one.
+  Recorded in the allowlist comment and in the new test's docstring, because
+  "the last cluster collapsed, so this one should" is the obvious wrong move
+  for the next session.
+
+  Safe in the other direction, which is what actually had to be checked: the
+  decorator can only be a superset of the in-view check, since `is_parent_of`
+  matches managed_by_parent_id too. Nobody who works today is denied. Superadmin
+  is unchanged as well — `verify_parent_role` lets a superadmin past the role
+  check but `get_dependent(id, caller)` then refuses them, and it still does.
+
+  Route inventory verified one at a time rather than trusting the allowlist's
+  one-line reason, which said "managed_by_parent_id" for all twelve and was
+  wrong for three: resend_student_invite gates on an approved
+  parent_student_links row, and toggle_child_ai_access /
+  update_child_ai_features accept either mechanism. `is_parent_of` covers all
+  three shapes.
+
+  Tests: the pattern from the parent cluster recurred exactly as predicted.
+    - tests/test_dependent_add_login.py called the view through
+      `__wrapped__.__wrapped__`, a hardcoded depth that broke when the stack
+      grew to three. Now unwraps in a loop, with a comment saying why the
+      number must not come back.
+    - tests/test_add_child.py drives the real Flask client, so the gate genuinely
+      applies: `_post` now patches `utils.portfolio_access.is_parent_of`
+      alongside the existing grants. Its stranger test kept its meaning and
+      gained a sibling — `test_the_relationship_gate_refuses_before_the_view_runs`
+      sets the in-view lookup to ALLOW and the relationship to deny, so a 403
+      proves the refusal came from the decorator.
+    - New: tests/unit/test_dependents_relationship_gate.py pins the declaration
+      of all twelve (param and allow set) off the registered app rather than the
+      source text, and fails if the module gains an id-bearing route that nobody
+      has decided a policy for.
+
+  ruff clean, mypy clean, pyflakes clean.
+  Tests: 4753 passed, 160 skipped, 0 failed.
+
+  Remaining clusters after this one, descending: admin/transcript_generator
+  (10), sis/__init__ (8), sis/parent (8), advisor/learning_moments (7),
+  portfolio (7), oea (6), admin/transfer_credits (5), then a tail of 1-4.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

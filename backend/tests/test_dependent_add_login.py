@@ -73,10 +73,16 @@ def call(admin):
              patch.object(dependents, 'DependentRepository', return_value=repo), \
              patch.object(dependents, 'verify_parent_role', return_value=True), \
              patch.object(dependents, 'validate_password_strength', return_value=(True, [])):
-            # The route is wrapped by @require_auth/@validate_uuid_param; call
-            # the underlying view so the test exercises the logic, not the
-            # decorators.
-            view = dependents.add_dependent_login.__wrapped__.__wrapped__
+            # This test is about the view's logic, not its gates, so unwrap
+            # down to the bare function. Unwrap in a LOOP rather than naming a
+            # fixed number of __wrapped__ hops: the decorator stack grew from
+            # two to three when @require_relationship_to landed (SEC-10), and a
+            # hardcoded depth turns that into eleven red tests that look like a
+            # behavior change. The gate has its own tests, in
+            # tests/unit/test_require_relationship_to.py.
+            view = dependents.add_dependent_login
+            while hasattr(view, '__wrapped__'):
+                view = view.__wrapped__
             return view(PARENT_ID, DEPENDENT_ID)
 
     return _call

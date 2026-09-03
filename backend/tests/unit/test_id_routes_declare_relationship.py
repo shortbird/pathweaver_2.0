@@ -69,24 +69,17 @@ def _reviewed(reason, *endpoints):
 # private-message paths allow ('parent',) alone -- exactly the split
 # verify_parent_access already made via allow_observer (IDOR-H4/H5). The helper
 # stays as the precise inner check; the decorator is the structural declaration.
-# dependents.* below is NOT migrated: it checks managed_by_parent_id directly
-# rather than going through verify_parent_access.
-_reviewed(
-    'parent ownership of the dependent is checked in the view against '
-    'users.managed_by_parent_id before any read or write',
-    'dependents.add_dependent_login',
-    'dependents.delete_dependent',
-    'dependents.export_dependent_progress_report',
-    'dependents.generate_acting_as_token',
-    'dependents.get_dependent',
-    'dependents.get_dependent_progress_report',
-    'dependents.promote_dependent',
-    'dependents.resend_student_invite',
-    'dependents.toggle_child_ai_access',
-    'dependents.update_child_ai_features',
-    'dependents.update_dependent',
-    'dependents.upload_dependent_avatar',
-)
+#
+# MIGRATED 2026-09-03: routes/dependents.py (12 routes) declares
+# @require_relationship_to(<param>, allow=('parent',)). Unlike routes/parent/*,
+# the inner checks here were NOT collapsed away, and must not be. Those routes
+# gate on `users.managed_by_parent_id == caller`; the decorator's `parent`
+# predicate is `is_parent_of`, which ALSO accepts an approved
+# parent_student_links row. On production that is not a theoretical difference:
+# 129 of the 131 approved links are for a student whose managed_by_parent_id is
+# somebody else. Collapsing would hand those 129 pairs delete, promote and
+# act-as on a teen who is not their dependent. The decorator is the outer
+# structural gate; the managed_by_parent_id checks stay as the precise one.
 
 # --- advisor -> assigned student --------------------------------------------
 _reviewed(
