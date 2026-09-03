@@ -142,7 +142,7 @@ Log:
   `your-project-ref` placeholder. Other tracked refs (workflows, email
   templates with public storage asset URLs, docs) are operational, left alone.
 
-### SEC-05 — PII log scrubber exists but is not installed `[TODO]`
+### SEC-05 — PII log scrubber exists but is not installed `[DONE]`
 `utils/log_scrubber.py` (mask_email/mask_pii) is never attached as a logging
 filter; 34 statements log raw parent/student emails (e.g.
 `routes/registration_funnel.py:377,577`, `routes/contact.py:118,135,150,164`).
@@ -152,6 +152,31 @@ raw email comes out masked.
 Accept: filter active on all app loggers incl. root handlers Sentry sees; test.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Installed, but NOT as a logging.Filter — a handler filter cannot
+  meet this item's own acceptance criterion. sentry_sdk 2.67's
+  LoggingIntegration patches `logging.Logger.callHandlers` and reads the record
+  there, outside every handler's filter chain, so an address masked at our
+  console handler would still have shipped to Sentry in full. Two hooks instead,
+  both in utils/logger.py behind `install_pii_scrubbing()` (idempotent, called
+  from setup_logging() before the handlers are attached):
+  the LogRecord factory scrubs `msg` and `args`, and a Logger.makeRecord wrapper
+  scrubs `extra=` (which is merged onto the record after the factory returns —
+  that is where utils/access_logger.py's FERPA context and the route decorators
+  put theirs, nested dicts and lists included).
+  Scope: emails and JWTs, via a new `scrub_log_text()` in log_scrubber.py.
+  UUIDs are deliberately NOT scrubbed platform-wide — every quest, class and
+  org id is a UUID and masking them would cost the logs their join key while
+  adding no privacy the email masking does not already give; `mask_pii()` keeps
+  the stricter behavior for callers that want it, and both now share one set of
+  compiled patterns. Args are scrubbed individually rather than folded into the
+  message so %-templates stay templates and Sentry grouping survives.
+  The 34 raw-email call sites need no edit and were left alone.
+  Tests: tests/unit/test_log_pii_scrubbing.py, 12 cases — including one that
+  stands where Sentry stands (patching callHandlers) and asserts the record is
+  already masked when it arrives. Full backend suite: 4285 passed, 160 skipped.
+  Not covered, worth its own item: exception text. `logger.error(...,
+  exc_info=True)` formats the traceback downstream of both hooks, so an email
+  inside an exception message still reaches Sentry.
 
 ### SEC-06 — `daily_advisor_summary` may still be hard-routed to one inbox `[DONE]`
 `backend/jobs/daily_advisor_summary.py:71` carries `# TESTING MODE: Only send to
