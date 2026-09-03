@@ -198,7 +198,7 @@ Log:
   USER DECISION QUEUED: set `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod when
   ready to roll summaries out to every advisor.
 
-### SEC-07 — Legacy `verify_token()` accepts refresh tokens as access tokens `[TODO]`
+### SEC-07 — Legacy `verify_token()` accepts refresh tokens as access tokens `[DONE]`
 `utils/auth/token_utils.py:33` accepts `type in ['access','refresh']` and skips
 session/device checks; used at `routes/public.py:131`,
 `routes/quest/listing.py:51,380`. Fix: restrict to `type == 'access'` (check the
@@ -206,6 +206,25 @@ three call sites for legitimate refresh use first — none expected on read path
 Accept: refresh token no longer authenticates those paths; tests cover both types.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Confirmed at all three call sites; none passes a refresh token on
+  purpose (each tries session_manager.get_effective_user_id() first and only
+  falls back to the Bearer). Fixed by DELETING the second implementation rather
+  than editing its accept-list: verify_token()'s custom-JWT branch now calls
+  session_manager.verify_access_token(), which is where every other caller's
+  verification already lives. That closes the type hole and picks up two things
+  the hand-rolled decode never had — the session-timeout check and the
+  previous-key fallback during a secret rotation. The Supabase fallback below it
+  is unchanged.
+  Sharpest instance was routes/public.py:131, where the result decides whether
+  an UNPUBLISHED course is shown to its creator or a superadmin.
+  Tests: tests/unit/test_verify_token_access_only.py, 10 cases — access
+  accepted; refresh rejected; all four impersonation token types rejected as a
+  parametrized class so a seventh token type cannot quietly become a seventh way
+  through; plus a shape guard that `jwt.decode` never returns to that function.
+  Full backend suite: 4295 passed, 160 skipped.
+  Noted in passing: `generate_token()` and `refresh_token()` in the same module
+  are dead AND broken — generate_token() mints a payload with no `type`, so a
+  token it issues cannot pass verify_token() at all. Candidates for QB-01.
 
 ### SEC-08 — Admin decorators accept cookie fallback after a rejected Bearer `[TODO]`
 `get_effective_user_id` (session_manager.py:864-868) refuses cookie fallback on a
