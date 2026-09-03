@@ -26,7 +26,6 @@ Two rules worth keeping in mind when changing this file:
 
 import re
 import uuid as _uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from database import get_supabase_admin_client
@@ -64,8 +63,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def slugify(name: str) -> str:

@@ -22,7 +22,7 @@ what keeps one account from burning SMS credits.
 import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
 from app_config import Config
@@ -52,8 +52,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 def _parse_ts(value: str) -> datetime:

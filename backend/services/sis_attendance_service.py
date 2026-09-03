@@ -6,7 +6,6 @@ read it. The summary math (counts + attendance rate) is a pure function, unit-te
 Admin-client DB ops elsewhere (SIS tables RLS-locked to backend-only).
 """
 
-from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
@@ -25,8 +24,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _student_name(u: Dict[str, Any]) -> str:

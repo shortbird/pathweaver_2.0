@@ -37,7 +37,6 @@ RLS-deny-all); authorization runs in Python above every read and write.
 """
 
 import uuid as _uuid
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -66,8 +65,7 @@ _FORBIDDEN = ('Curriculum resources are managed by the school\'s administrators 
               'and the teachers of its classes.')
 
 
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _admin():

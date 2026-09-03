@@ -51,8 +51,7 @@ def _audit(user_id, action_type, resource_type, resource_id, metadata=None):
         logger.warning(f'CRM audit log failed ({action_type}): {e}')
 
 
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 # ---------------------------------------------------------------- overview

@@ -37,8 +37,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 def verify_transcript_token(token: Optional[str], user_id: str) -> bool:

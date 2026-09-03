@@ -22,7 +22,6 @@ model. Additive (/api/sis/gradebook), staff-gated, org-scoped; advisors
 are confined to their own classes via sis_service.class_scope.
 """
 
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -50,8 +49,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _org_or_error(user_id):

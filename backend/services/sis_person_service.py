@@ -25,7 +25,6 @@ Staff are delegated to sis_staff_service so there is exactly one code path for
 teachers, whichever page the admin happens to be on.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
@@ -45,8 +44,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _full_name(u: Dict[str, Any]) -> str:

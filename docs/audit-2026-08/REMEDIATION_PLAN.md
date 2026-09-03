@@ -1590,12 +1590,51 @@ Log:
   module that no longer exists.
   Tests: 4714 passed, 0 failed.
 
-### QB-02 — Consolidate duplicated micro-helpers `[TODO]`
+### QB-02 — Consolidate duplicated micro-helpers `[DONE(now/_now_iso merged; _admin deliberately left alone)]`
 46 copies of `_admin()`, 22 of `_org_or_error`, ~25 of `_now/_now_iso`, plus
 `_display_name`/`_parse_ts` variants. Move canonical versions to `utils/`,
 migrate call sites mechanically.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Did the one that was hiding a bug; deliberately did NOT do the
+  one the item leads with.
+
+  `_now_iso` / `_now`: 35 copies, and they had DIVERGED. Thirty-two returned an
+  aware UTC timestamp; three returned a naive one via `datetime.utcnow()` —
+  routes/sis/goals.py, services/messaging_extras_service.py,
+  services/sis_community_service.py. That is not a style complaint:
+  `datetime.utcnow()` is deprecated from 3.12 and returns a datetime that
+  claims UTC while being naive, so comparing one against an aware timestamp
+  raises TypeError. The bug lands as a crash in whichever path first mixes a
+  goal's timestamp with anything else's, a long way from the module that made
+  it. Now one definition in `utils/timestamps.py`, aliased at each site
+  (`from utils.timestamps import now_iso as _now_iso`) so no call site changed.
+  33 modules; ruff removed the imports that fell dead.
+
+  `_admin()`: 96 copies, and merging them would be ACTIVELY HARMFUL. Each one
+  sits under a per-module justification comment — "# admin client justified:
+  ..." — which is the SEC-13 control that `test_admin_client_justified`
+  enforces. One shared `admin()` would collapse 96 recorded decisions into a
+  single site with a single comment, and the question that gate exists to ask
+  ("why does THIS module bypass RLS?") would no longer have a per-module
+  answer. The duplication IS the audit trail. Left alone, reason recorded here
+  so the next reader does not "finish" the item.
+
+  `_org_or_error` (22 copies): not merged either, and for a smaller reason —
+  SEC-10 has been moving what those helpers guard into
+  `@require_relationship_to`, so consolidating them now would be refactoring
+  code that is being replaced.
+
+  Guards: `tests/unit/test_one_definition_of_now.py`. A module-level `_now`/
+  `_now_iso` outside utils/timestamps fails the build. And a RATCHET, not a
+  ban, on `datetime.utcnow()` — 449 calls remain, converting them is separate
+  work with its own risk (a naive timestamp lands in a `timestamptz` column
+  correctly today, so this is latent rather than broken), but the number must
+  not climb, because 3.12 deprecated the call and each new one is another site
+  to fix when it is removed. A companion test fails if the count falls far
+  enough below the baseline that the ratchet has stopped ratcheting.
+
+  ruff clean, mypy clean. Tests: 4847 passed, 160 skipped, 0 failed.
 
 ### QB-03 — Replace 408 raw `print()` calls with the logger `[DONE]`
 Routes/services only (scripts/ exempt). Preserve message content; pick levels

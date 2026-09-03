@@ -13,7 +13,6 @@ quest row is written before its tasks (a failure part-way leaves a reachable
 quest with fewer tasks, not an orphaned task set).
 """
 
-from datetime import datetime, timezone
 
 from utils.logger import get_logger
 
@@ -45,8 +44,7 @@ class QuestAuthoringError(Exception):
         self.status = status
 
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso  # noqa: E402
 
 
 def norm_pillar(value):

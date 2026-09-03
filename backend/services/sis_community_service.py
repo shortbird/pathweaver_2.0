@@ -55,8 +55,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now_iso() -> str:
-    return datetime.utcnow().isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _text(v: Optional[str]) -> Optional[str]:

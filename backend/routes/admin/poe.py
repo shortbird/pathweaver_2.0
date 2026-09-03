@@ -23,7 +23,6 @@ Documenting the week in the app is encouraged but optional (not a credit gate).
   poe_participants.credit_awarded_at.
 """
 
-from datetime import datetime, timezone
 
 from flask import Blueprint, request
 
@@ -123,8 +122,7 @@ def _ensure_daily_tasks(supabase, student_id: str, class_quest_id: str, user_que
     return len(rows)
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _find_user_by_email(supabase, email: str):

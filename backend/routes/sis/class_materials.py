@@ -23,7 +23,6 @@ RLS-deny-all); authorization is done above every read/write.
 """
 
 import uuid as _uuid
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -49,8 +48,7 @@ _MAX_DOC_BYTES = 25 * 1024 * 1024
 _MAX_TITLE_LEN = 300
 
 
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _bad_uuid(*values):

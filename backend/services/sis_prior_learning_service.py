@@ -31,7 +31,7 @@ transcript scan a parent uploaded should render next to the student's own work
 rather than in a parallel document system that the portfolio can't see.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
@@ -72,8 +72,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def enabled_for_org(org_id: Optional[str]) -> bool:

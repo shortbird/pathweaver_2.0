@@ -41,15 +41,14 @@ Usage:
 import argparse
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 ONBOARDING_KEYS = ('new_account_welcome', 'course_student_onboarding')
 
 
-def _now():
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 def _client():

@@ -39,8 +39,7 @@ DEFAULT_SUBJECTS = ['Math', 'Language Arts', 'Science', 'History', 'Life Skills'
 _STATUS_ORDER = {'submitted': 0, 'draft': 1, 'reviewed': 2}
 
 
-def _now_iso():
-    return datetime.utcnow().isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _default_school_year(today=None):

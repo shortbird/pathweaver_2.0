@@ -27,7 +27,6 @@ Security model (mirrors treehouse.py):
 
 import hashlib
 import secrets
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify, make_response
 
@@ -52,8 +51,7 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _caller_org_id(admin, user_id, requested_org_id=None):

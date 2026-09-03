@@ -11,7 +11,6 @@ Admin (service_role) client throughout — SIS tables are RLS-locked to backend-
 same justification as sis_service.py.
 """
 
-from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
@@ -35,8 +34,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _classes_repo():

@@ -14,7 +14,7 @@ admin-console edit, not a deploy. Sending happens later, in
 crm_funnel_engine's cron sweep — entering a funnel here only positions the
 lead.
 """
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any, Dict, Optional
 
 from postgrest.exceptions import APIError
@@ -41,8 +41,7 @@ def _db():
     return get_supabase_admin_client()
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _record_event(db, lead_id: str, event_type: str, detail: Optional[Dict[str, Any]] = None):

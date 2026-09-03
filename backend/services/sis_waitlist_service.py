@@ -7,7 +7,7 @@ ordering/selection rules are pure (next_position, pick_next_to_offer) so they're
 unit-testable without a DB; the rest composes admin-client reads/writes.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
@@ -89,8 +89,7 @@ def offer_ttl_hours(org_id: str) -> int:
         return DEFAULT_OFFER_TTL_HOURS
 
 
-def _now():
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 # ── Pure ordering logic (unit-tested) ────────────────────────────────────────

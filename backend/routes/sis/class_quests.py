@@ -26,7 +26,6 @@ All DB access uses the service-role admin client; authorization is enforced in
 Python above every read/write.
 """
 
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -53,8 +52,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_class_quests', __name__, url_prefix='/api/sis')
 
 
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _bad_uuid(*values):

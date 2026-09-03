@@ -19,7 +19,6 @@ organizations.feature_flags.sis_settings.assessment_fields = [{key, label}].
 assessments jsonb shape: {key: {boy: 'value', eoy: 'value'}}.
 """
 
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -52,8 +51,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _org_or_error(user_id):

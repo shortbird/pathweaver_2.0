@@ -51,9 +51,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 def _money(cents: int) -> str:

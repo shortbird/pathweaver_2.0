@@ -55,8 +55,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 def _sis_enabled_org_ids() -> List[str]:

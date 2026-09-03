@@ -33,7 +33,6 @@ people's students. The response reports the mapping so a superadmin can promote
 the handful of staff accounts back by hand.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from utils.db_fetch import fetch_all_rows
@@ -74,8 +73,7 @@ def platform_role_for(org_role: Optional[str]) -> str:
     return org_role if org_role in PLATFORM_ROLES else FALLBACK_PLATFORM_ROLE
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _get_org(client, org_id: str) -> Dict[str, Any]:

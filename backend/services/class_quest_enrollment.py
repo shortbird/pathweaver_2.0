@@ -35,7 +35,6 @@ second kind of enrollment for the rest of the app to special-case, which is the
 problem this is fixing.
 """
 
-from datetime import datetime, timezone
 
 from utils.logger import get_logger
 from utils.template_tasks import (
@@ -53,8 +52,7 @@ logger = get_logger(__name__)
 _CHUNK = 200
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 def _chunks(seq, size=_CHUNK):

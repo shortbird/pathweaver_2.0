@@ -23,7 +23,6 @@ run on the admin client; every caller is either cron, a signed webhook, or
 behind require_superadmin.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from postgrest.exceptions import APIError
@@ -34,8 +33,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now_iso  # noqa: E402
 
 
 #: SendGrid reports transient delivery failures ('blocked' — no MX, SMTP

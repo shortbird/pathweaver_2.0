@@ -28,7 +28,7 @@ caller must be a participant (``_require_participant``) or the named approver
 (``_require_approver``) of the row they are touching.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 import secrets
 
@@ -72,8 +72,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc)
+from utils.timestamps import utcnow as _now  # noqa: E402
 
 
 def _iso(dt):

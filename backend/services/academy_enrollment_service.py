@@ -21,7 +21,6 @@ correcting a school name, must not create a second row.
 """
 
 import re
-from datetime import datetime, timezone
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -52,8 +51,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 # ── Optio Academy enrollment ────────────────────────────────────────────────

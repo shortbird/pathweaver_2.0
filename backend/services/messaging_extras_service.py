@@ -10,7 +10,6 @@ announcement-only. All access via the service-role client with checks in code.
 """
 
 import requests
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app_config import Config
@@ -34,8 +33,7 @@ def _admin():
     return get_supabase_admin_client()
 
 
-def _now():
-    return datetime.utcnow().isoformat()
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 
 # ── Realtime: instant delivery (frontends subscribe per open conversation) ────
