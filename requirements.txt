@@ -123,7 +123,7 @@ pyparsing==3.2.3
 rsa==4.9.1
 uritemplate==4.2.0
 urllib3==2.7.0
-cachetools==5.5.2
+cachetools==7.1.8
 charset_normalizer==3.4.3
 # Invoice PDFs (backend/services/sis_invoice_pdf.py). Must stay in step with
 # backend/requirements.txt: THIS is the file Render installs (render.yaml
