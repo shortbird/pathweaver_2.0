@@ -240,6 +240,14 @@ export function reportApiError(error: AxiosError, status: number | null) {
   if (axios.isCancel(error)) return;
   if (status !== null && SILENCED_API_STATUSES.has(status)) return;
   const cfg = error.config;
+  // No config means this isn't a failed request at all — it's a rejection that
+  // re-entered the chain from an inner request. The transient-retry interceptor
+  // above re-issues via `api(cfg)`, so when the retry 401s and the refresh
+  // interceptor throws "No refresh token" (an ordinary expired session), that
+  // plain Error comes back out through THIS handler with no config and no
+  // response, and got filed as a network exception (OPTIO-MOBILE-6). The caller
+  // still sees the rejection, and session teardown still runs in refreshOnce.
+  if (!cfg) return;
   const method = cfg?.method?.toUpperCase();
   const extra = {
     method,

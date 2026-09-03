@@ -67,6 +67,18 @@ describe('reportApiError', () => {
     expect(opts.fingerprint).toEqual(['api-error', 'GET', '/api/quests/:id', 'network']);
   });
 
+  it('ignores a rejection with no config — not a failed request (OPTIO-MOBILE-6)', () => {
+    // The transient-retry interceptor re-issues via api(cfg), so when the
+    // retried request 401s and the refresh interceptor throws "No refresh
+    // token" (an ordinary expired session), that plain Error comes back out
+    // through this reporter with no config and no response. Filing it as a
+    // network exception turned every logout on a flaky connection into a
+    // Sentry error.
+    reportApiError(new Error('No refresh token') as never, null);
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
   it('sends non-silenced 4xx to captureMessage, fingerprinted per endpoint (not one bucket)', () => {
     reportApiError(axiosErr(422, '/api/quests/123', 'post'), 422);
     expect(captureMessage).toHaveBeenCalledTimes(1);
