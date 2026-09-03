@@ -35,6 +35,7 @@ import requests
 from jwt import PyJWKClient
 
 from app_config import Config
+from utils.jwt_keys import decode_app_jwt
 from database import get_supabase_admin_client
 from utils.lti_keys import (
     LtiKeysNotConfigured,
@@ -192,10 +193,9 @@ def issue_state(registration: LtiRegistration, login_hint: Optional[str]) -> str
 
 
 def verify_state(state: str, registration: LtiRegistration) -> Dict[str, Any]:
-    try:
-        payload = jwt.decode(state, Config.JWT_SECRET_KEY, algorithms=["HS256"])
-    except jwt.PyJWTError as e:
-        raise LtiError(f"Invalid state parameter: {e}") from e
+    payload = decode_app_jwt(state)
+    if payload is None:
+        raise LtiError("Invalid state parameter")
 
     if payload.get("purpose") != "lti_oidc_state":
         raise LtiError("State has wrong purpose")
@@ -258,14 +258,8 @@ def decode_evidence_token(token: str) -> Optional[Dict[str, Any]]:
     only enforces `exp` when the claim is present, so absence has to be rejected
     explicitly or the old tokens keep validating forever.
     """
-    if not token:
-        return None
-    try:
-        payload = jwt.decode(
-            token, Config.JWT_SECRET_KEY, algorithms=["HS256"],
-            options={"require": ["exp"]},
-        )
-    except jwt.PyJWTError:
+    payload = decode_app_jwt(token, require=["exp"])
+    if payload is None:
         return None
     if payload.get("purpose") != "lti_evidence":
         return None

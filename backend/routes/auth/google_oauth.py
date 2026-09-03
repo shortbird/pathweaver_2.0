@@ -23,6 +23,7 @@ import secrets
 from app_config import Config
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils.jwt_keys import decode_app_jwt
 
 logger = get_logger(__name__)
 
@@ -30,7 +31,6 @@ bp = Blueprint('auth_google', __name__)
 
 # TOS acceptance token settings
 TOS_TOKEN_EXPIRY_MINUTES = 15
-TOS_TOKEN_SECRET = Config.JWT_SECRET_KEY
 
 
 def generate_tos_acceptance_token(user_id: str) -> str:
@@ -42,22 +42,22 @@ def generate_tos_acceptance_token(user_id: str) -> str:
         'iat': datetime.utcnow(),
         'jti': secrets.token_urlsafe(16)  # Unique token ID
     }
-    return jwt.encode(payload, TOS_TOKEN_SECRET, algorithm='HS256')
+    # Read the key at call time, not import time: a module-level constant
+    # freezes whichever value was live when the process started, which is
+    # the one shape of key rotation that cannot be tested. Verification
+    # goes through decode_app_jwt, which also accepts the previous key.
+    return jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm='HS256')
 
 
 def verify_tos_acceptance_token(token: str):
     """Verify TOS acceptance token and return user_id if valid."""
-    try:
-        payload = jwt.decode(token, TOS_TOKEN_SECRET, algorithms=['HS256'])
-        if payload.get('purpose') != 'tos_acceptance':
-            return None
-        return payload.get('user_id')
-    except jwt.ExpiredSignatureError:
-        logger.warning("[GOOGLE_OAUTH] TOS acceptance token expired")
+    payload = decode_app_jwt(token)
+    if payload is None:
+        logger.warning("[GOOGLE_OAUTH] TOS acceptance token invalid or expired")
         return None
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"[GOOGLE_OAUTH] Invalid TOS acceptance token: {e}")
+    if payload.get('purpose') != 'tos_acceptance':
         return None
+    return payload.get('user_id')
 
 
 def _sync_oauth_signup_to_crm(user_data, promo_role=None):
