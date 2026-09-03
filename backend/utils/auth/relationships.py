@@ -182,10 +182,22 @@ def require_relationship_to(param: str, allow: Sequence[str]):
                              'not receive it', request.path, param)
                 raise AuthorizationError('Not authorized')
 
+            # NOTHING but the predicate goes inside this try. The first
+            # version called the view from in here, on the allow branch, so the
+            # handler below caught whatever the VIEW raised -- a bug, a
+            # deliberate NotFoundError, a ValidationError -- logged it as
+            # "check failed" and answered 403 "Not authorized to access this
+            # student". The caller was told they lacked permission they had,
+            # middleware/error_handler never saw the exception, and Sentry
+            # never got it. It was invisible from the outside twice over: the
+            # staff branch below returns outside any try, so a superadmin
+            # reproducing the report saw the real error.
+            allowed = False
             for name in allow:
                 try:
                     if RELATIONSHIPS[name](caller_id, target_id):
-                        return f(*args, **kwargs)
+                        allowed = True
+                        break
                 except Exception:
                     # A predicate that blows up is a predicate that did not say
                     # yes. Keep evaluating the rest; never let an exception
@@ -199,10 +211,10 @@ def require_relationship_to(param: str, allow: Sequence[str]):
             # essentially all of this traffic, to answer a question that is
             # False for all of them. Now only a caller who has already failed
             # every declared relationship pays for it.
-            if _is_platform_staff(caller_id):
-                return f(*args, **kwargs)
+            if not allowed and not _is_platform_staff(caller_id):
+                raise AuthorizationError('Not authorized to access this student')
 
-            raise AuthorizationError('Not authorized to access this student')
+            return f(*args, **kwargs)
 
         setattr(decorated_function, ENFORCED_ATTR, (param, allow))
         return decorated_function

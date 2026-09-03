@@ -534,6 +534,35 @@ Log:
   Remaining clusters, descending: sis/__init__ (8), sis/parent (8),
   advisor/learning_moments (7), portfolio (7), oea (6),
   admin/transfer_credits (5), then a tail of 1-4.
+- 2026-09-03: BUG IN (a), FIXED. The decorator was swallowing exceptions raised
+  by the VIEW and answering 403. Found by accident while writing a test for the
+  sis cluster; it had been live on every migrated route since (a) landed
+  earlier the same day, and by the time it surfaced 59 routes were behind it.
+
+  The allow branch returned `f(*args, **kwargs)` from INSIDE the predicate
+  loop's `try`, so the `except Exception` written for "a predicate that blows
+  up is not an allow" also caught everything the view raised. Three
+  consequences, none of which looks like this bug from a report:
+    - the caller was told "Not authorized to access this student" about a
+      student they were authorized for;
+    - middleware/error_handler never saw the exception, so a view's deliberate
+      404 or 400 never reached the client;
+    - Sentry got nothing, because the handler logged and continued.
+  And it hid itself: the platform-staff branch returns OUTSIDE any try, so a
+  superadmin reproducing a user's report saw the real error while the user saw
+  a 403.
+
+  Fix: the loop only sets a flag; the view is called after the gate has
+  finished. Staff is still evaluated lazily (`not allowed and not
+  _is_platform_staff(...)` short-circuits), so the ordering work from the
+  parent cluster is preserved.
+
+  Four tests in test_require_relationship_to.py: an ordinary exception
+  propagates, an AuthorizationError from the view keeps its own message (the
+  nastiest shape — same status code, wrong reason, trail pointing at the wrong
+  module), the staff path propagates too so the two branches cannot drift, and
+  a denial still stops the view from running. The first two FAIL against the
+  pre-fix decorator; verified by restoring it and watching them go red.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

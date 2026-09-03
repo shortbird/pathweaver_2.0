@@ -184,6 +184,78 @@ def test_staff_lookup_failure_is_not_staff(monkeypatch):
     assert relationships._is_platform_staff(CALLER) is False
 
 
+# --- the gate must not eat what the VIEW raises ------------------------------
+
+def _raising_view(allow, exc):
+    @require_relationship_to('student_id', allow=allow)
+    def view(**kwargs):
+        raise exc
+
+    return view
+
+
+def test_an_exception_from_the_view_is_not_reported_as_a_denial(app, monkeypatch):
+    """THE regression, found 2026-09-03 while migrating routes/sis.
+
+    The first version called the view from INSIDE the predicate loop's try, on
+    the allow branch. So anything the view raised -- an ordinary bug, a
+    deliberate NotFoundError, a ValidationError -- was caught by the "a
+    predicate that blows up is not an allow" handler, logged as "check failed",
+    and answered 403 "Not authorized to access this student".
+
+    Three things went wrong at once, and none of them looked like this bug: the
+    caller was told they lacked permission they actually had;
+    middleware/error_handler never saw the exception, so the 400 or 404 the
+    view meant to return never happened; and Sentry got nothing, so the real
+    failure left no trace. By then 59 routes were behind this decorator.
+    """
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+    view = _raising_view(('parent',), RuntimeError('the view itself broke'))
+    with app.test_request_context('/'):
+        with pytest.raises(RuntimeError, match='the view itself broke'):
+            view(student_id=STUDENT)
+
+
+def test_an_authorization_error_from_the_view_is_still_the_view_s(app, monkeypatch):
+    """The nastiest shape of it: indistinguishable from the gate's own 403.
+
+    A view that does its own finer-grained check and raises AuthorizationError
+    was reported with the GATE's message, so the log said the caller failed a
+    relationship they had passed. Same status code, wrong reason, and the trail
+    pointed at the wrong module.
+    """
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+    view = _raising_view(('parent',), AuthorizationError('the view said no'))
+    with app.test_request_context('/'):
+        with pytest.raises(AuthorizationError, match='the view said no'):
+            view(student_id=STUDENT)
+
+
+def test_the_staff_path_propagates_too(app, monkeypatch):
+    """The staff branch always did -- which is how the bug stayed hidden.
+
+    It returns outside any try, so a superadmin reproducing a user's report saw
+    the real error while the user saw a 403. Pin both paths to the same
+    behavior so they cannot drift apart again.
+    """
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff',
+                        lambda _caller: True)
+    view = _raising_view(('parent',), RuntimeError('the view itself broke'))
+    with app.test_request_context('/'):
+        with pytest.raises(RuntimeError, match='the view itself broke'):
+            view(student_id=STUDENT)
+
+
+def test_a_denial_still_stops_the_view_from_running(app, monkeypatch):
+    """The other half: moving the call out of the try must not let it through."""
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    view, calls = _view(('parent',))
+    with app.test_request_context('/'):
+        with pytest.raises(AuthorizationError):
+            view(student_id=STUDENT)
+    assert calls == []
+
+
 def test_options_preflight_short_circuits(app):
     view, calls = _view(('self',))
     with app.test_request_context('/', method='OPTIONS'):
