@@ -757,7 +757,7 @@ Log:
 
 ## Phase 2 — CI enforcement (cheapest durable wins)
 
-### CI-01 — No linter or type-checker runs in CI `[TODO]`
+### CI-01 — No linter or type-checker runs in CI `[DONE]`
 `mypy.ini` exists (permissive, with per-module strict overrides) but nothing runs
 it. Fix: add ruff (curated ruleset: F, E9, B, S110/S112 for silent excepts) and
 mypy steps to `tests-backend.yml`, enforcing. Fix or noqa existing violations to
@@ -765,6 +765,25 @@ get to green — do not lower the config to pass.
 Accept: both steps enforcing in the reusable workflow (gates PR and release).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: DONE, both halves enforcing in tests-backend.yml.
+  RUFF: ruff.toml at the repo root, ruleset F/E9/B/S110/S112 — narrow for the
+  same reason the pyflakes step is narrow (a gate you argue with gets switched
+  off). 1364 findings -> 0. 977 by --fix, 299 by hand, details in the two
+  commits. Enforcing from its first run rather than starting advisory.
+  MYPY: it had never worked, and could not have. mypy.ini's `exclude` regex
+  closes on a `)` at column 0; an unindented continuation line ends the value,
+  so everything below it was unparseable and EVERY per-module setting was dead
+  — including the two `disallow_untyped_defs` overrides added in Dec 2025 for
+  "new, well-typed modules", neither of which satisfied them. And services/ was
+  the only package directory without __init__.py, so mypy resolved one module
+  under two names and refused to check at all. Both fixed; base_service and
+  base_repository annotated so their strict flags are true for the first time.
+  With the config working, the first honest run is 7738 errors in 296 of 1019
+  modules (4022 union-attr). Those 296 are exempted by name, the list only
+  shrinks, and mypy enforces on the ~720 already-clean modules.
+  I found the exclude bug by disbelieving my own work: the baseline I generated
+  had no effect at all, which is not how a config behaves unless it is not being
+  read.
 
 ### CI-02 — Stop the layering bleed: ratchet direct DB calls in `routes/` `[DONE]`
 ~2,317 `.table(` calls in routes today. Add a guard test that counts direct
