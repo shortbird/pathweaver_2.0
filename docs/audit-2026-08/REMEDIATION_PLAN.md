@@ -761,11 +761,20 @@ Log:
 
 ## Phase 4 — Backend quality
 
-### QB-01 — Delete dead `exceptions.py` (549 lines, zero importers) `[TODO]`
+### QB-01 — Delete dead `exceptions.py` (549 lines, zero importers) `[DONE]`
 Verify zero imports repo-wide, then delete; the live hierarchy is
 `middleware/error_handler.py`.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Verified dead before deleting — no importer, and no dynamic or
+  string reference either (the only `import exceptions` in the tree was inside
+  the file itself). It was a second, parallel exception hierarchy: 20+ classes
+  led by OptioException, while every live raise site uses
+  middleware/error_handler.AppError and its subclasses. Deleted.
+  Also fixed the collateral: tests/unit/test_import_layers.py's docstring listed
+  `exceptions` as an allowed import target on all four layers, which documents a
+  module that no longer exists.
+  Tests: 4714 passed, 0 failed.
 
 ### QB-02 — Consolidate duplicated micro-helpers `[TODO]`
 46 copies of `_admin()`, 22 of `_org_or_error`, ~25 of `_now/_now_iso`, plus

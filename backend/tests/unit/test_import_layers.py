@@ -5,10 +5,10 @@ module imports statically (AST) and flags violations where a lower layer
 reaches up into a higher one.
 
 Allowed:
-    routes/*       -> services, repositories, utils, middleware, exceptions, database, app_config, config, prompts, schemas
-    services/*     -> repositories, utils, middleware (limited), exceptions, database, app_config, config, prompts, schemas, other services
-    repositories/* -> utils, exceptions, database, app_config, config, other repositories
-    utils/*        -> utils, exceptions, app_config, config
+    routes/*       -> services, repositories, utils, middleware, database, app_config, config, prompts, schemas
+    services/*     -> repositories, utils, middleware (limited), database, app_config, config, prompts, schemas, other services
+    repositories/* -> utils, database, app_config, config, other repositories
+    utils/*        -> utils, app_config, config
 
 Disallowed examples:
     repositories/*  importing services.*
