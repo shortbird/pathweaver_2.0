@@ -69,3 +69,66 @@ describe('StudentDetailModal Schedule enroll', () => {
     expect(() => JSON.stringify(body)).not.toThrow()
   })
 })
+
+/**
+ * iCreate, 2026-09-02: "Would be great if the 'search class' feature here only
+ * shows classes they CAN take either schedule wise or age wise." The picker
+ * offered every class in the school, so the office read out options that
+ * clashed with the week it was building, and found out at Enroll.
+ */
+describe('StudentDetailModal class picker', () => {
+  const CLASSES = [
+    { id: 'c1', name: 'Geometry', meetings: [{ day_of_week: 2, start_time: '09:00', end_time: '10:00' }] },
+    // Same slot as the class the student already has.
+    { id: 'c2', name: 'Pottery', meetings: [{ day_of_week: 1, start_time: '13:00', end_time: '14:00' }] },
+    { id: 'c3', name: 'Teen Welding', min_age: 14, meetings: [{ day_of_week: 3, start_time: '11:00', end_time: '12:00' }] },
+  ]
+  const ENROLLED = [
+    { class_id: 'c9', name: 'Microschool', meetings: [{ day_of_week: 1, start_time: '13:00', end_time: '15:00' }] },
+  ]
+
+  const openSchedule = async (studentProps = {}) => {
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/sis/students/s1/classes')) return Promise.resolve({ data: { classes: ENROLLED } })
+      if (url.startsWith('/api/sis/classes')) return Promise.resolve({ data: { classes: CLASSES } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<StudentDetailModal student={{ ...student, ...studentProps }} orgId="org-1" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    await screen.findByText('Enroll in a class')
+  }
+
+  const optionNames = () => [...screen.getByLabelText('class').options]
+    .map((o) => o.textContent).filter((t) => t !== '—')
+
+  it('leaves out a class that clashes with the week they already have', async () => {
+    await openSchedule({ age: 15 })
+    expect(optionNames().some((t) => t.startsWith('Geometry'))).toBe(true)
+    expect(optionNames().some((t) => t.startsWith('Pottery'))).toBe(false)
+  })
+
+  it('leaves out a class the age band excludes', async () => {
+    await openSchedule({ age: 9 })
+    expect(optionNames().some((t) => t.startsWith('Teen Welding'))).toBe(false)
+  })
+
+  it('offers everything to a student with no birthday and an empty week', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/sis/students/s1/classes')) return Promise.resolve({ data: { classes: [] } })
+      if (url.startsWith('/api/sis/classes')) return Promise.resolve({ data: { classes: CLASSES } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    await screen.findByText('Enroll in a class')
+    expect(optionNames()).toHaveLength(3)
+  })
+
+  it('still lets staff reach the excluded ones, and says why each is out', async () => {
+    await openSchedule({ age: 9 })
+    fireEvent.click(screen.getByRole('checkbox'))
+    const names = optionNames()
+    expect(names.some((t) => t.includes('clashes with their schedule'))).toBe(true)
+    expect(names.some((t) => t.includes('outside the age band'))).toBe(true)
+  })
+})
