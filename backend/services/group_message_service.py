@@ -739,13 +739,16 @@ class GroupMessageService(BaseService):
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """
-        Get messages for a group
+        Get one page of a group chat, oldest-to-newest within the page.
+
+        `offset` counts back from the NEWEST message: offset 0 is the most
+        recent `limit` messages.
 
         Args:
             user_id: UUID of the requesting user
             group_id: UUID of the group
             limit: Number of messages to return
-            offset: Offset for pagination
+            offset: Offset for pagination, from the newest message backwards
 
         Returns:
             List of message records
@@ -758,14 +761,22 @@ class GroupMessageService(BaseService):
 
             # Deleted messages stay in the stream as tombstones (content blanked
             # by enrich_messages) so reply previews keep working.
+            #
+            # Newest page first, flipped back to chronological below. Ordering
+            # ascending and taking range(0, 49) returned the OLDEST 50, and no
+            # client paginates — a class chat would have gone quiet on its 51st
+            # message with no error anywhere. Same fix as the DM path in
+            # direct_message_service.get_conversation_messages.
             messages = supabase.table('group_messages').select('*').eq(
                 'group_id', group_id
             ).order(
-                'created_at', desc=False
+                'created_at', desc=True
             ).range(offset, offset + limit - 1).execute()
 
             from services import messaging_extras_service as extras
-            enriched = extras.enrich_messages('group', messages.data or [], user_id)
+            enriched = extras.enrich_messages(
+                'group', list(reversed(messages.data or [])), user_id
+            )
 
             # Enrich with sender info
             result = []

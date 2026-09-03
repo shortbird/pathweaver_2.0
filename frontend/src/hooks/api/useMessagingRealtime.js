@@ -33,10 +33,18 @@ const mergeReactions = (existing = [], incoming = []) =>
 /**
  * @param {object} params
  * @param {'dm'|'group'} params.kind - Conversation type (topic prefix)
- * @param {string} params.id - Conversation/group id
+ * @param {string} params.id - The react-query cache key for this thread's
+ *   messages. For DMs that is the OTHER USER's id, because that is what every
+ *   message query and the send mutation are keyed on (see contactToConversation).
+ * @param {string} [params.topicId] - The id the backend broadcasts on: the
+ *   message_conversations row id for a DM, the group id for a group. Falls back
+ *   to `id`, which is correct for groups and for a DM object that came straight
+ *   off the conversations endpoint (a student's pinned advisor). Passing the
+ *   user id here subscribed to a topic nothing publishes to, so DM realtime was
+ *   dead on the web and every thread fell back to its 60s poll.
  * @param {boolean} [params.enabled=true]
  */
-export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
+export const useMessagingRealtime = ({ kind, id, topicId, enabled = true }) => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   // Superadmins keep deleted content (with a "Deleted" indicator) for moderation.
@@ -45,7 +53,7 @@ export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
   useEffect(() => {
     if (!enabled || !kind || !id) return undefined
 
-    const topic = `${kind}:${id}`
+    const topic = `${kind}:${topicId || id}`
     const messagesKey = kind === 'group' ? ['group-messages', id] : ['conversation-messages', id]
 
     const updateMessages = (updater) => {
@@ -139,7 +147,7 @@ export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [kind, id, enabled, queryClient, revealDeleted])
+  }, [kind, id, topicId, enabled, queryClient, revealDeleted])
 }
 
 export default useMessagingRealtime

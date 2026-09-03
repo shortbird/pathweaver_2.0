@@ -144,6 +144,13 @@ export function normalizeContact(contact, source) {
 
   return {
     id: userId,
+    // The message_conversations row id, and ONLY when this contact came from an
+    // existing thread. Distinct from `id`, which is the other person's user id:
+    // the realtime broadcast topic is keyed on the conversation row
+    // (`dm:{conversation_id}`), so subscribing with the user id silently missed
+    // every event and the thread fell back to its 60s poll. A contact you have
+    // never written to has no conversation row, hence null.
+    conversationId: source === 'conversation' ? contact.id : null,
     displayName: displayName || 'Unknown',
     firstName,
     lastName,
@@ -218,6 +225,9 @@ export function mergeContacts(sources) {
         contactMap.set(normalized.id, {
           ...existing,
           relationshipTypes: allTypes,
+          // Only the 'conversation' source carries it, and it is processed
+          // last, so this is how a directory contact picks up the thread id.
+          conversationId: normalized.conversationId || existing.conversationId,
           lastMessageAt: lastMessageAt || existing.lastMessageAt,
           lastMessagePreview: normalized.lastMessagePreview || existing.lastMessagePreview,
           unreadCount: Math.max(existing.unreadCount || 0, normalized.unreadCount || 0),
@@ -285,6 +295,11 @@ export function contactToConversation(contact) {
 
   return {
     id: contact.id,
+    // `id` above is the other person's user id — every message query and the
+    // send endpoint are keyed on it. This is the message_conversations row id,
+    // carried alongside for the one thing that genuinely needs it: the realtime
+    // broadcast topic. Null until the thread exists.
+    conversation_id: contact.conversationId || null,
     type: primaryRelationship,
     other_user: {
       id: contact.id,

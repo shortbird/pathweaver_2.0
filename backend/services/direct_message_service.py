@@ -246,12 +246,22 @@ class DirectMessageService(BaseService):
             if conversation.data and len(conversation.data) > 0:
                 return conversation.data[0]
 
-            # Create new conversation
+            # Create new conversation.
+            #
+            # `last_message_at` stays NULL until a message actually lands
+            # (_update_conversation_metadata sets it on send). Stamping it with
+            # now() at creation is what every client reads as "this thread has
+            # traffic": the web list treats any row with a last_message_at as an
+            # active conversation and sorts by it, so a thread nobody had written
+            # in appeared at the TOP of Messages with a fresh timestamp. On
+            # 2026-09-03, 137 of 230 rows in production were these — one of them
+            # read as a brand-new message from a parent who had only opened the
+            # Optio Support contact and never sent anything.
             new_conversation = {
                 'id': str(uuid.uuid4()),
                 'participant_1_id': p1_id,
                 'participant_2_id': p2_id,
-                'last_message_at': datetime.utcnow().isoformat(),
+                'last_message_at': None,
                 'last_message_preview': '',
                 'unread_count_p1': 0,
                 'unread_count_p2': 0,
@@ -357,8 +367,11 @@ class DirectMessageService(BaseService):
             except Exception as school_err:  # noqa: BLE001
                 print(f"School conversation flagging failed: {school_err}", file=sys.stderr, flush=True)
 
-            # Sort by last_message_at descending
-            all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
+            # Sort by last_message_at descending. A thread that has never been
+            # written in carries NULL there (see get_or_create_conversation), and
+            # None is not comparable to a string — so it sorts as the empty
+            # string, landing at the bottom where an empty thread belongs.
+            all_conversations.sort(key=lambda x: x['last_message_at'] or '', reverse=True)
 
             # Avatars live in private buckets, and the list draws them at 40px.
             # Serve thumbnails: the originals average 1.3 MB apiece and the
@@ -550,15 +563,20 @@ class DirectMessageService(BaseService):
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """
-        Get messages for a conversation
+        Get one page of a conversation, oldest-to-newest within the page.
 
-        Handles both actual conversation IDs and user IDs (for new conversations)
+        Accepts either a conversation id or the other participant's user id (the
+        web client sends the latter — see mark_conversation_read). Two people
+        with no thread yet get an empty list, not a new conversation row.
+
+        `offset` counts back from the NEWEST message: offset 0 is the most
+        recent `limit` messages.
 
         Args:
             conversation_id: UUID of the conversation OR target user ID
             user_id: UUID of the requesting user (for permission check)
             limit: Number of messages to return
-            offset: Offset for pagination
+            offset: Offset for pagination, from the newest message backwards
 
         Returns:
             List of message records
@@ -566,32 +584,29 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Try to fetch conversation by ID first
-            conversation_result = supabase.table('message_conversations').select('*').eq(
-                'id', conversation_id
-            ).execute()
+            # Reading a thread must never CREATE one. This used to call
+            # get_or_create_conversation, so merely opening someone's contact
+            # card wrote a message_conversations row — and that row then read as
+            # a live thread everywhere (see get_or_create_conversation). Opening
+            # a contact you have never written to now costs nothing; the row is
+            # created by the first send.
+            conversation = self._find_conversation(conversation_id, user_id)
+            if conversation is None:
+                return []
+            actual_conversation_id = conversation['id']
 
-            # If no conversation found, try to find/create by user IDs
-            if not conversation_result.data or len(conversation_result.data) == 0:
-                # conversation_id might actually be a target_user_id
-                # Try to find existing conversation between these users
-                conversation = self.get_or_create_conversation(user_id, conversation_id)
-                actual_conversation_id = conversation['id']
-            else:
-                conversation = conversation_result.data[0]
-                actual_conversation_id = conversation_id
-
-                # Verify user is a participant
-                if user_id not in [conversation['participant_1_id'], conversation['participant_2_id']]:
-                    raise ValueError("You are not a participant in this conversation")
-
-            # Get messages
+            # Newest page first, flipped back to chronological for the client.
+            # Ordering ascending and taking range(0, 49) returned the OLDEST 50,
+            # and no client paginates — so past 50 messages a thread stopped
+            # showing new ones at all, with no error anywhere. No thread had
+            # reached 50 yet, which is the only reason this never shipped as
+            # "my messages stopped arriving".
             messages = supabase.table('direct_messages').select('*').eq(
                 'conversation_id', actual_conversation_id
-            ).order('created_at', desc=False).range(offset, offset + limit - 1).execute()
+            ).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
             from services import messaging_extras_service as extras
-            return extras.enrich_messages('dm', messages.data or [], user_id)
+            return extras.enrich_messages('dm', list(reversed(messages.data or [])), user_id)
 
         except Exception as e:
             print(f"Error getting conversation messages: {str(e)}", file=sys.stderr, flush=True)

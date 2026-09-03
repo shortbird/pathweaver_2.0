@@ -50,13 +50,28 @@ const ChatWindow = ({ conversation, onBack }) => {
   const editMessageMutation = useEditMessage()
   const deleteMessageMutation = useDeleteMessage()
 
-  // Live updates for the open conversation (polling remains as a fallback)
-  useMessagingRealtime({ kind: 'dm', id: conversation?.id, enabled: !!conversation?.id })
+  // A thread opened from the contacts directory has no conversation row yet, so
+  // no `conversation_id` to subscribe to — the first send creates it, and the
+  // send response is the earliest we can know it. Without this the sender would
+  // wait for the conversation list to refetch AND the row to be re-selected
+  // before live updates attached.
+  const [startedConversationId, setStartedConversationId] = useState(null)
+
+  // Live updates for the open conversation (polling remains as a fallback).
+  // `id` keys the cache, `topicId` is what the backend broadcasts on — see the
+  // hook.
+  useMessagingRealtime({
+    kind: 'dm',
+    id: conversation?.id,
+    topicId: conversation?.conversation_id || startedConversationId,
+    enabled: !!conversation?.id
+  })
 
   // Reset reply state when switching conversations
   useEffect(() => {
     setReplyTo(null)
     setAvatarFailed(false)
+    setStartedConversationId(null)
   }, [conversation?.id])
 
   // Mark the thread read when it opens, or when a message arrives while it is
@@ -97,7 +112,7 @@ const ChatWindow = ({ conversation, onBack }) => {
     const replyToPreview = replyTo || null
     setReplyTo(null)
     try {
-      await sendMessageMutation.mutateAsync({
+      const sent = await sendMessageMutation.mutateAsync({
         targetUserId: otherUser.id,
         content,
         currentUserId: user?.id, // Pass current user ID for optimistic update
@@ -105,6 +120,7 @@ const ChatWindow = ({ conversation, onBack }) => {
         replyToMessageId,
         replyToPreview
       })
+      if (sent?.conversation_id) setStartedConversationId(sent.conversation_id)
     } catch (error) {
       // Error handling is done in the mutation
       console.error('Failed to send message:', error)
