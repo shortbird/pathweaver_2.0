@@ -447,6 +447,31 @@ const ContactsSection = ({ student, orgId }) => {
   )
 }
 
+// Whole years old on a date, or null when there is no birthday on file.
+const ageOf = (dob) => {
+  if (!dob) return null
+  const [y, m, d] = String(dob).slice(0, 10).split('-').map(Number)
+  if (!y) return null
+  const today = new Date()
+  let age = today.getFullYear() - y
+  const beforeBirthday = today.getMonth() + 1 < m
+    || (today.getMonth() + 1 === m && today.getDate() < d)
+  return beforeBirthday ? age - 1 : age
+}
+
+// Two weekly meetings collide when they share a day and overlap in time.
+const toMin = (t) => {
+  const [h, m] = String(t || '').split(':').map(Number)
+  return Number.isNaN(h) ? null : h * 60 + (m || 0)
+}
+const overlaps = (a, b) => {
+  if (a.day_of_week == null || a.day_of_week !== b.day_of_week) return false
+  const as = toMin(a.start_time); const ae = toMin(a.end_time)
+  const bs = toMin(b.start_time); const be = toMin(b.end_time)
+  if ([as, ae, bs, be].some((v) => v == null)) return false
+  return as < be && bs < ae
+}
+
 // ── Schedule: active classes + teacher + quest link, plus enroll ──────────────
 const SchedulePanel = ({ student, orgId }) => {
   const confirm = useConfirm()
@@ -507,7 +532,24 @@ const SchedulePanel = ({ student, orgId }) => {
   }
 
   const enrolledIds = new Set(classes.map((c) => c.class_id))
-  const options = all.filter((c) => !enrolledIds.has(c.id))
+  // Only what this student can actually take. The picker offered every class
+  // in the school, so the office read out options that clashed with the week
+  // they were building or that the age band excluded, and found out at Enroll
+  // (iCreate, 2026-09-02). Staff can still see the rest — an exception is
+  // theirs to make — but they have to ask for it.
+  const [showAll, setShowAll] = useState(false)
+  const age = student.age ?? ageOf(student.date_of_birth)
+  const fitsAge = (c) => (
+    age == null
+    || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
+  )
+  const clashesWith = (c) => (c.meetings || []).some(
+    (m) => classes.some((e) => (e.meetings || []).some((em) => overlaps(m, em))),
+  )
+  const available = all.filter((c) => !enrolledIds.has(c.id))
+  const eligible = available.filter((c) => fitsAge(c) && !clashesWith(c))
+  const options = showAll ? available : eligible
+  const excluded = available.length - eligible.length
 
   return (
     <div className="space-y-4">
@@ -557,18 +599,36 @@ const SchedulePanel = ({ student, orgId }) => {
       <div className="border-t border-gray-100 pt-4">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Enroll in a class</h4>
         {options.length === 0
-          ? <p className="text-sm text-neutral-400">No other classes available.</p>
+          ? (
+            <p className="text-sm text-neutral-400">
+              {available.length === 0
+                ? 'No other classes available.'
+                : 'Nothing else fits this student\u2019s week or age band.'}
+            </p>
+          )
           : (
             <div className="flex gap-2">
               <SearchSelect
                 value={chosen} onChange={setChosen} options={options}
                 getId={(c) => c.id}
-                getLabel={(c) => `${classLabel(c)}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}`}
+                getLabel={(c) => {
+                  const why = !fitsAge(c) ? ' — outside the age band'
+                    : clashesWith(c) ? ' — clashes with their schedule' : ''
+                  return `${classLabel(c)}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}${why}`
+                }}
                 placeholder="Search classes…" className="flex-1"
               />
               <Button size="sm" onClick={() => enroll()} loading={busy}>Enroll</Button>
             </div>
           )}
+        {excluded > 0 && (
+          <label className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
+            <input type="checkbox" checked={showAll}
+              onChange={(e) => { setShowAll(e.target.checked); setChosen('') }}
+              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            Show the {excluded} that clash{excluded === 1 ? 'es' : ''} with their week or age band
+          </label>
+        )}
       </div>
     </div>
   )

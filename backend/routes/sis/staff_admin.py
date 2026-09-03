@@ -228,7 +228,27 @@ def list_form_templates(user_id):
         return err
     return jsonify({'success': True,
                     'templates': form_templates.list_templates(org_id),
+                    # The shared built-ins, each with whether this school hides
+                    # it, so the Forms panel can list what staff actually see.
+                    'builtins': form_templates.builtin_forms(org_id),
                     'field_types': list(form_templates.FIELD_TYPES)})
+
+
+@bp.route('/form-templates/builtin/<key>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def set_builtin_form_visibility(user_id, key):
+    """Hide or restore one built-in form for this school. The list is shared by
+    every org, so a school that never files reimbursements switches it off for
+    itself rather than deleting it (iCreate, 2026-09-02)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services.sis_forms_service import FORM_TYPES, PARENT_FORM_TYPES
+    if key not in {**FORM_TYPES, **PARENT_FORM_TYPES}:
+        return jsonify({'success': False, 'error': 'Unknown form'}), 404
+    hidden = bool((request.get_json(silent=True) or {}).get('hidden'))
+    return jsonify({'success': True,
+                    'hidden_form_types': form_templates.set_builtin_hidden(org_id, key, hidden)})
 
 
 @bp.route('/form-templates', methods=['POST'])

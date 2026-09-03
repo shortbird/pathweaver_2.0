@@ -291,6 +291,51 @@ def validate_answers(template: Dict[str, Any],
     return payload, None
 
 
+def hidden_builtin_keys(org_id: str) -> List[str]:
+    """Built-in form keys this school has switched off (sis_settings.hidden_form_types).
+
+    The built-in list is shared by every school, so one that never reimburses
+    anybody cannot have the entry deleted — it hides it for itself instead
+    (iCreate, 2026-09-02: "remove the purchase requests, class prep,
+    reimbursement request").
+    """
+    try:
+        rows = (_admin().table('organizations').select('feature_flags')
+                .eq('id', org_id).limit(1).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — a settings read must never empty the picker
+        logger.warning(f'hidden form types lookup failed for {org_id[:8]}: {e}')
+        return []
+    settings = ((rows[0].get('feature_flags') or {}) if rows else {}).get('sis_settings') or {}
+    hidden = settings.get('hidden_form_types')
+    return [str(k) for k in hidden] if isinstance(hidden, list) else []
+
+
+def set_builtin_hidden(org_id: str, key: str, hidden: bool) -> List[str]:
+    """Hide or restore one built-in form for this school. Returns the new list."""
+    rows = (_admin().table('organizations').select('feature_flags')
+            .eq('id', org_id).limit(1).execute()).data or []
+    flags = (rows[0].get('feature_flags') or {}) if rows else {}
+    settings = dict(flags.get('sis_settings') or {})
+    current = [k for k in (settings.get('hidden_form_types') or []) if isinstance(k, str)]
+    if hidden and key not in current:
+        current.append(key)
+    elif not hidden:
+        current = [k for k in current if k != key]
+    settings['hidden_form_types'] = current
+    flags = {**flags, 'sis_settings': settings}
+    _admin().table('organizations').update({'feature_flags': flags}).eq('id', org_id).execute()
+    return current
+
+
+def builtin_forms(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]]:
+    """The built-in forms for this audience with whether the school hides each
+    one — what the Forms panel lists alongside the school's own."""
+    from services.sis_forms_service import FORM_TYPES, PARENT_FORM_TYPES
+    hidden = set(hidden_builtin_keys(org_id))
+    builtins = PARENT_FORM_TYPES if audience == 'family' else FORM_TYPES
+    return [{'key': k, 'name': v, 'hidden': k in hidden} for k, v in builtins.items()]
+
+
 def submittable_forms(org_id: str, audience: str = 'staff',
                       roles: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """What this person can file, built-ins and org-defined together.
@@ -301,7 +346,8 @@ def submittable_forms(org_id: str, audience: str = 'staff',
     questions rather than two entries with the same name.
 
     `fields` is empty for a built-in — the classic three inputs — which is what
-    tells the client to render the old form.
+    tells the client to render the old form. A built-in the school has switched
+    off (see hidden_builtin_keys) is left out entirely.
     """
     from services.sis_forms_service import FORM_TYPES, PARENT_FORM_TYPES
 
@@ -321,8 +367,9 @@ def submittable_forms(org_id: str, audience: str = 'staff',
         })
 
     builtins = PARENT_FORM_TYPES if audience == 'family' else FORM_TYPES
+    hidden = set(hidden_builtin_keys(org_id))
     for key, label in builtins.items():
-        if key in overridden:
+        if key in overridden or key in hidden:
             continue
         out.append({'key': key, 'name': label, 'description': None,
                     'fields': [], 'source': 'builtin'})

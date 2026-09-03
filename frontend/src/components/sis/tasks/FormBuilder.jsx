@@ -178,6 +178,11 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
 const FormBuilder = ({ orgId, staff = [], onCount }) => {
   const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
+  // The shared built-in forms, with whether this school hides each one. They
+  // cannot be edited or deleted (every school has them), only switched off
+  // here (iCreate, 2026-09-02: "remove the purchase requests, class prep,
+  // reimbursement request, etc.").
+  const [builtins, setBuiltins] = useState([])
   const [editing, setEditing] = useState(null)
   const [open, setOpen] = useState(false)
 
@@ -187,6 +192,7 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
       .then((r) => {
         const rows = r.data?.templates || []
         setTemplates(rows)
+        setBuiltins(r.data?.builtins || [])
         onCount?.(rows.length)
       })
       .catch(() => toast.error('Could not load your forms'))
@@ -213,6 +219,17 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
         is_active: isActive,
       })
       toast.success(isActive ? 'Form published' : 'Form retired')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not update the form')
+    }
+  }
+
+  const setBuiltinHidden = async (b, hidden) => {
+    try {
+      await api.patch(withOrg(`/api/sis/staff-admin/form-templates/builtin/${b.key}`, orgId),
+        { organization_id: orgId, hidden })
+      toast.success(hidden ? `${b.name} hidden from staff` : `${b.name} is back`)
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not update the form')
@@ -262,8 +279,8 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
         <ul className="divide-y divide-gray-100 mt-3">
           {!templates.length && (
             <p className="text-sm text-neutral-500">
-              No forms of your own yet. The built-in ones (incident reports, supply
-              requests and the rest) still work — build one here to ask your own questions.
+              No forms of your own yet. The built-in ones below still work — build one
+              here to ask your own questions.
             </p>
           )}
           {templates.map((t) => (
@@ -290,6 +307,34 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
             </li>
           ))}
         </ul>
+      )}
+
+      {open && builtins.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-gray-100">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">
+            Built-in forms
+          </p>
+          <p className="text-sm text-neutral-500 mb-2">
+            Every school gets these. Hide the ones yours does not use and they leave the
+            staff picker; nothing already filed is affected.
+          </p>
+          <ul className="divide-y divide-gray-100">
+            {builtins.map((b) => (
+              <li key={b.key} className="py-2 flex items-center gap-2 flex-wrap">
+                <span className={`text-sm ${b.hidden ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
+                  {b.name}
+                </span>
+                {b.hidden && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">Hidden</span>
+                )}
+                <button onClick={() => setBuiltinHidden(b, !b.hidden)}
+                  className="ml-auto text-sm text-neutral-600 hover:underline">
+                  {b.hidden ? 'Show' : 'Hide'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )

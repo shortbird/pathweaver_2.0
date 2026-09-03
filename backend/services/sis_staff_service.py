@@ -375,6 +375,17 @@ def _school_start(org_id: str, today: date):
     return today >= fd, fd.isoformat()
 
 
+def _user_phone(user_id: str) -> Optional[str]:
+    """The staff member's own phone number from their user record."""
+    try:
+        rows = (_admin().table('users').select('phone_number')
+                .eq('id', user_id).limit(1).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — never break the dashboard over a prompt
+        logger.warning(f'staff phone lookup failed for {user_id[:8]}: {e}')
+        return None
+    return (rows[0].get('phone_number') if rows else None) or None
+
+
 def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     """Everything the teacher home screen needs in one call."""
     profile = get_staff_profile(org_id, user_id)
@@ -452,6 +463,11 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'classes': teacher_classes(user_id, org_id),
         'profile': {k: profile.get(k) for k in
                     ('position', 'uses_time_clock', 'pay_type', 'is_active')},
+        # The office needs a number it can call when a teacher is out. Nothing
+        # ever asked staff for one, so most records were blank (iCreate,
+        # 2026-09-02: "we need to force the teachers to enter their phone
+        # numbers too"). The dashboard asks until it has one.
+        'needs_phone': not (_user_phone(user_id) or '').strip(),
         'open_time_entry': open_entry,
         'onboarding': onboarding,
         'pending_acks': pending_acks,

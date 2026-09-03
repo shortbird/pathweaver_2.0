@@ -39,6 +39,51 @@ const ALERT_LABEL = {
 
 const alertMessage = (a) => (ALERT_LABEL[a.alert_type] ? ALERT_LABEL[a.alert_type](a) : 'needs attention')
 
+// Asks for the teacher's phone number and saves it inline. Sending them to My
+// Profile for one field is how a prompt gets ignored for a term.
+const PhonePrompt = ({ orgId, onSaved }) => {
+  const [phone, setPhone] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const save = async (e) => {
+    e.preventDefault()
+    const value = phone.trim()
+    if (!value) { toast.error('Enter a phone number'); return }
+    setSaving(true)
+    try {
+      await api.patch(withOrg('/api/sis/teacher/profile', orgId),
+        { organization_id: orgId, phone_number: value })
+      toast.success('Phone number saved')
+      onSaved()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save your phone number')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <p className="text-sm font-medium text-amber-900">Add your phone number</p>
+      <p className="text-sm text-amber-700 mb-2.5">
+        The front office needs a number they can reach you on. It is visible to school
+        staff, not to families.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+          placeholder="(555) 555-5555" aria-label="Your phone number"
+          className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+        />
+        <button type="submit" disabled={saving}
+          className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const { activeOrg } = useSisOrg()
   const hidden = getHiddenModules(activeOrg)
@@ -141,7 +186,8 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
   const { classes = [], profile = {}, open_time_entry: openEntry,
     onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
-    staff_resources: staffResources = [], pinned_links: pinnedLinks = [] } = data
+    staff_resources: staffResources = [], pinned_links: pinnedLinks = [],
+    needs_phone: needsPhone = false } = data
 
   return (
     <div className="space-y-6">
@@ -153,6 +199,13 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           {profile.position || 'Manage your classes, take attendance, and stay in touch with your families.'}
         </p>
       </div>
+
+      {/* The office has to be able to reach a teacher who has not turned up.
+          Nothing ever asked for a number, so most staff records were blank
+          (iCreate, 2026-09-02). Asked here, saved here, and it keeps asking
+          until there is one — there is no dismiss. Never in preview: the write
+          would land on the admin doing the previewing. */}
+      {needsPhone && !preview && <PhonePrompt orgId={orgId} onSaved={load} />}
 
       {/* Setup / action banners — kept up top because they gate the teacher's readiness. */}
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
@@ -298,9 +351,17 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             </Card>
           )}
 
+          {/* Named for what a teacher comes here to do, not for what the card
+              happens to list (iCreate, 2026-09-02). The recent ones stay
+              underneath: they are how you tell whether you already sent it. */}
           {!hidden.has('forms') && (
-          <Card title="Recent forms" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
-            {!recentForms.length && <p className="text-sm text-neutral-500">No submissions yet.</p>}
+          <Card title="Submit a form" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
+            {!recentForms.length && (
+              <p className="text-sm text-neutral-500">
+                Supply requests, incident reports and the rest — send one from{' '}
+                <Link to="/forms" className="text-optio-purple hover:underline">All forms</Link>.
+              </p>
+            )}
             <ul className="space-y-2">
               {recentForms.map((f) => (
                 <li key={f.id} className="text-sm flex items-center justify-between gap-2">
