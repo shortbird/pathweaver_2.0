@@ -69,14 +69,25 @@ def _mark_read(caller, body, member_org='org-1', org_announcements=None,
     """Call the unwrapped view with a mocked admin client. `org_announcements`
     is what the org-filtered announcements query returns (the fence);
     `recipients` is the announcement_recipients snapshot rows those ids have.
-    Empty (the default) means the sends predate snapshots."""
+    Empty (the default) means the sends predate snapshots.
+
+    The route reads the snapshot through two id-bounded queries rather than
+    pulling every recipient row, so the mocks (which ignore filters) return
+    what each of those queries would: one stats row per snapshotted send, and
+    only the CALLER's own recipient rows."""
+    snapshot = recipients or []
+    stats = [{'announcement_id': aid, 'recipient_count':
+              sum(1 for r in snapshot if r['announcement_id'] == aid)}
+             for aid in dict.fromkeys(r['announcement_id'] for r in snapshot)]
     view = getattr(routes.mark_announcements_read, '__wrapped__',
                    routes.mark_announcements_read)
     tables = {
         'users': _table(caller),
         'announcements': _table(org_announcements or []),
         'announcement_reads': _table([]),
-        'announcement_recipients': _table(recipients or []),
+        'announcement_read_stats': _table(stats),
+        'announcement_recipients': _table(
+            [r for r in snapshot if r.get('user_id') == 'caller-1']),
     }
     client = _client(tables)
     app = Flask(__name__)
@@ -146,6 +157,19 @@ class TestMarkRead:
             recipients=[{'announcement_id': A1, 'user_id': 'somebody-else'}])
         assert _json(resp)['marked'] == 0
         tables['announcement_reads'].upsert.assert_not_called()
+
+    def test_the_snapshot_is_never_read_whole(self):
+        """One row per announcement, not one per recipient. Reading the whole
+        snapshot for a batch of ids is an org-sized read, and PostgREST cuts it
+        off at 1000 rows in silence (OPTIO-BACKEND-7Q): the dropped tail looks
+        like "no snapshot", which hands the caller read credit for sends they
+        were never on."""
+        _, tables, _ = _mark_read(
+            PARENT, {'announcement_ids': [A1]},
+            org_announcements=[{'id': A1}],
+            recipients=[{'announcement_id': A1, 'user_id': 'caller-1'}])
+        eq_filters = [c.args for c in tables['announcement_recipients'].eq.call_args_list]
+        assert ('user_id', 'caller-1') in eq_filters
 
     def test_sends_predating_the_snapshot_still_mark_read(self):
         """No snapshot means nothing to check against, and the read view already

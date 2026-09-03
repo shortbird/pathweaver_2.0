@@ -338,12 +338,23 @@ def mark_announcements_read(user_id):
         # recipients. Sends made before recipient snapshots existed have no
         # snapshot to check, so they keep the old behaviour; the read view
         # reports no ratio for those anyway.
+        #
+        # Both reads are one row per announcement, never one row per recipient:
+        # pulling the whole snapshot for a batch of ids is an org-sized read
+        # that PostgREST truncates at 1000 rows without saying so, and the
+        # dropped tail reads as "no snapshot", silently handing the caller
+        # read credit for sends they were never on.
         if valid:
-            snapshot = admin.table('announcement_recipients')\
-                .select('announcement_id, user_id').in_('announcement_id', valid)\
-                .execute().data or []
-            snapshotted = {r['announcement_id'] for r in snapshot}
-            mine = {r['announcement_id'] for r in snapshot if r.get('user_id') == user_id}
+            stats = admin.table('announcement_read_stats')\
+                .select('announcement_id, recipient_count')\
+                .in_('announcement_id', valid).execute().data or []
+            # recipient_count is NULL for sends made before snapshots existed.
+            snapshotted = {r['announcement_id'] for r in stats if r.get('recipient_count')}
+            # PK is (announcement_id, user_id), so this is at most one row per id.
+            mine = {r['announcement_id'] for r in (
+                admin.table('announcement_recipients').select('announcement_id')
+                .in_('announcement_id', valid).eq('user_id', user_id)
+                .execute().data or [])}
             valid = [i for i in valid if i not in snapshotted or i in mine]
 
         if valid:
