@@ -182,6 +182,26 @@ class Config:
     # routes/auth/apple_oauth.py, neither of which reads this flag.
     OAUTH_PROVIDER_ENABLED = os.getenv('OAUTH_PROVIDER_ENABLED', 'false').lower() == 'true'
 
+    # Encryption key for organization_secrets (per-org Stripe secret keys and
+    # calendar feed tokens). A urlsafe-base64 32-byte Fernet key; generate with
+    #     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    #
+    # UNSET IS A SUPPORTED STATE, and it is what production runs today: values
+    # are then stored and read as plaintext, exactly as before. That is
+    # deliberate -- shipping encryption that silently starts writing ciphertext
+    # nobody can decrypt would take card payment down for a school. Set the key
+    # and every read lazily re-encrypts the row it touched, so the migration
+    # happens by itself with no downtime and no backfill script.
+    #
+    # What the key buys: organization_secrets is already unreachable through
+    # PostgREST (RLS on, no policies, grants revoked), so this is defence for
+    # the case where something reads the TABLE rather than the API -- a database
+    # backup, a support query, a compromised service-role key.
+    #
+    # Rotating it is not yet supported: there is one key and no key id in the
+    # envelope. `enc:v1:` is the version prefix that makes adding one possible.
+    ORG_SECRETS_ENCRYPTION_KEY = os.getenv('ORG_SECRETS_ENCRYPTION_KEY', '').strip()
+
     TUTOR_RETENTION_ENABLED = os.getenv('TUTOR_RETENTION_ENABLED', 'false').lower() == 'true'
     TUTOR_RETENTION_MONTHS = int(os.getenv('TUTOR_RETENTION_MONTHS', '12'))
     TUTOR_RETENTION_BATCH = int(os.getenv('TUTOR_RETENTION_BATCH', '200'))

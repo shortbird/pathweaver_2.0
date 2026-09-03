@@ -1187,13 +1187,62 @@ Log:
 
   ruff clean, mypy clean. Tests: 4825 passed, 160 skipped, 0 failed.
 
-### SEC-16 — Org Stripe keys stored application-readable in plaintext `[TODO]`
+### SEC-16 — Org Stripe keys stored application-readable in plaintext `[NEEDS-USER(set ORG_SECRETS_ENCRYPTION_KEY in prod to switch it on)]`
 `utils/org_secrets.py:104-128`. Add envelope encryption (Fernet via a Config key)
 with a lazy re-encrypt migration path. Key provisioning itself is NEEDS-USER
 (prod env var); code + tests are autonomous with a dev key.
 Accept: values encrypted at rest; old plaintext rows migrated on read; tests.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Code DONE and shipped inert. Production still stores plaintext
+  until the key is set, which is the one step that needs the user.
+
+  Confirmed first: 7 rows in `organization_secrets`, all plaintext, including 2
+  live Stripe secret keys and 5 calendar feed tokens.
+
+  Fernet envelope with an `enc:v1:` prefix, keyed on
+  `Config.ORG_SECRETS_ENCRYPTION_KEY`. THE KEY BEING UNSET IS A SUPPORTED
+  STATE and is what prod runs right now: values are read and written in the
+  clear, exactly as before. That is the whole reason this could ship without a
+  coordinated deploy — encryption that starts writing ciphertext the moment it
+  lands would have taken card payment down for a school.
+
+  Setting the key encrypts writes and lazily re-encrypts each row as it is
+  read, so the migration needs no backfill script and has no window in which a
+  row is unreadable.
+
+  Failure modes, each deliberate and tested:
+    - Encrypted row, no key: return None, not the ciphertext. Handing
+      `enc:v1:...` back would send it to Stripe as an API key and produce an
+      unreadable failure a long way from the cause; None routes into the "card
+      payment is not set up for this school" path the callers already have.
+    - Wrong key: same, None rather than garbage.
+    - MALFORMED key: raise. A typo in the env var must not read as "no key
+      configured" — falling back to plaintext there would write cleartext
+      secrets to a database the operator believes is encrypted, which is the
+      one outcome worse than not turning it on.
+    - Failed lazy upgrade: still return the secret. The read is the caller's
+      business; the upgrade is ours.
+
+  Framing, so nobody over-reads it: this is defence in depth, not the primary
+  control. `organization_secrets` is already unreachable through PostgREST (RLS
+  on, no policies, grants revoked). What the key adds is protection when
+  something reads the TABLE rather than the API — a backup, a support query, a
+  leaked service-role key.
+
+  Ratchet raised 130 -> 131 (utils) for the lazy re-encrypt, reason in the file.
+
+  TO SWITCH IT ON (user, one step, reversible):
+    1. `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+    2. Set `ORG_SECRETS_ENCRYPTION_KEY` on the prod backend
+       (srv-d9sjl1f10e5c73a14610) and redeploy.
+    3. Nothing else. The 7 rows encrypt themselves as they are next read.
+  Rotation is NOT yet supported — one key, no key id in the envelope. The
+  `enc:v1:` prefix is what makes adding one later possible. Removing the key
+  after rows are encrypted makes them unreadable (fail-closed), so treat it the
+  way FLASK_SECRET_KEY_OLD is treated in SEC-14.
+
+  ruff clean, mypy clean. Tests: 4834 passed, 160 skipped, 0 failed.
 
 ### SEC-17 — 27 unbounded backend deps, no lockfile `[TODO]`
 `backend/requirements.txt`. Fix: introduce a compiled lock/constraints file

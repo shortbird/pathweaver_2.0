@@ -39,6 +39,11 @@ BACKEND = Path(__file__).resolve().parents[2]
 # routes/ into repositories/crm_repository.py (the webhook, the admin console
 # and the unsubscribe link all needed to agree on it). routes/ fell by the
 # same migration.
+# utils/ raised 130 -> 131 for the lazy re-encrypt in utils/org_secrets
+# (SEC-16): the read path upgrades a legacy plaintext row in place, which is
+# the whole migration -- no backfill script and no window where a row is
+# unreadable. It sits beside the read it upgrades, in the module that owns the
+# table.
 # utils/ raised 128 -> 130 for is_household_guardian in utils/portfolio_access,
 # the module whose entire job is answering cross-user access questions against
 # the database -- every predicate beside it (is_parent_of, is_advisor_of,
@@ -50,7 +55,7 @@ BASELINES = {
     'routes': 2336,
     'services': 1779,
     'repositories': 415,
-    'utils': 130,
+    'utils': 131,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

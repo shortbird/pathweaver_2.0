@@ -25,6 +25,18 @@ Two properties make the fix hold rather than just move the problem:
 Never return these values in an HTTP response. Callers want either the value (to
 talk to a third party server-side) or `has_org_secret` (to tell a client whether
 a feature is configured).
+
+ENCRYPTION AT REST (SEC-16, 2026-09-03). Values are Fernet-encrypted under
+`Config.ORG_SECRETS_ENCRYPTION_KEY` and stored with an `enc:v1:` envelope. The
+key being UNSET is a supported state and is what production runs today: values
+are then read and written in the clear, exactly as before. Setting the key
+starts encrypting writes and lazily re-encrypts each row as it is read, so the
+migration needs no backfill and has no window where a row is unreadable.
+
+This is defence in depth, not the primary control. `organization_secrets` is
+already unreachable through PostgREST -- RLS on, no policies, grants revoked --
+so what encryption adds is protection when something reads the TABLE rather
+than the API: a database backup, a support query, a leaked service-role key.
 """
 
 from typing import Optional
@@ -63,6 +75,81 @@ def _admin():
     return get_supabase_admin_client()
 
 
+#: Envelope prefix. Versioned so a key id can be added later without having to
+#: guess what an existing row was encrypted with.
+_ENVELOPE = 'enc:v1:'
+
+
+def _fernet():
+    """The cipher, or None when no key is configured.
+
+    None is a supported state and is what production runs today -- see
+    Config.ORG_SECRETS_ENCRYPTION_KEY. Values are then stored in the clear,
+    exactly as before this change.
+    """
+    from app_config import Config
+    key = getattr(Config, 'ORG_SECRETS_ENCRYPTION_KEY', '')
+    if not key:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key.encode())
+    except Exception as e:
+        # A malformed key must not read as "no key". Silently falling back to
+        # plaintext would write cleartext secrets to a database the operator
+        # believes is encrypted, which is worse than the error.
+        logger.error(f"[OrgSecrets] ORG_SECRETS_ENCRYPTION_KEY is not a valid "
+                     f"Fernet key; refusing to fall back to plaintext: {e}")
+        raise
+
+
+def _encrypt(value: str) -> str:
+    f = _fernet()
+    if f is None:
+        return value
+    return _ENVELOPE + f.encrypt(value.encode()).decode()
+
+
+def _decrypt(stored: str, organization_id: str, name: str) -> Optional[str]:
+    """Plaintext for a stored value, or None if it cannot be recovered.
+
+    Legacy plaintext rows pass through untouched -- that is what makes turning
+    the key on a no-downtime change rather than a backfill.
+    """
+    if not stored.startswith(_ENVELOPE):
+        return stored
+    f = _fernet()
+    if f is None:
+        # Encrypted rows and no key: the key was removed, or this process has a
+        # different environment than the one that wrote them. Returning the
+        # ciphertext would hand `enc:v1:...` to Stripe as an API key and produce
+        # an unreadable failure a long way from the cause.
+        logger.error(f"[OrgSecrets] {name} for org={str(organization_id)[:8]} is "
+                     f"encrypted but ORG_SECRETS_ENCRYPTION_KEY is not set")
+        return None
+    try:
+        return f.decrypt(stored[len(_ENVELOPE):].encode()).decode()
+    except Exception as e:
+        logger.error(f"[OrgSecrets] could not decrypt {name} for "
+                     f"org={str(organization_id)[:8]}: {e}")
+        return None
+
+
+def _reencrypt_in_place(organization_id: str, name: str, value: str) -> None:
+    """Best-effort upgrade of a legacy plaintext row on read. Never raises.
+
+    This is the whole migration: no backfill script, no window where a row is
+    unreadable, and a read that fails to upgrade still returned the right value.
+    """
+    try:
+        _admin().table(TABLE).update({'value': _encrypt(value)}) \
+            .eq('organization_id', organization_id).eq('name', name).execute()
+        logger.info(f"[OrgSecrets] encrypted {name} for org={str(organization_id)[:8]} on read")
+    except Exception as e:
+        logger.warning(f"[OrgSecrets] could not encrypt {name} for "
+                       f"org={str(organization_id)[:8]} on read: {e}")
+
+
 def _check_name(name: str) -> None:
     if name not in KNOWN_SECRETS:
         raise ValueError(
@@ -94,7 +181,14 @@ def get_org_secret(organization_id: str, name: str) -> Optional[str]:
         # beyond which org/name failed.
         logger.error(f"[OrgSecrets] read failed for org={str(organization_id)[:8]} name={name}: {e}")
         return None
-    return (rows[0].get('value') or None) if rows else None
+    stored = (rows[0].get('value') or None) if rows else None
+    if stored is None:
+        return None
+
+    value = _decrypt(stored, organization_id, name)
+    if value is not None and not stored.startswith(_ENVELOPE) and _fernet() is not None:
+        _reencrypt_in_place(organization_id, name, value)
+    return value
 
 
 def has_org_secret(organization_id: str, name: str) -> bool:
@@ -124,7 +218,7 @@ def set_org_secret(organization_id: str, name: str, value: Optional[str],
     client.table(TABLE).upsert({
         'organization_id': organization_id,
         'name': name,
-        'value': value,
+        'value': _encrypt(value),
         'updated_by': updated_by,
     }, on_conflict='organization_id,name').execute()
     logger.info(f"[OrgSecrets] updated {name} for org={str(organization_id)[:8]}")
