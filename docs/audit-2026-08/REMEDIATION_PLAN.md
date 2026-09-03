@@ -1293,12 +1293,39 @@ Log:
 
   ruff clean, mypy clean. Tests: 4843 passed, 160 skipped, 0 failed.
 
-### SEC-18 — CSRF exemption list is a hand-edited name list `[TODO]` (low)
+### SEC-18 — CSRF exemption list is a hand-edited name list `[WONTFIX(drift already fenced; a decorator would scatter the policy)]` (low)
 `middleware/csrf_protection.py:72-145`, ~30 exempt endpoints, two prior outages
 from drift. Consider deriving exemptions from a route decorator/metadata instead
 of a central list. Design is otherwise sound (constant-time opaque tokens).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: WONTFIX, with the failure mode checked rather than assumed.
+
+  Both prior outages were DRIFT, not the shape of the list: the 2026-07-21
+  login outage was three names that no longer resolved (`auth.login` where the
+  blueprint is `auth_login`), and the 2026-08-01 one was a new funnel route
+  shipped without an entry. Neither is possible now, and neither would be fixed
+  by this item — `tests/test_csrf_protection.py` already carries
+  `test_every_exempt_name_matches_a_real_endpoint` (imports the REAL app in a
+  subprocess and fails on any name resolving to nothing),
+  `test_all_icreate_funnel_endpoints_are_exempt`, and its inverse for the
+  session-authenticated ones. All ten run in CI; verified not deselected.
+
+  So what remains of the item is the refactor, and on the merits a decorator is
+  WORSE here. CSRF exemption is a policy you want to read in ONE place: the
+  current list is thirty lines with a written reason per cluster — what
+  authenticates the caller instead, and why that is sufficient. Spread across
+  thirty route files, no reviewer sees the whole exemption surface at once, and
+  "which endpoints skip CSRF" stops having an answer you can read. The audit
+  itself called the design otherwise sound.
+
+  Rewriting CSRF plumbing is also the wrong thing to do without a browser: the
+  failure mode is "a real user cannot log in", which no unit test in this suite
+  would have caught in either outage — the guards catch the NAMES, not the
+  enforcement path.
+
+  Reopen if the list outgrows a screen, or if per-route metadata appears for
+  some other purpose that this could ride on.
 
 ---
 
