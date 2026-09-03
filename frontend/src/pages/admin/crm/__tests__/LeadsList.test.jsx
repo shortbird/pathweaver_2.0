@@ -19,7 +19,10 @@ const lead = {
   first_name: 'Jordan',
   last_name: 'Rivera',
   status: 'active',
-  lead_source: 'claim_free_class',
+  // Real API shape: lead_type is the contact type the Source filter matches
+  // on; lead_source is the intake channel (classes_lp / contact_form / ...).
+  lead_type: 'claim_free_class',
+  lead_source: 'classes_lp',
   funnel_name: 'Free Class Nurture',
   step_order: 3,
   total_steps: 6,

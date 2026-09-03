@@ -15,8 +15,11 @@ Idempotency is the (gcal_event_id, attendee_email) unique key on
 crm_calendar_bookings. A booked-then-cancelled chat keeps its conversion —
 booking proved the intent (decisive call in the plan; revisit if wrong).
 
-Incremental sync via Google's syncToken (persisted in crm_settings); on 410
-GONE the token is stale and we resync the last 7 days.
+Incremental sync via Google's syncToken (persisted in crm_settings); on a
+410 GONE (or a 400, which means the token or its parameter pairing is
+unusable) we drop the token and resync the last 7 days. Note that a
+syncToken request takes a DIFFERENT parameter set from a full one — see
+_list_events.
 """
 import base64
 import json
@@ -63,13 +66,21 @@ def _access_token() -> Optional[str]:
 
 
 def _list_events(token: str, calendar_id: str, sync_token: Optional[str]):
-    """Yields (events, next_sync_token). Raises _StaleSyncToken on 410."""
-    params: Dict[str, Any] = {
-        'maxResults': 250, 'singleEvents': True, 'showDeleted': False,
-    }
+    """Yields (events, next_sync_token). Raises _StaleSyncToken on 410/400.
+
+    An incremental (syncToken) request and a full request take DIFFERENT
+    parameters: Google rejects `showDeleted=false` alongside a syncToken
+    outright ("it is not allowed to set showDeleted to False"), and rejects
+    timeMin the same way. Sending the full-sync parameter set with a
+    syncToken is a 400 on every call — which is how this poll sat wedged
+    from 2026-08-23 to 2026-09-03, succeeding once (no token) and 400ing
+    forever after. Cancelled events are filtered by the caller instead.
+    """
+    params: Dict[str, Any] = {'maxResults': 250, 'singleEvents': True}
     if sync_token:
         params['syncToken'] = sync_token
     else:
+        params['showDeleted'] = False
         params['timeMin'] = (datetime.now(timezone.utc)
                              - timedelta(days=RESYNC_WINDOW_DAYS)).isoformat()
     events = []
@@ -82,7 +93,11 @@ def _list_events(token: str, calendar_id: str, sync_token: Optional[str]):
             headers={'Authorization': f'Bearer {token}'},
             params=params, timeout=REQUEST_TIMEOUT,
         )
-        if resp.status_code == 410:
+        # 410 is the documented "your token is stale" signal. A 400 on a
+        # token request means the token (or the params we paired with it)
+        # is unusable — also recoverable by resyncing, and treating it as
+        # fatal is what turned one bad request into eleven silent days.
+        if resp.status_code == 410 or (resp.status_code == 400 and sync_token):
             raise _StaleSyncToken()
         resp.raise_for_status()
         body = resp.json()
@@ -116,7 +131,7 @@ def run_poll() -> Dict[str, Any]:
         try:
             events, next_sync_token = _list_events(token, calendar_id, sync_token)
         except _StaleSyncToken:
-            logger.info('CRM calendar poll: sync token stale (410); full resync')
+            logger.info('CRM calendar poll: sync token rejected; full resync')
             events, next_sync_token = _list_events(token, calendar_id, None)
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CRM calendar poll: events.list failed: {e}')
@@ -126,6 +141,11 @@ def run_poll() -> Dict[str, Any]:
     owner = (calendar_id or '').lower()
     matched = converted = 0
     for event in events:
+        # Incremental syncs always carry deletions; a cancelled event is not
+        # a new booking (an already-recorded one keeps its conversion — the
+        # intent was proven when they booked).
+        if event.get('status') == 'cancelled':
+            continue
         event_id = event.get('id')
         start = (event.get('start') or {}).get('dateTime') or (event.get('start') or {}).get('date')
         for attendee in (event.get('attendees') or []):

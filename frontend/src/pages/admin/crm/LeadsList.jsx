@@ -264,9 +264,9 @@ const LeadsList = () => {
                         </span>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
-                        {lead.lead_source ? (
+                        {lead.lead_type || lead.lead_source ? (
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${SOURCE_CHIP_CLASS}`}>
-                            {CONTACT_TYPE_LABELS[lead.lead_source] || lead.lead_source}
+                            {CONTACT_TYPE_LABELS[lead.lead_type] || lead.lead_type || lead.lead_source}
                           </span>
                         ) : (
                           <span className="text-sm text-gray-400">—</span>

@@ -35,10 +35,14 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 
 # Measured 2026-09-03.
+# repositories/ raised 406 -> 415 when the CRM suppression cascade moved out of
+# routes/ into repositories/crm_repository.py (the webhook, the admin console
+# and the unsubscribe link all needed to agree on it). routes/ fell by the
+# same migration.
 BASELINES = {
-    'routes': 2339,
+    'routes': 2336,
     'services': 1779,
-    'repositories': 406,
+    'repositories': 415,
     'utils': 128,
     'jobs': 7,
     'middleware': 3,
