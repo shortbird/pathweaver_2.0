@@ -392,7 +392,7 @@ Accept: test enforcing in CI; zero unjustified sites; suspicious sites logged.
 Log:
 - 2026-08-31: Plan created.
 
-### SEC-14 — Verify the RLS backstop: does prod `JWT_SECRET_KEY` match Supabase? `[NEEDS-USER(answered: NO. Which remediation — rotate the secret, or drop the RLS pretense?)]`
+### SEC-14 — Verify the RLS backstop: does prod `JWT_SECRET_KEY` match Supabase? `[DONE]`
 `app_config.py:302` falls back to the Flask secret; if prod's value is not the
 Supabase JWT secret, the 28 "RLS-enforced" paths run as `anon`. Needs a prod env
 read (Render dashboard/API) and a Supabase JWT-secret comparison — user should run
@@ -455,6 +455,36 @@ Log:
       ownership checks and let SEC-10 be the actual control. No prod change, no
       session churn, and new code stops trusting a backstop that is not there.
   Either way SEC-10 stops being defense-in-depth and becomes load-bearing.
+- 2026-09-03: CUTOVER DONE by the user, and VERIFIED end to end. RLS is real in
+  production for the first time.
+  Evidence, the same two probes that proved it broken, now inverted:
+  (1) Runbook step 3: logged into prod as the OpenEd demo parent and called
+      GET /api/users/transcript — the get_user_client() path that has never
+      worked. 200 with data. Its first statement is
+      `.table('users').select('*').eq('id', user_id).single()`, and .single()
+      raises on zero rows, so this is positive proof the token verified AND the
+      own-row policy matched, not a quiet empty result.
+  (2) PostgREST probed directly in get_user_client's exact shape (apikey = anon
+      key, Authorization = app JWT): 200, returning the caller's own row. The
+      identical request returned 401 PGRST301 earlier the same day. Control:
+      the same token with a corrupted signature still returns 401 PGRST301, so
+      the 200 is a real signature check passing, not a gate that stopped
+      running.
+  Also confirmed live: prod is on 5535cd90, which contains SEC-14a and SEC-14b;
+  a freshly minted access token carries `"role": "authenticated"` (SEC-14b is
+  in effect, so the 16 policies written TO authenticated can now match).
+  Sentry, last 24h on optio-backend: zero PGRST301, zero JWT signature
+  failures, zero LTI errors. The only two open issues are unrelated —
+  OPTIO-BACKEND-7A is 4 refresh-reuse warnings spread over a week (not the
+  hundreds of verification failures a missing previous key would produce), and
+  OPTIO-BACKEND-7Q is the row-truncation canary firing on
+  announcement_recipients, which is its own bug and wants its own item.
+  NOT VERIFIABLE FROM HERE: whether FLASK_SECRET_KEY_OLD is actually set. The
+  Render MCP writes env vars but cannot read them, and there is no logs tool.
+  Absence of errors is weak evidence for the LTI case specifically: evidence
+  tokens are only presented when a teacher opens SpeedGrader, so a missing
+  previous key would fail silently and late rather than showing up now. User
+  asked to confirm the value is present in the dashboard.
 - 2026-09-03: User chose (A) — make RLS real — and asked for a regression audit
   before the cutover. Audit done; two prerequisites found and shipped
   (SEC-14a, SEC-14b). Remaining step is the prod env change, which is the
@@ -514,8 +544,20 @@ Log:
        is unrelated.
     3. Verify: GET /api/users/transcript as a logged-in user returns data
        instead of erroring. Watch Sentry for PGRST301 (expect none).
-    4. After ~31 days (REFRESH_TOKEN_EXPIRY_DAYS=30), remove
-       FLASK_SECRET_KEY_OLD to finish the rotation.
+    4. Remove FLASK_SECRET_KEY_OLD only after 2027-03-02 — 180 days, NOT the
+       ~31 this step used to say. Corrected 2026-09-03; the old number was
+       wrong and following it would have caused the exact outage SEC-14a was
+       written to prevent. 31 days came from REFRESH_TOKEN_EXPIRY_DAYS=30, but
+       the refresh token is not the longest-lived thing signed with that key:
+       lti_service.EVIDENCE_TOKEN_TTL is 180 days, the tokens are STATELESS
+       (nothing to re-issue and no record of who holds one), and prod LTI is in
+       ACTIVE daily use — a launch landed at 18:39 UTC on cutover day. So
+       SpeedGrader links minted right up to the rotation stay valid until
+       2027-03-02, and dropping the previous key at day 31 would kill ~5 months
+       of live Canvas gradebook links with nothing to retry.
+       Cost of keeping it: FLASK_SECRET_KEY_OLD is verify-only — no code signs
+       with it — so the exposure is an old key that can still validate old
+       tokens, not a second live signing key.
   Rollback is symmetric: put the old value back in JWT_SECRET_KEY. Any token
   minted during the window verifies under either key.
 
@@ -846,7 +888,10 @@ Log:
 
 ## Open questions for the user (rolling)
 
-- SEC-14: authorize the prod `JWT_SECRET_KEY` vs Supabase JWT secret comparison.
+- SEC-14: DONE and verified 2026-09-03. Two follow-ups: (a) confirm
+  `FLASK_SECRET_KEY_OLD` is set on the prod backend — it cannot be read via
+  the API, and a missing value breaks LTI SpeedGrader links silently and
+  late; (b) do NOT remove it before 2027-03-02 (180-day evidence tokens).
 - OPS-01: fund/approve a staging Supabase project (the single highest-impact fix).
 - OPS-03: approve a gated migration-apply step in the release pipeline.
 - OPS-05: keep direct-push-to-main, or add a PR gate now that CI is solid?
