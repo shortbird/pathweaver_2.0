@@ -784,13 +784,36 @@ fencing strategy (CI-02), and what "done" now means.
 Log:
 - 2026-08-31: Plan created.
 
-### DOC-02 — Integration-test status drift in three artifacts `[TODO]`
+### DOC-02 — Integration-test status drift in three artifacts `[DONE]`
 `ci.yml` comment ("44 tests… quarantined"), `backend/pytest.ini` marker doc
 ("do not currently pass"), `backend/tests/conftest.py` skip reason — all describe
 the pre-port state; `backend/tests/integration/README.md` says 128 enforcing.
 Run the suite, confirm which is true, fix the stale three.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Five artifacts, not three — and every one was stale in the
+  OPPOSITE direction from what the plan assumed. The plan expected the docs to
+  overstate; they understate.
+  Ground truth, from the CI run of 2026-09-02 (ci.yml on develop, job
+  "integration / Backend integration (local Supabase)"): `133 passed, 4382
+  deselected`, conclusion success. The suite is GREEN and ENFORCING.
+  What each said:
+    - ci.yml: "44 tests as of 2026-08-13… the other eight files are quarantined
+      with an explicit skip marker". Ten files exist; only test_curriculum.py
+      has skips, and those are three pure-function cases needing no database.
+    - README.md: "All eight files are ported. 128 integration tests" — ten and
+      133. Its own table already listed ten rows.
+    - pytest.ini and conftest.py: "these tests do not currently pass against any
+      database". They pass on every PR.
+    - CLAUDE.md: "Integration tests are advisory and red on purpose… cannot pass
+      yet". The most harmful of the five: an engineer reading it would dismiss a
+      real integration failure as expected.
+  All five corrected against the CI numbers.
+  Also removed the dead advisory branch in tests-integration.yml, on its own
+  instruction ("delete the branch and the input once the port is done"). The
+  `enforcing` input defaulted to true and no caller ever passed it, so the
+  advisory path had never once executed — the suite has gated every PR since its
+  first run, while three documents said it could not pass.
 
 ### DOC-03 — `LOCAL_DEVELOPMENT.md` does not exist but is linked `[DONE]`
 CLAUDE.md links it twice. Either create it (extract the inline section) or fix

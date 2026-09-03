@@ -34,9 +34,8 @@ def pytest_collection_modifyitems(config, items):
     skip_db = pytest.mark.skip(
         reason='Needs a live database. Set RUN_DB_INTEGRATION_TESTS=1 with '
                'SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY pointing at a real stack '
-               '(see .github/workflows/tests-integration.yml). NOTE: these tests '
-               'do not currently pass against any database -- read '
-               'backend/tests/integration/README.md first.'
+               '(see .github/workflows/tests-integration.yml, where these run '
+               'green and enforcing on every PR).'
     )
     for item in items:
         if 'requires_db' in item.keywords:

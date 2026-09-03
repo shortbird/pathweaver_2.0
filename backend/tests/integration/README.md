@@ -8,7 +8,8 @@ production data.
 
 ## Status
 
-**All eight files are ported. 128 integration tests run on every PR, enforcing.**
+**All ten files are ported. 133 integration tests run on every PR, enforcing.**
+(Counts verified against the CI run of 2026-09-02: `133 passed, 4382 deselected`.)
 
 | File | Tests | Covers |
 |---|---|---|

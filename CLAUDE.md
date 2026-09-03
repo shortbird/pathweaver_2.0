@@ -466,9 +466,11 @@ regression fails and normal churn doesn't:
 | Web (v1) | 53% | 54.44% |
 | Mobile (v2) | 31/24/32/23 (stmt/br/line/fn), in `jest.config.js` | 31.37/24.42/32.63/23.75 |
 
-**Integration tests are advisory and red on purpose.** The harness is real; the
-143 tests it runs were written against an architecture the app doesn't have and
-cannot pass yet. Read
+**Integration tests are enforcing and green.** 133 of them run against a
+throwaway local Supabase stack on every PR, and a failure blocks the merge. This
+entry used to say they were "advisory and red on purpose" and could not pass;
+that stopped being true and nobody updated it, which is worse than saying
+nothing — an engineer reading it would have dismissed a real failure. Read
 [backend/tests/integration/README.md](backend/tests/integration/README.md)
 before touching them.
 

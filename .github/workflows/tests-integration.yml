@@ -30,13 +30,6 @@ name: Integration Tests (reusable)
 on:
   workflow_call:
     inputs:
-      enforcing:
-        description: >-
-          true = a failing test fails the job. false = failures are reported as
-          warnings and the job stays green. See the run step for why this exists
-          and when to remove it.
-        required: false
-        default: true
         type: boolean
   workflow_dispatch:
 
@@ -109,25 +102,14 @@ jobs:
           # No coverage here -- this is a subset of the suite, and coverage is
           # measured once in tests-backend.yml.
           #
-          # ADVISORY MODE (`enforcing: false`) -- temporary, and not the same
-          # animal as the `|| true` that was removed from the backend suite on
-          # 2026-08-01. That one hid failures in a suite that was supposed to be
-          # passing. This one runs a suite that is KNOWN not to pass, for a
-          # documented reason, and says so loudly on every run. The distinction
-          # that matters: nothing here has ever been green, so nothing can
-          # silently regress. Delete the branch and the input once the port is
-          # done -- see backend/tests/integration/README.md.
-          set +e
+          # The advisory escape hatch that used to live here is gone, on its own
+          # instructions: "delete the branch and the input once the port is
+          # done". The port is done -- 133 tests, all ten files, green and
+          # enforcing since well before 2026-09-02. Nothing ever passed
+          # `enforcing: false` anyway, because the input defaulted to true, so
+          # this suite has gated every PR from its first run.
           python -m pytest tests/ -m requires_db --tb=short -v \
             -p no:cacheprovider --no-cov
-          rc=$?
-          set -e
-          if [ "$rc" -ne 0 ] && [ "${{ inputs.enforcing }}" != "true" ]; then
-            echo "::warning::Integration suite failed (exit $rc). Reported, not enforced --"
-            echo "::warning::the harness booted, the suite still needs porting. See backend/tests/integration/README.md."
-            exit 0
-          fi
-          exit $rc
 
       - name: Stop local Supabase stack
         if: always()

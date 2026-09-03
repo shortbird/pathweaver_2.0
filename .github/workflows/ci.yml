@@ -53,10 +53,11 @@ jobs:
   # ENFORCING. Runs the ported integration tests against a throwaway local
   # Supabase stack -- real PostgREST, real GoTrue, real auth.
   #
-  # 44 tests as of 2026-08-13 (test_auth_flow.py, test_parental_consent.py).
-  # The other eight files in tests/integration/ are quarantined with an explicit
-  # skip marker until they are ported; they cannot pass against a database in
-  # their current form. See backend/tests/integration/README.md.
+  # 133 tests as of 2026-09-02, all ten files, green. Nothing is quarantined:
+  # the only skips left are three pure-function cases in test_curriculum.py that
+  # need no database. This comment used to say "44 tests… the other eight files
+  # are quarantined", which was true on 2026-08-13 and had not been touched
+  # since. See backend/tests/integration/README.md.
   #
   # These paid for themselves on their first run: they caught
   # generate_consent_token being called but never imported, which had been
