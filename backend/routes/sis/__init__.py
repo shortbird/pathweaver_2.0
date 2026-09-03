@@ -18,6 +18,7 @@ import io
 from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_staff_service
@@ -675,6 +676,7 @@ def remove_household_member(user_id, household_id, member_user_id):
 # ── Enrollment lifecycle ─────────────────────────────────────────────────────
 @bp.route('/enrollments/<student_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def update_enrollment(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -690,6 +692,7 @@ def update_enrollment(user_id, student_id):
 # ── Student account admin (edit profile, message guardians) ──────────────────
 @bp.route('/students/<student_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def update_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -731,6 +734,7 @@ def update_user_role(user_id, target_id):
 
 @bp.route('/students/<student_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def get_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -743,6 +747,7 @@ def get_student(user_id, student_id):
 
 @bp.route('/students/<student_id>/classes', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def student_classes(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -754,6 +759,7 @@ def student_classes(user_id, student_id):
 
 @bp.route('/students/<student_id>/message', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def message_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -777,6 +783,7 @@ def message_student(user_id, student_id):
 # a minor's emergency-contact PII (names, phones, pickup authorization).
 @bp.route('/students/<student_id>/emergency-contacts', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def list_emergency_contacts(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -788,6 +795,7 @@ def list_emergency_contacts(user_id, student_id):
 
 @bp.route('/students/<student_id>/emergency-contacts', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def add_emergency_contact(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -814,6 +822,7 @@ def delete_emergency_contact(user_id, contact_id):
 
 @bp.route('/students/<student_id>/emergency-contacts/copy-from-family', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def copy_family_contacts(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:

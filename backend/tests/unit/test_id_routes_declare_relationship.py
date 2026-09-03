@@ -177,17 +177,16 @@ _reviewed(
 # These resolve org_id from the caller (sis_service) and every query filters on
 # it, so a student id from another school simply does not resolve. Implicit,
 # and the strongest candidates for migration in step (c).
+#
+# MIGRATED 2026-09-03: the eight routes in routes/sis/__init__.py that name a
+# student declare @require_relationship_to('student_id', allow=('org_staff',)).
+# NOT collapsed: `org_id` there is a parameter of the work, not only of the
+# check -- the service queries filter on it, and for a superadmin it is the
+# `org` they asked for rather than one derived from the target. Removing
+# _org_or_error would take the queries' scope with it.
 _reviewed(
     'ADMIN_ROLES/STAFF_ROLES gate + every query filtered by the caller\'s own '
     'organization_id, so a cross-org student id does not resolve',
-    'sis.add_emergency_contact',
-    'sis.copy_family_contacts',
-    'sis.get_student',
-    'sis.list_emergency_contacts',
-    'sis.message_student',
-    'sis.student_classes',
-    'sis.update_enrollment',
-    'sis.update_student',
     'sis_attendance.student_attendance',
     'sis_attendance.student_attendance_day',
     'sis_catalog.unenroll_student',

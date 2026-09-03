@@ -563,6 +563,51 @@ Log:
   module), the staff path propagates too so the two branches cannot drift, and
   a denial still stops the view from running. The first two FAIL against the
   pre-fix decorator; verified by restoring it and watching them go red.
+- 2026-09-03: (c) continues — the eight student routes in `routes/sis/__init__.py`
+  migrated. Declared 59 -> 67, allowlist 107 -> 99, superadmin 21. 187 accounted.
+
+  `allow=('org_staff',)` on `student_id`: profile read and edit, class list,
+  enrollment change, message to guardians, and the three emergency-contact
+  routes, which carry a minor's contact names, phone numbers and pickup
+  authorization. `@require_role(*ADMIN_ROLES)` answers "is this caller
+  front-office staff"; the decorator answers "of THIS student's school". One
+  decorator per question.
+
+  NOT collapsed, for a third distinct reason — worth recording, since all three
+  clusters so far have needed a different answer:
+    - routes/parent/*: collapsed, the two gates were exactly equivalent.
+    - routes/dependents.py: kept, the decorator is strictly WIDER than
+      managed_by_parent_id on real data (129 link-only pairs).
+    - routes/sis/*: kept, because `org_id` is a parameter of the WORK and not
+      only of the check. `_org_or_error` resolves it, every sis_service query
+      filters on it, and for a superadmin it is the `org` they asked for rather
+      than one derived from the student. Deleting the check would take the
+      queries' scope with it.
+
+  Denial direction verified: a non-superadmin's `resolve_org_id` returns their
+  own `users.organization_id` and `student_in_org` compares the student's, which
+  is exactly what `caller_can_access_user` compares; a superadmin passes the
+  decorator outright. Nobody who works today is refused.
+
+  New tests/unit/test_sis_student_org_gate.py: the declaration of all eight, an
+  accounted-for check, and two behavioral cases through the real client where
+  everything downstream is stubbed IDENTICALLY, so the only difference between
+  the 403 and the 200 is the relationship answer. Note the 403: the in-view
+  filter used to produce a 404, which reads the same as "no such student" — the
+  refusal is now about the caller rather than the record.
+
+  A GAP IN THE GUARD, found while doing this and NOT yet fixed: `ID_PARAMS`
+  covers user_id, student_id, target_user_id, child_id and dependent_id, so the
+  census of 187 misses roughly 30 more routes that name a person under another
+  parameter — `staff_id` (10 SIS staff routes), `target_id` (sis people/users),
+  `advisor_id`, `observer_id`, `parent_id` (COPPA consent approve/reject),
+  `member_user_id`, `admin_id`, `subject_id`, `blocked_id`. The guard's own
+  docstring says to add the name rather than special-case a route. Doing so
+  puts ~30 unreviewed routes into the failing set, each needing the same
+  read-and-name pass, so it is its own item rather than a footnote here. It is
+  the highest-value SEC-10 work left: the audit's point was that nothing fails
+  when a new route forgets a check, and a guard blind to 14% of the surface
+  only partly answers that.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`
