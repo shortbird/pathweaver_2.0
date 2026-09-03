@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, PressableProps, Text, TextProps, ActivityIndicator, Platform } from 'react-native';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 type ButtonVariant = 'solid' | 'outline' | 'link';
 type ButtonAction = 'primary' | 'secondary' | 'positive' | 'negative';
@@ -112,6 +113,7 @@ export function Button({
   style,
   ...props
 }: ButtonProps) {
+  const c = useThemeColors();
   // Either spelling disables the button; see the isDisabled note on the props.
   const isOff = disabled || isDisabled || loading;
   const base = `flex-row items-center justify-center gap-2 ${sizeClasses[size]} ${variantActionClasses[variant][action]}`;
@@ -136,7 +138,7 @@ export function Button({
         style={isBrandPrimary ? [brandGradientStyle, style as any] : style}
         {...props}
       >
-        {loading && <ActivityIndicator size="small" color={variant === 'solid' ? '#fff' : '#6D469B'} />}
+        {loading && <ActivityIndicator size="small" color={variant === 'solid' ? '#fff' : c.brand} />}
         {children}
       </Pressable>
     </ButtonContext.Provider>

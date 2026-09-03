@@ -202,7 +202,10 @@ export function useSchoolSection(enabled) {
   const announcements = useQuery({
     queryKey: ['family-home', 'announcements'],
     queryFn: async () => {
-      const r = await api.get('/api/announcements/archive', { params: { limit: 3, offset: 0 } })
+      // family_view: this page renders only for someone who holds the parent
+      // role (RoleHome), so it is that person's PARENT view of the archive —
+      // a staff role must not pull staff-only notices onto it.
+      const r = await api.get('/api/announcements/archive', { params: { limit: 3, offset: 0, family_view: 1 } })
       return r.data?.success ? (r.data.announcements || []) : []
     },
     enabled,

@@ -11,13 +11,19 @@
 export const PENDING_CODE_KEYS = {
   promoCode: 'pendingPromoCode',
   invitationCode: 'pendingObserverInvitation',
-  orgInvitationCode: 'pendingOrgInvitation'
+  orgInvitationCode: 'pendingOrgInvitation',
+  // Parent registration funnel (RegisterFunnelPage). Distinct from
+  // orgInvitationCode because the funnel does NOT accept the invitation — the
+  // link is shareable and stays pending — it posts the code to
+  // /api/registration/attach, which joins the org and opens a registration.
+  registrationCode: 'pendingRegistrationFunnel'
 }
 
-export function stashPendingCodes({ promoCode, invitationCode, orgInvitationCode } = {}) {
+export function stashPendingCodes({ promoCode, invitationCode, orgInvitationCode, registrationCode } = {}) {
   if (promoCode) localStorage.setItem(PENDING_CODE_KEYS.promoCode, promoCode)
   if (invitationCode) localStorage.setItem(PENDING_CODE_KEYS.invitationCode, invitationCode)
   if (orgInvitationCode) localStorage.setItem(PENDING_CODE_KEYS.orgInvitationCode, orgInvitationCode)
+  if (registrationCode) localStorage.setItem(PENDING_CODE_KEYS.registrationCode, registrationCode)
 }
 
 export function clearPendingCodes() {

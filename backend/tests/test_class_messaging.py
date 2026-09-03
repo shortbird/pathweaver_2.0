@@ -73,8 +73,12 @@ class _Query:
     def execute(self):
         if self._op == 'insert':
             payload = self._payload if isinstance(self._payload, list) else [self._payload]
-            self.admin.inserts.extend((self.table, p) for p in payload)
-            return _Resp([{**p, 'id': 'new-id'} for p in payload])
+            out = []
+            for p in payload:
+                self.admin.seq += 1
+                self.admin.inserts.append((self.table, p))
+                out.append({**p, 'id': f'new-{self.admin.seq}'})
+            return _Resp(out)
         rows = [r for r in self.admin.rows.get(self.table, [])
                 if all(f(r) for f in self._filters)]
         if self._op == 'update':
@@ -95,6 +99,7 @@ class _FakeAdmin:
         self.inserts = []
         self.updates = []
         self.deletes = []
+        self.seq = 0
 
     def table(self, name):
         return _Query(name, self)
@@ -223,48 +228,84 @@ class TestGuardiansOfStudents:
             assert m.parents_of_students(set()) == set()
 
 
+def _members_of(admin, group_id):
+    return {p['user_id']: p['role'] for t, p in admin.inserts
+            if t == 'group_members' and p['group_id'] == group_id}
+
+
 @pytest.mark.unit
 class TestClassGroupSync:
-    """The class chat holds the adults: teachers (admin) + guardians of active
-    students (member). Students are deliberately not in it (2026-08-22) — they
-    DM their teachers instead."""
+    """A class carries two chats (2026-08-31): the family chat holds the adults
+    — teachers (admin) + guardians of active students (member), students
+    deliberately not in it (2026-08-22) — and the student chat holds the
+    students + teachers."""
 
-    def test_chat_is_teachers_plus_guardians_never_students(self):
+    def test_two_chats_each_holds_only_its_audience(self):
+        from utils import class_membership as m
+        from services import class_group_sync_service as sync
+
+        admin = _FakeAdmin(_rows())
+        with _membership(admin), patch.object(sync, '_admin', return_value=admin):
+            res = sync.sync_class_groups(CLASS, actor_id=TEACHER)
+
+        fam, stu = res['family'], res['student']
+        assert fam and stu and fam != stu
+        audiences = {p['audience']: p['name'] for t, p in admin.inserts
+                     if t == 'group_conversations'}
+        assert audiences == {'family': 'Musical Theater Class Chat',
+                             'student': 'Musical Theater Student Chat'}
+
+        fam_members = _members_of(admin, fam)
+        assert fam_members[TEACHER] == 'admin'
+        assert fam_members[ASSISTANT] == 'admin'
+        assert fam_members[ADVISOR] == 'admin'
+        assert fam_members[PARENT] == 'member'
+        assert fam_members[LINKED_PARENT] == 'member'
+        assert STUDENT not in fam_members
+        assert 'parent-unapproved' not in fam_members
+        assert 'parent-of-dropped' not in fam_members
+
+        stu_members = _members_of(admin, stu)
+        assert stu_members[STUDENT] == 'member'
+        assert stu_members[TEACHER] == 'admin'
+        assert stu_members[ASSISTANT] == 'admin'
+        assert stu_members[ADVISOR] == 'admin'
+        assert PARENT not in stu_members
+        assert LINKED_PARENT not in stu_members
+        assert 'dropped-1' not in stu_members
+
+    def test_back_compat_wrapper_returns_the_family_chat(self):
         from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         admin = _FakeAdmin(_rows())
         with _membership(admin), patch.object(sync, '_admin', return_value=admin):
             group_id = sync.sync_class_group(CLASS, actor_id=TEACHER)
+        fam = next(p for t, p in admin.inserts
+                   if t == 'group_conversations' and p['audience'] == 'family')
+        assert group_id is not None
+        assert fam['source_class_id'] == CLASS
 
-        assert group_id == 'new-id'
-        members = {p['user_id']: p['role'] for t, p in admin.inserts if t == 'group_members'}
-        assert members[TEACHER] == 'admin'
-        assert members[ASSISTANT] == 'admin'
-        assert members[ADVISOR] == 'admin'
-        assert members[PARENT] == 'member'
-        assert members[LINKED_PARENT] == 'member'
-        assert STUDENT not in members
-        assert 'parent-unapproved' not in members
-        assert 'parent-of-dropped' not in members
-
-    def test_existing_group_sheds_students_and_gains_the_adults(self):
+    def test_existing_family_group_sheds_students_and_gains_the_adults(self):
         from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         rows = _rows(
-            group_conversations=[{'id': 'g1', 'source_class_id': CLASS, 'is_active': True}],
+            group_conversations=[{'id': 'g1', 'source_class_id': CLASS,
+                                  'audience': 'family', 'is_active': True}],
             group_members=[{'id': 'gm1', 'group_id': 'g1', 'user_id': STUDENT, 'role': 'member'}],
         )
         admin = _FakeAdmin(rows)
         with _membership(admin), patch.object(sync, '_admin', return_value=admin):
-            group_id = sync.sync_class_group(CLASS, actor_id=TEACHER)
+            res = sync.sync_class_groups(CLASS, actor_id=TEACHER)
 
-        assert group_id == 'g1'
-        added = {p['user_id'] for t, p in admin.inserts if t == 'group_members'}
+        assert res['family'] == 'g1'
+        added = set(_members_of(admin, 'g1'))
         assert added == {TEACHER, ASSISTANT, ADVISOR, PARENT, LINKED_PARENT}
-        # The student from the old membership model is swept out on resync.
+        # The student from the old membership model is swept out of the family
+        # chat on resync — and lands in the student chat instead.
         assert [r['user_id'] for t, r in admin.deletes if t == 'group_members'] == [STUDENT]
+        assert _members_of(admin, res['student'])[STUDENT] == 'member'
 
     def test_a_guardian_who_teaches_the_class_is_admin_not_member(self):
         from utils import class_membership as m
@@ -279,10 +320,9 @@ class TestClassGroupSync:
         rows['parent_student_links'] = []
         admin = _FakeAdmin(rows)
         with _membership(admin), patch.object(sync, '_admin', return_value=admin):
-            sync.sync_class_group(CLASS, actor_id=TEACHER)
+            res = sync.sync_class_groups(CLASS, actor_id=TEACHER)
 
-        members = {p['user_id']: p['role'] for t, p in admin.inserts if t == 'group_members'}
-        assert members[TEACHER] == 'admin'
+        assert _members_of(admin, res['family'])[TEACHER] == 'admin'
 
 
 @pytest.mark.unit
@@ -317,7 +357,8 @@ class TestClassMessagingEndpoint:
              patch.object(staff_portal.sis_service, 'class_scope', return_value=scope), \
              patch.object(staff_portal.sis_service, 'is_placeholder_staff_email',
                           side_effect=lambda e: bool(e) and 'placeholder' in e), \
-             patch('services.class_group_sync_service.sync_class_group', return_value=None), \
+             patch('services.class_group_sync_service.sync_class_groups',
+                   return_value={'family': None, 'student': None}), \
              _membership(admin):
             resp = app.test_client().get(
                 f'/api/sis/teacher/classes/{CLASS}/messaging?organization_id=org1')

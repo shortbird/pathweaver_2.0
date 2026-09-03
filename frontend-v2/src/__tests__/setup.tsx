@@ -47,9 +47,10 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
 }));
 
-// ── expo-print (document scan → PDF assembly) ──
+// ── expo-print (document scan → PDF assembly; schedule → OS print sheet) ──
 jest.mock('expo-print', () => ({
   printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///tmp/scan.pdf' }),
+  printAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
 // ── react-native-document-scanner-plugin (OS document scanner) ──

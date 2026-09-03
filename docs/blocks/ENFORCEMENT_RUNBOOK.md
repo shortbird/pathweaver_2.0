@@ -32,7 +32,7 @@ Superadmins get **no bypass** by design.
    - *Map bug* — the route is tagged with the wrong module, or a module's
      legacy derivation is wrong for that org. Fix the registry/tag; re-run
      `backend/scripts/audit_module_parity.py` (diff vs
-     `docs/blocks/PARITY_BASELINE_2026-08-22.json` must stay empty).
+     `docs/blocks/PARITY_BASELINE_2026-09-03.json` must stay empty).
    - *True positive* — traffic that SHOULD be blocked (bookmark, crawler,
      stale tab). No action; note it.
 3. **No flip while any hit is unexplained.** Zero mystery events for at least

@@ -1,6 +1,8 @@
 import React from 'react';
+import useHidePillars from '../../hooks/useHidePillars';
 
 const AchievementCard = ({ achievement, onClick }) => {
+  const hidePillars = useHidePillars();
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -69,7 +71,7 @@ const AchievementCard = ({ achievement, onClick }) => {
               </svg>
             </div>
             <p className="text-xs font-semibold tracking-wider opacity-90">
-              {getPillarName(getDominantPillar(achievement)) || 'Learning Quest'}
+              {(!hidePillars && getPillarName(getDominantPillar(achievement))) || 'Learning Quest'}
             </p>
           </div>
         )}

@@ -166,6 +166,89 @@ def validate_org_role(org_role: str) -> bool:
     return org_role in VALID_ORG_ROLES
 
 
+def active_role_view() -> Optional[Dict[str, str]]:
+    """The request's active "view as role", or None.
+
+    A user holding several roles (an admin who also teaches, like Katie at
+    Gryffin) can narrow their session to ONE of them so the platform behaves —
+    backend authorization included — exactly as if they held only that role.
+    The view is carried by a signed httpOnly cookie / X-Role-View header minted
+    by routes/role_view.py; it can only ever narrow, never widen: apply_role_view
+    re-checks the role against the user's REAL roles before honoring it.
+
+    Cached on flask.g per request. Returns {'user_id', 'role'} or None.
+    """
+    try:
+        from flask import g, has_request_context
+        if not has_request_context():
+            return None
+        if not hasattr(g, '_role_view'):
+            from utils.session_manager import session_manager
+            g._role_view = session_manager.get_role_view()
+        return g._role_view
+    except Exception:  # noqa: BLE001 — no request context, or import during startup
+        return None
+
+
+def apply_role_view(user: Dict, user_id: Optional[str] = None) -> Dict:
+    """Narrow a user dict to the active role view, when it is THIS user's.
+
+    Pass user_id when the dict has no 'id' column (auth decorators select only
+    role fields). Returns a narrowed COPY when the view applies; the original
+    dict, untouched, otherwise. The view applies only if the user genuinely
+    holds the role (or is superadmin), so privilege can only go down.
+
+    The narrowed shape mirrors a real single-role account: org users keep
+    role='org_managed' with org_role/org_roles collapsed; is_org_admin is
+    recomputed because four decorators grant on that flag alone.
+    """
+    view = active_role_view()
+    if not view or not view.get('role'):
+        return user
+    uid = user_id or user.get('id')
+    if not uid or uid != view.get('user_id'):
+        return user
+    role = view['role']
+    real_roles = _real_effective_roles(user)
+    if not may_view_as(real_roles, role):
+        return user
+    narrowed = dict(user)
+    if UserRole.SUPERADMIN.value in real_roles:
+        # A superadmin has no org of their own: the view pins them to the org
+        # they were looking at, shaped exactly like a member of it.
+        if not view.get('organization_id'):
+            return user
+        narrowed['organization_id'] = view['organization_id']
+        narrowed['role'] = UserRole.ORG_MANAGED.value
+        narrowed['org_role'] = role
+        narrowed['org_roles'] = [role]
+    elif user.get('role') == UserRole.ORG_MANAGED.value:
+        narrowed['org_role'] = role
+        narrowed['org_roles'] = [role]
+    else:
+        narrowed['role'] = role
+    if 'is_org_admin' in narrowed:
+        narrowed['is_org_admin'] = role == OrgRole.ORG_ADMIN.value
+    return narrowed
+
+
+# Roles a session may be narrowed to. Superadmin is never a target (you cannot
+# view your way UP) and org_managed is a container, not a role.
+VIEWABLE_ROLES = VALID_ORG_ROLES | {'student', 'parent', 'advisor', 'observer'}
+
+# The admin tiers may view as ANY role, held or not: an org admin previewing
+# the teacher or family experience of their own school is the point of the
+# feature, and every target is a strictly smaller privilege than their own.
+_VIEW_ANY_ROLES = (UserRole.SUPERADMIN.value, OrgRole.ORG_ADMIN.value)
+
+
+def may_view_as(real_roles, role: str) -> bool:
+    """Whether an account with these real roles may narrow itself to `role`."""
+    if role not in VIEWABLE_ROLES:
+        return False
+    return role in real_roles or any(r in real_roles for r in _VIEW_ANY_ROLES)
+
+
 def get_effective_role(user: Dict) -> str:
     """
     Get the effective role for a user, resolving org_managed to the actual org_role.
@@ -182,6 +265,10 @@ def get_effective_role(user: Dict) -> str:
     Returns:
         The effective role string to use for permission checks (primary role if multiple)
     """
+    # An active "view as role" narrows the CALLER's own dict (id-matched and
+    # re-verified against their real roles) so every role decision downstream
+    # sees the single role being viewed.
+    user = apply_role_view(user)
     role = user.get('role', UserRole.STUDENT.value)
 
     # Superadmin always returns superadmin
@@ -223,6 +310,14 @@ def get_effective_roles(user: Dict) -> List[str]:
     Returns:
         List of role strings the user has
     """
+    # Same narrowing as get_effective_role — the caller's own dict under an
+    # active role view resolves to just the viewed role.
+    return _real_effective_roles(apply_role_view(user))
+
+
+def _real_effective_roles(user: Dict) -> List[str]:
+    """get_effective_roles without the role-view narrowing — the account's
+    actual roles. apply_role_view uses this to verify a view only ever narrows."""
     role = user.get('role', UserRole.STUDENT.value)
 
     # Superadmin always returns just superadmin

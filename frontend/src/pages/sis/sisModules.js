@@ -91,3 +91,23 @@ export function isPriorLearningEnabled(organization) {
 export function isGoalsEnabled(organization) {
   return Boolean(organization) && moduleEnabled(organization, 'goals')
 }
+
+/**
+ * CLPs are iCreate's, and only iCreate's.
+ *
+ * A Customized Learning Plan is a specific thing iCreate does: a meeting where a
+ * family's schedule is finalised, which is what seeds their tuition. Because
+ * '/clp' was registered as an opt-OUT module above, every other school saw the
+ * nav item, the page, and — worse — CLP wording on shared screens like Tuition
+ * ("Mark a CLP done and the student appears here"), which is advice they cannot
+ * act on and a workflow they do not run (Optio Academy, 2026-08-31).
+ *
+ * Opt-in, like Community Hub and Prior Learning: a school sees CLPs only when it
+ * sets `feature_flags.sis_settings.clp_enabled`. The opt-out `hidden_modules`
+ * entry for 'clp' is kept as well, so an org that had already hidden it stays
+ * hidden even if somebody later turns the flag on.
+ */
+export function isClpEnabled(organization) {
+  if (organization?.feature_flags?.sis_settings?.clp_enabled !== true) return false
+  return !isPathHidden('/clp', organization)
+}

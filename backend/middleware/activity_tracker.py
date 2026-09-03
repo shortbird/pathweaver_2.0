@@ -139,6 +139,15 @@ class ActivityTracker:
         if request.path == '/api/auth/csrf-token':
             return True
 
+        # Skip Flask test-client traffic. The is_pytest_run() guard in
+        # _log_event misses runs that don't go through pytest (a REPL session
+        # with app.test_client(), unittest), and those wrote 138 fake
+        # registration_failed rows into prod analytics on 2026-08-15. No real
+        # browser or the mobile app ever sends this agent.
+        user_agent = request.headers.get('User-Agent', '')
+        if user_agent.startswith('Werkzeug/'):
+            return True
+
         return False
 
     def _calculate_duration(self) -> Optional[int]:
@@ -273,7 +282,46 @@ class ActivityTracker:
             if value:
                 event_data[field] = value
 
+        # A failure event without the reason is undiagnosable: the 2026-08-24
+        # registration triage had to be reconstructed from user agents and
+        # rate-limit configs because rows carried only {method, status_code}.
+        # The only non-2xx responses that get tracked are auth failures, and
+        # their error messages are static strings — never the submitted email
+        # or password.
+        if response.status_code >= 400:
+            reason = self._error_reason(response)
+            if reason:
+                event_data['error'] = reason
+
         return event_data
+
+    @staticmethod
+    def _error_reason(response) -> Optional[str]:
+        """The error message from a JSON error response body, or None.
+
+        Handles both response shapes in the codebase: api_response_v1's
+        {'error': {'code', 'message', ...}} and the legacy {'error': '...'} /
+        {'message': '...'}.
+        """
+        try:
+            payload = response.get_json(silent=True)
+        except Exception:  # noqa: BLE001 - direct passthrough bodies aren't JSON
+            return None
+        if not isinstance(payload, dict):
+            return None
+
+        error = payload.get('error')
+        if isinstance(error, dict):
+            parts = [error.get('code'), error.get('message')]
+            reason = ': '.join(p for p in parts if isinstance(p, str) and p)
+        elif isinstance(error, str):
+            reason = error
+        else:
+            message = payload.get('message')
+            reason = message if isinstance(message, str) else ''
+
+        reason = reason.strip()
+        return reason[:200] if reason else None
 
     @staticmethod
     def _id_after(path_parts, collection: str) -> Optional[str]:

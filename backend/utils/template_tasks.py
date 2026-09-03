@@ -192,7 +192,7 @@ def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
     result = {'enrollments': 0, 'updated': 0, 'inserted': 0, 'removed': 0, 'kept': 0}
 
     enrollments = fetch_all_rows(lambda: (
-        admin.table('user_quests').select('id, user_id').eq('quest_id', quest_id)
+        admin.table('user_quests').select('id, user_id, completed_at').eq('quest_id', quest_id)
     ))
     if not enrollments:
         return result
@@ -258,6 +258,23 @@ def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
                 result['inserted'] += len(chunk)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Could not add tasks on quest {quest_id}: {e}")
+
+        # An enrollment that was already finished is not finished any more once
+        # the template grew — without this, a student who completed the quest
+        # before the teacher added a task keeps a "complete" quest carrying an
+        # unfinished task, and the new task never surfaces as work to do
+        # (Gryffin, 2026-08-28). Completion re-stamps itself when the student
+        # finishes the added task; the completion bonus is 0 so nothing can be
+        # double-awarded.
+        reopened = {uqid for _uid, uqid, _t in inserts
+                    if next((e for e in enrollments if e['id'] == uqid), {}).get('completed_at')}
+        if reopened:
+            try:
+                admin.table('user_quests').update({'completed_at': None})\
+                    .in_('id', list(reopened)).execute()
+                result['reopened'] = len(reopened)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Could not reopen completed enrollments on quest {quest_id}: {e}")
 
     # Re-read work immediately before deleting: somebody may have submitted
     # since the snapshot, and a cascade is the one unrecoverable outcome here.

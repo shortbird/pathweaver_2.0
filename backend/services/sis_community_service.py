@@ -34,6 +34,11 @@ logger = get_logger(__name__)
 DONATION_WINDOW_DAYS = 14
 
 ANNOUNCEMENT_PRIORITIES = ('normal', 'urgent')
+# Mirrors sis_events.audience, including the default. Board posts had no
+# audience at all, so a note written for teachers reached every family
+# (iCreate, 2026-08-26: "things Sent to teachers should not be showing up for
+# Families").
+ANNOUNCEMENT_AUDIENCES = ('school', 'teachers', 'admins')
 LOST_FOUND_STATUSES = ('unclaimed', 'claimed', 'donated')
 
 # Lost & Found photos are taken inside the school and routinely have children in
@@ -112,12 +117,16 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     priority = data.get('priority') or 'normal'
     if priority not in ANNOUNCEMENT_PRIORITIES:
         priority = 'normal'
+    audience = data.get('audience') or 'school'
+    if audience not in ANNOUNCEMENT_AUDIENCES:
+        audience = 'school'
     fields = {
         'organization_id': org_id,
         'title': title,
         'body': _body(data.get('body')),
         'pinned': bool(data.get('pinned')),
         'priority': priority,
+        'audience': audience,
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
         'expires_at': (str(data['expires_at']).strip() or None) if data.get('expires_at') else None,
         'created_by': user_id,
@@ -139,7 +148,11 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
             audiences = announcement_service.normalize_audiences(audiences)
             if audiences:
                 sent = announcement_service.publish(
-                    org_id, user_id, title, _body(data.get('body')) or title, audiences)
+                    org_id, user_id, title, _body(data.get('body')) or title, audiences,
+                    # Tie the send to the post, so an edit or a delete on the
+                    # board reaches both halves of what a family sees as one
+                    # notice (see announcement_service.revise_for_source).
+                    source_announcement_id=(created or {}).get('id'))
                 result['notified'] = {**sent, 'audiences': audiences}
         except Exception as e:  # noqa: BLE001
             logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
@@ -162,12 +175,40 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
         fields['pinned'] = bool(data.get('pinned'))
     if 'priority' in data:
         fields['priority'] = data['priority'] if data['priority'] in ANNOUNCEMENT_PRIORITIES else 'normal'
+    if 'audience' in data:
+        fields['audience'] = data['audience'] if data['audience'] in ANNOUNCEMENT_AUDIENCES else 'school'
     for k in ('publish_at', 'expires_at'):
         if k in data:
             fields[k] = (str(data[k]).strip() or None) if data.get(k) else None
     fields['updated_at'] = _now_iso()
     row = (_admin().table('sis_announcements').update(fields).eq('id', announcement_id).execute()).data
+    # The same edit has to reach the send this post spawned, or the family feed
+    # sees two notices where the admin edited one.
+    if 'title' in fields or 'body' in fields:
+        try:
+            from services import announcement_service
+            announcement_service.revise_for_source(
+                announcement_id, title=fields.get('title'), content=fields.get('body'))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Announcement revision fan-out failed: {e}', exc_info=True)
     return {'announcement': row[0] if row else None}
+
+
+def delete_announcement(org_id: str, announcement_id: str) -> bool:
+    """Take a board post down, and with it the send it spawned.
+
+    delete_row alone removed the board copy only, which is how a notice the
+    admin had deleted stayed on the parent dashboard (iCreate, 2026-08-28).
+    """
+    if not _owned(org_id, 'sis_announcements', announcement_id):
+        return False
+    try:
+        from services import announcement_service
+        announcement_service.retract_for_source(announcement_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Announcement retraction fan-out failed: {e}', exc_info=True)
+    _admin().table('sis_announcements').delete().eq('id', announcement_id).execute()
+    return True
 
 
 # ── Lost & Found ──────────────────────────────────────────────────────────────
@@ -345,7 +386,7 @@ def upcoming_birthdays(org_id: str, days: int = 7) -> List[Dict[str, Any]]:
     by how soon the birthday is."""
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, role, org_role, date_of_birth')
+        .select('id, first_name, last_name, display_name, role, org_role, date_of_birth, preferred_name')
         .eq('organization_id', org_id)
         .not_.is_('date_of_birth', 'null')
         .execute()
@@ -416,7 +457,7 @@ def create_carpool_post(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         return {'error': f'Keep it under {_CARPOOL_MAX_LEN} characters'}
     post_type = data.get('type') if data.get('type') in CARPOOL_TYPES else 'offer'
     author = (
-        _admin().table('users').select('display_name, first_name, last_name')
+        _admin().table('users').select('display_name, first_name, last_name, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     a = (author or [{}])[0]
@@ -434,13 +475,6 @@ def create_carpool_post(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         # ("Message this person"), never phone numbers on a board.
     }).execute()).data
     return {'post': row[0] if row else None}
-
-
-def get_carpool_post(org_id: str, post_id: str) -> Optional[Dict[str, Any]]:
-    row = (_admin().table('sis_carpool_posts').select('*')
-           .eq('id', post_id).eq('organization_id', org_id)
-           .eq('status', 'active').limit(1).execute()).data
-    return row[0] if row else None
 
 
 def delete_carpool_post(org_id: str, user_id: str, post_id: str,
@@ -514,10 +548,12 @@ _FAMILY_RECOGNITION = ('id', 'type', 'recipient_name', 'message', 'created_at')
 _FAMILY_ANNOUNCEMENT = ('id', 'title', 'body', 'pinned', 'priority', 'created_at')
 _FAMILY_EVENT = ('id', 'title', 'description', 'location', 'start_at', 'end_at',
                  'all_day', 'category', 'categories')
-# author_name is the snapshot column, never a users join; created_by is replaced
-# by a computed `mine` so the author sees their own delete button without any
-# account id reaching the client — "Message this person" goes through the post
-# id (POST /feed/carpool/<id>/message), so the author's id never needs to.
+# author_name is the snapshot column, never a users join. created_by is served
+# as `author_id` alongside a computed `mine`: the author gets their own delete
+# button, and "Message this person" is a link into Messages addressed to that
+# account. Withholding the id bought nothing once every adult in the school is
+# a contact of every other (2026-08-27) — it only meant the board had to carry
+# its own one-shot composer, which the mobile app never managed to send from.
 _FAMILY_CARPOOL = ('id', 'type', 'message', 'area', 'days',
                    'author_name', 'created_at')
 
@@ -540,10 +576,13 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     carpool_rows = list_carpool(org_id)
     carpool = _project(carpool_rows, _FAMILY_CARPOOL)
     for projected, raw in zip(carpool, carpool_rows):
+        projected['author_id'] = raw.get('created_by')
         projected['mine'] = bool(viewer_id) and raw.get('created_by') == viewer_id
     return {
         'announcements': _project(
-            list_announcements(org_id, include_hidden=False)[:20], _FAMILY_ANNOUNCEMENT),
+            [a for a in list_announcements(org_id, include_hidden=False)
+             if (a.get('audience') or 'school') == 'school'][:20],
+            _FAMILY_ANNOUNCEMENT),
         'lost_found': _project(
             list_lost_found(org_id, status='unclaimed')[:50], _FAMILY_LOST_FOUND),
         'recognition': _project(list_recognition(org_id)[:20], _FAMILY_RECOGNITION),

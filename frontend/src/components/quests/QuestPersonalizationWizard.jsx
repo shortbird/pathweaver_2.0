@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon, CheckIcon, FlagIcon, CheckCircleIcon, MapIcon, ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
+import useHidePillars from '../../hooks/useHidePillars';
 import ManualTaskCreator from './ManualTaskCreator';
 import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
@@ -109,8 +110,10 @@ export default function QuestPersonalizationWizard({
   onManualTasksOverride = null,
   classSubject = null,
   skipSubjectXp = false,
+  draftScope = null,
 }) {
   const classSubjectName = classSubject ? getSubjectName(classSubject) : null;
+  const hidePillars = useHidePillars();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -897,6 +900,7 @@ export default function QuestPersonalizationWizard({
           onTasksCreated={handleManualTasksCreated}
           onCancel={onCancel}
           onSubmitOverride={onManualTasksOverride}
+          draftScope={draftScope}
         />
       )}
 
@@ -969,14 +973,17 @@ export default function QuestPersonalizationWizard({
 
             {!hideDiplomaSubjects && (
             <div className="flex flex-col gap-3 pl-10 sm:pl-12">
-              {/* Pillar Badge */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 px-4 py-2 bg-optio-purple/10 text-optio-purple-dark rounded-full">
-                  <span className="font-semibold">
-                    {getPillarData(currentTask.pillar).name}
-                  </span>
+              {/* Pillar Badge — not for schools that switched the pillars off;
+                  they keep the credits row below, which is their taxonomy. */}
+              {!hidePillars && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-optio-purple/10 text-optio-purple-dark rounded-full">
+                    <span className="font-semibold">
+                      {getPillarData(currentTask.pillar).name}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Subject XP Distribution */}
               {currentTask.diploma_subjects && Object.keys(currentTask.diploma_subjects).length > 0 && (

@@ -30,8 +30,12 @@ EXEMPTIONS: dict[str, int] = {
     # protecting every OTHER route file again. Each of these still needs
     # splitting; delete its entry when that happens.
     "evidence_documents.py": 1830,
-    "icreate_registration.py": 2300,
-    "admin/organization_management.py": 1950,
+    "registration_funnel.py": 2300,
+    # 2026-09-02: ratcheted 1950 -> 1700. The course-registration endpoints
+    # moved to admin/organization_courses.py (481 lines, under the cap and
+    # so not exempt), taking this file from 2006 to 1552. Still needs a
+    # second split; this entry goes away when that happens.
+    "admin/organization_management.py": 1700,
 }
 
 

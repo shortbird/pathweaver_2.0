@@ -6,12 +6,12 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, Platform } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
-import type { Lesson, LessonStep } from '@/src/hooks/useCourses';
+import type { Lesson } from '@/src/hooks/useCourses';
 import { sanitizeLessonHtml } from './sanitizeLessonHtml';
 
 /** Extract embeddable URL from YouTube/Vimeo/Loom/Drive links. */
@@ -60,9 +60,8 @@ function VideoEmbed({ url }: { url: string }) {
  *  <script>, on* handlers, and other XSS vectors. */
 function HtmlContent({ html }: { html: string }) {
   const c = useThemeColors();
-  if (!html || Platform.OS !== 'web') return null;
-
   const safeHtml = useMemo(() => sanitizeLessonHtml(html), [html]);
+  if (!html || Platform.OS !== 'web') return null;
 
   return (
     <div
@@ -91,7 +90,7 @@ function StepIndicator({ total, current, onSelect }: { total: number; current: n
               width: i === current ? 24 : 8,
               height: 8,
               borderRadius: 4,
-              backgroundColor: i === current ? '#6D469B' : i < current ? '#C4B5D9' : c.border,
+              backgroundColor: i === current ? c.brand : i < current ? '#C4B5D9' : c.border,
             }}
           />
         </Pressable>
@@ -200,7 +199,7 @@ export function LessonViewer({ lesson, questId, onClose, onComplete }: LessonVie
                 disabled={currentStep === 0}
                 className={`flex-row items-center gap-1.5 px-4 py-2.5 rounded-lg ${currentStep === 0 ? 'opacity-30' : 'bg-surface-100 dark:bg-dark-surface-200'}`}
               >
-                <Ionicons name="chevron-back" size={16} color="#6D469B" />
+                <Ionicons name="chevron-back" size={16} color={c.brand} />
                 <UIText size="sm" className="text-optio-purple font-poppins-medium">Previous</UIText>
               </Pressable>
 

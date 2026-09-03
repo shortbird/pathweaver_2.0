@@ -76,16 +76,30 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
                 return True
 
+            # School inbox (2026-08-24): a member may DM their own org's
+            # "{School Name}" account, and that account (staff replying from the
+            # shared inbox) may DM the org's members. Checked early because the
+            # inbox account is a platform user (organization_id NULL), so none
+            # of the org/relationship rules below would ever match it.
+            from services import school_inbox_service
+            if school_inbox_service.can_message_school(user_id, target_id):
+                print(f"[can_message_user] ALLOWED: School inbox <-> org member", file=sys.stderr, flush=True)
+                return True
+
             # ORG_ADMIN: Can message anyone in the same organization
             sender_effective_role = get_effective_role(sender.data) if sender.data else None
             sender_org_id = sender.data.get('organization_id') if sender.data else None
             target_org_id = target.data.get('organization_id') if target.data else None
-            if sender_effective_role == 'org_admin' and sender_org_id and sender_org_id == target_org_id:
-                print(f"[can_message_user] ALLOWED: Org admin can message anyone in their org", file=sys.stderr, flush=True)
+            # campus_coordinator included: the front office runs the campus, and
+            # messaging is operational, not financial (the one thing the
+            # coordinator tier withholds).
+            ORG_OFFICE_ROLES = ('org_admin', 'campus_coordinator')
+            if sender_effective_role in ORG_OFFICE_ROLES and sender_org_id and sender_org_id == target_org_id:
+                print(f"[can_message_user] ALLOWED: Org office role can message anyone in their org", file=sys.stderr, flush=True)
                 return True
             # Anyone in the same org can reply to their org_admin
             target_effective_role = get_effective_role(target.data) if target.data else None
-            if target_effective_role == 'org_admin' and target_org_id and sender_org_id == target_org_id:
+            if target_effective_role in ORG_OFFICE_ROLES and target_org_id and sender_org_id == target_org_id:
                 print(f"[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
                 return True
 
@@ -161,15 +175,17 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
                 return True
 
-            # Carpool board (iCreate, 2026-08-06): an ACTIVE ride offer/need is an
-            # invitation to be contacted, so it connects two ADULTS of the same
-            # school for as long as it is up. Author deletes the post -> new
-            # messages stop (history stays readable); students never qualify in
+            # A school's adults are contacts of each other (2026-08-27): every
+            # guardian and staff member of one organization can open a thread
+            # with any other. It replaces the narrower carpool rule this started
+            # as -- an active ride post connected exactly two accounts, so
+            # parents could only reach the families already advertising, and
+            # never each other for anything else. Students never qualify in
             # either direction.
-            if self._carpool_connection(user_id, target_id,
-                                        sender_role=sender_effective_role,
-                                        target_role=target_effective_role):
-                print(f"[can_message_user] ALLOWED: Active carpool post in shared school", file=sys.stderr, flush=True)
+            if self._org_adult_connection(user_id, target_id,
+                                          sender_role=sender_effective_role,
+                                          target_role=target_effective_role):
+                print(f"[can_message_user] ALLOWED: Adults of the same school", file=sys.stderr, flush=True)
                 return True
 
             print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
@@ -180,30 +196,27 @@ class DirectMessageService(BaseService):
             import traceback
             return False
 
-    def _carpool_connection(self, user_id: str, target_id: str,
-                            sender_role: str = None, target_role: str = None) -> bool:
-        """True when either party has an ACTIVE carpool post in a school both
-        belong to, and neither is a student. Membership resolves the way the
-        board itself does (sis_service.member_org_id — platform parents belong
-        through their children)."""
+    def _org_adult_connection(self, user_id: str, target_id: str,
+                              sender_role: str = None, target_role: str = None) -> bool:
+        """True when both parties are adults on the same school's roster.
+
+        Membership resolves the way the community board does
+        (sis_service.member_org_id), so a platform parent -- no organization_id
+        of their own -- is a member through their child. Students are excluded
+        by role, and so are observers: they are linked to one student, not to
+        the parent body, and keep their own narrower rule above.
+        """
         try:
-            if sender_role == 'student' or target_role == 'student':
-                return False
-            supabase = self._get_client()
-            posts = supabase.table('sis_carpool_posts') \
-                .select('organization_id') \
-                .in_('created_by', [user_id, target_id]) \
-                .eq('status', 'active').limit(20).execute().data or []
-            if not posts:
-                return False
-            post_orgs = {p['organization_id'] for p in posts}
+            # Imported here, not at module scope: sis_service reaches back into
+            # the services package and the pair import-cycles at module load.
             from services import sis_service
-            org_a = sis_service.member_org_id(user_id)
-            if not org_a or org_a not in post_orgs:
+            if sender_role not in sis_service.ADULT_ORG_ROLES or \
+               target_role not in sis_service.ADULT_ORG_ROLES:
                 return False
-            return sis_service.member_org_id(target_id) == org_a
+            org = sis_service.member_org_id(user_id)
+            return bool(org) and sis_service.member_org_id(target_id) == org
         except Exception as e:
-            print(f"[can_message_user] carpool check failed (denying): {e}", file=sys.stderr, flush=True)
+            print(f"[can_message_user] org adult check failed (denying): {e}", file=sys.stderr, flush=True)
             return False
 
     # ==================== Conversation Management ====================
@@ -266,55 +279,67 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Get conversations where user is participant_1
-            convos_p1 = supabase.table('message_conversations').select('''
+            # Both sides of every thread in one request. Two `.eq()` reads were
+            # two round trips for a filter Postgres can OR in one.
+            #
+            # `.or_()` takes a raw filter STRING, where a comma ends one clause
+            # and starts the next -- so the id is proven to be a UUID before it
+            # goes in. See utils/validation/sanitizers and
+            # tests/test_postgrest_filter_injection.py.
+            from utils.validation.sanitizers import pgrst_uuid
+            convos = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
                 created_at, updated_at
-            ''').eq('participant_1_id', user_id).execute()
+            ''').or_(
+                f'participant_1_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                f'participant_2_id.eq.{pgrst_uuid(user_id, "user_id")}'
+            ).execute()
 
-            # Get conversations where user is participant_2
-            convos_p2 = supabase.table('message_conversations').select('''
-                id, participant_1_id, participant_2_id, last_message_at,
-                last_message_preview, unread_count_p1, unread_count_p2,
-                created_at, updated_at
-            ''').eq('participant_2_id', user_id).execute()
+            rows = convos.data or []
 
-            # Combine and enrich with participant details
+            # Resolve every counterpart in one query. This used to be a
+            # `_get_user_info` call per conversation -- ~110 ms each against
+            # Supabase, so a 20-thread inbox spent two seconds doing nothing but
+            # sequential single-row lookups.
+            others = {
+                (c['participant_2_id'] if c['participant_1_id'] == user_id
+                 else c['participant_1_id'])
+                for c in rows
+            }
+            users_by_id = self._get_users_info(others)
+
             all_conversations = []
-
-            if convos_p1.data:
-                for convo in convos_p1.data:
-                    other_user_id = convo['participant_2_id']
-                    user_data = self._get_user_info(other_user_id)
-                    all_conversations.append({
-                        **convo,
-                        'other_user': user_data,
-                        'unread_count': convo['unread_count_p1']
-                    })
-
-            if convos_p2.data:
-                for convo in convos_p2.data:
-                    other_user_id = convo['participant_1_id']
-                    user_data = self._get_user_info(other_user_id)
-                    all_conversations.append({
-                        **convo,
-                        'other_user': user_data,
-                        'unread_count': convo['unread_count_p2']
-                    })
+            for convo in rows:
+                is_p1 = convo['participant_1_id'] == user_id
+                other_user_id = convo['participant_2_id'] if is_p1 else convo['participant_1_id']
+                all_conversations.append({
+                    **convo,
+                    'other_user': users_by_id.get(
+                        other_user_id, {'id': other_user_id, 'display_name': 'Unknown User'}
+                    ),
+                    'unread_count': convo['unread_count_p1'] if is_p1 else convo['unread_count_p2'],
+                })
 
             # Recompute unread from the ACTUAL unread messages rather than trusting
             # the cached unread_count_p1/p2 counters, which drift out of sync (a
             # missed decrement left a "ghost" unread badge after the user had
-            # already opened and read the conversation). One query, counted here.
+            # already opened and read the conversation).
             try:
-                unread_resp = supabase.table('direct_messages') \
-                    .select('conversation_id') \
-                    .eq('recipient_id', user_id) \
-                    .is_('read_at', 'null') \
-                    .execute()
+                # Paged: this is every unread message addressed to one account,
+                # and a school inbox answering a whole parent body can hold more
+                # than the 1000-row cap. Truncated, the tail of the list would
+                # silently read as "no unread" -- the same failure mode as the
+                # iCreate enrollment counts (see utils/db_fetch).
+                from utils.db_fetch import fetch_all_rows
+                unread_rows = fetch_all_rows(lambda: (
+                    supabase.table('direct_messages')
+                    .select('id, conversation_id')
+                    .eq('recipient_id', user_id)
+                    .is_('read_at', 'null')
+                ))
                 unread_by_convo: Dict[str, int] = {}
-                for row in (unread_resp.data or []):
+                for row in unread_rows:
                     cid = row.get('conversation_id')
                     if cid:
                         unread_by_convo[cid] = unread_by_convo.get(cid, 0) + 1
@@ -324,13 +349,22 @@ class DirectMessageService(BaseService):
                 # Non-fatal: fall back to the cached counters already set above.
                 print(f"Unread recount failed (using cached counters): {recount_err}", file=sys.stderr, flush=True)
 
+            # Threads with a school inbox render as the school, not as the
+            # observer account that backs it (other_user.is_school).
+            try:
+                from services import school_inbox_service
+                school_inbox_service.mark_school_conversations(all_conversations)
+            except Exception as school_err:  # noqa: BLE001
+                print(f"School conversation flagging failed: {school_err}", file=sys.stderr, flush=True)
+
             # Sort by last_message_at descending
             all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
 
-            # Avatars live in private buckets. Sign the whole conversation list
-            # in one batch per bucket rather than a round trip per header.
-            from utils.storage_urls import sign_in_place
-            sign_in_place(
+            # Avatars live in private buckets, and the list draws them at 40px.
+            # Serve thumbnails: the originals average 1.3 MB apiece and the
+            # browser cannot reuse either one between loads (see storage_urls).
+            from utils.storage_urls import sign_thumbs_in_place
+            sign_thumbs_in_place(
                 [c['other_user'] for c in all_conversations
                  if isinstance(c.get('other_user'), dict)],
                 ['avatar_url'],
@@ -354,13 +388,44 @@ class DirectMessageService(BaseService):
         except:
             return {'id': user_id, 'display_name': 'Unknown User'}
 
+    # PostgREST `in_` filters ride in the query string, so long id lists are
+    # chunked rather than sent as one enormous URL.
+    _USER_INFO_CHUNK = 100
+
+    def _get_users_info(self, user_ids) -> Dict[str, Dict[str, Any]]:
+        """The batch form of :meth:`_get_user_info`, keyed by id.
+
+        Anything that enriches a *list* should use this. Resolving names one
+        row at a time is the difference between one round trip and one per
+        conversation.
+        """
+        ids = [uid for uid in dict.fromkeys(user_ids) if uid]
+        if not ids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        try:
+            supabase = self._get_client()
+            for i in range(0, len(ids), self._USER_INFO_CHUNK):
+                rows = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role'
+                ).in_('id', ids[i:i + self._USER_INFO_CHUNK]).execute().data or []
+                for row in rows:
+                    out[row['id']] = row
+        except Exception as e:  # noqa: BLE001
+            print(f"Batch user lookup failed: {e}", file=sys.stderr, flush=True)
+        return out
+
     # ==================== Message Operations ====================
 
     def send_message(self, sender_id: str, recipient_id: str, content: str,
-                     reply_to_message_id: str = None, attachments: list = None) -> Dict[str, Any]:
+                     reply_to_message_id: str = None, attachments: list = None,
+                     sent_by_user_id: str = None) -> Dict[str, Any]:
         """
         Send a message from one user to another. Supports replying to a message
         and attachments ([{url, type, name, size}], pre-uploaded).
+
+        sent_by_user_id: set only by the school-inbox route — the staff member
+        who wrote a message the school account is sending.
 
         Returns:
             Created message record (enriched with reply preview)
@@ -392,6 +457,7 @@ class DirectMessageService(BaseService):
                 'message_content': content,
                 'reply_to_message_id': reply_to_message_id,
                 'attachments': clean_atts,
+                'sent_by_user_id': sent_by_user_id,
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -436,6 +502,18 @@ class DirectMessageService(BaseService):
                 f"{sender_info.get('first_name', '')} {sender_info.get('last_name', '')}".strip() or
                 'Someone'
             )
+
+            # A message TO the school inbox has no human behind the recipient
+            # account — notify the front office (admins + campus coordinators)
+            # instead, pointing at the shared inbox in the SIS console.
+            from services import school_inbox_service
+            inbox_org = school_inbox_service.org_for_inbox_user(recipient_id)
+            if inbox_org:
+                preview = content[:50] + '...' if len(content) > 50 else content
+                school_inbox_service.notify_admins_of_member_message(
+                    inbox_org, sender_id, sender_name, preview
+                )
+                return
 
             # Get recipient's organization for notification
             supabase = self._get_client()
@@ -573,6 +651,106 @@ class DirectMessageService(BaseService):
 
         except Exception as e:
             print(f"Error marking message as read: {str(e)}", file=sys.stderr, flush=True)
+            raise
+
+    def _find_conversation(self, conversation_or_user_id: str,
+                           user_id: str) -> Optional[Dict[str, Any]]:
+        """The conversation behind an id from the URL, or None if there is none.
+
+        `/conversations/<id>` accepts either a conversation id or the other
+        participant's user id. Unlike get_conversation_messages this never
+        creates one: a thread that does not exist has nothing unread in it.
+
+        Raises ValueError if the caller is not a participant.
+        """
+        try:
+            uuid.UUID(str(conversation_or_user_id))
+        except (ValueError, AttributeError, TypeError):
+            raise ValueError("Conversation not found")
+
+        supabase = self._get_client()
+        rows = (supabase.table('message_conversations')
+                .select('id, participant_1_id, participant_2_id')
+                .eq('id', conversation_or_user_id).limit(1).execute()).data or []
+        if rows:
+            convo = rows[0]
+            if user_id not in (convo['participant_1_id'], convo['participant_2_id']):
+                raise ValueError("You are not a participant in this conversation")
+            return convo
+
+        # Participants are stored smallest-uuid-first; see
+        # get_or_create_conversation, which is the only writer of these rows.
+        p1_id, p2_id = sorted([user_id, conversation_or_user_id])
+        rows = (supabase.table('message_conversations')
+                .select('id, participant_1_id, participant_2_id')
+                .eq('participant_1_id', p1_id).eq('participant_2_id', p2_id)
+                .limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def mark_conversation_read(self, conversation_id: str, user_id: str) -> int:
+        """Mark every message this user has received in a thread as read.
+
+        Returns the number of messages that changed.
+
+        Opening a thread reads all of it at once, so this is one request. The
+        client used to send a PUT per unread message and invalidate the
+        conversation list on each response -- a thread with twenty unread
+        messages fired twenty writes and twenty refetches of the most expensive
+        endpoint on the page, all while the user was reading.
+        """
+        try:
+            supabase = self._get_client()
+
+            # The id in the URL is a conversation id OR the other person's user
+            # id. Every other endpoint on this thread has taken both since the
+            # first one was opened from a contact rather than an existing thread
+            # (see get_conversation_messages), and a user id is what the web
+            # client actually sends: ChatWindow's `conversation.id` comes from
+            # contactToConversation, which carries the contact's id. Reading it
+            # as a conversation id and nothing else made every mark-read a 500,
+            # so unread badges never cleared (OPTIO-BACKEND-7H).
+            convo = self._find_conversation(conversation_id, user_id)
+            if convo is None:
+                # These two have no thread yet -- nothing to mark read.
+                return 0
+
+            conversation_id = convo['id']
+            is_p1 = convo['participant_1_id'] == user_id
+
+            # One UPDATE ... WHERE, not a read-then-write per row. Scoped to the
+            # caller as recipient, so it can only ever clear their own unread.
+            updated = supabase.table('direct_messages').update({
+                'read_at': datetime.utcnow().isoformat()
+            }).eq('conversation_id', conversation_id) \
+              .eq('recipient_id', user_id) \
+              .is_('read_at', 'null').execute()
+
+            rows = updated.data or []
+            if not rows:
+                return 0
+
+            # The whole thread is read, so the counter is zero -- no decrement
+            # arithmetic to drift out of step with the messages themselves.
+            supabase.table('message_conversations').update(
+                {'unread_count_p1' if is_p1 else 'unread_count_p2': 0}
+            ).eq('id', conversation_id).execute()
+
+            # Clear the bell for each sender whose message we just read, for the
+            # reason mark_as_read does it: a read thread must not keep showing
+            # in the notification center.
+            senders = {r.get('sender_id') for r in rows if r.get('sender_id')}
+            for sender_id in senders:
+                try:
+                    NotificationService().mark_message_notifications_read(
+                        user_id=user_id, sender_id=sender_id,
+                    )
+                except Exception as notif_err:  # noqa: BLE001
+                    logger.warning(f"Failed to clear message notifications on read: {notif_err}")
+
+            return len(rows)
+
+        except Exception as e:
+            print(f"Error marking conversation as read: {str(e)}", file=sys.stderr, flush=True)
             raise
 
     def get_unread_count(self, user_id: str) -> int:

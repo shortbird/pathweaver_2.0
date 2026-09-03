@@ -4,6 +4,8 @@ import {
   AcademicCapIcon,
   ArrowLeftIcon,
   BookOpenIcon,
+  DocumentTextIcon,
+  LinkIcon,
   UserGroupIcon,
   CheckCircleIcon,
   ChevronDownIcon,
@@ -17,7 +19,7 @@ import { useAuth } from '../../contexts/AuthContext'
 /**
  * StudentClassesView - Shows enrolled classes for students
  *
- * Uses URL params for class selection (/classes/:classId) so
+ * Uses URL params for class selection (<listPath>/:classId) so
  * back navigation from quests can return directly to the class.
  */
 export default function StudentClassesView({ basePath = null } = {}) {
@@ -26,6 +28,13 @@ export default function StudentClassesView({ basePath = null } = {}) {
   const { classId } = useParams()
   // basePath lets this view be mounted under a branded route (e.g. /gryffin) and keep
   // its list/detail navigation self-contained. Defaults preserve the /org-classes flow.
+  //
+  // Every link out of this view goes through listPath. Three of them used to
+  // fall back to `/classes/:id` when basePath was null, which is the PUBLIC
+  // marketing page's URL, not this one's — it has no :classId route, so the
+  // catch-all bounced the student to their dashboard. From the sidebar's
+  // "Classes" (which mounts at /org-classes, no basePath) that made every
+  // class card look like it led to a generic page (Gryffin, 2026-08-31).
   const listPath = basePath || '/org-classes'
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,7 +76,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
       <StudentClassDetail
         classData={selectedClass}
         orgId={selectedClass.organization_id || user?.organization_id}
-        basePath={basePath}
+        listPath={listPath}
         onBack={() => navigate(listPath)}
       />
     )
@@ -79,7 +88,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
       <StudentClassDetail
         classId={classId}
         orgId={user?.organization_id}
-        basePath={basePath}
+        listPath={listPath}
         onBack={() => navigate(listPath)}
       />
     )
@@ -104,7 +113,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
               <StudentClassCard
                 key={cls.id}
                 classData={cls}
-                onClick={() => navigate(basePath ? `${basePath}/${cls.id}` : `/classes/${cls.id}`)}
+                onClick={() => navigate(`${listPath}/${cls.id}`)}
               />
             ))}
           </div>
@@ -180,7 +189,7 @@ function StudentClassCard({ classData, onClick }) {
  *
  * Can receive classData from parent (fast path) or classId to fetch independently.
  */
-function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, basePath = null }) {
+function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, listPath = '/org-classes' }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
@@ -192,6 +201,14 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   // used purely presentationally to fold finished quests into a collapsed section.
   const [completedQuestIds, setCompletedQuestIds] = useState(new Set())
   const [showCompleted, setShowCompleted] = useState(false)
+  // Courses the class inherits from its SIS curriculum. A live link rather than
+  // a copy, so this is whatever the school's library currently says.
+  const [courses, setCourses] = useState([])
+  // Handouts: the class's own materials plus anything its curriculum shares
+  // with students. Until 2026-09-02 a student could only reach these from
+  // inside a quest page, so a document shared with the class was invisible from
+  // the class itself — the one place they would look for it.
+  const [materials, setMaterials] = useState([])
 
   const classId = initialClassData?.id || propClassId
 
@@ -215,6 +232,9 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
       const requests = [
         classService.getClassQuests(orgId, classId).catch(() => ({ success: false })),
         classService.getClassAdvisors(orgId, classId).catch(() => ({ success: false })),
+        classService.getClassCourses(orgId, classId).catch(() => ({ success: false })),
+        api.get(`/api/sis/classes/${classId}/materials`)
+          .then((r) => r.data).catch(() => ({ success: false })),
       ]
 
       // If we don't have classData yet, fetch student classes to get progress
@@ -226,16 +246,22 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       const results = await Promise.all(requests)
 
-      const [questsRes, advisorsRes] = results
+      const [questsRes, advisorsRes, coursesRes, materialsRes] = results
       if (questsRes.success) {
         setQuests(questsRes.quests || [])
       }
       if (advisorsRes.success) {
         setAdvisors(advisorsRes.advisors || [])
       }
+      if (coursesRes?.success) {
+        setCourses(coursesRes.courses || [])
+      }
+      if (materialsRes?.success) {
+        setMaterials(materialsRes.materials || [])
+      }
 
       // Set class data from student classes response if needed
-      if (!initialClassData && results[2]?.success) {
+      if (!initialClassData && results[4]?.success) {
         const cls = (results[2].classes || []).find(c => c.id === classId)
         if (cls) {
           setClassData(cls)
@@ -272,7 +298,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   const isComplete = progress.is_complete
 
   const openQuest = (quest) => {
-    sessionStorage.setItem('classReturnPath', basePath ? `${basePath}/${classId}` : `/classes/${classId}`)
+    sessionStorage.setItem('classReturnPath', `${listPath}/${classId}`)
     navigate(`/quests/${quest.id}`)
   }
 
@@ -413,6 +439,77 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           </div>
         )}
       </div>
+
+      {/* Materials Section — handouts for this class: its own, plus whatever its
+          curriculum shares with students. Hidden when empty, like Courses. */}
+      {materials.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+            Class Materials
+          </h3>
+          <div className="space-y-3">
+            {materials.map((m) => (
+              <a
+                key={m.id}
+                href={m.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-optio-purple/40 hover:shadow-sm transition-all"
+              >
+                <div className="w-10 h-10 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+                  {m.kind === 'file'
+                    ? <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+                    : <LinkIcon className="w-5 h-5 text-optio-purple" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">{m.title}</h4>
+                  {m.curriculum_title && (
+                    <p className="text-sm text-gray-500 truncate">{m.curriculum_title}</p>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-optio-purple flex-shrink-0">
+                  Open
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Courses Section — what the class inherits from the school's curriculum.
+          Hidden entirely when there are none, so a class that doesn't work this
+          way doesn't grow an empty heading. */}
+      {courses.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <AcademicCapIcon className="w-5 h-5 text-optio-purple" />
+            Class Courses
+          </h3>
+          <div className="space-y-3">
+            {courses.map((course) => (
+              <button
+                key={course.id}
+                onClick={() => navigate(`/courses/${course.id}`)}
+                className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-optio-purple/40 hover:shadow-sm transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
+                  <AcademicCapIcon className="w-5 h-5 text-optio-purple" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">{course.title}</h4>
+                  {course.description && (
+                    <p className="text-sm text-gray-500 truncate">{course.description}</p>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-optio-purple flex-shrink-0">
+                  View Course
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Advisors Section */}
       {advisors.length > 0 && (

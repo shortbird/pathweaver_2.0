@@ -5,6 +5,9 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
+import RecurringTuitionModal from './RecurringTuitionModal'
+import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
+import { isClpEnabled } from './sisModules'
 
 /**
  * Tuition Approver — the step after a CLP meeting.
@@ -33,7 +36,11 @@ const toCents = (str) => {
 }
 
 const TuitionApprovalPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  // CLPs are iCreate's. Every other school shares this page but runs no CLP
+  // meeting, so its wording — filters, empty state, badges — was telling them
+  // to finish a thing that does not exist for them.
+  const showClp = isClpEnabled(activeOrg)
   const [queue, setQueue] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -50,6 +57,17 @@ const TuitionApprovalPage = () => {
   // The CLP used to keep a family off this page entirely. iCreate asked to see
   // everyone (87d32ab1), so it is a filter the office chooses, not a gate.
   const [clpFilter, setClpFilter] = useState('')
+  // Schools that bill a monthly rate have no priced schedule to seed the queue
+  // from, so their route to an invoice cannot run through it.
+  const [monthlyOpen, setMonthlyOpen] = useState(false)
+  // Rendered on the page below, not inside the dialog that creates it: for a
+  // school that bills a monthly rate the invoice queue is permanently empty, so
+  // hiding this behind a button left the whole page looking like the school had
+  // nothing set up at all.
+  const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
+  const monthlyTotal = (recurring || [])
+    .filter((s) => s.status === 'active')
+    .reduce((sum, s) => sum + (s.monthly_cents || 0), 0)
   const previewRef = useRef(null)
 
   const loadQueue = useCallback(() => {
@@ -215,42 +233,90 @@ const TuitionApprovalPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3">
         <h1 className="text-2xl font-bold text-neutral-900">Tuition</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        <div className="flex items-center gap-2">
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        </div>
       </div>
-      <p className="text-sm text-neutral-500 mb-6 max-w-2xl">
-        Students whose CLP is done, waiting on a tuition invoice. Open one to verify the tuition
-        against their schedule, adjust it if needed, and send the invoice to the family. Each
-        class&rsquo;s supply fee is added as its own line automatically — no need to look them up.
+      <RecurringTuitionModal
+        isOpen={monthlyOpen}
+        onClose={() => setMonthlyOpen(false)}
+        onAdded={loadRecurring}
+        orgId={orgId}
+      />
+
+      {/* ── Monthly tuition ───────────────────────────────────────────────
+          On the page, not behind the button that creates it. A school billing
+          a monthly rate has no invoice until the first month is charged, so the
+          queue below is permanently empty for them and this IS their tuition. */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">Monthly tuition</h2>
+            <p className="text-sm text-neutral-500">
+              A set amount per student, charged automatically every month until you stop it.
+              Billing starts once the family saves a card — one card and one setup link per
+              family, however many children they have.
+              {!!monthlyTotal && <>
+                {' '}Billing{' '}
+                <strong className="text-neutral-800">{monthlyMoney(monthlyTotal)}</strong>
+                {' '}a month across this school.
+              </>}
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => setMonthlyOpen(true)} disabled={!orgId}>
+            + Add student
+          </Button>
+        </div>
+        <RecurringTuitionList
+          orgId={orgId}
+          schedules={recurring}
+          onChanged={loadRecurring}
+          emptyHint="No student is on a monthly rate yet. Add one to get started."
+        />
+      </section>
+
+      <h2 className="text-lg font-semibold text-neutral-900">Invoices</h2>
+      <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
+        {showClp
+          ? <>Students whose CLP is done, waiting on a tuition invoice. Open one to verify the
+            tuition against their schedule, adjust it if needed, and send the invoice to the
+            family. Each class&rsquo;s supply fee is added as its own line automatically — no need
+            to look them up.</>
+          : <>Students waiting on a tuition invoice, seeded from their schedule. Open one to
+            verify the tuition, adjust it if needed, and send the invoice to the family.</>}
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] items-start gap-6">
         {/* ── Queue ─────────────────────────────────────────────────────── */}
-        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] flex flex-col min-h-0">
+        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] flex flex-col min-h-0 min-w-0">
           {!!queue?.length && (
             <div className="mb-3 space-y-2 pb-1 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    className={`${field} w-full pr-7 text-xs`}
-                    placeholder="Search name or family…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-xs px-1"
-                      aria-label="Clear search"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+              {/* Search owns its own row: four controls abreast overflowed the
+                  340px column, squeezing the search box to a sliver and pushing
+                  the overflow under the sticky preview pane. */}
+              <div className="relative">
+                <input
+                  type="text"
+                  className={`${field} w-full pr-7`}
+                  placeholder="Search name or family…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-xs px-1"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <select
-                  className={`${field} text-xs py-2`}
+                  className={`${field} text-xs py-2 min-w-0 flex-1`}
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   aria-label="Sort queue"
@@ -263,14 +329,16 @@ const TuitionApprovalPage = () => {
                 </select>
                 <PaymentFilterSelect
                   rows={queue} value={payFilter} onChange={setPayFilter}
-                  className="text-xs py-2"
+                  className="text-xs py-2 min-w-0 flex-1"
                 />
-                <select value={clpFilter} onChange={(e) => setClpFilter(e.target.value)}
-                  className="text-xs py-2 border border-gray-200 rounded-lg px-2" aria-label="Learning plan">
-                  <option value="">Any learning plan</option>
-                  <option value="finished">CLP finished</option>
-                  <option value="unfinished">CLP not finished</option>
-                </select>
+                {showClp && (
+                  <select value={clpFilter} onChange={(e) => setClpFilter(e.target.value)}
+                    className="text-xs py-2 border border-gray-200 rounded-lg px-2 min-w-0 flex-1" aria-label="Learning plan">
+                    <option value="">Any learning plan</option>
+                    <option value="finished">CLP finished</option>
+                    <option value="unfinished">CLP not finished</option>
+                  </select>
+                )}
               </div>
               {(search || payFilter || clpFilter) && (
                 <div className="text-xs text-neutral-500 flex items-center justify-between px-0.5">
@@ -290,7 +358,7 @@ const TuitionApprovalPage = () => {
             {queue === null && <p className="text-neutral-500">Loading…</p>}
             {queue?.length === 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-neutral-500">
-                No students are waiting for a tuition invoice. Mark a CLP done and the student appears here.
+                No students are waiting for a tuition invoice.{showClp ? ' Mark a CLP done and the student appears here.' : ''}
               </div>
             )}
             {!!queue?.length && filteredQueue?.length === 0 && (
@@ -321,7 +389,7 @@ const TuitionApprovalPage = () => {
                     <span className="text-sm font-semibold text-neutral-700">{money(s.estimated_total_cents)}</span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500 flex-wrap">
-                    {!s.clp_finished && (
+                    {showClp && !s.clp_finished && (
                       <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">CLP not finished</span>
                     )}
                     <span>{s.household_name || 'No family'}</span>

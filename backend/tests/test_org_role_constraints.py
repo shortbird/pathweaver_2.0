@@ -124,6 +124,25 @@ class TestAssignableRolesMatchTheEnum:
         from services.sis_service import STAFF_ORG_ROLES
         assert set(STAFF_ORG_ROLES) <= {r.value for r in OrgRole}
 
+    def test_every_family_registration_staff_role_is_an_org_role(self):
+        """The registration funnel appends 'parent' beside one of these and
+        writes the pair to users.org_roles, so a value OrgRole lacks would fail
+        validate_org_roles at the write — a 500 mid-registration."""
+        from utils.sis_roles import FAMILY_REGISTRATION_STAFF_ROLES
+        assert set(FAMILY_REGISTRATION_STAFF_ROLES) <= {r.value for r in OrgRole}
+
+    def test_campus_coordinators_may_register_their_own_children(self):
+        """The funnel predated the role, so its staff tuple was written by hand
+        as ('org_admin', 'advisor') and a coordinator enrolling their own child
+        was refused with "This is not a parent account" (fixed 2026-08-25).
+        Every org staff role belongs here — the question is "might this person
+        have kids at the school", not an access tier."""
+        from utils.sis_roles import FAMILY_REGISTRATION_STAFF_ROLES, STAFF_ROLES
+        assert 'campus_coordinator' in FAMILY_REGISTRATION_STAFF_ROLES
+        # Same membership as STAFF_ROLES minus superadmin, which is a platform
+        # role and never appears in org_role.
+        assert set(FAMILY_REGISTRATION_STAFF_ROLES) == set(STAFF_ROLES) - {'superadmin'}
+
 
 @pytest.mark.unit
 class TestIsOrgAdminIsDerivedNotWritten:

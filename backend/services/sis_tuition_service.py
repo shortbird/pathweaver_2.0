@@ -34,6 +34,7 @@ from services import sis_billing_service as billing
 from services import sis_payment_profile as payment_profile
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils import person_name
 
 # sis_clp_service is imported lazily inside the functions that use it (same idiom
 # as the rest of the SIS services), so the pure helpers here don't pull it in.
@@ -52,17 +53,10 @@ def _admin():
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unknown'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = f"{first} {last}".strip()
-    return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unknown')
 
 
 def _sis_settings(org_id: str) -> Dict[str, Any]:
@@ -156,6 +150,37 @@ def _enrolled_classes(org_id: str, student_id: str,
 # fee" lines that only differ by amount.
 SUPPLY_LINE_SUFFIX = ' — supplies'
 
+# class_meetings.day_of_week is Sunday=0, matching the front end's DAY_LETTER.
+_DAY_LETTERS = {0: 'Su', 1: 'M', 2: 'T', 3: 'W', 4: 'Th', 5: 'F', 6: 'Sa'}
+
+
+def class_label(cls: Dict[str, Any]) -> str:
+    """A class name with the days it meets, e.g. "Ukelele Jam (T/Th)".
+
+    The same class name repeats across sections -- iCreate runs three Reading
+    Tutorings and two Ukelele Jams -- so a bare name on a bill does not say which
+    one a family is being charged for (2026-08-26: "If classes could always show
+    the initials of which day, that would be helpful on billing and tuition
+    pages"). The attendance page has labelled classes this way for a while;
+    this is the same idea on the money.
+    """
+    name = cls.get('name') or 'Class'
+    days, seen = [], set()
+    for m in (cls.get('meetings') or []):
+        dow = m.get('day_of_week')
+        letter = _DAY_LETTERS.get(dow)
+        if letter and letter not in seen:
+            seen.add(letter)
+            days.append((dow, letter))
+    if not days:
+        return name
+    # A name that already carries its day ("Ukelele Jam (Thurs Block 3)") does
+    # not need it twice.
+    ordered = '/'.join(l for _, l in sorted(days))
+    if ordered.lower() in name.lower():
+        return name
+    return f'{name} ({ordered})'
+
 
 def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PURE. One line item per enrolled class that charges a materials fee.
@@ -170,7 +195,7 @@ def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if fee <= 0:
             continue
         out.append({'class_id': c.get('class_id'),
-                    'description': f"{c.get('name') or 'Class'}{SUPPLY_LINE_SUFFIX}",
+                    'description': f"{class_label(c)}{SUPPLY_LINE_SUFFIX}",
                     'amount_cents': fee,
                     'kind': 'supply'})
     return out
@@ -202,7 +227,7 @@ def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
                     'amount_cents': year_cents, 'kind': 'tuition'}]
     else:
         tuition = [{'class_id': c['class_id'],
-                    'description': c.get('name') or 'Class',
+                    'description': class_label(c),
                     'amount_cents': int(c.get('price_cents') or 0),
                     'kind': 'tuition'} for c in classes]
     return tuition + supply_line_items(classes)
@@ -293,14 +318,21 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
     school_name = _org_private_school_name(org_id)
     by_id = {c['id']: c for c in catalog.list_classes(org_id)}
 
-    enrollments = (_admin().table('class_enrollments').select('student_id, class_id, status')
-                   .in_('student_id', pending).eq('status', 'active').execute()).data or []
+    # Paged: one row per enrollment across every pending student is exactly the
+    # read that silently truncates at the PostgREST cap. A dropped tail here does
+    # not hide a family — `pending` already listed them — it prices them at $0,
+    # which is worse: the queue shows a real student with no classes and nothing
+    # owed. (Sentry OPTIO-BACKEND-72, at 1268 active enrollments.)
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, student_id, class_id, status')
+        .in_('student_id', pending).eq('status', 'active')
+    ))
     classes_by_student: Dict[str, List[str]] = {}
     for e in enrollments:
         classes_by_student.setdefault(e['student_id'], []).append(e['class_id'])
 
     users = {u['id']: u for u in (_admin().table('users')
-             .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan')
+             .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan, preferred_name')
              .in_('id', pending).execute()).data or []}
     hh_map = sis_service._household_by_user(org_id)
     hh_ids = list({(hh_map.get(sid) or {}).get('household_id')
@@ -360,7 +392,7 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
     if not sis_service.student_in_org(student_id, org_id):
         return {'error': 'Student not found'}
     urow = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan')
+            .select('id, first_name, last_name, display_name, username, email, sis_tuition_plan, preferred_name')
             .eq('id', student_id).limit(1).execute()).data
     if not urow:
         return {'error': 'Student not found'}
@@ -434,7 +466,7 @@ def preview_invoice_document(org_id: str, student_id: str,
     if not sis_service.student_in_org(student_id, org_id):
         return {'error': 'Student not found'}
     urow = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email')
+            .select('id, first_name, last_name, display_name, username, email, preferred_name')
             .eq('id', student_id).limit(1).execute()).data
     if not urow:
         return {'error': 'Student not found'}

@@ -7,6 +7,11 @@
  * authStore.test.ts.
  */
 
+import { useAuthStore } from '../authStore';
+import { api, authAPI } from '@/src/services/api';
+import { tokenStore } from '@/src/services/tokenStore';
+import { createMockUser } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('react-native', () => ({
   Platform: { OS: 'web', select: (obj: any) => obj.web ?? obj.default },
 }));
@@ -36,11 +41,6 @@ jest.mock('@/src/services/tokenStore', () => ({
 jest.mock('@/src/stores/actingAsStore', () => ({
   useActingAsStore: { getState: jest.fn(() => ({ clear: jest.fn() })) },
 }));
-
-import { useAuthStore } from '../authStore';
-import { api, authAPI } from '@/src/services/api';
-import { tokenStore } from '@/src/services/tokenStore';
-import { createMockUser } from '@/src/__tests__/utils/mockFactories';
 
 const mockUser = createMockUser();
 

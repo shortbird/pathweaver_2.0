@@ -9,7 +9,7 @@ import { stashPendingCodes, clearPendingCodes } from './oauthPendingCodes'
  * Reusable button for Google OAuth authentication.
  * Can be used on both login and registration pages.
  */
-const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null, orgInvitationCode = null, onBeforeRedirect = null }) => {
+const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null, orgInvitationCode = null, registrationCode = null, onBeforeRedirect = null }) => {
   const [loading, setLoading] = useState(false)
 
   const handleGoogleClick = async () => {
@@ -25,7 +25,7 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
 
       // Promo / observer / org invitation codes are parked in localStorage so
       // they survive the redirect out to Google and back to /auth/callback.
-      stashPendingCodes({ promoCode, invitationCode, orgInvitationCode })
+      stashPendingCodes({ promoCode, invitationCode, orgInvitationCode, registrationCode })
 
       const result = await authService.signInWithGoogle()
 
@@ -136,6 +136,7 @@ GoogleButton.propTypes = {
   promoCode: PropTypes.string,
   invitationCode: PropTypes.string,
   orgInvitationCode: PropTypes.string,
+  registrationCode: PropTypes.string,
   onBeforeRedirect: PropTypes.func
 }
 

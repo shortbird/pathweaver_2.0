@@ -8,6 +8,7 @@ import { queryKeys } from '../utils/queryKeys'
 import { trackEvent } from '../utils/metaPixel'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 import { clearMasqueradeData } from '../services/masqueradeService'
+import { restoreActingAs } from '../services/actingAsRestore'
 import logger from '../utils/logger'
 import { identifyUser, resetUser, captureEvent } from '../services/posthog'
 import { gaTrackEvent } from '../services/googleAnalytics'
@@ -86,6 +87,15 @@ export const AuthProvider = ({ children }) => {
 
         // Log browser detection info (development only)
         logBrowserInfo()
+
+        // A parent inside a dependent's account arrives here mid-switch: the
+        // acting-as token is memory-only, so this reload has nothing but
+        // sessionStorage and the parent's own cookie. Ask for the token FIRST,
+        // or /me answers on the cookie, says "parent", and renders the parent's
+        // home under the child's token — every query on it 403s (Sentry
+        // OPTIO-WEB-C). Resolves to null immediately when nobody is acting as
+        // anybody, which is almost every load.
+        await restoreActingAs()
 
         // C2: Memory is empty on every page load. Hit /me — if the access cookie
         // is valid we're in; if it's expired the response interceptor will

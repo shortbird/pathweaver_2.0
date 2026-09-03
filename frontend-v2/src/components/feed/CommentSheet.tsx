@@ -54,7 +54,7 @@ const CommentRow = React.memo(function CommentRow({
           </UIText>
           <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{formatTime(comment.created_at)}</UIText>
         </HStack>
-        <UIText size="sm" className="text-typo-600 dark:text-dark-typo-700">{comment.comment_text}</UIText>
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-700">{comment.comment_text}</UIText>
       </VStack>
     </HStack>
   );
@@ -186,7 +186,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
           {/* Comments list */}
           {loading ? (
             <View className="items-center py-8">
-              <ActivityIndicator size="small" color="#6D469B" />
+              <ActivityIndicator size="small" color={c.brand} />
             </View>
           ) : (
             <FlatList

@@ -18,7 +18,7 @@ function Probe({ refetch }: { refetch: () => void }) {
 }
 
 describe('useRefetchOnForeground', () => {
-  let listeners: Array<(status: AppStateStatus) => void> = [];
+  let listeners: ((status: AppStateStatus) => void)[] = [];
   const removeSpy = jest.fn();
 
   beforeEach(() => {

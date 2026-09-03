@@ -24,6 +24,7 @@ import RichBody from '@/src/components/school/RichBody';
 import { fmtDate } from '@/src/components/school/format';
 
 function MessageCard({ item }: { item: ArchivedMessage }) {
+  const c = useThemeColors();
   const [expanded, setExpanded] = useState(false);
   const body = item.content || item.message || '';
   // Length is judged on the words, not the markup, so a formatted message
@@ -41,7 +42,7 @@ function MessageCard({ item }: { item: ArchivedMessage }) {
       </HStack>
       <View className="mt-2">
         {!expanded && isLong ? (
-          <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600" numberOfLines={4}>
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={4}>
             {plain}
           </UIText>
         ) : (
@@ -54,7 +55,7 @@ function MessageCard({ item }: { item: ArchivedMessage }) {
             <UIText size="sm" className="text-optio-purple font-poppins-medium">
               {expanded ? 'Show less' : 'Read more'}
             </UIText>
-            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#6D469B" />
+            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={c.brand} />
           </HStack>
         </Pressable>
       )}
@@ -96,7 +97,7 @@ export default function SchoolArchiveScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top']}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8, gap: 8 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="archive-back">
+        <Pressable onPress={() => router.back()} style={{ padding: 4 }} testID="archive-back" accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={c.text} />
         </Pressable>
         <Heading size="xl" style={{ flex: 1 }} numberOfLines={1}>
@@ -121,7 +122,7 @@ export default function SchoolArchiveScreen() {
 
       {loading && announcements.length === 0 ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       ) : (
         <FlatList
@@ -133,7 +134,7 @@ export default function SchoolArchiveScreen() {
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />
           }
           ListEmptyComponent={
             <VStack className="items-center pt-16 gap-3">
@@ -160,7 +161,7 @@ export default function SchoolArchiveScreen() {
           ListFooterComponent={
             loadingMore ? (
               <View className="py-4 items-center">
-                <ActivityIndicator color="#6D469B" />
+                <ActivityIndicator color={c.brand} />
               </View>
             ) : hasMore ? (
               <View className="h-4" />

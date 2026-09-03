@@ -33,10 +33,21 @@ const REC_TYPES = [
 ]
 const recTypeLabel = (v) => REC_TYPES.find((t) => t.value === v)?.label || 'Shout-out'
 
-const fmtDate = (v) => {
+// A bare YYYY-MM-DD (a birthday, a date found) and an all-day event's 00:00 UTC
+// stamp both name a CALENDAR DATE rather than an instant. Read back in local
+// time, either becomes the previous evening anywhere west of Greenwich:
+// "NO CLASS - LABOR DAY" on the 7th rendered as Sep 6 (iCreate, 2026-08-31).
+// Pass utc for an all-day stamp; date-only strings are detected here, since
+// this formatter also receives real timestamps (created_at) that must stay local.
+const isDateOnly = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
+
+const fmtDate = (v, { utc = false } = {}) => {
   if (!v) return ''
   const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  if (Number.isNaN(d.getTime())) return ''
+  const opts = { month: 'short', day: 'numeric', year: 'numeric' }
+  if (utc || isDateOnly(v)) opts.timeZone = 'UTC'
+  return d.toLocaleDateString(undefined, opts)
 }
 const fmtDateTime = (v) => {
   if (!v) return ''
@@ -169,7 +180,7 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
               <li key={e.id} className="text-sm">
                 <div className="font-medium text-neutral-900">{e.title}</div>
                 <div className="text-xs text-neutral-500">
-                  {e.all_day ? fmtDate(e.start_at) : fmtDateTime(e.start_at)}{e.location ? ` · ${e.location}` : ''}
+                  {e.all_day ? fmtDate(e.start_at, { utc: true }) : fmtDateTime(e.start_at)}{e.location ? ` · ${e.location}` : ''}
                 </div>
               </li>
             ))}
@@ -303,6 +314,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     body: announcement?.body || '',
     pinned: Boolean(announcement?.pinned),
     priority: announcement?.priority || 'normal',
+    audience: announcement?.audience || 'school',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
     // Who to SEND it to, beyond the staff noticeboard. Empty = noticeboard only.
@@ -320,6 +332,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       body: f.body,
       pinned: f.pinned,
       priority: f.priority,
+      audience: f.audience,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
       notify_audiences: f.notify,
@@ -391,6 +404,17 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           <select value={f.priority} onChange={(e) => set('priority', e.target.value)} className={field}>
             <option value="normal">Normal</option>
             <option value="urgent">Urgent</option>
+          </select>
+        </label>
+        {/* Who can READ the board post. Separate from "send it to", below:
+            posting to the board and sending a notification are two acts. Board
+            posts had no audience at all, so a note for teachers was readable by
+            every family in the app (iCreate, 2026-08-26). */}
+        <label className="text-xs text-neutral-500 block">Visible to
+          <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
+            <option value="school">Everyone at the school</option>
+            <option value="teachers">Staff only</option>
+            <option value="admins">Admins only</option>
           </select>
         </label>
       </div>
@@ -759,7 +783,7 @@ const EventsTab = ({ orgId }) => {
               {e.description && <div className="text-xs text-neutral-500 line-clamp-1">{e.description}</div>}
             </div>
             <div className="text-xs text-neutral-500 text-right flex-shrink-0">
-              <div>{e.all_day ? fmtDate(e.start_at) : fmtDateTime(e.start_at)}</div>
+              <div>{e.all_day ? fmtDate(e.start_at, { utc: true }) : fmtDateTime(e.start_at)}</div>
               {e.location && <div>{e.location}</div>}
             </div>
           </div>

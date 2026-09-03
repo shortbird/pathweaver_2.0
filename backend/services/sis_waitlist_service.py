@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -318,6 +319,7 @@ def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=enrolled_by)
+    _enroll_in_class_quests(_admin(), class_id, entry['student_user_id'])
     clear_entry_for_enrollment(org_id, class_id, entry['student_user_id'])
 
     resp = (
@@ -604,6 +606,7 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(entry['class_id'], actor_id=enrolled_by)
+    _enroll_in_class_quests(_admin(), entry['class_id'], entry['student_user_id'])
     # Siblings first, then this entry explicitly: clear_entry_for_enrollment
     # swallows its own errors by design, so the accepted entry's own status is
     # never left to it.
@@ -735,6 +738,52 @@ def _student_guardians(student_user_id: str) -> List[Dict[str, Any]]:
     ).data or []
 
 
+DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+
+def _fmt_time(t: Optional[str]) -> str:
+    """'13:30:00' -> '1:30pm'. Returns '' for anything unparseable."""
+    parts = str(t or '').split(':')
+    try:
+        h, m = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return ''
+    ampm = 'am' if h < 12 else 'pm'
+    h12 = h % 12 or 12
+    return f'{h12}:{m:02d}{ampm}' if m else f'{h12}{ampm}'
+
+
+def meeting_text(class_id: str) -> str:
+    """'Tuesdays, 1:30pm-2:30pm' for a class, or '' when it has no meetings.
+
+    The offer email named the class and nothing else, so a family with two
+    children and a full week could not tell WHICH slot they were being offered
+    (iCreate, 2026-09-02: "it doesn't tell the day or time of the class").
+    """
+    try:
+        rows = (
+            _admin().table('class_meetings')
+            .select('day_of_week, specific_date, start_time, end_time')
+            .eq('class_id', class_id).execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001 — decoration only, never break the offer
+        logger.warning(f'[Waitlist] meeting lookup failed for class {class_id}: {e}')
+        return ''
+    if not rows:
+        return ''
+    days = sorted({r['day_of_week'] for r in rows if r.get('day_of_week') is not None})
+    label = ' and '.join(f'{DAY_NAMES[d]}s' for d in days if 0 <= d < 7)
+    if not label:
+        dates = sorted({str(r['specific_date']) for r in rows if r.get('specific_date')})
+        label = ', '.join(dates)
+    first = next((r for r in rows if r.get('start_time')), None)
+    when = ''
+    if first:
+        start, end = _fmt_time(first.get('start_time')), _fmt_time(first.get('end_time'))
+        when = f'{start}\u2013{end}' if start and end else start or end
+    return ', '.join(p for p in (label, when) if p)
+
+
 def _notify_offer(org_id: str, class_id: str, offered: Dict[str, Any]) -> None:
     """Tell the family a per-class seat was offered: an in-app notification to
     each guardian (falling back to the student's own account when there is no
@@ -750,20 +799,28 @@ def _notify_offer(org_id: str, class_id: str, offered: Dict[str, Any]) -> None:
         ).data or []
         class_name = (cls[0].get('name') if cls else None) or 'a class'
         from app_config import Config
-        link = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder"
+        # ?student= so the builder opens on the child the seat is for. Without
+        # it a family with more than one student landed on the first child's
+        # week, where there is no offer and so no Claim button (iCreate,
+        # 2026-09-02: "there's no button that allows her to claim the spot").
+        link = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder?student={student_id}"
+        when = meeting_text(class_id)
         title = 'A seat opened up'
-        body = (f'A spot has opened in {class_name}. Open the Schedule Builder to '
-                f'claim it before the offer expires.')
+        body = (f'A spot has opened in {class_name}'
+                + (f' ({when})' if when else '')
+                + '. Open the Schedule Builder to claim it before the offer expires.')
         targets = [g['id'] for g in guardians] or [student_id]
         for uid in targets:
             sis_notifications.notify(uid, title, body, link=link, organization_id=org_id)
-        _email_offer(org_id, class_name, student_id, guardians, offered.get('offer_expires_at'))
+        _email_offer(org_id, class_name, student_id, guardians,
+                     offered.get('offer_expires_at'), when=when)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[Waitlist] offer notify skipped for class {class_id}: {e}")
 
 
 def _email_offer(org_id: str, class_name: str, student_id: str,
-                 guardians: List[Dict[str, Any]], offer_expires_at: Optional[str]) -> None:
+                 guardians: List[Dict[str, Any]], offer_expires_at: Optional[str],
+                 when: str = '') -> None:
     """Email each guardian that a seat opened, with a Claim-spot link. No-op when
     there is no guardian email on file."""
     if not guardians:
@@ -775,7 +832,7 @@ def _email_offer(org_id: str, class_name: str, student_id: str,
     org_name = (org[0].get('name') if org else None) or 'your school'
     student = (
         admin.table('users')
-        .select('first_name, last_name, display_name, username, email')
+        .select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', student_id).limit(1).execute()
     ).data or []
     student_name = _display_name(student[0]) if student else 'your student'
@@ -805,9 +862,11 @@ def _email_offer(org_id: str, class_name: str, student_id: str,
             f"<p>Hi {g.get('first_name') or 'there'},</p>"
             f"<p>Good news — a spot has opened in <strong>{class_name}</strong> at "
             f"{org_name}, and we're offering it to {student_first}.</p>"
-            f"{hold_line}"
-            f"<p><a href=\"{base}/schedule-builder\">Open the Schedule Builder</a> and use "
-            f"<strong>Claim spot</strong> next to {class_name} to enroll {student_first}.</p>"
+            + (f"<p>The class meets <strong>{when}</strong>.</p>" if when else '')
+            + f"{hold_line}"
+            f"<p><a href=\"{base}/schedule-builder?student={student_id}\">Open the Schedule "
+            f"Builder</a> and use <strong>Claim spot</strong> next to {class_name} to enroll "
+            f"{student_first}.</p>"
         )
         try:
             email_service.send_email(email, subject, html)

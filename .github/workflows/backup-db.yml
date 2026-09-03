@@ -34,6 +34,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Required for Workload Identity Federation: lets the job mint the short-lived
+  # OIDC token that GCP trades for storage access. Without it the auth step fails
+  # with a missing-token error, not a permission error.
+  id-token: write
 
 jobs:
   backup:
@@ -72,7 +76,22 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+
+          # Installing the package is not enough. The runner image ships PG16
+          # binaries earlier on PATH, so a bare `pg_dump` stays 16.15 and aborts
+          # with "server version mismatch" against our 17.4 server. Put the 17
+          # bin dir first for the later steps ($GITHUB_PATH applies to those, not
+          # to this one — hence the absolute path in the check below).
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+          # Assert the version rather than just printing it: the old step printed
+          # 16.15 and passed, which is why this went unnoticed.
+          VER="$(/usr/lib/postgresql/17/bin/pg_dump --version | awk '{print $3}')"
+          echo "pg_dump: $VER"
+          case "$VER" in
+            17.*) ;;
+            *) echo "::error::Expected pg_dump 17.x, got $VER"; exit 1 ;;
+          esac
 
       - name: Dump production database
         env:
@@ -87,9 +106,14 @@ jobs:
             echo "::error::BACKUP_DB_URL secret is not set — see backend/docs/BACKUP_RESTORE.md"
             exit 1
           fi
+          # Set these as shell variables for use in THIS step, and export them
+          # via GITHUB_ENV for the later steps. GITHUB_ENV only takes effect in
+          # subsequent steps, so writing it alone leaves $DUMP unbound here and
+          # `set -u` kills the job before pg_dump ever runs.
           STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          DUMP="optio-prod-$STAMP.dump"
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
-          echo "DUMP=optio-prod-$STAMP.dump" >> "$GITHUB_ENV"
+          echo "DUMP=$DUMP" >> "$GITHUB_ENV"
 
           # Custom format (-Fc), max compression. Custom format is what makes a
           # SELECTIVE restore possible ("put back just sis_invoices"), which is
@@ -162,9 +186,17 @@ jobs:
           CREATE ROLE supabase_admin SUPERUSER;
           CREATE ROLE supabase_auth_admin NOLOGIN;
           CREATE ROLE supabase_storage_admin NOLOGIN;
-          CREATE EXTENSION IF NOT EXISTS pgcrypto;
-          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          -- The extensions MUST live in the "extensions" schema, and this schema
+          -- must exist before they are created. Supabase installs them there, so
+          -- pg_dump emits fully-qualified defaults like
+          --     "id" uuid DEFAULT "extensions"."uuid_generate_v4"()
+          -- Created in public instead, every CREATE TABLE fails on an unknown
+          -- function and the restore yields an empty database that still looks
+          -- like it "mostly worked" in the log.
           CREATE SCHEMA IF NOT EXISTS extensions;
+          CREATE EXTENSION IF NOT EXISTS pgcrypto    WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm     WITH SCHEMA extensions;
           SQL
 
           # 3. Real restore. Errors are tolerated here (|| true) on purpose: the
@@ -178,8 +210,15 @@ jobs:
             --no-privileges \
             --jobs=4 \
             "$DUMP" 2> /tmp/restore.err || true
-          echo "Restore stderr (last 20 lines):"
-          tail -20 /tmp/restore.err || true
+          # Diagnostics show the FIRST failures and a deduped tally, not just the
+          # tail. A tail only ever shows knock-on constraint errors; the failure
+          # that actually matters is the earliest one.
+          echo "Restore errors: $(grep -c 'pg_restore: error:' /tmp/restore.err || true)"
+          echo "--- first 40 lines of restore stderr ---"
+          head -40 /tmp/restore.err || true
+          echo "--- distinct errors, most frequent first ---"
+          grep -oE 'ERROR:.*' /tmp/restore.err \
+            | sed -E 's/"[^"]*"/"X"/g' | sort | uniq -c | sort -rn | head -15 || true
 
           # 4. Assert the core tables came back with plausible volume. Floors are
           #    set well under the current counts (users 736, quests 1031,
@@ -233,24 +272,51 @@ jobs:
           rm -f "$DUMP"
           ls -lh "$DUMP.gpg"
 
-      - name: Upload to object storage
-        # S3-compatible on purpose: the same code works against Backblaze B2,
-        # Cloudflare R2, or AWS S3. Only the endpoint/region secrets change.
+      - name: Check storage configuration
+        # Fail loudly and by name, the way the DB and GPG steps do. These are
+        # vars rather than secrets on purpose: none of them is confidential, and
+        # a wrong provider path is far easier to debug when you can read it back.
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION }}
-          ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
-          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          WIF_PROVIDER: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::Variable $1 is not set — see backend/docs/BACKUP_RESTORE.md"; exit 1; }
+          [ -n "${WIF_PROVIDER:-}" ]    || fail BACKUP_GCP_WIF_PROVIDER
+          [ -n "${SERVICE_ACCOUNT:-}" ] || fail BACKUP_GCP_SERVICE_ACCOUNT
+          [ -n "${BUCKET:-}" ]          || fail BACKUP_GCS_BUCKET
+          echo "Target: gs://$BUCKET as $SERVICE_ACCOUNT"
+
+      - name: Authenticate to Google Cloud
+        # Workload Identity Federation: GitHub's OIDC token is exchanged for a
+        # short-lived GCP credential. Nothing long-lived is stored in the repo,
+        # which is also why HMAC keys are blocked by org policy.
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+
+      - name: Upload to object storage
+        env:
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
         run: |
           set -euo pipefail
           KEY="daily/$(date -u +%Y)/$(date -u +%m)/$DUMP.gpg"
-          aws s3 cp "$DUMP.gpg" "s3://$BUCKET/$KEY" --endpoint-url "$ENDPOINT" --only-show-errors
+          gcloud storage cp "$DUMP.gpg" "gs://$BUCKET/$KEY"
+
           # Read it back. `cp` reporting success is not proof the object landed
-          # intact and is listable; a HEAD against the key is.
-          aws s3api head-object --bucket "$BUCKET" --key "$KEY" --endpoint-url "$ENDPOINT" > /tmp/head.json
-          echo "Uploaded s3://$BUCKET/$KEY"
-          echo "Remote size: $(python3 -c 'import json;print(json.load(open("/tmp/head.json"))["ContentLength"])') bytes"
+          # intact and is listable; describing the key is.
+          REMOTE_BYTES="$(gcloud storage objects describe "gs://$BUCKET/$KEY" --format='value(size)')"
+          LOCAL_BYTES="$(stat -c%s "$DUMP.gpg")"
+          echo "Uploaded gs://$BUCKET/$KEY"
+          echo "Remote size: $REMOTE_BYTES bytes (local $LOCAL_BYTES)"
+
+          # A short write is worse than a failed one: it looks like a backup.
+          if [ "$REMOTE_BYTES" != "$LOCAL_BYTES" ]; then
+            echo "::error::Uploaded size $REMOTE_BYTES != local size $LOCAL_BYTES"
+            exit 1
+          fi
 
       - name: Summary
         if: always()

@@ -101,6 +101,7 @@ function contactRowEqual(a: ContactRowProps, b: ContactRowProps) {
     x.avatar_url === y.avatar_url &&
     x.relationship === y.relationship &&
     x.is_support === y.is_support &&
+    x.is_school === y.is_school &&
     x.unread_count === y.unread_count &&
     x.last_message_at === y.last_message_at &&
     x.last_message_preview === y.last_message_preview
@@ -114,21 +115,31 @@ const ContactRow = React.memo(function ContactRow({
   iconMuted,
   onPress,
 }: ContactRowProps) {
+  const c = useThemeColors();
   const name = contact.is_support ? 'Optio Support' : getDisplayName(contact);
-  const relColor = contact.is_support ? '#6D469B' : (relationshipColors[contact.relationship] || '#6B7280');
+  const relColor = contact.is_support || contact.is_school
+    ? c.brand
+    : (relationshipColors[contact.relationship] || c.textMuted);
 
   return (
     <Pressable
       onPress={() => onPress(contact)}
       className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
-      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
+      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: c.brand } : undefined}
     >
       {contact.is_support ? (
         <View
           className="w-12 h-12 rounded-full items-center justify-center"
-          style={{ backgroundColor: '#6D469B' }}
+          style={{ backgroundColor: c.brand }}
         >
           <Ionicons name="headset" size={22} color="#fff" />
+        </View>
+      ) : contact.is_school ? (
+        <View
+          className="w-12 h-12 rounded-full items-center justify-center"
+          style={{ backgroundColor: c.brand }}
+        >
+          <Ionicons name="school" size={22} color="#fff" />
         </View>
       ) : (
         <Avatar size="md">
@@ -144,7 +155,7 @@ const ContactRow = React.memo(function ContactRow({
           <View className="flex-row items-center gap-2 flex-1">
             <UIText
               size="sm"
-              className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
+              className={`font-poppins-semibold ${contact.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
               numberOfLines={1}
             >
               {name}
@@ -171,7 +182,9 @@ const ContactRow = React.memo(function ContactRow({
           numberOfLines={1}
         >
           {contact.last_message_preview ||
-            (contact.is_support ? 'Questions? Message the Optio team' : 'Start a conversation')}
+            (contact.is_support ? 'Questions? Message the Optio team'
+              : contact.is_school ? 'Message the school'
+              : 'Start a conversation')}
         </UIText>
       </View>
       {contact.unread_count > 0 && (
@@ -203,15 +216,16 @@ const GroupRow = React.memo(function GroupRow({
   iconMuted,
   onPress,
 }: GroupRowProps) {
+  const c = useThemeColors();
   return (
     <Pressable
       onPress={() => onPress(group)}
       className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
-      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
+      style={isSelected ? { borderLeftWidth: 3, borderLeftColor: c.brand } : undefined}
     >
       <View
         className="w-12 h-12 rounded-full items-center justify-center"
-        style={{ backgroundColor: '#6D469B' }}
+        style={{ backgroundColor: c.brand }}
       >
         <Ionicons name="people" size={22} color="#fff" />
       </View>
@@ -219,7 +233,7 @@ const GroupRow = React.memo(function GroupRow({
         <View className="flex-row items-center justify-between">
           <UIText
             size="sm"
-            className={`font-poppins-semibold ${group.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
+            className={`font-poppins-semibold ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
             numberOfLines={1}
           >
             {group.name}
@@ -307,6 +321,7 @@ export function ConversationList({
           role: c.other_user.role,
           relationship: contact?.relationship || '',
           is_support: contact?.is_support || false,
+          is_school: contact?.is_school || c.other_user.is_school || false,
           last_message_at: c.last_message_at,
           last_message_preview: c.last_message_preview,
           unread_count: c.unread_count || 0,
@@ -323,8 +338,25 @@ export function ConversationList({
       return 0;
     });
 
-    // Pin Optio Support to the top even without a thread, so support is always
-    // one tap away. Only possible once contacts has loaded.
+    // Pin the school's shared inbox, then Optio Support above it, even without
+    // a thread — both always one tap away. Only possible once contacts loaded.
+    const school = contacts.find((c) => c.is_school);
+    if (school && !items.some((i) => i.is_school)) {
+      items.unshift({
+        id: school.id,
+        display_name: school.display_name,
+        first_name: school.first_name,
+        last_name: school.last_name,
+        avatar_url: school.avatar_url,
+        role: school.role,
+        relationship: school.relationship,
+        is_school: true,
+        last_message_at: null,
+        last_message_preview: null,
+        unread_count: 0,
+        conversation_id: school.id,
+      });
+    }
     const support = contacts.find((c) => c.is_support);
     const hasSupportThread = items.some((i) => i.is_support);
     if (support && !hasSupportThread) {
@@ -388,8 +420,8 @@ export function ConversationList({
               </UIText>
             </View>
             {canCreateGroups && (
-              <Pressable onPress={onCreateGroup} className="p-1">
-                <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+              <Pressable onPress={onCreateGroup} className="p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Create group">
+                <Ionicons name="add-circle-outline" size={20} color={c.brand} />
               </Pressable>
             )}
           </View>
@@ -413,7 +445,7 @@ export function ConversationList({
           className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 active:bg-surface-100 dark:active:bg-dark-surface-200"
         >
           <View className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10">
-            <Ionicons name="people-circle-outline" size={22} color="#6D469B" />
+            <Ionicons name="people-circle-outline" size={22} color={c.brand} />
           </View>
           <View className="flex-1 ml-3">
             <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">
@@ -462,8 +494,8 @@ export function ConversationList({
         <View className="p-4 border-b border-surface-200 dark:border-dark-surface-300 flex-row items-center justify-between">
           <Heading size="lg">Messages</Heading>
           {onCompose && (
-            <Pressable onPress={onCompose} accessibilityLabel="New message" hitSlop={8} className="p-1">
-              <Ionicons name="create-outline" size={22} color="#6D469B" />
+            <Pressable onPress={onCompose} accessibilityRole="button" accessibilityLabel="New message" hitSlop={8} className="p-1">
+              <Ionicons name="create-outline" size={22} color={c.brand} />
             </Pressable>
           )}
         </View>
@@ -494,7 +526,7 @@ export function ConversationList({
             hitSlop={8}
             className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10 active:bg-optio-purple/20"
           >
-            <Ionicons name="create-outline" size={20} color="#6D469B" />
+            <Ionicons name="create-outline" size={20} color={c.brand} />
           </Pressable>
         )}
       </View>

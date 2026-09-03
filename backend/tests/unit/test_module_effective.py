@@ -1,7 +1,7 @@
 """
 Effective-module evaluation: the compat guarantee, tested against the real
 storage shapes orgs carry in production (fixtures mirror the P0 parity
-baseline, docs/blocks/PARITY_BASELINE_2026-08-22.json).
+baseline, docs/blocks/PARITY_BASELINE_2026-09-03.json).
 
 The invariant these tests pin: an org with no feature_flags.modules key
 behaves exactly as it did before the registry existed -- the legacy flags

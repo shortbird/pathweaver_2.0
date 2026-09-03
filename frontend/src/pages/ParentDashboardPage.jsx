@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { parentAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { getMyDependents } from '../services/dependentAPI';
@@ -26,6 +26,7 @@ const ParentDashboardPage = () => {
   const { setActingAs, actingAsDependent, clearActingAs } = useActingAs();
   const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
   const [children, setChildren] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -36,7 +37,22 @@ const ParentDashboardPage = () => {
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
   const [showFamilySettingsModal, setShowFamilySettingsModal] = useState(false);
+  const [familySettingsTab, setFamilySettingsTab] = useState('children');
   const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
+
+  // ?settings=<tab> opens Family Settings on that tab. The account menu links
+  // here with ?settings=you, because a parent has no /overview to change their
+  // own name on. The param is cleared once consumed so a refresh (or the back
+  // button) doesn't reopen the modal.
+  useEffect(() => {
+    const tab = searchParams.get('settings');
+    if (!tab) return;
+    setFamilySettingsTab(tab);
+    setShowFamilySettingsModal(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('settings');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -311,7 +327,7 @@ const ParentDashboardPage = () => {
         {/* Header Action Buttons */}
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
-            onClick={() => setShowFamilySettingsModal(true)}
+            onClick={() => { setFamilySettingsTab('children'); setShowFamilySettingsModal(true); }}
             className="btn-primary"
           >
             <Cog6ToothIcon className="w-5 h-5" />
@@ -454,6 +470,7 @@ const ParentDashboardPage = () => {
 
       <FamilySettingsModal
         isOpen={showFamilySettingsModal}
+        initialTab={familySettingsTab}
         onClose={() => setShowFamilySettingsModal(false)}
         children={children}
         dependents={dependents}

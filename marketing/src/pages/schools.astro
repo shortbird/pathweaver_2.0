@@ -1,0 +1,280 @@
+---
+import Marketing from '../layouts/Marketing.astro'
+import ContactForm from '../components/ContactForm.astro'
+import WascBadge from '../components/WascBadge.astro'
+import { SITE } from '../data/site'
+
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name: 'The Optio platform for schools',
+    provider: { '@type': 'Organization', name: 'Optio', url: SITE.url },
+    description:
+      'A school platform for microschools, online schools, learning centers, and traditional schools: student-directed learning, enrollment, attendance, tuition, and WASC-accredited transcripts issued under Optio Academy.',
+    url: `${SITE.url}/schools`,
+  },
+]
+---
+
+<Marketing
+  title="For Schools | Optio"
+  description="Teach kids your way while Optio runs the backend: enrollment, attendance, tuition, transcripts, and student-directed learning, with WASC-accredited diplomas under Optio Academy."
+  ogImage="/images/og/schools.png"
+  schema={schema}
+>
+  <!-- ========== HERO (light, warm: the founder with the kids; Optio is offstage) ========== -->
+  <section class="bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20">
+      <div class="grid md:grid-cols-[1.2fr_1fr] gap-10 lg:gap-14 items-center">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-4">The Optio platform</p>
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-neutral-900 leading-tight mb-6">
+            You teach the kids. We run everything else.
+          </h1>
+          <p class="text-lg sm:text-xl text-neutral-500 font-medium leading-relaxed mb-8">
+            Enrollment, attendance, tuition, transcripts, and student-directed learning on one
+            platform, so your time goes to students instead of spreadsheets.
+          </p>
+          <a href="#get-info" data-track="hero_quote" class="btn-primary btn-lg">Get a custom quote</a>
+        </div>
+        <div class="hidden md:block">
+          <img
+            src="https://images.pexels.com/photos/8923076/pexels-photo-8923076.jpeg?auto=compress&cs=tinysrgb&w=800"
+            alt="A teacher working with a small group of young students around one table"
+            class="w-full aspect-[4/5] object-cover rounded-2xl shadow-lg"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== ONE APP INSTEAD OF FIVE (show, don't tell: mini UI mockups) ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">Five apps become one.</h2>
+        <p class="text-lg text-neutral-500 font-medium max-w-2xl mx-auto">
+          Most programs cobble it together: a form builder for registration, a payments app for
+          tuition, a group text for parents. Families juggle five logins, and details get lost in
+          between. Optio replaces the whole stack with one place.
+        </p>
+      </div>
+
+      <div class="grid sm:grid-cols-3 gap-6">
+        <!-- Registration -->
+        <div>
+          <div class="bg-white rounded-xl border border-neutral-100 shadow-sm p-4" aria-hidden="true">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-3">Registration</p>
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">The Nguyen family</span>
+                <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">Enrolled</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">The Ortiz family</span>
+                <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">Enrolled</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">The Brooks family</span>
+                <span class="text-[10px] font-bold uppercase text-optio-purple bg-optio-purple/10 rounded-full px-2 py-0.5 flex-shrink-0">Waitlist #1</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold text-neutral-900 mt-5 mb-1">Registration runs itself.</h3>
+          <p class="text-sm text-neutral-500 font-medium leading-relaxed">
+            Families enroll online, and rosters and waitlists keep themselves in order.
+          </p>
+        </div>
+
+        <!-- Billing -->
+        <div>
+          <div class="bg-white rounded-xl border border-neutral-100 shadow-sm p-4" aria-hidden="true">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-3">Billing</p>
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900">March tuition</span>
+                <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">Paid</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900">April tuition</span>
+                <span class="text-[10px] font-bold uppercase text-neutral-500 bg-neutral-100 rounded-full px-2 py-0.5 flex-shrink-0">Autopay Apr 1</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900">Materials fee</span>
+                <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">Paid</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold text-neutral-900 mt-5 mb-1">Billing runs itself.</h3>
+          <p class="text-sm text-neutral-500 font-medium leading-relaxed">
+            Invoices go out, payments land, and nobody spends Friday chasing a check.
+          </p>
+        </div>
+
+        <!-- Communication -->
+        <div>
+          <div class="bg-white rounded-xl border border-neutral-100 shadow-sm p-4" aria-hidden="true">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-3">Announcements</p>
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">Park day moved to Thursday</span>
+                <span class="text-[10px] font-bold uppercase text-optio-purple bg-optio-purple/10 rounded-full px-2 py-0.5 flex-shrink-0">Seen 19/20</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">Photos: Friday's hike</span>
+                <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">Sent</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-neutral-900 truncate">The Ortiz family</span>
+                <span class="text-[10px] font-bold uppercase text-neutral-500 bg-neutral-100 rounded-full px-2 py-0.5 flex-shrink-0">Replied</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold text-neutral-900 mt-5 mb-1">Parents stay in the loop.</h3>
+          <p class="text-sm text-neutral-500 font-medium leading-relaxed">
+            One feed for announcements and messages, and nothing gets lost in a group text.
+          </p>
+        </div>
+      </div>
+
+      <p class="text-center text-neutral-500 font-medium mt-12 max-w-2xl mx-auto">
+        One login for your families, one system for your staff, your school's name on all of it.
+        You get your week back, and it goes to the kids.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== THE CREDENTIAL GROWS WITH YOU (one diploma, two stages) ========== -->
+  <section class="bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="max-w-3xl mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-5">
+          Legitimate on day one. Your name over time.
+        </h2>
+        <p class="text-lg text-neutral-500 font-medium leading-relaxed mb-8">
+          Optio Academy is accredited by the Western Association of Schools and Colleges. From day
+          one, your students graduate with an accredited Optio Academy diploma, even before your
+          school earns accreditation of its own. When you do, the diploma carries your name, and
+          the evidence records and transcripts the platform keeps are exactly what the self-study
+          asks for. Either way, when a parent asks whether it will count, you say yes, officially.
+        </p>
+        <WascBadge variant="inline" />
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-6" aria-hidden="true">
+        <!-- Stage 1: day one, under the umbrella -->
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple text-center mb-3">Day one</p>
+          <div class="rounded-2xl border-2 border-neutral-200 bg-white shadow-sm p-8 text-center">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.25em] text-neutral-500 mb-6">High School Diploma</p>
+            <p class="text-2xl font-bold text-neutral-900 mb-1">Optio Academy</p>
+            <p class="text-xs text-neutral-500 font-medium mb-8">
+              Accredited by the Western Association of Schools and Colleges
+            </p>
+            <p class="text-sm text-neutral-500 font-medium mb-3">awarded to</p>
+            <div class="inline-block rounded-lg border-2 border-dashed border-optio-purple/40 bg-optio-purple/5 px-6 py-2.5">
+              <p class="text-lg font-bold text-optio-purple">A student at your school</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 2: accredited, their own name -->
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple text-center mb-3">When you're accredited</p>
+          <div class="rounded-2xl border-2 border-neutral-200 bg-white shadow-sm p-8 text-center">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.25em] text-neutral-500 mb-6">High School Diploma</p>
+            <div class="inline-block rounded-lg border-2 border-dashed border-optio-purple/40 bg-optio-purple/5 px-6 py-1.5 mb-1">
+              <p class="text-2xl font-bold text-optio-purple">Your school's name</p>
+            </div>
+            <p class="text-xs text-neutral-500 font-medium mb-8">
+              Accredited by the Western Association of Schools and Colleges
+            </p>
+            <p class="text-sm text-neutral-500 font-medium mb-3">awarded to</p>
+            <p class="text-lg font-bold text-neutral-900">Your graduates</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PARENT INSIGHT AND CONTROL (show the parent view) ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="grid md:grid-cols-2 gap-10 lg:gap-14 items-center">
+        <div>
+          <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-5">
+            Parents see everything, and control what matters.
+          </h2>
+          <p class="text-lg text-neutral-500 font-medium leading-relaxed mb-6">
+            Every journal entry, teacher review, and credit lands in the parent's view the day it
+            happens. Nothing a child does goes public without a parent's approval, grandparents
+            can follow along as observers, and every AI tool has an off switch per child. Your
+            families never wonder what happened at school today.
+          </p>
+          <p class="text-sm text-neutral-500 font-medium leading-relaxed">
+            COPPA and FERPA compliant. Observer views are logged, student evidence lives in
+            private storage, and there is no student directory.
+          </p>
+        </div>
+
+        <!-- Mockup: the parent view -->
+        <div class="bg-white rounded-2xl border border-neutral-100 shadow-sm p-5" aria-hidden="true">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-4">The parent view</p>
+          <div class="space-y-3">
+            <div class="rounded-lg border border-neutral-100 p-3">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1">Journal · 9:40 am</p>
+              <p class="text-sm font-semibold text-neutral-900">Maya logged chapter 3 of her novel</p>
+            </div>
+            <div class="rounded-lg border border-neutral-100 p-3 flex items-center justify-between gap-2">
+              <div>
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1">Teacher review</p>
+                <p class="text-sm font-semibold text-neutral-900">Ms. Rivera approved "Build a birdhouse"</p>
+              </div>
+              <span class="text-[10px] font-bold uppercase text-green-700 bg-green-100 rounded-full px-2 py-0.5 flex-shrink-0">+50 XP</span>
+            </div>
+            <div class="rounded-lg bg-optio-purple/5 border border-optio-purple/15 p-3">
+              <p class="text-sm font-semibold text-neutral-900 mb-2.5">Maya wants to make her portfolio public</p>
+              <div class="flex gap-2">
+                <span class="text-xs font-bold text-white bg-optio-purple rounded-full px-3.5 py-1.5">Approve</span>
+                <span class="text-xs font-bold text-neutral-700 border border-neutral-200 rounded-full px-3.5 py-1.5">Not yet</span>
+              </div>
+            </div>
+            <div class="rounded-lg border border-neutral-100 p-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-semibold text-neutral-900">AI tutor for Maya</p>
+              <span class="flex items-center gap-1.5 flex-shrink-0">
+                <span class="relative inline-block w-9 h-5 rounded-full bg-neutral-300">
+                  <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></span>
+                </span>
+                <span class="text-[10px] font-bold uppercase text-neutral-500">Off</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PRICING ========== -->
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-5">What it costs</h2>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed">
+        The platform is free to use for tracking and portfolios. Credential services are priced per
+        student based on your program size. Tell us how you run your program and we will quote the
+        blocks you actually need.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== QUOTE FORM ========== -->
+  <ContactForm
+    source="sales"
+    heading="Tell us about your program"
+    subheading="Drop your info and we'll reach out to talk through which blocks fit the way you run things."
+    choicesLabel="What kind of program do you run?"
+    choices={['Microschool', 'Online school', 'Learning center or co-op', 'Traditional school', 'Still figuring it out']}
+    placeholder="How many students? How does your week actually run? What are you using today?"
+    buttonLabel="Get a custom quote"
+  />
+</Marketing>

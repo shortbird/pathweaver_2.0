@@ -10,6 +10,7 @@
  * Lower number = higher priority
  */
 const RELATIONSHIP_PRIORITY = {
+  school: 0,
   advisor: 1,
   student: 2,
   child: 3,
@@ -21,6 +22,12 @@ const RELATIONSHIP_PRIORITY = {
  * Relationship badge configuration
  */
 export const RELATIONSHIP_CONFIG = {
+  school: {
+    label: 'School',
+    bgColor: 'bg-optio-purple/10',
+    textColor: 'text-optio-purple',
+    borderColor: 'border-optio-purple/20'
+  },
   advisor: {
     label: 'Teacher',
     bgColor: 'bg-blue-100',
@@ -119,7 +126,9 @@ export function normalizeContact(contact, source) {
       lastName = otherUser.last_name
       avatarUrl = otherUser.avatar_url
       role = otherUser.role
-      relationshipType = contact.type || 'friend'
+      // A thread with the school's shared inbox keeps the school identity even
+      // before the contacts list (which carries relationship: 'school') loads.
+      relationshipType = contact.type || (otherUser.is_school ? 'school' : 'friend')
       break
 
     default:
@@ -141,6 +150,12 @@ export function normalizeContact(contact, source) {
     avatarUrl,
     role,
     relationshipTypes: [relationshipType],
+    // The school this person belongs to. Backend-supplied and superadmin-only
+    // (Optio Support answers members from dozens of orgs in one inbox), and it
+    // arrives on either shape — nested under other_user on a conversation, flat
+    // on a contact — so both are read here. Normalizing is a whitelist: a field
+    // missing from this object is invisible to every row and chat header below.
+    organizationName: contact.other_user?.organization_name || contact.organization_name || null,
     // Preserve conversation metadata if present
     lastMessageAt: contact.last_message_at || null,
     lastMessagePreview: contact.last_message_preview || null,
@@ -208,7 +223,10 @@ export function mergeContacts(sources) {
           unreadCount: Math.max(existing.unreadCount || 0, normalized.unreadCount || 0),
           // Use newer display data if available
           displayName: normalized.displayName || existing.displayName,
-          avatarUrl: normalized.avatarUrl || existing.avatarUrl
+          avatarUrl: normalized.avatarUrl || existing.avatarUrl,
+          // Only one source carries it (whichever the backend labeled), so
+          // keep whichever side has it.
+          organizationName: normalized.organizationName || existing.organizationName
         })
       } else {
         contactMap.set(normalized.id, normalized)
@@ -274,7 +292,8 @@ export function contactToConversation(contact) {
       first_name: contact.firstName,
       last_name: contact.lastName,
       avatar_url: contact.avatarUrl,
-      role: contact.role
+      role: contact.role,
+      organization_name: contact.organizationName || null
     },
     last_message_at: contact.lastMessageAt,
     last_message_preview: contact.lastMessagePreview || 'Start a conversation',

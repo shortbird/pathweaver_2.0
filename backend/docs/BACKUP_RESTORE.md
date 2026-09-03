@@ -48,8 +48,9 @@ Each run:
    counts.** This is the step that makes it a backup rather than a file. If the
    dump can't be read back, the job goes red that night, not in six months.
 5. Encrypts with `gpg --symmetric --cipher-algo AES256`.
-6. Uploads to S3-compatible storage and issues a `head-object` to confirm the key
-   really landed.
+6. Uploads to Cloud Storage and reads the object back, failing if the remote byte
+   count differs from the local one. A short write is worse than a failed one: it
+   looks like a backup.
 
 The job **never deletes anything** — see [Retention](#retention).
 
@@ -72,19 +73,50 @@ add `--schema=cron` here.
 
 ## One-time setup
 
-The workflow is committed but inert until these repository secrets exist
-(**Settings → Secrets and variables → Actions**). Every step that needs one fails
-with a named error rather than silently producing a bad backup.
+Completed 2026-09-01. Recorded here because these are the values to recreate if
+the bucket or the repo is ever rebuilt. Every step that needs one fails with a
+named error rather than silently producing a bad backup.
+
+Two **secrets** (Settings → Secrets and variables → Actions → Secrets):
 
 | Secret | Where it comes from |
 |---|---|
 | `BACKUP_DB_URL` | Supabase → Project Settings → Database → **Connection string → Session pooler** (port **5432**) |
 | `BACKUP_GPG_PASSPHRASE` | Generate: `openssl rand -base64 48`. **Store in the password manager.** Lose it and the backups are unreadable. |
-| `BACKUP_S3_ENDPOINT` | Bucket provider's S3 endpoint URL |
-| `BACKUP_S3_BUCKET` | Bucket name |
-| `BACKUP_S3_REGION` | Provider region (`auto` for Cloudflare R2) |
-| `BACKUP_S3_ACCESS_KEY_ID` | Bucket application key |
-| `BACKUP_S3_SECRET_ACCESS_KEY` | Bucket application key secret |
+
+Three **variables** (same page, Variables tab). None is confidential — access is
+granted by the OIDC trust binding below, not by knowing these strings, and a
+wrong provider path is far easier to debug when you can read it back:
+
+| Variable | Value |
+|---|---|
+| `BACKUP_GCP_WIF_PROVIDER` | `projects/532545921392/locations/global/workloadIdentityPools/github/providers/repo` |
+| `BACKUP_GCP_SERVICE_ACCOUNT` | `optio-db-backup@optio-483122.iam.gserviceaccount.com` |
+| `BACKUP_GCS_BUCKET` | `optio-prod-db-backups` |
+
+### Why Workload Identity Federation and not an access key
+
+The org policy `constraints/storage.restrictAuthTypes` blocks Cloud Storage HMAC
+keys, which is the correct default: an HMAC key is a long-lived static credential
+sitting in CI forever. Instead the job presents GitHub's OIDC token and GCP trades
+it for a credential that expires in an hour. **Nothing long-lived is stored in the
+repo**, so there is no backup credential to leak or rotate.
+
+The trust is scoped two ways, and both matter:
+
+- The provider carries the attribute condition
+  `assertion.repository == 'shortbird/pathweaver_2.0'`. Without it, a workflow in
+  *any* GitHub repository on earth can mint a token for this service account.
+- The service account grants `roles/iam.workloadIdentityUser` only to
+  `principalSet://.../attribute.repository/shortbird/pathweaver_2.0`, and holds
+  `roles/storage.objectAdmin` **on this one bucket**, not project-wide.
+
+To rebuild: create the pool (`github`) and an OIDC provider (`repo`) with issuer
+`https://token.actions.githubusercontent.com`, map `google.subject` →
+`assertion.sub` and `attribute.repository` → `assertion.repository`, set the
+attribute condition, then use **Grant access** on the pool page to bind the
+service account — that flow builds the `principalSet://` string for you. The
+IAM Service Account Credentials API (`iamcredentials.googleapis.com`) must be on.
 
 ### Use the session pooler, not the direct connection
 
@@ -95,18 +127,23 @@ session pooler (port 5432) supports IPv4 and works with `pg_dump`.
 The **transaction** pooler (port **6543**) does *not* work with `pg_dump`. If the
 dump step fails with a protocol or prepared-statement error, this is why.
 
-### Bucket choice
+### The bucket
 
-Any S3-compatible provider works unchanged; only the endpoint and region differ.
-The compressed encrypted archive is on the order of tens of MB, so 90 days of
-dailies is a few GB:
+`gs://optio-prod-db-backups` — project `optio-483122`, region `us-west1`,
+Nearline, uniform bucket-level access, public access prevention on.
 
-- **Backblaze B2** — ~$0.006/GB/mo, cheapest, endpoint `https://s3.<region>.backblazeb2.com`
-- **Cloudflare R2** — no egress fees, region `auto`
-- **AWS S3** — ~$0.023/GB/mo
+Nearline's 30-day minimum storage duration sits well inside the 90-day retention,
+so there is no early-deletion charge. The encrypted archive is ~134 MB, so 90 days
+of dailies is roughly 12 GB — a few cents a month.
 
-Expect well under $1/month either way. **Do not use Supabase Storage for this** —
-the point of the off-site copy is that it survives losing the Supabase account.
+**Do not use Supabase Storage for this** — the point of the off-site copy is that
+it survives losing the Supabase account. Google Cloud is a genuinely separate
+vendor from Supabase (which runs on AWS), so that property holds.
+
+Moving providers means changing the upload step, not just a config value: the job
+authenticates with Workload Identity Federation and uploads with `gcloud storage`.
+An S3-compatible target (Backblaze B2, Cloudflare R2) would need an access key and
+the `aws s3` calls this workflow used before 2026-09-01.
 
 ### Retention
 
@@ -136,11 +173,11 @@ that is wildly disproportionate.
 Instead pull just what you need out of last night's dump:
 
 ```bash
-# Fetch and decrypt
-aws s3 cp "s3://$BUCKET/daily/2026/08/optio-prod-20260817T080000Z.dump.gpg" . \
-  --endpoint-url "$BACKUP_S3_ENDPOINT"
+# Fetch and decrypt (gcloud auth login first, as yourself)
+gcloud storage cp \
+  "gs://optio-prod-db-backups/daily/2026/09/optio-prod-20260901T184534Z.dump.gpg" .
 gpg --batch --passphrase "$BACKUP_GPG_PASSPHRASE" \
-  --output optio.dump --decrypt optio-prod-20260817T080000Z.dump.gpg
+  --output optio.dump --decrypt optio-prod-20260901T184534Z.dump.gpg
 
 # Restore ONE table into a local scratch database
 createdb scratch
@@ -193,5 +230,7 @@ check is the part a workflow can't do for itself:
 
 **Quarterly** — decrypt the most recent archive *on a laptop, using the passphrase
 from the password manager*, and restore one table. This tests the one link the
-automation cannot: that a human can still get the passphrase and the bucket
-credentials when they need them.
+automation cannot: that a human can still reach the bucket and still has the
+passphrase when they need them. The passphrase is the single point of failure —
+the job's own credentials are short-lived and mint themselves, but nothing can
+recover an archive if that passphrase is lost.

@@ -11,11 +11,13 @@ import { resolveDeepLink } from '@/src/services/deepLinkRouter';
 import { processUploadQueue } from '@/src/services/uploadQueue';
 import { UploadStatusPill } from '@/src/components/ui/UploadStatusPill';
 import { View, ActivityIndicator, AppState } from 'react-native';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // Configure notification display once at module load
 configurePushNotifications();
 
 export default function AppLayout() {
+  const c = useThemeColors();
   const { isAuthenticated, isLoading, user } = useAuthStore();
 
   // A notification tap can arrive before auth has finished restoring (cold
@@ -107,7 +109,7 @@ export default function AppLayout() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-50 dark:bg-dark-surface-50">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </View>
     );
   }
@@ -118,6 +120,9 @@ export default function AppLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+    {/* expo-router auto-registers every route file in this group; the list
+        below only pins options/order for the common ones and is NOT exhaustive
+        (approvals, courses/*, observers/student/*, parent/* are auto-added). */}
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="post/[id]" />

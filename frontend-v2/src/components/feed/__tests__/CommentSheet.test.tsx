@@ -2,15 +2,15 @@
  * CommentSheet tests - renders comment UI, posts comments.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { CommentSheet } from '../CommentSheet';
 import api from '@/src/services/api';
 import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   jest.clearAllMocks();

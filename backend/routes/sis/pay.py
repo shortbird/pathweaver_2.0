@@ -28,6 +28,7 @@ from flask import Blueprint, redirect, request
 from app_config import Config
 from services import sis_billing_service as billing
 from services import sis_pay_links
+from services import sis_recurring_tuition_service as recurring
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -83,3 +84,131 @@ def return_from_stripe(token):
         return redirect(_result_url(payment='paid'))
     # Cancelled at Stripe, or the payment hasn't settled yet.
     return redirect(_result_url(payment='pending'))
+
+
+# ── Autopay from the emailed link ────────────────────────────────────────────
+#
+# Optio Academy bills monthly and wants the parent to set the recurring charge up
+# themselves. Autopay setup previously required a signed-in guardian, which put a
+# login wall in front of the one action the email is asking for.
+#
+# Mounted under /autopay/<token> rather than /<token>/autopay so it cannot
+# collide with the pay routes: '<token>/autopay' would also match the pay rule's
+# <token> if a token ever contained a slash, and the two links carry different
+# authority. The tokens are signed in separate namespaces, so a pay link pasted
+# here fails the signature check rather than quietly setting up a payment plan.
+
+
+@bp.route('/autopay/<token>', methods=['GET'])
+def start_autopay(token):
+    """Open a setup-mode Checkout so the family can save a card for monthly
+    payments. The installment count is signed into the token."""
+    invoice_id, count = sis_pay_links.autopay_from_token(token)
+    if not invoice_id:
+        return redirect(_result_url(autopay='invalid_link'))
+
+    result = billing.autopay_setup_for_pay_link(
+        invoice_id, count,
+        return_url=f'{(Config.BACKEND_URL or "").rstrip("/")}/api/sis/pay/autopay/{token}/return',
+    )
+    if result.get('error'):
+        logger.info(f'[SIS pay] autopay link refused for {invoice_id[:8]}: {result["error"]}')
+        reason = result.get('reason')
+        if reason == 'already':
+            return redirect(_result_url(autopay='already'))
+        if reason == 'settled':
+            return redirect(_result_url(autopay='already_paid'))
+        if reason == 'no_guardian':
+            return redirect(_result_url(autopay='no_guardian'))
+        return redirect(_result_url(autopay='unavailable'))
+    return redirect(result['checkout_url'])
+
+
+@bp.route('/autopay/<token>/return', methods=['GET'])
+def return_from_autopay_setup(token):
+    """Stripe sends the parent back here after they save a card. Build the plan
+    and charge installment #1, then hand them to their billing page.
+
+    Stripe appends ?autopay=return on success and ?autopay=canceled if they
+    backed out, the same convention the signed-in flow uses.
+    """
+    invoice_id, count = sis_pay_links.autopay_from_token(token)
+    if not invoice_id:
+        return redirect(_result_url(autopay='invalid_link'))
+    if request.args.get('autopay') == 'canceled':
+        return redirect(_result_url(autopay='canceled'))
+    try:
+        result = billing.confirm_autopay_for_pay_link(invoice_id, installment_count=count)
+    except Exception as e:  # noqa: BLE001 — a parent must never see a stack trace here
+        logger.error(f'[SIS pay] autopay confirm failed for {invoice_id[:8]}: {e}')
+        return redirect(_result_url(autopay='pending'))
+    if result.get('error'):
+        return redirect(_result_url(autopay='unavailable'))
+    if not result.get('ready'):
+        # The card save has not landed at Stripe yet. Nothing is lost: the parent
+        # can reopen the link, and the plan is only created once.
+        return redirect(_result_url(autopay='pending'))
+    if result.get('already'):
+        return redirect(_result_url(autopay='already'))
+    return redirect(_result_url(autopay='active'))
+
+
+# ── Card on file for monthly tuition ─────────────────────────────────────────
+#
+# The family's entry point into open-ended monthly tuition: a link in an email
+# that saves a card and starts the schedule the school set up. No login, for the
+# same reason as everything else in this module.
+
+
+@bp.route('/setup/<token>', methods=['GET'])
+def start_card_setup(token):
+    """Open a setup-mode Checkout to put a card on file for the household."""
+    household_id = sis_pay_links.household_from_setup_token(token)
+    if not household_id:
+        return redirect(_result_url(autopay='invalid_link'))
+    org_id = recurring.household_org_id(household_id)
+    if not org_id:
+        return redirect(_result_url(autopay='unavailable'))
+    result = billing.start_card_setup_for_household(
+        org_id, household_id,
+        return_url=f'{(Config.BACKEND_URL or "").rstrip("/")}/api/sis/pay/setup/{token}/return',
+    )
+    if result.get('error'):
+        logger.info(f'[SIS pay] card setup refused for household {household_id[:8]}: '
+                    f'{result["error"]}')
+        reason = result.get('reason')
+        if reason == 'no_guardian':
+            return redirect(_result_url(autopay='no_guardian'))
+        return redirect(_result_url(autopay='unavailable'))
+    return redirect(result['checkout_url'])
+
+
+@bp.route('/setup/<token>/return', methods=['GET'])
+def return_from_card_setup(token):
+    """Save the card, start every active schedule for the family, and take the
+    first month's charge."""
+    household_id = sis_pay_links.household_from_setup_token(token)
+    if not household_id:
+        return redirect(_result_url(autopay='invalid_link'))
+    if request.args.get('setup') == 'canceled':
+        return redirect(_result_url(autopay='canceled'))
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return redirect(_result_url(autopay='pending'))
+    org_id = recurring.household_org_id(household_id)
+    if not org_id:
+        return redirect(_result_url(autopay='unavailable'))
+    try:
+        saved = billing.save_card_from_setup_session(org_id, household_id, session_id)
+        if not saved.get('ready'):
+            return redirect(_result_url(autopay='pending'))
+        result = recurring.activate_household(org_id, household_id)
+    except Exception as e:  # noqa: BLE001 — a parent must never see a stack trace
+        logger.error(f'[SIS pay] card setup confirm failed for {household_id[:8]}: {e}')
+        return redirect(_result_url(autopay='pending'))
+    if result.get('error'):
+        # The card IS saved; there was just nothing scheduled to start.
+        return redirect(_result_url(autopay='card_saved'))
+    if not result.get('charged'):
+        return redirect(_result_url(autopay='card_saved_unpaid'))
+    return redirect(_result_url(autopay='active'))

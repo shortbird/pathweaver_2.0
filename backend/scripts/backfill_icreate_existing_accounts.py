@@ -328,7 +328,7 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
         fill['total_xp'] = new_total
 
     # registrations that list the duplicate in their kids snapshot
-    regs = (db.table('icreate_registrations').select('id, kids')
+    regs = (db.table('registrations').select('id, kids')
             .eq('organization_id', org_id).execute()).data or []
     for reg in regs:
         kids = reg.get('kids') or []
@@ -340,9 +340,9 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
                 k['was_platform'] = keep.get('organization_id') is None
                 changed = True
         if changed:
-            print(f"  icreate_registrations {reg['id'][:8]}: kids snapshot repointed")
+            print(f"  registrations {reg['id'][:8]}: kids snapshot repointed")
             if apply:
-                db.table('icreate_registrations').update({'kids': kids}).eq('id', reg['id']).execute()
+                db.table('registrations').update({'kids': kids}).eq('id', reg['id']).execute()
 
     # parent link from the duplicate's parent, unless the kept account is a dependent
     parent_id = remove.get('managed_by_parent_id')

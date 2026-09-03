@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 
 /**
  * Secure documents: naming a file, renaming it, and filing one upload against
@@ -112,7 +112,8 @@ describe('renaming a document later', () => {
   const startRename = async () => {
     await show()
     const row = screen.getByText('Lee - Background check').closest('tr')
-    fireEvent.click(row.querySelector('button:nth-of-type(2)'))
+    // By name, not position — the Sharing cell also holds two buttons now.
+    fireEvent.click(within(row).getByRole('button', { name: 'Rename' }))
     return screen.getByLabelText('Rename Lee - Background check')
   }
 

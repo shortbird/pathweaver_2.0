@@ -8,6 +8,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import TrackSelector from '../interest-tracks/TrackSelector';
 import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
+import useHidePillars from '../../hooks/useHidePillars';
 
 const PILLAR_CONFIG = {
   art: {
@@ -48,6 +49,7 @@ const LearningEventModal = ({
   studentId = null   // Optional - when parent views child's topics
 }) => {
   const isEditMode = !!editEvent;
+  const hidePillars = useHidePillars();
   const [description, setDescription] = useState('');
   const [title, setTitle] = useState('');
   const [selectedPillars, setSelectedPillars] = useState([]);
@@ -314,7 +316,7 @@ const LearningEventModal = ({
 
       // Add optional fields
       if (title.trim()) payload.title = title.trim();
-      if (selectedPillars.length > 0) payload.pillars = selectedPillars;
+      if (!hidePillars && selectedPillars.length > 0) payload.pillars = selectedPillars;
       if (parentMomentId) payload.parent_moment_id = parentMomentId;
       if (eventDate) payload.event_date = eventDate;
 
@@ -665,7 +667,7 @@ const LearningEventModal = ({
                 )}
 
                 {/* Suggested Pillars */}
-                {aiSuggestions.pillars?.length > 0 && (
+                {!hidePillars && aiSuggestions.pillars?.length > 0 && (
                   <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
                     <div className="flex-1">
                       <p className="text-xs text-gray-400 mb-1">Pillars</p>
@@ -690,7 +692,7 @@ const LearningEventModal = ({
                 )}
 
                 {/* Apply All */}
-                {aiSuggestions.title && aiSuggestions.pillars?.length > 0 && (
+                {!hidePillars && aiSuggestions.title && aiSuggestions.pillars?.length > 0 && (
                   <button
                     onClick={() => acceptAISuggestion('all')}
                     className="w-full py-2 text-sm bg-gradient-primary text-white rounded-lg hover:opacity-90"

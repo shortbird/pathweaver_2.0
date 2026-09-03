@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch, Animated } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -19,6 +19,7 @@ import {
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
+import { confirmAlert } from '@/src/utils/alerts';
 import {
   useGroupMessages,
   useGroupDetail,
@@ -57,6 +58,8 @@ interface Props {
   onBack?: () => void;
   /** Called after the group is deleted so the parent can clear selection + refetch. */
   onDeleted?: () => void;
+  /** Called once the group has been marked read, so the bell can drop its count. */
+  onRead?: () => void;
 }
 
 function formatTime(ts: string) {
@@ -109,20 +112,20 @@ function MembersList({ members, userId }: { members: any[]; userId?: string; onC
               )}
             </Avatar>
             <View className="flex-1 ml-2.5">
-              <UIText size="sm" className="font-poppins-medium text-typo-800" numberOfLines={1}>
+              <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo" numberOfLines={1}>
                 {name}{isCurrentUser ? ' (you)' : ''}
               </UIText>
               {member.role && member.role !== 'member' && (
                 <View
                   className="self-start mt-0.5"
                   style={{
-                    backgroundColor: member.role === 'admin' || member.role === 'owner' ? '#EDE9F0' : c.surfaceMuted,
+                    backgroundColor: member.role === 'admin' || member.role === 'owner' ? c.brandSurface : c.surfaceMuted,
                     paddingHorizontal: 6,
                     paddingVertical: 1,
                     borderRadius: 8,
                   }}
                 >
-                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? '#6D469B' : c.textMuted }}>
+                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? c.brand : c.textMuted }}>
                     {roleLabel}
                   </UIText>
                 </View>
@@ -146,11 +149,12 @@ function AdminSettings({
   saving: boolean;
   onToggle: (value: boolean) => void;
 }) {
+  const c = useThemeColors();
   return (
     <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
       <View className="flex-row items-center justify-between">
         <View className="flex-1 pr-3">
-          <UIText size="sm" className="font-poppins-medium text-typo-800">Announcement-only</UIText>
+          <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo">Announcement-only</UIText>
           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
             Only group admins can post
           </UIText>
@@ -159,7 +163,7 @@ function AdminSettings({
           value={announcementOnly}
           disabled={saving}
           onValueChange={onToggle}
-          trackColor={{ true: '#6D469B', false: undefined }}
+          trackColor={{ true: c.brand, false: undefined }}
           accessibilityLabel="Announcement-only"
         />
       </View>
@@ -167,7 +171,7 @@ function AdminSettings({
   );
 }
 
-export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
+export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const isSuperadmin = user?.role === 'superadmin';
@@ -225,12 +229,17 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
 
   // Mark as read when viewing. E4: if the call fails (transient 5xx, offline)
   // we retry once on the next poll tick rather than losing the read state.
+  // onRead is held in a ref so a new callback identity doesn't re-run the effect
+  // (and re-POST /read) on every parent render.
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
   useEffect(() => {
     if (!group.id) return;
     let cancelled = false;
     const attempt = async (retriesLeft: number) => {
       try {
         await markGroupRead(group.id);
+        if (!cancelled) onReadRef.current?.();
       } catch {
         if (!cancelled && retriesLeft > 0) {
           setTimeout(() => attempt(retriesLeft - 1), 15000);
@@ -297,14 +306,12 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   };
 
   const handleDeleteMessage = async (msg: Message) => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Delete this message?')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert('Delete Message', 'Delete this message?', [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-          ]);
-        });
+    const confirmed = await confirmAlert({
+      title: 'Delete Message',
+      message: 'Delete this message?',
+      confirmText: 'Delete',
+      destructive: true,
+    });
     if (!confirmed) return;
     try {
       await deleteGroupMessage(group.id, msg.id);
@@ -440,18 +447,12 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   // the message and left a stray line break behind. Sending is the send button.
 
   const handleDelete = async () => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(`Delete "${group.name}"? This removes the group for all members and cannot be undone.`)
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Delete Group',
-            `Delete "${group.name}"? This removes the group for all members and cannot be undone.`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-            ],
-          );
-        });
+    const confirmed = await confirmAlert({
+      title: 'Delete Group',
+      message: `Delete "${group.name}"? This removes the group for all members and cannot be undone.`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
     if (!confirmed) return;
 
     setDeleting(true);
@@ -474,13 +475,13 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     >
       <View className="flex-row items-center flex-1">
         {isMobile && (
-          <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8}>
-            <Ionicons name="chevron-back" size={24} color="#6D469B" />
+          <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={24} color={c.brand} />
           </Pressable>
         )}
         <View
           className="w-10 h-10 rounded-full items-center justify-center"
-          style={{ backgroundColor: '#6D469B' }}
+          style={{ backgroundColor: c.brand }}
         >
           <Ionicons name="people" size={20} color="#fff" />
         </View>
@@ -496,13 +497,15 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
       <View className="flex-row items-center" style={{ gap: 8 }}>
         <Pressable
           onPress={() => setShowMembers((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={showMembers ? 'Hide members' : 'Show members'}
           style={{
             width: 36,
             height: 36,
             borderRadius: 18,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: showMembers ? '#6D469B' : c.surfaceMuted,
+            backgroundColor: showMembers ? c.brand : c.surfaceMuted,
           }}
         >
           <Ionicons
@@ -515,7 +518,9 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           <Pressable
             onPress={handleDelete}
             disabled={deleting}
-            hitSlop={6}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Delete group"
             style={{
               width: 36,
               height: 36,
@@ -537,11 +542,11 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   const pinnedBanner = pinnedMessage ? (
     <View
       className="flex-row items-center border-b border-surface-200 dark:border-dark-surface-300"
-      style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: '#EDE9F0' }}
+      style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: c.brandSurface }}
     >
-      <Ionicons name="pin" size={16} color="#6D469B" />
+      <Ionicons name="pin" size={16} color={c.brand} />
       <View className="flex-1">
-        <UIText size="xs" className="font-poppins-semibold" style={{ color: '#6D469B' }} numberOfLines={1}>
+        <UIText size="xs" className="font-poppins-semibold" style={{ color: c.brand }} numberOfLines={1}>
           Pinned{pinnedMessage.sender ? ` · ${senderName(pinnedMessage)}` : ''}
         </UIText>
         <UIText size="xs" style={{ color: '#4A3564' }} numberOfLines={2}>
@@ -550,7 +555,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
       </View>
       {isGroupAdmin && (
         <Pressable onPress={handleUnpin} hitSlop={8} accessibilityRole="button" accessibilityLabel="Unpin message">
-          <Ionicons name="close" size={16} color="#6D469B" />
+          <Ionicons name="close" size={16} color={c.brand} />
         </Pressable>
       )}
     </View>
@@ -614,7 +619,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                     paddingVertical: 10,
                     borderRadius: 18,
                     ...(isMine
-                      ? { backgroundColor: '#6D469B', borderBottomRightRadius: 4 }
+                      ? { backgroundColor: c.brand, borderBottomRightRadius: 4 }
                       : {
                           backgroundColor: c.card,
                           borderBottomLeftRadius: 4,
@@ -754,7 +759,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="attach" size={22} color="#6D469B" />
+              <Ionicons name="attach" size={22} color={c.brand} />
             </Pressable>
           )}
           <TextInput
@@ -776,8 +781,11 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           <Pressable
             onPress={handleSend}
             disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={editing ? 'Save edit' : 'Send message'}
+            hitSlop={8}
             style={{
-              backgroundColor: canSend ? '#6D469B' : c.border,
+              backgroundColor: canSend ? c.brand : c.border,
               width: 36,
               height: 36,
               borderRadius: 18,
@@ -826,10 +834,10 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           style={{ maxHeight: '60%', paddingBottom: insets.bottom || 16 }}
         >
           <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
-            <UIText size="sm" className="font-poppins-semibold text-typo-800">
+            <UIText size="sm" className="font-poppins-semibold text-typo dark:text-dark-typo">
               Members ({members.length})
             </UIText>
-            <Pressable onPress={() => setShowMembers(false)} className="p-1">
+            <Pressable onPress={() => setShowMembers(false)} className="p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Close members">
               <Ionicons name="close" size={20} color={c.icon} />
             </Pressable>
           </View>
@@ -913,10 +921,10 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
       {showMembers && (
         <View className="bg-white dark:bg-dark-surface-100 border-l border-surface-200 dark:border-dark-surface-300" style={{ width: 280 }}>
           <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
-            <UIText size="sm" className="font-poppins-semibold text-typo-800">
+            <UIText size="sm" className="font-poppins-semibold text-typo dark:text-dark-typo">
               Members ({members.length})
             </UIText>
-            <Pressable onPress={() => setShowMembers(false)} className="p-1">
+            <Pressable onPress={() => setShowMembers(false)} className="p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Close members">
               <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>
           </View>

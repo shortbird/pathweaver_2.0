@@ -42,10 +42,11 @@ const Card = ({ title, action, children, className = '' }) => (
   </div>
 )
 
-const StatCard = ({ label, value, accent }) => (
+const StatCard = ({ label, value, accent, note }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-5">
     <div className="text-3xl font-bold text-neutral-900">{value ?? 0}</div>
     <div className={`text-sm mt-1 ${accent || 'text-neutral-500'}`}>{label}</div>
+    {note && <div className="text-xs mt-1 text-neutral-400">{note}</div>}
   </div>
 )
 
@@ -80,7 +81,7 @@ const ATTENTION_TILES = [
 const QUICK_ACTIONS = [
   { label: 'Take attendance', to: '/attendance', module: '/attendance' },
   { label: 'Add a family', to: '/people?tab=families' },
-  { label: 'Message families', to: '/messaging' },
+  { label: 'Message families', to: '/inbox?tab=announcements' },
   { label: 'Send for signature', to: '/tasks?tab=paperwork', module: '/tasks' },
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Reports', to: '/reports', module: '/reports' },
@@ -108,11 +109,18 @@ const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, {
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 })}`
 
-const eventTime = (e) => {
+export const eventTime = (e) => {
   if (!e.start_at) return ''
   const d = new Date(e.start_at)
   if (Number.isNaN(d.getTime())) return ''
-  const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const opts = { weekday: 'short', month: 'short', day: 'numeric' }
+  // An all-day event is stored date-only, as 00:00 UTC. It names a calendar
+  // date, not an instant, so it must be read back in UTC — converted to local
+  // time it becomes the previous evening anywhere west of Greenwich, and
+  // "NO CLASS - LABOR DAY" on the 7th read "Sun, Sep 6" (iCreate, 2026-08-31).
+  // The family-facing SchoolCommunity.fmtWhen already does this.
+  if (e.all_day) opts.timeZone = 'UTC'
+  const day = d.toLocaleDateString(undefined, opts)
   if (e.all_day) return day
   return `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
 }
@@ -345,7 +353,16 @@ const SisDashboard = () => {
               School snapshot
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total students" value={snapshot.total_students} />
+              {/* Counts the same students the People page lists. The two used
+                  to disagree, because this card included withdrawn and
+                  graduated students and that page hides them. */}
+              <StatCard
+                label="Current students"
+                value={snapshot.total_students}
+                note={snapshot.inactive_students
+                  ? `${snapshot.all_students} incl. withdrawn and graduated`
+                  : null}
+              />
               <StatCard label="Active (last 7 days)" value={snapshot.active_last_7_days} accent="text-green-600" />
               <StatCard label="Families" value={snapshot.households} />
               <StatCard label="Enrolled" value={counts.enrolled || 0} accent="text-optio-purple" />

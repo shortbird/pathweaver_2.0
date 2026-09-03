@@ -44,8 +44,8 @@ def app():
     # Same order as app.py: CSRF middleware FIRST, blueprints AFTER.
     init_csrf(app)
 
-    from routes import icreate_registration
-    app.register_blueprint(icreate_registration.bp)
+    from routes import registration_funnel
+    app.register_blueprint(registration_funnel.bp)
 
     @app.route('/api/protected-example', methods=['POST'])
     def protected_example():
@@ -123,26 +123,53 @@ def test_icreate_confirm_payment_exempt_with_auth_cookies(client):
     per-registration access_token) still runs — 403 here proves the request
     got PAST the CSRF gate and into the view."""
     _set_cookies(client, AUTH_COOKIE)
-    with patch('routes.icreate_registration._load_registration', return_value=None):
-        res = client.post('/api/icreate/registrations/some-reg-id/confirm-payment',
+    with patch('routes.registration_funnel._load_registration', return_value=None):
+        res = client.post('/api/registration/registrations/some-reg-id/confirm-payment',
                           json={'access_token': 'wrong'})
     assert res.status_code == 403
     assert 'csrf_required' not in (res.get_json() or {})
 
 
+# The one funnel endpoint that authenticates by SESSION rather than by the
+# per-registration access_token. It is reached from /auth/callback through the
+# api client, which sends X-CSRF-Token, so it keeps the protection every other
+# session-authenticated route has. Exempting it would hand a cross-site page the
+# ability to attach a signed-in parent's account to an arbitrary school.
+CSRF_PROTECTED_REGISTRATION_ENDPOINTS = {'registration.attach'}
+
+
+def _registration_post_endpoints(app):
+    return {
+        rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.endpoint.startswith('registration.')
+        and 'POST' in (rule.methods or set())
+    }
+
+
 def test_all_icreate_funnel_endpoints_are_exempt(app):
     """Every mutating iCreate funnel endpoint must be in the exemption list —
     the wizard runs with platform auth cookies present (it logs new parents in
-    mid-funnel; existing parents arrive signed in)."""
+    mid-funnel; existing parents arrive signed in).
+
+    The session-authenticated ones are the deliberate exception; see
+    CSRF_PROTECTED_REGISTRATION_ENDPOINTS."""
     from middleware.csrf_protection import CSRF_EXEMPT_ENDPOINTS
-    funnel_endpoints = {
-        rule.endpoint
-        for rule in app.url_map.iter_rules()
-        if rule.endpoint.startswith('icreate_registration.')
-        and 'POST' in (rule.methods or set())
-    }
+    funnel_endpoints = _registration_post_endpoints(app) - CSRF_PROTECTED_REGISTRATION_ENDPOINTS
     missing = funnel_endpoints - CSRF_EXEMPT_ENDPOINTS
     assert not missing, f'iCreate funnel endpoints not CSRF-exempt: {sorted(missing)}'
+
+
+def test_session_authenticated_icreate_endpoints_stay_protected(app):
+    """The other half of the rule above, so nobody silences a CSRF failure on
+    /attach by adding it to the exemption list."""
+    from middleware.csrf_protection import CSRF_EXEMPT_ENDPOINTS
+    registered = _registration_post_endpoints(app)
+    for endpoint in CSRF_PROTECTED_REGISTRATION_ENDPOINTS:
+        assert endpoint in registered, f'{endpoint} is no longer a registered POST route'
+        assert endpoint not in CSRF_EXEMPT_ENDPOINTS, (
+            f'{endpoint} authenticates by session cookie and must not be CSRF-exempt'
+        )
 
 
 def test_every_exempt_name_matches_a_real_endpoint():

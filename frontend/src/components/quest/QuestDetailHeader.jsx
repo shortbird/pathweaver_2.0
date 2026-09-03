@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
+import { queryKeys } from '../../utils/queryKeys';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
 import RhythmIndicator from './RhythmIndicator';
@@ -24,6 +27,105 @@ const stripHtml = (html) => {
   if (!html) return '';
   const doc = new DOMParser().parseFromString(html, 'text/html');
   return doc.body.textContent || '';
+};
+
+/**
+ * QuestTitle - the quest's name, editable in place by whoever created it.
+ *
+ * Gryffin, 2026-08-31: "my son did a quest today on changing the van brake
+ * light. I accidentally typed battery, there is no way to change the title."
+ * Every quest-editing surface in the app is admin-gated, so the creator of a
+ * personal quest had no way to fix their own typo. The backend
+ * (PATCH /api/quests/:id) is the authority on who may rename; `can_rename` on
+ * the quest payload only decides whether we draw the pencil.
+ */
+const QuestTitle = ({ quest, className }) => {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const start = () => {
+    setDraft(quest?.title || '');
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const title = draft.trim();
+    if (!title || title === quest?.title) {
+      setEditing(false);
+      return;
+    }
+    try {
+      setSaving(true);
+      const { data } = await api.patch(`/api/quests/${quest.id}`, { title });
+      if (!data?.success) throw new Error(data?.error || 'Failed to rename quest');
+      // Show the new name immediately, then let the lists catch up.
+      queryClient.setQueryData(queryKeys.quests.detail(quest.id), (old) =>
+        old ? { ...old, title } : old
+      );
+      queryClient.invalidateQueries(queryKeys.quests.all);
+      setEditing(false);
+      toast.success('Quest renamed');
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || 'Failed to rename quest');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-start gap-2">
+        <h1 className={className}>{quest?.title}</h1>
+        {quest?.can_rename && (
+          <button
+            type="button"
+            onClick={start}
+            aria-label="Rename quest"
+            title="Rename quest"
+            className="mt-1 p-1 text-gray-400 hover:text-optio-purple transition-colors flex-shrink-0"
+          >
+            <PencilSquareIcon className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        autoFocus
+        value={draft}
+        maxLength={200}
+        disabled={saving}
+        aria-label="Quest title"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="flex-1 min-w-0 text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 leading-tight bg-white/90 border border-optio-purple/40 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-optio-purple"
+      />
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="px-3 py-1.5 text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg disabled:opacity-60 flex-shrink-0"
+      >
+        {saving ? 'Saving...' : 'Save'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        disabled={saving}
+        className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700 flex-shrink-0"
+      >
+        Cancel
+      </button>
+    </div>
+  );
 };
 
 /**
@@ -207,11 +309,10 @@ const QuestDetailHeader = ({
               </div>
             )}
 
-            <h1
+            <QuestTitle
+              quest={quest}
               className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 leading-tight line-clamp-2"
-            >
-              {quest?.title}
-            </h1>
+            />
 
             {descriptionText && (
               <>

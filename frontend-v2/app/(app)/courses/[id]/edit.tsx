@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from 'react-native';
+import { ScrollView, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +34,7 @@ function OptionPicker({
 }) {
   return (
     <VStack space="xs">
-      <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">{label}</UIText>
+      <UIText size="sm" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">{label}</UIText>
       <HStack className="gap-2 flex-wrap">
         {options.map((opt) => {
           const selected = value === opt;
@@ -115,7 +115,7 @@ export default function CourseEditScreen() {
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }
@@ -169,7 +169,7 @@ export default function CourseEditScreen() {
 
           {/* Title */}
           <VStack space="xs">
-            <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Title</UIText>
+            <UIText size="sm" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Title</UIText>
             <TextInput
               value={title}
               onChangeText={setTitle}
@@ -181,7 +181,7 @@ export default function CourseEditScreen() {
 
           {/* Description */}
           <VStack space="xs">
-            <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Description</UIText>
+            <UIText size="sm" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Description</UIText>
             <TextInput
               value={description}
               onChangeText={setDescription}

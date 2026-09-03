@@ -140,15 +140,15 @@ def class_roster(user_id, class_id):
 @require_role(*STAFF_ROLES)
 @require_module('classes')
 def class_messaging(user_id, class_id):
-    """Everything the class Messages tab needs: the class group chat and the
-    people a teacher can message one-to-one (students on the roster, plus any
-    co-teachers).
+    """Everything the class Messages tab needs: the class's two group chats
+    (the parent chat and the student chat) and the people a teacher can message
+    one-to-one (students on the roster, their guardians, plus any co-teachers).
 
-    The group is synced from the roster on every call, so opening the tab both
-    creates the chat for a class that never had one and repairs membership after
-    an enrollment change. The caller is ensured into it as an admin — reading a
-    group requires membership, and staff who can reach this class administer
-    its chat.
+    The groups are synced from the roster on every call, so opening the tab
+    both creates the chats for a class that never had them and repairs
+    membership after an enrollment change. The caller is ensured into both as
+    an admin — reading a group requires membership, and staff who can reach
+    this class administer its chats.
 
     Deliberately NOT the roster endpoint: this returns no health or guardian
     data, so it does not belong in student_access_logs.
@@ -169,10 +169,12 @@ def class_messaging(user_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     cls = cls[0]
 
-    from services.class_group_sync_service import sync_class_group
-    group_id = sync_class_group(class_id, actor_id=user_id)
+    from services.class_group_sync_service import sync_class_groups
+    group_ids = sync_class_groups(class_id, actor_id=user_id)
 
-    if group_id:
+    def _load_group(group_id, fallback_name):
+        if not group_id:
+            return None
         me = (admin.table('group_members').select('id, role')
               .eq('group_id', group_id).eq('user_id', user_id).limit(1).execute()).data
         if not me:
@@ -182,14 +184,15 @@ def class_messaging(user_id, class_id):
             }).execute()
         elif me[0].get('role') != 'admin':
             admin.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()
-
-    group = None
-    if group_id:
         rows = (admin.table('group_conversations')
                 .select('id, name, announcement_only, last_message_at')
                 .eq('id', group_id).limit(1).execute()).data
-        group = rows[0] if rows else {'id': group_id, 'name': f"{cls.get('name')} Class Chat"}
+        group = rows[0] if rows else {'id': group_id, 'name': fallback_name}
         group['source_class_id'] = class_id
+        return group
+
+    group = _load_group(group_ids.get('family'), f"{cls.get('name')} Class Chat")
+    student_group = _load_group(group_ids.get('student'), f"{cls.get('name')} Student Chat")
 
     student_ids = membership.class_student_ids(class_id)
 
@@ -202,7 +205,7 @@ def class_messaging(user_id, class_id):
     if user_id in membership.class_teacher_ids(class_id, class_row=cls):
         teacher_ids = membership.class_teacher_ids(class_id, class_row=cls) - {user_id}
 
-    def _people(ids, relationship):
+    def _people(ids, relationship, subtitles=None):
         ids = [i for i in ids if i]
         if not ids:
             return []
@@ -222,17 +225,45 @@ def class_messaging(user_id, class_id):
                     'preferred_name': u.get('preferred_name'),
                     'avatar_url': u.get('avatar_url'),
                     'relationship': relationship,
+                    **({'subtitle': (subtitles or {}).get(u['id'])} if subtitles else {}),
                 })
         out.sort(key=lambda p: p['name'].lower())
         # Private-bucket photos, signed one batch per bucket for the group.
         sign_in_place(out, ['avatar_url'])
         return out
 
+    # Guardians of the enrolled students, one-to-one. The parent chat reaches
+    # them all at once; a teacher wanting a word with ONE family had nowhere to
+    # go from here (iCreate, 2026-09-02: "could we have a way to message the
+    # individual parents here?"). Each is labelled with whose parent they are,
+    # because a surname alone doesn't say which child.
+    guardians_by_student = membership.guardians_by_student(student_ids)
+    guardian_ids = {g for gs in guardians_by_student.values() for g in gs} - set(teacher_ids) - {user_id}
+    child_names = {}
+    if guardian_ids:
+        student_names = {}
+        sids = [i for i in student_ids if i]
+        for i in range(0, len(sids), 100):
+            for u in (admin.table('users')
+                      .select('id, first_name, last_name, display_name, preferred_name')
+                      .in_('id', sids[i:i + 100]).execute()).data or []:
+                student_names[u['id']] = ((u.get('preferred_name') or u.get('first_name') or '').strip()
+                                          or u.get('display_name') or 'a student')
+        kids_by_guardian = {}
+        for sid, gids in guardians_by_student.items():
+            for gid in gids:
+                if sid in student_names:
+                    kids_by_guardian.setdefault(gid, set()).add(student_names[sid])
+        for gid, kids in kids_by_guardian.items():
+            child_names[gid] = 'Parent of ' + ' and '.join(sorted(kids))
+
     return jsonify({
         'success': True,
         'class': {'id': cls['id'], 'name': cls['name']},
         'group': group,
+        'student_group': student_group,
         'students': _people(student_ids, 'student'),
+        'guardians': _people(guardian_ids, 'parent', subtitles=child_names),
         'teachers': _people(teacher_ids, 'teacher'),
     })
 
@@ -269,7 +300,8 @@ def my_profile(user_id):
     # rate previously leaked pay_type and payroll_id — and _read_target lets an
     # admin/coordinator preview another staff member — so redact the full
     # PAY_FIELDS set here. Finance sees pay via the staff_admin path (redact_pay).
-    profile = staff.redact_pay(profile, redact=True)
+    # Pay only: somebody's own hire date and employment type are theirs to see.
+    profile = staff.redact_pay(profile, redact=True, fields=staff.PAY_FIELDS)
     return jsonify({'success': True, 'profile': profile})
 
 

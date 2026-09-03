@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, Animated } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
+import { confirmAlert } from '@/src/utils/alerts';
 import {
   useConversationMessages,
   sendDirectMessage,
@@ -25,6 +26,7 @@ import {
   toggleDmReaction,
   editDirectMessage,
   deleteDirectMessage,
+  forwardMessageToSchool,
   type Contact,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -183,20 +185,41 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   };
 
   const handleDelete = async (msg: Message) => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Delete this message?')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert('Delete Message', 'Delete this message?', [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-          ]);
-        });
+    const confirmed = await confirmAlert({
+      title: 'Delete Message',
+      message: 'Delete this message?',
+      confirmText: 'Delete',
+      destructive: true,
+    });
     if (!confirmed) return;
     try {
       await deleteDirectMessage(msg.id);
       setMessages((prev) => patchMessageDeleted(prev, msg.id, isSuperadmin));
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to delete the message');
+    }
+  };
+
+  // Superadmin (Optio Support): hand a member's message off to their school's
+  // org admins — it lands in the admins' own Messages and in their email. The
+  // member gets an automatic note that the school will follow up.
+  const handleForwardToSchool = async (msg: Message) => {
+    const confirmed = await confirmAlert({
+      title: "Forward to the school's admins",
+      message: "Forward this message to the sender's school? Their org admins get it in their Optio messages and by email, and the sender is told the school will follow up.",
+      confirmText: 'Forward',
+    });
+    if (!confirmed) return;
+    try {
+      const res = await forwardMessageToSchool(msg.id);
+      const emailed = res?.emailed_admins || 0;
+      toast.success(
+        emailed
+          ? `Forwarded to ${res?.organization?.name || 'the school'} and emailed ${emailed} admin${emailed === 1 ? '' : 's'}`
+          : `Forwarded to ${res?.organization?.name || 'the school'}`
+      );
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Could not forward this message');
     }
   };
 
@@ -292,20 +315,31 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       style={isMobile ? { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 8 } : undefined}
     >
       {isMobile && (
-        <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color="#6D469B" />
+        <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <Ionicons name="chevron-back" size={24} color={c.brand} />
         </Pressable>
       )}
-      <Avatar size="md">
-        {contact.avatar_url ? (
-          <AvatarImage source={{ uri: contact.avatar_url }} />
-        ) : (
-          <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
-        )}
-      </Avatar>
+      {contact.is_school ? (
+        <View
+          className="w-12 h-12 rounded-full items-center justify-center"
+          style={{ backgroundColor: c.brand }}
+        >
+          <Ionicons name="school" size={22} color="#fff" />
+        </View>
+      ) : (
+        <Avatar size="md">
+          {contact.avatar_url ? (
+            <AvatarImage source={{ uri: contact.avatar_url }} />
+          ) : (
+            <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
+          )}
+        </Avatar>
+      )}
       <View className="ml-3 flex-1">
         <Heading size="sm">{name}</Heading>
-        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
+        <UIText size="xs" className={`text-typo-400 dark:text-dark-typo-400 ${contact.is_school ? '' : 'capitalize'}`}>
+          {contact.is_school ? "Goes to the school's front office" : (contact.relationship || contact.role)}
+        </UIText>
       </View>
     </View>
   );
@@ -348,7 +382,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     borderRadius: 18,
                     ...(isMine
                       ? {
-                          backgroundColor: '#6D469B',
+                          backgroundColor: c.brand,
                           borderBottomRightRadius: 4,
                         }
                       : {
@@ -425,7 +459,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                               ? 'rgba(255,255,255,0.8)'
                               : 'rgba(255,255,255,0.5)'
                             : msg.read_at
-                              ? '#6D469B'
+                              ? c.brand
                               : c.textFaint
                         }
                       />
@@ -490,7 +524,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="attach" size={22} color="#6D469B" />
+              <Ionicons name="attach" size={22} color={c.brand} />
             </Pressable>
           )}
           <TextInput
@@ -512,8 +546,11 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           <Pressable
             onPress={handleSend}
             disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={editing ? 'Save edit' : 'Send message'}
+            hitSlop={8}
             style={{
-              backgroundColor: canSend ? '#6D469B' : c.border,
+              backgroundColor: canSend ? c.brand : c.border,
               width: 36,
               height: 36,
               borderRadius: 18,
@@ -544,6 +581,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       }}
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDelete(actionsFor)}
+      onForward={isSuperadmin ? () => actionsFor && handleForwardToSchool(actionsFor) : undefined}
     />
   );
 

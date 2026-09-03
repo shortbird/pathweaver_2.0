@@ -10,7 +10,7 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { VStack, HStack, UIText } from '../ui';
+import { VStack, UIText } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useUnifiedTopics, type UnifiedTopic } from '@/src/hooks/useJournal';
 
@@ -66,11 +66,11 @@ export function InlineTopicPicker({ visible, selectedTopicId, onPickTopic }: Pro
           >
             <View
               className="w-5 h-5 rounded-full items-center justify-center"
-              style={{ borderWidth: 1.5, borderColor: isSelected ? '#6D469B' : c.border, backgroundColor: isSelected ? '#6D469B' : 'transparent' }}
+              style={{ borderWidth: 1.5, borderColor: isSelected ? c.brand : c.border, backgroundColor: isSelected ? c.brand : 'transparent' }}
             >
               {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
             </View>
-            <Ionicons name="book-outline" size={16} color={topic.color && topic.color !== 'gradient' ? topic.color : '#6D469B'} />
+            <Ionicons name="book-outline" size={16} color={topic.color && topic.color !== 'gradient' ? topic.color : c.brand} />
             <VStack className="flex-1 min-w-0">
               <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
                 {topic.name}

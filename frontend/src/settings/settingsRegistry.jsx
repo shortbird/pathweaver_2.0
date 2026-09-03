@@ -7,6 +7,7 @@ import QuickLinksCard from '../components/sis/QuickLinksCard'
 import KioskDevicesCard from '../components/sis/KioskDevicesCard'
 import SchoolLoginLinkCard from '../components/organization/SchoolLoginLinkCard'
 import HelpVideoCard from './cards/HelpVideoCard'
+import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
@@ -43,6 +44,7 @@ export const SETTINGS_CARDS = [
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
   { key: 'kiosk', module: 'kiosk', surfaces: ['console'], Component: KioskDevicesCard },
   { key: 'help-video', surfaces: ['console', 'learning'], Component: HelpVideoCard },
+  { key: 'pillars', surfaces: ['learning'], Component: PillarsCard },
   { key: 'step-printing', surfaces: ['console', 'learning'], Component: StepPrintingCard },
 ]
 
@@ -56,7 +58,7 @@ export function settingsCardsFor({ surface, org, seesFinance }) {
 }
 
 /** The shared renderer: one grid of the surface's cards. */
-export function SettingsCards({ surface, orgId, orgData, seesFinance = true, onUpdate, onLogoChange }) {
+export function SettingsCards({ surface, orgId, orgData, seesFinance = true, canEditSlug = false, onUpdate, onLogoChange }) {
   const org = orgData?.organization
   return (
     <div className="grid gap-6">
@@ -66,6 +68,7 @@ export function SettingsCards({ surface, orgId, orgData, seesFinance = true, onU
           orgId={orgId}
           org={org}
           orgData={orgData}
+          canEditSlug={canEditSlug}
           onUpdate={onUpdate}
           onLogoChange={onLogoChange}
         />

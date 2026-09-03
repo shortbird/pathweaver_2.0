@@ -19,7 +19,7 @@ from utils.auth.decorators import require_role
 from utils.sis_roles import STAFF_ROLES
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from .crud import get_user_info
+from ._caller import get_caller
 
 logger = get_logger(__name__)
 
@@ -45,9 +45,9 @@ def _find_active_link(client, org_id: str, class_id: str):
 
 def _manage_check(user_id, org_id, class_id):
     """403/404 response when the caller may not manage this class, else None."""
-    effective_role, user_org_id, _ = get_user_info(user_id)
+    effective_roles, user_org_id, _ = get_caller(user_id)
     service = ClassService()
-    if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+    if not service.can_manage_class(class_id, user_id, effective_roles, user_org_id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     cls = service.get_class(class_id)
     if not cls or cls.get('organization_id') != org_id:

@@ -34,10 +34,15 @@ const ToggleRow = ({ label, description, on, onClick, disabled, indent = false }
   </div>
 )
 
-const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
+const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false }) => {
   const org = orgData?.organization || {}
   const [name, setName] = useState(org.name || '')
   const [slug, setSlug] = useState(org.slug || '')
+  // The slug is the school's login link, printed on QR codes families keep.
+  // Only Optio staff may rename it; for everyone else the field is read-only
+  // and the value is left out of the payload (the server drops it anyway,
+  // which reads as a silent failure).
+  const slugChanged = canEditSlug && slug !== (org.slug || '')
   const [savingDetails, setSavingDetails] = useState(false)
   const [logoUrl, setLogoUrl] = useState(org.branding_config?.logo_url || '')
   // Logo edits are staged and saved with the Save button alongside name/slug.
@@ -120,10 +125,10 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
 
   const saveDetails = async () => {
     if (!name.trim()) return toast.error('Name is required')
-    if (!/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
+    if (canEditSlug && !/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
     setSavingDetails(true)
     try {
-      const payload = { name: name.trim(), slug }
+      const payload = canEditSlug ? { name: name.trim(), slug } : { name: name.trim() }
       if (pendingLogo !== undefined) {
         payload.branding_config = { ...org.branding_config, logo_url: pendingLogo }
       }
@@ -214,8 +219,28 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
             <input className={field} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="flex-1 min-w-[160px]">
-            <label className="block text-xs font-medium text-neutral-500 mb-1">Slug <span className="text-neutral-400">(changes the registration URL)</span></label>
-            <input className={`${field} font-mono`} value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Slug <span className="text-neutral-400">(sets the school login link)</span></label>
+            <input
+              className={`${field} font-mono disabled:bg-gray-50 disabled:text-gray-500`}
+              value={slug}
+              disabled={!canEditSlug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            />
+            {canEditSlug ? (
+              <p className="text-xs text-neutral-500 mt-1">
+                The school login link becomes<span className="font-mono"> /login/{slug || '...'}</span>.
+              </p>
+            ) : (
+              <p className="text-xs text-neutral-500 mt-1">
+                Changed by Optio staff only.
+              </p>
+            )}
+            {slugChanged && (
+              <p className="text-xs text-amber-700 mt-1">
+                Renaming breaks the old login link and any printed QR codes. Share the
+                new link and reprint after saving.
+              </p>
+            )}
           </div>
           <button onClick={saveDetails} disabled={savingDetails}
             className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium hover:opacity-90 disabled:opacity-50">

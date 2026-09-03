@@ -6,7 +6,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
-import { range12h } from '../../utils/timeFormat'
+import { classLabel, meetingText } from '../../components/sis/classLabel'
+import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
+import { isSisAdmin } from './sisRole'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -32,22 +34,11 @@ const CARD = {
 }
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-const today = () => new Date().toISOString().slice(0, 10)
-
-// "Mon/Wed 09:30–10:30" — all meeting days, times from the first meeting. Same
-// class names repeat across sections (three "Reading Tutoring"s), so every
-// class label carries its schedule.
-const meetingText = (meetings = []) => {
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  if (!meetings.length) return ''
-  const days = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))]
-    .sort().map((d) => DAYS[d]).join('/')
-  const m = meetings[0]
-  return `${days} ${range12h(m.start_time, m.end_time)}`.trim()
-}
-const classLabel = (c) => {
-  const when = meetingText(c.meetings)
-  return when ? `${c.name} — ${when}` : c.name
+// Local date, not UTC: toISOString() rolls over at 6pm Mountain, so an evening
+// visit opened TOMORROW's roster (iCreate, 2026-09-02).
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 const AttendancePage = () => {
@@ -61,6 +52,22 @@ const AttendancePage = () => {
   const [saving, setSaving] = useState(false)
   const [alreadyTaken, setAlreadyTaken] = useState(false)
   const [dirty, setDirty] = useState(false)
+  // "I would like to be able to search by student on the attendance page"
+  // (iCreate, 2026-08-24). Filters the cards only — counts and Save always
+  // work on the whole roster, so a filtered view still saves everyone.
+  const [search, setSearch] = useState('')
+  // Guardian-reported absences from today forward — the panel the "Absence
+  // reported" notification lands on. Admin-only (the endpoint 403s teachers).
+  const admin = isSisAdmin(user)
+  const [absences, setAbsences] = useState([])
+  // The student-accountability board, the same one the coordinator dashboard
+  // shows (iCreate, 2026-09-01). The "Student not accounted for" notification
+  // lands here, and this is where the front office chases it down — so the
+  // alerts have to be resolvable here, not only on the dashboard. Org-wide and
+  // date-independent on purpose: an alert stays open until somebody says what
+  // happened, and yesterday's unresolved student is still unaccounted for.
+  const [alerts, setAlerts] = useState([])
+  const [resolutions, setResolutions] = useState([])
 
   const myClasses = useMemo(
     () => classes.filter((c) => c.primary_instructor_id && c.primary_instructor_id === user?.id),
@@ -99,6 +106,28 @@ const AttendancePage = () => {
 
   useEffect(() => { loadRoster() }, [loadRoster])
 
+  useEffect(() => {
+    if (!orgId || !admin) { setAbsences([]); return }
+    api.get(withOrg('/api/sis/attendance/absences', orgId))
+      .then((r) => setAbsences(r.data?.absences || []))
+      .catch(() => setAbsences([]))
+  }, [orgId, admin])
+
+  const loadAlerts = useCallback(() => {
+    if (!orgId || !admin) { setAlerts([]); return }
+    api.get(withOrg('/api/sis/attendance/alerts', orgId))
+      .then((r) => { setAlerts(r.data?.alerts || []); setResolutions(r.data?.resolutions || []) })
+      .catch(() => setAlerts([]))
+  }, [orgId, admin])
+
+  useEffect(() => { loadAlerts() }, [loadAlerts])
+
+  const visibleRoster = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return roster
+    return roster.filter((s) => (s.name || '').toLowerCase().includes(q))
+  }, [roster, search])
+
   const setMark = (studentId, mark) => {
     setRoster((rs) => rs.map((s) => (s.student_user_id === studentId ? { ...s, mark } : s)))
     setDirty(true)
@@ -127,6 +156,9 @@ const AttendancePage = () => {
       toast.success(exceptions ? `Saved — ${exceptions}` : `Saved — all ${entries.length} present`)
       setAlreadyTaken(true)
       setDirty(false)
+      // Saving an absence with no guardian report opens an alert — show it now,
+      // rather than leaving the board stale until the next page load.
+      loadAlerts()
     } catch { toast.error('Could not save attendance') }
     finally { setSaving(false) }
   }
@@ -175,7 +207,55 @@ const AttendancePage = () => {
           placeholder="Search classes…"
         />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} aria-label="Attendance date" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`${field} min-w-[180px]`}
+          placeholder="Search students…"
+          aria-label="Search students"
+        />
       </div>
+
+      {admin && (
+        <AttendanceAlerts
+          alerts={alerts}
+          resolutions={resolutions}
+          orgId={orgId}
+          onResolved={loadAlerts}
+          onOpenRoster={(cid, d) => { setDate(d); setClassId(cid) }}
+          className="mb-6"
+        />
+      )}
+
+      {admin && absences.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">
+            Reported out — today and upcoming
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {absences.map((a) => (
+              <li key={a.id}>
+                {/* Jump the roster to the report: its date, and its class when
+                    it names one — that's where the amber caption lives. */}
+                <button
+                  type="button"
+                  className="w-full text-left py-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 hover:bg-neutral-50 rounded-md px-1"
+                  onClick={() => { setDate(a.absence_date); if (a.class_id) setClassId(a.class_id) }}
+                  title="Show this date on the roster"
+                >
+                  <span className="text-sm font-medium text-neutral-900">{a.student_name}</span>
+                  <span className="text-sm text-neutral-600">{a.absence_date}</span>
+                  <span className="text-xs text-amber-700">
+                    {a.class_name ? a.class_name : 'All day'}
+                  </span>
+                  {a.reason && <span className="text-xs text-neutral-400 truncate">{a.reason}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!classId && <p className="text-neutral-500">Pick a class to take attendance — tap the students who are absent, then save.</p>}
       {loading && <p className="text-neutral-500">Loading…</p>}
@@ -204,8 +284,18 @@ const AttendancePage = () => {
             Everyone is counted present — mark only the students who are absent, late, or excused.
           </p>
 
+          {search.trim() && (
+            <p className="px-4 pt-2 text-xs text-neutral-500">
+              Showing {visibleRoster.length} of {roster.length} students matching "{search.trim()}"
+              {' · '}
+              <button type="button" className="text-optio-purple hover:underline" onClick={() => setSearch('')}>
+                Clear
+              </button>
+            </p>
+          )}
+
           <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {roster.map((s) => (
+            {visibleRoster.map((s) => (
               <div
                 key={s.student_user_id}
                 data-student-row

@@ -259,11 +259,13 @@ def create_task_for_dependent(user_id, quest_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Task title is required'}), 400
 
-        if not data.get('pillar'):
-            return jsonify({'success': False, 'error': 'Task pillar is required'}), 400
-
-        pillar = data['pillar'].lower().strip()
-        if not is_valid_pillar(pillar):
+        # Pillar is optional: a school that hides the pillars
+        # (feature_flags.hide_pillars) sends none, and persist_accepted_task
+        # derives one from the diploma credit. Requiring it here stranded a
+        # Hearthwood parent behind an error naming a control that no longer
+        # exists on their form (2026-08-25).
+        pillar = (data.get('pillar') or '').lower().strip() or None
+        if pillar and not is_valid_pillar(pillar):
             pillar = normalize_pillar_name(pillar)
 
         xp_value = int(data.get('xp_value', 100))

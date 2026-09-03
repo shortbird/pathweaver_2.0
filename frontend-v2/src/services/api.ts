@@ -7,6 +7,7 @@
 
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
 import { recordApiCall } from './diagnostics';
@@ -15,17 +16,20 @@ import { captureException, captureMessage } from './sentry';
 // In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits a
 // platform-appropriate host loopback / LAN IP:
 //   - Web              → http://localhost:5001 (browser on the dev machine)
-//   - iOS simulator    → LAN IP (sim shares the host's network)
+//   - iOS sim / device → the Metro bundler's host (the dev machine's LAN IP,
+//     read from Constants.expoConfig.hostUri so it works on any dev machine)
 //   - Android emulator → 10.0.2.2:5001 (Android emulator can't see the host's
 //     LAN IP from inside the VM; 10.0.2.2 is the magic alias that points back
 //     to the host loopback)
-//   - Physical device  → set EXPO_PUBLIC_API_URL explicitly (or override LAN IP)
+//   - Physical device  → set EXPO_PUBLIC_API_URL explicitly (or Metro's hostUri)
 //
 // In production builds, EAS injects EXPO_PUBLIC_API_URL=https://api.optioeducation.com.
 // If the env var is missing in a native production build we fall back to prod rather
 // than a dev URL, so a bad build can't accidentally target a developer's laptop.
 const isDev = (typeof __DEV__ !== 'undefined' && __DEV__);
-const DEV_LAN_IP = 'http://192.168.68.53:5001';
+// hostUri looks like "192.168.68.53:8081" — same machine serves Metro and Flask.
+const metroHost = Constants.expoConfig?.hostUri?.split(':')[0];
+const DEV_LAN_IP = metroHost ? `http://${metroHost}:5001` : 'http://localhost:5001';
 const ANDROID_EMULATOR_HOST = 'http://10.0.2.2:5001';
 const PROD_API = 'https://api.optioeducation.com';
 const NATIVE_FALLBACK = isDev
@@ -236,6 +240,14 @@ export function reportApiError(error: AxiosError, status: number | null) {
   if (axios.isCancel(error)) return;
   if (status !== null && SILENCED_API_STATUSES.has(status)) return;
   const cfg = error.config;
+  // No config means this isn't a failed request at all — it's a rejection that
+  // re-entered the chain from an inner request. The transient-retry interceptor
+  // above re-issues via `api(cfg)`, so when the retry 401s and the refresh
+  // interceptor throws "No refresh token" (an ordinary expired session), that
+  // plain Error comes back out through THIS handler with no config and no
+  // response, and got filed as a network exception (OPTIO-MOBILE-6). The caller
+  // still sees the rejection, and session teardown still runs in refreshOnce.
+  if (!cfg) return;
   const method = cfg?.method?.toUpperCase();
   const extra = {
     method,
@@ -270,10 +282,12 @@ api.interceptors.response.use(
     const status = error.response?.status ?? null;
     logApiCall(error.config, status);
     reportApiError(error, status);
-    if (status === 403
-        && (error.response?.data as { code?: string } | undefined)?.code
-           === 'phone_verification_required') {
+    const holdCode = (error.response?.data as { code?: string } | undefined)?.code;
+    if (status === 403 && holdCode === 'phone_verification_required') {
       notifyPhoneVerificationRequired();
+    }
+    if (status === 403 && holdCode === 'signature_required') {
+      notifySignatureRequired();
     }
     return Promise.reject(error);
   }
@@ -306,6 +320,34 @@ export function onPhoneVerificationRequired(fn: PhoneHoldListener): () => void {
   phoneHoldListeners.add(fn);
   return () => {
     phoneHoldListeners.delete(fn);
+  };
+}
+
+// ── The paperwork (signature) hold ───────────────────────────────────────────
+// A school can send a family a document marked REQUIRED; until the guardian
+// signs it they 403 with `signature_required` on everything except /api/auth/*
+// and the signing flow (backend/middleware/signature_gate.py). Signing only
+// exists on the web app, so PaperworkHost puts a screen in front of the app
+// pointing them there. Same listener shape as the phone hold above, for the
+// same import-cycle reason.
+const signatureHoldListeners = new Set<PhoneHoldListener>();
+
+function notifySignatureRequired(): void {
+  signatureHoldListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // A listener that throws must not swallow the original API error.
+    }
+  });
+}
+
+/** Subscribe to "this account is held for unsigned required paperwork".
+ *  Returns an unsubscribe, so it drops straight into a useEffect. */
+export function onSignatureRequired(fn: PhoneHoldListener): () => void {
+  signatureHoldListeners.add(fn);
+  return () => {
+    signatureHoldListeners.delete(fn);
   };
 }
 
@@ -457,6 +499,9 @@ export const oeaAPI = {
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
   ensureCreditQuest: (creditId: string) =>
     api.post(`/api/oea/credits/${creditId}/quest`, {}),
+  // Record that the parent opened the getting-started video. External link, so
+  // this is a click and not playback — fire and forget.
+  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
 };
 
 export const questAPI = {
@@ -509,8 +554,10 @@ export const bountyAPI = {
     api.delete(`/api/bounties/${bountyId}/claims/${claimId}/evidence/${deliverableId}/${index}`),
   review: (bountyId: string, claimId: string, data: { decision: string; feedback?: string }) =>
     api.post(`/api/bounties/${bountyId}/review/${claimId}`, data),
-  uploadEvidence: (formData: FormData) =>
-    api.post('/api/uploads/evidence', formData),
+  // AI drafting outlives the 15s global axios timeout (multi-second Gemini
+  // call) — same override the quest task generator uses.
+  aiDraft: (data: { prompt: string; child_id?: string | null; child_context?: string; reward_hint?: string }) =>
+    api.post('/api/bounties/ai-draft', data, { timeout: 90000 }),
 };
 
 export interface BugReportContext {
@@ -650,6 +697,9 @@ export const messageAPI = {
     api.delete(`/api/messages/${messageId}`),
   markRead: (messageId: string) =>
     api.put(`/api/messages/${messageId}/read`, {}),
+  // Superadmin only: hand a support-thread message off to the sender's school inbox.
+  forwardToSchool: (messageId: string) =>
+    api.post(`/api/messages/${messageId}/forward-to-school`, {}),
   unreadCount: () => api.get('/api/messages/unread-count'),
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>

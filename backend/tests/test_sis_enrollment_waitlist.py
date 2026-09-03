@@ -105,7 +105,7 @@ class TestRelease:
     def _tables(self, *, reg_rows):
         return {
             ewl.TABLE: _chain([_WAITING], []),  # select entry, update released
-            'icreate_registrations': _chain(reg_rows, []),  # select deferred reg, reopen update
+            'registrations': _chain(reg_rows, []),  # select deferred reg, reopen update
             'households': _chain([]),           # hold update
             'users': _chain([{'email': 'mom@example.com', 'first_name': 'Mo'}],
                             [{'first_name': 'Kid', 'last_name': 'One'}]),
@@ -124,7 +124,7 @@ class TestRelease:
         # entry released
         assert tables[ewl.TABLE].update.call_args[0][0]['status'] == 'released'
         # registration reopened at the fee step, deferral consumed
-        reopened = tables['icreate_registrations'].update.call_args[0][0]
+        reopened = tables['registrations'].update.call_args[0][0]
         assert reopened['status'] == 'fee' and reopened['fee_deferred'] is False
         # household held until the fee is settled
         hold = tables['households'].update.call_args[0][0]
@@ -450,7 +450,7 @@ class TestReject:
     def _tables(self, reg):
         return {
             ewl.TABLE: _chain([_WAITING], []),          # select entry, update rejected
-            'icreate_registrations': _chain([reg], []),  # select reg, update refunded_cents
+            'registrations': _chain([reg], []),  # select reg, update refunded_cents
             # The Stripe secret is no longer read from organizations.feature_flags
             # (AUDIT.md C1) -- _icreate_stripe_secret is patched in the test below.
             # This chain now only serves the email's org-name lookup.
@@ -481,7 +481,7 @@ class TestReject:
         assert upd['status'] == 'rejected' and upd['refund_cents'] == 4167
         assert upd['stripe_refund_id'] == 're_1'
         # cumulative refund tracked on the registration
-        assert tables['icreate_registrations'].update.call_args[0][0]['refunded_cents'] == 4167
+        assert tables['registrations'].update.call_args[0][0]['refunded_cents'] == 4167
 
     def test_reject_never_over_refunds(self):
         # Two of three kids already refunded (8334); a third can only get 12500-8334.
@@ -497,7 +497,7 @@ class TestReject:
              patch('services.email_service.email_service.send_email', return_value=True):
             result = ewl.reject('org1', 'w1', rejected_by='staff1')
         assert result['refund_cents'] == 12500 - 8334  # capped at remaining
-        assert tables['icreate_registrations'].update.call_args[0][0]['refunded_cents'] == 12500
+        assert tables['registrations'].update.call_args[0][0]['refunded_cents'] == 12500
 
     def test_reject_refused_when_not_waiting(self):
         table = _chain([{**_WAITING, 'status': 'released'}])

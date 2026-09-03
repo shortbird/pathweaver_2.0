@@ -35,7 +35,7 @@ export function applyColorScheme(mode: ThemeMode): void {
   nativewindColorScheme.set(mode);
   if (Platform.OS === 'web') return; // web colorScheme has no systemColorScheme observable
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { systemColorScheme } = require('react-native-css-interop/dist/runtime/native/appearance-observables');
     const resolved = mode === 'system' ? (Appearance.getColorScheme() ?? 'light') : mode;
     systemColorScheme.set(resolved);

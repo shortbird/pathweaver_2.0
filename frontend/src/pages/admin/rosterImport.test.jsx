@@ -251,6 +251,44 @@ describe('RosterImportPage', () => {
     expect(screen.getByText(/will be added to this organization/)).toBeInTheDocument()
   })
 
+  it('shows a student with no email as a parent-managed profile', async () => {
+    api.post.mockImplementation(url => Promise.resolve({
+      data: url.endsWith('/preview')
+        ? {
+            ...PREVIEW,
+            students: [student(2, 'Noah', null, { dependent: true }),
+                       student(3, 'Ava', '29ahennessy@dsdmail.net')],
+            warnings: ['1 student(s) have no email and will be created as parent-managed ' +
+                       'profiles. They will not get an invite email; their parent signs in ' +
+                       'and manages them.'],
+            counts: { ...PREVIEW.counts, students_new: 2, dependents_new: 1 },
+          }
+        : {
+            ...COMMIT,
+            counts: { ...COMMIT.counts, invited: 2 },
+            results: [COMMIT.results[0],
+                      { row: 2, kind: 'student', email: null, name: 'Noah Hennessy',
+                        status: 'created', invited: false, dependent: true,
+                        linked_to: 'mhennessy@opened.co' },
+                      COMMIT.results[2]],
+          },
+    }))
+    await renderPage()
+    pasteRoster()
+    await previewIt()
+
+    // The row says what it becomes, the counts say how many, and the warning
+    // says no invite is coming for them.
+    expect(within(cell('Student first', 1).closest('tr')).getByText('managed profile'))
+      .toBeInTheDocument()
+    expect(screen.getByText('Managed profiles').previousSibling).toHaveTextContent('1')
+    expect(screen.getByText(/will not get an invite email/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Create 3 accounts/ }))
+    expect(await screen.findByText('managed profile — no email, parent signs in'))
+      .toBeInTheDocument()
+  })
+
   it('warns when new accounts were created but not emailed', async () => {
     api.post.mockImplementation(url => Promise.resolve({
       data: url.endsWith('/preview') ? PREVIEW
@@ -272,6 +310,57 @@ describe('RosterImportPage', () => {
     fireEvent.click(screen.getByLabelText('Remove row 1'))
 
     expect(cell('Student first', 1)).toHaveValue('Ava')
+  })
+
+  it('deletes every rejected row at once and drops the stale preview', async () => {
+    const three = PASTED + '\n\tHennessy\tMia\tnot-an-email\tHennessy\tMegan\tmhennessy@opened.co'
+    api.post.mockResolvedValueOnce({
+      data: {
+        ...PREVIEW,
+        can_import: false,
+        students: [student(3, 'Ava', '29ahennessy@dsdmail.net')],
+        row_errors: [
+          { row: 2, errors: ['"27nhennessy@dsdmail.net" already belongs to another student'] },
+          { row: 4, errors: ['"not-an-email" is not a valid email address'] },
+        ],
+        counts: { ...PREVIEW.counts, rows: 3, students_new: 1, invalid_rows: 2 },
+      },
+    })
+    await renderPage()
+    pasteRoster(three)
+    await previewIt()
+
+    // Both the grid toolbar and the error banner offer it; one click is enough.
+    const buttons = screen.getAllByRole('button', { name: 'Delete 2 rows with errors' })
+    expect(buttons).toHaveLength(2)
+    fireEvent.click(buttons[0])
+
+    // Only the clean row (plus the trailing blank) survives, and the plan built
+    // from the old rows is gone.
+    expect(cell('Student first', 1)).toHaveValue('Ava')
+    expect(cell('Student first', 2)).toHaveValue('')
+    expect(screen.queryByLabelText('Student first row 3')).not.toBeInTheDocument()
+    expect(screen.queryByText('Preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /with errors/ })).not.toBeInTheDocument()
+  })
+
+  it('leaves one blank row when every row had an error', async () => {
+    api.post.mockResolvedValueOnce({
+      data: {
+        ...PREVIEW,
+        can_import: false,
+        students: [],
+        row_errors: [{ row: 2, errors: ['bad'] }, { row: 3, errors: ['bad'] }],
+        counts: { ...PREVIEW.counts, students_new: 0, invalid_rows: 2 },
+      },
+    })
+    await renderPage()
+    pasteRoster()
+    await previewIt()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete 2 rows with errors' })[0])
+
+    expect(cell('Student first', 1)).toHaveValue('')
+    expect(screen.queryByLabelText('Student first row 2')).not.toBeInTheDocument()
   })
 
   it('surfaces a rejected request instead of leaving the page looking successful', async () => {

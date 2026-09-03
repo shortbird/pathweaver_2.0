@@ -1,0 +1,74 @@
+---
+/**
+ * The receipt: the site's signature visual. A real-life activity on top, the
+ * transcript row it became underneath. Matches the "It Counted" ad creative:
+ * activity, then receipt. Used on Home, Academy, and every lander.
+ */
+export interface Props {
+  activity: string
+  course: string
+  credit: string
+  status?: string
+  icon?: 'ball' | 'controller' | 'music' | 'brush' | 'flask' | 'heart' | 'run' | 'pan'
+  /** Photo of the activity; when set it becomes the card's header and replaces the icon */
+  image?: string
+  class?: string
+}
+const { activity, course, credit, status = 'Earned', icon = 'ball', image, class: className = '' } = Astro.props
+
+const icons: Record<string, string> = {
+  // Feather-style strokes, 24x24
+  ball: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0c2.5 2.5 4 6 4 10s-1.5 7.5-4 10m0-20C9.5 4.5 8 8 8 12s1.5 7.5 4 10M2.5 9h19M2.5 15h19',
+  controller: 'M6 11h4m-2-2v4m7-1h.01M18 10h.01M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z',
+  music: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  brush: 'M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z',
+  flask: 'M10 2v7.31L4.34 19.1A2 2 0 0 0 6.07 22h11.86a2 2 0 0 0 1.73-2.9L14 9.31V2m-5 0h6M8.5 15h7',
+  heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+  run: 'M13 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zM4 17l5 1 .75-1.5M15 21v-4l-4-3 1-6m0 0l-3.75 2L7 13m5-5l3 3 3 1',
+  pan: 'M8 3v3m4-3v3m4-3v3M5 11h14a1 1 0 0 1 1 1v1a8 8 0 0 1-8 8h0a8 8 0 0 1-8-8v-1a1 1 0 0 1 1-1z',
+}
+---
+
+<figure class={`bg-white rounded-2xl border border-neutral-100 shadow-lg overflow-hidden h-full flex flex-col ${className}`}>
+  {image && (
+    <div class="aspect-[16/9] overflow-hidden">
+      <img src={image} alt={activity} class="w-full h-full object-cover" loading="lazy" />
+    </div>
+  )}
+  <!-- The real-life activity. flex-1 keeps every card's transcript block
+       bottom-aligned when activity text wraps to a second line. -->
+  <div class="flex items-center gap-3 px-5 py-4 flex-1">
+    {!image && (
+      <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex-shrink-0" aria-hidden="true">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d={icons[icon]} />
+        </svg>
+      </span>
+    )}
+    <p class="font-semibold text-neutral-900">{activity}</p>
+  </div>
+
+  <!-- The transcript row it became -->
+  <div class="border-t border-dashed border-neutral-300 bg-neutral-50/60 px-5 pt-3 pb-4">
+    <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-semibold mb-2">
+      Official transcript &middot; Optio Academy
+    </p>
+    <!-- Fixed two-line row so every card is the same height: course + chip,
+         then credit + status. Never let the course name wrap. -->
+    <div class="bg-white rounded-lg border-l-4 border-l-optio-pink border border-neutral-100 px-4 py-3">
+      <div class="flex items-center justify-between gap-2 mb-1.5">
+        <span class="font-semibold text-neutral-900 text-sm whitespace-nowrap truncate">{course}</span>
+        <span class="px-2 py-0.5 bg-optio-purple text-white text-[9px] font-bold rounded-full tracking-wider flex-shrink-0">OPTIO</span>
+      </div>
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-sm text-neutral-500 font-medium whitespace-nowrap">{credit}</span>
+        <span class="inline-flex items-center gap-1 text-sm font-semibold text-green-700 whitespace-nowrap">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          {status}
+        </span>
+      </div>
+    </div>
+  </div>
+</figure>

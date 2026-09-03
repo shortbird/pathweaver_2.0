@@ -99,7 +99,7 @@ def _today_org_schedule(org_id: str, dow: int, today: str) -> List[Dict[str, Any
     if teacher_ids:
         teachers = {u['id']: _display_name(u) for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', teacher_ids).execute()
         ).data or []}
 

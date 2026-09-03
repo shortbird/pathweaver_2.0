@@ -14,6 +14,10 @@
 
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
+import { api, refreshAccessToken } from '@/src/services/api';
+import { tokenStore } from '@/src/services/tokenStore';
+import { postRefreshWithRetry } from '@/src/services/refreshRetry';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -33,10 +37,6 @@ jest.mock('@/src/services/sentry', () => ({
   captureException: jest.fn(),
   captureMessage: jest.fn(),
 }));
-
-import { api, refreshAccessToken } from '@/src/services/api';
-import { tokenStore } from '@/src/services/tokenStore';
-import { postRefreshWithRetry } from '@/src/services/refreshRetry';
 
 const mockRefresh = postRefreshWithRetry as jest.Mock;
 

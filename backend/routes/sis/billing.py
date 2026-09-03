@@ -155,9 +155,12 @@ def update_invoice(user_id, invoice_id):
     """Correct an invoice that was already sent, keeping its number.
 
     Body: {line_items?: [{description, amount_cents, class_id?, kind?}],
-    discount_cents?, due_date?, processing_fee_cents?}. Omitted fields are left
-    alone; `line_items` replaces the whole list. Sending a second invoice was
-    the only previous way to fix a wrong amount, which left the family with two.
+    discount_cents?, due_date?}. Omitted fields are left alone; `line_items`
+    replaces the whole list. Sending a second invoice was the only previous way
+    to fix a wrong amount, which left the family with two.
+
+    The card processing fee is one of the line items (kind 'fee', description
+    'Card processing fee'), so it is edited and waived like any other line.
     """
     org_id, err = _org_or_error(user_id)
     if err:
@@ -169,14 +172,10 @@ def update_invoice(user_id, invoice_id):
     discount = data.get('discount_cents')
     if discount is not None and (not isinstance(discount, int) or discount < 0):
         return jsonify({'success': False, 'error': 'discount_cents must be a non-negative integer'}), 400
-    fee = data.get('processing_fee_cents')
-    if fee is not None and (not isinstance(fee, int) or fee < 0):
-        return jsonify({'success': False, 'error': 'processing_fee_cents must be a non-negative integer'}), 400
     result = billing.update_invoice(
         org_id, invoice_id, actor_user_id=user_id,
         line_items=line_items, discount_cents=discount,
-        due_date=data['due_date'] if 'due_date' in data else billing._UNSET,
-        processing_fee_cents=fee)
+        due_date=data['due_date'] if 'due_date' in data else billing._UNSET)
     if result.get('error'):
         code = 404 if result['error'] == 'Invoice not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code
@@ -207,7 +206,9 @@ def billing_detail(user_id):
     outside Optio (UFA remits an amount, not a statement of what it covers).
 
     ?household_id= narrows to one family, ?kind=supply to one category of
-    charge, ?format=csv downloads the same rows.
+    charge, ?format=csv downloads the same rows. ?q= is the page's search box,
+    honoured on the CSV only: the download has to be of what the office is
+    looking at, not of rows the screen filtered out.
     """
     org_id, err = _org_or_error(user_id)
     if err:
@@ -219,11 +220,22 @@ def billing_detail(user_id):
     if request.args.get('format') == 'csv':
         import csv
         import io
+        rows = report['rows']
+        terms = (request.args.get('q') or '').lower().split()
+        if terms:
+            def _haystack(r):
+                return ' '.join(str(v) for v in (
+                    r['family_name'] or '', r['student_name'] or '',
+                    r['invoice_number'] or '', r['description'] or '', r['kind'],
+                    f"${abs(r['amount_cents'] or 0) / 100:.2f}",
+                    f"${abs(r['invoice_balance_cents'] or 0) / 100:.2f}",
+                )).lower()
+            rows = [r for r in rows if all(t in _haystack(r) for t in terms)]
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(['Family', 'Student', 'Invoice', 'Status', 'Issued', 'Due',
                     'Charge', 'Type', 'Amount', 'Invoice total', 'Paid', 'Balance'])
-        for r in report['rows']:
+        for r in rows:
             w.writerow([
                 r['family_name'] or '', r['student_name'] or '',
                 r['invoice_number'] or '', r['status'] or '',
@@ -252,7 +264,10 @@ def invoice_audit(user_id, invoice_id):
 @bp.route('/invoices/<invoice_id>/processing-fee', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def set_processing_fee(user_id, invoice_id):
-    """Admin override of an invoice's processing fee (waive it or set the card rate)."""
+    """Admin override of an invoice's processing fee (waive it or set the card rate).
+
+    Writes the fee LINE on the invoice, so the family's copy shows what changed.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -345,6 +360,34 @@ def record_payment(user_id, invoice_id):
     )
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/invoices/<invoice_id>/refunds', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def record_refund(user_id, invoice_id):
+    """Record money returned to the family, as a reversing entry.
+
+    The amount arrives positive and is stored negative, so the ledger, the
+    receipt and the invoice balance all move together. It reopens that much of
+    the balance — if the family no longer owes it, the invoice also needs an
+    edit or a void.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    amount = data.get('amount_cents')
+    if not isinstance(amount, int) or amount <= 0:
+        return jsonify({'success': False, 'error': 'amount_cents must be a positive integer'}), 400
+    result = billing.record_refund(
+        org_id, invoice_id, amount,
+        method=data.get('method'), external_ref=data.get('external_ref'),
+        recorded_by=user_id, note=data.get('note'),
+    )
+    if result.get('error'):
+        status = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
     return jsonify({'success': True, **result}), 201
 
 
@@ -468,3 +511,33 @@ def tuition_autopay_cron():
         if not is_super:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
     return jsonify({'success': True, **billing.charge_due_installments()})
+
+
+@bp.route('/internal/recurring-tuition', methods=['POST'])
+def recurring_tuition_cron():
+    """Cron entrypoint: bill every household whose open-ended monthly tuition
+    falls due today, across ALL orgs. One invoice and one charge per household,
+    with a line per student.
+
+    Same auth as the autopay sweep: X-Cron-Secret, or a signed-in superadmin for
+    manual triggering. Idempotent within a day — a billed row's next_charge_on
+    has already moved to next month, so a re-run finds nothing due.
+    """
+    from database import get_supabase_admin_client
+    from services import sis_recurring_tuition_service as recurring
+    secret = request.headers.get('X-Cron-Secret')
+    from utils.cron_auth import is_valid_cron_secret
+    is_cron = is_valid_cron_secret(secret)
+    if not is_cron:
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (
+                get_supabase_admin_client().table('users').select('role')
+                .eq('id', uid).limit(1).execute()
+            ).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **recurring.charge_due()})

@@ -2,14 +2,14 @@
  * Teacher SpeedGrader evidence page — token gating + quest-scoped render.
  */
 
-jest.mock('@/src/services/api', () => ({
-  api: { defaults: { baseURL: 'http://test.local' } },
-}));
-
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 import LtiEvidence from '../lti-evidence';
+
+jest.mock('@/src/services/api', () => ({
+  api: { defaults: { baseURL: 'http://test.local' } },
+}));
 
 const PAYLOAD = {
   student: { display_name: 'Jane Doe' },

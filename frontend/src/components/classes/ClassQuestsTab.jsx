@@ -6,12 +6,15 @@ import {
   BookOpenIcon,
   ClockIcon,
   CalendarDaysIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
+import api from '../../services/api'
 import classService from '../../services/classService'
 import { useOrgFeature } from '../../contexts/OrganizationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import AddQuestModal from './AddQuestModal'
+import QuestForm from '../admin/QuestForm'
 
 /**
  * Convert an ISO/UTC timestamp to the value a <input type="datetime-local"> expects
@@ -68,9 +71,23 @@ function InlineDateEditor({ value, setValue, onSave, onClear, onCancel, hasValue
 /**
  * QuestRow - a single quest assigned to the class, with optional scheduling + due date.
  */
-function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, onSchedule, onSetDueDate }) {
+function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, onSchedule, onSetDueDate, onEdit }) {
   const quest = item.quests || {}
   const [editing, setEditing] = useState(null) // 'schedule' | 'due' | null
+  const [showTasks, setShowTasks] = useState(false)
+  const [tasks, setTasks] = useState([])
+  const [tasksLoading, setTasksLoading] = useState(false)
+
+  // Fetched on first open, not with the list: a class can carry a dozen quests
+  // and their tasks are only wanted for the one being read.
+  useEffect(() => {
+    if (!showTasks || tasks.length || tasksLoading) return
+    setTasksLoading(true)
+    api.get(`/api/admin/quests/${item.quest_id}/template-tasks`)
+      .then((r) => setTasks(r.data?.tasks || []))
+      .catch(() => setTasks([]))
+      .finally(() => setTasksLoading(false))
+  }, [showTasks, item.quest_id])
   const [scheduleValue, setScheduleValue] = useState(isoToLocalInput(item.publish_at))
   const [dueValue, setDueValue] = useState(isoToLocalInput(item.due_date))
 
@@ -115,9 +132,58 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
       </div>
 
       <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-gray-900 truncate">{quest.title}</h4>
-        {quest.description && (
+        {/* The row used to show one clamped line and nothing else, so staff had
+            no way to read back the instructions they had written without
+            opening the editor (Gryffin, 2026-08-27: "There also isn't a way to
+            currently see the instructions that we gave for each quest"). */}
+        <button
+          type="button"
+          onClick={() => setShowTasks((v) => !v)}
+          className="text-left w-full group"
+          title={showTasks ? 'Hide the tasks' : 'Show the tasks and instructions'}
+        >
+          <h4 className="font-medium text-gray-900 truncate group-hover:text-optio-purple transition-colors">
+            {quest.title}
+          </h4>
+        </button>
+        {quest.description && !showTasks && (
           <p className="text-sm text-gray-500 line-clamp-1">{quest.description}</p>
+        )}
+
+        {showTasks && (
+          <div className="mt-2 space-y-2">
+            {quest.description && (
+              <p className="text-sm text-gray-600 whitespace-pre-line">{quest.description}</p>
+            )}
+            {quest.material_link && (
+              <a href={quest.material_link} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-optio-purple hover:underline break-all">
+                {quest.material_link}
+              </a>
+            )}
+            {tasksLoading && <p className="text-sm text-gray-400">Loading tasks…</p>}
+            {!tasksLoading && tasks.length === 0 && (
+              <p className="text-sm text-gray-400">This quest has no tasks yet.</p>
+            )}
+            {tasks.map((t, i) => (
+              <div key={t.id || i} className="text-sm border-l-2 border-gray-200 pl-3">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-medium text-gray-800">{t.title}</span>
+                  {t.pillar && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
+                      {t.pillar}
+                    </span>
+                  )}
+                  {t.xp_value != null && (
+                    <span className="text-xs text-gray-500">{t.xp_value} XP</span>
+                  )}
+                </div>
+                {t.description && (
+                  <p className="text-gray-600 mt-0.5 whitespace-pre-line">{t.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
         {editing === 'schedule' && (
@@ -160,12 +226,24 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
         </span>
       )}
 
-      {/* Due-date button */}
-      {dueDatesEnabled && !editing && (
+      {/* Due-date button. Labelled, not a bare icon: a school with the feature
+          switched on asked how to set due dates at all, because a calendar
+          glyph among four other glyphs reads as decoration (Gryffin,
+          2026-08-27: "How do we add due dates to any tasks that we assign?"). */}
+      {dueDatesEnabled && !editing && !dueIso && (
+        <button
+          onClick={() => setEditing('due')}
+          className="px-2 py-1 flex items-center gap-1 text-xs text-gray-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors whitespace-nowrap"
+        >
+          <CalendarDaysIcon className="w-4 h-4" />
+          Set due date
+        </button>
+      )}
+      {dueDatesEnabled && !editing && dueIso && (
         <button
           onClick={() => setEditing('due')}
           className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-          title={dueIso ? 'Edit due date' : 'Set due date'}
+          title="Edit due date"
         >
           <CalendarDaysIcon className="w-5 h-5" />
         </button>
@@ -179,6 +257,19 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
           title={isFuture ? 'Edit publish schedule' : 'Schedule publish'}
         >
           <ClockIcon className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Edit. The only way into the quest editor used to be an unlabelled row
+          click on the org Quests page, which advisors cannot even reach --
+          so from here a quest looked permanent once saved. */}
+      {!editing && (
+        <button
+          onClick={() => onEdit(quest)}
+          className="p-2 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
+          title="Edit this quest and its tasks"
+        >
+          <PencilSquareIcon className="w-5 h-5" />
         </button>
       )}
 
@@ -201,6 +292,7 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingQuest, setEditingQuest] = useState(null)
 
   const { isSuperadmin } = useAuth()
   // Per-org capabilities; superadmin (no org) can use them on any class.
@@ -355,6 +447,7 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
               onRemove={handleRemoveQuest}
               onSchedule={handleScheduleQuest}
               onSetDueDate={handleSetDueDate}
+              onEdit={setEditingQuest}
             />
           ))}
         </div>
@@ -367,6 +460,16 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
           existingQuestIds={quests.map((q) => q.quest_id)}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddQuest}
+        />
+      )}
+
+      {editingQuest && (
+        <QuestForm
+          mode="edit"
+          quest={editingQuest}
+          organizationId={orgId}
+          onClose={() => setEditingQuest(null)}
+          onSuccess={() => { setEditingQuest(null); fetchQuests() }}
         />
       )}
     </div>

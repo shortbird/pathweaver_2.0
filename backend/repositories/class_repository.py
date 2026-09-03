@@ -95,7 +95,16 @@ class ClassRepository(BaseRepository):
         return response.data[0]
 
     def archive_class(self, class_id: str) -> Dict[str, Any]:
-        """Archive a class (soft delete)"""
+        """Archive a class (soft delete). Withdraws its active enrollments too:
+        an archived class is hidden from families, so an enrollment left active
+        in one reads as "busy at this time" to schedule-conflict checks while
+        the family sees nothing to drop (phantom Expressions conflict,
+        iCreate 2026-08-24). Rows are kept (withdrawn), not deleted."""
+        self.admin_client.table('class_enrollments')\
+            .update({'status': 'withdrawn'})\
+            .eq('class_id', class_id)\
+            .eq('status', 'active')\
+            .execute()
         return self.update_class(class_id, {'status': 'archived'})
 
     def restore_class(self, class_id: str) -> Dict[str, Any]:
@@ -544,10 +553,33 @@ class ClassRepository(BaseRepository):
             .execute()
         return bool(response.data)
 
-    def can_user_access_class(self, class_id: str, user_id: str, user_role: str, user_org_id: Optional[str]) -> bool:
-        """Check if a user can access a class"""
+    @staticmethod
+    def _role_set(user_role) -> set:
+        """Accept either one role or every role the account holds.
+
+        Callers used to pass a single string resolved from `org_roles[0]`, which
+        is an arbitrary pick: an org admin who is also listed as an advisor
+        resolved to 'advisor' and lost the org_admin branch below, so she was
+        refused a class in her own organization (Sentry OPTIO-WEB-F). Both
+        shapes are accepted so no call site can silently keep the old
+        one-role-wins behaviour.
+        """
+        if user_role is None:
+            return set()
+        if isinstance(user_role, str):
+            return {user_role}
+        return {r for r in user_role if r}
+
+    def can_user_access_class(self, class_id: str, user_id: str, user_role, user_org_id: Optional[str]) -> bool:
+        """Check if a user can access a class.
+
+        `user_role` may be a single role or an iterable of every role the caller
+        holds; each branch below is checked against all of them.
+        """
+        roles = self._role_set(user_role)
+
         # Superadmin can access everything
-        if user_role == 'superadmin':
+        if 'superadmin' in roles:
             return True
 
         # Get class
@@ -555,9 +587,11 @@ class ClassRepository(BaseRepository):
         if not cls:
             return False
 
-        # Org admin / campus coordinator can access classes in their org
-        # (class management is operational, not financial — sis_roles.ADMIN_ROLES)
-        if user_role in ('org_admin', 'campus_coordinator') and user_org_id == cls.get('organization_id'):
+        # Org admins (and campus coordinators, who run the campus) can access
+        # classes in their org -- class management is operational, not financial
+        # (sis_roles.ADMIN_ROLES). Tested against the whole role set, never a
+        # single collapsed role: see routes/classes/_caller.py.
+        if roles & {'org_admin', 'campus_coordinator'} and user_org_id == cls.get('organization_id'):
             return True
 
         # Advisors can access classes they're assigned to
@@ -565,12 +599,12 @@ class ClassRepository(BaseRepository):
             return True
 
         # Students can access classes they're enrolled in
-        if user_role == 'student' and self.is_enrolled_student(class_id, user_id):
+        if 'student' in roles and self.is_enrolled_student(class_id, user_id):
             return True
 
         return False
 
-    def can_user_manage_class(self, class_id: str, user_id: str, user_role: str, user_org_id: Optional[str]) -> bool:
+    def can_user_manage_class(self, class_id: str, user_id: str, user_role, user_org_id: Optional[str]) -> bool:
         """Check if a user can manage (modify) a class"""
         # Same as access for now - advisors have full management of their classes
         return self.can_user_access_class(class_id, user_id, user_role, user_org_id)

@@ -32,6 +32,7 @@ const { classService, api, state } = vi.hoisted(() => {
       getMyStudentClasses: vi.fn(() => Promise.resolve({ success: true, classes: state.classes })),
       getClassQuests: vi.fn(() => Promise.resolve({ success: true, quests: state.classQuests })),
       getClassAdvisors: vi.fn(() => Promise.resolve({ success: true, advisors: [] })),
+      getClassCourses: vi.fn(() => Promise.resolve({ success: true, courses: [] })),
     },
     api: {
       get: vi.fn((url) => {
@@ -49,9 +50,9 @@ vi.mock('../../services/api', () => ({ default: api }))
 import StudentClassesView from './StudentClassesView'
 
 const renderDetail = () => rtlRender(
-  <MemoryRouter initialEntries={['/classes/c1']}>
+  <MemoryRouter initialEntries={['/org-classes/c1']}>
     <Routes>
-      <Route path="/classes/:classId" element={<StudentClassesView />} />
+      <Route path="/org-classes/:classId" element={<StudentClassesView />} />
       <Route path="/quests/:questId" element={<div>QUEST PAGE</div>} />
     </Routes>
   </MemoryRouter>
@@ -96,7 +97,7 @@ describe('StudentClassesView — completed quest archive', () => {
     // Still navigates to the quest page like any other quest row
     fireEvent.click(completedQuest)
     expect(await screen.findByText('QUEST PAGE')).toBeInTheDocument()
-    expect(sessionStorage.getItem('classReturnPath')).toBe('/classes/c1')
+    expect(sessionStorage.getItem('classReturnPath')).toBe('/org-classes/c1')
   })
 
   it('collapses again on a second click', async () => {

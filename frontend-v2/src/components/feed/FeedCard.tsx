@@ -10,7 +10,7 @@ import { View, Pressable, Platform, Share, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
+import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage , PillarBadge } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
 import { DocumentViewer, isPdfUrl } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
@@ -21,7 +21,6 @@ import { getViewers, createShareLink, toggleVisibility, toggleFeedHighlight } fr
 import { haptic } from '@/src/utils/haptics';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
-import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
@@ -182,9 +181,9 @@ interface EvidenceModel {
   videoUrl?: string | null;
   videoPoster: string | null;
   textContent?: string | null;
-  documentBlocks: Array<{ type: string; content?: string; url?: string; title?: string }>;
-  linkBlocks: Array<{ type: string; content?: string; url?: string; title?: string }>;
-  audioItems: Array<{ url?: string; title?: string; duration_ms?: number }>;
+  documentBlocks: { type: string; content?: string; url?: string; title?: string }[];
+  linkBlocks: { type: string; content?: string; url?: string; title?: string }[];
+  audioItems: { url?: string; title?: string; duration_ms?: number }[];
   isLink: boolean;
   isDocument: boolean;
 }
@@ -271,18 +270,19 @@ export function computeEvidenceModel(
  *  window rather than just the visible one. Identical 56px frame, so swapping
  *  placeholder <-> player doesn't reflow the list. */
 function AudioClipPlaceholder({ durationMs }: { durationMs?: number }) {
+  const c = useThemeColors();
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: '#F3E8FF',
+        backgroundColor: c.brandSurface,
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderWidth: 1,
-        borderColor: 'rgba(109, 70, 155, 0.25)',
+        borderColor: c.brand + '40',
         height: 56,
         minWidth: 180,
       }}
@@ -290,7 +290,7 @@ function AudioClipPlaceholder({ durationMs }: { durationMs?: number }) {
       <View
         style={{
           width: 36, height: 36, borderRadius: 18,
-          backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center',
         }}
       >
         <Ionicons name="play" size={18} color="#FFFFFF" />
@@ -333,6 +333,7 @@ function DocumentPoster({ title }: { title?: string }) {
 }
 
 function EvidenceDisplayImpl({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
+  const c = useThemeColors();
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   const {
@@ -383,7 +384,7 @@ function EvidenceDisplayImpl({ evidence, media, description, isActive = true, up
           look like it failed before the video block lands. */}
       {!videoUrl && uploadingPct !== undefined && (
         <View className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200 items-center justify-center" style={{ height: 160 }}>
-          <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
+          <Ionicons name="cloud-upload-outline" size={28} color={c.brand} />
           <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
             Uploading… {uploadingPct}%
           </UIText>
@@ -489,7 +490,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   // Background video upload progress for this moment (if any in flight).
   const uploadingPct = useMediaUploadStore((s) =>
     item.learning_event_id ? s.uploads[item.learning_event_id] : undefined);
-  const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null; is_platform?: boolean }>>([]);
+  const [viewers, setViewers] = useState<{ id: string; display_name: string; avatar_url: string | null; is_platform?: boolean }[]>([]);
   const [showViewersList, setShowViewersList] = useState(false);
   const [loadingViewers, setLoadingViewers] = useState(false);
   const [commentsCount, setCommentsCount] = useState(item.comments_count);
@@ -814,7 +815,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               <Ionicons
                 name="eye-outline"
                 size={26}
-                color={showViewersList ? '#6D469B' : c.iconMuted}
+                color={showViewersList ? c.brand : c.iconMuted}
               />
               {viewsCount > 0 && (
                 <UIText size="sm" className={showViewersList ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}>
@@ -888,7 +889,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                           <AvatarFallbackText>{v.display_name?.charAt(0) || '?'}</AvatarFallbackText>
                         )}
                       </Avatar>
-                      <UIText size="xs" className="text-typo-600 dark:text-dark-typo-700">{v.display_name}</UIText>
+                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-700">{v.display_name}</UIText>
                     </HStack>
                   ))}
                 </VStack>

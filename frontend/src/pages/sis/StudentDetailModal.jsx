@@ -6,6 +6,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import WeeklyScheduleGrid from '../../components/sis/WeeklyScheduleGrid'
 import PersonPhoto from '../../components/sis/PersonPhoto'
+import { classLabel } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -562,10 +563,10 @@ const SchedulePanel = ({ student, orgId }) => {
               <SearchSelect
                 value={chosen} onChange={setChosen} options={options}
                 getId={(c) => c.id}
-                getLabel={(c) => `${c.name}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}`}
+                getLabel={(c) => `${classLabel(c)}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}`}
                 placeholder="Search classes…" className="flex-1"
               />
-              <Button size="sm" onClick={enroll} loading={busy}>Enroll</Button>
+              <Button size="sm" onClick={() => enroll()} loading={busy}>Enroll</Button>
             </div>
           )}
       </div>

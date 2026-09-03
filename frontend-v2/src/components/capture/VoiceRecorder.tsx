@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, Alert, Animated, Easing, Platform } from 'react-native';
+import { View, Pressable, Animated, Easing, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   AudioModule,
@@ -27,8 +27,9 @@ import {
   setAudioModeAsync,
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
-import { VStack, HStack, UIText, Heading, Button, ButtonText } from '../ui';
+import { VStack, HStack, UIText } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 export interface RecordedClip {
   uri: string;
@@ -71,10 +72,7 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
       try {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert(
-            'Microphone access needed',
-            'To record voice notes, please allow microphone access in Settings.',
-          );
+          showAlert('Microphone access needed', 'To record voice notes, please allow microphone access in Settings.');
           onCancel();
           return;
         }
@@ -91,7 +89,7 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
         await recorder.prepareToRecordAsync();
         recorder.record();
       } catch (err) {
-        Alert.alert('Could not start recording', 'Try again in a moment.');
+        showAlert('Could not start recording', 'Try again in a moment.');
         onCancel();
       } finally {
         if (!cancelled) setStarting(false);
@@ -129,7 +127,7 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
       // After stop(), recorder.uri is the file path on disk.
       const uri = recorder.uri;
       if (!uri) {
-        Alert.alert('Recording failed', 'No audio was captured.');
+        showAlert('Recording failed', 'No audio was captured.');
         onCancel();
         return;
       }
@@ -151,7 +149,7 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
       const name = `voice-${Date.now()}.${ext}`;
       onRecorded({ uri, name, fileSize, durationMs });
     } catch (err) {
-      Alert.alert('Could not save recording', 'Try recording again.');
+      showAlert('Could not save recording', 'Try recording again.');
       onCancel();
     } finally {
       setStopping(false);
@@ -293,12 +291,12 @@ export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: '#F3E8FF',
+        backgroundColor: c.brandSurface,
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderWidth: 1,
-        borderColor: 'rgba(109, 70, 155, 0.25)',
+        borderColor: c.brand + '40',
         height: 56,
         minWidth: 180,
       }}
@@ -306,11 +304,13 @@ export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
       <Pressable
         onPress={togglePlay}
         hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={status.playing ? 'Pause voice note' : 'Play voice note'}
         style={{
           width: 36,
           height: 36,
           borderRadius: 18,
-          backgroundColor: '#6D469B',
+          backgroundColor: c.brand,
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -329,6 +329,8 @@ export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
         <Pressable
           onPress={onRemove}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Remove voice note"
           style={{
             width: 24,
             height: 24,

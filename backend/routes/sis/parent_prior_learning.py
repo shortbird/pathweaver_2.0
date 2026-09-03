@@ -146,57 +146,16 @@ def add_evidence(user_id, record_id):
         return err
 
     body = request.form if request.files or request.form else (request.json or {})
-    evidence_type = (body.get('evidence_type') or '').strip()
-    if evidence_type not in prior.EVIDENCE_TYPES:
-        return jsonify({'success': False, 'error': 'Unsupported evidence type'}), 400
+    # The record must exist and be the caller's BEFORE a blob is written, or a
+    # bad record id turns into an orphaned upload. build_evidence uploads.
+    if (body.get('evidence_type') or '').strip() in ('image', 'document') \
+            and not prior.get_own_record(record_id, org_id, user_id):
+        return jsonify({'success': False, 'error': 'Record not found'}), 404
 
-    evidence = {'evidence_type': evidence_type, 'title': body.get('title')}
-
-    if evidence_type == 'text':
-        content = (body.get('content') or body.get('text_content') or '').strip()
-        if not content:
-            return jsonify({'success': False, 'error': 'Write something first'}), 400
-        evidence['content'] = content
-
-    elif evidence_type in ('link', 'video'):
-        url = (body.get('url') or body.get('text_content') or '').strip()
-        if not url.startswith(('http://', 'https://')):
-            return jsonify({'success': False, 'error': 'Enter a full link, starting with https://'}), 400
-        evidence['url'] = url
-
-    else:  # image | document
-        file = request.files.get('file')
-        if not file or not file.filename:
-            return jsonify({'success': False, 'error': 'Choose a file to upload'}), 400
-        # The record must exist and be the caller's BEFORE a blob is written, or
-        # a bad record id turns into an orphaned upload.
-        if not prior.get_own_record(record_id, org_id, user_id):
-            return jsonify({'success': False, 'error': 'Record not found'}), 404
-        from database import get_supabase_admin_client
-        from services.media_upload_service import MediaUploadService
-        # admin client justified: the upload pipeline writes to storage on behalf
-        # of the guardian, who has just been verified as this record's owner.
-        result = MediaUploadService(get_supabase_admin_client()).upload_evidence_file(
-            file,
-            user_id=user_id,
-            context_type='prior_learning',
-            context_id=record_id,
-            block_type=evidence_type,
-        )
-        if not result.success:
-            return jsonify({'success': False,
-                            'error': result.error_message or 'Upload failed'}), 400
-        evidence.update({
-            # Canonical pointer to persist, plus the signed twin for the
-            # immediate preview (the bucket is private).
-            'url': result.file_url,
-            'display_url': result.display_url,
-            'title': body.get('title') or result.filename,
-            'file_name': result.filename,
-            'file_size': result.file_size,
-            'content_type': result.content_type,
-            'content': (body.get('note') or body.get('content') or '').strip() or None,
-        })
+    evidence, bad = prior.build_evidence(body, request.files.get('file'),
+                                         uploader_id=user_id, record_id=record_id)
+    if bad:
+        return _fail(bad)
 
     saved = prior.add_evidence(record_id, org_id, user_id, evidence)
     if saved.get('error'):

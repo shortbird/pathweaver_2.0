@@ -14,7 +14,9 @@
     "ota:export": "expo export --source-maps --platform ios --platform android --output-dir dist",
     "ota:sourcemaps": "SENTRY_URL=https://sentry.io/ sentry-expo-upload-sourcemaps dist",
     "ota:preview": "npm run ota:export && npm run ota:sourcemaps && eas update --branch preview --skip-bundler --input-dir dist",
-    "ota:production": "npm run ota:export && npm run ota:sourcemaps && eas update --branch production --skip-bundler --input-dir dist"
+    "ota:production": "npm run ota:export && npm run ota:sourcemaps && eas update --branch production --skip-bundler --input-dir dist",
+    "lint": "eslint app src",
+    "lint:fix": "eslint app src --fix"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
@@ -83,6 +85,9 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "jest": "^29.7.0",
     "jest-expo": "~55.0.0",
     "react-test-renderer": "^19.2.0",

@@ -685,13 +685,22 @@ def _minutes(t: Optional[str]) -> Optional[int]:
     return h * 60 + m
 
 
-def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
+def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]],
+                  with_times: bool = False) -> str:
     """Name WHEN a meeting happens, in the school's own vocabulary: the
     teaching block(s) it overlaps ('Block 2'; the block's label when it has
-    one; 'Blocks 1-3' for a span), else the raw times."""
+    one; 'Blocks 1-3' for a span), else the raw times.
+
+    `with_times` appends the meeting's actual times to a block name —
+    'Block 2 (10:30am-11:30am)'. The student-schedule master list wants that:
+    a block name alone means nothing to anyone who hasn't memorized the
+    school's block grid, so its cells always carry the time range. The
+    day-rosters report keeps bare names — each class line there already
+    prints its own times."""
     ms, me = _minutes(meeting.get('start_time')), _minutes(meeting.get('end_time'))
     if ms is None or me is None:
         return ''
+    when = f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
     hits = []
     for n, b in enumerate(blocks or [], start=1):
         bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
@@ -700,15 +709,17 @@ def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]]) -> str:
         if ms < be and me > bs:
             hits.append((n, b))
     if not hits:
-        return f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
+        return when
     names = [(b.get('label') or '').strip() or f'Block {n}' for n, b in hits]
-    if len(names) == 1:
-        return names[0]
     numbers = [n for n, _ in hits]
-    if (numbers == list(range(numbers[0], numbers[0] + len(numbers)))
+    if len(names) == 1:
+        label = names[0]
+    elif (numbers == list(range(numbers[0], numbers[0] + len(numbers)))
             and all(not (b.get('label') or '').strip() for _, b in hits)):
-        return f'Blocks {numbers[0]}-{numbers[-1]}'
-    return ' + '.join(names)
+        label = f'Blocks {numbers[0]}-{numbers[-1]}'
+    else:
+        label = ' + '.join(names)
+    return f'{label} ({when})' if with_times else label
 
 
 def student_schedule_report(org_id: str) -> Dict[str, Any]:
@@ -729,7 +740,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
     blocks = teaching_blocks(
         sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
 
-    # class_id -> [(day, minutes-for-sorting, 'Block 2: Pottery')], and apart
+    # class_id -> [(day, minutes-for-sorting, 'Block 2 (10:30am-11:30am): Pottery')], and apart
     # from those the classes with no scheduled meeting at all.
     slots_by_class: Dict[str, List] = {}
     unscheduled_by_class: Dict[str, str] = {}
@@ -740,7 +751,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
             day = m.get('day_of_week')
             if day is None:
                 continue
-            slot = _meeting_slot(m, blocks)
+            slot = _meeting_slot(m, blocks, with_times=True)
             text = f'{slot}: {name}' if slot and name else (slot or name)
             entries.append((day, _minutes(m.get('start_time')) or 0, text))
         if entries:
@@ -900,3 +911,172 @@ def day_rosters_csv_rows(report: Dict[str, Any]) -> List[List[str]]:
 
 DAY_ROSTERS_CSV_HEADER = ['Day', 'Block', 'Time', 'Class', 'Room', 'Teacher',
                           'Student', 'Family']
+
+
+# ── Block rosters (one sheet per block, classes side by side) ────────────────
+# iCreate (Marika), 2026-08-24: "I am struggling to find reports that will work
+# exactly how I want them to work ... I have put together two spreadsheets that
+# I adapted from either the class rosters page or the day rosters plus looking
+# back and forth at room assignments ... something like the attached would be
+# great for Tuesdays and Thursdays Blocks 1-5."
+#
+# Her spreadsheets are the day roster pivoted a third way: ONE block, every
+# class running in it laid out across the page, each column headed by the class
+# and its room with the students and their ages beneath. She was hand-building
+# them because two things the day roster does made her cross-reference by hand:
+#
+#   1. It has no ages. Half of what the front office does with a block sheet is
+#      tell a 5-year-old from a 15-year-old at a glance.
+#   2. A class spanning several blocks gets its OWN slot there ('Blocks 1-3'),
+#      so Kinder Nature School (9:30-12:30) is absent from the Block 1 list even
+#      though those children are in the building at 9:30. Here a class appears
+#      under EVERY block it overlaps — the question this sheet answers is "who
+#      is where right now", and right now they are in it.
+
+def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]:
+    """Every teaching day, its blocks, and each block's classes side by side.
+
+    `day` (0=Sun..6=Sat) narrows to one day; None returns them all.
+
+    Returns {'days': [{key, label, blocks: [{key, label, time, student_count,
+    classes: [{class_id, name, room, teacher, time, students: [{name, age}]}]}]}]}
+    """
+    from services import sis_catalog_service, sis_service
+    from services.sis_schedule_sync_service import teaching_blocks
+
+    classes = sis_catalog_service.list_classes(org_id, audience='staff')
+    classes = [c for c in classes if c.get('status') != 'archived']
+    blocks = teaching_blocks(
+        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+    numbered = []
+    for n, b in enumerate(blocks, start=1):
+        bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
+        if bs is None or be is None:
+            continue
+        numbered.append({
+            'key': f'block-{n}',
+            'label': (b.get('label') or '').strip() or f'Block {n}',
+            'time': f"{_t12(b.get('start'))}-{_t12(b.get('end'))}",
+            'start': bs,
+            'end': be,
+        })
+
+    # (day, block key) -> the classes in it, plus the blocks each day actually
+    # has. A meeting that overlaps no configured block still has to land
+    # somewhere, so its own times become a block of one — dropping it would
+    # hide children from the sheet that exists to find them.
+    by_day_block: Dict[tuple, List[Dict[str, Any]]] = {}
+    day_blocks: Dict[int, Dict[str, Dict[str, Any]]] = {}
+    for c in classes:
+        for m in (c.get('meetings') or []):
+            d = m.get('day_of_week')
+            if d is None or (day is not None and d != day):
+                continue
+            ms, me = _minutes(m.get('start_time')), _minutes(m.get('end_time'))
+            if ms is None or me is None:
+                continue
+            hits = [b for b in numbered if ms < b['end'] and me > b['start']]
+            if not hits:
+                time = f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}"
+                hits = [{'key': f'time-{ms}-{me}', 'label': time, 'time': time,
+                         'start': ms, 'end': me}]
+            entry = {
+                'class_id': c['id'],
+                'name': c.get('name') or '',
+                # The meeting's own room wins over the class's, same as the day
+                # roster: a class can sit elsewhere on a different day.
+                'room': (m.get('location') or c.get('location') or ''),
+                'teacher': _person(c.get('primary_instructor')),
+                'time': f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}",
+            }
+            for b in hits:
+                day_blocks.setdefault(d, {}).setdefault(b['key'], b)
+                by_day_block.setdefault((d, b['key']), []).append(entry)
+
+    class_ids = list({e['class_id'] for entries in by_day_block.values() for e in entries})
+    enrollments = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('class_id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+
+    today = _org_today(org_id)
+    roster = {s['student_id']: s for s in sis_service.get_roster(org_id)}
+    students_by_class: Dict[str, List[Dict[str, str]]] = {}
+    for e in enrollments:
+        s = roster.get(e.get('student_id'))
+        if not s or not s.get('is_student'):
+            continue
+        students_by_class.setdefault(e['class_id'], []).append({
+            'name': s['name'],
+            'age': _age_years(s.get('date_of_birth'), today),
+        })
+    for entries in students_by_class.values():
+        entries.sort(key=lambda r: (r['name'] or '').lower())
+
+    days = []
+    present = sorted(day_blocks, key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
+    for d in present:
+        out_blocks = []
+        for b in sorted(day_blocks[d].values(), key=lambda b: (b['start'], b['end'])):
+            # A copy per block: the same class entry is shared by every block it
+            # spans, so its roster cannot be attached in place.
+            entries = [dict(c, students=students_by_class.get(c['class_id'], []),
+                            student_count=len(students_by_class.get(c['class_id'], [])))
+                       for c in sorted(by_day_block.get((d, b['key']), []),
+                                       key=lambda c: (c['name'] or '').lower())]
+            out_blocks.append({
+                'key': b['key'],
+                'label': b['label'],
+                'time': b['time'],
+                'classes': entries,
+                'student_count': len({st['name'] for c in entries for st in c['students']}),
+            })
+        days.append({'key': str(d), 'label': DOW_LONG.get(d, ''), 'blocks': out_blocks})
+    return {'days': days}
+
+
+#: Classes per band in the grid CSV. Three fits a landscape page, which is what
+#: the sheets Marika built by hand used.
+BLOCK_GRID_COLUMNS = 3
+
+
+def block_rosters_csv_rows(report: Dict[str, Any],
+                           per_band: int = BLOCK_GRID_COLUMNS) -> List[List[str]]:
+    """Flatten to the grid the office prints: classes across, students down.
+
+    Per block, bands of `per_band` classes, each class occupying three columns
+    (student, age, spacer) so the sheet can be widened or highlighted in Excel
+    without the columns colliding:
+
+        Tuesday - Block 1 (9:30am-10:30am)
+        Art Expeditions 5-8,,,Beginning Guitar,,,Building America,,
+        Art Studio,,,Music Conservatory,,,Foundation Room,,
+        Student,Age,,Student,Age,,Student,Age,
+        Adaline Bellon,7,,Eliza Barker,12,,Ellie Culliford,12,
+    """
+    def band_row(pairs) -> List[str]:
+        out: List[str] = []
+        for left, right in pairs:
+            out.extend([left, right, ''])
+        return out
+
+    rows: List[List[str]] = []
+    for d in report.get('days') or []:
+        for b in d.get('blocks') or []:
+            rows.append([f"{d['label']} - {b['label']} ({b['time']})"])
+            classes = b.get('classes') or []
+            if not classes:
+                rows.append(['No classes scheduled.'])
+                rows.append([])
+                continue
+            for i in range(0, len(classes), per_band):
+                band = classes[i:i + per_band]
+                rows.append(band_row([(c['name'], '') for c in band]))
+                rows.append(band_row([(c['room'] or 'No room set', '') for c in band]))
+                rows.append(band_row([('Student', 'Age') for _ in band]))
+                for n in range(max(len(c['students']) for c in band)):
+                    rows.append(band_row([
+                        (c['students'][n]['name'], c['students'][n]['age'])
+                        if n < len(c['students']) else ('', '')
+                        for c in band]))
+                rows.append([])
+    return rows

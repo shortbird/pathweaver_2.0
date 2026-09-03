@@ -47,10 +47,11 @@ function Spinner() {
 }
 
 function Header({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack: () => void }) {
+  const c = useThemeColors();
   return (
     <View className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100">
-      <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8}>
-        <Ionicons name="chevron-back" size={24} color="#6D469B" />
+      <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+        <Ionicons name="chevron-back" size={24} color={c.brand} />
       </Pressable>
       <View className="flex-1">
         <Heading size="sm">{title}</Heading>
@@ -293,7 +294,7 @@ function ChildConversation({
                       paddingVertical: 10,
                       borderRadius: 18,
                       ...(isChild
-                        ? { backgroundColor: '#6D469B', borderBottomRightRadius: 4 }
+                        ? { backgroundColor: c.brand, borderBottomRightRadius: 4 }
                         : {
                             backgroundColor: c.card,
                             borderBottomLeftRadius: 4,

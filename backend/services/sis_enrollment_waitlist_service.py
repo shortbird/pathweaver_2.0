@@ -11,7 +11,7 @@ guardian. Turning a band back to open only affects future registrants —
 existing rows stay waiting until released (Marika's "only allow the 9").
 
 Fee deferral: when every kid in a funnel registration was gated, the funnel
-completed without payment (icreate_registrations.fee_deferred). The FIRST
+completed without payment (registrations.fee_deferred). The FIRST
 release for that family reopens the registration at the fee step and puts the
 household on a registration hold until the fee is settled, so the released
 student picks classes only after paying.
@@ -210,7 +210,7 @@ def _priority_siblings(org_id: str, household_ids: set) -> Dict[str, Dict[str, A
     users_map = {
         u['id']: u for u in (
             admin.table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', list({m['user_id'] for m in accepted})).execute().data) or []
     }
     first_day = _coerce_date(_sis_settings(org_id).get('first_day_of_school'))
@@ -333,7 +333,7 @@ def list_entries(org_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     }
@@ -401,7 +401,7 @@ def add_manual(org_id: str, student_user_id: str, *, added_by: str,
     """
     admin = _admin()
     users = (admin.table('users')
-             .select('id, organization_id, date_of_birth, display_name, first_name, last_name')
+             .select('id, organization_id, date_of_birth, display_name, first_name, last_name, preferred_name')
              .eq('id', student_user_id).limit(1).execute()).data or []
     if not users:
         return {'error': 'Student not found'}
@@ -575,7 +575,7 @@ def _process_refund(entry: Dict[str, Any]) -> Dict[str, Any]:
     if not guardian_id:
         return {'refund_cents': 0}
     regs = (
-        admin.table('icreate_registrations')
+        admin.table('registrations')
         .select('id, fee_cents, refunded_cents, kids, stripe_payment_ref')
         .eq('parent_user_id', guardian_id)
         .eq('organization_id', entry['organization_id'])
@@ -605,7 +605,7 @@ def _process_refund(entry: Dict[str, Any]) -> Dict[str, Any]:
             logger.error(f'enrollment waitlist: refund failed for entry {entry["id"]}: {e}')
             return {'refund_cents': 0, 'error': 'Refund could not be processed — refund this family manually.'}
 
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'refunded_cents': already + refund_cents,
         'updated_at': datetime.now(timezone.utc).isoformat(),
     }).eq('id', reg['id']).execute()
@@ -628,7 +628,7 @@ def _send_reject_email(entry: Dict[str, Any], refund_cents: int) -> bool:
         .eq('id', guardian_id).limit(1).execute()
     ).data or []
     student = (
-        admin.table('users').select('first_name, last_name, display_name, username, email')
+        admin.table('users').select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', entry['student_user_id']).limit(1).execute()
     ).data or []
     org = (
@@ -675,7 +675,7 @@ def _reopen_deferred_fee(entry: Dict[str, Any]) -> int:
     if not guardian_id:
         return 0
     regs = (
-        admin.table('icreate_registrations').select('id, status, fee_cents, fee_deferred')
+        admin.table('registrations').select('id, status, fee_cents, fee_deferred')
         .eq('parent_user_id', guardian_id)
         .eq('organization_id', entry['organization_id'])
         .eq('fee_deferred', True)
@@ -686,7 +686,7 @@ def _reopen_deferred_fee(entry: Dict[str, Any]) -> int:
     reg = regs[0]
     fee_cents = int(reg.get('fee_cents') or 0)
     now = datetime.now(timezone.utc).isoformat()
-    admin.table('icreate_registrations').update({
+    admin.table('registrations').update({
         'status': 'fee', 'fee_deferred': False, 'completed_at': None,
         'fee_recorded_at': None, 'updated_at': now,
     }).eq('id', reg['id']).execute()
@@ -708,7 +708,7 @@ def _send_release_email(entry: Dict[str, Any], fee_due_cents: int) -> bool:
         .eq('id', guardian_id).limit(1).execute()
     ).data or []
     student = (
-        admin.table('users').select('first_name, last_name, display_name, username, email')
+        admin.table('users').select('first_name, last_name, display_name, username, email, preferred_name')
         .eq('id', entry['student_user_id']).limit(1).execute()
     ).data or []
     org = (

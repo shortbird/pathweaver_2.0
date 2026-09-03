@@ -53,7 +53,7 @@ export function ClassProgressRing({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="#6D469B"
+            stroke={c.brand}
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={`${circumference} ${circumference}`}

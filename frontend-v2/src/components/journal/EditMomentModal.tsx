@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Modal, Pressable, TextInput, ScrollView, Platform,
-  KeyboardAvoidingView, ActivityIndicator, Alert, Image,
+  KeyboardAvoidingView, ActivityIndicator, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { safeOpenURL } from '@/src/utils/linking';
@@ -20,6 +20,7 @@ import {
 } from '../ui';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
@@ -87,7 +88,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
       >
         <View className="h-32 bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
           <View className="w-14 h-14 rounded-full bg-optio-purple/15 items-center justify-center">
-            <Ionicons name="play" size={28} color="#6D469B" />
+            <Ionicons name="play" size={28} color={c.brand} />
           </View>
         </View>
         <View className="px-3 py-2 bg-surface-50 dark:bg-dark-surface-50">
@@ -136,7 +137,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
         className="flex-row items-center gap-3 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-3 border border-surface-200 dark:border-dark-surface-300"
       >
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
-          <Ionicons name="document-attach" size={20} color="#6D469B" />
+          <Ionicons name="document-attach" size={20} color={c.brand} />
         </View>
         <VStack className="flex-1 min-w-0">
           <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
@@ -232,7 +233,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       onClose();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to save changes.';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setSaving(false);
     }
@@ -269,9 +270,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       }));
       await enqueueUpload({ eventId: event.id, studentId: childId, items, extraBlocks });
       onSaved();
-      Alert.alert('Adding evidence', 'Your evidence is uploading and will appear on the moment shortly.');
+      showAlert('Adding evidence', 'Your evidence is uploading and will appear on the moment shortly.');
     } catch {
-      Alert.alert('Error', 'Could not add evidence. Please try again.');
+      showAlert('Error', 'Could not add evidence. Please try again.');
     } finally {
       setAddingEvidence(false);
     }
@@ -292,7 +293,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       setShowCreateTopic(false);
       setShowTopicPicker(false);
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error || 'Failed to create topic');
+      showAlert('Error', err?.response?.data?.error || 'Failed to create topic');
     } finally {
       setCreatingTopic(false);
     }
@@ -453,10 +454,10 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                   <View
                     className="w-5 h-5 rounded items-center justify-center"
                     style={{
-                      backgroundColor: (availableTracks.find((t) => t.id === selectedTopicId)?.color || '#6D469B') + '30',
+                      backgroundColor: (availableTracks.find((t) => t.id === selectedTopicId)?.color || c.brand) + '30',
                     }}
                   >
-                    <Ionicons name="folder-outline" size={12} color={availableTracks.find((t) => t.id === selectedTopicId)?.color || '#6D469B'} />
+                    <Ionicons name="folder-outline" size={12} color={availableTracks.find((t) => t.id === selectedTopicId)?.color || c.brand} />
                   </View>
                   <UIText size="sm" className="text-typo dark:text-dark-typo">{selectedTopicName}</UIText>
                 </>
@@ -486,9 +487,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                   >
                     <View
                       className="w-5 h-5 rounded items-center justify-center"
-                      style={{ backgroundColor: (t.color || '#6D469B') + '30' }}
+                      style={{ backgroundColor: (t.color || c.brand) + '30' }}
                     >
-                      <Ionicons name="folder-outline" size={12} color={t.color || '#6D469B'} />
+                      <Ionicons name="folder-outline" size={12} color={t.color || c.brand} />
                     </View>
                     <UIText
                       size="sm"
@@ -497,7 +498,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                       {t.name}
                     </UIText>
                     {selectedTopicId === t.id && (
-                      <Ionicons name="checkmark" size={16} color="#6D469B" style={{ marginLeft: 'auto' }} />
+                      <Ionicons name="checkmark" size={16} color={c.brand} style={{ marginLeft: 'auto' }} />
                     )}
                   </Pressable>
                 ))}
@@ -533,7 +534,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                     onPress={() => setShowCreateTopic(true)}
                     className="flex-row items-center gap-2 px-3 py-2 rounded-lg"
                   >
-                    <Ionicons name="add-circle-outline" size={16} color="#6D469B" />
+                    <Ionicons name="add-circle-outline" size={16} color={c.brand} />
                     <UIText size="sm" className="text-optio-purple font-poppins-medium">Create new topic</UIText>
                   </Pressable>
                 )}
@@ -566,9 +567,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
               accessibilityLabel="Add photo or video evidence"
             >
               {addingEvidence ? (
-                <ActivityIndicator size="small" color="#6D469B" />
+                <ActivityIndicator size="small" color={c.brand} />
               ) : (
-                <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+                <Ionicons name="add-circle-outline" size={20} color={c.brand} />
               )}
               <UIText size="sm" className="text-optio-purple font-poppins-medium">
                 {addingEvidence ? 'Adding…' : 'Add photo or video'}
@@ -615,6 +616,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
               <Pressable
                 onPress={onClose}
                 style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
               >
                 <Ionicons name="close" size={18} color={c.icon} />
               </Pressable>
@@ -652,6 +656,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
             <Pressable
               onPress={onClose}
               className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
             >
               <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>

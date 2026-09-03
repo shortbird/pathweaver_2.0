@@ -5,6 +5,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { SUBJECTS, getSubject } from '../../constants/subjects';
 import useCanEditXp from '../../hooks/useCanEditXp';
+import useHidePillars from '../../hooks/useHidePillars';
 
 export const DEFAULT_PROMOTED_TASK_XP = 50;
 
@@ -28,6 +29,7 @@ const PILLAR_CONFIG = {
  */
 const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
   const canEditXp = useCanEditXp();
+  const hidePillars = useHidePillars();
   const isClass = quest?.quest_type === 'class';
   const classSubject = isClass ? (quest?.transcript_subject || null) : null;
 
@@ -53,7 +55,9 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
       const response = await api.post(`/api/learning-events/${moment.id}/convert-to-task`, {
         quest_id: quest.id,
         title: title.trim() || null,
-        pillar,
+        // Omitted where the school hides pillars: the server derives one from
+        // the diploma credit instead of the student picking a second label.
+        pillar: hidePillars ? undefined : pillar,
         xp_value: xpValue,
         // A class quest forces its own subject server-side; only send a
         // diploma_subject for non-class quests (optional).
@@ -113,28 +117,30 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
             />
           </div>
 
-          <div>
-            <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-              Learning Pillar
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPillar(key)}
-                  className={`
-                    px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
-                    ${pillar === key
-                      ? `${config.color} text-white border-transparent`
-                      : `${config.light} hover:border-gray-300`}
-                  `}
-                >
-                  {config.label}
-                </button>
-              ))}
+          {!hidePillars && (
+            <div>
+              <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Learning Pillar
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPillar(key)}
+                    className={`
+                      px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
+                      ${pillar === key
+                        ? `${config.color} text-white border-transparent`
+                        : `${config.light} hover:border-gray-300`}
+                    `}
+                  >
+                    {config.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
@@ -189,7 +195,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
               <span className="text-sm font-bold text-gray-900 w-16 text-right">{xpValue} XP</span>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Default {DEFAULT_PROMOTED_TASK_XP} XP. You can edit the task's title, pillar, and XP later from the quest page.
+              Default {DEFAULT_PROMOTED_TASK_XP} XP. You can edit the task&apos;s title{hidePillars ? '' : ', pillar'}, and XP later from the quest page.
             </p>
           </div>
           )}

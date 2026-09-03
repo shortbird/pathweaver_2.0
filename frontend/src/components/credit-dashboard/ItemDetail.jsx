@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { safeHref } from '../../utils/safeHref'
+import { isImageUrl, itemLabel } from '../../utils/evidenceItems'
 import StatusTimeline from './StatusTimeline'
 import CreditFeedbackThread from '../credit/CreditFeedbackThread'
 import { toast } from 'react-hot-toast'
@@ -62,19 +63,36 @@ const renderBlockBody = (block) => {
     case 'link':
       return (
         <div className="space-y-2">
+          {/* A photo pasted into the Link picker is still a photo. Trusting
+              block_type here showed reviewers a 200-character storage URL where
+              the evidence belonged (Gryffin, 2026-09-02). */}
           {getBlockItems(block.content, 'link').map((item, j) => (
-            <a
-              key={j}
-              href={safeHref(item.url)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-optio-purple hover:underline flex items-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              {item.title || item.url}
-            </a>
+            isImageUrl(item.url) ? (
+              <div key={j}>
+                <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={item.url}
+                    alt={item.alt || itemLabel(item, 'Evidence')}
+                    className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
+                    loading="lazy"
+                  />
+                </a>
+                {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
+              </div>
+            ) : (
+              <a
+                key={j}
+                href={safeHref(item.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-optio-purple hover:underline flex items-center gap-1 break-all"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                {itemLabel(item)}
+              </a>
+            )
           ))}
         </div>
       )
@@ -581,6 +599,13 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           the full panel width on mobile. */}
       {canOrgAdminAct && (
         <div className="md:static sticky bottom-0 z-10 bg-white border-t border-gray-200 pt-3 pb-3 md:pb-0 space-y-3 -mx-3 px-3 md:mx-0 md:px-0">
+          {!isSuperadmin && (
+            <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              Your school reviews this request first. Approving sends it to Optio
+              for final credit approval — credit is awarded once Optio approves.
+              Use Grow This to return it to the student with feedback instead.
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-gray-600">
               Feedback for student

@@ -4,6 +4,7 @@ import { Bars3Icon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
+import NotificationBell from '../notifications/NotificationBell'
 import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
 import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
@@ -13,7 +14,9 @@ const PreviewBanner = () => {
   const preview = getPreviewTeacher()
   if (!preview) return null
   return (
-    <div className="sticky top-0 z-30 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 flex items-center gap-3 text-sm">
+    // top-14, not top-0: the header above it is sticky at every width now, so
+    // a banner pinned to 0 scrolls up underneath it and disappears.
+    <div className="sticky top-14 z-20 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 flex items-center gap-3 text-sm">
       <span className="font-medium">
         Previewing the teacher portal as {preview.name} (read-only)
       </span>
@@ -95,19 +98,34 @@ const SisLayout = () => {
         />
       )}
       <main id="main-content" className="lg:ml-60 min-h-screen">
-        {/* Small-screen header. Without this the fixed sidebar simply ran off
-            the edge of a tablet and there was no way back to the dashboard. */}
-        <header className="lg:hidden sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-white border-b border-gray-200">
+        {/* Header. The menu button and wordmark are small-screen only (without
+            them the fixed sidebar ran off the edge of a tablet with no way back
+            to the dashboard); the bell is at every width.
+
+            The console had no notification surface at all until now — no bell,
+            no unread count anywhere in the chrome — so a teacher in an
+            SIS-enabled org only discovered a student's message by opening each
+            class in turn ("I don't think I see it unless I look at specific
+            students individually" — Gryffin, Perch d7300f59). The notifications
+            themselves were already being written; nothing on this surface read
+            them. Same component the learning app mounts in TopNavbar, over the
+            same /api/notifications. Its links point at learning-app paths,
+            which SisRoutes already hands over via LEARNING_SURFACE_PATHS
+            (/notifications and /messages are both listed). */}
+        <header className="sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-white border-b border-gray-200">
           <button
             type="button"
             onClick={() => setNavOpen(true)}
             aria-label="Open menu"
             aria-expanded={navOpen}
-            className="p-2 -ml-2 rounded-lg text-neutral-600 hover:bg-neutral-100"
+            className="lg:hidden p-2 -ml-2 rounded-lg text-neutral-600 hover:bg-neutral-100"
           >
             <Bars3Icon className="w-6 h-6" />
           </button>
-          <Link to="/" className="font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
+          <Link to="/" className="lg:hidden font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </header>
         {admin && <PreviewBanner />}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

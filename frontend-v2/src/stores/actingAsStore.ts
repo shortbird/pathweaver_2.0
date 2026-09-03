@@ -16,7 +16,7 @@ import { tokenStore } from '../services/tokenStore';
 // here without creating a circular dependency that leaves the store uninitialized.
 // Use a lazy require at call sites instead.
 function refetchAuthUser() {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   return require('./authStore').useAuthStore.getState().loadUser();
 }
 

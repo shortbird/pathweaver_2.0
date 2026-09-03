@@ -88,7 +88,7 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
                     />
                     <UIText
                       size="xs"
-                      className={`flex-1 ${done ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-600'}`}
+                      className={`flex-1 ${done ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-500 dark:text-dark-typo-500'}`}
                       numberOfLines={1}
                     >
                       {d.text}

@@ -131,3 +131,74 @@ export function goToLearningSurface(path = '/') {
     window.location.assign(path)
   }
 }
+
+// ── Which surface owns a path ────────────────────────────────────────────────
+//
+// Notifications, emails and pushes all carry a bare path ("/school",
+// "/attendance") with no idea which of the two hosts owns it. Whichever surface
+// the reader happens to be on then has to hand the ones it does not own to the
+// one that does — in BOTH directions, because staff read the same bell on both.
+//
+// Without the handoff the path falls through to a catch-all and the reader
+// lands on a dashboard with no idea what they were sent (iCreate, 2026-08-26:
+// "when I click on a notification, it doesn't open anythign. Instead it just
+// sends me to the SIS dashboard").
+//
+// Listed explicitly rather than inferred, so a genuine typo still lands on a
+// dashboard instead of bouncing between hosts forever.
+
+/** Learning-app paths the SIS console hands back to www. */
+export const LEARNING_SURFACE_PATHS = [
+  '/school',
+  '/announcements',
+  '/notifications',
+  '/dashboard',
+  '/parent-dashboard',
+  '/quests',
+  '/courses',
+  '/bounties',
+  '/messages',
+  '/communication',
+  '/feed',
+  '/journal',
+  '/connections',
+  '/credit-dashboard',
+  '/profile',
+  // The family portal and its paperwork: notifications point staff-parents at
+  // these constantly, and none of them exist on the SIS console.
+  '/family',
+]
+
+/** SIS console paths the learning app hands over to sis. — staff only. */
+export const SIS_SURFACE_PATHS = [
+  '/attendance',
+  '/inbox',
+  '/messaging',
+  '/classes',
+  '/clp',
+  '/forms',
+  '/my-classes',
+  '/my-schedule',
+  '/my-tasks',
+  '/my-documents',
+  '/tasks',
+  '/people',
+  '/registration',
+  '/billing',
+  '/tuition',
+  '/timesheets',
+  '/submissions',
+  '/curriculum',
+  '/training',
+  '/secure-documents',
+  '/prior-learning',
+  '/goals',
+  '/reports',
+  '/resources',
+]
+
+/** True when `path` belongs to the SIS console and not the learning app. */
+export function isSisSurfacePath(path) {
+  const clean = String(path || '').split('?')[0].split('#')[0]
+  return SIS_SURFACE_PATHS.some((p) => clean === p || clean.startsWith(`${p}/`))
+}

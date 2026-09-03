@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { getInitialNotificationLink } from '@/src/services/pushNotifications';
 import { resolveDeepLink } from '@/src/services/deepLinkRouter';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 /**
  * Catch-all for unmatched routes.
@@ -16,6 +17,7 @@ import { resolveDeepLink } from '@/src/services/deepLinkRouter';
  * the index, which routes to the user's auth-appropriate landing.
  */
 export default function NotFound() {
+  const c = useThemeColors();
   const [href, setHref] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function NotFound() {
   if (!href) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-50 dark:bg-dark-surface-50">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </View>
     );
   }

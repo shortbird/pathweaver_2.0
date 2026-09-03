@@ -471,6 +471,13 @@ before touching them.
 (abandoned ones were 38% of the Aug 2026 invoice) and it puts a service-role key
 for a production clone in CI. Use the local stack.
 
+- The backend job fails on **undefined names** (`python -m pyflakes backend`, filtered
+  to `undefined name` / `referenced before assignment` / `invalid syntax`). Python only
+  finds a missing import when a request reaches that line, so these ship as 500s that
+  read as something else — four were live on 2026-09-02. Run it before you push:
+  `python -m pyflakes backend | grep 'undefined name'` (expect no output). The rest of
+  pyflakes (unused imports, f-strings without placeholders) is ~1200 findings of style
+  and is deliberately not gated.
 - The mobile job's `npm audit` runs through [scripts/audit-gate.mjs](scripts/audit-gate.mjs):
   advisories with no published fix can be accepted in
   [frontend-v2/audit-allowlist.json](frontend-v2/audit-allowlist.json) with a reason

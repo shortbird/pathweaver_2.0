@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { UIText } from '@/src/components/ui/text';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -18,6 +19,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function PreviewRoleBanner() {
+  const c = useThemeColors();
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
@@ -28,7 +30,7 @@ export function PreviewRoleBanner() {
   return (
     <View
       style={{
-        backgroundColor: '#6D469B',
+        backgroundColor: c.brand,
         paddingHorizontal: 16,
         paddingVertical: 6,
         flexDirection: 'row',
@@ -45,6 +47,9 @@ export function PreviewRoleBanner() {
       </View>
       <Pressable
         onPress={() => setPreviewRole(null)}
+        accessibilityRole="button"
+        accessibilityLabel="Exit preview"
+        hitSlop={8}
         style={{
           backgroundColor: 'rgba(255,255,255,0.18)',
           paddingHorizontal: 10,

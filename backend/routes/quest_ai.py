@@ -600,8 +600,11 @@ def health_check():
     Public endpoint for service monitoring.
     """
     try:
-        # Try to initialize the AI service
-        ai_service = QuestAIService()
+        # Try to initialize the AI service. Via the module accessor: the class
+        # is imported lazily inside it, so naming it here was a NameError that
+        # the except below reported as "unhealthy" — the health check could
+        # only ever fail.
+        ai_service = get_quest_ai_service()
 
         return jsonify({
             'success': True,

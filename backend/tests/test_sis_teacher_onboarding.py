@@ -576,3 +576,46 @@ class TestSyncAssignments:
         client, _ = _admin_with([[{**self.TEMPLATE, 'organization_id': 'other'}]])
         with patch.object(svc, '_admin', return_value=client):
             assert svc.sync_assignments(ORG, 't1')['status'] == 404
+
+
+@pytest.mark.unit
+class TestChecklistDocumentsForTheCabinet:
+    """The office looked in /secure-documents for a background check that was
+    uploaded to a checklist item and filed one tab over (iCreate, 2026-08-31).
+    checklist_documents reads every attachment back shaped like a store row so
+    the cabinet can list them; source/audience tell the frontend it opens
+    through the admin onboarding door and cannot be renamed or deleted there."""
+
+    def test_shapes_attachments_like_document_rows(self):
+        from services import sis_onboarding_service as svc
+        rows = [{
+            'id': 'a1', 'user_id': 'cassea', 'audience': 'staff',
+            'items': [
+                {'key': 'bgcheck', 'title': 'Background Check',
+                 'documents': [{'path': 'org-1/cassea/bg.pdf', 'filename': None,
+                                'uploaded_at': '2026-08-25T01:46:11+00:00'}]},
+                {'key': 'w4', 'title': 'W4', 'documents': []},
+            ],
+        }]
+        with patch.object(svc, 'fetch_all_rows', return_value=rows):
+            out = svc.checklist_documents('org-1')
+        assert len(out) == 1
+        doc = out[0]
+        assert doc['source'] == 'checklist'
+        assert doc['audience'] == 'staff'
+        assert doc['owner_user_id'] == 'cassea'
+        assert doc['uploaded_by_owner'] is True
+        assert doc['storage_path'] == 'org-1/cassea/bg.pdf'
+        # No filename recorded, so the item's title names the row.
+        assert doc['title'] == 'Background Check'
+        assert doc['created_at'] == '2026-08-25T01:46:11+00:00'
+
+    def test_reads_legacy_single_path_items_too(self):
+        from services import sis_onboarding_service as svc
+        rows = [{'id': 'a1', 'user_id': 'u1', 'audience': 'family',
+                 'items': [{'key': 'k', 'title': 'Custody order',
+                            'document_url': 'org-1/u1/c.pdf'}]}]
+        with patch.object(svc, 'fetch_all_rows', return_value=rows):
+            out = svc.checklist_documents('org-1')
+        assert [d['storage_path'] for d in out] == ['org-1/u1/c.pdf']
+        assert out[0]['audience'] == 'family'

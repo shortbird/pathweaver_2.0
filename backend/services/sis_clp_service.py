@@ -21,6 +21,7 @@ from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_catalog_service as catalog
 from utils.logger import get_logger
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -52,17 +53,10 @@ def _org_private_school_name(org_id: str) -> Optional[str]:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unknown'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = f"{first} {last}".strip()
-    return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unknown')
 
 
 def _age(dob: Any) -> Optional[int]:
@@ -212,6 +206,10 @@ def _family_and_siblings(org_id: str, student_id: str):
     sib_ids = [m['user_id'] for m in members
                if m.get('relationship') == 'student' and m['user_id'] != student_id]
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') != 'student']
+    # Guardian contact on the meeting screen itself. Working a student's
+    # schedule meant flipping to the family directory for a phone number and
+    # back again, all meeting long (iCreate, 2026-09-02).
+    family['guardians'] = _guardian_contacts(guardian_ids)
     siblings: List[Dict[str, Any]] = []
     if sib_ids:
         rows = (
@@ -225,6 +223,26 @@ def _family_and_siblings(org_id: str, student_id: str):
     return family, siblings, guardian_ids
 
 
+def _guardian_contacts(guardian_ids: List[str]) -> List[Dict[str, Any]]:
+    """[{name, phone, email}] for a household's guardians, name-sorted."""
+    if not guardian_ids:
+        return []
+    try:
+        rows = (
+            _admin().table('users')
+            .select('id, first_name, last_name, display_name, username, email, '
+                    'phone_number, preferred_name')
+            .in_('id', guardian_ids).execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001 — contact info is decoration, not the meeting
+        logger.warning(f'CLP: guardian contact lookup failed: {e}')
+        return []
+    out = [{'name': _full_name(r), 'phone': r.get('phone_number'), 'email': r.get('email')}
+           for r in rows]
+    out.sort(key=lambda g: (g['name'] or '').lower())
+    return out
+
+
 def _family_payment_intent(org_id: str, guardian_ids: List[str]) -> Optional[List[str]]:
     """The 'Form of Payment' the family chose during iCreate registration (the
     `payment_intent` registration question). Latest registration of any household
@@ -233,7 +251,7 @@ def _family_payment_intent(org_id: str, guardian_ids: List[str]) -> Optional[Lis
         return None
     try:
         rows = (
-            _admin().table('icreate_registrations')
+            _admin().table('registrations')
             .select('parent_user_id, answers, created_at')
             .eq('organization_id', org_id)
             .in_('parent_user_id', guardian_ids)

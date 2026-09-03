@@ -57,7 +57,7 @@ def _run(registrations):
             'households': HOUSEHOLDS,
             'household_members': MEMBERS,
             'users': GUARDIAN_USERS,
-            'icreate_registrations': registrations,
+            'registrations': registrations,
         }.get(name, [])
         t.execute.return_value = Mock(data=data)
         return t
@@ -138,7 +138,7 @@ class TestRosterExportDetails:
                 getattr(t, chained).return_value = t
             t.execute.return_value = Mock(data={
                 'households': HOUSEHOLDS, 'household_members': MEMBERS,
-                'users': GUARDIAN_USERS, 'icreate_registrations': [],
+                'users': GUARDIAN_USERS, 'registrations': [],
             }.get(name, []))
             return t
         admin = Mock()
@@ -152,5 +152,5 @@ class TestRosterExportDetails:
         with patch.object(sis_service, '_admin', return_value=admin), \
              patch('utils.db_fetch.fetch_all_rows', side_effect=_spy):
             sis_service.roster_export_details(ORG)
-        # households, household_members, icreate_registrations
+        # households, household_members, registrations
         assert len(calls) == 3

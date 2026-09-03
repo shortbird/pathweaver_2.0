@@ -6,16 +6,17 @@
  */
 
 import React, { useState } from 'react';
-import { View, Pressable, Alert } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Heading, UIText, Button, ButtonText, VStack, Divider, BottomSheet } from '../ui';
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 
 type Reason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
 type TargetType = 'learning_event' | 'task_completion';
 
-const REASONS: Array<{ value: Reason; label: string; description: string }> = [
+const REASONS: { value: Reason; label: string; description: string }[] = [
   { value: 'inappropriate', label: 'Inappropriate content', description: 'Contains offensive or unsafe content.' },
   { value: 'harassment', label: 'Harassment or bullying', description: 'Targets or threatens someone.' },
   { value: 'spam', label: 'Spam', description: 'Unwanted promotional or repetitive content.' },
@@ -57,10 +58,10 @@ export function FeedItemMenu({
         target_id: targetId,
         reason,
       });
-      Alert.alert('Thanks', 'We received your report and will review it.');
+      showAlert('Thanks', 'We received your report and will review it.');
       reset();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error || 'Could not submit report.');
+      showAlert('Error', err?.response?.data?.error || 'Could not submit report.');
       setStage('reason');
     }
   };
@@ -70,26 +71,20 @@ export function FeedItemMenu({
       reset();
       return;
     }
-    Alert.alert(
-      `Unfollow ${studentName}?`,
-      `You will no longer see ${studentName}'s posts in your feed. They will not be notified.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unfollow',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.post('/api/moderation/block', { blocked_id: studentId });
-              onBlocked?.();
-              reset();
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.error || 'Could not unfollow user.');
-            }
-          },
-        },
-      ],
-    );
+    const confirmed = await confirmAlert({
+      title: `Unfollow ${studentName}?`,
+      message: `You will no longer see ${studentName}'s posts in your feed. They will not be notified.`,
+      confirmText: 'Unfollow',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await api.post('/api/moderation/block', { blocked_id: studentId });
+      onBlocked?.();
+      reset();
+    } catch (err: any) {
+      showAlert('Error', err?.response?.data?.error || 'Could not unfollow user.');
+    }
   };
 
   return (

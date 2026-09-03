@@ -40,7 +40,7 @@ export const isMasquerading = () => {
  * @param {Function} apiCall - API function to call masquerade endpoint
  * @returns {Promise<{success: boolean, targetUser: object, error?: string}>}
  */
-export const startMasquerade = async (userId, reason = '', apiCall) => {
+export const startMasquerade = async (userId, reason = '', apiCall, redirectTo = null) => {
   try {
     const currentRefreshToken = tokenStore.getRefreshToken();
 
@@ -67,7 +67,9 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
 
     // Force full page reload to clear React Query cache
     const targetRole = target_user.role;
-    const redirectPath = targetRole === 'parent' ? '/parent/dashboard' : '/dashboard';
+    // redirectTo lets the SIS switcher land on the console home for a staff
+    // target instead of the learning-app dashboard.
+    const redirectPath = redirectTo || (targetRole === 'parent' ? '/parent/dashboard' : '/dashboard');
     window.location.href = redirectPath;
 
     return {

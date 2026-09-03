@@ -19,6 +19,8 @@ from repositories.sis_class_repository import SisClassRepository
 from services import sis_eligibility as elig
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils import person_name
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -39,18 +41,10 @@ def _classes_repo():
 
 
 def _student_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name') or
-            f"{first} {last}").strip()
-    return name or (u.get('username') or u.get('email') or 'Unnamed')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -117,7 +111,7 @@ def list_registrations(org_id: str, status: Optional[str] = None) -> List[Dict[s
     users = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -161,7 +155,7 @@ def get_registration(org_id: str, reg_id: str) -> Optional[Dict[str, Any]]:
     reg['items'] = items
     student = (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, username, email, preferred_name')
         .eq('id', reg['student_user_id']).limit(1).execute()
     ).data
     reg['student_name'] = _student_name(student[0]) if student else None
@@ -188,7 +182,16 @@ def _student_existing_meetings(student_user_id: str, exclude_class_id: Optional[
     class_ids = [e['class_id'] for e in enr if e['class_id'] != exclude_class_id]
     if not class_ids:
         return []
-    return _classes_repo().meetings_for_classes(class_ids)
+    # An archived class no longer meets — a stale active enrollment in one must
+    # not read as "busy at this time" (phantom Expressions conflict, iCreate
+    # 2026-08-24). Archive paths withdraw enrollments now, but old rows exist.
+    live = (
+        _admin().table('org_classes').select('id')
+        .in_('id', class_ids).neq('status', 'archived').execute()
+    ).data or []
+    if not live:
+        return []
+    return _classes_repo().meetings_for_classes([c['id'] for c in live])
 
 
 def evaluate_eligibility(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:
@@ -266,7 +269,7 @@ def list_schedule_conflicts(org_id: str) -> List[Dict[str, Any]]:
     users = {
         u['id']: u for u in (
             admin.table('users')
-            .select('id, first_name, last_name, display_name')
+            .select('id, first_name, last_name, display_name, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -331,7 +334,7 @@ def list_teacher_conflicts(org_id: str) -> List[Dict[str, Any]]:
     users = {
         u['id']: u for u in (
             admin.table('users')
-            .select('id, first_name, last_name, display_name')
+            .select('id, first_name, last_name, display_name, preferred_name')
             .in_('id', list(classes_by_teacher.keys())).execute()
         ).data or []
     }
@@ -442,6 +445,7 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
             }, on_conflict='class_id,student_id').execute()
             from services.class_group_sync_service import sync_class_group
             sync_class_group(item['class_id'], actor_id=completed_by)
+            _enroll_in_class_quests(_admin(), item['class_id'], student_id)
             # Re-registering into a class they were queued for clears the queue
             # entry — otherwise the family sees enrolled and waitlisted at once.
             from services import sis_waitlist_service

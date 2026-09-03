@@ -95,13 +95,28 @@ export default function ClassCurriculum({ classId, questId, className = '', refr
     }
   }
 
+  // Hide/show one material. Any moderator may flip any of the class's materials
+  // (unlike Remove, which stays with whoever added it): hiding is reversible and
+  // is how a teacher stages next week's handout, so it isn't theirs alone.
+  const setVisible = async (m, visible) => {
+    if (!writeBase) return
+    // Optimistic — the switch is the whole interaction, so it has to feel like one.
+    setMaterials((prev) => prev.map((x) => (
+      x.id === m.id ? { ...x, visible_to_students: visible } : x)))
+    try {
+      await api.patch(`${writeBase}/${m.id}`, { visible_to_students: visible })
+    } catch (err) {
+      setMaterials((prev) => prev.map((x) => (
+        x.id === m.id ? { ...x, visible_to_students: !visible } : x)))
+      toast.error(err?.response?.data?.error || 'Could not change who can see this')
+    }
+  }
+
   const remove = async (id) => {
     try {
       await api.delete(`${writeBase}/${id}`)
       const next = materials.filter((m) => m.id !== id)
       setMaterials(next)
-      // Keep the parent in sync so "Your curriculum" flips its Share button back
-      // to "Share with students" the moment a shared link is removed here.
       onMaterialsLoaded?.(next)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove this item')
@@ -120,11 +135,13 @@ export default function ClassCurriculum({ classId, questId, className = '', refr
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-gray-900">Class materials</h2>
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-              <EyeIcon className="w-3 h-3" /> {canManage ? 'Students see these' : 'Shared with you'}
+              <EyeIcon className="w-3 h-3" /> {canManage ? 'You choose what students see' : 'Shared with you'}
             </span>
           </div>
           <p className="text-xs text-neutral-500">
-            {canManage ? 'What you share with your students.' : 'What your teacher shared with the class.'}
+            {canManage
+              ? 'Switch one off to keep it to staff while you get it ready.'
+              : 'What your teacher shared with the class.'}
           </p>
         </div>
       </div>
@@ -189,14 +206,37 @@ export default function ClassCurriculum({ classId, questId, className = '', refr
       {!loading && materials.length > 0 && (
         <ul className="space-y-2">
           {materials.map((m) => (
-            <li key={m.id} className="rounded-lg border border-gray-200 bg-white p-3 flex items-center gap-3">
+            <li key={m.id}
+              className={`rounded-lg border border-gray-200 bg-white p-3 flex items-center gap-3 ${
+                canManage && m.visible_to_students === false ? 'opacity-60' : ''}`}>
               <span className="shrink-0 text-neutral-400">
                 {m.kind === 'link' ? <LinkIcon className="w-5 h-5" /> : <DocumentTextIcon className="w-5 h-5" />}
               </span>
-              <a href={m.url} target="_blank" rel="noopener noreferrer"
-                className="flex-1 min-w-0 text-sm font-medium text-neutral-800 hover:text-optio-purple truncate">
-                {m.title}
-              </a>
+              <div className="flex-1 min-w-0">
+                <a href={m.url} target="_blank" rel="noopener noreferrer"
+                  className="block text-sm font-medium text-neutral-800 hover:text-optio-purple truncate">
+                  {m.title}
+                </a>
+                {/* Inherited from the school's curriculum, so it is the library's
+                    to change — say where it came from rather than offer controls
+                    that would have to act on every class using it. */}
+                {m.source === 'curriculum' && (
+                  <p className="text-[11px] text-neutral-400 truncate">
+                    From {m.curriculum_title || 'the curriculum'}
+                  </p>
+                )}
+                {canManage && m.source !== 'curriculum' && (
+                  <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-neutral-500 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={m.visible_to_students !== false}
+                      onChange={(e) => setVisible(m, e.target.checked)}
+                      className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                    />
+                    Students see this
+                  </label>
+                )}
+              </div>
               <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
                 {m.kind === 'link' ? 'Link' : 'Document'}
               </span>

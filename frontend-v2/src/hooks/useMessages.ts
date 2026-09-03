@@ -3,11 +3,10 @@
  * Follows the same useState/useEffect pattern as useBounties.ts.
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { messageAPI, groupAPI, type MessageAttachment, type SendMessageExtras } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppActive } from './useAppActive';
-import { captureException } from '../services/sentry';
 
 // ── Types ──
 
@@ -21,6 +20,9 @@ export interface Contact {
   relationship: string;
   // True for the always-present "Optio Support" alias (routes to superadmin).
   is_support?: boolean;
+  // True for the "{School Name}" contact — the org's shared inbox, read and
+  // answered by the front office.
+  is_school?: boolean;
 }
 
 export interface Child {
@@ -102,7 +104,7 @@ export interface Group {
   unread_count: number;
   // Matches GET /api/groups/:id — each member row carries its `role` in the
   // group ('admin' | 'member') plus a hydrated `user` object.
-  members?: Array<{
+  members?: {
     id: string;
     user_id: string;
     role: string;
@@ -119,7 +121,7 @@ export interface Group {
     first_name?: string;
     last_name?: string;
     avatar_url?: string | null;
-  }>;
+  }[];
 }
 
 // ── Hooks ──
@@ -290,6 +292,13 @@ export async function editGroupMessage(groupId: string, messageId: string, conte
 
 export async function deleteDirectMessage(messageId: string) {
   const { data } = await messageAPI.deleteMessage(messageId);
+  return data.data || data;
+}
+
+/** Superadmin: forward a support-thread message to the sender's school inbox.
+ *  Returns { organization: { id, name }, ... } for the confirmation toast. */
+export async function forwardMessageToSchool(messageId: string) {
+  const { data } = await messageAPI.forwardToSchool(messageId);
   return data.data || data;
 }
 

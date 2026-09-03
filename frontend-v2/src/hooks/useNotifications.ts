@@ -5,12 +5,15 @@
  * and subscribing to real-time notification delivery.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef , useState } from 'react';
 import { Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/src/services/supabaseClient';
 import api from '@/src/services/api';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
+
+// ── Combined hook ──
+
 
 // expo-notifications isn't available on web; lazy-require on native only so a
 // missing dep on web doesn't break the bundle.
@@ -151,10 +154,6 @@ function useNotificationsRefreshSignal(onRefresh: () => void): void {
     return () => { notificationsRefreshListeners.delete(listener); };
   }, []);
 }
-
-// ── Combined hook ──
-
-import { useState } from 'react';
 
 /**
  * Full notification hook: fetch + real-time updates.

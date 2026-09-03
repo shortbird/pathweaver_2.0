@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl, Modal, Platform } from 'react-native';
+import { View, ScrollView, Image, Pressable, RefreshControl, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,14 +21,13 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
 import type { EngagementData } from '@/src/hooks/useDashboard';
 import {
-  VStack, HStack, Heading, UIText, Button, ButtonText,
+  VStack, HStack, Heading, UIText,
   Card, Badge, BadgeText, Divider, Avatar, AvatarFallbackText, AvatarImage,
   Skeleton,
 } from '@/src/components/ui';
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
-import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { ClassCard } from '@/src/components/class/ClassCard';
 import { CourseCard } from '@/src/components/course/CourseCard';
 import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
@@ -177,8 +176,8 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
             borderRadius: 999,
             backgroundColor: c.card,
             borderWidth: 2,
-            borderColor: '#6D469B',
-            shadowColor: '#6D469B',
+            borderColor: c.brand,
+            shadowColor: c.brand,
             shadowOpacity: 0.25,
             shadowRadius: 6,
             shadowOffset: { width: 0, height: 2 },
@@ -202,7 +201,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
               width: 22,
               height: 22,
               borderRadius: 11,
-              backgroundColor: '#6D469B',
+              backgroundColor: c.brand,
               alignItems: 'center',
               justifyContent: 'center',
               borderWidth: 2,
@@ -269,6 +268,7 @@ function DashboardSkeleton() {
 // ── Main Dashboard ──
 
 export default function DashboardScreen() {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const { data, loading, refetch } = useDashboard();
   // Active bounty claims surface in the unified list below. Fetched here
@@ -368,7 +368,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={64}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />
         }
       >
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
@@ -399,7 +399,7 @@ export default function DashboardScreen() {
             ) : (
               <Pressable testID="empty-state-cta" onPress={startSomething}>
                 <Card variant="filled" size="lg" className="items-center py-10">
-                  <Ionicons name="add-circle-outline" size={40} color="#6D469B" />
+                  <Ionicons name="add-circle-outline" size={40} color={c.brand} />
                   <Heading size="sm" className="text-typo-700 mt-3 dark:text-dark-typo-700">Nothing here yet</Heading>
                   <UIText size="sm" className="text-typo-400 mt-1 text-center px-4 dark:text-dark-typo-400">
                     Tap the + button to start a quest, class, or claim a bounty.
@@ -437,7 +437,7 @@ export default function DashboardScreen() {
                       onPress={() => router.push({ pathname: '/(app)/(tabs)/journal', params: { topicId: t.id, topicType: t.type } })}
                       className="flex-row items-center gap-2 px-3 py-2 rounded-full bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300"
                     >
-                      <Ionicons name={(t.icon as any) || 'folder-outline'} size={14} color={t.color || '#6D469B'} />
+                      <Ionicons name={(t.icon as any) || 'folder-outline'} size={14} color={t.color || c.brand} />
                       <UIText size="sm" className="font-poppins-medium">{t.name}</UIText>
                       {typeof t.moment_count === 'number' && t.moment_count > 0 && (
                         <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{t.moment_count}</UIText>
@@ -467,7 +467,7 @@ export default function DashboardScreen() {
             width: 56,
             height: 56,
             borderRadius: 28,
-            backgroundColor: '#6D469B',
+            backgroundColor: c.brand,
             alignItems: 'center',
             justifyContent: 'center',
             elevation: 6,

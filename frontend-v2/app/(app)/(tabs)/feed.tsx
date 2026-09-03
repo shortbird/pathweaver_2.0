@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
+import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { router } from 'expo-router';
@@ -158,7 +158,7 @@ const OBSERVER_CAPABILITIES = [
   },
   {
     icon: 'chatbubble-outline' as const,
-    color: '#E85D8A',
+    color: '#EF597B',
     bg: 'bg-optio-pink/5',
     title: 'Cheer them on',
     body: 'Leave a comment on anything they share.',
@@ -175,7 +175,7 @@ const OBSERVER_CAPABILITIES = [
 // Coaching prompts for step 2 — the encouragement style Optio is built around.
 const OBSERVER_FEEDBACK_TIPS = [
   { color: '#6D469B', title: 'Celebrate effort', example: '"I love how you tried a new approach."' },
-  { color: '#E85D8A', title: 'Ask about the process', example: '"What was the most challenging part?"' },
+  { color: '#EF597B', title: 'Ask about the process', example: '"What was the most challenging part?"' },
   { color: '#3B82F6', title: 'Show genuine interest', example: '"Tell me more about this project."' },
   { color: '#10B981', title: 'Acknowledge growth', example: '"I can see how much you\'ve learned."' },
 ];
@@ -304,7 +304,7 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
                     width: i === step ? 18 : 6,
                     height: 6,
                     borderRadius: 3,
-                    backgroundColor: i === step ? '#6D469B' : c.border,
+                    backgroundColor: i === step ? c.brand : c.border,
                   }}
                 />
               ))}
@@ -343,6 +343,9 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
               <Pressable
                 onPress={onClose}
                 style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, padding: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={8}
               >
                 <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
                   <Ionicons name="close" size={18} color={c.icon} />
@@ -371,14 +374,14 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
                 <Heading size="md">What you can do as a parent</Heading>
                 <VStack space="sm" className="mt-1">
                   <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#6D469B', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <View style={{ width: 4, backgroundColor: c.brand, borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Capture moments</UIText>
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tap the center button to log what your kid is doing in real life.</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <View style={{ width: 4, backgroundColor: c.brandPink, borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Post bounties</UIText>
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Challenge your kid with a real-world task and a reward.</UIText>
@@ -490,6 +493,7 @@ const FeedListHeader = React.memo(function FeedListHeader({
   onOpenTips: () => void;
   iconMuted: string;
 }) {
+  const c = useThemeColors();
   return (
     <>
       <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
@@ -509,7 +513,7 @@ const FeedListHeader = React.memo(function FeedListHeader({
               onPress={onOpenTips}
               className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
             >
-              <Ionicons name="bulb-outline" size={16} color="#6D469B" />
+              <Ionicons name="bulb-outline" size={16} color={c.brand} />
               <UIText size="xs" className="text-optio-purple font-poppins-medium">Tips</UIText>
             </Pressable>
           )}
@@ -571,7 +575,7 @@ const FeedListHeader = React.memo(function FeedListHeader({
             <HStack space="xs" className="items-center">
               <Pressable onPress={() => onSelectKid(null)}>
                 <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-600'}`}>
+                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                     All kids
                   </UIText>
                 </View>
@@ -581,7 +585,7 @@ const FeedListHeader = React.memo(function FeedListHeader({
                 return (
                   <Pressable key={kid.id} onPress={() => onSelectKid(kid.id)}>
                     <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-600'}`}>
+                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                         {kid.first_name || kid.display_name || 'Kid'}
                       </UIText>
                     </View>
@@ -628,7 +632,7 @@ export default function FeedScreen() {
   // the rows whose visibility changed — see useFeedVisibilityStore above.
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
+    ({ viewableItems }: { viewableItems: { item: any }[] }) => {
       useFeedVisibilityStore.getState().setActiveIds(
         new Set(viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]),
       );
@@ -760,7 +764,7 @@ export default function FeedScreen() {
     if (loadingMore) {
       return (
         <View className="items-center py-6">
-          <ActivityIndicator size="small" color="#6D469B" />
+          <ActivityIndicator size="small" color={c.brand} />
         </View>
       );
     }
@@ -778,7 +782,7 @@ export default function FeedScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       </SafeAreaView>
     );

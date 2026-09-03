@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, startTransition } from 'react';
 import { useAuth } from './AuthContext';
 import api, { tokenStore } from '../services/api';
+import { restoreActingAs, clearStoredActingAs } from '../services/actingAsRestore';
 import logger from '../utils/logger';
 
 const ActingAsContext = createContext();
@@ -28,49 +29,30 @@ export const ActingAsProvider = ({ children }) => {
   // non-sensitive dependent info and RE-MINT a fresh token from the backend on
   // reload (the backend re-verifies the parent owns this dependent), mirroring
   // the parent/masquerade pattern already used below and in masqueradeService.
+  //
+  // The mint itself lives in services/actingAsRestore so AuthContext can await
+  // the same promise before it asks /api/auth/me — otherwise /me answers on the
+  // parent's cookie and the parent's home renders under the child's token
+  // (Sentry OPTIO-WEB-C). This effect only mirrors the result into React state.
   useEffect(() => {
-    const restoreActingAsState = async () => {
-      const stored = sessionStorage.getItem('acting_as_dependent');
-      const storedParentName = sessionStorage.getItem('acting_as_parent_name');
-      // Purge any token persisted by an older build.
-      sessionStorage.removeItem('acting_as_token');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-
-          // Re-mint the acting-as token via the parent's restored session
-          // instead of reading a persisted one. Backend re-authorizes ownership.
-          const response = await api.post(`/api/dependents/${parsed.id}/act-as`, {});
-          const freshToken = response.data?.acting_as_token;
-          if (!freshToken) {
-            throw new Error('No acting_as_token returned on restore');
+    let cancelled = false;
+    restoreActingAs().then((restored) => {
+      if (cancelled) return;
+      if (restored) {
+        const storedParentName = sessionStorage.getItem('acting_as_parent_name');
+        // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
+        startTransition(() => {
+          setActingAsDependent(restored.dependent);
+          setActingAsToken(restored.token);
+          if (storedParentName) {
+            setParentName(storedParentName);
           }
-
-          await tokenStore.setTokens(freshToken, tokenStore.getRefreshToken() || '');
-
-          // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
-          startTransition(() => {
-            setActingAsDependent(parsed);
-            setActingAsToken(freshToken);
-            if (storedParentName) {
-              setParentName(storedParentName);
-            }
-            logger.debug('[ActingAsContext] Re-minted acting-as token on reload');
-          });
-        } catch (error) {
-          // Parent session unavailable or no longer authorized: drop acting-as
-          // state and fall back to the parent's own session / re-auth.
-          console.warn('[ActingAsContext] Could not restore acting-as on reload:', error.message);
-          sessionStorage.removeItem('acting_as_dependent');
-          sessionStorage.removeItem('acting_as_token');
-          sessionStorage.removeItem('acting_as_parent_name');
-        }
+        });
       }
       // Mark as initialized after attempting to restore
       setHasInitialized(true);
-    };
-
-    restoreActingAsState();
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Memoized clearActingAs function to prevent re-renders
@@ -102,12 +84,10 @@ export const ActingAsProvider = ({ children }) => {
     }
 
     // Clean up all acting-as state from sessionStorage (incl. removing any
-    // legacy parent_* token values written by older builds).
-    sessionStorage.removeItem('acting_as_dependent');
-    sessionStorage.removeItem('acting_as_token');
-    sessionStorage.removeItem('acting_as_parent_name');
-    sessionStorage.removeItem('parent_access_token');
-    sessionStorage.removeItem('parent_refresh_token');
+    // legacy parent_* token values written by older builds), and forget the
+    // shared restore promise so a later switch mints a fresh token instead of
+    // resolving to the one this call just gave up.
+    clearStoredActingAs();
 
     // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
     startTransition(() => {
@@ -130,11 +110,7 @@ export const ActingAsProvider = ({ children }) => {
         clearActingAs();
       } else {
         // Just clear sessionStorage without API call if no acting-as state
-        sessionStorage.removeItem('acting_as_dependent');
-        sessionStorage.removeItem('acting_as_token');
-        sessionStorage.removeItem('acting_as_parent_name');
-        sessionStorage.removeItem('parent_access_token');
-        sessionStorage.removeItem('parent_refresh_token');
+        clearStoredActingAs();
       }
     }
   }, [user, loading, hasInitialized, clearActingAs, actingAsDependent, actingAsToken]);

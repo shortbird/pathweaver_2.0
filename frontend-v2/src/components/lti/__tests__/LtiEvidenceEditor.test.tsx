@@ -3,15 +3,15 @@
  * signed upload, gating on >=1 block, onComplete payload shape.
  */
 
-jest.mock('@/src/services/signedUpload', () => ({
-  uploadViaSignedUrl: jest.fn(),
-}));
-
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { LtiEvidenceEditor } from '../LtiEvidenceEditor';
+
+jest.mock('@/src/services/signedUpload', () => ({
+  uploadViaSignedUrl: jest.fn(),
+}));
 
 afterEach(() => jest.clearAllMocks());
 

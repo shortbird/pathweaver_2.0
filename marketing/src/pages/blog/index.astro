@@ -1,0 +1,42 @@
+---
+import Marketing from '../../layouts/Marketing.astro'
+import { getCollection } from 'astro:content'
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+)
+---
+
+<Marketing
+  title="Blog | Optio"
+  description="Notes on real learning, seat time, credit, and building an education around what your kid already does. From the Optio team."
+  ogImage="/images/og/blog.png"
+>
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-8">
+      <h1 class="text-4xl sm:text-5xl font-bold text-neutral-900 mb-4">The Optio blog</h1>
+      <p class="text-lg text-neutral-500 font-medium">
+        Notes on real learning, seat time, and making it count.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 pb-20">
+      <div class="divide-y divide-neutral-100">
+        {posts.map((post) => (
+          <a href={`/blog/${post.id}/`} class="block py-8 group">
+            <p class="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-2">
+              {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              &middot; {post.data.author}
+            </p>
+            <h2 class="text-2xl font-bold text-neutral-900 group-hover:text-optio-purple transition-colors mb-2">
+              {post.data.title}
+            </h2>
+            <p class="text-neutral-500 font-medium leading-relaxed">{post.data.description}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</Marketing>

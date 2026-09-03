@@ -77,7 +77,7 @@ export function SubjectCreditsGrid({ subjectXP }: { subjectXP: SubjectXPRow[] })
                   {earned > 0 && (
                     <SvgCircle
                       cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
-                      stroke="#6D469B" strokeWidth={DONUT_STROKE} fill="none"
+                      stroke={c.brand} strokeWidth={DONUT_STROKE} fill="none"
                       strokeDasharray={`${DONUT_CIRCUMFERENCE}`}
                       strokeDashoffset={earnedOffset}
                       strokeLinecap="round"
@@ -86,11 +86,11 @@ export function SubjectCreditsGrid({ subjectXP }: { subjectXP: SubjectXPRow[] })
                   )}
                 </Svg>
                 <View className="absolute items-center justify-center">
-                  <UIText size="lg" className="font-poppins-bold text-typography-700">{displayPct}%</UIText>
+                  <UIText size="lg" className="font-poppins-bold text-typo-700 dark:text-dark-typo-700">{displayPct}%</UIText>
                 </View>
               </View>
               <UIText size="sm" className="font-poppins-semibold text-center mt-2">{displayName}</UIText>
-              <UIText size="xs" className="text-typography-500 text-center">{earned.toLocaleString()} / {xpRequired.toLocaleString()} XP</UIText>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 text-center">{earned.toLocaleString()} / {xpRequired.toLocaleString()} XP</UIText>
               {pending > 0 && (
                 <UIText size="xs" className="text-amber-600 text-center">+{pending.toLocaleString()} pending</UIText>
               )}

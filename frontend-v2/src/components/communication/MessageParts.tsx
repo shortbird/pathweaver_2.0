@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UIText, toast } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
+import { MediaModal } from '@/src/components/feed/MediaModal';
 import type { MessageReaction, ReplyPreview } from '@/src/hooks/useMessages';
 
 /** The only reactions the backend accepts (ALLOWED_REACTIONS). */
@@ -80,16 +81,16 @@ export function ReactionPills({
             paddingHorizontal: 8,
             paddingVertical: 2,
             borderRadius: 12,
-            backgroundColor: r.reacted ? '#EDE9F0' : c.surfaceMuted,
+            backgroundColor: r.reacted ? c.brandSurface : c.surfaceMuted,
             borderWidth: 1,
-            borderColor: r.reacted ? '#6D469B' : c.border,
+            borderColor: r.reacted ? c.brand : c.border,
             gap: 3,
           }}
         >
           <UIText size="xs" style={{ fontSize: 13 }}>{r.emoji}</UIText>
           <UIText
             size="xs"
-            style={{ fontSize: 11, color: r.reacted ? '#6D469B' : c.textMuted }}
+            style={{ fontSize: 11, color: r.reacted ? c.brand : c.textMuted }}
           >
             {r.count}
           </UIText>
@@ -108,7 +109,7 @@ export function ReplyQuote({ replyTo, isMine }: { replyTo?: ReplyPreview | null;
     <View
       style={{
         borderLeftWidth: 3,
-        borderLeftColor: isMine ? 'rgba(255,255,255,0.5)' : '#6D469B',
+        borderLeftColor: isMine ? 'rgba(255,255,255,0.5)' : c.brand,
         backgroundColor: isMine ? 'rgba(255,255,255,0.12)' : c.surfaceMuted,
         borderRadius: 8,
         paddingHorizontal: 8,
@@ -118,7 +119,7 @@ export function ReplyQuote({ replyTo, isMine }: { replyTo?: ReplyPreview | null;
     >
       <UIText
         size="xs"
-        style={{ fontSize: 11, color: isMine ? 'rgba(255,255,255,0.85)' : '#6D469B' }}
+        style={{ fontSize: 11, color: isMine ? 'rgba(255,255,255,0.85)' : c.brand }}
         className="font-poppins-semibold"
         numberOfLines={1}
       >
@@ -151,19 +152,39 @@ export function MessageAttachments({
   isMine: boolean;
 }) {
   const c = useThemeColors();
+  // Photos and videos open in the app's full-screen viewer (pinch-to-zoom, tap
+  // to dismiss). Handing them to Linking instead sent the OS to the browser,
+  // where the only offer was a download — "I would really like to be able to
+  // click on pictures sent from teachers and see them better without having to
+  // download them" (bug report 2026-08-31).
+  const [preview, setPreview] = useState<{ type: 'image' | 'video'; uri: string; name?: string } | null>(null);
+
   if (!attachments || attachments.length === 0) return null;
 
-  const open = (url: string) => {
-    Linking.openURL(url).catch(() => toast.error('Could not open the attachment'));
+  const open = (a: MessageAttachment) => {
+    if (a.type === 'image' || a.type === 'video') {
+      setPreview({ type: a.type, uri: a.url, name: a.name });
+      return;
+    }
+    Linking.openURL(a.url).catch(() => toast.error('Could not open the attachment'));
   };
 
   return (
     <View style={{ gap: 6, marginBottom: 4 }}>
+      {preview && (
+        <MediaModal
+          visible
+          onClose={() => setPreview(null)}
+          type={preview.type}
+          uri={preview.uri}
+          title={preview.name}
+        />
+      )}
       {attachments.map((a, i) =>
         a.type === 'image' ? (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => open(a)}
             accessibilityRole="imagebutton"
             accessibilityLabel={a.name || 'Image attachment'}
           >
@@ -176,7 +197,7 @@ export function MessageAttachments({
         ) : (
           <Pressable
             key={`${a.url}-${i}`}
-            onPress={() => open(a.url)}
+            onPress={() => open(a)}
             accessibilityRole="button"
             accessibilityLabel={`Open ${a.name || 'attachment'}`}
             className="flex-row items-center"
@@ -191,7 +212,7 @@ export function MessageAttachments({
             <Ionicons
               name={FILE_ICONS[a.type] || 'document-text'}
               size={18}
-              color={isMine ? '#fff' : '#6D469B'}
+              color={isMine ? '#fff' : c.brand}
             />
             <View style={{ flexShrink: 1 }}>
               <UIText
@@ -234,9 +255,9 @@ export function ComposerBanner({
       className="flex-row items-center border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
       style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}
     >
-      <Ionicons name={icon} size={16} color="#6D469B" />
+      <Ionicons name={icon} size={16} color={c.brand} />
       <View className="flex-1">
-        <UIText size="xs" className="font-poppins-semibold" style={{ color: '#6D469B' }} numberOfLines={1}>
+        <UIText size="xs" className="font-poppins-semibold" style={{ color: c.brand }} numberOfLines={1}>
           {title}
         </UIText>
         {snippet ? (
@@ -347,9 +368,9 @@ export function PendingAttachmentChips({
           }}
         >
           {p.uploading ? (
-            <ActivityIndicator size="small" color="#6D469B" />
+            <ActivityIndicator size="small" color={c.brand} />
           ) : (
-            <Ionicons name="attach" size={14} color="#6D469B" />
+            <Ionicons name="attach" size={14} color={c.brand} />
           )}
           <UIText size="xs" numberOfLines={1} style={{ flexShrink: 1 }}>
             {p.name}

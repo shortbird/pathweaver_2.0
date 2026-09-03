@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { VStack, HStack, UIText, Card, Button, ButtonText, PillarBadge } from '../ui';
+import { VStack, HStack, UIText, Card, PillarBadge } from '../ui';
 import type { QuestTask } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -63,7 +63,7 @@ function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: bo
           </UIText>
           {hasAttachment && !task.is_completed ? (
             <HStack className="items-center gap-1">
-              <Ionicons name="attach" size={10} color="#6D469B" />
+              <Ionicons name="attach" size={10} color={c.brand} />
               <UIText size="xs" className="text-optio-purple font-poppins-medium">
                 Evidence attached
               </UIText>
@@ -76,6 +76,7 @@ function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: bo
 }
 
 export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: Props) {
+  const c = useThemeColors();
   const [attachments, setAttachments] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -102,7 +103,7 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: 
       {/* Section header */}
       <HStack className="items-center justify-between">
         <HStack className="items-center gap-2">
-          <Ionicons name="list-outline" size={16} color="#6D469B" />
+          <Ionicons name="list-outline" size={16} color={c.brand} />
           <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider">
             Tasks
           </UIText>
@@ -137,7 +138,7 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: 
         onPress={onGenerateTasks}
         className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-surface-300 dark:border-dark-surface-300 active:bg-surface-50 dark:active:bg-dark-surface-50"
       >
-        <Ionicons name="sparkles" size={16} color="#6D469B" />
+        <Ionicons name="sparkles" size={16} color={c.brand} />
         <UIText size="sm" className="text-optio-purple font-poppins-medium">
           Generate Task Ideas
         </UIText>

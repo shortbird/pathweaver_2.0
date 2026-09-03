@@ -302,15 +302,32 @@ const ForFamiliesPage = () => {
           <RevealSection>
             <div className="bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 rounded-2xl p-8 sm:p-10 text-center border border-optio-purple/20">
               <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-3">Optio Family</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
                 Everything Your Family Needs
               </h2>
-              <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
-                $50<span className="text-lg font-medium text-gray-500">/month</span>
-              </p>
-              <p className="text-gray-500 text-sm mb-8 font-medium">
-                Per family. All kids included.
-              </p>
+              <div className="flex flex-col sm:flex-row items-stretch justify-center gap-4 sm:gap-6 max-w-lg mx-auto mb-8">
+                <div className="flex-1 bg-white/60 rounded-xl p-5 border border-optio-purple/20">
+                  <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+                    $20<span className="text-lg font-medium text-gray-500">/month</span>
+                  </p>
+                  <p className="text-gray-500 text-sm font-medium">Per kid</p>
+                </div>
+                <div className="flex-1 bg-white/60 rounded-xl p-5 border border-optio-purple/20">
+                  <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+                    $50<span className="text-lg font-medium text-gray-500">/month</span>
+                  </p>
+                  <p className="text-gray-500 text-sm font-medium">Whole family. All kids included.</p>
+                </div>
+              </div>
+              <div className="max-w-lg mx-auto mb-8 bg-white/60 rounded-xl p-5 border border-optio-purple/20">
+                <p className="text-sm font-semibold text-optio-pink uppercase tracking-wider mb-2">Accredited Homeschool Diploma</p>
+                <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+                  $100<span className="text-lg font-medium text-gray-500">/credit</span>
+                </p>
+                <p className="text-gray-500 text-sm font-medium">
+                  For kids 13+. 24 credits ($2,400) earns a fully accredited diploma awarded from your homeschool.
+                </p>
+              </div>
               <div className="grid sm:grid-cols-2 gap-3 max-w-lg mx-auto mb-8 text-left">
                 {['Parent dashboard for all your kids', 'Connect and manage dependents', 'Observer invitations for family', 'Activity feed and portfolio access', 'Bounty system for family engagement', 'Discounts on official credits'].map((item) => (
                   <div key={item} className="flex items-start gap-2">

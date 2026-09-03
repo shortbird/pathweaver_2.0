@@ -5,12 +5,18 @@
  * Native: Uses Google Docs viewer as fallback.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Platform, Pressable, Image, Dimensions, GestureResponderEvent } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Platform, Pressable, Image } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, UIText, toast } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+
+// cdnjs-published SRI hash for pdf.js 3.11.174 pdf.min.js
+// (https://api.cdnjs.com/libraries/pdf.js/3.11.174?fields=sri). Update in
+// lockstep with the pinned version in the URLs below.
+const PDFJS_SRI =
+  'sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==';
 
 interface DocumentViewerProps {
   uri: string;
@@ -47,6 +53,12 @@ function WebDocumentViewer({ uri, title }: DocumentViewerProps) {
           }
           const script = document.createElement('script');
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          // SRI pin (cdnjs-published hash) — a tampered CDN response fails to
+          // load instead of executing. The worker script can't carry SRI (pdf.js
+          // loads it into a Worker itself), but it runs in a worker scope with
+          // no DOM access.
+          script.integrity = PDFJS_SRI;
+          script.crossOrigin = 'anonymous';
           script.onload = () => {
             const lib = (window as any).pdfjsLib;
             lib.GlobalWorkerOptions.workerSrc =
@@ -97,12 +109,12 @@ function WebDocumentViewer({ uri, title }: DocumentViewerProps) {
       >
         <HStack className="items-center gap-3">
           <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
-            <Ionicons name="document-attach-outline" size={20} color="#6D469B" />
+            <Ionicons name="document-attach-outline" size={20} color={c.brand} />
           </View>
           <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1">
             {title || 'Open Document'}
           </UIText>
-          <Ionicons name="open-outline" size={16} color="#6D469B" />
+          <Ionicons name="open-outline" size={16} color={c.brand} />
         </HStack>
       </Pressable>
     );
@@ -124,11 +136,11 @@ function WebDocumentViewer({ uri, title }: DocumentViewerProps) {
         className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300"
       >
         <HStack className="items-center gap-3">
-          <Ionicons name="document-text-outline" size={20} color="#6D469B" />
+          <Ionicons name="document-text-outline" size={20} color={c.brand} />
           <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1">
             {title || 'Open PDF'}
           </UIText>
-          <Ionicons name="open-outline" size={16} color="#6D469B" />
+          <Ionicons name="open-outline" size={16} color={c.brand} />
         </HStack>
       </Pressable>
     );
@@ -184,7 +196,7 @@ function getPdfRendererHtml(pdfUrl: string) {
   const serialized = JSON.stringify(safeUrl);
   return `<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="${PDFJS_SRI}" crossorigin="anonymous"></script>
 <style>body{margin:0;background:#f3f4f6;display:flex;align-items:center;justify-content:center;min-height:100vh}
 .loading{color:#9ca3af;font-family:sans-serif;font-size:14px}</style></head>
 <body><div class="loading">Loading PDF...</div>
@@ -325,12 +337,12 @@ function NativeDocumentViewer({ uri, title }: DocumentViewerProps) {
     <Pressable onPress={openExternally} className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
-          <Ionicons name={isPdf ? 'document-text-outline' : 'document-attach-outline'} size={20} color="#6D469B" />
+          <Ionicons name={isPdf ? 'document-text-outline' : 'document-attach-outline'} size={20} color={c.brand} />
         </View>
         <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
           {title || (isPdf ? 'View PDF' : 'Open Document')}
         </UIText>
-        <Ionicons name="open-outline" size={16} color="#6D469B" />
+        <Ionicons name="open-outline" size={16} color={c.brand} />
       </View>
     </Pressable>
   );

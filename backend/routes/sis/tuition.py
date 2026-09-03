@@ -13,6 +13,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_tuition_service as tuition
+from services import sis_recurring_tuition_service as recurring
 # Finance tier: sending tuition invoices IS the money, so campus coordinators are
 # excluded exactly as they are from billing.
 from utils.sis_roles import FINANCE_ROLES as STAFF_ROLES
@@ -141,3 +142,92 @@ def preview_tuition_invoice(user_id, student_id):
         'Content-Disposition': 'inline; filename="invoice-preview.pdf"',
         'Cache-Control': 'no-store',
     })
+
+
+# ── Open-ended monthly tuition ───────────────────────────────────────────────
+#
+# A set amount per student charged every month until it is turned off. Distinct
+# from the queue-driven invoice above (which bills a finalized schedule once) and
+# from the payment plans in billing.py (which split ONE invoice into a known
+# number of installments). See services/sis_recurring_tuition_service.py.
+
+
+@bp.route('/tuition/recurring', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_recurring_tuition(user_id):
+    """Every live monthly schedule in the org, with names and card status."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **recurring.list_for_org(org_id)})
+
+
+@bp.route('/tuition/recurring', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def create_recurring_tuition(user_id):
+    """Start a monthly schedule. Body: {student_id, monthly_cents, description?,
+    day_of_month?}. Billing begins once the family has saved a card."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    student_id = data.get('student_id')
+    if not student_id:
+        return jsonify({'success': False, 'error': 'Choose a student'}), 400
+    message = recurring.validate_terms(data.get('monthly_cents'),
+                                       data.get('day_of_month', 1))
+    if message:
+        return jsonify({'success': False, 'error': message}), 400
+    result = recurring.create(
+        org_id, student_id, monthly_cents=data.get('monthly_cents'), actor_id=user_id,
+        description=data.get('description'), day_of_month=data.get('day_of_month', 1))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Student not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/tuition/recurring/<schedule_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_recurring_tuition(user_id, schedule_id):
+    """Change the amount, label, or billing day. Takes effect next charge."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    result = recurring.update(
+        org_id, schedule_id, actor_id=user_id,
+        monthly_cents=data.get('monthly_cents'), description=data.get('description'),
+        day_of_month=data.get('day_of_month'))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Schedule not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/tuition/recurring/<schedule_id>/status', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def set_recurring_tuition_status(user_id, schedule_id):
+    """Pause, resume, or end a schedule. Body: {status}."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    status = (request.get_json() or {}).get('status')
+    result = recurring.set_status(org_id, schedule_id, status, actor_id=user_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Schedule not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/tuition/recurring/households/<household_id>/setup-link', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def send_recurring_setup_link(user_id, household_id):
+    """Email the family the no-login link that saves a card and starts billing."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = recurring.send_setup_link(org_id, household_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})

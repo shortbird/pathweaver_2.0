@@ -38,6 +38,10 @@ through untouched.
 
 from __future__ import annotations
 
+import threading
+import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from app_config import Config
@@ -75,6 +79,10 @@ _SIGNED_MARKER = '/storage/v1/object/sign/'
 _LEGACY_PUBLIC_MARKER = '/rest/v1/object/public/'
 # Supabase's server-side image transform endpoint, used for HEIC -> JPEG.
 _RENDER_MARKER = '/storage/v1/render/image/public/'
+# The signed half of the transform endpoint — what sign_thumb_urls() mints.
+# Parsed for the same reason _SIGNED_MARKER is: re-signing something already
+# signed has to resolve back to the object, not pass the expiring URL through.
+_RENDER_SIGNED_MARKER = '/storage/v1/render/image/sign/'
 
 
 def default_ttl() -> int:
@@ -109,7 +117,8 @@ def parse_object_ref(
     if not candidate:
         return None
 
-    for marker in (_PUBLIC_MARKER, _LEGACY_PUBLIC_MARKER, _SIGNED_MARKER, _RENDER_MARKER):
+    for marker in (_PUBLIC_MARKER, _LEGACY_PUBLIC_MARKER, _SIGNED_MARKER,
+                   _RENDER_MARKER, _RENDER_SIGNED_MARKER):
         if marker in candidate:
             tail = candidate.split(marker, 1)[1]
             tail = tail.split('?', 1)[0].split('#', 1)[0]
@@ -331,15 +340,22 @@ def sign_in_place(
     if not isinstance(records, list):
         return
     fields = list(fields)
-    originals = [
+    originals = _collect_originals(records, fields)
+    if not originals:
+        return
+    _apply_mapping(records, fields, sign_stored_urls(originals, bucket, expires_in, client=client))
+
+
+def _collect_originals(records: List[dict], fields: List[str]) -> List[str]:
+    return [
         r.get(f) for r in records
         if isinstance(r, dict)
         for f in fields
         if isinstance(r.get(f), str) and r.get(f)
     ]
-    if not originals:
-        return
-    mapping = sign_stored_urls(originals, bucket, expires_in, client=client)
+
+
+def _apply_mapping(records: List[dict], fields: List[str], mapping: Dict[str, Optional[str]]) -> None:
     for record in records:
         if not isinstance(record, dict):
             continue
@@ -347,3 +363,252 @@ def sign_in_place(
             value = record.get(field)
             if isinstance(value, str) and value in mapping:
                 record[field] = mapping[value]
+
+
+# ── thumbnails ───────────────────────────────────────────────────────────────
+#
+# A `user-photos` object averages 1.3 MB and the biggest is 5 MB. Messages
+# renders every one of them into a 40px circle, so an iCreate parent opening
+# their contact list pulled ~108 MB of camera-resolution JPEGs to draw 95
+# thumbnails — and pulled them again on every load, because a signed URL
+# carries a fresh token each time and Supabase sends no Cache-Control header,
+# so nothing the browser saw last time can be reused. At 96px the same object
+# is about 3 KB.
+#
+# Why this is not just a `transform` argument on :func:`sign_stored_urls`:
+# Supabase's batch signing endpoint accepts a transform and **silently ignores
+# it**, handing back full-size `/object/sign/` URLs, and the token it mints
+# does not authorize a transform bolted on as a query string afterwards (that
+# request returns the origin re-encoded, at origin dimensions). The size has to
+# be inside each token, which means one round trip per object.
+#
+# On its own that would be a bad trade — ~200 ms per avatar against a single
+# 150 ms batch call — except that what is being signed barely ever changes. The
+# cache below turns every later render of the same roster into zero round
+# trips, and because contact lists within one school overlap almost completely,
+# the first member to open Messages warms it for all the others.
+
+_THUMB_CACHE: "OrderedDict[Tuple, Tuple[Optional[str], float]]" = OrderedDict()
+_THUMB_CACHE_LOCK = threading.Lock()
+_THUMB_CACHE_MAX = 4096
+# Retire a cached URL early so one is never handed out with seconds of token
+# left on it. Must stay well under STORAGE_SIGNED_URL_TTL.
+_THUMB_CACHE_MARGIN = 300
+# Enough to hide the latency of a cold roster without opening a connection per
+# contact.
+#
+# Each worker gets its OWN Supabase client. Sharing the process-wide admin
+# client across these threads multiplexes every request onto one HTTP/2
+# connection and exhausts its stream limit -- signing 95 avatars that way
+# produced `[Errno 35] Resource temporarily unavailable` and silently dropped
+# those contacts to full-size fallbacks. It is the same hazard
+# `database.get_supabase_admin_client` documents when it caches per request.
+#
+# The pool is module-level and long-lived so those per-thread clients are built
+# once for the process, not once per request.
+_THUMB_SIGN_WORKERS = 8
+_THUMB_POOL: Optional[ThreadPoolExecutor] = None
+_THUMB_POOL_LOCK = threading.Lock()
+_THUMB_THREAD_STATE = threading.local()
+
+
+def _thumb_pool() -> ThreadPoolExecutor:
+    global _THUMB_POOL
+    if _THUMB_POOL is None:
+        with _THUMB_POOL_LOCK:
+            if _THUMB_POOL is None:
+                _THUMB_POOL = ThreadPoolExecutor(
+                    max_workers=_THUMB_SIGN_WORKERS,
+                    thread_name_prefix='thumb-sign',
+                )
+    return _THUMB_POOL
+
+
+def _thumb_worker_client():
+    """A Supabase client belonging to the calling worker thread alone."""
+    client = getattr(_THUMB_THREAD_STATE, 'client', None)
+    if client is None:
+        from supabase import create_client
+        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+        _THUMB_THREAD_STATE.client = client
+    return client
+
+# Default avatar rendering size: 2x a 40px list row, so it stays sharp on
+# retina without carrying a third of a megabyte.
+THUMB_AVATAR_PX = 96
+
+
+def _thumb_cache_get(key: Tuple) -> Tuple[bool, Optional[str]]:
+    """(hit, url). A cached failure is a hit too — retrying a bad object on
+    every request is how one broken avatar becomes a slow page."""
+    now = time.monotonic()
+    with _THUMB_CACHE_LOCK:
+        entry = _THUMB_CACHE.get(key)
+        if entry is None:
+            return False, None
+        url, expires_at = entry
+        if expires_at <= now:
+            _THUMB_CACHE.pop(key, None)
+            return False, None
+        _THUMB_CACHE.move_to_end(key)
+        return True, url
+
+
+def _thumb_cache_put(key: Tuple, url: Optional[str], ttl: int) -> None:
+    # A failure is cached briefly, a success for nearly the token's life.
+    lifetime = max(ttl - _THUMB_CACHE_MARGIN, 1) if url else 60
+    with _THUMB_CACHE_LOCK:
+        _THUMB_CACHE[key] = (url, time.monotonic() + lifetime)
+        _THUMB_CACHE.move_to_end(key)
+        while len(_THUMB_CACHE) > _THUMB_CACHE_MAX:
+            _THUMB_CACHE.popitem(last=False)
+
+
+def clear_thumb_cache() -> None:
+    """Drop every cached thumbnail URL. For tests, and for the rare case where
+    an object is replaced in place and the stale render has to go."""
+    with _THUMB_CACHE_LOCK:
+        _THUMB_CACHE.clear()
+
+
+# A row pointing at an object that is not in the bucket. Matched on the message
+# because storage3 raises StorageApiError for every failure alike and the code
+# is only inside the payload.
+_MISSING_OBJECT_MARKERS = ('not_found', 'Object not found', 'does not exist')
+
+
+def _is_missing_object(error: Exception) -> bool:
+    text = str(error)
+    return any(marker in text for marker in _MISSING_OBJECT_MARKERS)
+
+
+def _sign_thumb(bucket: str, path: str, ttl: int, transform: dict, client=None) -> Optional[str]:
+    """One transformed signed URL, falling back to the full-size one.
+
+    The fallback is deliberate: if image transformation is unavailable (plan
+    change, a non-image object, an unsupported codec) the right outcome is a
+    heavy avatar, not a missing one. It is still signed, so the privacy
+    contract in this module's docstring holds either way.
+
+    A **missing** object is the exception to that, and it has to be, because
+    signing per object changed how this failure surfaces. The batch endpoint
+    hands back a usable-looking signed URL for a path that isn't there (with an
+    `error` alongside it that nothing read), so a dangling avatar_url was
+    silent: the URL simply 404'd in the browser. `create_signed_url` raises
+    instead, and falling back to signed_url() re-raised and logged at ERROR —
+    which is a Sentry event per request per stale row (OPTIO-BACKEND-7G, from a
+    single dangling row in `users`). Retrying full-size cannot succeed for an
+    object that does not exist, so don't: return None, let the caller render
+    initials, and say so once at WARNING.
+    """
+    # Stay on this thread's own client for the fallback too — reaching for the
+    # shared admin client here would reintroduce the contention this avoids.
+    # If the per-thread client cannot be built at all, degrade to the shared one
+    # rather than raising: this runs inside a pool.map, so an exception here
+    # would take down the whole request instead of one avatar.
+    if client is None:
+        try:
+            client = _thumb_worker_client()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[storage] Could not build a thumbnail signing client: %s", e)
+            client = _admin()
+    signer = client
+    try:
+        store = signer.storage.from_(bucket)
+        signed = store.create_signed_url(path, ttl, {'transform': transform})
+        raw = None
+        if isinstance(signed, dict):
+            raw = signed.get('signedURL') or signed.get('signedUrl') or signed.get('signed_url')
+        resolved = _normalize(raw)
+        if resolved:
+            return resolved
+    except Exception as e:  # noqa: BLE001
+        # Lazy %-args and the path in `extra`, for the Sentry grouping reason
+        # explained in signed_url().
+        if _is_missing_object(e):
+            logger.warning(
+                "[storage] Avatar object is missing from %s; rendering initials instead",
+                bucket, extra={'extra_fields': {'storage_path': path}},
+            )
+            return None
+        logger.warning(
+            "[storage] Thumbnail signing failed in %s, falling back to full size: %s",
+            bucket, e, extra={'extra_fields': {'storage_path': path}},
+        )
+    return signed_url(bucket, path, ttl, client=signer)
+
+
+def sign_thumb_urls(
+    values: Iterable[Optional[str]],
+    bucket: Optional[str] = None,
+    expires_in: Optional[int] = None,
+    *,
+    size: int = THUMB_AVATAR_PX,
+    quality: int = 70,
+    client=None,
+) -> Dict[str, Optional[str]]:
+    """:func:`sign_stored_urls`, but private objects come back downscaled.
+
+    Same contract — keyed by the original value, external links passed through
+    untouched — so this is a drop-in wherever the rendered size is small and
+    fixed. Do not use it for anything a user can open full-screen.
+    """
+    ttl = int(expires_in) if expires_in else default_ttl()
+    transform = {'width': size, 'height': size, 'resize': 'cover', 'quality': quality}
+    out: Dict[str, Optional[str]] = {}
+    pending: Dict[Tuple, List[str]] = {}
+
+    seen: set = set()
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        ref = parse_object_ref(value, bucket)
+        if not ref:
+            out[value] = value
+            continue
+        found_bucket, path = ref
+        if not is_private_bucket(found_bucket):
+            out[value] = value if '://' in value else public_object_url(found_bucket, path)
+            continue
+        key = (found_bucket, path, size, quality)
+        hit, cached = _thumb_cache_get(key)
+        if hit:
+            out[value] = cached
+        else:
+            pending.setdefault(key, []).append(value)
+
+    if pending:
+        keys = list(pending)
+        results = list(_thumb_pool().map(
+            lambda k: _sign_thumb(k[0], k[1], ttl, transform, client=client), keys
+        ))
+        for key, url in zip(keys, results):
+            _thumb_cache_put(key, url, ttl)
+            for value in pending[key]:
+                out[value] = url
+
+    return out
+
+
+def sign_thumbs_in_place(
+    records: List[dict],
+    fields: Iterable[str],
+    bucket: Optional[str] = None,
+    expires_in: Optional[int] = None,
+    *,
+    size: int = THUMB_AVATAR_PX,
+    quality: int = 70,
+    client=None,
+) -> None:
+    """:func:`sign_in_place` for fields rendered at thumbnail size. Mutates
+    ``records``."""
+    if not isinstance(records, list):
+        return
+    fields = list(fields)
+    originals = _collect_originals(records, fields)
+    if not originals:
+        return
+    _apply_mapping(records, fields, sign_thumb_urls(
+        originals, bucket, expires_in, size=size, quality=quality, client=client
+    ))

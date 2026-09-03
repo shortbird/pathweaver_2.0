@@ -42,9 +42,9 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
 
   const filtered = useMemo(() => {
     const sorted = [...contacts].sort((a, b) => {
-      // Optio Support always pinned
-      if (a.is_support && !b.is_support) return -1;
-      if (!a.is_support && b.is_support) return 1;
+      // Optio Support always pinned, the school's inbox right under it
+      if (a.is_support !== b.is_support) return a.is_support ? -1 : 1;
+      if (a.is_school !== b.is_school) return a.is_school ? -1 : 1;
       return getDisplayName(a).localeCompare(getDisplayName(b));
     });
     if (!search.trim()) return sorted;
@@ -54,7 +54,9 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
 
   const renderItem = ({ item }: { item: Contact }) => {
     const name = item.is_support ? 'Optio Support' : getDisplayName(item);
-    const relColor = item.is_support ? '#6D469B' : (relationshipColors[item.relationship] || '#6B7280');
+    const relColor = item.is_support || item.is_school
+      ? c.brand
+      : (relationshipColors[item.relationship] || c.textMuted);
     return (
       <Pressable
         onPress={() => { onSelect(item); }}
@@ -63,9 +65,16 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
         {item.is_support ? (
           <View
             className="w-12 h-12 rounded-full items-center justify-center"
-            style={{ backgroundColor: '#6D469B' }}
+            style={{ backgroundColor: c.brand }}
           >
             <Ionicons name="headset" size={22} color="#fff" />
+          </View>
+        ) : item.is_school ? (
+          <View
+            className="w-12 h-12 rounded-full items-center justify-center"
+            style={{ backgroundColor: c.brand }}
+          >
+            <Ionicons name="school" size={22} color="#fff" />
           </View>
         ) : (
           <Avatar size="md">

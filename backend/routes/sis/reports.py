@@ -7,7 +7,7 @@ NEW, additive (/api/sis/reports), staff-gated, org-scoped. (The roster CSV expor
 lives in routes/sis/__init__.py.)
 
 Registration-answer shape (see routes/icreate_registration.py submit_details):
-icreate_registrations.answers is keyed by question key. A value may be EITHER a
+registrations.answers is keyed by question key. A value may be EITHER a
 scalar / list (family-level answer) OR an object mapping kid user_id -> value
 (per-student answer). Every report here handles both shapes defensively.
 """
@@ -43,6 +43,16 @@ def _org_or_error(user_id):
             'error': 'No organization in context. Superadmins must pass ?organization_id.'
         }), 400)
     return org_id, None
+
+
+def _day_arg():
+    """?day=0..6 (Sun..Sat), or None for every day. Junk means every day."""
+    raw = request.args.get('day')
+    try:
+        day = int(raw) if raw not in (None, '') else None
+    except ValueError:
+        return None
+    return day if day in range(7) else None
 
 
 @bp.route('/reports/enrollment', methods=['GET'])
@@ -220,17 +230,33 @@ def day_rosters(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    day = request.args.get('day')
-    try:
-        day = int(day) if day not in (None, '') else None
-    except ValueError:
-        day = None
-    if day is not None and day not in range(7):
-        day = None
-    report = reports.day_rosters_report(org_id, day=day)
+    report = reports.day_rosters_report(org_id, day=_day_arg())
     if request.args.get('format') == 'csv':
         return _csv_response('day-rosters.csv', reports.DAY_ROSTERS_CSV_HEADER,
                              reports.day_rosters_csv_rows(report))
+    return jsonify({'success': True, 'report': report})
+
+
+@bp.route('/reports/block-rosters', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def block_rosters(user_id):
+    """One sheet per block: every class running in it, side by side, with ages.
+
+    iCreate (Marika), 2026-08-24: she was hand-building these in Excel out of
+    the class roster and day roster pages plus the room assignments. Same data
+    as day-rosters, pivoted for the sheet that goes on a clipboard for one
+    block — and with each class listed under every block it spans, not filed
+    under a 'Blocks 1-3' of its own. ?day=1 (0=Sun..6=Sat) narrows to one day;
+    ?format=csv writes the grid (classes across, students down).
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    day = _day_arg()
+    report = reports.block_rosters_report(org_id, day=day)
+    if request.args.get('format') == 'csv':
+        return _csv_response('block-rosters.csv', [],
+                             reports.block_rosters_csv_rows(report))
     return jsonify({'success': True, 'report': report})
 
 
@@ -241,10 +267,15 @@ def _admin():
 
 
 def _csv_response(filename, header, rows):
-    """Same CSV response pattern as roster.csv in routes/sis/__init__.py."""
+    """Same CSV response pattern as roster.csv in routes/sis/__init__.py.
+
+    An empty `header` writes no header row — the grid reports carry their own
+    headings inside the rows, and a blank first line reads as a broken file.
+    """
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(header)
+    if header:
+        writer.writerow(header)
     for r in rows:
         writer.writerow(r)
     return Response(
@@ -280,7 +311,7 @@ def _latest_registrations(org_id):
     """One registration per parent: their LATEST completed one, or — if the
     parent has never completed — their latest in-progress row (kept so those
     families still show up, flagged via the status column)."""
-    rows = (_admin().table('icreate_registrations')
+    rows = (_admin().table('registrations')
             .select('id, parent_user_id, status, kids, answers, '
                     'emergency_contacts, created_at, updated_at, completed_at')
             .eq('organization_id', org_id)

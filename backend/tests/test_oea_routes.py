@@ -537,3 +537,104 @@ class TestCourseQuest:
              patch('routes.oea._verify_manages_student', side_effect=AuthorizationError('nope')):
             resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
         assert resp.status_code == 403
+
+
+@pytest.mark.unit
+class TestHelpVideoTracking:
+    """Who opened the getting-started video.
+
+    The video is an external link, so the only fact these endpoints can carry is
+    the click. The tests pin that meaning: an open is recorded once per parent,
+    repeat opens bump a counter rather than duplicating, and a failure to record
+    never surfaces to the parent who was only trying to watch a video.
+    """
+
+    ADMIN = '44444444-4444-4444-8444-444444444444'
+    PARENT = '55555555-5555-4555-8555-555555555555'
+
+    @staticmethod
+    def _views_client(existing_view, org_id='org-1'):
+        """Client for the POST path: users lookup, then the views select, then
+        whichever of insert/update the route decides on."""
+        client = Mock()
+        views = Mock()
+        users = Mock()
+
+        def table(name):
+            return views if name == 'oea_help_video_views' else users
+
+        client.table.side_effect = table
+        for t in (views, users):
+            t.select.return_value = t
+            t.eq.return_value = t
+            t.limit.return_value = t
+            t.insert.return_value = t
+            t.update.return_value = t
+        users.execute.return_value = Mock(data=[{'organization_id': org_id}])
+        views.execute.return_value = Mock(data=existing_view)
+        return client, views
+
+    def test_first_open_inserts_row(self, client, auth_headers):
+        fake, views = self._views_client(existing_view=[])
+        with _authenticated_as(self.PARENT), \
+             patch('routes.oea.get_supabase_admin_client', return_value=fake):
+            resp = client.post('/api/oea/help-video/opened', headers=auth_headers, json={})
+        assert resp.status_code == 200
+        views.insert.assert_called_once()
+        assert views.insert.call_args[0][0]['user_id'] == self.PARENT
+        assert views.insert.call_args[0][0]['organization_id'] == 'org-1'
+
+    def test_repeat_open_increments_instead_of_duplicating(self, client, auth_headers):
+        fake, views = self._views_client(existing_view=[{'open_count': 2}])
+        with _authenticated_as(self.PARENT), \
+             patch('routes.oea.get_supabase_admin_client', return_value=fake):
+            resp = client.post('/api/oea/help-video/opened', headers=auth_headers, json={})
+        assert resp.status_code == 200
+        views.insert.assert_not_called()
+        views.update.assert_called_once()
+        assert views.update.call_args[0][0]['open_count'] == 3
+
+    def test_recording_failure_is_invisible_to_the_parent(self, client, auth_headers):
+        """Telemetry rides along with a link the browser is already following —
+        a DB problem must not read to the parent as 'the video is broken'."""
+        with _authenticated_as(self.PARENT), \
+             patch('routes.oea.get_supabase_admin_client', side_effect=Exception('db down')):
+            resp = client.post('/api/oea/help-video/opened', headers=auth_headers, json={})
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['success'] is True
+
+    def test_views_denied_to_parents(self, client, auth_headers):
+        fake = _client_with_executes([[{'role': 'org_managed', 'org_role': 'parent'}]])
+        with _authenticated_as(self.PARENT), \
+             patch('database.get_supabase_admin_client', return_value=fake):
+            resp = client.get('/api/oea/help-video/views', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_views_reports_counts_with_unopened_first(self, client, auth_headers):
+        fake = _client_with_executes([
+            # role decorator's lookup, then the route's own actor/org lookup
+            [{'role': 'org_managed', 'org_role': 'org_admin'}],
+            [{'role': 'org_managed', 'org_role': 'org_admin', 'organization_id': 'org-1'}],
+        ])
+        parents = [
+            {'id': 'p1', 'display_name': 'Ada Lovelace', 'email': 'ada@x.com'},
+            {'id': 'p2', 'first_name': 'Grace', 'last_name': 'Hopper', 'email': 'grace@x.com'},
+        ]
+        views = [{'user_id': 'p1', 'first_opened_at': '2026-08-20T00:00:00Z',
+                  'last_opened_at': '2026-08-21T00:00:00Z', 'open_count': 2}]
+        settings = dict(oea_rules.build_oea_settings(None), help_video_url='https://v/1')
+        with _authenticated_as(self.ADMIN), \
+             patch('database.get_supabase_admin_client', return_value=fake), \
+             patch('routes.oea.get_supabase_admin_client', return_value=fake), \
+             patch('utils.db_fetch.fetch_all_rows', side_effect=[parents, views]), \
+             patch('routes.oea.oea_rules.load_oea_settings', return_value=settings):
+            resp = client.get('/api/oea/help-video/views', headers=auth_headers)
+        assert resp.status_code == 200
+        body = json.loads(resp.data)
+        assert body['parent_count'] == 2
+        assert body['opened_count'] == 1
+        # Whoever still needs a nudge sorts to the top.
+        assert body['parents'][0]['name'] == 'Grace Hopper'
+        assert body['parents'][0]['opened'] is False
+        assert body['parents'][1]['name'] == 'Ada Lovelace'
+        assert body['parents'][1]['open_count'] == 2

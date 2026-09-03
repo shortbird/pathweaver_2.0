@@ -29,6 +29,7 @@ from services import sis_notifications
 from services import sis_access_gate
 from services import sis_secure_docs_service
 from services import sis_service
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -463,6 +464,88 @@ def assign_many(org_id: str, template_id: str, user_ids: List[str],
     return {'assigned': assigned, 'errors': errors}
 
 
+def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
+                description: Optional[str] = None, due_date: Optional[str] = None,
+                audience: str = 'staff', items: Optional[List[Dict[str, Any]]] = None,
+                needs_document: bool = False) -> Dict[str, Any]:
+    """An ad-hoc task: "do this thing (or these few things), tick when done."
+
+    Stored as an assignment with no template — the same record a checklist
+    uses, so it shows up in My Tasks, the admin roll-up and the completion flow
+    without any of them learning a new shape. The template_name carries the
+    task's title, which is what the roll-up displays.
+
+    With no `items`, the title IS the single item (plus `needs_document` when
+    the task is "send me a file"). With `items`, each becomes a step — the
+    composer's "add steps", which is all a checklist ever was.
+    """
+    title = (title or '').strip()
+    if not title:
+        return {'error': 'The task needs a title'}
+    ids = [u for u in dict.fromkeys(user_ids or []) if u]
+    if not ids:
+        return {'error': 'Pick at least one person'}
+    try:
+        assert_recipients_in_org(org_id, ids)
+    except RecipientNotInOrg as e:
+        return {'error': str(e)}
+    audience = _clean_audience(audience)
+    is_family = audience == 'family'
+    link = '/family/portal' if is_family else '/my-tasks'
+
+    if items:
+        cleaned = _clean_items(items)
+        if cleaned is None:
+            return {'error': 'Every step needs a title'}
+        # A step never signs (that is the signature-send flow, which brings the
+        # document) and never demands office approval — the whole point of an
+        # ad-hoc task is that ticking it is the end of it.
+        for it in cleaned:
+            it['needs_signature'] = False
+            it['needs_approval'] = False
+            it['document_id'] = None
+            it['due_date'] = it['due_date'] or due_date or None
+    else:
+        cleaned = [{
+            'key': f'item_{_uuid.uuid4().hex[:12]}',
+            'title': title,
+            'description': (description or '').strip() or None,
+            'required': True,
+            'needs_document': bool(needs_document),
+            'needs_signature': False, 'needs_approval': False,
+            'due_date': due_date or None, 'link': None, 'document_id': None,
+        }]
+    fresh = [{**it, 'status': 'pending', 'document_url': None, 'documents': [],
+              'submitted_at': None, 'approved_by': None, 'approved_at': None,
+              'admin_notes': None, 'signature': None}
+             for it in cleaned]
+
+    assigned, errors = 0, []
+    for uid in ids:
+        try:
+            (_admin().table('sis_onboarding_assignments').insert({
+                'organization_id': org_id, 'user_id': uid,
+                'template_id': None, 'template_name': title,
+                'description': (description or '').strip() or None if items else None,
+                'audience': audience,
+                # An ad-hoc task never gates the portal.
+                'blocks_access': False,
+                'items': [dict(it) for it in fresh], 'assigned_by': assigned_by,
+            }).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'[Onboarding] Ad-hoc task insert failed for org {org_id}: {e}')
+            errors.append('Could not assign to one recipient')
+            continue
+        assigned += 1
+        n = len(fresh)
+        sis_notifications.notify(
+            uid, 'New task',
+            f'"{title}"' + (f' — {n} steps' if n > 1 else '')
+            + (f' — due {due_date}' if due_date else ''),
+            link=link, organization_id=org_id)
+    return {'assigned': assigned, 'errors': errors}
+
+
 def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]]:
     """People an admin can assign a template to, by audience. 'family' returns the
     org's guardians (parents); 'staff' returns teachers/admins."""
@@ -540,6 +623,72 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     if user_id:
         _attach_sign_docs(org_id, user_id, rows)
     return rows
+
+
+def signatures_by_document(org_id: str) -> Dict[str, Dict[str, Any]]:
+    """doc_id -> the checklist signature that signed it.
+
+    A signature item records the documents the signer had in front of them
+    (`signature.documents`, see _apply_signature) — this reads that evidence
+    back per stored document, so the documents list can say "Signed <date>"
+    instead of showing the requires_signature ask-flag as if nobody had signed
+    (iCreate, 2026-08-31: a signed contract still read "Needs signature")."""
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_onboarding_assignments').select('id, items')
+        .eq('organization_id', org_id)))
+    out: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        for item in (r.get('items') or []):
+            sig = item.get('signature') or {}
+            for doc in (sig.get('documents') or []):
+                if isinstance(doc, dict) and doc.get('id'):
+                    out[doc['id']] = {'signed_at': sig.get('signed_at'),
+                                      'signed_by': sig.get('signed_by'),
+                                      'signed_by_name': sig.get('name')}
+    return out
+
+
+def checklist_documents(org_id: str) -> List[Dict[str, Any]]:
+    """Every checklist attachment in the org, shaped like a secure-document row.
+
+    The admin's filing cabinet is /secure-documents, but a checklist upload
+    lives on the assignment item and its blob in a checklist bucket — so the
+    office searched the cabinet for a background check that was filed one tab
+    over (iCreate, 2026-08-31). Merged at read time rather than mirrored into
+    sis_secure_documents on upload: removing an attachment deletes its blob
+    (_remove_document_blob), and a mirror row would outlive the file.
+
+    These rows are read-only in the store — no sis_secure_documents id to
+    rename, delete or share — which is what `source: 'checklist'` tells the
+    frontend. `audience` picks the bucket when the file is opened."""
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_onboarding_assignments')
+        .select('id, user_id, audience, items')
+        .eq('organization_id', org_id)))
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        audience = _clean_audience(r.get('audience'))
+        for item in (r.get('items') or []):
+            for i, doc in enumerate(item_documents(item)):
+                out.append({
+                    'id': f"checklist:{r['id']}:{item.get('key')}:{i}",
+                    'source': 'checklist',
+                    'audience': audience,
+                    'organization_id': org_id,
+                    'owner_user_id': r.get('user_id'),
+                    'student_user_id': None,
+                    'uploaded_by': r.get('user_id'),
+                    'uploaded_by_owner': True,
+                    'storage_path': doc.get('path'),
+                    'filename': doc.get('filename'),
+                    'title': doc.get('filename') or item.get('title'),
+                    'category': item.get('title'),
+                    'note': None,
+                    'created_at': doc.get('uploaded_at'),
+                    'shared_with_owner': True,
+                    'requires_signature': False,
+                })
+    return out
 
 
 def office_documents(org_id: str, user_id: str,

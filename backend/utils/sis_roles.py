@@ -67,6 +67,23 @@ def is_campus_coordinator(roles) -> bool:
     return CAMPUS_COORDINATOR in roles
 
 
+# Staff who may ALSO register their own children through the family
+# registration funnel, keeping their staff role primary and gaining 'parent'
+# alongside it (services/registration_identity_service.attach_and_resume).
+#
+# Not an access tier: it answers "does this person plausibly have kids at this
+# school", which is true of anyone on staff. Coordinators were missing until
+# 2026-08-25 — the funnel predated the role and its tuple was written by hand as
+# ('org_admin', 'advisor'), so a coordinator enrolling their own child was told
+# "This is not a parent account. Please register with a parent email."
+#
+# No superadmin: it is not an org_role, and the funnel refuses superadmins
+# outright a few lines earlier. Same membership as TARGETABLE_STAFF_ROLES below,
+# separate name for the same don't-widen-by-accident reason as FINANCE_ROLES /
+# ROLE_GRANT_ROLES / HR_ROLES — who may be narrowed a resource to and who may
+# enroll a child are unrelated questions that happen to have the same answer.
+FAMILY_REGISTRATION_STAFF_ROLES = ('org_admin', CAMPUS_COORDINATOR, 'advisor')
+
 # The roles a resource / training item can be narrowed to (org_resources.
 # visible_to_roles, sis_staff_training.visible_to_roles). Mirrors the CHECK
 # constraints added in 20260809_campus_coordinator_portal.sql — widening one

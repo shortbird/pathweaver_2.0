@@ -86,6 +86,76 @@ function normalizeClass(raw: any): ScheduledClass {
   };
 }
 
+export interface ScheduleDay {
+  key: string;
+  label: string;
+  rows: { cls: ScheduledClass; meeting: ClassMeeting | null }[];
+}
+
+/** Monday-first, Sunday last — the order a school week reads in. */
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/**
+ * The same classes regrouped BY DAY, each day in time order.
+ *
+ * The class-by-class list this sits beside answers "when does Pottery meet?";
+ * families ask the inverse — "where is she at 10:30 on Tuesday?" — and were
+ * having to read every card and re-sort in their heads (iCreate parent,
+ * 2026-08-25: "super clunky... at least separated by days and ideally in
+ * schedule order").
+ *
+ * Mirrors the web helper in components/schedule/WeeklySchedule.jsx so the two
+ * platforms group and order a schedule identically. Dated one-offs group by
+ * their date rather than by weekday, so a single Saturday trip does not read as
+ * "every Saturday"; classes with no usable meeting land in a trailing group
+ * instead of disappearing.
+ */
+export function meetingsByDay(classes: ScheduledClass[] = []): ScheduleDay[] {
+  const groups = new Map<string, ScheduleDay & { order: number; sub: string }>();
+  const unscheduled: ScheduleDay['rows'] = [];
+
+  const toMin = (t?: string | null): number | null => {
+    if (!t) return null;
+    const [h, m] = String(t).split(':').map(Number);
+    return Number.isNaN(h) ? null : h * 60 + (m || 0);
+  };
+
+  for (const cls of classes) {
+    let placed = false;
+    for (const m of cls.meetings || []) {
+      const hasDay = m.day_of_week !== null && m.day_of_week !== undefined && !!dayName(m.day_of_week);
+      if (!hasDay && !m.specific_date) continue;
+      const key = hasDay ? `d${m.day_of_week}` : `x${m.specific_date}`;
+      const label = (hasDay ? dayName(m.day_of_week) : m.specific_date) || '';
+      const order = hasDay ? DAY_ORDER.indexOf(m.day_of_week as number) : 100;
+      if (!groups.has(key)) groups.set(key, { key, label, order, sub: m.specific_date || '', rows: [] });
+      groups.get(key)!.rows.push({ cls, meeting: m });
+      placed = true;
+    }
+    if (!placed) unscheduled.push({ cls, meeting: null });
+  }
+
+  const ordered = [...groups.values()].sort(
+    (a, b) => (a.order - b.order) || a.sub.localeCompare(b.sub));
+
+  for (const g of ordered) {
+    // A meeting with no start time sinks within its day rather than sorting as
+    // midnight and heading the list.
+    g.rows.sort((a, b) => {
+      const sa = toMin(a.meeting?.start_time);
+      const sb = toMin(b.meeting?.start_time);
+      if (sa == null || sb == null) return sa == null ? 1 : -1;
+      return sa - sb || (a.cls.name || '').localeCompare(b.cls.name || '');
+    });
+  }
+
+  if (unscheduled.length) {
+    unscheduled.sort((a, b) => (a.cls.name || '').localeCompare(b.cls.name || ''));
+    ordered.push({ key: 'unscheduled', label: 'Not scheduled yet', order: 999, sub: '', rows: unscheduled });
+  }
+  return ordered.map(({ key, label, rows }) => ({ key, label, rows }));
+}
+
 /** Classes with at least one meeting sort first — a class with no times
  *  recorded is real, but it isn't what somebody opened a schedule to find. */
 function bySchedulePresence(a: ScheduledClass, b: ScheduledClass) {

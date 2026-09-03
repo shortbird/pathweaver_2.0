@@ -20,14 +20,14 @@ export interface Bounty {
   //   custom -> { id, type: 'custom', text }
   // `value` was typed as a string and `text` was missing entirely, so a custom
   // reward could not be described at all (found by the typecheck, 2026-08-18).
-  rewards: Array<{
+  rewards: {
     id?: string;
     type: string;
     value?: string | number;
     pillar?: string;
     text?: string;
-  }>;
-  deliverables: Array<{ id: string; text: string }>;
+  }[];
+  deliverables: { id: string; text: string }[];
   status: string;
   claims_count?: number;
   // The detail/review endpoint (useBountyDetail) embeds the full claim list;
@@ -43,6 +43,9 @@ export interface BountyClaim {
   status: 'claimed' | 'submitted' | 'approved' | 'rejected' | 'revision_requested';
   evidence: any;
   bounty?: Bounty;
+  // Most recent review decision + feedback, attached by the backend so the
+  // student can actually read why a revision was requested.
+  latest_review?: { decision: string; feedback?: string | null; created_at?: string } | null;
   created_at: string;
 }
 
@@ -50,6 +53,9 @@ export function useBounties(pillarFilter?: string) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [bounties, setBounties] = useState<Bounty[]>([]);
   const [loading, setLoading] = useState(true);
+  // Surfaced, not swallowed: a network failure used to render as the
+  // "No bounties yet" empty state, which reads as "there is nothing for you".
+  const [error, setError] = useState(false);
 
   const fetchBounties = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -59,8 +65,9 @@ export function useBounties(pillarFilter?: string) {
       if (pillarFilter) params.pillar = pillarFilter;
       const { data } = await api.get('/api/bounties', { params });
       setBounties(data.bounties || data || []);
+      setError(false);
     } catch {
-      // Non-critical
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -69,55 +76,64 @@ export function useBounties(pillarFilter?: string) {
   useEffect(() => { fetchBounties(); }, [fetchBounties]);
   useRefetchOnForeground(fetchBounties);
 
-  return { bounties, loading, refetch: fetchBounties };
+  return { bounties, loading, error, refetch: fetchBounties };
 }
 
-export function useMyClaims() {
+/**
+ * `enabled=false` skips the fetch entirely. my-claims is student-only on the
+ * backend; calling it for a parent fired a guaranteed 403 on every focus.
+ */
+export function useMyClaims(enabled: boolean = true) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [claims, setClaims] = useState<BountyClaim[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
+  const [error, setError] = useState(false);
 
   const fetchClaims = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !enabled) return;
     try {
       setLoading(true);
       const { data } = await api.get('/api/bounties/my-claims');
       setClaims(data.claims || data || []);
+      setError(false);
     } catch {
-      // Non-critical
+      setError(true);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, enabled]);
 
   useEffect(() => { fetchClaims(); }, [fetchClaims]);
   useRefetchOnForeground(fetchClaims);
 
-  return { claims, loading, refetch: fetchClaims };
+  return { claims, loading, error, refetch: fetchClaims };
 }
 
-export function useMyPosted() {
+/** my-posted is poster-only on the backend; see useMyClaims on `enabled`. */
+export function useMyPosted(enabled: boolean = true) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [bounties, setBounties] = useState<Bounty[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
+  const [error, setError] = useState(false);
 
   const fetchPosted = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !enabled) return;
     try {
       setLoading(true);
       const { data } = await api.get('/api/bounties/my-posted');
       setBounties(data.bounties || data || []);
+      setError(false);
     } catch {
-      // Non-critical
+      setError(true);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, enabled]);
 
   useEffect(() => { fetchPosted(); }, [fetchPosted]);
   useRefetchOnForeground(fetchPosted);
 
-  return { bounties, loading, refetch: fetchPosted };
+  return { bounties, loading, error, refetch: fetchPosted };
 }
 
 /**
@@ -146,6 +162,9 @@ export function useBountyDetail(bountyId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [bounty, setBounty] = useState<Bounty | null>(null);
   const [loading, setLoading] = useState(true);
+  // A 500/timeout is not "this bounty was deleted" — callers render a retry
+  // for `error` and "not found" only for a real 404.
+  const [error, setError] = useState(false);
 
   const fetchBounty = useCallback(async () => {
     if (!isAuthenticated || !bountyId) { setLoading(false); return; }
@@ -153,8 +172,10 @@ export function useBountyDetail(bountyId: string | null) {
       setLoading(true);
       const { data } = await bountyAPI.get(bountyId);
       setBounty(normalizeBounty(data.bounty || data));
-    } catch {
+      setError(false);
+    } catch (err: any) {
       setBounty(null);
+      setError(err?.response?.status !== 404);
     } finally {
       setLoading(false);
     }
@@ -163,7 +184,7 @@ export function useBountyDetail(bountyId: string | null) {
   useEffect(() => { fetchBounty(); }, [fetchBounty]);
   useRefetchOnForeground(fetchBounty);
 
-  return { bounty, loading, refetch: fetchBounty };
+  return { bounty, loading, error, refetch: fetchBounty };
 }
 
 // ── Mutation helpers (imperative, not hooks) ──
@@ -230,10 +251,5 @@ export async function deleteEvidence(
   evidenceIndex: number,
 ) {
   const { data } = await bountyAPI.deleteEvidence(bountyId, claimId, deliverableId, evidenceIndex);
-  return data;
-}
-
-export async function uploadEvidenceFiles(formData: FormData) {
-  const { data } = await bountyAPI.uploadEvidence(formData);
   return data;
 }

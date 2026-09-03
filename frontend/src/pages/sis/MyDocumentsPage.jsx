@@ -33,9 +33,10 @@ const formatSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const MyDocumentsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const [preview] = useState(() => getPreviewTeacher())
+// The documents themselves — send-to-office box and the two lists — without
+// the page chrome, so My Tasks can mount them as its Documents tab. The
+// standalone page below wraps it for deep links and the teacher preview.
+export const MyDocumentsPanel = ({ orgId, preview = null }) => {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -133,20 +134,6 @@ const MyDocumentsPage = () => {
 
   return (
     <div>
-      <BackToDashboard className="mb-1" />
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">
-          {who ? `${who}'s documents` : 'My Documents'}
-        </h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-      </div>
-      <p className="text-sm text-neutral-500 mb-6">
-        {who
-          ? `What ${who} sees here: the documents the school has shared with them, and anything they have sent back.`
-          : 'Documents the school has shared with you, and anything you send back. '
-            + 'Print a contract, sign it, photograph it, and upload it here — no need to drop off paper.'}
-      </p>
-
       {preview && (
         <p className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800 mb-6">
           Previewing {who}&apos;s documents. Sending a document in is hidden here — an upload
@@ -187,6 +174,32 @@ const MyDocumentsPage = () => {
             empty={who ? `${who} hasn't sent anything in yet.` : "You haven't sent anything in yet."} />
         </>
       )}
+    </div>
+  )
+}
+
+const MyDocumentsPage = () => {
+  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const [preview] = useState(() => getPreviewTeacher())
+  const who = preview ? preview.name : null
+
+  return (
+    <div>
+      <BackToDashboard className="mb-1" />
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-bold text-neutral-900">
+          {who ? `${who}'s documents` : 'My Documents'}
+        </h1>
+        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+      </div>
+      <p className="text-sm text-neutral-500 mb-6">
+        {who
+          ? `What ${who} sees here: the documents the school has shared with them, and anything they have sent back.`
+          : 'Documents the school has shared with you, and anything you send back. '
+            + 'Print a contract, sign it, photograph it, and upload it here — no need to drop off paper.'}
+      </p>
+
+      <MyDocumentsPanel orgId={orgId} preview={preview} />
     </div>
   )
 }

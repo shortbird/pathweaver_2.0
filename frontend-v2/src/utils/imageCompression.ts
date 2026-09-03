@@ -55,7 +55,7 @@ export async function compressImageAsset(asset: ImagePickerAsset): Promise<Image
   const height = asset.height || MAX_LONG_EDGE;
   const longEdge = Math.max(width, height);
 
-  const actions: Array<{ resize: { width?: number; height?: number } }> = [];
+  const actions: { resize: { width?: number; height?: number } }[] = [];
   if (longEdge > MAX_LONG_EDGE) {
     const scale = MAX_LONG_EDGE / longEdge;
     actions.push({ resize: { width: Math.round(width * scale), height: Math.round(height * scale) } });

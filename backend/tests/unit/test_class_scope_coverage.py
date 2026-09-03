@@ -37,6 +37,9 @@ ALLOWLIST = {
     'waitlist.py': 'ADMIN_ROLES only — no teacher ever reaches it',
     'community.py': 'community feed is school-wide by design, not class-scoped',
     'kiosk.py': 'device-token auth; the kiosk is pinned to one class at pairing',
+    'curriculum.py': "the STAFF_ROLES routes read the curriculum library "
+                     "(org-scoped by _owned); the only class_quests touch is a "
+                     "delete cascade on an ADMIN_ROLES route",
 }
 
 # Today's manual call sites, per file. A count DROPPING here means a scoped
@@ -46,7 +49,9 @@ EXPECTED_MIN_CALLS = {
     'attendance.py': 2,
     'catalog.py': 2,
     'submissions.py': 1,
-    'engagement.py': 3,
+    # 2, not 3, since 2026-09-03: main consolidated two call sites into the
+    # _alert_scope() helper, which calls class_scope itself. No read lost scope.
+    'engagement.py': 2,
     'staff_portal.py': 2,
     'gradebook.py': 6,
     'student_records.py': 1,

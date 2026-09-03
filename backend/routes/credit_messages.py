@@ -13,7 +13,7 @@ an org_admin/advisor in the student's organization). Student-facing copy is bran
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, get_effective_roles
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -21,7 +21,12 @@ logger = get_logger(__name__)
 
 bp = Blueprint('credit_messages', __name__)
 
-REVIEWER_ROLES = {'advisor', 'org_admin', 'superadmin'}
+REVIEWER_ROLES = {'advisor', 'org_admin', 'campus_coordinator', 'superadmin'}
+
+# Reviewer roles that reach every student in their org without a per-student
+# assignment. Coordinators run the campus, so they sit with org_admin here --
+# the coordinator restriction is financial, not scope-based (see sis_roles.py).
+ORG_WIDE_REVIEWER_ROLES = {'org_admin', 'campus_coordinator'}
 
 
 def _author_name(user):
@@ -30,38 +35,63 @@ def _author_name(user):
             or 'User')
 
 
+def _is_optio_voice(author_role):
+    """Whether a reviewer speaks as "Optio" rather than as themselves.
+
+    Only Optio's own review (superadmin; 'reviewer' is the legacy row value)
+    is branded. A school's teacher shows their real name -- the student knows
+    them, and "Optio replied to your work" gave them no reason to connect the
+    feedback to the person who wrote it (Gryffin, 2026-08-31).
+
+    The thread display and the notification MUST agree, so both call this.
+    """
+    return author_role in ('superadmin', 'reviewer')
+
+
 def _load_context(user_id, completion_id, admin):
     comp = admin.table('quest_task_completions')\
         .select('id, user_id, quest_id, user_quest_task_id, credit_reviewer_id, org_reviewer_id')\
         .eq('id', completion_id).single().execute()
     if not comp.data:
         return None, None, None
+    # org_roles (plural) is required, not decorative: a teacher who is also a
+    # parent at the school carries org_role='parent' with 'advisor' only in the
+    # array. Selecting the singular column alone resolved such an account to
+    # 'parent' and 403'd them out of their own students' threads, on read AND on
+    # post (Sentry OPTIO-WEB-7/8).
     u = admin.table('users')\
-        .select('id, role, org_role, organization_id, display_name, first_name, last_name')\
+        .select('id, role, org_role, org_roles, organization_id, display_name, '
+                'first_name, last_name')\
         .eq('id', user_id).single().execute()
-    role = get_effective_role(u.data) if u.data else None
-    return comp.data, u.data, role
+    roles = get_effective_roles(u.data) if u.data else []
+    return comp.data, u.data, roles
 
 
-def _can_access(completion, user, role, admin):
+def _can_access(completion, user, roles, admin):
+    """Whether `user` may read/post in this completion's thread.
+
+    `roles` is the caller's FULL effective role list, so an account holding more
+    than one org role is judged on its most capable one rather than on whichever
+    happens to sit first in the array.
+    """
     if not completion or not user:
         return False
     if completion['user_id'] == user['id']:
         return True  # the student who owns the work
-    if role == 'superadmin':
+    if 'superadmin' in roles:
         return True
     # A reviewer specifically designated on THIS completion always has access,
     # even if not otherwise assigned to the student.
     if user['id'] in (completion.get('credit_reviewer_id'), completion.get('org_reviewer_id')):
         return True
-    if role in ('org_admin', 'advisor'):
+    if any(r in REVIEWER_ROLES for r in roles):
         student = admin.table('users').select('organization_id')\
             .eq('id', completion['user_id']).single().execute()
         student_org = student.data.get('organization_id') if student.data else None
         if not (student_org and student_org == user.get('organization_id')):
             return False
-        if role == 'org_admin':
-            return True  # org admins manage the whole organization
+        if any(r in ORG_WIDE_REVIEWER_ROLES for r in roles):
+            return True  # org admins/coordinators manage the whole organization
         # Advisors (teachers) may only reach students they are actively assigned
         # to — mirrors the credit dashboard (credit_dashboard/items.py). Same-org
         # alone let an unassigned advisor read AND post in any student's private
@@ -70,7 +100,13 @@ def _can_access(completion, user, role, admin):
             .eq('advisor_id', user['id'])\
             .eq('student_id', completion['user_id'])\
             .eq('is_active', True).limit(1).execute()
-        return bool(assignment.data)
+        if assignment.data:
+            return True
+        # Teaching the student is the same relationship. Schools that onboarded
+        # through class rosters never populate advisor_student_assignments, so
+        # assignment alone locked their teachers out of their own students' work.
+        from utils.class_membership import shares_class
+        return shares_class(user['id'], completion['user_id'])
     return False
 
 
@@ -81,10 +117,10 @@ def get_credit_messages(user_id, completion_id):
     try:
         # admin client justified: cross-user thread read (student <-> reviewer) gated by _can_access (owner / superadmin / designated reviewer / same-org admin / assigned advisor)
         admin = get_supabase_admin_client()
-        completion, user, role = _load_context(user_id, completion_id, admin)
+        completion, user, roles = _load_context(user_id, completion_id, admin)
         if not completion:
             return jsonify({'success': False, 'error': 'Not found'}), 404
-        if not _can_access(completion, user, role, admin):
+        if not _can_access(completion, user, roles, admin):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         rows = admin.table('credit_review_messages')\
@@ -103,12 +139,8 @@ def get_credit_messages(user_id, completion_id):
             names = {p['id']: _author_name(p) for p in (people.data or [])}
 
         for m in messages:
-            # Only Optio's own (superadmin) review is branded "Optio". Org teachers
-            # (org_admin/advisor) show their real name. 'reviewer' = legacy rows.
-            if m.get('author_role') in ('superadmin', 'reviewer'):
-                m['author_name'] = 'Optio'
-            else:
-                m['author_name'] = names.get(m['author_id'], 'User')
+            m['author_name'] = ('Optio' if _is_optio_voice(m.get('author_role'))
+                                else names.get(m['author_id'], 'User'))
             m['is_mine'] = m['author_id'] == user_id
 
         return jsonify({'success': True, 'messages': messages})
@@ -124,10 +156,10 @@ def post_credit_message(user_id, completion_id):
     try:
         # admin client justified: cross-user thread write + notifications to the other party, gated by _can_access (owner / superadmin / designated reviewer / same-org admin / assigned advisor)
         admin = get_supabase_admin_client()
-        completion, user, role = _load_context(user_id, completion_id, admin)
+        completion, user, roles = _load_context(user_id, completion_id, admin)
         if not completion:
             return jsonify({'success': False, 'error': 'Not found'}), 404
-        if not _can_access(completion, user, role, admin):
+        if not _can_access(completion, user, roles, admin):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         body = (request.json or {}).get('body', '').strip()
@@ -169,13 +201,19 @@ def post_credit_message(user_id, completion_id):
                         metadata={'completion_id': completion_id},
                     )
             else:
-                # Notify the student — branded as Optio
+                # Name the sender the same way the thread itself does: only
+                # Optio's own (superadmin) review is branded "Optio"; a school's
+                # teacher shows their real name. A student who is told "Optio
+                # replied" has no reason to connect it to the teacher sitting
+                # across from them (Gryffin, 2026-08-31).
+                sender = ('Optio' if _is_optio_voice(author_role)
+                          else _author_name(user))
                 link = f'/quests/{quest_id}?task={task_id}' if quest_id else '/dashboard'
                 notifier.create_notification(
                     user_id=completion['user_id'],
                     notification_type='message_received',
-                    title='Optio replied to your work',
-                    message='Optio left a reply on your submitted work.',
+                    title=f'{sender} left feedback on your work',
+                    message=f'{sender} left feedback on your submitted work.',
                     link=link,
                     metadata={'completion_id': completion_id},
                 )

@@ -6,7 +6,7 @@ Updated: 2026-08-23.
 
 | Phase | Status | Notes |
 |---|---|---|
-| P0 pre-flight | **Done** | Parity script + baseline (`PARITY_BASELINE_2026-08-22.json`); drift findings in `P0_NOTES.md` |
+| P0 pre-flight | **Done** | Parity script + baseline (`PARITY_BASELINE_2026-08-22.json`); drift findings in `P0_NOTES.md`. Gate baseline re-anchored to `PARITY_BASELINE_2026-09-03.json` at the main merge — `REBASELINE_2026-09-03.md` |
 | P1 backbone | **Done** | Registry (35 modules), evaluator, log-only gate on ~30 blueprints, effective_modules on org payloads, chrome adoption, Blocks panel |
 | P2 LMS core | **Done** | Staff class creation + auto-advisor, class invite links, caseload = assignments ∪ rosters, Teaching sidebar section, org-scoped account disable, Progress tab |
 | P3 enforcement + family + settings | **Code done; flip pending** | parent/staff routes tagged per module, school-context `modules`, family card gating, ONE settings registry for both surfaces, Blocks panel v2. The enforce flip is an ops action needing a production log soak — `ENFORCEMENT_RUNBOOK.md` |

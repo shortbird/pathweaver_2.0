@@ -19,10 +19,14 @@ from zoneinfo import ZoneInfo
 from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_notifications
+# One definition of "a phone number", shared with the SMS verification flow, so
+# a number typed on the staff profile is stored in the shape verification reads.
+from services.phone_verification_service import normalize_phone
 from utils import blank_values
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils import person_name
 
 logger = get_logger(__name__)
 
@@ -43,9 +47,21 @@ SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone',
 # are redacted, not the endpoint withheld.
 PAY_FIELDS = ('pay_type', 'payroll_id', 'hourly_rate_cents')
 
+# The rest of somebody's employment terms. Not money, so these were visible to
+# and editable by campus coordinators, which iCreate did not expect: "Idk if
+# campus coordinators can see the staff like I do, but I don't think we want
+# them to see all the employment info" (2026-08-25). Hire and end dates and
+# whether somebody is an employee, a contractor or family are HR's business, not
+# the front office's. Everything a coordinator actually needs to run the campus
+# -- position, work schedule, emergency contact -- stays visible.
+EMPLOYMENT_FIELDS = ('staff_type', 'start_date', 'end_date')
 
-def redact_pay(profile, redact=True):
-    """Strip pay fields from a staff profile (or list of them) when `redact`.
+# Everything the front office does not see on a staff record.
+RESTRICTED_FIELDS = PAY_FIELDS + EMPLOYMENT_FIELDS
+
+
+def redact_pay(profile, redact=True, fields=RESTRICTED_FIELDS):
+    """Strip the restricted fields from a staff profile (or list of them).
 
     Returns the input unchanged when `redact` is False, so callers can pass the
     caller's tier straight through: `redact_pay(profile, is_campus_coordinator(roles))`.
@@ -53,8 +69,8 @@ def redact_pay(profile, redact=True):
     if not redact or not profile:
         return profile
     if isinstance(profile, list):
-        return [redact_pay(p, True) for p in profile]
-    return {k: v for k, v in profile.items() if k not in PAY_FIELDS}
+        return [redact_pay(p, True, fields) for p in profile]
+    return {k: v for k, v in profile.items() if k not in fields}
 
 STAFF_TYPES = ('employee', 'contractor', 'family')
 PAY_TYPES = ('hourly', 'salaried', 'stipend', 'unpaid')
@@ -86,18 +102,10 @@ def _org_now(org_id: str) -> datetime:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unknown'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    return (u.get('display_name')
-            or f"{first} {last}".strip()
-            or u.get('username') or u.get('email') or 'Unknown')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unknown')
 
 
 # ── Staff profiles ────────────────────────────────────────────────────────────
@@ -139,10 +147,25 @@ def upsert_staff_profile(org_id: str, user_id: str, fields: Dict[str, Any],
     # phone_number is the one editable field that lives on `users`, not on the
     # staff profile row. Handled here so Employment can save it in the same form
     # as everything else.
+    #
+    # Stored in E.164, the same shape the SMS verification writes on success
+    # (phone_verification_service.verify_code). This path used to keep whatever
+    # was typed, so one column held both "+15551234567" and "(555) 123-4567"
+    # depending on which screen last wrote it -- and the verification screen
+    # prefills from this column, so a raw string went straight back into a flow
+    # that expects a real number. An unparseable number is refused rather than
+    # stored: a number nobody can text is not worth recording, and the caller
+    # gets told which field to fix.
     if 'phone_number' in fields and 'phone_number' in allowed:
-        phone = fields['phone_number']
-        if isinstance(phone, str):
-            phone = phone.strip() or None
+        raw = fields['phone_number']
+        raw = raw.strip() if isinstance(raw, str) else raw
+        if not raw:
+            phone = None
+        else:
+            phone = normalize_phone(raw)
+            if not phone:
+                return {'error': 'That phone number does not look right. '
+                                 'Use a 10-digit US number, or +country code.'}
         try:
             _admin().table('users').update({'phone_number': phone}).eq('id', user_id).execute()
         except Exception as e:  # noqa: BLE001
@@ -207,10 +230,14 @@ def create_assignment(org_id: str, fields: Dict[str, Any], created_by: str) -> D
         'notes': (fields.get('notes') or '').strip() or None,
         'created_by': created_by,
     }).execute()).data
+    # '/' is not a destination: it dropped the reader on whichever dashboard
+    # they happened to render and told them nothing (iCreate, 2026-08-26: "when
+    # I click on a notification, it doesn't open anythign"). Assignments live on
+    # the staff member's own task list.
     sis_notifications.notify(
         target, 'New assignment',
         f'You have a new {a_type}: {title}',
-        link='/', organization_id=org_id)
+        link='/my-tasks', organization_id=org_id)
     return {'assignment': row[0] if row else None}
 
 
@@ -401,6 +428,22 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     # signing call for the list; external links pass through.
     sign_in_place(staff_resources, ['url'])
 
+    # Pinned links: the school's permanent teacher links (iCreate 2026-08-28),
+    # rendered as their own section between Today and My classes. Same
+    # audience/role visibility rules as the library.
+    pinned_links = [
+        {'id': r['id'], 'title': r['title'], 'url': r.get('url'),
+         'description': r.get('description')}
+        for r in sis_service.filter_role_visible(user_id, (
+            _admin().table('org_resources')
+            .select('id, title, url, description, audience, visible_to_roles')
+            .eq('organization_id', org_id).eq('pinned', True)
+            .in_('audience', ['staff', 'all'])
+            .order('sort_order').order('title').execute()
+        ).data or [])
+    ]
+    sign_in_place(pinned_links, ['url'])
+
     return {
         # Before the first day of school the daily schedule stays empty — weekly
         # meeting patterns exist in the catalog but classes haven't started yet.
@@ -414,6 +457,7 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'pending_acks': pending_acks,
         'recent_forms': forms,
         'staff_resources': staff_resources,
+        'pinned_links': pinned_links,
     }
 
 
@@ -454,6 +498,97 @@ def _age(dob: Optional[str], today: date) -> Optional[int]:
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
+                           when: datetime) -> Dict[str, Dict[str, Any]]:
+    """Where each student on this roster goes after this class, today.
+
+    iCreate, 2026-08-25: "Could you make it so that each teacher is able to see
+    where the students in their class are supposed to go to next? ... Then, each
+    teacher can help us with the in between classes chaos."
+
+    Keyed off THIS class's meeting today, not the wall clock: a teacher takes
+    attendance at the start of the block and needs to know where to send the
+    room at the end of it. Returns {} rather than raising — the roster (and the
+    health alerts on it) must render even if the schedule read fails.
+    """
+    if not student_ids:
+        return {}
+    try:
+        admin = _admin()
+        today = when.date()
+        dow = (today.weekday() + 1) % 7  # Python Mon=0; class_meetings uses Sun=0
+
+        # This class's own meeting today tells us when the handover happens. A
+        # class with no meeting on this weekday has no "next" to point at.
+        mine = (admin.table('class_meetings')
+                .select('start_time, end_time, day_of_week, specific_date')
+                .eq('class_id', class_id).execute()).data or []
+        today_iso = today.isoformat()
+        mine_today = [m for m in mine
+                      if (m.get('specific_date') or '')[:10] == today_iso
+                      or (not m.get('specific_date') and m.get('day_of_week') == dow)]
+        if not mine_today:
+            return {}
+        # Earliest end among this class's meetings today: what the students in
+        # front of the teacher are leaving.
+        leaves_at = min((m.get('end_time') or m.get('start_time') or '')
+                        for m in mine_today)
+        if not leaves_at:
+            return {}
+
+        # Every other class these students are in, and when it meets today.
+        enr = fetch_all_rows(lambda: (
+            admin.table('class_enrollments').select('student_id, class_id')
+            .in_('student_id', student_ids).eq('status', 'active')
+        ))
+        other_ids = sorted({e['class_id'] for e in enr if e['class_id'] != class_id})
+        if not other_ids:
+            return {}
+        meetings = fetch_all_rows(lambda: (
+            admin.table('class_meetings')
+            .select('class_id, day_of_week, specific_date, start_time, end_time, location')
+            .in_('class_id', other_ids)
+        ))
+        classes = {c['id']: c for c in (
+            admin.table('org_classes').select('id, name, location, organization_id')
+            .in_('id', other_ids).execute()).data or []}
+
+        # Earliest meeting today per class that starts at or after this one ends.
+        soonest: Dict[str, Dict[str, Any]] = {}
+        for m in meetings:
+            cls = classes.get(m['class_id'])
+            if not cls or cls.get('organization_id') != org_id:
+                continue
+            on_today = ((m.get('specific_date') or '')[:10] == today_iso
+                        or (not m.get('specific_date') and m.get('day_of_week') == dow))
+            start = m.get('start_time') or ''
+            if not on_today or start < leaves_at:
+                continue
+            prev = soonest.get(m['class_id'])
+            if prev is None or start < prev['start_time']:
+                soonest[m['class_id']] = {
+                    'class_id': m['class_id'],
+                    'name': cls.get('name'),
+                    'start_time': start,
+                    # The meeting's own room wins: a class can move for one
+                    # block, and the room is the whole point of this line.
+                    'location': m.get('location') or cls.get('location'),
+                }
+
+        by_student: Dict[str, Dict[str, Any]] = {}
+        for e in enr:
+            nxt = soonest.get(e['class_id'])
+            if not nxt:
+                continue
+            cur = by_student.get(e['student_id'])
+            if cur is None or nxt['start_time'] < cur['start_time']:
+                by_student[e['student_id']] = nxt
+        return by_student
+    except Exception as exc:  # noqa: BLE001 — a schedule read must not cost the roster
+        logger.warning(f'next-class lookup failed for class {class_id}: {exc}')
+        return {}
+
+
 def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
                         accessor_role: str) -> Dict[str, Any]:
     """Full teacher roster for one class: student, preferred name, age, photo,
@@ -491,7 +626,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
                   .execute()).data or []
         g_ids = [g['user_id'] for g in g_rows]
         g_users = {u['id']: u for u in (
-            admin.table('users').select('id, first_name, last_name, display_name, email')
+            admin.table('users').select('id, first_name, last_name, display_name, email, preferred_name')
             .in_('id', g_ids).execute()).data or []} if g_ids else {}
         for g in g_rows:
             gu = g_users.get(g['user_id']) or {}
@@ -511,7 +646,9 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
         if r.get('status') in s:
             s[r['status']] += 1
 
-    today = _org_now(org_id).date()
+    now = _org_now(org_id)
+    today = now.date()
+    next_class = _next_class_by_student(org_id, class_id, ids, now)
     students = []
     for e in enrollments:
         u = users.get(e['student_id']) or {}
@@ -538,6 +675,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'has_alert': bool(allergies or medications),
             'attendance': att.get(e['student_id']),
             'enrolled_at': e.get('enrolled_at'),
+            'next_class': next_class.get(e['student_id']),
         })
     students.sort(key=lambda s: (s.get('last_name') or s['name']).lower())
     # Student photos are private-bucket objects; one batch for the roster.
@@ -570,7 +708,7 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
     staff = sis_service.list_org_staff(org_id)
     profiles = {p['user_id']: p for p in (
         _admin().table('sis_staff_profiles')
-        .select('user_id, position, work_schedule, is_active, staff_type')
+        .select('user_id, position, work_schedule, is_active')
         .eq('organization_id', org_id).execute()
     ).data or []}
     out = []
@@ -584,7 +722,9 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
             'roles': s['roles'], 'role_labels': s['role_labels'],
             'bio': s.get('bio'), 'avatar_url': s.get('avatar_url'),
             'position': p.get('position'), 'work_schedule': p.get('work_schedule'),
-            'staff_type': p.get('staff_type'),
+            # staff_type deliberately absent: whether a colleague is an employee,
+            # a contractor or family is an employment term, and this phonebook is
+            # readable by every staff member including teachers.
         })
     return out
 
@@ -662,6 +802,45 @@ def my_time_entries(org_id: str, user_id: str, start: str, end: str) -> Dict[str
 
 
 # ── Timesheets (admin) ───────────────────────────────────────────────────────
+
+def timeclock_setup(org_id: str) -> Dict[str, Any]:
+    """Why the Timesheets page is empty, when it is.
+
+    The time clock is off by default on every staff profile
+    (`sis_staff_profiles.uses_time_clock` defaults to false), so a school that
+    has never turned it on for anybody sees "No time entries in this period."
+    forever, with nothing on the page naming the switch. iCreate read that as
+    the feature being broken: "Timesheets would be a nice feature if it
+    worked!" (2026-08-25). Every part of the chain was working; none of it had
+    been switched on.
+
+    So the page reports its own preconditions: how many active staff could be
+    on the clock, how many are, and who is on it without an hourly rate — that
+    last one matters because payroll.csv leaves Amount blank rather than
+    guessing a rate, and a blank column in a payroll export is the kind of
+    thing you want to learn about before payday rather than after.
+    """
+    # order_by='user_id', not the default 'id': sis_staff_profiles is keyed on
+    # (user_id, organization_id) and has no id column, and paging on a column
+    # that does not exist is a 400, not a short read.
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_staff_profiles')
+        .select('user_id, uses_time_clock, hourly_rate_cents, is_active')
+        .eq('organization_id', org_id).is_('archived_at', 'null')
+    ), order_by='user_id')
+    active = [r for r in rows if r.get('is_active')]
+    on_clock = [r for r in active if r.get('uses_time_clock')]
+    no_rate = [r for r in on_clock if not r.get('hourly_rate_cents')]
+    names = {s['id']: s.get('name') for s in sis_service.list_org_staff(org_id)}
+    return {
+        'staff_total': len(active),
+        'clock_enabled': len(on_clock),
+        'missing_rate': [
+            {'user_id': r['user_id'], 'name': names.get(r['user_id']) or 'Unknown'}
+            for r in no_rate
+        ],
+    }
+
 
 def timesheet_summary(org_id: str, start: str, end: str) -> List[Dict[str, Any]]:
     """Per-staff totals for a pay period, with entry detail."""
@@ -878,6 +1057,14 @@ def _detach_from_classes(preview: Dict[str, Any], staff_id: str) -> None:
         remaining = [a for a in (c.get('assistant_instructor_ids') or []) if a != staff_id]
         _admin().table('org_classes').update(
             {'assistant_instructor_ids': remaining}).eq('id', c['id']).execute()
+    # The third teacher link: class_advisors rows keep the person a teacher of
+    # the class (targeting, class scope) even after both columns above are
+    # cleared. Departing staff must not keep receiving class sends.
+    try:
+        _admin().table('class_advisors').update({'is_active': False})\
+            .eq('advisor_id', staff_id).eq('is_active', True).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not deactivate class_advisors for {staff_id}: {e}')
 
 
 def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:

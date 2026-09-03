@@ -17,6 +17,7 @@ from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -193,6 +194,25 @@ def update_class(user_id, class_id):
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     updated = repo.update_sis_fields(class_id, data)
+    # class_advisors rows are a THIRD teacher link (class_membership unions
+    # them with the two org_classes columns for announcement targeting and
+    # teacher class scope), and nothing in the SIS deactivated them — an
+    # assistant removed here stayed a teacher of the class for targeting
+    # (iCreate, 2026-08-26: a removed assistant still received the class
+    # announcement). Deactivate the rows of anyone no longer named.
+    if 'primary_instructor_id' in data or 'assistant_instructor_ids' in data:
+        was = {existing.get('primary_instructor_id'),
+               *(existing.get('assistant_instructor_ids') or [])}
+        now = {(updated or {}).get('primary_instructor_id'),
+               *((updated or {}).get('assistant_instructor_ids') or [])}
+        removed = [i for i in (was - now) if i]
+        if removed:
+            try:
+                get_supabase_admin_client().table('class_advisors')\
+                    .update({'is_active': False})\
+                    .eq('class_id', class_id).in_('advisor_id', removed).execute()
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f'Could not deactivate class_advisors on {class_id}: {e}')
     new_instructor = data.get('primary_instructor_id')
     if new_instructor and new_instructor != existing.get('primary_instructor_id'):
         from services import sis_notifications
@@ -511,6 +531,7 @@ def enroll_student(user_id, class_id):
         'enrolled_by': user_id, 'status': 'active',
     }).execute()
     sync_class_group(class_id, actor_id=user_id)
+    _enroll_in_class_quests(supabase, class_id, student_id)
     # They're in the class now — don't leave them queued for it as well, or the
     # family keeps seeing "Waitlist #2" for a class their child already attends.
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)

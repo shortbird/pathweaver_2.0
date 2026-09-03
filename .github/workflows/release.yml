@@ -222,10 +222,19 @@ jobs:
           # GUARD: fail loudly here if the required public env is empty, so a
           # crash-on-launch OTA can never be published again (the bug was silent —
           # it only surfaced via adb logcat). `${VAR:?msg}` aborts the shell when
-          # VAR is unset/empty. Only vars without a safe runtime fallback are
-          # guarded (API_URL falls back to prod in api.ts; Sentry DSN just no-ops).
+          # VAR is unset/empty.
+          #
+          # EXPO_PUBLIC_SENTRY_DSN is guarded too. It used to be excluded here
+          # because an empty DSN "just no-ops" — which is precisely why nobody
+          # noticed that it WAS empty in every OTA. It lived only in eas.json's
+          # build-profile env, which `eas build` reads and `expo export` does
+          # not, so each store build shipped with Sentry and the first OTA
+          # replaced that bundle with a Sentry-less one. optio-mobile received
+          # zero events between 2026-06-12 and 2026-08-31. It is an EAS env var
+          # now; a silent no-op is a worse failure than a loud one.
           eas env:exec production --non-interactive '
             : "${EXPO_PUBLIC_SUPABASE_URL:?OTA env guard - EXPO_PUBLIC_SUPABASE_URL is empty, bundle would crash on launch, aborting publish}"
             : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?OTA env guard - EXPO_PUBLIC_SUPABASE_ANON_KEY is empty, aborting publish}"
+            : "${EXPO_PUBLIC_SENTRY_DSN:?OTA env guard - EXPO_PUBLIC_SENTRY_DSN is empty, mobile crash reporting would be dead in this OTA, aborting publish}"
             npm run ota:production -- -m "$MSG"
           '

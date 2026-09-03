@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Heading, UIText, Button, ButtonText, VStack } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const WEB_ORIGIN = 'https://www.optioeducation.com';
 
 export default function ViewOnWebScreen() {
+  const c = useThemeColors();
   const params = useLocalSearchParams<{ path?: string; label?: string }>();
   const path = typeof params.path === 'string' ? params.path : '/';
   const label = typeof params.label === 'string' ? params.label : 'this page';
@@ -27,7 +29,7 @@ export default function ViewOnWebScreen() {
       <View className="flex-1 items-center justify-center px-6">
         <VStack space="lg" className="items-center max-w-sm">
           <View className="w-16 h-16 rounded-full bg-optio-purple/10 items-center justify-center">
-            <Ionicons name="globe-outline" size={32} color="#6D469B" />
+            <Ionicons name="globe-outline" size={32} color={c.brand} />
           </View>
           <Heading size="lg" className="text-center">Open on the web</Heading>
           <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">

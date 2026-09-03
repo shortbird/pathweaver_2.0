@@ -36,7 +36,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-audit
+          pip install pip-audit pyflakes
+      - name: Undefined names (ENFORCING)
+        # A name used but never defined is a NameError waiting for the first
+        # request that reaches that line, and Python only finds out then. Four
+        # were live in production on 2026-09-02, each a 500 that read as
+        # something else: creating a class group chat ("Failed to create class
+        # group chat", Sentry OPTIO-BACKEND-7R), registering a student with a
+        # date of birth, saving a quest's is_public, and /api/quest-ai/health,
+        # which could only ever answer "unhealthy". Every one is a single
+        # missing import that this step catches in seconds.
+        #
+        # Deliberately NOT the whole of pyflakes: unused imports, placeholder-
+        # less f-strings and unused locals are ~1200 findings of style, and a
+        # gate that must be argued with gets switched off. This is the subset
+        # where the code is already broken, and it is at zero — keep it there.
+        run: |
+          # pyflakes exits 1 for findings of ANY kind, so the exit code says
+          # nothing here; the grep decides. Syntax errors go to stderr, hence 2>&1.
+          findings=$(python -m pyflakes backend 2>&1 || true)
+          if echo "$findings" | grep -E 'undefined name|referenced before assignment|invalid syntax'; then
+            echo "::error::pyflakes found undefined names — each one is a NameError in production"
+            exit 1
+          fi
       - name: pip-audit (fail on high/critical CVEs)
         # DEP-H1 fix: audit the ROOT requirements.txt — that is the file Render
         # actually deploys (render.yaml rootDir: "" + pip install -r

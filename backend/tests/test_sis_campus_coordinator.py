@@ -120,6 +120,26 @@ class TestPayFieldRedaction:
         assert out['work_schedule'] == 'Tue & Thu 9–3'
         assert out['position'] == 'Art teacher'
 
+    def test_employment_terms_are_stripped_too(self):
+        """Not money, so these were visible and editable by the front office:
+        "I don't think we want them to see all the employment info" (iCreate,
+        2026-08-25). Whether somebody is a contractor and when they were hired
+        is HR's, not the campus's."""
+        profile = {**self.PROFILE, 'start_date': '2025-08-01', 'end_date': None}
+        out = staff.redact_pay(dict(profile), True)
+        for f in staff.EMPLOYMENT_FIELDS:
+            assert f not in out, f
+        assert out['position'] == 'Art teacher'   # still runs the campus on this
+
+    def test_a_teacher_reading_their_own_profile_keeps_their_hire_date(self):
+        """The self-profile route redacts pay only — somebody's own start date
+        and employment type are theirs to see."""
+        profile = {**self.PROFILE, 'start_date': '2025-08-01'}
+        out = staff.redact_pay(dict(profile), True, fields=staff.PAY_FIELDS)
+        assert out['start_date'] == '2025-08-01'
+        assert out['staff_type'] == 'employee'
+        assert 'hourly_rate_cents' not in out
+
     def test_an_admin_sees_everything(self):
         assert staff.redact_pay(dict(self.PROFILE), False) == self.PROFILE
 
@@ -301,7 +321,7 @@ class TestTheSchoolPageAdmitsCoordinators:
         """canPost/canModerate are True for a coordinator (caller_is_admin),
         so the routes behind those buttons must not 403 them."""
         from routes.sis import community
-        for view in ('create_carpool', 'message_carpool_author', 'delete_carpool'):
+        for view in ('create_carpool', 'delete_carpool'):
             assert _admits_coordinator(community, view), view
 
     def test_the_announcements_archive_admits_coordinators(self):
@@ -325,12 +345,21 @@ class TestTheSchoolPageAdmitsCoordinators:
             assert _admits_coordinator(kiosk, view), view
 
     def test_a_coordinator_reads_the_archive_unfiltered_like_an_admin(self):
-        """No audience token means no filter: staff see every sent message —
-        a superset of what any family member sees."""
+        """No audience token means no filter: the front office sees every sent
+        message — a superset of what any family member sees. The coordinator's
+        restriction is financial, not scope-based.
+
+        A TEACHER is not front office, and used to be in this set: a message
+        sent to ten named students turned up in an advisor's announcements
+        (iCreate, 2026-08-26 — Emerson Gowdy was not one of its ten
+        recipients). Advisors are filtered like any other member now, and reach
+        what is actually addressed to them through the recipient snapshot.
+        """
         from routes.announcements import _archive_audience_token
         assert _archive_audience_token('campus_coordinator', None) is None
         assert _archive_audience_token('org_admin', None) is None
         assert _archive_audience_token('parent', None) == 'parents'
+        assert _archive_audience_token('advisor', None) == 'advisors'
 
 
 @pytest.mark.unit

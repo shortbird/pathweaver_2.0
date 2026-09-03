@@ -40,7 +40,13 @@ from utils.auth.decorators import require_role, require_auth
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
-from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
+from services.sis_quest_authoring import (
+    QuestAuthoringError,
+    create_org_quest,
+    clean_task as _clean_task,
+    norm_pillar as _norm_pillar,
+)
+from services.sis_curriculum_sync import push_curriculum_quests_safe
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
@@ -279,12 +285,26 @@ def set_curriculum_classes(user_id, curriculum_id):
         valid = {r['id'] for r in rows}
     rejected = [c for c in requested if c not in valid]
 
+    before = {r['class_id'] for r in (
+        _admin().table('sis_curriculum_classes').select('class_id')
+        .eq('curriculum_id', curriculum_id).execute()).data or []}
+
     _admin().table('sis_curriculum_classes').delete().eq('curriculum_id', curriculum_id).execute()
     if valid:
         _admin().table('sis_curriculum_classes').insert(
             [{'curriculum_id': curriculum_id, 'class_id': c} for c in valid]
         ).execute()
-    return jsonify({'success': True, 'attached': len(valid), 'rejected': len(rejected)})
+
+    # A class joining a curriculum inherits its quests. Only the NEW ones: a
+    # class already on this curriculum has its own list by now, and re-seeding it
+    # on an unrelated edit to the class selector would resurrect quests its
+    # teacher had deliberately taken off the section.
+    newly = [c for c in valid if c not in before]
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         class_ids=newly) if newly else {'classes': 0, 'assignments': 0}
+    return jsonify({'success': True, 'attached': len(valid), 'rejected': len(rejected),
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
 
 
 # ── The curriculum's teaching material: its quests and its courses ───────────
@@ -488,8 +508,16 @@ def set_curriculum_quests(user_id, curriculum_id):
                 valid_order.append(q)
 
     _replace_links('sis_curriculum_quests', curriculum_id, 'quest_id', valid_order, user_id)
+    # Additive push, so the students in this curriculum's classes actually see
+    # what was just attached. Removals are deliberately not mirrored: pulling a
+    # quest off a section mid-term would take its due dates and its students'
+    # place in it with it. See services/sis_curriculum_sync.
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         quest_ids=valid_order)
     return jsonify({'success': True, 'attached': len(valid_order),
-                    'rejected': len(requested) - len(valid_order)})
+                    'rejected': len(requested) - len(valid_order),
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/create', methods=['POST'])
@@ -536,8 +564,243 @@ def create_curriculum_quest(user_id, curriculum_id):
         'added_by': user_id,
     }).execute()
 
+    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                         quest_ids=[created['quest_id']])
     return jsonify({'success': True, 'quest_id': created['quest_id'],
-                    'task_count': created['task_count']})
+                    'task_count': created['task_count'],
+                    'pushed_to_classes': pushed['classes'],
+                    'pushed_assignments': pushed['assignments']})
+
+
+# ── One quest, as the curriculum carries it ───────────────────────────────────
+# iCreate, 2026-08-31: "when admin creates a quest in /curriculum they need to
+# be able to view the quests inside the curriculum and also have full CRUD."
+# The library row was title-only: to see or fix a quest's tasks the admin had to
+# find a class it was assigned to and edit it there. These mirror the class
+# routes (routes/sis/class_quests.py) — admin-tier, scoped by the curriculum
+# link instead of a class assignment. The same safety line holds: a shared
+# Optio-library quest is readable here but never editable, because an edit
+# would change it for every school using it.
+
+
+def _serialize_template_task(t):
+    return {
+        'id': t['id'],
+        'title': t.get('title'),
+        'description': t.get('description') or '',
+        'pillar': t.get('pillar'),
+        'xp_value': t.get('xp_value'),
+        'is_required': bool(t.get('is_required')),
+        'order_index': t.get('order_index', 0),
+    }
+
+
+def _curriculum_quest(user_id, curriculum_id, quest_id):
+    """(org_id, quest, err). The caller's org must own the curriculum and the
+    quest must be linked to it."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return None, None, err
+    if _bad_uuid(curriculum_id, quest_id) or not _owned(org_id, curriculum_id):
+        return None, None, (jsonify({'success': False, 'error': 'Curriculum not found'}), 404)
+    link = (_admin().table('sis_curriculum_quests').select('quest_id')
+            .eq('curriculum_id', curriculum_id).eq('quest_id', quest_id)
+            .limit(1).execute()).data
+    if not link:
+        return None, None, (jsonify({'success': False,
+                                     'error': 'That quest is not on this curriculum.'}), 404)
+    rows = (_admin().table('quests')
+            .select('id, title, description, quest_type, organization_id, is_active')
+            .eq('id', quest_id).limit(1).execute()).data
+    if not rows:
+        return None, None, (jsonify({'success': False, 'error': 'Quest not found'}), 404)
+    return org_id, rows[0], None
+
+
+def _library_quest_403():
+    return (jsonify({
+        'success': False,
+        'error': "This quest comes from the Optio library and is shared with "
+                 "other schools, so it can't be edited here.",
+    }), 403)
+
+
+def _resync_template(quest_id):
+    """Template edits must reach students already enrolled — their task lists
+    are copies taken at enrollment (same rule as the class routes)."""
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(_admin(), quest_id)
+    except Exception as e:  # noqa: BLE001 — the edit itself succeeded
+        logger.warning(f'Saved but enrollment resync failed for {quest_id}: {e}')
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_curriculum_quest(user_id, curriculum_id, quest_id):
+    """Rename a quest / rewrite its description, for the school's own quests."""
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()[:_MAX_TITLE]
+        if not title:
+            return jsonify({'success': False, 'error': 'A title is required'}), 400
+        updates['title'] = title
+    if 'description' in data:
+        updates['description'] = (data.get('description') or '').strip() or None
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    row = (_admin().table('quests').update(updates)
+           .eq('id', quest_id).execute()).data
+    q = row[0] if row else {}
+    return jsonify({'success': True, 'quest': {
+        'id': quest_id, 'title': q.get('title'), 'description': q.get('description') or '',
+    }})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/delete', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_curriculum_quest(user_id, curriculum_id, quest_id):
+    """Delete one of the school's own quests outright, from the library page.
+
+    Same guardrails as the class-level delete: never an Optio-library quest,
+    and never a quest any student has started — that would erase their
+    completed tasks and XP. Refusing names the count so the admin can detach
+    it from the curriculum instead.
+    """
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return (jsonify({
+            'success': False,
+            'error': ('This quest comes from the Optio library and is shared with other '
+                      'schools, so it can only be removed from your curriculum, not deleted.'),
+        }), 403)
+
+    started = (_admin().table('user_quests').select('id')
+               .eq('quest_id', quest_id).limit(50).execute()).data or []
+    if started:
+        return jsonify({
+            'success': False,
+            'error': (f'{len(started)} student{"s have" if len(started) != 1 else " has"} '
+                      'already started this quest, so deleting it would erase their work. '
+                      'Remove it from the curriculum instead.'),
+            'started_count': len(started),
+        }), 409
+
+    # Links first, quest row last, so a failure part-way leaves it reachable.
+    _admin().table('class_quests').delete().eq('quest_id', quest_id).execute()
+    _admin().table('sis_curriculum_quests').delete().eq('quest_id', quest_id).execute()
+    _admin().table('quest_template_tasks').delete().eq('quest_id', quest_id).execute()
+    _admin().table('quests').delete().eq('id', quest_id).execute()
+    return jsonify({'success': True, 'title': quest.get('title')})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def curriculum_quest_tasks(user_id, curriculum_id, quest_id):
+    """The quest's preset tasks (and its description, for the detail view).
+    Same response shape as the class route so the two screens share a task
+    manager; `editable` is false for Optio-library quests."""
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    tasks = (_admin().table('quest_template_tasks').select('*')
+             .eq('quest_id', quest_id).order('order_index').execute()).data or []
+    return jsonify({
+        'success': True,
+        'editable': quest.get('organization_id') == org_id,
+        'quest': {'id': quest['id'], 'title': quest.get('title'),
+                  'description': quest.get('description') or ''},
+        'tasks': [_serialize_template_task(t) for t in tasks],
+    })
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_curriculum_quest_task(user_id, curriculum_id, quest_id):
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+    data = request.get_json(silent=True) or {}
+    last = (_admin().table('quest_template_tasks').select('order_index')
+            .eq('quest_id', quest_id).order('order_index', desc=True).limit(1).execute()).data
+    next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
+    task = _clean_task(data, next_order)
+    if not task:
+        return jsonify({'success': False, 'error': 'A task title is required.'}), 400
+    task['quest_id'] = quest_id
+    row = _admin().table('quest_template_tasks').insert(task).execute().data
+    if not row:
+        return jsonify({'success': False, 'error': 'Could not add the task.'}), 500
+    _resync_template(quest_id)
+    return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': 'A task title is required.'}), 400
+        updates['title'] = title
+    if 'description' in data:
+        updates['description'] = (data.get('description') or '').strip()
+    if 'pillar' in data:
+        updates['pillar'] = _norm_pillar(data.get('pillar'))
+    if 'xp_value' in data:
+        try:
+            xp = int(data.get('xp_value'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'XP must be a number.'}), 400
+        updates['xp_value'] = max(0, xp)
+    if 'is_required' in data:
+        updates['is_required'] = bool(data.get('is_required'))
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    row = (_admin().table('quest_template_tasks').update(updates)
+           .eq('id', task_id).eq('quest_id', quest_id).execute()).data
+    if not row:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+    _resync_template(quest_id)
+    return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+    _admin().table('quest_template_tasks').delete() \
+        .eq('id', task_id).eq('quest_id', quest_id).execute()
+    _resync_template(quest_id)
+    return jsonify({'success': True})
 
 
 @bp.route('/curriculum/<curriculum_id>/courses', methods=['PUT'])
@@ -578,24 +841,29 @@ def set_curriculum_courses(user_id, curriculum_id):
 
 # ── Teacher: the curriculum for a class they teach ────────────────────────────
 #
-# Teachers get the SAME curriculum form admins do, scoped to their own classes:
-# they add/edit/remove curriculum on a class they teach, and edit/remove is
-# further limited to entries they created so one teacher can't rewrite another's
-# (or an admin's) shared curriculum. This deliberately pushes routine curriculum
-# upkeep onto teachers and keeps admin screens for admin-only work.
+# Teachers READ the curriculum on their class (what the school gives them to
+# teach from); adding, editing, and removing entries is admin-only, from here or
+# the library page. What teachers add to a class is quests, which auto-attach to
+# the class's curriculum (routes/sis/class_quests.py). iCreate, 2026-08-31.
 
 
 def _class_access(user_id, class_id):
     """Resolve a caller's relationship to a class.
 
     Returns (class_row, is_teacher, is_admin). class_row is None when the class
-    doesn't exist. is_teacher covers the primary instructor and active
-    co-teachers (class_advisors); is_admin covers org admins / superadmins whose
-    resolved org matches the class's org.
+    doesn't exist. is_teacher covers the primary instructor, named assistants,
+    and active co-teachers (class_advisors); is_admin covers org admins /
+    superadmins whose resolved org matches the class's org.
+
+    Assistants count for the same reason they do in class_quests: the class is
+    already in their portal (sis_service.advisor_class_ids lists it, and the
+    roster loads), so leaving them out here gave them a class page whose
+    Curriculum tab 403'd on open — Sentry OPTIO-WEB-3, an assistant reloading
+    the tab four times.
     """
     admin = _admin()
     rows = (admin.table('org_classes')
-            .select('id, organization_id, primary_instructor_id')
+            .select('id, organization_id, primary_instructor_id, assistant_instructor_ids')
             .eq('id', class_id).limit(1).execute()).data or []
     if not rows:
         return None, False, False
@@ -604,7 +872,8 @@ def _class_access(user_id, class_id):
 
     is_admin = (sis_service.caller_is_admin(user_id)
                 and sis_service.resolve_org_id(user_id, org_id) == org_id)
-    is_teacher = class_row.get('primary_instructor_id') == user_id
+    is_teacher = (class_row.get('primary_instructor_id') == user_id
+                  or user_id in (class_row.get('assistant_instructor_ids') or []))
     if not is_teacher and not is_admin:
         co_teacher = (admin.table('class_advisors').select('id')
                       .eq('class_id', class_id).eq('advisor_id', user_id)
@@ -634,9 +903,9 @@ def class_curriculum(user_id, class_id):
         return jsonify({'success': False, 'error': 'Not available'}), 403
 
     org_id = class_row['organization_id']
-    # can_manage lets the client show the add form and gate per-entry controls;
-    # any staffer with class access can add, edit/remove is created_by-scoped
-    # for teachers (enforced server-side below regardless of what the UI shows).
+    # can_manage gates the staff-side conveniences (share-to-class, course edit
+    # links); adding/editing/removing curriculum itself is admin-only — the
+    # client reads is_admin for that (enforced server-side below regardless).
     links = (_admin().table('sis_curriculum_classes').select('curriculum_id')
              .eq('class_id', class_id).execute()).data or []
     ids = [l['curriculum_id'] for l in links]
@@ -646,18 +915,41 @@ def class_curriculum(user_id, class_id):
                    .select('id, title, subject, description, drive_url, notes, is_active, created_by')
                    .in_('id', ids).eq('organization_id', org_id)
                    .eq('is_active', True).order('title').execute()).data or []
-    # Each entry carries the courses attached to it in the library. This is the
-    # point of the container: a teacher opening their class finds the school's
-    # course already there instead of being expected to build one (iCreate,
-    # 2026-08-06). Courses are a live link, so what shows here is always what the
-    # library currently says.
+    # Each entry carries the courses and quests attached to it in the library.
+    # This is the point of the container: a teacher opening their class finds
+    # the school's material already there instead of being expected to build it
+    # (iCreate, 2026-08-06). Both are live links, so what shows here is always
+    # what the library currently says — including quests the teacher just added
+    # to the class, which auto-attach to its curriculum (2026-08-31).
     _attach_courses(entries)
+    _attach_quests(entries)
     return jsonify({
         'success': True,
         'curriculum': entries,
         'can_manage': bool(is_teacher or is_admin),
         'is_admin': bool(is_admin),
     })
+
+
+def _attach_quests(entries):
+    """Hang each curriculum entry's saved quest set off it, in order."""
+    ids = [e['id'] for e in entries]
+    for e in entries:
+        e['quests'] = []
+    if not ids:
+        return
+    links = (_admin().table('sis_curriculum_quests')
+             .select('curriculum_id, quest_id, sequence_order')
+             .in_('curriculum_id', ids).order('sequence_order').execute()).data or []
+    quests = _quest_titles([l['quest_id'] for l in links])
+    by_id = {e['id']: e for e in entries}
+    for l in links:
+        q = quests.get(l['quest_id'])
+        if not q:  # link outlived the quest
+            continue
+        by_id[l['curriculum_id']]['quests'].append({
+            'id': q['id'], 'title': q.get('title'),
+        })
 
 
 def _attach_courses(entries):
@@ -685,17 +977,24 @@ def _attach_courses(entries):
 @bp.route('/classes/<class_id>/curriculum', methods=['POST'])
 @require_auth
 def create_class_curriculum(user_id, class_id):
-    """Teacher (or admin) creates a curriculum entry and attaches it to this
-    class in one step. Same fields as the admin library form, minus the
-    multi-class selector — the class is implied.
+    """Admin creates a curriculum entry and attaches it to this class in one
+    step. Same fields as the admin library form, minus the multi-class
+    selector — the class is implied.
+
+    Admin-only: teachers add QUESTS to the class (class_quests), which attach
+    to the class's curriculum via to-curriculum; the curriculum itself is the
+    school's to define (iCreate, 2026-08-31).
     """
     if _bad_uuid(class_id):
         return jsonify({'success': False, 'error': 'Invalid class id'}), 400
     class_row, is_teacher, is_admin = _class_access(user_id, class_id)
     if class_row is None:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    if not (is_teacher or is_admin):
-        return jsonify({'success': False, 'error': 'Not available'}), 403
+    if not is_admin:
+        return jsonify({
+            'success': False,
+            'error': 'Only an administrator can add curriculum. You can add quests to the class instead.',
+        }), 403
 
     data = request.get_json(silent=True) or {}
     title = (data.get('title') or '').strip()[:_MAX_TITLE]
@@ -725,24 +1024,21 @@ def create_class_curriculum(user_id, class_id):
 @bp.route('/classes/<class_id>/curriculum/<curriculum_id>', methods=['PATCH'])
 @require_auth
 def update_class_curriculum(user_id, class_id, curriculum_id):
-    """Edit a curriculum entry from the class tab. Admins may edit any entry on
-    the class; teachers only entries they created (an admin's shared curriculum
-    stays read-only to them).
+    """Edit a curriculum entry from the class tab. Admin-only — curriculum is
+    the school's to define; teachers see it read-only (iCreate, 2026-08-31).
     """
     if _bad_uuid(class_id, curriculum_id):
         return jsonify({'success': False, 'error': 'Invalid id'}), 400
     class_row, is_teacher, is_admin = _class_access(user_id, class_id)
     if class_row is None:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    if not (is_teacher or is_admin):
-        return jsonify({'success': False, 'error': 'Not available'}), 403
+    if not is_admin:
+        return jsonify({'success': False, 'error': 'Only an administrator can edit curriculum.'}), 403
 
     org_id = class_row['organization_id']
     entry = _owned(org_id, curriculum_id)
     if not entry or not _attached_to_class(curriculum_id, class_id):
         return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
-    if not is_admin and entry.get('created_by') != user_id:
-        return jsonify({'success': False, 'error': 'Only the person who added this can edit it'}), 403
 
     data = request.get_json(silent=True) or {}
     fields = {}
@@ -771,32 +1067,23 @@ def update_class_curriculum(user_id, class_id, curriculum_id):
 @bp.route('/classes/<class_id>/curriculum/<curriculum_id>', methods=['DELETE'])
 @require_auth
 def remove_class_curriculum(user_id, class_id, curriculum_id):
-    """Detach a curriculum entry from this class. Admins may detach anything;
-    teachers only entries they created. If detaching leaves a teacher-created
-    entry attached to no classes at all, it's deleted so it doesn't linger as an
-    orphan — an admin-created entry is only ever detached, never deleted here
-    (the library page is where admins delete outright).
+    """Detach a curriculum entry from this class. Admin-only, like create and
+    edit. Detaching only — the entry stays in the library, where admins delete
+    outright.
     """
     if _bad_uuid(class_id, curriculum_id):
         return jsonify({'success': False, 'error': 'Invalid id'}), 400
     class_row, is_teacher, is_admin = _class_access(user_id, class_id)
     if class_row is None:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    if not (is_teacher or is_admin):
-        return jsonify({'success': False, 'error': 'Not available'}), 403
+    if not is_admin:
+        return jsonify({'success': False, 'error': 'Only an administrator can remove curriculum.'}), 403
 
     org_id = class_row['organization_id']
     entry = _owned(org_id, curriculum_id)
     if not entry or not _attached_to_class(curriculum_id, class_id):
         return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
-    if not is_admin and entry.get('created_by') != user_id:
-        return jsonify({'success': False, 'error': 'Only the person who added this can remove it'}), 403
 
     _admin().table('sis_curriculum_classes').delete().eq(
         'curriculum_id', curriculum_id).eq('class_id', class_id).execute()
-
-    remaining = (_admin().table('sis_curriculum_classes').select('curriculum_id')
-                 .eq('curriculum_id', curriculum_id).limit(1).execute()).data
-    if not remaining and entry.get('created_by') == user_id:
-        _admin().table('sis_curriculum').delete().eq('id', curriculum_id).execute()
     return jsonify({'success': True})

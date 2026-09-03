@@ -1,6 +1,12 @@
 /**
  * Credit dashboard tests - renders progress + GPA, adds a course, and grades one.
  */
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import CreditsScreen from '../credits';
+import { oeaAPI } from '@/src/services/api';
+import { router } from 'expo-router';
+
 jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 
 const mockSearchParams = { studentId: 'stu-1', studentName: 'Ada' };
@@ -8,12 +14,6 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => mockSearchParams,
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import CreditsScreen from '../credits';
-import { oeaAPI } from '@/src/services/api';
-import { router } from 'expo-router';
 
 const RESPONSE = {
   enrollment: { id: 'e1', student_id: 'stu-1', pathway_key: 'open_balanced' },

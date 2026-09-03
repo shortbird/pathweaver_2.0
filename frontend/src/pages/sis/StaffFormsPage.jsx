@@ -9,6 +9,7 @@ import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * StaffFormsPage — staff forms and the internal task system (iCreate Phase 2).
@@ -339,6 +340,7 @@ const QUEUE_VIEWS = [
 // to answer "what needs attention?". Scanning and editing are different
 // activities, so they are now different states of the row.
 export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = null }) => {
+  const confirm = useConfirm()
   const { user } = useAuth()
   const [rows, setRows] = useState([])
   const [counts, setCounts] = useState({})
@@ -395,12 +397,38 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSubmissionId, rows])
 
+  // Every control on a row saves the moment it changes; there is no Save
+  // button and never has been. That was invisible, so an admin who reassigned a
+  // task went looking for one and pressed the only button on the row --
+  // Resolve, which closed the task they had just handed on (iCreate,
+  // 2026-08-26). Saying what was saved is half the fix; the other half is the
+  // confirm on Resolve below.
+  const SAVED_LABEL = {
+    assigned_to: 'Reassigned',
+    status: 'Status updated',
+    priority: 'Priority updated',
+    due_date: 'Due date updated',
+  }
+
+  const resolveTask = async (f) => {
+    const who = f.assigned_to
+      ? (staff.find((s) => s.id === f.assigned_to)?.name || 'someone')
+      : null
+    const ok = await confirm(
+      who
+        ? `Close this out? It is assigned to ${who}, and resolving it ends the task rather than handing it on.`
+        : 'Close this out? Resolving ends the task.')
+    if (!ok) return
+    update(f.id, { status: 'resolved', resolution_notes: notes[f.id] || undefined })
+  }
+
   const update = async (id, fields) => {
     try {
       await api.patch(`/api/sis/staff-admin/forms/${id}`, {
         organization_id: orgId, ...fields,
       })
-      toast.success('Updated')
+      const key = Object.keys(fields).find((k) => SAVED_LABEL[k])
+      toast.success(key ? SAVED_LABEL[key] : 'Saved')
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not update')
@@ -438,7 +466,10 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <h2 className="font-semibold text-neutral-900">Forms, requests and tasks</h2>
+        {/* One word. "Forms, requests and tasks" listed every noun this record
+            has ever been called, and reading three nouns to find one queue is
+            the confusion the 2026-08-31 redesign exists to end. */}
+        <h2 className="font-semibold text-neutral-900">Requests</h2>
         <div className="flex items-center gap-3 flex-wrap">
         <label className="text-xs text-neutral-500 flex items-center gap-1">
           Assigned to
@@ -560,9 +591,9 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                       <input value={notes[f.id] || ''} onChange={(e) => setNotes((p) => ({ ...p, [f.id]: e.target.value }))}
                         placeholder="Resolution notes (optional)"
                         className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                      <button onClick={() => update(f.id, { status: 'resolved', resolution_notes: notes[f.id] || undefined })}
-                        className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-sm">
-                        Resolve
+                      <button onClick={() => resolveTask(f)}
+                        className="px-3 py-1.5 rounded-lg border border-neutral-900 text-neutral-900 text-sm hover:bg-neutral-900 hover:text-white transition-colors">
+                        Mark resolved
                       </button>
                     </div>
                   )}
@@ -618,15 +649,21 @@ const StaffFormsPage = () => {
 
   // Rosters for the student / class questions an org-defined form can ask.
   // Best-effort: a form that does not ask for one never notices these missing.
+  // The student roster is admin-gated server-side (ADMIN_ROLES), so asking for
+  // it as a teacher only ever produced a 403 and an empty list — every advisor
+  // opening Forms reported one to Sentry (OPTIO-WEB-3). Classes stay ungated:
+  // /api/sis/classes is STAFF_ROLES and answers for teachers.
   useEffect(() => {
     if (!orgId) return
-    api.get(withOrg('/api/sis/roster', orgId))
-      .then((r) => setStudents((r.data?.roster || []).filter((p) => p.is_student)))
-      .catch(() => setStudents([]))
+    if (admin) {
+      api.get(withOrg('/api/sis/roster', orgId))
+        .then((r) => setStudents((r.data?.roster || []).filter((p) => p.is_student)))
+        .catch(() => setStudents([]))
+    }
     api.get(withOrg('/api/sis/classes', orgId))
       .then((r) => setClasses(r.data?.classes || []))
       .catch(() => setClasses([]))
-  }, [orgId])
+  }, [orgId, admin])
 
   return (
     <div className="space-y-6">

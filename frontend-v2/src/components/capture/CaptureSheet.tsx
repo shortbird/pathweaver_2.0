@@ -6,15 +6,14 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
+import { View, Pressable, TextInput, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
-import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { showAlert } from '@/src/utils/alerts';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
 import { captureException, captureMessage } from '@/src/services/sentry';
-import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { recordAction } from '@/src/services/diagnostics';
@@ -22,7 +21,7 @@ import { enqueueUpload } from '@/src/services/uploadQueue';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
-  VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, PillarBadge,
+  VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
   Avatar, AvatarFallbackText, AvatarImage,
 } from '../ui';
 import {
@@ -32,7 +31,7 @@ import {
 import { InlineQuestTaskPicker } from './InlineQuestTaskPicker';
 import { InlineTopicPicker } from './InlineTopicPicker';
 import { assignMomentToTopic, type UnifiedTopic } from '@/src/hooks/useJournal';
-import { VoiceRecorder, AudioClipPreview, type RecordedClip } from './VoiceRecorder';
+import { VoiceRecorder, AudioClipPreview } from './VoiceRecorder';
 
 // File size limits (must match backend constants).
 // Signed-upload path: videos go direct-to-Supabase and can be up to 500MB.
@@ -200,7 +199,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         captureMessage('Evidence media rejected: over size limit', {
           surface: 'capture', type: asset.type, fileSize: asset.fileSize, limit: maxSize,
         });
-        Alert.alert('File too large', `${asset.fileName || (isVideo ? 'Video' : 'Photo')} is ${fileMB}MB. Maximum for ${isVideo ? 'videos' : 'images'} is ${maxMB}MB.`);
+        showAlert('File too large', `${asset.fileName || (isVideo ? 'Video' : 'Photo')} is ${fileMB}MB. Maximum for ${isVideo ? 'videos' : 'images'} is ${maxMB}MB.`);
         continue;
       }
       newItems.push({
@@ -229,7 +228,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         captureMessage('Evidence video rejected: over duration limit', {
           surface: 'capture', durationMs: a.duration, fileSize: a.fileSize, limitMs: MAX_VIDEO_DURATION_MS,
         });
-        Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
+        showAlert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
         return false;
       }
       return true;
@@ -248,7 +247,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required.');
+      showAlert('Permission needed', 'Camera permission is required.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -293,7 +292,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   // brighten/de-shadow) and attach as a single multi-page PDF.
   const scanDocument = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
+      showAlert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
       return;
     }
     try {
@@ -307,7 +306,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       // document scanner") reached Sentry as a vague user bug report with no
       // stack — we had no idea WHY the ML Kit scanner rejected. Capture it.
       captureException(err, { stage: 'capture-document-scan' });
-      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Please try again, or add the photo from Files.');
+      showAlert('Scan unavailable', err?.message || 'Could not start the document scanner. Please try again, or add the photo from Files.');
     }
   };
 
@@ -331,7 +330,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const handleSave = async () => {
     if (!description.trim() && !title.trim() && media.length === 0 && !linkUrl.trim()) return;
     if (pickStudents && (!effectiveStudentIds || effectiveStudentIds.length === 0)) {
-      Alert.alert('Pick a child', 'Select at least one child to capture this moment for.');
+      showAlert('Pick a child', 'Select at least one child to capture this moment for.');
       return;
     }
 
@@ -356,7 +355,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       // collect upload jobs. Media upload is deferred to phase 2 so the user
       // isn't held on the capture screen while a video uploads — the reporter's
       // ask: "show immediately and continue to upload in the background."
-      const jobs: Array<{ eventId: string; studentId?: string }> = [];
+      const jobs: { eventId: string; studentId?: string }[] = [];
       if (studentIdsSnapshot && studentIdsSnapshot.length > 0) {
         for (const sid of studentIdsSnapshot) {
           const eventId = await createMoment(sid);
@@ -439,7 +438,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <Heading size="lg">Capture a Moment</Heading>
                 {questContext && (
                   <HStack className="items-center gap-1.5 mt-0.5">
-                    <Ionicons name="rocket" size={12} color="#6D469B" />
+                    <Ionicons name="rocket" size={12} color={c.brand} />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1}>
                       For: {questContext.questTitle}
                     </UIText>
@@ -450,6 +449,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 onPress={handleClose}
                 className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
               >
                 <Ionicons name="close" size={18} color={c.icon} />
               </Pressable>
@@ -466,7 +467,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                     Capture for
                   </UIText>
                   {selectedStudentIds.length > 0 && (
-                    <UIText size="xs" style={{ color: '#6D469B', fontFamily: 'Poppins_500Medium' }}>
+                    <UIText size="xs" style={{ color: c.brand, fontFamily: 'Poppins_500Medium' }}>
                       {selectedStudentIds.length} {selectedStudentIds.length === 1 ? 'kid' : 'kids'}
                     </UIText>
                   )}
@@ -486,15 +487,15 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         borderRadius: 999,
                         backgroundColor: allKidsSelected ? '#1F1F2E' : c.card,
                         borderWidth: 1,
-                        borderColor: allKidsSelected ? '#1F1F2E' : '#6D469B',
+                        borderColor: allKidsSelected ? '#1F1F2E' : c.brand,
                       }}
                     >
                       <Ionicons
                         name={allKidsSelected ? 'checkmark-done' : 'people-outline'}
                         size={14}
-                        color={allKidsSelected ? '#FFFFFF' : '#6D469B'}
+                        color={allKidsSelected ? '#FFFFFF' : c.brand}
                       />
-                      <UIText size="sm" style={{ color: allKidsSelected ? '#FFFFFF' : '#6D469B', fontFamily: 'Poppins_600SemiBold' }}>
+                      <UIText size="sm" style={{ color: allKidsSelected ? '#FFFFFF' : c.brand, fontFamily: 'Poppins_600SemiBold' }}>
                         {allKidsSelected ? 'Clear' : 'All kids'}
                       </UIText>
                     </Pressable>
@@ -514,7 +515,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                           paddingHorizontal: 10,
                           paddingVertical: 6,
                           borderRadius: 999,
-                          backgroundColor: active ? '#6D469B' : c.surfaceMuted,
+                          backgroundColor: active ? c.brand : c.surfaceMuted,
                           borderWidth: active ? 0 : 1,
                           borderColor: c.border,
                         }}
@@ -572,7 +573,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             {/* Optional link — saved as a single link evidence block on THIS
                 moment (with its title/description), not a separate item. */}
             <View className="flex-row items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 rounded-xl px-3">
-              <Ionicons name="link-outline" size={16} color="#6D469B" />
+              <Ionicons name="link-outline" size={16} color={c.brand} />
               <TextInput
                 value={linkUrl}
                 onChangeText={setLinkUrl}
@@ -616,7 +617,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                           <View
                             style={{
                               width: 96, height: 96, borderRadius: 12,
-                              backgroundColor: '#6D469B',
+                              backgroundColor: c.brand,
                               alignItems: 'center', justifyContent: 'center', padding: 6,
                             }}
                           >
@@ -639,7 +640,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         )}
                         <Pressable
                           onPress={() => removeMedia(index)}
-                          hitSlop={6}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove attachment"
                           style={{
                             position: 'absolute', top: -6, right: -6,
                             width: 24, height: 24, borderRadius: 12,
@@ -677,7 +680,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 onRecorded={(clip) => {
                   if (clip.fileSize > MAX_AUDIO_SIZE) {
                     const mb = (clip.fileSize / (1024 * 1024)).toFixed(1);
-                    Alert.alert('Recording too long', `That clip is ${mb}MB. Voice notes are limited to ${MAX_AUDIO_SIZE / (1024 * 1024)}MB — try a shorter recording.`);
+                    showAlert('Recording too long', `That clip is ${mb}MB. Voice notes are limited to ${MAX_AUDIO_SIZE / (1024 * 1024)}MB — try a shorter recording.`);
                   } else {
                     setMedia((prev) => [
                       ...prev,
@@ -702,16 +705,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
-                <Ionicons name="camera-outline" size={26} color="#6D469B" />
+                <Ionicons name="camera-outline" size={26} color={c.brand} />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Camera</UIText>
               </Pressable>
               <Pressable
                 onPress={() => {
                   if (Platform.OS === 'web') {
-                    Alert.alert(
-                      'Voice notes',
-                      'Voice recording works in the mobile app — try it on iOS or Android.',
-                    );
+                    showAlert('Voice notes', 'Voice recording works in the mobile app — try it on iOS or Android.');
                     return;
                   }
                   setRecording(true);
@@ -720,7 +720,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44, opacity: recording ? 0.4 : 1 }}
               >
-                <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color="#6D469B" />
+                <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color={c.brand} />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
               </Pressable>
               <Pressable
@@ -728,7 +728,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
-                <Ionicons name="images-outline" size={26} color="#6D469B" />
+                <Ionicons name="images-outline" size={26} color={c.brand} />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
               </Pressable>
               <Pressable
@@ -736,7 +736,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
-                <Ionicons name="scan-outline" size={26} color="#6D469B" />
+                <Ionicons name="scan-outline" size={26} color={c.brand} />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Scan</UIText>
               </Pressable>
             </HStack>
@@ -760,7 +760,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   style={{ minHeight: 44 }}
                 >
                   <HStack className="items-center gap-2 flex-1 min-w-0">
-                    <Ionicons name="rocket-outline" size={16} color="#6D469B" />
+                    <Ionicons name="rocket-outline" size={16} color={c.brand} />
                     {selectedTask ? (
                       <VStack className="flex-1 min-w-0">
                         <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
@@ -793,6 +793,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         setPendingNewTask(null);
                       }}
                       hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear task selection"
                       className="w-7 h-7 rounded-full bg-white dark:bg-dark-surface-100 items-center justify-center"
                     >
                       <Ionicons name="close" size={14} color={c.icon} />
@@ -830,7 +832,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   style={{ minHeight: 44 }}
                 >
                   <HStack className="items-center gap-2 flex-1 min-w-0">
-                    <Ionicons name="book-outline" size={16} color="#6D469B" />
+                    <Ionicons name="book-outline" size={16} color={c.brand} />
                     {selectedTopic ? (
                       <VStack className="flex-1 min-w-0">
                         <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
@@ -853,6 +855,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         setSelectedTopic(null);
                       }}
                       hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear topic selection"
                       className="w-7 h-7 rounded-full bg-white dark:bg-dark-surface-100 items-center justify-center"
                     >
                       <Ionicons name="close" size={14} color={c.icon} />

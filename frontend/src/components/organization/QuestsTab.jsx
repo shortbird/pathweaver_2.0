@@ -58,7 +58,10 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
       {/* Info Banner */}
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>Organization Quests:</strong> Quests you create here will only be visible to users in your organization.
+          <strong>Organization Quests:</strong> Quests you create here are visible only
+          to your organization. Any active one appears in your students' quest library
+          for them to choose — no assignment needed. Add the quest's tasks in the same
+          form you create it in, and click one of your quests below to edit it later.
         </p>
       </div>
 

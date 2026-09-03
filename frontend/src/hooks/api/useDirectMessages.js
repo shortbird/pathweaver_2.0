@@ -12,9 +12,14 @@ export const useConversations = (userId, options = {}) => {
       return response.data.data || response.data
     },
     enabled: !!userId,
-    refetchInterval: 30000, // Refetch every 30 seconds (reduced from 10s)
-    staleTime: 20000, // Consider data fresh for 20 seconds
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    // The open thread updates over Realtime (useMessagingRealtime), so this
+    // poll only has to catch traffic in threads that are NOT open. Every tick
+    // re-runs the whole conversation list -- participants, unread recount,
+    // avatar signing -- so it is deliberately slow, with focus refetch doing
+    // the work of noticing you were away.
+    refetchInterval: 120000,
+    staleTime: 60000,
+    refetchOnWindowFocus: true,
     ...options
   })
 }
@@ -28,9 +33,11 @@ export const useConversationMessages = (conversationId, userId, options = {}) =>
       return response.data.data || response.data
     },
     enabled: !!conversationId && !!userId,
-    refetchInterval: 15000, // Refetch every 15 seconds (reduced from 5s)
-    staleTime: 10000, // Consider data fresh for 10 seconds
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    // Realtime delivers messages for the open thread the moment they are sent;
+    // this is the fallback for a dropped socket, not the delivery mechanism.
+    refetchInterval: 60000,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
     ...options
   })
 }
@@ -198,7 +205,36 @@ export const useDeleteMessage = () => {
   })
 }
 
-// Mark message as read
+// Mark an entire conversation read in one request.
+//
+// Opening a thread reads all of it, so sending one PUT per unread message --
+// each invalidating the conversation list on its way back -- meant a thread
+// with twenty unread messages fired twenty writes and twenty refetches of the
+// heaviest endpoint on the page while the user was reading it.
+export const useMarkConversationAsRead = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (conversationId) => {
+      const response = await api.post(`/api/messages/conversations/${conversationId}/read`, {})
+      return response.data.data || response.data
+    },
+    onSuccess: (data) => {
+      // Nothing changed hands if there was nothing unread; skip the refetch.
+      if (!data?.marked_read) return
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      queryClient.invalidateQueries({ queryKey: ['unread-count'] })
+    },
+    onError: (error) => {
+      // Non-fatal: the thread is on screen either way, and the next poll will
+      // reconcile the badge. Not worth a toast.
+      console.error('Failed to mark conversation as read:', error)
+    }
+  })
+}
+
+// Mark a single message as read. Prefer useMarkConversationAsRead when the
+// whole thread is being opened.
 export const useMarkAsRead = () => {
   const queryClient = useQueryClient()
 

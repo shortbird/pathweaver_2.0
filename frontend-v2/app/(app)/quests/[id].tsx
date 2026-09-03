@@ -6,13 +6,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Image, Pressable, Alert, Platform } from 'react-native';
+import { View, ScrollView, Image, Pressable } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import api from '@/src/services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuestDetail, PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
+import { useQuestDetail } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
@@ -29,9 +29,10 @@ import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Badge, BadgeText, Divider, Skeleton, Input, InputField,
+  Badge, BadgeText, Divider, Skeleton,
 } from '@/src/components/ui';
 
 const pillarColors: Record<string, { bg: string; text: string; bar: string }> = {
@@ -301,16 +302,10 @@ function TaskItem({
     }
   };
 
-  const confirmRemoveBlock = (block: any) => {
+  const confirmRemoveBlock = async (block: any) => {
     const message = 'This evidence will be removed from the task.';
-    if (Platform.OS === 'web') {
-      if (window.confirm(message)) handleRemoveBlock(block);
-      return;
-    }
-    Alert.alert('Remove evidence?', message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => handleRemoveBlock(block) },
-    ]);
+    const ok = await confirmAlert({ title: 'Remove evidence?', message, confirmText: 'Remove', destructive: true });
+    if (ok) handleRemoveBlock(block);
   };
 
   // All evidence add flows live in TaskEvidenceSheet (photo/video/voice/text/link
@@ -334,7 +329,7 @@ function TaskItem({
           <HStack className="items-center gap-3">
             {task.is_moment ? (
               <View className="flex-shrink-0 w-6 h-6 rounded-full bg-optio-purple/15 items-center justify-center">
-                <Ionicons name="journal" size={14} color="#6D469B" />
+                <Ionicons name="journal" size={14} color={c.brand} />
               </View>
             ) : (
               <Pressable
@@ -371,7 +366,7 @@ function TaskItem({
                     hitSlop={8}
                     accessibilityLabel="Edit pillar and subjects"
                   >
-                    <Ionicons name="pencil-outline" size={15} color="#6D469B" />
+                    <Ionicons name="pencil-outline" size={15} color={c.brand} />
                   </Pressable>
                 )}
               </HStack>
@@ -479,7 +474,7 @@ function TaskItem({
                   className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
                   style={{ minHeight: 44 }}
                 >
-                  <Ionicons name="add-circle-outline" size={18} color="#6D469B" />
+                  <Ionicons name="add-circle-outline" size={18} color={c.brand} />
                   <UIText size="sm" className="text-optio-purple font-poppins-semibold">
                     {evidenceBlocks.length > 0 ? 'Add more evidence' : 'Add evidence'}
                   </UIText>
@@ -511,7 +506,7 @@ function TaskItem({
                   className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
                   style={{ minHeight: 44 }}
                 >
-                  <Ionicons name="pencil-outline" size={16} color="#6D469B" />
+                  <Ionicons name="pencil-outline" size={16} color={c.brand} />
                   <UIText size="sm" className="text-optio-purple font-poppins-semibold">Edit moment</UIText>
                 </Pressable>
               )}
@@ -540,22 +535,15 @@ function TaskItem({
                   </Button>
                   {!task.is_required && (
                     <Pressable
-                      onPress={(e) => {
+                      onPress={async (e) => {
                         e.stopPropagation();
-                        if (Platform.OS === 'web') {
-                          if (window.confirm(`Remove "${task.title}" from this quest?`)) {
-                            onDelete(task.id);
-                          }
-                          return;
-                        }
-                        Alert.alert(
-                          'Remove task?',
-                          `"${task.title}" will be removed from this quest. Any evidence you've added to it will be lost.`,
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Remove', style: 'destructive', onPress: () => onDelete(task.id) },
-                          ],
-                        );
+                        const ok = await confirmAlert({
+                          title: 'Remove task?',
+                          message: `"${task.title}" will be removed from this quest. Any evidence you've added to it will be lost.`,
+                          confirmText: 'Remove',
+                          destructive: true,
+                        });
+                        if (ok) onDelete(task.id);
                       }}
                       hitSlop={8}
                       style={{ minHeight: 36, alignItems: 'center', justifyContent: 'center' }}
@@ -621,7 +609,7 @@ export default function QuestDetailScreen() {
       const { data } = await api.get(`/api/learning-events/${eventId}`);
       if (data?.event) setEditMomentEvent(data.event);
     } catch {
-      Alert.alert('Could not open', 'This moment could not be loaded for editing.');
+      showAlert('Could not open', 'This moment could not be loaded for editing.');
     }
   };
 
@@ -758,7 +746,7 @@ export default function QuestDetailScreen() {
           </View>
         ) : (
           <View className="h-48 w-full bg-optio-purple/10 items-center justify-center">
-            <Ionicons name="rocket-outline" size={60} color="#6D469B" />
+            <Ionicons name="rocket-outline" size={60} color={c.brand} />
             <Pressable
               onPress={() => router.back()}
               className="absolute top-4 left-4 w-10 h-10 rounded-full bg-surface-200 dark:bg-dark-surface-300 items-center justify-center"
@@ -807,7 +795,7 @@ export default function QuestDetailScreen() {
             {!isEnrolled && (
               <Card variant="elevated" size="lg" className="items-center">
                 <VStack space="md" className="items-center w-full">
-                  <Ionicons name="rocket" size={32} color="#6D469B" />
+                  <Ionicons name="rocket" size={32} color={c.brand} />
                   <Heading size="md">Ready to start?</Heading>
                   <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                     Enroll in this quest to begin your personalized learning journey.
@@ -848,7 +836,7 @@ export default function QuestDetailScreen() {
                     onPress={() => setAddTaskOpen(true)}
                     className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
                   >
-                    <Ionicons name="add-circle-outline" size={16} color="#6D469B" />
+                    <Ionicons name="add-circle-outline" size={16} color={c.brand} />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Add Task</UIText>
                   </Pressable>
                 </HStack>
@@ -899,29 +887,15 @@ export default function QuestDetailScreen() {
                 {/* Leave Quest — "End Class" for class-type quests */}
                 <Divider className="mt-4" />
                 <Pressable
-                  onPress={() => {
+                  onPress={async () => {
                     const isClass = quest.quest_type === 'class';
-                    const confirmMsg = isClass
-                      ? 'End this class? Your completed tasks will be preserved.'
-                      : 'Leave this quest? Your completed tasks will be preserved.';
-                    if (Platform.OS === 'web') {
-                      if (window.confirm(confirmMsg)) {
-                        handleLeaveQuest();
-                      }
-                      return;
-                    }
-                    Alert.alert(
-                      isClass ? 'End Class?' : 'Leave Quest?',
-                      'Your completed tasks will be preserved. You can re-enroll later.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: isClass ? 'End Class' : 'Leave',
-                          style: 'destructive',
-                          onPress: handleLeaveQuest,
-                        },
-                      ],
-                    );
+                    const ok = await confirmAlert({
+                      title: isClass ? 'End Class?' : 'Leave Quest?',
+                      message: 'Your completed tasks will be preserved. You can re-enroll later.',
+                      confirmText: isClass ? 'End Class' : 'Leave',
+                      destructive: true,
+                    });
+                    if (ok) handleLeaveQuest();
                   }}
                   className="py-3 items-center"
                   style={{ minHeight: 44, justifyContent: 'center' }}
@@ -952,7 +926,7 @@ export default function QuestDetailScreen() {
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 50 }}>
           <Card variant="elevated" size="lg" className="mx-6 max-w-md w-full">
             <VStack space="md" className="items-center">
-              <Ionicons name="refresh-circle-outline" size={40} color="#6D469B" />
+              <Ionicons name="refresh-circle-outline" size={40} color={c.brand} />
               <Heading size="md" className="text-center">Welcome Back!</Heading>
               <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 You've worked on this quest before. Would you like to continue where you left off or start fresh?

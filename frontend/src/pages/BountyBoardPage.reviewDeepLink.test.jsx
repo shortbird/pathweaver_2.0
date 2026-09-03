@@ -43,6 +43,8 @@ vi.mock('../hooks/api/useBounties', () => ({
   useDeleteBounty: stubMutation,
   useDeleteEvidence: stubMutation,
   useTurnInBounty: stubMutation,
+  useAbandonClaim: stubMutation,
+  useClaimBounty: stubMutation,
   useReviewBounty: stubMutation,
 }))
 

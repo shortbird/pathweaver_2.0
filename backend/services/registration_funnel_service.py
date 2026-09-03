@@ -2,16 +2,22 @@
 Shared registration-funnel completion (blocks P4).
 
 `finish_fee_step` and `org_funnel_config` lived as private helpers in
-routes/icreate_registration.py, and routes/sis/__init__.py's waive-fee
-endpoint imported them route-to-route — the exact import shape the layering
-rules forbid the other way around. Both funnels' shared half now lives here;
-the funnel routes and the SIS waive-fee route call the service.
+routes/registration_funnel.py, and routes/sis/__init__.py's waive-fee endpoint
+imported them route-to-route — the exact import shape the layering rules forbid
+the other way around. Both funnels' shared half now lives here; the funnel
+routes and the SIS waive-fee route call the service.
+
+Bodies here are the main-branch versions as of the 2026-09-03 merge, which
+carry the icreate_registrations -> registrations rename, the org-neutral email
+copy, and the Optio Academy enrollment hand-off. Do not re-derive them from the
+pre-merge blocks branch.
 """
 
 import re
 from datetime import datetime
 
 from repositories.registration_repository import REGISTRATIONS_TABLE
+from services import academy_enrollment_service as academy_enrollment
 from services.email_service import email_service
 from utils.registration_config import get_registration_config
 from utils.logger import get_logger
@@ -28,20 +34,19 @@ def _abs_url(v):
 
 
 def _parent_row(admin, parent_id):
-    r = admin.table('users').select('id, email, first_name, last_name, avatar_url') \
-        .eq('id', parent_id).maybe_single().execute()
+    r = admin.table('users').select('id, email, first_name, last_name, avatar_url, phone_number').eq('id', parent_id).maybe_single().execute()
     return (r.data if r else None) or {}
 
 
 def org_funnel_config(admin, org_id):
-    """The org's PUBLIC registration-funnel config dict ({} when absent).
-
-    maybe_single(): a missing org row returns {} instead of raising PGRST116
-    (which surfaced as a confirm_payment error in Sentry). The Stripe secret
-    key never lives in here (AUDIT.md C1) — it is in organization_secrets.
-    """
-    r = admin.table('organizations').select('feature_flags') \
-        .eq('id', org_id).maybe_single().execute()
+    # maybe_single(): a missing org row returns {} instead of raising PGRST116
+    # (which surfaced as a confirm_payment error in Sentry).
+    #
+    # This returns PUBLIC funnel config only. The Stripe secret key used to live
+    # in here (the registration flag's stripe_secret_key) and was readable over
+    # the public anon key -- see AUDIT.md C1. It now lives in
+    # organization_secrets; fetch it explicitly with _org_stripe_key().
+    r = admin.table('organizations').select('feature_flags').eq('id', org_id).maybe_single().execute()
     return get_registration_config(((r.data if r else None) or {}).get('feature_flags'))
 
 
@@ -82,11 +87,11 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
                 if email_service.send_email(parent['email'], f'{org_name}: set your student goals', html):
                     emailed_at = now
             except Exception as e:  # noqa: BLE001
-                logger.warning(f'Funnel: goals email failed for registration {reg["id"]}: {e}')
+                logger.warning(f'registration: goals email failed for registration {reg["id"]}: {e}')
     elif scheduling_url and parent.get('email'):
         try:
             from app_config import Config
-            org_name = (org or {}).get('name') or 'iCreate'
+            org_name = (org or {}).get('name') or 'your school'
             builder_url = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder"
             html = (
                 f"<p>Hi {parent.get('first_name') or 'there'},</p>"
@@ -101,16 +106,16 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
             if email_service.send_email(parent['email'], f'{org_name}: book your appointment', html):
                 emailed_at = now
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'Funnel: scheduling email failed for registration {reg["id"]}: {e}')
+            logger.warning(f'registration: scheduling email failed for registration {reg["id"]}: {e}')
 
     payload = {
         'fee_recorded_at': now, 'scheduling_emailed_at': emailed_at,
         'status': 'completed', 'completed_at': now, 'updated_at': now,
         **(extra_fields or {}),
     }
-    # Uses the CALLER'S admin client (tests inject fakes); the table name is
-    # the repository's constant so nothing new hardcodes it.
     admin.table(REGISTRATIONS_TABLE).update(payload).eq('id', reg['id']).execute()
+
+    academy_enrollment.enroll_registration_kids(reg, cfg, client=admin)
 
     # A release put this household on hold until the deferred fee was settled —
     # settling it clears the hold (only OUR hold; a school-set hold stays).
@@ -125,7 +130,7 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
                 .eq('primary_contact_user_id', reg['parent_user_id']) \
                 .eq('registration_hold_reason', FEE_HOLD_REASON).execute()
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'Funnel fee: hold clear failed for {reg["id"]}: {e}')
+            logger.warning(f'registration fee: hold clear failed for {reg["id"]}: {e}')
 
     return {
         'success': True, 'status': 'completed',

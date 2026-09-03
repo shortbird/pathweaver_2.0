@@ -7,6 +7,13 @@
  * - Confidential posts should block sharing
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { FeedCard } from '../FeedCard';
+import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -32,13 +39,6 @@ jest.mock('@/src/services/imageUrl', () => ({
   displayImageUrl: (url: string | null) => url,
   isHeicUrl: () => false,
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { FeedCard } from '../FeedCard';
-import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
 
 // Mock clipboard for web (navigator may not exist in RN test env)
 if (typeof globalThis.navigator === 'undefined') {

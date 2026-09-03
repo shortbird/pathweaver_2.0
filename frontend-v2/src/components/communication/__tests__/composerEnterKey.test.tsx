@@ -7,6 +7,13 @@
  * Sending is the send button only; Enter is a plain newline.
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { ChatWindow } from '../ChatWindow';
+import { GroupChatWindow } from '../GroupChatWindow';
+import { sendDirectMessage, sendGroupMessage } from '@/src/hooks/useMessages';
+import { setAuthAsStudent } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -34,13 +41,6 @@ jest.mock('@/src/hooks/useMessagingRealtime', () => ({
   patchMessageEdited: jest.fn(),
   patchMessageDeleted: jest.fn(),
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { ChatWindow } from '../ChatWindow';
-import { GroupChatWindow } from '../GroupChatWindow';
-import { sendDirectMessage, sendGroupMessage } from '@/src/hooks/useMessages';
-import { setAuthAsStudent } from '@/src/__tests__/utils/authStoreHelper';
 
 const contact = { id: 'c1', first_name: 'Molly', last_name: 'Christensen' } as any;
 const group = { id: 'g1', name: 'Theater JR', member_count: 4 } as any;

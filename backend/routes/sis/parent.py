@@ -365,21 +365,35 @@ def list_absences(user_id):
 @require_auth
 @require_module('attendance')
 def create_absence(user_id):
+    """Report an absence for one child (student_user_id) or several at once
+    (student_user_ids). Each child is written independently; the response lists
+    what was created plus per-student errors, so one duplicate doesn't block a
+    sibling."""
     data = request.json or {}
     org_id = _org(request)
-    student_user_id = data.get('student_user_id')
+    raw_ids = data.get('student_user_ids')
+    if raw_ids is None:
+        raw_ids = [data.get('student_user_id')]
+    if not isinstance(raw_ids, list):
+        raw_ids = [raw_ids]
+    student_ids = [s for s in dict.fromkeys(raw_ids) if isinstance(s, str) and s]
     absence_date = data.get('absence_date')
-    if not org_id or not student_user_id or not absence_date:
+    if not org_id or not student_ids or not absence_date:
         return jsonify({'success': False,
-                        'error': 'organization_id, student_user_id and absence_date are required'}), 400
-    result = parent.create_absence(
-        user_id, org_id, student_user_id, absence_date,
+                        'error': 'organization_id, student_user_id(s) and absence_date are required'}), 400
+    result = parent.create_absences(
+        user_id, org_id, student_ids, absence_date,
         class_id=data.get('class_id'), reason=data.get('reason'),
+        end_date=data.get('end_date'),
     )
-    if result.get('error'):
-        code = 403 if result['error'] == 'Not authorized for this student' else 400
-        return jsonify({'success': False, 'error': result['error']}), code
-    return jsonify({'success': True, 'absence': result['absence']}), 201
+    if not result['absences']:
+        error = next(iter(result['errors'].values()))
+        code = 403 if error == 'Not authorized for this student' else 400
+        return jsonify({'success': False, 'error': error, 'errors': result['errors']}), code
+    return jsonify({'success': True,
+                    'absence': result['absences'][0],
+                    'absences': result['absences'],
+                    'errors': result['errors']}), 201
 
 
 @bp.route('/absences/<absence_id>', methods=['DELETE'])
@@ -391,6 +405,23 @@ def cancel_absence(user_id, absence_id):
         code = 404 if result['error'] == 'Absence not found' else 403
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True})
+
+
+@bp.route('/absences/cancel', methods=['POST'])
+@require_auth
+@require_module('attendance')
+def cancel_absences(user_id):
+    """Cancel several absence reports in one call. The UI shows a reported
+    date range as one row; cancelling it is one action and one office
+    notification covering the span, not one per day. Body: {absence_ids: []}."""
+    ids = (request.json or {}).get('absence_ids') or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'success': False, 'error': 'absence_ids is required'}), 400
+    result = parent.cancel_absences(user_id, ids)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Absence not found' else 403
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
 
 
 # ── Schedule builder: add/drop/waitlist until the first day of school ─────────

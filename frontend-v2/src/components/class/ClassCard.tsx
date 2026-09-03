@@ -129,7 +129,7 @@ export function ClassCard({ quest }: ClassCardProps) {
       return { label: 'Revisions requested', color: 'bg-red-100 text-red-800', icon: 'alert-circle-outline' as const };
     }
     if (progress.can_submit_for_review) {
-      return { label: 'Ready to submit', color: 'bg-purple-100 text-purple-800', icon: 'send-outline' as const };
+      return { label: 'Ready to submit', color: 'bg-brand-surface-100 dark:bg-dark-brand-surface-100 text-optio-purple', icon: 'send-outline' as const };
     }
     return null;
   })();
@@ -172,7 +172,7 @@ export function ClassCard({ quest }: ClassCardProps) {
             <MiniRing
               approvedXp={progress?.approved_xp ?? 0}
               targetXp={progress?.target_xp ?? 1000}
-              color={subject?.accent || '#6D469B'}
+              color={subject?.accent || c.brand}
             />
           )}
         </HStack>
@@ -200,7 +200,7 @@ export function ClassCard({ quest }: ClassCardProps) {
             </VStack>
           ) : taskCount === 0 ? (
             <HStack className="items-center gap-1.5 mt-3">
-              <Ionicons name="add-circle-outline" size={15} color="#6D469B" />
+              <Ionicons name="add-circle-outline" size={15} color={c.brand} />
               <UIText size="xs" className="text-optio-purple font-poppins-medium">Add tasks to continue the class</UIText>
             </HStack>
           ) : progress ? (

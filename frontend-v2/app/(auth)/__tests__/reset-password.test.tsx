@@ -8,6 +8,12 @@
  * - API field name mismatch (password vs new_password)
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import ResetPasswordScreen from '../reset-password';
+import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { authAPI } from '@/src/services/api';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -20,12 +26,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import ResetPasswordScreen from '../reset-password';
-import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { authAPI } from '@/src/services/api';
 
 const mockUseLocalSearchParams = require('expo-router').useLocalSearchParams;
 const mockRouter = require('expo-router').router;

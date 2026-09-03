@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -7,9 +7,11 @@ import SisOrgPicker from './SisOrgPicker'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import { getPreviewTeacher } from './teacherPreview'
+import { MyDocumentsPanel } from './MyDocumentsPage'
 
 /**
- * My Tasks — everything the school is currently asking this person to do.
+ * My Tasks — everything the school is currently asking this person to do,
+ * and the documents behind it.
  *
  * Before this page there were four: a request assigned to you lived in Forms, a
  * checklist item in Onboarding, a document sent for your signature nowhere in
@@ -21,6 +23,16 @@ import { getPreviewTeacher } from './teacherPreview'
  * (which is a conversation, with a status and a comment thread) keeps its own
  * page and this list links into it. The rule is: if finishing it takes one
  * interaction, finish it here.
+ *
+ * The Documents tab is the same person-scoped view /my-documents serves (that
+ * page stays mounted for deep links): what the school shared with you, what
+ * you sent in. Half of what lands here is "sign this" or "upload that", so the
+ * files those tasks produce live one tab over instead of one nav entry away.
+ *
+ * Under a teacher preview the tasks tab cannot answer for the teacher — the
+ * inbox is always the CALLER's own (routes/sis/tasks.py takes no ?teacher_id=)
+ * — so a preview lands on Documents, which does support it, and the tasks tab
+ * says whose list it would be showing.
  */
 
 const TYPE_LABEL = {
@@ -200,15 +212,22 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
 
 const MyTasksPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  // This inbox is always the caller's own — /api/sis/my-tasks takes no
-  // ?teacher_id= on purpose (routes/sis/tasks.py). The nav hides this page
-  // while a preview is on; anyone who deep-links in gets told whose list this
-  // is, rather than reading their own tasks as the teacher's.
   const [preview] = useState(() => getPreviewTeacher())
+  const [searchParams, setSearchParams] = useSearchParams()
+  // A preview lands on Documents: the tasks tab can only answer for the caller.
+  const tab = searchParams.get('tab') === 'documents' || (preview && !searchParams.get('tab'))
+    ? 'documents' : 'tasks'
   const [data, setData] = useState({ tasks: [], counts: {} })
   const [showDone, setShowDone] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
+
+  const setTab = (next) => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'tasks' && !preview) params.delete('tab')
+    else params.set('tab', next)
+    setSearchParams(params, { replace: true })
+  }
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -237,62 +256,84 @@ const MyTasksPage = () => {
       <div>
         <BackToDashboard className="mb-1" />
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-neutral-900">My Tasks</h1>
+          <h1 className="text-2xl font-bold text-neutral-900">
+            {preview && tab === 'documents' ? `${preview.name}'s documents` : 'My Tasks'}
+          </h1>
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
         <p className="text-sm text-neutral-500 mt-1">
-          Everything waiting on you — documents to sign, checklists, requests and policies to read.
+          Everything waiting on you — documents to sign, checklists, requests and policies to
+          read — and your documents: what the school shared with you, and what you send back.
         </p>
-        {preview && (
+        {preview && tab === 'tasks' && (
           <p className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
             These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
-            this page. Their checklist is on Onboarding, and their documents on My Documents.
+            the task inbox. Their checklist is on Onboarding; their documents are on the
+            Documents tab here.
           </p>
         )}
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-neutral-600">
-          <span className="font-semibold text-neutral-900">{counts.open ?? 0}</span> open
-        </span>
-        {counts.overdue > 0 && (
-          <span className="text-sm text-red-600 font-medium">{counts.overdue} overdue</span>
-        )}
-        <label className="ml-auto flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
-          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)}
-            className="h-4 w-4 accent-purple-700" />
-          Show completed
-        </label>
+      <div className="flex items-center gap-2 border-b border-gray-200">
+        {[['tasks', 'My tasks'], ['documents', 'My documents']].map(([value, label]) => (
+          <button key={value} onClick={() => setTab(value)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              tab === value
+                ? 'border-optio-purple text-optio-purple'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        {loading && <p className="text-sm text-neutral-500">Loading…</p>}
-        {!loading && !open.length && !done.length && (
-          <p className="text-sm text-neutral-500">Nothing is waiting on you right now.</p>
-        )}
-        {!loading && !open.length && done.length > 0 && (
-          <p className="text-sm text-neutral-500">You are all caught up.</p>
-        )}
-        <ul className="divide-y divide-gray-100">
-          {open.map((t) => (
-            <TaskRow key={t.id} task={{ ...t, signature_statement: data.signature_statement }}
-              orgId={orgId} busy={busyId === t.id} setBusy={setBusyId} onChanged={load} />
-          ))}
-        </ul>
-      </div>
+      {tab === 'documents' && <MyDocumentsPanel orgId={orgId} preview={preview} />}
 
-      {showDone && done.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h2 className="font-semibold text-neutral-900 mb-2">Completed</h2>
-          <ul className="divide-y divide-gray-100">
-            {done.map((t) => (
-              <li key={t.id} className="py-2.5 flex items-center gap-2">
-                <span className="text-sm text-neutral-400 line-through truncate">{t.title}</span>
-                <span className="ml-auto"><StatusPill status="done" /></span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {tab === 'tasks' && (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-neutral-600">
+              <span className="font-semibold text-neutral-900">{counts.open ?? 0}</span> open
+            </span>
+            {counts.overdue > 0 && (
+              <span className="text-sm text-red-600 font-medium">{counts.overdue} overdue</span>
+            )}
+            <label className="ml-auto flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
+              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)}
+                className="h-4 w-4 accent-purple-700" />
+              Show completed
+            </label>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            {loading && <p className="text-sm text-neutral-500">Loading…</p>}
+            {!loading && !open.length && !done.length && (
+              <p className="text-sm text-neutral-500">Nothing is waiting on you right now.</p>
+            )}
+            {!loading && !open.length && done.length > 0 && (
+              <p className="text-sm text-neutral-500">You are all caught up.</p>
+            )}
+            <ul className="divide-y divide-gray-100">
+              {open.map((t) => (
+                <TaskRow key={t.id} task={{ ...t, signature_statement: data.signature_statement }}
+                  orgId={orgId} busy={busyId === t.id} setBusy={setBusyId} onChanged={load} />
+              ))}
+            </ul>
+          </div>
+
+          {showDone && done.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-neutral-900 mb-2">Completed</h2>
+              <ul className="divide-y divide-gray-100">
+                {done.map((t) => (
+                  <li key={t.id} className="py-2.5 flex items-center gap-2">
+                    <span className="text-sm text-neutral-400 line-through truncate">{t.title}</span>
+                    <span className="ml-auto"><StatusPill status="done" /></span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

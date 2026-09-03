@@ -202,3 +202,41 @@ class TestArchiveAudience:
     def test_a_superadmin_with_no_view_still_sees_everything(self):
         assert announcements_routes._archive_audience_token('superadmin', None) is None
         assert announcements_routes._archive_audience_token('superadmin', 'bogus') is None
+
+
+class TestFamilyViewToken:
+    """The family home is a parent's own view of the archive, even when that
+    parent is also front office.
+
+    iCreate, 2026-08-28: a campus coordinator posted a teachers-only
+    announcement and found it on her parent dashboard — "I created an
+    announcement and said to mark it visible to only teachers. It still sent to
+    me as a parent". She had not been sent it; _ARCHIVE_SEES_ALL simply showed
+    her everything, on every surface. ?family_view=1 narrows the surfaces that
+    ARE the family view.
+    """
+
+    def test_a_coordinator_who_is_also_a_parent_gets_the_parent_filter(self):
+        row = {'role': 'org_managed', 'org_role': 'campus_coordinator',
+               'org_roles': ['campus_coordinator', 'parent']}
+        assert announcements_routes._family_audience_token(row) == 'parents'
+
+    def test_a_platform_parent_gets_the_parent_filter(self):
+        assert announcements_routes._family_audience_token(
+            {'role': 'parent', 'org_role': None, 'org_roles': None}) == 'parents'
+
+    def test_a_student_gets_the_student_filter(self):
+        assert announcements_routes._family_audience_token(
+            {'role': 'org_managed', 'org_role': 'student', 'org_roles': None}) == 'students'
+
+    def test_staff_with_no_family_role_are_left_alone(self):
+        """None means "no narrowing" — the caller keeps whatever their staff role
+        already gave them, so asking for the family view can never widen it."""
+        assert announcements_routes._family_audience_token(
+            {'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin']}) is None
+        assert announcements_routes._family_audience_token(None) is None
+
+    def test_parent_wins_over_student_when_someone_holds_both(self):
+        row = {'role': 'org_managed', 'org_role': 'parent',
+               'org_roles': ['student', 'parent']}
+        assert announcements_routes._family_audience_token(row) == 'parents'

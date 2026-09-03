@@ -15,7 +15,7 @@ from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
 from utils.logger import get_logger
-from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole
+from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole, apply_role_view
 
 logger = get_logger(__name__)
 
@@ -278,7 +278,7 @@ def require_role(*allowed_roles):
                     if not user.data or len(user.data) == 0:
                         raise AuthorizationError('User not found')
 
-                    user_data = user.data[0]
+                    user_data = apply_role_view(user.data[0], user_id=user_id)
 
                     # Superadmin has access to everything
                     if user_data.get('role') == 'superadmin':
@@ -331,6 +331,27 @@ def validate_uuid_param(*param_names):
 
         return decorated_function
     return decorator
+
+def require_real_identity(f):
+    """Any authenticated caller, resolved to their REAL account — ignoring an
+    active masquerade or role view. For control-plane endpoints whose whole job
+    is to change who the session acts as (view-as pickers, masquerade start):
+    they must keep answering to the person at the keyboard while that person is
+    inside somebody else's account or a narrowed role. The route decides the
+    role rule itself, on the real row."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return ('', 200)
+        user_id = session_manager.get_actual_admin_id()
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+        request.user_id = user_id
+        _set_sentry_user(user_id)
+        return f(user_id, *args, **kwargs)
+
+    return decorated_function
+
 
 def require_admin_identity(f):
     """Superadmin check against the REAL caller, ignoring any active masquerade.
@@ -416,7 +437,7 @@ def require_advisor(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = user.data[0]
+            user_data = apply_role_view(user.data[0], user_id=actual_user_id)
             is_org_admin_flag = user_data.get('is_org_admin', False)
 
             # Debug logging for advisor access issues
@@ -501,7 +522,7 @@ def require_advisor_for_student(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = user.data[0]
+            user_data = apply_role_view(user.data[0], user_id=user_id)
 
             # Superadmin always has access; advisors/org_admins need an active
             # assignment to this student
@@ -619,7 +640,7 @@ def require_school_admin(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = user.data[0]
+            user_data = apply_role_view(user.data[0], user_id=user_id)
             is_org_admin_flag = user_data.get('is_org_admin', False)
 
             # Check if superadmin, has org_admin role, or is_org_admin flag
@@ -685,7 +706,7 @@ def require_org_admin(f):
             if not user.data:
                 raise AuthorizationError('User not found')
 
-            user_data = user.data
+            user_data = apply_role_view(user.data, user_id=user_id)
 
             # Check if superadmin
             is_superadmin = user_data.get('role') == 'superadmin'
@@ -760,7 +781,7 @@ def require_org_front_office(f):
             if not user.data:
                 raise AuthorizationError('User not found')
 
-            user_data = user.data
+            user_data = apply_role_view(user.data, user_id=user_id)
             is_superadmin = user_data.get('role') == 'superadmin'
             has_access = (
                 is_superadmin
@@ -807,7 +828,7 @@ def get_advisor_assigned_students(advisor_id):
         user = supabase.table('users').select('role, org_role, org_roles').eq('id', advisor_id).execute()
 
         if user.data and len(user.data) > 0:
-            user_data = user.data[0]
+            user_data = apply_role_view(user.data[0], user_id=advisor_id)
 
             # Superadmin sees all students
             if user_data.get('role') == 'superadmin':

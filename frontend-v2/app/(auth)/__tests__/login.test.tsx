@@ -8,6 +8,13 @@
  * - Role-based redirect after login
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import LoginScreen from '../login';
+import { useAuthStore } from '@/src/stores/authStore';
+import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockUser, createMockParent, createMockObserver } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -20,13 +27,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import LoginScreen from '../login';
-import { useAuthStore } from '@/src/stores/authStore';
-import { clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockUser, createMockParent, createMockObserver } from '@/src/__tests__/utils/mockFactories';
 
 const mockRouter = require('expo-router').router;
 

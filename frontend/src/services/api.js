@@ -415,8 +415,14 @@ api.interceptors.response.use(
         // anonymous families; the app-load session check 401s for them by
         // design and must not eat the link with a bounce to /login.
         const isRegistrationFunnel = currentPath.startsWith('/enroll/') || currentPath.startsWith('/register/icreate/')
+        // POE pilot pages. authPaths lists '/poe' as an exact match, which left
+        // the deeper ones (/poe/showcase, the key-gated summary sent to POE
+        // leadership) bouncing anonymous visitors to /login on the app-load
+        // session check — the link looked broken to exactly the people it was
+        // sent to. Prefix-match the whole area.
+        const isPoePage = currentPath === '/poe' || currentPath.startsWith('/poe/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel && !isPoePage) {
           window.location.href = '/login'
         }
 
@@ -970,6 +976,14 @@ export const oeaAPI = {
   // Quarterly progress report (report card) for a term (1-4).
   progressReport: (studentId, term) =>
     api.get(`/api/oea/students/${studentId}/progress-report`, { params: { term } }),
+
+  // Record that the parent opened the getting-started video. The video is an
+  // external link, so this is a click, not playback — fire and forget, never
+  // block or fail the navigation on it.
+  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
+
+  // Per-parent open status for the org's video (org admin / coordinator).
+  helpVideoViews: () => api.get('/api/oea/help-video/views'),
 }
 
 // ── The Treehouse program API ────────────────────────────────────────────────
@@ -1013,6 +1027,12 @@ export const treehouseAPI = {
 
   // Facilitator phone capture (G1): one photo+caption → tag one or many students.
   capture: (body) => api.post('/api/treehouse/capture', body),
+  // Photos go up first; /capture stores the pointers this returns. It used to
+  // post to /api/evidence, which has no handler — every capture with a photo
+  // 404'd as "Could not save capture".
+  captureUpload: (formData) => api.post('/api/treehouse/capture/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // Showcase events. scope: 'upcoming' | 'past' | 'all'.
   showcaseEvents: (scope) => api.get('/api/treehouse/showcase/events', { params: scope ? { scope } : {} }),

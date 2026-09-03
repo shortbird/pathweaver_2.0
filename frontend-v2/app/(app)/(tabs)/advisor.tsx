@@ -5,19 +5,17 @@
  * Shows engagement rhythm, active quests, check-in history, and quick actions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Pressable, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import api from '@/src/services/api';
 import { useAdvisorStudents, useStudentOverview, createCheckin } from '@/src/hooks/useAdvisor';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import {
-  VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Badge, BadgeText, Divider, Skeleton, Avatar, AvatarFallbackText, AvatarImage,
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider, Skeleton, Avatar, AvatarFallbackText, AvatarImage,
   Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 
@@ -61,13 +59,14 @@ function StudentListItem({ student, rhythm, isSelected, onSelect }: {
 // ── Caseload Summary Bar ──
 
 function CaseloadBar({ caseload }: { caseload: any }) {
+  const c = useThemeColors();
   if (!caseload?.rhythm_counts) return null;
   const counts = caseload.rhythm_counts;
   const states = [
-    { key: 'in_flow', label: 'In Flow', color: '#6D469B' },
+    { key: 'in_flow', label: 'In Flow', color: c.brand },
     { key: 'building', label: 'Building', color: '#1D4ED8' },
     { key: 'resting', label: 'Resting', color: '#15803D' },
-    { key: 'ready_when_you_are', label: 'Waiting', color: '#9CA3AF' },
+    { key: 'ready_when_you_are', label: 'Waiting', color: c.textFaint },
   ];
 
   return (
@@ -320,7 +319,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
               <Card key={q.id || q.quest_id} variant="outline" size="sm">
                 <HStack className="items-center gap-3">
                   <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
-                    <Ionicons name="rocket-outline" size={18} color="#6D469B" />
+                    <Ionicons name="rocket-outline" size={18} color={c.brand} />
                   </View>
                   <VStack className="flex-1 min-w-0">
                     <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
@@ -349,6 +348,10 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
 
 export default function AdvisorScreen() {
   const c = useThemeColors();
+  const { students, caseload, loading } = useAdvisorStudents();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
   if (Platform.OS !== 'web') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
@@ -358,10 +361,6 @@ export default function AdvisorScreen() {
       </SafeAreaView>
     );
   }
-
-  const { students, caseload, loading } = useAdvisorStudents();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
 
   const filtered = students.filter((s) => {
     if (!search) return true;
@@ -425,7 +424,7 @@ export default function AdvisorScreen() {
           ) : (
             <View className="flex-1 items-center justify-center py-20">
               <View className="w-20 h-20 rounded-full bg-optio-purple/10 items-center justify-center mb-4">
-                <Ionicons name="clipboard-outline" size={36} color="#6D469B" />
+                <Ionicons name="clipboard-outline" size={36} color={c.brand} />
               </View>
               <Heading size="md" className="text-typo-500 dark:text-dark-typo-500">Select a Student</Heading>
               <UIText size="sm" className="text-typo-400 mt-2 text-center max-w-sm dark:text-dark-typo-400">

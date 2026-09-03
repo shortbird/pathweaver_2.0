@@ -231,5 +231,84 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
   )
 }
 
+// Meeting prose to pair with the grid: "Mon 9:30am-10:30am; Wed 1pm-2pm",
+// Monday-first the way a school week reads. Lives beside the grid so every
+// surface that lists the same meetings in text (the printable family schedule,
+// the school hub's schedule section) words them identically.
+const MEETING_DAY_NAMES = {
+  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
+  4: 'Thursday', 5: 'Friday', 6: 'Saturday',
+}
+const MEETING_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+export const meetingsText = (meetings) => {
+  const sorted = [...(meetings || [])].sort((a, b) => {
+    const da = MEETING_DAY_ORDER.indexOf(a.day_of_week)
+    const db = MEETING_DAY_ORDER.indexOf(b.day_of_week)
+    if (da !== db) return da - db
+    return String(a.start_time || '').localeCompare(String(b.start_time || ''))
+  })
+  return sorted.map((m) => {
+    const day = (MEETING_DAY_NAMES[m.day_of_week] || '').slice(0, 3)
+    const time = [fmt(m.start_time), fmt(m.end_time)].filter(Boolean).join('-')
+    return [day, time].filter(Boolean).join(' ')
+  }).filter(Boolean).join('; ')
+}
+
+/**
+ * The same meetings regrouped BY DAY, each day in time order.
+ *
+ * The class-by-class list these surfaces used to show answered "when does
+ * Pottery meet?" but not "where is my kid at 10:30 on Tuesday?" — a parent had
+ * to read every row and mentally re-sort ("super clunky to find out where they
+ * are at certain times", iCreate parent, 2026-08-25). This inverts it: day
+ * first, then start time, which is the order a family actually reads a school
+ * day in.
+ *
+ * Returns [{ key, label, rows: [{ cls, meeting, start }] }] with the week
+ * Monday-first (Sunday last, matching meetingsText), then any dated one-offs by
+ * date, then a trailing group for classes carrying no usable meeting at all —
+ * those are real enrollments and must not silently vanish from a schedule.
+ * Days with nothing scheduled are omitted rather than rendered empty.
+ */
+export const meetingsByDay = (classes = []) => {
+  const groups = new Map()
+  const unscheduled = []
+
+  for (const cls of classes) {
+    let placed = false
+    for (const m of cls.meetings || []) {
+      const hasDay = MEETING_DAY_NAMES[m.day_of_week] !== undefined
+      if (!hasDay && !m.specific_date) continue
+      // Recurring weekday meetings key on the day; one-offs key on their date,
+      // so a single Saturday field trip doesn't masquerade as "every Saturday".
+      const key = hasDay ? `d${m.day_of_week}` : `x${m.specific_date}`
+      const label = hasDay ? MEETING_DAY_NAMES[m.day_of_week] : m.specific_date
+      const order = hasDay ? MEETING_DAY_ORDER.indexOf(m.day_of_week) : 100
+      if (!groups.has(key)) groups.set(key, { key, label, order, sub: m.specific_date || '', rows: [] })
+      groups.get(key).rows.push({ cls, meeting: m, start: toMin(m.start_time) })
+      placed = true
+    }
+    if (!placed) unscheduled.push({ cls, meeting: null, start: null })
+  }
+
+  const ordered = [...groups.values()].sort((a, b) =>
+    (a.order - b.order) || String(a.sub).localeCompare(String(b.sub)))
+
+  for (const g of ordered) {
+    // Times missing a start sink to the bottom of their own day rather than
+    // sorting as midnight and heading the list.
+    g.rows.sort((a, b) => {
+      if (a.start == null || b.start == null) return a.start == null ? 1 : -1
+      return a.start - b.start || String(a.cls.name || '').localeCompare(String(b.cls.name || ''))
+    })
+  }
+
+  if (unscheduled.length) {
+    unscheduled.sort((a, b) => String(a.cls.name || '').localeCompare(String(b.cls.name || '')))
+    ordered.push({ key: 'unscheduled', label: 'Not scheduled yet', order: 999, sub: '', rows: unscheduled })
+  }
+  return ordered
+}
+
 export { fmt as formatTime }
 export default WeeklySchedule

@@ -371,32 +371,192 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 // person's checklist in turn — so it leads. Assigning is weekly and is a dialog.
 // Authoring templates is rare, so it sits at the bottom, collapsed, and its
 // editor opens over the page instead of pushing everything else off screen.
-export const AdminOnboarding = ({ orgId, onCount = null }) => {
+// The office's approve/reject on a finished item. Shared by the review strip
+// and the per-assignment card, and exported so the Task Center's unified
+// Assigned list can reuse both without re-deriving the PATCH.
+const patchAssignmentItem = async (orgId, assignmentId, itemKey, fields) => {
+  await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
+    organization_id: orgId, ...fields,
+  })
+}
+
+// Everything somebody has finished and is now waiting on the office for.
+export const awaitingReviewOf = (assignments) => assignments.flatMap((a) => (a.items || [])
+  .filter((item) => item.needs_approval && item.status === 'complete')
+  .map((item) => ({ assignment: a, item })))
+
+/** "Needs your review" — approvals lifted out of the collapsed rows below,
+ * because an approval nobody can see is an approval that does not happen. */
+export const ReviewStrip = ({ orgId, assignments, onChanged }) => {
+  const awaitingReview = awaitingReviewOf(assignments)
+  if (!awaitingReview.length) return null
+
+  const review = async (assignmentId, itemKey, status) => {
+    try {
+      await patchAssignmentItem(orgId, assignmentId, itemKey, { status })
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not update')
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-amber-200 p-4">
+      <h2 className="font-semibold text-neutral-900 mb-3">
+        Needs your review ({awaitingReview.length})
+      </h2>
+      <ul className="divide-y divide-gray-100">
+        {awaitingReview.map(({ assignment: a, item }) => (
+          <li key={`${a.id}:${item.key}`} className="py-2.5 flex items-center gap-2 text-sm flex-wrap">
+            <span className="font-medium text-neutral-900">{a.user_name}</span>
+            <span className="text-neutral-600">{item.title}</span>
+            <span className="text-xs text-neutral-400">{a.template_name}</span>
+            <span className="ml-auto flex items-center gap-2">
+              <button onClick={() => review(a.id, item.key, 'approved')}
+                className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+              <button onClick={() => review(a.id, item.key, 'rejected')}
+                className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** One assigned checklist or ad-hoc task: person, progress, and the expanded
+ * per-item view with the office's actions. Self-contained so any list —
+ * the onboarding roll-up or the Task Center's Assigned tab — can render it. */
+export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }) => {
+  const confirm = useConfirm()
+
+  const review = async (itemKey, status) => {
+    try {
+      await patchAssignmentItem(orgId, a.id, itemKey, { status })
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not update')
+    }
+  }
+
+  const clearSignature = async (itemKey, signerName) => {
+    if (!(await confirm(`Clear ${signerName ? `${signerName}'s` : 'the'} signature on this item? They will need to sign again.`))) return
+    try {
+      await patchAssignmentItem(orgId, a.id, itemKey, { clear_signature: true })
+      toast.success('Signature cleared')
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not clear signature')
+    }
+  }
+
+  const unassign = async () => {
+    const done = a.done_count || 0
+    const warning = done
+      ? `\n\n${done} of ${a.total_count} items are already done. Any documents they uploaded are kept.`
+      : ''
+    if (!(await confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`))) return
+    try {
+      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/assignments/${a.id}`, orgId))
+      toast.success('Removed')
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove it')
+    }
+  }
+
+  // The admin-side door to a checklist attachment. Not the teacher doc-url:
+  // that one only signs the staff bucket, and this list also holds family
+  // checklists (audience picks the bucket server-side).
+  const openItemDoc = async (doc) => {
+    try {
+      const r = await api.get(withOrg(
+        `/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.path)}&audience=${a.audience || 'staff'}`, orgId))
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
+  return (
+    <details className="border border-gray-200 rounded-lg">
+      {/* Unassign is NOT in here: a destructive action one pixel from
+          the expand target is a mis-click waiting to happen. */}
+      <summary className="px-3 py-2.5 cursor-pointer flex items-center gap-2 text-sm flex-wrap">
+        <span className="font-medium text-neutral-900">{a.user_name}</span>
+        <span className="text-neutral-500">{a.template_name}</span>
+        {badge}
+        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+          a.status === 'complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
+          {a.done_count}/{a.total_count}
+        </span>
+      </summary>
+      <ul className="px-3 divide-y divide-gray-100">
+        {(a.items || []).map((item) => {
+          const docs = itemDocuments(item)
+          return (
+          <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
+            <span className="text-neutral-800">{item.title}</span>
+            <ItemBadge status={item.status} />
+            {item.signature?.name && (
+              <span className="text-xs text-neutral-500">
+                Signed by <span className="font-medium text-neutral-700">{item.signature.name}</span>
+                {item.signature.signed_at ? ` on ${new Date(item.signature.signed_at).toLocaleDateString()}` : ''}
+              </span>
+            )}
+            {docs.map((doc, i) => (
+              <button key={doc.path} onClick={() => openItemDoc(doc)}
+                className="text-xs text-optio-purple hover:underline"
+                title="Open the document they attached">
+                {doc.filename || (docs.length > 1 ? `Document ${i + 1}` : 'View document')}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2">
+              {item.signature && (
+                <button onClick={() => clearSignature(item.key, item.signature.name)}
+                  className="text-xs text-red-600 font-medium hover:underline">
+                  Clear signature
+                </button>
+              )}
+              {item.needs_approval && item.status === 'complete' && (
+                <>
+                  <button onClick={() => review(item.key, 'approved')}
+                    className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+                  <button onClick={() => review(item.key, 'rejected')}
+                    className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
+                </>
+              )}
+            </span>
+          </li>
+          )
+        })}
+      </ul>
+      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+        <button onClick={unassign}
+          className="text-xs text-red-600 hover:underline"
+          title="Remove this — any documents they uploaded are kept">
+          Unassign
+        </button>
+      </div>
+    </details>
+  )
+}
+
+/** The checklist template library: a single collapsed row until opened.
+ * Authoring is the rare act; it must not sit on top of the daily list. */
+export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
   const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
-  const [assignments, setAssignments] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
-  const [assigningOpen, setAssigningOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
 
   const load = useCallback(() => {
-    Promise.all([
-      api.get(withOrg('/api/sis/staff-admin/onboarding/templates', orgId)),
-      api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId)),
-    ]).then(([t, a]) => {
-      setTemplates(t.data?.templates || [])
-      setAssignments(a.data?.assignments || [])
-    }).catch(() => toast.error('Failed to load onboarding admin'))
+    api.get(withOrg('/api/sis/staff-admin/onboarding/templates', orgId))
+      .then((t) => setTemplates(t.data?.templates || []))
+      .catch(() => toast.error('Failed to load checklist templates'))
   }, [orgId])
 
   useEffect(() => { if (orgId) load() }, [load, orgId])
-
-  // Everything somebody has finished and is now waiting on the office for.
-  const awaitingReview = assignments.flatMap((a) => (a.items || [])
-    .filter((item) => item.needs_approval && item.status === 'complete')
-    .map((item) => ({ assignment: a, item })))
-
-  useEffect(() => { onCount?.(awaitingReview.length) }, [awaitingReview.length, onCount])
 
   const duplicateTemplate = async (t) => {
     try {
@@ -432,6 +592,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
         ? `${d.synced} checklist${d.synced === 1 ? '' : 's'} updated (${parts.join(', ')})${skipped}`
         : `Everything already matches${skipped}`)
       load()
+      onChanged?.() // the sync rewrote assigned checklists — the list is stale
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not sync the checklists')
     }
@@ -455,72 +616,8 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
     }
   }
 
-  const unassign = async (a) => {
-    const done = a.done_count || 0
-    const warning = done
-      ? `\n\n${done} of ${a.total_count} items are already done. Any documents they uploaded are kept.`
-      : ''
-    if (!(await confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`))) return
-    try {
-      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/assignments/${a.id}`, orgId))
-      toast.success('Checklist removed')
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not remove the checklist')
-    }
-  }
-
-  const reviewItem = async (assignmentId, itemKey, status) => {
-    try {
-      await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
-        organization_id: orgId, status,
-      })
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not update')
-    }
-  }
-
-  const clearSignature = async (assignmentId, itemKey, signerName) => {
-    if (!(await confirm(`Clear ${signerName ? `${signerName}'s` : 'the'} signature on this item? They will need to sign again.`))) return
-    try {
-      await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
-        organization_id: orgId, clear_signature: true,
-      })
-      toast.success('Signature cleared')
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not clear signature')
-    }
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Waiting on you. Lifted out of the collapsed rows below, because an
-          approval nobody can see is an approval that does not happen. */}
-      {awaitingReview.length > 0 && (
-        <div className="bg-white rounded-xl border border-amber-200 p-4">
-          <h2 className="font-semibold text-neutral-900 mb-3">
-            Needs your review ({awaitingReview.length})
-          </h2>
-          <ul className="divide-y divide-gray-100">
-            {awaitingReview.map(({ assignment: a, item }) => (
-              <li key={`${a.id}:${item.key}`} className="py-2.5 flex items-center gap-2 text-sm flex-wrap">
-                <span className="font-medium text-neutral-900">{a.user_name}</span>
-                <span className="text-neutral-600">{item.title}</span>
-                <span className="text-xs text-neutral-400">{a.template_name}</span>
-                <span className="ml-auto flex items-center gap-2">
-                  <button onClick={() => reviewItem(a.id, item.key, 'approved')}
-                    className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
-                  <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
-                    className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
+    <>
       {/* Collapsed until asked for, so sitting above the progress list costs it
           a single row rather than a screenful. */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -562,70 +659,6 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <h2 className="font-semibold text-neutral-900">Checklist progress</h2>
-          <button onClick={() => setAssigningOpen(true)}
-            className="text-sm text-optio-purple font-medium hover:underline">
-            Assign a checklist
-          </button>
-        </div>
-        {!assignments.length && <p className="text-sm text-neutral-500">No checklists assigned yet.</p>}
-        <div className="space-y-2">
-          {assignments.map((a) => (
-            <details key={a.id} className="border border-gray-200 rounded-lg">
-              {/* Unassign is NOT in here: a destructive action one pixel from
-                  the expand target is a mis-click waiting to happen. */}
-              <summary className="px-3 py-2.5 cursor-pointer flex items-center gap-2 text-sm">
-                <span className="font-medium text-neutral-900">{a.user_name}</span>
-                <span className="text-neutral-500">{a.template_name}</span>
-                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-                  a.status === 'complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
-                  {a.done_count}/{a.total_count}
-                </span>
-              </summary>
-              <ul className="px-3 divide-y divide-gray-100">
-                {(a.items || []).map((item) => (
-                  <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
-                    <span className="text-neutral-800">{item.title}</span>
-                    <ItemBadge status={item.status} />
-                    {item.signature?.name && (
-                      <span className="text-xs text-neutral-500">
-                        Signed by <span className="font-medium text-neutral-700">{item.signature.name}</span>
-                        {item.signature.signed_at ? ` on ${new Date(item.signature.signed_at).toLocaleDateString()}` : ''}
-                      </span>
-                    )}
-                    <span className="ml-auto flex items-center gap-2">
-                      {item.signature && (
-                        <button onClick={() => clearSignature(a.id, item.key, item.signature.name)}
-                          className="text-xs text-red-600 font-medium hover:underline">
-                          Clear signature
-                        </button>
-                      )}
-                      {item.needs_approval && item.status === 'complete' && (
-                        <>
-                          <button onClick={() => reviewItem(a.id, item.key, 'approved')}
-                            className="px-2.5 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
-                          <button onClick={() => reviewItem(a.id, item.key, 'rejected')}
-                            className="px-2.5 py-1 rounded bg-red-600 text-white text-xs">Reject</button>
-                        </>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                <button onClick={() => unassign(a)}
-                  className="text-xs text-red-600 hover:underline"
-                  title="Remove this checklist — their uploaded documents are kept">
-                  Unassign this checklist
-                </button>
-              </div>
-            </details>
-          ))}
-        </div>
-      </div>
-
       {editing && (
         <ModalOverlay onClose={() => setEditing(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 space-y-4"
@@ -642,6 +675,45 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
           </div>
         </ModalOverlay>
       )}
+    </>
+  )
+}
+
+export const AdminOnboarding = ({ orgId, onCount = null }) => {
+  const [assignments, setAssignments] = useState([])
+  const [assigningOpen, setAssigningOpen] = useState(false)
+
+  const load = useCallback(() => {
+    api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId))
+      .then((a) => setAssignments(a.data?.assignments || []))
+      .catch(() => toast.error('Failed to load onboarding admin'))
+  }, [orgId])
+
+  useEffect(() => { if (orgId) load() }, [load, orgId])
+
+  const awaiting = awaitingReviewOf(assignments).length
+  useEffect(() => { onCount?.(awaiting) }, [awaiting, onCount])
+
+  return (
+    <div className="space-y-6">
+      <ReviewStrip orgId={orgId} assignments={assignments} onChanged={load} />
+      <ChecklistTemplatesManager orgId={orgId} onChanged={load} />
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-semibold text-neutral-900">Checklist progress</h2>
+          <button onClick={() => setAssigningOpen(true)}
+            className="text-sm text-optio-purple font-medium hover:underline">
+            Assign a checklist
+          </button>
+        </div>
+        {!assignments.length && <p className="text-sm text-neutral-500">No checklists assigned yet.</p>}
+        <div className="space-y-2">
+          {assignments.map((a) => (
+            <AssignmentCard key={a.id} orgId={orgId} assignment={a} onChanged={load} />
+          ))}
+        </div>
+      </div>
 
       {assigningOpen && (
         <AssignChecklistModal orgId={orgId} onClose={() => setAssigningOpen(false)} onAssigned={load} />

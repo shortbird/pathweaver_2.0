@@ -83,6 +83,13 @@ def main():
     # nothing is expired, so running it each cycle is safe.
     _run("sis-waitlist-offer-sweep", f"{base}/api/sis/internal/waitlist-offer-sweep", cron_secret, failures)
 
+    # Every run: enroll students in class quests whose scheduled publish time has
+    # arrived. Assignment enrolls the class immediately; a quest scheduled for
+    # later deliberately doesn't, so this is what delivers it on the day. Skips
+    # every pair that already has an enrollment, so re-runs cost one query.
+    _run("class-quest-publish-sweep",
+         f"{base}/api/sis/internal/publish-class-quests", cron_secret, failures)
+
     # Every run: CRM funnel sweep (scheduled nurture/onboarding sends). The
     # send window (9-19 Denver), per-lead throttle, and postal-address gate
     # are all enforced server-side, so off-hours runs no-op cheaply.
@@ -109,6 +116,14 @@ def main():
     # which is picked up again).
     if now.hour == 14 and now.minute < 10:
         _run("sis-tuition-autopay", f"{base}/api/sis/internal/tuition-autopay", cron_secret, failures)
+
+    # Once/day: open-ended monthly tuition (14:00 UTC, right after the autopay
+    # sweep so a school running both bills on one pass). Groups each household's
+    # active schedules into ONE invoice and ONE charge. Idempotent within a day:
+    # a billed row's next_charge_on has already advanced a month, so a re-run
+    # finds nothing due. A declined card is left for staff, never retried.
+    if now.hour == 14 and now.minute < 10:
+        _run("sis-recurring-tuition", f"{base}/api/sis/internal/recurring-tuition", cron_secret, failures)
 
     # Once/day: SIS quest engagement sweep (13:00 UTC; open-alert dedupe is a
     # partial unique index server-side, so re-runs are idempotent).

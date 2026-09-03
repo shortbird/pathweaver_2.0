@@ -73,14 +73,16 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
       }
       await api.put(`/api/sis/staff-admin/profiles/${staff.id}`, {
         organization_id: orgId,
-        position: form.position, staff_type: form.staff_type || null,
-        // Omitted entirely, not sent as null: the API rejects any pay key from
-        // a coordinator, and sending nulls would also wipe an admin's values.
+        position: form.position,
+        // Omitted entirely, not sent as null: the API rejects any pay or
+        // employment key from a coordinator, and sending nulls would also wipe
+        // an admin's values.
         ...(seesFinance ? {
+          staff_type: form.staff_type || null,
           pay_type: form.pay_type || null, payroll_id: form.payroll_id,
           hourly_rate_cents: rate,
+          start_date: form.start_date || null, end_date: form.end_date || null,
         } : {}),
-        start_date: form.start_date || null, end_date: form.end_date || null,
         is_active: form.is_active, uses_time_clock: form.uses_time_clock,
         work_schedule: form.work_schedule,
         phone_number: form.phone_number,
@@ -146,19 +148,19 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
               <Field label="Position">
                 <input value={form.position} onChange={set('position')} placeholder="e.g. Art teacher" className={inputClass} />
               </Field>
-              <Field label="Status">
-                <select value={form.staff_type} onChange={set('staff_type')} className={inputClass}>
-                  <option value="">—</option>
-                  <option value="employee">Employee</option>
-                  <option value="contractor">Independent contractor</option>
-                  <option value="family">Family</option>
-                </select>
-              </Field>
-              {/* Pay is admin-only. A campus coordinator can't read these
-                  (the API redacts them), so offering the inputs would show
-                  blanks and then 403 on save. */}
+              {/* Pay and employment terms are admin-only. A campus coordinator
+                  can't read these (the API redacts them), so offering the
+                  inputs would show blanks and then 403 on save. */}
               {seesFinance && (
                 <>
+                  <Field label="Status">
+                    <select value={form.staff_type} onChange={set('staff_type')} className={inputClass}>
+                      <option value="">—</option>
+                      <option value="employee">Employee</option>
+                      <option value="contractor">Independent contractor</option>
+                      <option value="family">Family</option>
+                    </select>
+                  </Field>
                   <Field label="Pay type">
                     <select value={form.pay_type} onChange={set('pay_type')} className={inputClass}>
                       <option value="">—</option>
@@ -174,16 +176,16 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
                   <Field label="Hourly rate ($)">
                     <input type="number" min="0" step="0.01" value={form.hourly_rate} onChange={set('hourly_rate')} className={inputClass} />
                   </Field>
+                  <Field label="Start date">
+                    <input type="date" value={form.start_date} onChange={set('start_date')} className={inputClass} />
+                  </Field>
+                  <Field label="End date">
+                    <input type="date" value={form.end_date} onChange={set('end_date')} className={inputClass} />
+                  </Field>
                 </>
               )}
               <Field label="Regular schedule">
                 <input value={form.work_schedule} onChange={set('work_schedule')} placeholder="e.g. Tue & Thu 9–3" className={inputClass} />
-              </Field>
-              <Field label="Start date">
-                <input type="date" value={form.start_date} onChange={set('start_date')} className={inputClass} />
-              </Field>
-              <Field label="End date">
-                <input type="date" value={form.end_date} onChange={set('end_date')} className={inputClass} />
               </Field>
               <div className="flex flex-col justify-end gap-1.5 text-sm text-neutral-700">
                 <label className="flex items-center gap-2">

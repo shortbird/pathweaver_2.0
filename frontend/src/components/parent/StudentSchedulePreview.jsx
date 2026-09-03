@@ -3,12 +3,16 @@ import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import WeeklySchedule from '../schedule/WeeklySchedule'
+import ScheduleByDay from '../schedule/ScheduleByDay'
 
 /**
  * The student's weekly class schedule on the family-dashboard overview, shown
  * immediately under the hero. Renders nothing for students who aren't in a
  * SIS-enabled school. Before the first day of school it links to the Schedule
  * Builder; after that it notes that changes are handled by the school.
+ *
+ * Two reads of the same week: the grid for its shape, then the same meetings
+ * day by day in time order (ScheduleByDay) with teacher and room.
  */
 const StudentSchedulePreview = ({ studentId }) => {
   const [state, setState] = useState(null) // { schedule, orgName } | 'none'
@@ -34,6 +38,11 @@ const StudentSchedulePreview = ({ studentId }) => {
   const waitlist = schedule?.waitlist || []
   const homeCourses = schedule?.courses || []
   const locked = !!schedule?.changes_locked
+  // A seat the school has offered off the waitlist. Claiming one is NOT a
+  // self-service schedule change — it stays open after the first day of school
+  // — but the locked dashboard hid the only link to the page that can claim it
+  // (iCreate, 2026-09-02: "there's no button that allows her to claim").
+  const offeredSeats = waitlist.filter((w) => w.status === 'offered')
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
@@ -68,8 +77,36 @@ const StudentSchedulePreview = ({ studentId }) => {
         </div>
       </div>
 
+      {offeredSeats.length > 0 && (
+        <div className="mb-4 rounded-lg border border-green-300 bg-green-50 px-4 py-3">
+          <div className="text-sm font-semibold text-green-900">
+            {offeredSeats.length === 1
+              ? `A spot is being held in ${offeredSeats[0].class_name}`
+              : `${offeredSeats.length} spots are being held`}
+          </div>
+          <p className="text-sm text-green-800 mt-0.5 mb-2.5">
+            {orgName || 'The school'} offered {offeredSeats.length === 1 ? 'this seat' : 'these seats'} off
+            the waitlist. Claim {offeredSeats.length === 1 ? 'it' : 'them'} before the offer expires.
+          </p>
+          <Link to={`/schedule-builder?student=${studentId}`}
+            className="inline-flex text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1.5">
+            {offeredSeats.length === 1 ? 'Claim the spot' : 'Claim the spots'}
+          </Link>
+        </div>
+      )}
+
       {classes.length > 0 ? (
-        <WeeklySchedule classes={classes} compact />
+        <>
+          <WeeklySchedule classes={classes} compact />
+          {/* The grid shows the shape of the week; this answers the question
+              families actually arrive with — "where is she at 10:30 on
+              Tuesday?" — in day order, then time order. The grid alone left a
+              parent counting rows and squinting at block positions (iCreate
+              parent, 2026-08-25). */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <ScheduleByDay classes={classes} />
+          </div>
+        </>
       ) : !locked ? (
         <p className="text-sm text-neutral-400">
           Open the Schedule Builder to add classes — they'll show up here on the weekly calendar.

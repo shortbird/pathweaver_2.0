@@ -2,14 +2,14 @@
  * NotificationPreferences tests — loads prefs, toggles them, persists.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { NotificationPreferences } from '../NotificationPreferences';
 import api from '@/src/services/api';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   jest.clearAllMocks();

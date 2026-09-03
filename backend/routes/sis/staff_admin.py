@@ -72,11 +72,12 @@ def put_profile(user_id, staff_id):
     if err:
         return err
     payload = request.get_json() or {}
-    # A coordinator can't read a pay rate, so they must not be able to set one
-    # either — a blind write is the same leak in the other direction.
-    if not sis_service.caller_sees_pay(user_id) and any(f in payload for f in staff.PAY_FIELDS):
+    # A coordinator can't read a pay rate or an employment term, so they must not
+    # be able to set one either — a blind write is the same leak in the other
+    # direction.
+    if not sis_service.caller_sees_pay(user_id) and any(f in payload for f in staff.RESTRICTED_FIELDS):
         return jsonify({'success': False,
-                        'error': 'Pay details are managed by an organization admin.'}), 403
+                        'error': 'Pay and employment details are managed by an organization admin.'}), 403
     result = staff.upsert_staff_profile(org_id, staff_id, payload)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
@@ -394,7 +395,20 @@ def assign_onboarding(user_id):
         return err
     data = request.get_json() or {}
     if not data.get('template_id'):
-        return jsonify({'success': False, 'error': 'template_id is required'}), 400
+        # No template: a one-off task ("do this one thing"). Same record as a
+        # checklist underneath, so the recipient's inbox and the roll-up need
+        # no new shape — see onboarding.assign_task.
+        if data.get('title'):
+            result = onboarding.assign_task(
+                org_id, data['title'], data.get('user_ids') or [], assigned_by=user_id,
+                description=data.get('description'), due_date=data.get('due_date'),
+                audience=data.get('audience') or 'staff',
+                items=data.get('items') or None,
+                needs_document=bool(data.get('needs_document')))
+            if result.get('error'):
+                return jsonify({'success': False, 'error': result['error']}), 400
+            return jsonify({'success': True, **result}), 201
+        return jsonify({'success': False, 'error': 'template_id or title is required'}), 400
     # Accept a single user_id OR a list of user_ids (bulk assign).
     user_ids = data.get('user_ids')
     if isinstance(user_ids, list) and user_ids:
@@ -421,6 +435,34 @@ def unassign_onboarding(user_id, assignment_id):
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
     return jsonify({'success': True, **result})
+
+
+@bp.route('/onboarding/doc-url', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def onboarding_admin_doc_url(user_id):
+    """Signed (1h) URL for a document attached to any checklist item in the org.
+
+    The teacher-portal twin (staff_portal.onboarding_doc_url) only signs against
+    the staff bucket; the admin roll-up also shows family checklists, whose
+    uploads live in family-documents — `audience` picks the bucket the same way
+    the upload routes did."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    bucket = onboarding.CHECKLIST_BUCKETS.get(
+        (request.args.get('audience') or 'staff').strip().lower())
+    path = request.args.get('path') or ''
+    if not bucket or path.split('/')[0] != org_id or len(path.split('/')) < 3:
+        return jsonify({'success': False, 'error': 'Document not found'}), 404
+    try:
+        # admin client justified: signed URL on a PRIVATE checklist bucket; org prefix checked above, caller is ADMIN_ROLES for that org
+        signed = get_supabase_admin_client().storage.from_(bucket) \
+            .create_signed_url(path, 3600)
+        url = signed.get('signedURL') or signed.get('signedUrl')
+    except Exception as e:
+        logger.error(f'Admin checklist doc-url failed for {path}: {e}')
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
+    return jsonify({'success': True, 'url': url})
 
 
 @bp.route('/onboarding/recipients', methods=['GET'])
@@ -511,7 +553,12 @@ def timesheets(user_id):
     start, end, perr = _period_or_error()
     if perr:
         return perr
-    return jsonify({'success': True, 'timesheets': staff.timesheet_summary(org_id, start, end)})
+    return jsonify({'success': True,
+                    'timesheets': staff.timesheet_summary(org_id, start, end),
+                    # Why the list is empty, when it is: the time clock is off
+                    # by default on every staff profile, and nothing on the page
+                    # used to say so.
+                    'setup': staff.timeclock_setup(org_id)})
 
 
 @bp.route('/time-entries/<entry_id>', methods=['PATCH'])
@@ -575,22 +622,24 @@ def staff_roster_csv(user_id):
         get_supabase_admin_client().table('sis_staff_profiles').select('*')
         .eq('organization_id', org_id).execute()
     ).data or []}
-    # Pay Type and Payroll ID are money. Drop the columns entirely for a campus
-    # coordinator rather than blanking them — an empty column reads as "nobody
-    # has a payroll ID", which is a different and wrong statement.
+    # Pay and employment terms come out entirely for a campus coordinator rather
+    # than being blanked — an empty column reads as "nobody has a payroll ID",
+    # which is a different and wrong statement. Position and Active stay: those
+    # are what the front office runs the campus on.
     sees_pay = sis_service.caller_sees_pay(user_id)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(['Name', 'Email', 'Roles', 'Position', 'Staff Type']
-                    + (['Pay Type', 'Payroll ID'] if sees_pay else [])
-                    + ['Start Date', 'End Date', 'Active', 'Last Active'])
+    writer.writerow(['Name', 'Email', 'Roles', 'Position']
+                    + (['Staff Type', 'Pay Type', 'Payroll ID',
+                        'Start Date', 'End Date'] if sees_pay else [])
+                    + ['Active', 'Last Active'])
     for s in rows:
         p = profiles.get(s['id']) or {}
         writer.writerow([
             s['name'], s.get('email') or '', ', '.join(s.get('role_labels') or []),
-            p.get('position') or '', p.get('staff_type') or '',
-        ] + ([p.get('pay_type') or '', p.get('payroll_id') or ''] if sees_pay else []) + [
-            p.get('start_date') or '', p.get('end_date') or '',
+            p.get('position') or '',
+        ] + ([p.get('staff_type') or '', p.get('pay_type') or '', p.get('payroll_id') or '',
+              p.get('start_date') or '', p.get('end_date') or ''] if sees_pay else []) + [
             'No' if p.get('is_active') is False else 'Yes', s.get('last_active') or '',
         ])
     return Response(

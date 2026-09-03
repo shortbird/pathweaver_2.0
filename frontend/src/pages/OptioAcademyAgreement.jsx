@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { marketingUrl } from '../utils/marketingUrl'
 
 const OptioAcademyAgreement = () => {
   return (
@@ -127,9 +128,9 @@ const OptioAcademyAgreement = () => {
                 Optio Academy is accredited by the Accrediting Commission for Schools, Western
                 Association of Schools and Colleges (ACS WASC). Current accreditation details are
                 published on the{' '}
-                <Link to="/academy" className="text-optio-purple hover:text-optio-purple-dark underline">
+                <a href={marketingUrl('/academy')} className="text-optio-purple hover:text-optio-purple-dark underline">
                   Optio Academy
-                </Link>{' '}
+                </a>{' '}
                 website page.
               </p>
             </section>

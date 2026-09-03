@@ -5,6 +5,10 @@
  * bugReportAPI.submit itself.
  */
 
+import { bugReportAPI } from '@/src/services/api';
+import { tokenStore } from '@/src/services/tokenStore';
+import { postRefreshWithRetry } from '@/src/services/refreshRetry';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     setTokens: jest.fn().mockResolvedValue(undefined),
@@ -20,10 +24,6 @@ jest.mock('@/src/services/refreshRetry', () => ({
     data: { access_token: 'fresh-access-token', refresh_token: 'fresh-refresh-token' },
   }),
 }));
-
-import { bugReportAPI } from '@/src/services/api';
-import { tokenStore } from '@/src/services/tokenStore';
-import { postRefreshWithRetry } from '@/src/services/refreshRetry';
 
 const ctx = { message: 'it broke' } as any;
 

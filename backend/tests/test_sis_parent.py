@@ -198,3 +198,101 @@ class TestLifecycleAuthorization:
                    return_value={'id': 'reg1', 'guardian_user_id': 'g1', 'status': 'in_progress', 'items': []}):
             result = parent.submit('g1', 'org1', 'reg1')
         assert result.get('error')
+
+
+@pytest.mark.unit
+class TestCreateAbsencesMultiChild:
+    """One report can cover several siblings. Each child is authorized and
+    written independently, so a duplicate or an unauthorized id in the batch
+    never blocks the siblings that are fine."""
+
+    @staticmethod
+    def _row(org_id, sid, **kw):
+        return {'absence': {'id': f'abs-{sid}', 'student_user_id': sid,
+                            'organization_id': org_id, **kw}}
+
+    def _run(self, student_ids, can=lambda sid: True, create=None):
+        create = create or (lambda org_id, sid, **kw: self._row(org_id, sid))
+        with patch.object(parent, '_can_register',
+                          side_effect=lambda _u, _o, sid: can(sid)), \
+             patch.object(parent.absences, 'create',
+                          side_effect=create) as create_mock:
+            result = parent.create_absences('g1', 'org1', student_ids,
+                                            '2026-09-01', class_id=None,
+                                            reason='trip')
+        return result, create_mock
+
+    def test_creates_one_row_per_child(self):
+        result, create = self._run(['stu1', 'stu2'])
+        assert [a['student_user_id'] for a in result['absences']] == ['stu1', 'stu2']
+        assert result['errors'] == {}
+        assert create.call_count == 2
+        _, kwargs = create.call_args
+        assert kwargs['reported_by'] == 'g1'
+        assert kwargs['absence_date'] == '2026-09-01'
+
+    def test_unauthorized_child_fails_alone_not_the_batch(self):
+        result, create = self._run(['stu1', 'not-mine'],
+                                   can=lambda sid: sid == 'stu1')
+        assert [a['student_user_id'] for a in result['absences']] == ['stu1']
+        assert result['errors'] == {'not-mine': 'Not authorized for this student'}
+        create.assert_called_once()
+
+    def test_duplicate_for_one_sibling_does_not_block_the_other(self):
+        def create(org_id, sid, **kw):
+            if sid == 'stu1':
+                return {'error': 'This absence has already been reported'}
+            return self._row(org_id, sid)
+        result, _ = self._run(['stu1', 'stu2'], create=create)
+        assert [a['student_user_id'] for a in result['absences']] == ['stu2']
+        assert result['errors'] == {'stu1': 'This absence has already been reported'}
+
+    def test_a_date_range_flattens_every_created_row(self):
+        """A range report returns one flat list of rows across children, and
+        end_date reaches the absence service."""
+        def create(_org_id, sid, **kw):
+            assert kw['end_date'] == '2026-09-03'
+            return {'absence': {'id': f'abs-{sid}-1'},
+                    'absences': [{'id': f'abs-{sid}-1', 'student_user_id': sid},
+                                 {'id': f'abs-{sid}-2', 'student_user_id': sid}],
+                    'skipped_dates': []}
+        with patch.object(parent, '_can_register', return_value=True), \
+             patch.object(parent.absences, 'create', side_effect=create):
+            result = parent.create_absences('g1', 'org1', ['stu1', 'stu2'],
+                                            '2026-09-01', end_date='2026-09-03')
+        assert [a['id'] for a in result['absences']] == [
+            'abs-stu1-1', 'abs-stu1-2', 'abs-stu2-1', 'abs-stu2-2']
+
+
+@pytest.mark.unit
+class TestCancelAbsencesBatch:
+    """A displayed date-range row cancels as one batch: one service call per
+    (org, student, class) group, and authorization is all-or-nothing."""
+
+    ROWS = [
+        {'id': 'a1', 'organization_id': 'org1', 'student_user_id': 'stu1', 'class_id': None},
+        {'id': 'a2', 'organization_id': 'org1', 'student_user_id': 'stu1', 'class_id': None},
+    ]
+
+    def test_cancels_the_whole_run_in_one_service_call(self):
+        with patch.object(parent, '_can_register', return_value=True), \
+             patch.object(parent.absences, 'get_many', return_value=self.ROWS), \
+             patch.object(parent.absences, 'cancel_many', return_value=2) as cancel_many:
+            result = parent.cancel_absences('g1', ['a1', 'a2'])
+        assert result == {'cancelled': 2}
+        cancel_many.assert_called_once_with(['a1', 'a2'], 'org1')
+
+    def test_one_foreign_row_blocks_the_whole_batch(self):
+        rows = self.ROWS + [{'id': 'a3', 'organization_id': 'org1',
+                             'student_user_id': 'not-mine', 'class_id': None}]
+        with patch.object(parent, '_can_register',
+                          side_effect=lambda _u, _o, sid: sid == 'stu1'), \
+             patch.object(parent.absences, 'get_many', return_value=rows), \
+             patch.object(parent.absences, 'cancel_many') as cancel_many:
+            result = parent.cancel_absences('g1', ['a1', 'a2', 'a3'])
+        assert result['error'] == 'Not authorized for this student'
+        cancel_many.assert_not_called()
+
+    def test_unknown_ids_are_not_found(self):
+        with patch.object(parent.absences, 'get_many', return_value=[]):
+            assert parent.cancel_absences('g1', ['nope'])['error'] == 'Absence not found'

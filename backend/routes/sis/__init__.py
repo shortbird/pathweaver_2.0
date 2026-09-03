@@ -1055,10 +1055,12 @@ def register_sis_routes(app):
     from routes.sis.staff_admin import bp as staff_admin_bp
     from routes.sis.coordinator import bp as coordinator_bp
     from routes.sis.submissions import bp as submissions_bp
-    from routes.sis.class_discussions import bp as class_discussions_bp
     from routes.sis.class_materials import bp as class_materials_bp
     from routes.sis.class_quests import bp as class_quests_bp
     from routes.sis.curriculum import bp as sis_curriculum_bp
+    # Curriculum resources: links and documents a teacher saves on a curriculum
+    # and can show to the students of every class teaching it.
+    from routes.sis.curriculum_materials import bp as sis_curriculum_materials_bp
     from routes.sis.quest_drafts import bp as quest_drafts_bp
     from routes.sis.staff_training import bp as staff_training_bp
     from routes.sis.secure_documents import bp as secure_documents_bp
@@ -1088,10 +1090,10 @@ def register_sis_routes(app):
         (schedule_sync_bp, 'classes'),
         (coordinator_bp, 'sis'),
         (submissions_bp, 'submissions'),
-        (class_discussions_bp, 'classes'),
         (class_materials_bp, 'classes'),
         (class_quests_bp, 'classes'),
         (sis_curriculum_bp, 'curriculum'),
+        (sis_curriculum_materials_bp, 'curriculum'),
         (quest_drafts_bp, 'curriculum'),
         (staff_training_bp, 'training'),
         (secure_documents_bp, 'secure_documents'),
@@ -1138,10 +1140,10 @@ def register_sis_routes(app):
     app.register_blueprint(staff_admin_bp)
     app.register_blueprint(coordinator_bp)
     app.register_blueprint(submissions_bp)
-    app.register_blueprint(class_discussions_bp)
     app.register_blueprint(class_materials_bp)
     app.register_blueprint(class_quests_bp)
     app.register_blueprint(sis_curriculum_bp)
+    app.register_blueprint(sis_curriculum_materials_bp)
     app.register_blueprint(quest_drafts_bp)
     app.register_blueprint(staff_training_bp)
     app.register_blueprint(secure_documents_bp)

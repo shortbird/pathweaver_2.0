@@ -12,6 +12,12 @@
  *   - tapping a document opens the full-screen MediaModal with the doc uri.
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import { FeedCard } from '../FeedCard';
+import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -44,12 +50,6 @@ jest.mock('@/src/services/imageUrl', () => ({
   displayImageUrl: (url: string | null) => url,
   isHeicUrl: () => false,
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import { FeedCard } from '../FeedCard';
-import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 const DOC_URL = 'https://example.com/evidence/scan.pdf';
 

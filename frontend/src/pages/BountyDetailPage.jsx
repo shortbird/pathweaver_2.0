@@ -6,15 +6,18 @@ import {
   useMyClaims,
   useClaimBounty,
   useToggleDeliverable,
-  useReviewBounty,
   useDeleteEvidence,
   useTurnInBounty,
 } from '../hooks/api/useBounties'
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
+import SubmissionReviewCard from '../components/bounty/SubmissionReviewCard'
 import api from '../services/api'
+import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
 import { useConfirm } from '../contexts/ConfirmContext'
+
+import useHidePillars from '../hooks/useHidePillars'
 
 const PILLAR_LABELS = {
   stem: 'STEM', art: 'Art', communication: 'Communication', civics: 'Civics', wellness: 'Wellness',
@@ -29,6 +32,7 @@ const PILLAR_COLORS = {
 }
 
 const BountyDetailPage = () => {
+  const hidePillars = useHidePillars()
   const confirm = useConfirm()
   const { bountyId } = useParams()
   const navigate = useNavigate()
@@ -38,24 +42,29 @@ const BountyDetailPage = () => {
   const backTo = location.state?.from || '/bounties'
   const { user } = useAuth()
 
-  const { data: bounty, isLoading } = useBountyDetail(bountyId)
-  const { data: myClaims = [] } = useMyClaims()
+  // org_roles (array) is canonical for org-managed users; org_role is the
+  // legacy scalar. Checking only the scalar hid the Claim button from
+  // org-managed students carried on the array alone.
+  const isStudent = user?.role === 'student'
+    || user?.org_role === 'student'
+    || (user?.org_roles || []).includes('student')
+    || user?.role === 'superadmin'
+
+  const { data: bounty, isLoading, isError, refetch } = useBountyDetail(bountyId)
+  // Parents/observers aren't allowed on my-claims — calling it unconditionally
+  // fired a guaranteed 403 (retried 3x) on every detail view.
+  const { data: myClaims = [] } = useMyClaims({ enabled: isStudent })
   const claimMutation = useClaimBounty()
   const toggleMutation = useToggleDeliverable()
-  const reviewMutation = useReviewBounty()
   const deleteEvidenceMutation = useDeleteEvidence()
   const turnInMutation = useTurnInBounty()
 
-  const [reviewFeedback, setReviewFeedback] = useState('')
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false)
   const [evidenceDeliverableId, setEvidenceDeliverableId] = useState(null)
   const [viewingEvidence, setViewingEvidence] = useState(null)
-
-  const isStudent = user?.role === 'student' || user?.org_role === 'student' || user?.role === 'superadmin'
   const myClaim = useMemo(() => myClaims.find(c => c.bounty_id === bountyId), [myClaims, bountyId])
   const isActive = bounty?.status === 'active'
   const isPoster = bounty?.poster_id === user?.id
-  const pillarStyle = bounty ? (PILLAR_COLORS[bounty.pillar] || 'text-gray-600 bg-gray-100') : ''
   const deliverables = bounty?.deliverables || []
   const completedIds = myClaim?.evidence?.completed_deliverables || []
   const deliverableEvidence = myClaim?.evidence?.deliverable_evidence || {}
@@ -72,7 +81,9 @@ const BountyDetailPage = () => {
     if (!myClaim || !evidenceDeliverableId || !items?.length) return
     setEvidenceModalOpen(false)
 
-    // Upload files
+    // Upload files. Failures are surfaced, not swallowed — a lost upload used
+    // to still mark the deliverable complete with the item missing.
+    let failedUploads = 0
     const processedItems = []
     for (const item of items) {
       const processed = { type: item.type, content: { ...item.content } }
@@ -89,17 +100,32 @@ const BountyDetailPage = () => {
               const uploaded = res.data?.files?.[0]
               if (uploaded) {
                 processedContentItems.push({ ...ci, url: uploaded.url, file: undefined })
+              } else {
+                failedUploads += 1
               }
             } catch (e) {
               console.error('File upload failed:', e)
+              failedUploads += 1
             }
           } else {
             processedContentItems.push(ci)
           }
         }
         processed.content.items = processedContentItems
+        if (processedContentItems.length === 0) continue
       }
       processedItems.push(processed)
+    }
+
+    if (processedItems.length === 0) {
+      toast.error('Upload failed — that evidence was not saved. Please try again.')
+      setEvidenceDeliverableId(null)
+      return
+    }
+    if (failedUploads > 0) {
+      toast.error(`${failedUploads} file${failedUploads === 1 ? '' : 's'} failed to upload — the rest were saved.`)
+    } else {
+      toast.success('Evidence saved')
     }
 
     toggleMutation.mutate({
@@ -112,18 +138,25 @@ const BountyDetailPage = () => {
     setEvidenceDeliverableId(null)
   }, [myClaim, evidenceDeliverableId, bountyId, toggleMutation])
 
-  const handleReview = (claimId, decision) => {
-    reviewMutation.mutate({
-      bountyId,
-      claimId,
-      decision,
-      feedback: reviewFeedback.trim() || undefined,
-    }, { onSuccess: () => setReviewFeedback('') })
-  }
-
   if (isLoading) {
     return (
       <PageLoader className="min-h-[60vh]" />
+    )
+  }
+
+  // A fetch failure is not "this bounty was deleted" — say what happened and
+  // offer a retry instead of a dead end.
+  if (isError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
+        <p className="text-gray-600">Couldn't load this bounty. Check your connection and try again.</p>
+        <div className="mt-4 flex items-center justify-center gap-4">
+          <button onClick={() => refetch()} className="btn-primary min-h-[44px]">Retry</button>
+          <button onClick={() => navigate(backTo)} className="text-optio-purple font-medium min-h-[44px]">
+            Back to Bounty Board
+          </button>
+        </div>
+      </div>
     )
   }
 
@@ -137,6 +170,17 @@ const BountyDetailPage = () => {
       </div>
     )
   }
+
+  const rewardParts = (bounty.rewards || [])
+    .map(r => r.type === 'xp' ? `+${r.value} XP` : r.text)
+    .filter(Boolean)
+  if (rewardParts.length === 0 && bounty.xp_reward > 0) rewardParts.push(`+${bounty.xp_reward} XP`)
+  const rewardText = rewardParts.join(' · ')
+
+  const deadlineDate = bounty.deadline ? new Date(bounty.deadline) : null
+  const deadlinePassed = deadlineDate && deadlineDate < new Date()
+  const showDeadline = deadlineDate
+    && (deadlineDate - Date.now()) < 90 * 24 * 60 * 60 * 1000 // only when it's actually near
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -155,6 +199,13 @@ const BountyDetailPage = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-3">
           {bounty.title}
         </h1>
+        {showDeadline && (
+          <p className={`text-xs font-medium mb-2 ${deadlinePassed ? 'text-red-600' : 'text-gray-500'}`}>
+            {deadlinePassed
+              ? 'The deadline for this bounty has passed'
+              : `Ends ${deadlineDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+          </p>
+        )}
         <p className="text-gray-700 whitespace-pre-line mb-4">{bounty.description}</p>
 
         {/* Rewards + Posted by */}
@@ -166,9 +217,11 @@ const BountyDetailPage = () => {
                 r.type === 'xp' ? (
                   <span key={i} className="text-sm font-bold text-optio-purple">
                     +{r.value} XP
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-1 ${PILLAR_COLORS[r.pillar] || ''}`}>
-                      {PILLAR_LABELS[r.pillar] || r.pillar}
-                    </span>
+                    {!hidePillars && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-1 ${PILLAR_COLORS[r.pillar] || ''}`}>
+                        {PILLAR_LABELS[r.pillar] || r.pillar}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span key={i} className="text-sm font-semibold px-3 py-1 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
@@ -254,11 +307,13 @@ const BountyDetailPage = () => {
       </div>
 
       {/* Claim button - student hasn't claimed yet */}
-      {isStudent && isActive && !myClaim && (!isPoster || user?.role === 'superadmin') && (
+      {isStudent && isActive && !deadlinePassed && !myClaim && (!isPoster || user?.role === 'superadmin') && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center">
           <h3 className="text-lg font-bold text-gray-900 mb-2">Ready to take this on?</h3>
           <p className="text-gray-600 text-sm mb-4">
-            Claim this bounty and complete the deliverables to earn +{bounty.xp_reward} XP.
+            {rewardText
+              ? `Claim this bounty and complete the deliverables to earn ${rewardText}.`
+              : 'Claim this bounty and complete the deliverables.'}
           </p>
           <button
             onClick={handleClaim}
@@ -295,126 +350,50 @@ const BountyDetailPage = () => {
       {myClaim?.status === 'approved' && (
         <div className="bg-green-50 rounded-xl p-5 border border-green-200 text-center">
           <h3 className="font-bold text-green-900 mb-1">Bounty completed!</h3>
-          <p className="text-green-700">You earned +{bounty.xp_reward} XP.</p>
+          {rewardText && <p className="text-green-700">You earned {rewardText}.</p>}
         </div>
       )}
       {myClaim?.status === 'rejected' && (
         <div className="bg-red-50 rounded-xl p-5 border border-red-200 text-center">
-          <h3 className="font-bold text-red-900">Submission not accepted</h3>
+          <h3 className="font-bold text-red-900 mb-1">Submission not accepted</h3>
+          {myClaim.latest_review?.feedback && (
+            <p className="text-red-700 text-sm mb-3">{myClaim.latest_review.feedback}</p>
+          )}
+          {isActive && !deadlinePassed && (
+            <button
+              onClick={handleClaim}
+              disabled={claimMutation.isPending}
+              className="text-sm font-medium text-optio-purple hover:underline min-h-[32px]"
+            >
+              {claimMutation.isPending ? 'Reopening...' : 'Try this bounty again'}
+            </button>
+          )}
         </div>
       )}
       {myClaim?.status === 'revision_requested' && (
         <div className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-4">
           <p className="text-orange-700 text-sm font-medium">
-            The poster requested revisions. Update your deliverables and they will be resubmitted automatically.
+            The poster requested revisions. Update your deliverables, then turn the bounty in again.
           </p>
+          {myClaim.latest_review?.feedback && (
+            <p className="text-orange-800 text-sm mt-2">
+              <span className="font-semibold">Their feedback:</span> {myClaim.latest_review.feedback}
+            </p>
+          )}
         </div>
       )}
 
-      {/* Poster: Review submitted claims */}
-      {isPoster && bounty.claims && bounty.claims.filter(c => c.status === 'submitted').length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-yellow-200 p-6 mt-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">
-            Submissions for Review ({bounty.claims.filter(c => c.status === 'submitted').length})
+      {/* Poster: Review submitted claims. Uses the same SubmissionReviewCard as
+          the board's review queue — the previous inline copy shared ONE
+          feedback string across every student's textarea. */}
+      {isPoster && (bounty.claims || []).some(c => c.status === 'submitted') && (
+        <div className="mt-6 space-y-4">
+          <h3 className="text-lg font-bold text-gray-900">
+            Submissions for Review ({(bounty.claims || []).filter(c => c.status === 'submitted').length})
           </h3>
-          <div className="space-y-6">
-            {bounty.claims.filter(c => c.status === 'submitted').map(claim => {
-              const claimEvidence = claim.evidence?.deliverable_evidence || {}
-              return (
-                <div key={claim.id} className="p-4 border border-gray-200 rounded-lg">
-                  <p className="text-sm font-semibold text-gray-900 mb-4">
-                    {claim.student?.display_name || 'Student'}
-                    {claim.submitted_at && (
-                      <span className="ml-2 text-xs font-normal text-gray-400">
-                        Submitted {new Date(claim.submitted_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
-                  </p>
-
-                  {/* Deliverables with evidence */}
-                  <div className="space-y-4 mb-4">
-                    {deliverables.map(d => {
-                      const evidence = claimEvidence[d.id] || []
-                      return (
-                        <div key={d.id} className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm font-medium text-gray-900">{d.text}</span>
-                          </div>
-                          {evidence.length > 0 ? (
-                            <div className="ml-6 space-y-2">
-                              {evidence.map((item, idx) => (
-                                <div key={idx} className="bg-white rounded p-2 border border-gray-100">
-                                  {item.type === 'text' && (
-                                    <p className="text-sm text-gray-700 whitespace-pre-line">{item.content?.text}</p>
-                                  )}
-                                  {(item.type === 'image' || item.type === 'camera') && (item.content?.items || []).map((ci, j) => (
-                                    <img key={j} src={ci.url} alt="" className="rounded max-h-48 w-auto" />
-                                  ))}
-                                  {item.type === 'video' && (item.content?.items || []).map((ci, j) => (
-                                    <video key={j} src={ci.url} controls className="rounded max-h-48 w-full" />
-                                  ))}
-                                  {item.type === 'link' && (item.content?.items || []).map((ci, j) => (
-                                    <a key={j} href={ci.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple underline break-all">
-                                      {ci.title || ci.url}
-                                    </a>
-                                  ))}
-                                  {item.type === 'document' && (item.content?.items || []).map((ci, j) => (
-                                    <a key={j} href={ci.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-optio-purple">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                      </svg>
-                                      {ci.title || ci.filename || 'Document'}
-                                    </a>
-                                  ))}
-                                  <span className="text-[10px] text-gray-400 capitalize">{item.type}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="ml-6 text-xs text-gray-400">No evidence</p>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <textarea
-                    value={reviewFeedback}
-                    onChange={(e) => setReviewFeedback(e.target.value)}
-                    placeholder="Feedback for the student (optional, shown if requesting revision)"
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none text-sm mb-3"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleReview(claim.id, 'approved')}
-                      disabled={reviewMutation.isPending}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 min-h-[44px] disabled:opacity-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleReview(claim.id, 'revision_requested')}
-                      disabled={reviewMutation.isPending}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 min-h-[44px] disabled:opacity-50"
-                    >
-                      Request Revision
-                    </button>
-                    <button
-                      onClick={() => handleReview(claim.id, 'rejected')}
-                      disabled={reviewMutation.isPending}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 min-h-[44px] disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          {(bounty.claims || []).filter(c => c.status === 'submitted').map(claim => (
+            <SubmissionReviewCard key={claim.id} bounty={bounty} claim={claim} />
+          ))}
         </div>
       )}
 

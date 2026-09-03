@@ -23,6 +23,7 @@ import LinkPreviewCard from './LinkPreviewCard';
 import VideoLinkPreview from './VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
+import useHidePillars from '../../hooks/useHidePillars';
 
 // Pillar colors mapping
 const PILLAR_COLORS = {
@@ -38,6 +39,7 @@ const TEXT_PREVIEW_LENGTH = 150;
 
 const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdate }) => {
   const { user } = useAuth();
+  const hidePillars = useHidePillars();
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
   const [showViewers, setShowViewers] = useState(false);
   const [viewers, setViewers] = useState([]);
@@ -312,7 +314,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   };
 
   const pillarColors = localItem.task?.pillar ? PILLAR_COLORS[localItem.task.pillar.toLowerCase()] : null;
-  const momentPillars = localItem.moment?.pillars || [];
+  const momentPillars = hidePillars ? [] : (localItem.moment?.pillars || []);
   const topicName = localItem.moment?.topic_name;
   const remainingChars = MAX_COMMENT_LENGTH - newComment.length;
   const isOverLimit = remainingChars < 0;
@@ -408,7 +410,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             ) : null
           ) : (
             <>
-              {pillarColors && (
+              {!hidePillars && pillarColors && (
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
                   {localItem.task?.pillar}
                 </span>

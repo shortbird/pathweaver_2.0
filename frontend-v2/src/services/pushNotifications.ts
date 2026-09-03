@@ -68,7 +68,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     if (finalStatus !== 'granted') {
-      console.debug('[Push] Permission not granted');
+      if (__DEV__) console.debug('[Push] Permission not granted');
       return null;
     }
 
@@ -77,7 +77,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     //    in the DB. Android emulators *do* get real FCM tokens and should
     //    register normally. Physical iOS / Android devices also register.
     if (!Device.isDevice && Platform.OS === 'ios') {
-      console.debug('[Push] iOS simulator: permission granted, skipping Expo token registration');
+      if (__DEV__) console.debug('[Push] iOS simulator: permission granted, skipping Expo token registration');
       return null;
     }
 
@@ -101,7 +101,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       device_name: Device.modelName || undefined,
     });
 
-    console.debug('[Push] Registered push token:', token.slice(0, 20) + '...');
+    if (__DEV__) console.debug('[Push] Push token registered');
     return token;
 
   } catch (error) {

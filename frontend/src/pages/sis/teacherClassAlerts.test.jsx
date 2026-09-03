@@ -30,7 +30,6 @@ vi.mock('./useSisOrg', () => ({
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
 vi.mock('../../components/sis/StudentProgressTab', () => ({ default: () => <div /> }))
-vi.mock('../../components/discussion/ClassDiscussion', () => ({ default: () => <div /> }))
 vi.mock('../../components/discussion/ClassCurriculum', () => ({ default: () => <div /> }))
 vi.mock('../../components/sis/ClassCurriculumLibrary', () => ({ default: () => <div /> }))
 vi.mock('../../components/sis/ClassQuestsManager', () => ({ default: () => <div /> }))
@@ -41,7 +40,8 @@ const STUDENTS = [
   { student_id: 's1', name: 'Nora Candland', age: 8, allergies: null, medications: null,
     has_alert: false, guardians: [] },
   { student_id: 's2', name: 'Van Stanfill', age: 9, allergies: 'Peanuts',
-    medications: 'EpiPen', has_alert: true, guardians: [] },
+    medications: 'EpiPen', has_alert: true, guardians: [],
+    next_class: { class_id: 'c9', name: 'Choir', location: 'Theater Stage', start_time: '10:30' } },
 ]
 
 const { api } = vi.hoisted(() => ({
@@ -122,5 +122,26 @@ describe('printing the roster', () => {
     await screen.findAllByText('Van Stanfill')
     fireEvent.click(screen.getByRole('button', { name: /Print \/ export roster/ }))
     expect(await screen.findByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * iCreate, 2026-08-25: "Could you make it so that each teacher is able to see
+ * where the students in their class are supposed to go to next? ... Then, each
+ * teacher can help us with the in between classes chaos."
+ */
+describe('where each student goes next', () => {
+  it('names the class, the room and the time on the roster card', async () => {
+    render(<TeacherClassPage />)
+    await screen.findAllByText('Van Stanfill')
+    expect(screen.getByText(/Next: Choir · Theater Stage · 10:30am/)).toBeInTheDocument()
+  })
+
+  it('says nothing for a student with nothing after this class', async () => {
+    render(<TeacherClassPage />)
+    await screen.findAllByText('Nora Candland')
+    // Only the student who has one gets the line. An empty "Next:" would read
+    // as a gap in the schedule rather than the end of the student's day.
+    expect(screen.queryAllByText(/^Next:/)).toHaveLength(1)
   })
 })

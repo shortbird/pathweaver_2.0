@@ -106,7 +106,7 @@ export function LtiShell({
         <VStack space="sm" className="items-center">
           <UIText
             size="md"
-            className="font-poppins-semibold text-typo-900 text-center"
+            className="font-poppins-semibold text-typo dark:text-dark-typo text-center"
           >
             Something went wrong
           </UIText>

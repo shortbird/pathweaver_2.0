@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo, memo, useEffect } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useBounties, useMyClaims, useMyPostedBounties, useToggleDeliverable, useDeleteBounty, useDeleteEvidence, useTurnInBounty } from '../hooks/api/useBounties'
+import { useBounties, useMyClaims, useMyPostedBounties, useToggleDeliverable, useDeleteBounty, useDeleteEvidence, useTurnInBounty, useAbandonClaim, useClaimBounty } from '../hooks/api/useBounties'
+import toast from 'react-hot-toast'
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
 import SubmissionReviewCard from '../components/bounty/SubmissionReviewCard'
@@ -10,6 +11,8 @@ import GlassTabBar from '../components/ui/GlassTabBar'
 import EmptyState from '../components/ui/EmptyState'
 import { PageLoader } from '../components/ui/Spinner'
 import { useConfirm } from '../contexts/ConfirmContext'
+
+import useHidePillars from '../hooks/useHidePillars'
 
 const PILLARS = [
   { key: null, label: 'All' },
@@ -50,6 +53,7 @@ const CLAIM_BADGE = {
 }
 
 const BountyCard = memo(({ bounty, onClick, claimStatus }) => {
+  const hidePillars = useHidePillars()
   const pillarStyle = PILLAR_COLORS[bounty.pillar] || 'text-gray-600 bg-gray-100'
   const badge = claimStatus ? CLAIM_BADGE[claimStatus] : null
 
@@ -76,7 +80,7 @@ const BountyCard = memo(({ bounty, onClick, claimStatus }) => {
             <div className="flex flex-wrap items-center gap-2">
               {(bounty.rewards || []).map((r, i) => (
                 r.type === 'xp' ? (
-                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
                 ) : (
                   <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
                 )
@@ -100,8 +104,19 @@ const BountyCard = memo(({ bounty, onClick, claimStatus }) => {
   )
 })
 
+// What the student actually earned/earns, custom rewards included — a
+// custom-reward-only bounty used to celebrate with "+0 XP earned".
+const rewardSummary = (bounty) => {
+  const parts = (bounty.rewards || [])
+    .map(r => r.type === 'xp' ? `+${r.value} XP` : r.text)
+    .filter(Boolean)
+  if (parts.length === 0 && bounty.xp_reward > 0) parts.push(`+${bounty.xp_reward} XP`)
+  return parts.join(' · ')
+}
+
 // Active claim card - shows deliverables with evidence upload
-const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, turnInPending }) => {
+const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, turnInPending, onToggleIncomplete, onDrop, onRetry }) => {
+  const hidePillars = useHidePillars()
   const bounty = claim.bounty
   if (!bounty) return null
 
@@ -130,7 +145,7 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
       <div className="flex flex-wrap items-center gap-2 mb-2">
         {(bounty.rewards || []).map((r, i) => (
           r.type === 'xp' ? (
-            <span key={i} className="text-xs font-bold text-optio-purple">+{r.value} XP <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+            <span key={i} className="text-xs font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
           ) : (
             <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
           )
@@ -184,20 +199,41 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
               </div>
               {/* Upload button - always visible when editable */}
               {isEditable && (
-                <button
-                  onClick={() => onUploadEvidence(bounty.id, claim.id, d.id)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/10 rounded-lg hover:bg-optio-purple/20 transition-colors min-h-[32px] flex-shrink-0"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Upload
-                </button>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => onUploadEvidence(bounty.id, claim.id, d.id)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/10 rounded-lg hover:bg-optio-purple/20 transition-colors min-h-[32px]"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Upload
+                  </button>
+                  {isCompleted && (
+                    <button
+                      onClick={() => onToggleIncomplete(bounty.id, claim.id, d.id)}
+                      className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 min-h-[32px]"
+                      title="Mark incomplete"
+                      aria-label={`Mark "${d.text}" incomplete`}
+                    >
+                      Undo
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )
         })}
       </div>
+
+      {/* Reviewer feedback — stored in bounty_reviews but previously never
+          shown anywhere in the product */}
+      {claim.latest_review?.feedback && ['revision_requested', 'rejected'].includes(claim.status) && (
+        <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <p className="text-xs font-semibold text-orange-700 mb-0.5">Feedback from the poster</p>
+          <p className="text-sm text-orange-800">{claim.latest_review.feedback}</p>
+        </div>
+      )}
 
       {/* Turn in button - shows when all deliverables complete but not yet submitted */}
       {isEditable && completedCount === totalCount && totalCount > 0 && (
@@ -212,13 +248,38 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
         </div>
       )}
 
+      {/* Drop — the backend has always allowed abandoning an unsubmitted claim;
+          the web UI just never offered it */}
+      {isEditable && (
+        <div className="mt-2 text-center">
+          <button
+            onClick={() => onDrop(bounty.id, claim.id, bounty.title)}
+            className="text-xs text-gray-400 hover:text-red-500 min-h-[32px]"
+          >
+            Drop this bounty
+          </button>
+        </div>
+      )}
+
       {claim.status === 'approved' && (
         <div className="mt-3 p-2 bg-green-50 rounded-lg text-center">
-          <span className="text-sm font-semibold text-green-700">Completed! +{bounty.xp_reward} XP earned</span>
+          <span className="text-sm font-semibold text-green-700">
+            Completed!{rewardSummary(bounty) ? ` ${rewardSummary(bounty)} earned` : ''}
+          </span>
         </div>
       )}
       {claim.status === 'submitted' && (
         <p className="mt-3 text-xs text-yellow-600 text-center">Waiting for review from the poster.</p>
+      )}
+      {claim.status === 'rejected' && (
+        <div className="mt-3 text-center">
+          <button
+            onClick={() => onRetry(bounty.id)}
+            className="text-sm font-medium text-optio-purple hover:underline min-h-[32px]"
+          >
+            Try this bounty again
+          </button>
+        </div>
       )}
     </div>
   )
@@ -226,6 +287,7 @@ const ActiveClaimCard = ({ claim, onUploadEvidence, onViewEvidence, onTurnIn, tu
 
 // Posted bounty card - matches browse card layout with edit/delete + claim stats
 const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
+  const hidePillars = useHidePillars()
   const submittedClaims = (bounty.claims || []).filter(c => c.status === 'submitted')
   const approvedClaims = (bounty.claims || []).filter(c => c.status === 'approved')
   const totalClaims = (bounty.claims || []).length
@@ -270,7 +332,7 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
             <div className="flex flex-wrap items-center gap-2">
               {(bounty.rewards || []).map((r, i) => (
                 r.type === 'xp' ? (
-                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span></span>
+                  <span key={i} className="text-sm font-bold text-optio-purple">+{r.value} XP {!hidePillars && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ml-0.5 ${PILLAR_COLORS[r.pillar] || ''}`}>{PILLAR_LABELS[r.pillar] || r.pillar}</span>}</span>
                 ) : (
                   <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{r.text}</span>
                 )
@@ -308,6 +370,7 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
 }
 
 const BountyBoardPage = () => {
+  const hidePillars = useHidePillars()
   const confirm = useConfirm()
   const navigate = useNavigate()
   const location = useLocation()
@@ -342,21 +405,33 @@ const BountyBoardPage = () => {
     }
   }, [urlTab])
 
-  const isStudent = user?.role === 'student' || user?.org_role === 'student'
+  // org_roles (array) is the canonical role store for org-managed users;
+  // org_role is the legacy scalar. Checking only the scalar misclassified
+  // org-managed students carried on the array alone.
+  const isStudent = user?.role === 'student'
+    || user?.org_role === 'student'
+    || (user?.org_roles || []).includes('student')
   const canPost = !isStudent || user?.role === 'superadmin'
+  const canClaim = isStudent || user?.role === 'superadmin'
 
-  const { data: bounties = [], isLoading: loadingBounties } = useBounties(
+  const { data: bounties = [], isLoading: loadingBounties, isError: bountiesError, refetch: refetchBounties } = useBounties(
     filterPillar ? { pillar: filterPillar } : {},
     { enabled: tab === 'browse' }
   )
-  const { data: myClaims = [], isLoading: loadingClaims } = useMyClaims()
+  // Gated by role: parents/observers aren't allowed on my-claims, so calling it
+  // unconditionally fired a guaranteed 403 (retried 3x) on every board visit.
+  const { data: myClaims = [], isLoading: loadingClaims, isError: claimsError, refetch: refetchClaims } = useMyClaims({ enabled: canClaim })
   // Loaded whenever the user can post (not just on the my-bounties tab) so the
   // Review tab badge count is visible from any tab.
-  const { data: myPosted = [], isLoading: loadingPosted } = useMyPostedBounties({ enabled: canPost, staleTime: 0 })
+  const { data: myPosted = [], isLoading: loadingPosted, isError: postedError, refetch: refetchPosted } = useMyPostedBounties({ enabled: canPost, staleTime: 0 })
 
   // The specific submission to focus, set when the poster arrives from a
   // "student submitted, needs review" notification (link carries ?claim=<id>).
   const highlightClaimId = searchParams.get('claim')
+
+  // Set when the poster clicks a specific bounty's "awaiting review" — the
+  // queue then shows just that bounty's submissions instead of everything.
+  const [reviewBountyId, setReviewBountyId] = useState(null)
 
   // Flat queue of every submitted claim across all posted bounties, oldest first.
   // The highlighted submission floats to the top so the tapped notification lands
@@ -364,6 +439,7 @@ const BountyBoardPage = () => {
   const pendingSubmissions = useMemo(() => {
     const items = []
     for (const b of myPosted) {
+      if (reviewBountyId && b.id !== reviewBountyId) continue
       for (const c of b.claims || []) {
         if (c.status === 'submitted') items.push({ bounty: b, claim: c })
       }
@@ -374,7 +450,16 @@ const BountyBoardPage = () => {
       if (idx > 0) items.unshift(items.splice(idx, 1)[0])
     }
     return items
-  }, [myPosted, highlightClaimId])
+  }, [myPosted, highlightClaimId, reviewBountyId])
+
+  const reviewFilterTitle = reviewBountyId
+    ? myPosted.find(b => b.id === reviewBountyId)?.title
+    : null
+
+  // Badge shows the whole queue even while the list is filtered to one bounty.
+  const totalPendingCount = useMemo(() => (
+    myPosted.reduce((n, b) => n + (b.claims || []).filter(c => c.status === 'submitted').length, 0)
+  ), [myPosted])
 
   const claimStatusMap = useMemo(() => {
     const map = {}
@@ -386,6 +471,16 @@ const BountyBoardPage = () => {
   const deleteMutation = useDeleteBounty()
   const deleteEvidenceMutation = useDeleteEvidence()
   const turnInMutation = useTurnInBounty()
+  const abandonMutation = useAbandonClaim()
+
+  // A failed fetch is not an empty board. Render it as what it is, with a way
+  // to try again.
+  const ErrorPanel = ({ onRetry }) => (
+    <div className="py-16 text-center">
+      <p className="text-sm text-gray-600 mb-3">Couldn't load bounties. Check your connection and try again.</p>
+      <button onClick={onRetry} className="btn-primary min-h-[44px]">Retry</button>
+    </div>
+  )
 
   // Evidence modal state
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false)
@@ -406,7 +501,9 @@ const BountyBoardPage = () => {
     if (!evidenceTarget || !items || items.length === 0) return
     setEvidenceModalOpen(false)
 
-    // Upload any files first
+    // Upload any files first. Failures are surfaced, not swallowed — a lost
+    // upload used to still mark the deliverable complete with the item missing.
+    let failedUploads = 0
     const processedItems = []
     for (const item of items) {
       const processed = { type: item.type, content: { ...item.content } }
@@ -424,17 +521,32 @@ const BountyBoardPage = () => {
               const uploaded = res.data?.files?.[0]
               if (uploaded) {
                 processedContentItems.push({ ...ci, url: uploaded.url, file: undefined })
+              } else {
+                failedUploads += 1
               }
             } catch (e) {
               console.error('File upload failed:', e)
+              failedUploads += 1
             }
           } else {
             processedContentItems.push(ci)
           }
         }
         processed.content.items = processedContentItems
+        if (processedContentItems.length === 0) continue // nothing survived
       }
       processedItems.push(processed)
+    }
+
+    if (processedItems.length === 0) {
+      toast.error('Upload failed — that evidence was not saved. Please try again.')
+      setEvidenceTarget(null)
+      return
+    }
+    if (failedUploads > 0) {
+      toast.error(`${failedUploads} file${failedUploads === 1 ? '' : 's'} failed to upload — the rest were saved.`)
+    } else {
+      toast.success('Evidence saved')
     }
 
     toggleMutation.mutate({
@@ -476,6 +588,13 @@ const BountyBoardPage = () => {
     toggleMutation.mutate({ bountyId, claimId, deliverableId, completed })
   }
 
+  const claimMutation = useClaimBounty()
+
+  const handleDrop = async (bountyId, claimId, title) => {
+    if (!(await confirm(`Drop "${title}"? Your progress on it will be removed.`))) return
+    abandonMutation.mutate({ bountyId, claimId })
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -502,7 +621,7 @@ const BountyBoardPage = () => {
           ...((isStudent || user?.role === 'superadmin') ? [{ id: 'active', label: 'Active' }] : []),
           ...(canPost ? [
             { id: 'my-bounties', label: 'My Bounties' },
-            { id: 'review', label: 'Review', badge: pendingSubmissions.length },
+            { id: 'review', label: 'Review', badge: totalPendingCount },
           ] : []),
         ]}
         active={tab}
@@ -512,6 +631,8 @@ const BountyBoardPage = () => {
       {/* Browse Tab */}
       {tab === 'browse' && (
         <>
+          {/* Pillar filter — meaningless to a school with pillars off */}
+          {!hidePillars && (
           <div className="flex flex-wrap gap-2 mb-6">
             {PILLARS.map(p => (
               <button
@@ -527,9 +648,12 @@ const BountyBoardPage = () => {
               </button>
             ))}
           </div>
+          )}
 
           {loadingBounties ? (
             <PageLoader className="py-16" />
+          ) : bountiesError ? (
+            <ErrorPanel onRetry={refetchBounties} />
           ) : bounties.length === 0 ? (
             <EmptyState plain className="py-16" title="No bounties available" hint="Check back later for new challenges!" />
           ) : (
@@ -546,6 +670,8 @@ const BountyBoardPage = () => {
       {tab === 'active' && (
         loadingClaims ? (
           <PageLoader className="py-16" />
+        ) : claimsError ? (
+          <ErrorPanel onRetry={refetchClaims} />
         ) : myClaims.length === 0 ? (
           <EmptyState plain className="py-16" title="No active bounties" hint="Browse the board and claim a bounty to get started!" />
         ) : (
@@ -558,6 +684,9 @@ const BountyBoardPage = () => {
                 onViewEvidence={handleViewEvidence}
                 onTurnIn={(bountyId, claimId) => turnInMutation.mutate({ bountyId, claimId })}
                 turnInPending={turnInMutation.isPending}
+                onToggleIncomplete={(bountyId, claimId, deliverableId) => handleToggle(bountyId, claimId, deliverableId, false)}
+                onDrop={handleDrop}
+                onRetry={(bountyId) => claimMutation.mutate(bountyId)}
               />
             ))}
           </div>
@@ -568,6 +697,8 @@ const BountyBoardPage = () => {
       {tab === 'my-bounties' && (
         loadingPosted ? (
           <PageLoader className="py-16" />
+        ) : postedError ? (
+          <ErrorPanel onRetry={refetchPosted} />
         ) : myPosted.length === 0 ? (
           <EmptyState
             plain
@@ -589,7 +720,7 @@ const BountyBoardPage = () => {
                 key={b.id}
                 bounty={b}
                 onEdit={(id) => navigate(`/bounties/${id}/edit`, { state: { from } })}
-                onReview={() => setTab('review')}
+                onReview={(id) => { setReviewBountyId(id); setTab('review') }}
                 onDelete={handleDelete}
                 deleting={deleteMutation.isPending}
               />
@@ -602,18 +733,35 @@ const BountyBoardPage = () => {
       {tab === 'review' && (
         loadingPosted ? (
           <PageLoader className="py-16" />
-        ) : pendingSubmissions.length === 0 ? (
-          <EmptyState plain className="py-16" title="No submissions to review" hint="When students turn in your bounties, they will show up here." />
+        ) : postedError ? (
+          <ErrorPanel onRetry={refetchPosted} />
         ) : (
           <div className="space-y-4 max-w-3xl">
-            {pendingSubmissions.map(({ bounty, claim }) => (
-              <SubmissionReviewCard
-                key={claim.id}
-                bounty={bounty}
-                claim={claim}
-                highlight={claim.id === highlightClaimId}
-              />
-            ))}
+            {reviewFilterTitle && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-optio-purple bg-optio-purple/10 px-3 py-1.5 rounded-full">
+                  Showing submissions for "{reviewFilterTitle}"
+                </span>
+                <button
+                  onClick={() => setReviewBountyId(null)}
+                  className="text-xs text-gray-500 hover:underline min-h-[32px]"
+                >
+                  Show all
+                </button>
+              </div>
+            )}
+            {pendingSubmissions.length === 0 ? (
+              <EmptyState plain className="py-16" title="No submissions to review" hint="When students turn in your bounties, they will show up here." />
+            ) : (
+              pendingSubmissions.map(({ bounty, claim }) => (
+                <SubmissionReviewCard
+                  key={claim.id}
+                  bounty={bounty}
+                  claim={claim}
+                  highlight={claim.id === highlightClaimId}
+                />
+              ))
+            )}
           </div>
         )
       )}

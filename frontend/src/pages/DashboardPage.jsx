@@ -369,6 +369,8 @@ const DashboardPage = () => {
         */}
       </div>
 
+      {/* Schoolwork first: quests teachers assigned that aren't started yet */}
+
       {/* Active Quests Panel */}
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">

@@ -11,12 +11,20 @@ RLS policies for a single org-admin read (same justification the /me endpoint us
 from typing import Callable, Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils import person_name
 
 logger = get_logger(__name__)
 
 ENROLLMENT_STATUSES = ('applicant', 'enrolled', 'withdrawn', 'graduated')
+
+# Students the People page hides by default, and so the headline count does too.
+# Kept in step with sis_clp_service._HIDDEN_ENROLLMENT_STATUSES: the dashboard
+# counting them while the roster hid them is what made one school's two student
+# totals disagree by six (iCreate, 2026-08-27: "Which one is actually accurate").
+INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 
 
 def _admin():
@@ -43,7 +51,13 @@ def get_user_org_context(user_id: str) -> Dict[str, Any]:
         .limit(1)
         .execute()
     )
-    return resp.data[0] if resp.data else {}
+    if not resp.data:
+        return {}
+    # "View as role" narrows every SIS role decision through this one read:
+    # _user_org_roles and the caller_* helpers all flow from here, so an admin
+    # viewing as teacher IS a teacher to the whole SIS backend.
+    from utils.roles import apply_role_view
+    return apply_role_view(resp.data[0])
 
 
 def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[str]:
@@ -102,9 +116,87 @@ def member_org_id(user_id: str) -> Optional[str]:
     return None
 
 
-def _org_users(org_id: str) -> List[Dict[str, Any]]:
-    from utils.db_fetch import fetch_all_rows
+# PostgREST `in_` filters ride in the query string, so long id lists are chunked.
+_ORG_LOOKUP_CHUNK = 100
 
+
+def _chunks(items: List[str]):
+    for i in range(0, len(items), _ORG_LOOKUP_CHUNK):
+        yield items[i:i + _ORG_LOOKUP_CHUNK]
+
+
+def member_orgs_by_user(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """The batch form of :func:`member_org_id`, as {user_id: {id, name}}.
+
+    Same three routes to membership — organization_id, then dependents, then
+    approved parent links — but four queries for the whole list instead of
+    three per user. Anything annotating a LIST of people with their school
+    should use this; per-user calls in a loop are what made the old inbox
+    load spend seconds on single-row lookups.
+
+    Never raises: a lookup that fails simply leaves those users unlabeled.
+    """
+    ids = [uid for uid in dict.fromkeys(user_ids) if uid]
+    if not ids:
+        return {}
+    admin = _admin()
+    org_by_user: Dict[str, str] = {}
+    try:
+        for chunk in _chunks(ids):
+            rows = (admin.table('users').select('id, organization_id')
+                    .in_('id', chunk).execute()).data or []
+            for r in rows:
+                if r.get('organization_id'):
+                    org_by_user[r['id']] = r['organization_id']
+
+        # Parents sit outside the org: they belong through their children.
+        unresolved = [uid for uid in ids if uid not in org_by_user]
+        if unresolved:
+            for chunk in _chunks(unresolved):
+                deps = (admin.table('users').select('managed_by_parent_id, organization_id')
+                        .in_('managed_by_parent_id', chunk)
+                        .not_.is_('organization_id', 'null').execute()).data or []
+                for d in deps:
+                    org_by_user.setdefault(d['managed_by_parent_id'], d['organization_id'])
+
+        unresolved = [uid for uid in ids if uid not in org_by_user]
+        if unresolved:
+            for chunk in _chunks(unresolved):
+                links = (admin.table('parent_student_links')
+                         .select('parent_user_id, student_user_id')
+                         .in_('parent_user_id', chunk)
+                         .eq('status', 'approved').execute()).data or []
+                student_ids = [l['student_user_id'] for l in links if l.get('student_user_id')]
+                if not student_ids:
+                    continue
+                student_orgs: Dict[str, str] = {}
+                for sub in _chunks(list(dict.fromkeys(student_ids))):
+                    rows = (admin.table('users').select('id, organization_id')
+                            .in_('id', sub)
+                            .not_.is_('organization_id', 'null').execute()).data or []
+                    for r in rows:
+                        student_orgs[r['id']] = r['organization_id']
+                for l in links:
+                    org_id = student_orgs.get(l.get('student_user_id'))
+                    if org_id:
+                        org_by_user.setdefault(l['parent_user_id'], org_id)
+
+        org_ids = list(dict.fromkeys(org_by_user.values()))
+        names: Dict[str, str] = {}
+        for chunk in _chunks(org_ids):
+            rows = (admin.table('organizations').select('id, name')
+                    .in_('id', chunk).execute()).data or []
+            for r in rows:
+                names[r['id']] = r.get('name')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'member_orgs_by_user: lookup failed: {e}')
+        return {}
+
+    return {uid: {'id': org_id, 'name': names.get(org_id)}
+            for uid, org_id in org_by_user.items() if names.get(org_id)}
+
+
+def _org_users(org_id: str) -> List[Dict[str, Any]]:
     # Paged: this is every account in the school and it grows with every family
     # that joins. iCreate is at 334 and adding families daily; at the 1000-row
     # cap PostgREST would start dropping the tail silently, and the People page
@@ -123,32 +215,32 @@ def _org_students(org_id: str) -> List[Dict[str, Any]]:
 
 
 def _enrollments_by_student(org_id: str) -> Dict[str, Dict[str, Any]]:
-    resp = (
+    # Paged: this decides each student's enrollment_status, and the People page
+    # hides withdrawn and graduated students by it. A truncated read would make
+    # those students 'unassigned' and quietly put them back in the list.
+    rows = fetch_all_rows(lambda: (
         _admin().table('school_enrollments')
         .select('*')
         .eq('organization_id', org_id)
-        .execute()
-    )
-    return {row['student_user_id']: row for row in (resp.data or [])}
+    ))
+    return {row['student_user_id']: row for row in rows}
 
 
 def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
     """Map user_id -> {household_id, household_name, relationship} for an org."""
-    households = (
+    households = fetch_all_rows(lambda: (
         _admin().table('households')
         .select('id, name')
         .eq('organization_id', org_id)
-        .execute()
-    ).data or []
+    ))
     if not households:
         return {}
     hh_by_id = {h['id']: h for h in households}
-    members = (
+    members = fetch_all_rows(lambda: (
         _admin().table('household_members')
         .select('household_id, user_id, relationship, is_primary_guardian')
         .in_('household_id', list(hh_by_id.keys()))
-        .execute()
-    ).data or []
+    ))
     out: Dict[str, Dict[str, Any]] = {}
     for m in members:
         hh = hh_by_id.get(m['household_id'])
@@ -164,17 +256,10 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _full_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name') or f"{first} {last}".strip()).strip()
-    return name or u.get('username') or u.get('email') or 'Unnamed'
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 # ── Duplicate-student detection ──────────────────────────────────────────────
@@ -274,7 +359,7 @@ def find_household_duplicates(org_id: str, household_id: str,
     from repositories.household_repository import HouseholdRepository
     admin = _admin()
     crow = (admin.table('users')
-            .select('id, first_name, last_name, date_of_birth')
+            .select('id, first_name, last_name, date_of_birth, preferred_name')
             .eq('id', candidate_user_id).limit(1).execute()).data or []
     if not crow:
         return []
@@ -286,7 +371,7 @@ def find_household_duplicates(org_id: str, household_id: str,
     if not student_ids:
         return []
     rows = (admin.table('users')
-            .select('id, first_name, last_name, display_name, date_of_birth, email, username')
+            .select('id, first_name, last_name, display_name, date_of_birth, email, username, preferred_name')
             .in_('id', student_ids).execute()).data or []
     return [{'user_id': r['id'], 'name': _full_name(r), 'email': r.get('email')}
             for r in rows if likely_same_student(candidate, r)]
@@ -388,7 +473,7 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     if guardian_ids:
         for chunk in (guardian_ids[i:i + 200] for i in range(0, len(guardian_ids), 200)):
             rows = (admin.table('users')
-                    .select('id, first_name, last_name, display_name, email, phone_number')
+                    .select('id, first_name, last_name, display_name, email, phone_number, preferred_name')
                     .in_('id', chunk).execute()).data or []
             g_users.update({u['id']: u for u in rows})
 
@@ -407,7 +492,7 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     # its guardians filed. Oldest first so a later registration overwrites an
     # earlier one -- a family who re-registered means the new list.
     registrations = fetch_all_rows(lambda: (
-        admin.table('icreate_registrations')
+        admin.table('registrations')
         .select('id, parent_user_id, emergency_contacts, created_at')
         .eq('organization_id', org_id)
     ))
@@ -462,9 +547,16 @@ def get_dashboard(org_id: str) -> Dict[str, Any]:
         .limit(1)
         .execute()
     ).data
+    # The headline figure counts the same students the People page lists, so the
+    # two agree. The all-inclusive figure is still reported alongside it, because
+    # withdrawn and graduated students have not stopped existing.
+    inactive_students = sum(status_counts.get(s, 0)
+                            for s in INACTIVE_ENROLLMENT_STATUSES)
     return {
         'organization': org[0] if org else {'id': org_id},
-        'total_students': len(students),
+        'total_students': len(students) - inactive_students,
+        'all_students': len(students),
+        'inactive_students': inactive_students,
         'active_last_7_days': active,
         'households': households_count,
         'enrollment_status': status_counts,
@@ -581,11 +673,13 @@ def attach_student_to_org(org_id: str, student_id: str,
     if effective not in (None, 'student'):
         return False
 
-    if u.get('is_dependent'):
-        updates: Dict[str, Any] = {'organization_id': org_id}
-    else:
-        updates = {'organization_id': org_id, 'role': 'org_managed',
-                   'org_role': 'student', 'org_roles': ['student']}
+    # Dependents get the same role shape as everybody else. Skipping it here
+    # left them with role='student' and no org_role, which is_student() accepts
+    # but the many org_role-only queries do not -- so a parent-created child was
+    # missing from half the platform's student counts (iCreate: 52 of 219).
+    # roster_import_service writes this same shape for its dependents.
+    updates: Dict[str, Any] = {'organization_id': org_id, 'role': 'org_managed',
+                               'org_role': 'student', 'org_roles': ['student']}
     _admin().table('users').update(updates).eq('id', student_id).execute()
 
     for gid in (guardian_ids or []):
@@ -721,7 +815,7 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
     """All users in an org (students + guardians + staff) for household assignment pickers."""
     resp = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, username, role, org_role, org_roles')
+        .select('id, first_name, last_name, display_name, email, username, role, org_role, org_roles, preferred_name')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -735,6 +829,83 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
         })
     out.sort(key=lambda r: r['name'].lower())
     return out
+
+
+# The adults on a school's roster: guardians and the people who run the place.
+# Observers are deliberately absent — a grandparent or mentor is linked to one
+# student, not a member of the parent body, and keeps their narrower rule.
+ADULT_ORG_ROLES = ('parent', 'advisor', 'org_admin', 'campus_coordinator')
+
+_ADULT_CONTACT_COLUMNS = ('id, first_name, last_name, display_name, preferred_name, '
+                          'avatar_url, role, org_role, org_roles')
+
+
+def _adult_role(u: Dict[str, Any]) -> Optional[str]:
+    """The org role to show an adult under, or None if they are not one."""
+    if is_student(u):
+        return None
+    role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
+    if role in ADULT_ORG_ROLES:
+        return role
+    roles = u.get('org_roles')
+    if isinstance(roles, list):
+        for r in ADULT_ORG_ROLES:
+            if r in roles:
+                return r
+    return None
+
+
+def org_adults(org_id: str) -> List[Dict[str, Any]]:
+    """Every adult on a school's roster — guardians and staff, never students.
+
+    Two ways to belong, the same two member_org_id resolves: users carrying the
+    organization_id, plus guardians of the school's households who do not (a
+    platform parent is a member of the school through their child, and there is
+    no column on their own row that says so).
+
+    Rows carry `org_role`, the role to display them under. Paged, because this
+    is every adult account in the school and it grows with every family.
+    """
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users').select(_ADULT_CONTACT_COLUMNS)
+        .eq('organization_id', org_id)
+    ))
+    out: Dict[str, Dict[str, Any]] = {}
+    for u in rows:
+        role = _adult_role(u)
+        if role:
+            out[u['id']] = {**u, 'org_role': role}
+
+    for u in _household_guardians_outside_org(org_id, skip=set(out)):
+        out[u['id']] = {**u, 'org_role': 'parent'}
+    return sorted(out.values(), key=lambda u: _full_name(u).lower())
+
+
+def _household_guardians_outside_org(org_id: str, skip: set) -> List[Dict[str, Any]]:
+    """Guardians of this school's households whose own row has no organization_id
+    (platform parents). Without them the school's own parent body is incomplete."""
+    households = fetch_all_rows(lambda: (
+        _admin().table('households').select('id').eq('organization_id', org_id)
+    ))
+    hh_ids = [h['id'] for h in households]
+    if not hh_ids:
+        return []
+    members = fetch_all_rows(lambda: (
+        _admin().table('household_members').select('user_id, relationship')
+        .in_('household_id', hh_ids)
+    ))
+    wanted = [m['user_id'] for m in members
+              if m.get('relationship') != 'student' and m.get('user_id')
+              and m['user_id'] not in skip]
+    if not wanted:
+        return []
+    found: List[Dict[str, Any]] = []
+    for i in range(0, len(wanted), 100):
+        found.extend(
+            (_admin().table('users').select(_ADULT_CONTACT_COLUMNS)
+             .in_('id', wanted[i:i + 100]).execute()).data or []
+        )
+    return [u for u in found if not is_student(u)]
 
 
 # Org roles considered "staff" (people who run the school), in display precedence.
@@ -934,16 +1105,16 @@ def _archived_staff_ids(org_id: str) -> set:
 def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
     """Org staff (org_admin / advisor) with their role labels, for the SIS Staff page."""
     archived = set() if include_archived else _archived_staff_ids(org_id)
-    resp = (
+    # Paged: every org user, and PostgREST truncates at 1000 silently.
+    rows = fetch_all_rows(lambda: (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, phone_number, '
-                'role, org_role, org_roles, last_active, created_at, bio, avatar_url')
+                'role, org_role, org_roles, last_active, created_at, bio, avatar_url, preferred_name')
         .eq('organization_id', org_id)
-        .execute()
-    )
+    ))
     out = []
     school_account_email = org_messaging_email(org_id)
-    for u in (resp.data or []):
+    for u in rows:
         # The org's messaging identity is infrastructure, not a staff member.
         if u.get('email') == school_account_email:
             continue
@@ -1120,7 +1291,7 @@ def find_placeholder_match(org_id: str, first: str, last: str) -> Optional[Dict[
         return None
     rows = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, org_role, org_roles')
+        .select('id, first_name, last_name, display_name, email, org_role, org_roles, preferred_name')
         .eq('organization_id', org_id).execute()
     ).data or []
     for u in rows:
@@ -1176,7 +1347,7 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
     existing = (
         admin.table('users')
         .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
-                'first_name, last_name, display_name')
+                'first_name, last_name, display_name, preferred_name')
         .eq('email', email).limit(1).execute()
     ).data
     if existing:
@@ -1307,7 +1478,7 @@ def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
     rows = (
         admin.table('users')
         .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
-                'first_name, last_name, display_name, bio')
+                'first_name, last_name, display_name, bio, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not rows:
@@ -1392,7 +1563,7 @@ def set_staff_roles(org_id: str, staff_id: str, roles: Any,
 
     admin = _admin()
     rows = (admin.table('users')
-            .select('id, email, role, org_role, org_roles, organization_id, first_name, last_name, display_name')
+            .select('id, email, role, org_role, org_roles, organization_id, first_name, last_name, display_name, preferred_name')
             .eq('id', staff_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
         return {'error': 'Staff member not found'}
@@ -1606,14 +1777,14 @@ def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     return {'email': u['email'], 'email_sent': True}
 
 
-_STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')
+_STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio', 'phone_number')
 
 
 def update_staff_member(org_id: str, staff_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Edit a staff member's profile (name/email/bio). Keeps display_name in sync
     and best-effort syncs the auth email, mirroring update_student_profile."""
     row = (
-        _admin().table('users').select('id, organization_id, first_name, last_name, email')
+        _admin().table('users').select('id, organization_id, first_name, last_name, email, preferred_name')
         .eq('id', staff_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
@@ -1663,7 +1834,7 @@ def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any])
     if not student_in_org(student_id, org_id):
         return None
     current = (
-        _admin().table('users').select('first_name, last_name, email')
+        _admin().table('users').select('first_name, last_name, email, preferred_name')
         .eq('id', student_id).limit(1).execute()
     ).data
     cur = current[0] if current else {}
@@ -1727,7 +1898,7 @@ def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
     teacher_names: Dict[str, str] = {}
     if teacher_ids:
         for u in (_admin().table('users')
-                  .select('id, display_name, first_name, last_name, username, email')
+                  .select('id, display_name, first_name, last_name, username, email, preferred_name')
                   .in_('id', list(teacher_ids)).execute()).data or []:
             teacher_names[u['id']] = _full_name(u)
 
@@ -1845,7 +2016,7 @@ def get_org_user(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     row = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, date_of_birth, '
-                'role, org_role, org_roles, organization_id')
+                'role, org_role, org_roles, organization_id, preferred_name')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
@@ -1887,7 +2058,7 @@ def household_registration(org_id: str, household_id: str) -> Optional[Dict[str,
     if not guardian_ids:
         return None
     rows = (
-        _admin().table('icreate_registrations')
+        _admin().table('registrations')
         .select('id, parent_user_id, status, kids, paperwork, answers, emergency_contacts, '
                 'fee_cents, fee_recorded_at, scheduling_emailed_at, created_at, completed_at')
         .eq('organization_id', org_id)
@@ -1967,14 +2138,14 @@ def waive_registration_fee(org_id: str, household_id: str,
 
     # 2. Finish the fee step at $0 on whatever registration is still open.
     registration_completed, waived_cents = False, 0
-    regs = (admin.table('icreate_registrations').select('*')
+    regs = (admin.table('registrations').select('*')
             .eq('organization_id', org_id).in_('parent_user_id', guardian_ids)
             .order('created_at', desc=True).limit(1).execute()).data or []
     reg = regs[0] if regs else None
     if reg and finish_registration and reg.get('status') not in ('completed',):
         waived_cents = int(reg.get('fee_cents') or 0)
         try:
-            admin.table('icreate_registrations').update({
+            admin.table('registrations').update({
                 'fee_cents': 0, 'fee_deferred': False, 'updated_at': now,
             }).eq('id', reg['id']).execute()
             finish_registration({**reg, 'fee_cents': 0, 'fee_deferred': False})
@@ -2132,12 +2303,12 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     user_ids = list({m['user_id'] for m in members})
     users = {}
     if user_ids:
-        rows = (
+        # Paged: household membership grows with the school (rule 10).
+        rows = fetch_all_rows(lambda: (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url')
+            .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url, preferred_name')
             .in_('id', user_ids)
-            .execute()
-        ).data or []
+        ))
         users = {u['id']: u for u in rows}
 
     enrollments = _enrollments_by_student(org_id)
@@ -2167,6 +2338,16 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
         h['primary_contact_user_id'] = h.get('primary_contact_user_id')
         _mark_duplicate_members(h['members'])
         for m in h['members']:
+            # `name` renders under ONE name — the nickname replaces the first —
+            # so the Families search could not find a student by the name on
+            # their paperwork (iCreate, 2026-08-28). The names that are NOT on
+            # screen ride along as one searchable string; the raw columns stay
+            # stripped, since nothing on the page displays them.
+            u = users.get(m['user_id'], {})
+            alt = ' '.join(str(v) for v in (
+                u.get('first_name'), u.get('last_name'),
+                u.get('preferred_name'), u.get('display_name')) if v)
+            m['search_terms'] = alt or None
             for k in ('first_name', 'last_name', 'date_of_birth'):
                 m.pop(k, None)
     _disambiguate_household_names(households)
@@ -2188,12 +2369,14 @@ def unassigned_students(org_id: str) -> List[Dict[str, Any]]:
     instead of adding a second copy.
     """
     admin = _admin()
-    users = (
+    # Paged: every org user, and a truncated read here undercounts the
+    # "students not in a family" tile silently (rule 10).
+    users = fetch_all_rows(lambda: (
         admin.table('users')
         .select('id, first_name, last_name, display_name, email, username, '
-                'role, org_role, org_roles, date_of_birth')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+                'role, org_role, org_roles, date_of_birth, preferred_name')
+        .eq('organization_id', org_id)
+    ))
     students = [u for u in users if is_student(u)]
     hh_by_user = _household_by_user(org_id)
     enrollments = _enrollments_by_student(org_id)

@@ -8,7 +8,7 @@
  * via useChildOverview.
  */
 import React from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Divider,
   Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
+import ClassSchedule from '@/src/components/school/ClassSchedule';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
@@ -95,7 +96,7 @@ export default function ChildProfileScreen() {
 
       {loading && !overview ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
         </View>
       ) : !overview ? (
         <View className="flex-1 items-center justify-center px-8">
@@ -147,6 +148,10 @@ export default function ChildProfileScreen() {
               </HStack>
             </Card>
 
+            {/* Where she is, and when. Renders nothing for a family whose
+                school isn't on the SIS, or a child with no classes. */}
+            <ClassSchedule studentId={studentId} defaultOpen />
+
             {/* Learning Activity */}
             {calendarDays.length > 0 && (
               <VStack space="sm">
@@ -197,7 +202,7 @@ export default function ChildProfileScreen() {
                         className="flex-row items-center gap-1.5 px-3 py-2 rounded-full bg-surface-100 dark:bg-dark-surface-200"
                         style={{ minHeight: 36 }}
                       >
-                        <Ionicons name={(t.icon as any) || 'bookmark-outline'} size={14} color={t.color || '#6D469B'} />
+                        <Ionicons name={(t.icon as any) || 'bookmark-outline'} size={14} color={t.color || c.brand} />
                         <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{t.name}</UIText>
                       </Pressable>
                     ))}

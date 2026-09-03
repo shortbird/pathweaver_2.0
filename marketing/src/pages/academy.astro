@@ -1,0 +1,451 @@
+---
+import Marketing from '../layouts/Marketing.astro'
+import Receipt from '../components/Receipt.astro'
+import TestimonialRow from '../components/TestimonialRow.astro'
+import FreeClassForm from '../components/FreeClassForm.astro'
+import ContactForm from '../components/ContactForm.astro'
+import FaqList from '../components/FaqList.astro'
+import WascBadge from '../components/WascBadge.astro'
+import { SITE, OFFER, SOCIAL_LINKS, appLink } from '../data/site'
+import { testimonials } from '../data/testimonials'
+import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
+
+const SCREENSHOTS = [
+  {
+    src: 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/basketball.png',
+    alt: 'A basketball project in the Optio app',
+  },
+  {
+    src: 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png',
+    alt: 'A stop motion animation project in the Optio app',
+  },
+]
+
+// TODO(tanner): confirm the exact accrual mechanics of the $50/month payment
+// counting toward the $100-per-credit fee (e.g. does every dollar apply, does
+// it expire, how is teacher support billed on top). Copy below states the
+// simple version you gave; tighten it once mechanics are confirmed.
+const FAQS = [
+  {
+    q: 'Is the diploma real? Will colleges accept it?',
+    a: 'Yes. Optio Academy is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (ACS WASC), the same commission that accredits thousands of public and private schools. Your student earns an official transcript and diploma that colleges and employers recognize nationwide.',
+  },
+  {
+    q: 'How much does Optio Academy cost?',
+    a: 'Enrollment is $50 per month, and what you pay counts toward credits: each credit costs $100 as your student earns it, and a full diploma is 24 credits. Families who want one-on-one support from a licensed Optio teacher can add it; we price that together on your discovery call.',
+  },
+  {
+    q: 'Can we try it before enrolling?',
+    a: `Yes. Your first class is free: one semester-length class, 0.5 credit, no credit card and no commitment. After that, individual classes are ${OFFER.classPrice} each, and the credit transfers to your current school under our Transfer Guarantee.`,
+  },
+  {
+    q: 'How much do I need to do as a parent?',
+    a: "That is your choice. By default you guide the learning day to day while Optio provides the platform, the structure, and the accredited transcript and diploma. Add teacher support and your student's Optio teacher carries the accountability: goals, check-ins, follow-through, and review of every piece of work.",
+  },
+  {
+    q: 'How does my student earn credit without tests and seat time?',
+    a: 'Credit is based on evidence of learning, not hours in a chair. Students document their work on the Optio platform, licensed teachers review it, and credit is awarded to an official transcript. A finished game, a training log, a business plan: real work is the exam.',
+  },
+  {
+    q: 'What about friends and socialization?',
+    a: 'Optio Academy students spend more time out in the real world than students sitting in a classroom. Sports teams, volunteering, jobs, clubs, and community projects are part of school itself here, and they keep students connected to people of all ages.',
+  },
+  {
+    q: 'Can my student transfer back to a traditional school later?',
+    a: "Yes, anytime. Your student's credits live on an official, accredited transcript that transfers like any other school's. We never ask families to sign away the right to leave.",
+  },
+  {
+    q: 'When can my student start?',
+    a: 'Any time of year. Because the program is self-paced, there is no semester to wait for. After the discovery call and enrollment paperwork, your student can start right away.',
+  },
+]
+
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'School',
+    name: 'Optio Academy',
+    url: `${SITE.url}/academy`,
+    description: `A fully online private school for grades 9 to 12. ${WASC_ACCREDITED_PHRASE}. Credit is based on evidence of learning, with rolling admissions and self-paced learning.`,
+    email: SITE.academyEmail,
+    sameAs: SOCIAL_LINKS.map((s) => s.href),
+    parentOrganization: { '@type': 'Organization', name: 'Optio', url: SITE.url },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQS.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  },
+]
+---
+
+<Marketing
+  title="Optio Academy | A WASC-Accredited Online Private School"
+  description="Optio Academy is a WASC-accredited online private school built on the learning your kid already does. $50 per month, counting toward $100 per credit. First class free."
+  ogImage="/images/og/academy.png"
+  schema={schema}
+>
+  <!-- ========== HERO (collage: teens doing real things; each tile is a credit story) ========== -->
+  <section class="bg-neutral-900 text-white overflow-hidden">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-20 pb-14 sm:pb-20">
+      <div class="grid md:grid-cols-[1.1fr_1fr] gap-10 lg:gap-14 items-center">
+        <div class="text-center md:text-left">
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-pink mb-4">Optio Academy</p>
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5">
+            Your kid is already doing the work. We make it count.
+          </h1>
+          <p class="text-lg sm:text-xl text-neutral-300 font-medium leading-relaxed mb-8">
+            Optio Academy is a WASC-accredited online private school where credit comes from
+            evidence of learning, not hours in a chair. The projects, sports, and passions your
+            kid already has, reviewed by licensed teachers, on an official transcript.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+            <a href="#free-class" data-track="hero_free_class" class="btn-inverse btn-lg">Try a free class</a>
+            <a href="#get-info" data-track="hero_discovery_call" class="btn-ghost-inverse btn-lg">Schedule a discovery call</a>
+          </div>
+        </div>
+
+        <!-- Collage: musician, artist, basketball, creator/entrepreneur (all clearly teens) -->
+        <div class="grid grid-cols-2 gap-3 sm:gap-4" aria-hidden="true">
+          <div class="space-y-3 sm:space-y-4">
+            <img
+              src="https://images.pexels.com/photos/5967794/pexels-photo-5967794.jpeg?auto=compress&cs=tinysrgb&w=700"
+              alt=""
+              class="w-full aspect-[4/5] object-cover rounded-2xl"
+            />
+            <img
+              src="https://images.pexels.com/photos/8382222/pexels-photo-8382222.jpeg?auto=compress&cs=tinysrgb&w=700"
+              alt=""
+              class="w-full aspect-square object-cover rounded-2xl"
+              loading="lazy"
+            />
+          </div>
+          <div class="space-y-3 sm:space-y-4 mt-8 sm:mt-12">
+            <img
+              src="https://images.pexels.com/photos/14972595/pexels-photo-14972595.jpeg?auto=compress&cs=tinysrgb&w=700"
+              alt=""
+              class="w-full aspect-square object-cover rounded-2xl"
+              style="object-position: center 65%"
+            />
+            <img
+              src="https://images.pexels.com/photos/12432837/pexels-photo-12432837.jpeg?auto=compress&cs=tinysrgb&w=700"
+              alt=""
+              class="w-full aspect-[4/5] object-cover rounded-2xl"
+              style="object-position: center 30%"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== EVIDENCE, NOT SEAT TIME ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="grid md:grid-cols-2 gap-10 items-center">
+        <div>
+          <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 leading-tight mb-5">
+            Credit is based on evidence of learning, not hours in a chair.
+          </h2>
+          <p class="text-neutral-500 font-medium leading-relaxed mb-4">
+            Your student documents their real work on the Optio platform. Licensed teachers review the
+            evidence and award credit to an official Optio Academy transcript. A finished game, a
+            training log, a business plan: real work is the exam.
+          </p>
+          <p class="text-neutral-500 font-medium leading-relaxed">
+            Grades 9 to 12, self-paced, rolling admissions. Start any month of the year.
+          </p>
+        </div>
+        <Receipt
+          activity="Trained for a half marathon"
+          course="Physical Education"
+          credit="0.5 credit"
+          image="https://images.pexels.com/photos/17979480/pexels-photo-17979480.jpeg?auto=compress&cs=tinysrgb&w=800"
+        />
+      </div>
+      <div class="mt-14 max-w-md mx-auto">
+        <WascBadge variant="card" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== HOW IT WORKS ========== -->
+  <section id="how-it-works" class="bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 text-center mb-12">How it works</h2>
+      <div class="grid md:grid-cols-2 gap-12 items-center">
+        <ol class="space-y-8">
+          {[
+            {
+              title: 'They pick the project.',
+              body: 'Something they already care about: the sport, the song, the code, the business.',
+            },
+            {
+              title: 'They do it and capture it.',
+              body: 'Photos, videos, drafts, logged in the app as they go.',
+            },
+            {
+              title: 'A licensed teacher makes it count.',
+              body: 'Evidence reviewed, credit awarded, straight onto a WASC-accredited transcript.',
+            },
+          ].map((step, i) => (
+            <li class="flex items-start gap-5">
+              <span class="flex-shrink-0 w-10 h-10 rounded-full bg-optio-purple text-white flex items-center justify-center text-base font-bold">
+                {i + 1}
+              </span>
+              <div class="pt-1">
+                <p class="text-lg font-bold text-neutral-900 mb-1">{step.title}</p>
+                <p class="text-neutral-500 font-medium leading-relaxed">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div class="flex justify-center items-start gap-4">
+          {SCREENSHOTS.map((s) => (
+            <div class="w-[160px] sm:w-[190px] bg-neutral-900 rounded-[2rem] p-1.5 shadow-2xl">
+              <img src={s.src} alt={s.alt} class="rounded-[1.6rem] w-full aspect-[9/19] object-cover object-top" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== DAY IN THE LIFE ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="text-center mb-10">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">One Tuesday, logged.</h2>
+        <p class="text-lg text-neutral-500 font-medium max-w-2xl mx-auto">
+          One student's learning journal on an ordinary day. Capture it, and it counts.
+        </p>
+      </div>
+
+      <div class="max-w-2xl mx-auto space-y-3">
+        {[
+          { time: '9:00', entry: 'Two hours on the physics engine for my game.', course: 'Computer Science' },
+          { time: '12:30', entry: 'Shift at the animal shelter, logged from the car.', course: 'Civics' },
+          { time: '3:30', entry: 'Six training miles. Half marathon in May.', course: 'Physical Education' },
+          { time: '5:00', entry: 'Recorded a new song draft in the garage.', course: 'Music' },
+          { time: '7:00', entry: 'Cooked dinner for the family. Snapped it for the journal.', course: 'Culinary Arts' },
+        ].map((row) => (
+          <div class="bg-white rounded-xl border border-neutral-100 shadow-sm p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="bg-optio-purple text-white text-sm font-bold rounded-full px-3 py-1.5 w-[68px] text-center flex-shrink-0">
+              {row.time}
+            </span>
+            <p class="flex-1 min-w-[12rem] text-neutral-700 font-medium leading-relaxed">{row.entry}</p>
+            <span class="text-xs font-semibold uppercase tracking-wide text-optio-purple bg-optio-purple/10 rounded-full px-3 py-1 flex-shrink-0 ml-auto sm:ml-0">
+              {row.course}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p class="text-center text-neutral-500 mt-10 max-w-2xl mx-auto font-medium">
+        Five entries. Five classes moved forward. Zero hours in a chair.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== ONE PROGRAM, PRICING ========== -->
+  <section id="pricing" class="bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">One accredited school, K through 12.</h2>
+        <p class="text-lg text-neutral-500 font-medium max-w-2xl mx-auto">
+          Enroll young, and the journal your kid keeps at nine is the same journal that starts
+          earning high school credit at 13. Nothing restarts.
+        </p>
+      </div>
+
+      <div class="max-w-4xl mx-auto rounded-2xl border-2 border-optio-purple/30 shadow-lg bg-white overflow-hidden">
+        <div class="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-neutral-100">
+          <!-- Stage 1: K-8 on the Family plan -->
+          <div class="p-7 sm:p-8 flex flex-col">
+            <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple bg-optio-purple/10 rounded-full px-3 py-1 self-start mb-4">Grades K to 8</p>
+            <p class="text-3xl font-bold text-neutral-900 mb-1">$20<span class="text-base font-medium text-neutral-500">/month per kid</span></p>
+            <p class="text-sm text-neutral-500 font-medium mb-5">Capped at $50 per family, all kids included.</p>
+            <p class="text-neutral-500 text-sm font-medium leading-relaxed flex-1">
+              Enrollment in Optio Academy's WASC-accredited K-8 program on the Family plan: the
+              official record of your homeschool. The learning journal, portfolios, the family
+              activity feed, and observer access for grandparents and mentors.
+            </p>
+          </div>
+
+          <!-- Stage 2: High school -->
+          <div class="p-7 sm:p-8 flex flex-col">
+            <p class="text-xs font-semibold uppercase tracking-wider text-white bg-optio-purple rounded-full px-3 py-1 self-start mb-4">Grades 9 to 12</p>
+            <p class="text-3xl font-bold text-neutral-900 mb-1">{OFFER.academyMonthly}<span class="text-base font-medium text-neutral-500">/month</span></p>
+            <p class="text-sm text-neutral-500 font-medium mb-5">
+              Counts toward credits at {OFFER.academyPerCredit} per credit. A full diploma is 24 credits.
+            </p>
+            <p class="text-neutral-500 text-sm font-medium leading-relaxed flex-1">
+              The full high school, starting at age 13. You guide the learning day to day; Optio
+              provides the structure, licensed teacher review, the official transcript, and the
+              WASC-accredited diploma.
+            </p>
+          </div>
+        </div>
+
+        <!-- Teacher support: an add-on at any grade -->
+        <div class="border-t border-neutral-100 bg-optio-purple/5 p-7 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple mb-2">
+            Optional add-on at any grade: teacher support
+          </p>
+          <p class="text-neutral-500 text-sm font-medium leading-relaxed max-w-3xl">
+            Optio Academy is designed to be parent-supported: you guide the learning, and Optio
+            makes it official. When your family wants more help, add a dedicated, licensed Optio
+            teacher who sets goals with your student, reviews their work, and carries the
+            accountability. From a weekly check-in to daily working sessions; priced together on
+            your discovery call.
+          </p>
+          <a href="#get-info" data-track="pricing_info" class="btn-primary mt-5 inline-block">Get more info</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FREE CLASS ========== -->
+  <section id="free-class" class="bg-gradient-primary text-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <h2 class="text-3xl sm:text-5xl font-bold leading-tight mb-6">Try your first class free.</h2>
+      <p class="text-white/90 text-lg font-medium leading-relaxed mb-8">
+        One real class, built around something you already do. One semester of work, 0.5 credit
+        on an official transcript. Turn your hobbies into a high school class.
+      </p>
+      <div class="max-w-md mx-auto [&_.form-note]:text-white/60 [&_.form-note]:text-center [&_.form-error]:text-center">
+        <FreeClassForm source="academy_free_class" inverse />
+      </div>
+      <p class="text-white/80 text-sm font-medium mt-6">
+        Want to browse first?
+        <a href={appLink('/catalog')} data-track="free_class_catalog" class="underline font-semibold text-white hover:text-white/80 transition-colors">
+          See the full class catalog</a>. No account needed.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== WHO THRIVES ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-3">Who thrives here</h2>
+      <p class="text-lg text-neutral-500 font-medium mb-10">
+        Our students have one thing in common: their lives are bigger than a school desk.
+      </p>
+      <div class="grid sm:grid-cols-2 gap-x-10 gap-y-7">
+        {[
+          {
+            title: 'The athlete',
+            desc: 'Twenty hours a week in the gym is Physical Education, and meets never conflict with school again.',
+          },
+          {
+            title: 'The builder',
+            desc: "The game they've been coding all year is their Computer Science class.",
+          },
+          {
+            title: 'The entrepreneur',
+            desc: 'The lawn-care business is Business and Financial Literacy, on a transcript.',
+          },
+          {
+            title: 'The homeschooler',
+            desc: 'Keep the freedom, add licensed teacher review and an accredited diploma.',
+          },
+        ].map((p) => (
+          <div class="border-l-2 border-optio-purple/30 pl-5">
+            <h3 class="text-lg font-bold text-neutral-900 mb-1">{p.title}</h3>
+            <p class="text-sm text-neutral-500 font-medium leading-relaxed">{p.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== HEAD OF SCHOOL ========== -->
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3 text-center">Meet the Head of School</p>
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-10 text-center">A note from Dr. Bowman</h2>
+      <div class="bg-neutral-50 rounded-2xl border border-neutral-100 p-6 sm:p-10">
+        <div class="space-y-4 text-neutral-700 leading-relaxed font-medium">
+          <p>
+            The teenagers I meet are already educating themselves. They train before sunrise, ship
+            games at midnight, and run businesses out of the garage. For a century, the only
+            learning that counted was hours in a chair. I started Optio Academy so the rest of it
+            counts too, officially.
+          </p>
+          <p>
+            If you're wondering whether Optio Academy fits your kid, ask me directly. I'd love to talk.
+          </p>
+        </div>
+        <div class="mt-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <img
+              src="/images/head-of-school.png"
+              alt="Dr. Tanner Bowman, Head of School"
+              class="w-20 h-20 rounded-full bg-white ring-2 ring-optio-purple/20 flex-shrink-0"
+              width="80"
+              height="80"
+              loading="lazy"
+            />
+            <div>
+              <img
+                src="/images/signature-head-of-school.png"
+                alt="Signature of Dr. Tanner Bowman"
+                class="h-12 w-auto mb-2"
+                loading="lazy"
+              />
+              <p class="font-bold text-neutral-900">Dr. Tanner Bowman</p>
+              <p class="text-sm text-neutral-500 font-medium">Head of School, Optio Academy</p>
+            </div>
+          </div>
+          <a href={`mailto:${SITE.academyEmail}`} data-track="head_of_school_email" class="btn-primary">
+            Email Dr. Bowman
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== TESTIMONIALS ========== -->
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 text-center mb-10">Hear it from students and parents</h2>
+      <div class="space-y-5">
+        {testimonials.map((t) => (
+          <TestimonialRow {...t} class="bg-white border border-neutral-100 shadow-sm" />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FAQ ========== -->
+  <section id="faq" class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 text-center mb-10">Questions every family asks</h2>
+      <FaqList faqs={FAQS} />
+      <p class="text-xs text-neutral-500 mt-10 font-medium text-center">
+        Optio Academy is operated by Optio, LLC. Optio Academy admits students of any race, color,
+        national origin, religion, or background, and extends to all students every right, privilege,
+        program, and activity of the school. See the
+        <a href={`${SITE.appUrl}/academy-agreement`} class="underline hover:text-optio-purple">Participant &amp; Parent Agreement</a>
+        and
+        <a href={`${SITE.appUrl}/academy-handbook`} class="underline hover:text-optio-purple">Participant Handbook</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== DISCOVERY CALL FORM ========== -->
+  <ContactForm
+    source="academy"
+    heading="Schedule a discovery call"
+    subheading="Tell us a little about your student and we'll reach out to set up a time to talk."
+    placeholder="Grade level, interests, and anything else you'd like us to know"
+    choicesLabel="Which setup are you interested in?"
+    choices={['We lead the learning at home', 'We want an Optio teacher involved', 'Not sure yet']}
+    buttonLabel="Request a call"
+  />
+</Marketing>

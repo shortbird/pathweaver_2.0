@@ -4,10 +4,12 @@ import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import MobileModal from '../ui/mobile/MobileModal';
 import { getPillarData } from '../../utils/pillarMappings';
+import useHidePillars from '../../hooks/useHidePillars';
 import { captureEvent } from '../../services/posthog';
 import api from '../../services/api';
 
 const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
+  const hidePillars = useHidePillars();
   const [error, setError] = useState('');
   const [attachedMoment, setAttachedMoment] = useState(null);
   const editorRef = useRef(null);
@@ -88,9 +90,11 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
               {task.title}
             </h3>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90">
-                {getPillarData(task.pillar).name}
-              </div>
+              {!hidePillars && (
+                <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90">
+                  {getPillarData(task.pillar).name}
+                </div>
+              )}
               <div
                 className="px-3 py-1 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 bg-white/20 text-white"
               >

@@ -3,8 +3,6 @@
  * message archive pager (useSchoolArchive), and absences (useSchoolAbsences).
  */
 
-jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
-
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -15,6 +13,8 @@ import {
   useSchoolAbsences,
   __resetSchoolPreviewCache,
 } from '../useSchool';
+
+jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
 
 const setUser = (user: any) => {
   act(() => {
@@ -96,24 +96,58 @@ describe('useSchoolHub', () => {
     },
   };
 
+  const archivePayload = {
+    data: {
+      success: true,
+      announcements: [
+        { id: 'm1', title: 'Fall Newsletter', content: 'Welcome back.', created_at: '2026-08-02T00:00:00Z' },
+        { id: 'm2', title: 'Picture Day', content: 'Thursday.', created_at: '2026-08-01T00:00:00Z' },
+      ],
+      total: 2,
+      organization_name: 'iCreate',
+    },
+  };
+
   const primeGets = () => {
     (api.get as jest.Mock).mockImplementation((url: string) => {
       if (url.startsWith('/api/sis/school/context')) return Promise.resolve(contextPayload);
       if (url.startsWith('/api/sis/community/feed')) return Promise.resolve(feedPayload);
+      if (url.startsWith('/api/announcements/archive')) return Promise.resolve(archivePayload);
       return Promise.resolve({ data: {} });
     });
   };
 
-  it('loads school context and the community feed together', async () => {
+  it('loads school context, the community feed and the sent messages together', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolHub());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.org?.organization_id).toBe('org-1');
     expect(result.current.feed?.announcements).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(2);
     expect(result.current.carpool.canPost).toBe(true);
     expect(result.current.carpool.canModerate).toBe(false);
     expect(result.current.schoolName).toBe('iCreate');
+  });
+
+  it('reports the fetched messages as read only when the hub screen asks (markRead)', async () => {
+    primeGets();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const { result } = renderHook(() => useSchoolHub({ markRead: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/announcements/mark-read', {
+      announcement_ids: ['m1', 'm2'],
+    }));
+  });
+
+  it('never reports reads without markRead — the carpool screen reuses this hook', async () => {
+    primeGets();
+    const { result } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect((api.post as jest.Mock).mock.calls.filter(([u]) => String(u).includes('mark-read')))
+      .toHaveLength(0);
   });
 
   it('degrades to an empty hub when the feed call fails', async () => {
@@ -147,19 +181,6 @@ describe('useSchoolHub', () => {
     expect(feedCallsAfter).toBe(feedCallsBefore + 1);
   });
 
-  it('messageCarpool posts to the per-post message endpoint', async () => {
-    primeGets();
-    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
-    const { result } = renderHook(() => useSchoolHub());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    await act(async () => {
-      await result.current.carpool.message('c1', 'Is the Tuesday seat open?');
-    });
-    expect(api.post).toHaveBeenCalledWith('/api/sis/community/feed/carpool/c1/message',
-      { message: 'Is the Tuesday seat open?' });
-  });
-
   it('removeCarpool deletes and refreshes', async () => {
     primeGets();
     (api.delete as jest.Mock).mockResolvedValue({ data: { success: true } });
@@ -182,12 +203,23 @@ describe('useSchoolHub', () => {
         expect(config?.params).toEqual({ organization_id: 'org-1', view_as: 'parent' });
         return Promise.resolve(feedPayload);
       }
+      if (url.startsWith('/api/announcements/archive')) {
+        // Same rule for the archive read — and previewing must never write
+        // read receipts (asserted below by the absence of api.post calls).
+        expect(config?.params).toEqual({ limit: 20, offset: 0, organization_id: 'org-1', view_as: 'parent' });
+        return Promise.resolve(archivePayload);
+      }
       return Promise.resolve({ data: {} });
     });
-    const { result } = renderHook(() => useSchoolHub());
+    const { result } = renderHook(() => useSchoolHub({ markRead: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.feed?.announcements).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(2);
     expect(result.current.org?.organization_id).toBe('org-1');
+    // Read receipts are per-person facts — a preview writes none even with
+    // markRead on.
+    expect((api.post as jest.Mock).mock.calls.filter(([u]) => String(u).includes('mark-read')))
+      .toHaveLength(0);
   });
 });
 
@@ -267,33 +299,50 @@ describe('useSchoolAbsences', () => {
       }],
     },
   };
-  const absencesPayload = {
-    data: {
-      success: true,
-      absences: [{ id: 'ab1', absence_date: '2026-08-15', class_id: null, reason: 'trip' }],
-      classes: [{ class_id: 'cl1', name: 'Pottery' }],
+  // Per-child payloads: Jane and Milo share Choir; only Jane takes Pottery.
+  const absencesByStudent: Record<string, any> = {
+    s1: {
+      data: {
+        success: true,
+        absences: [{ id: 'ab1', absence_date: '2026-08-15', class_id: null, reason: 'trip' }],
+        classes: [{ class_id: 'cl1', name: 'Pottery' }, { class_id: 'cl2', name: 'Choir' }],
+      },
+    },
+    s2: {
+      data: {
+        success: true,
+        absences: [{ id: 'ab2', absence_date: '2026-08-14', class_id: null, reason: null }],
+        classes: [{ class_id: 'cl2', name: 'Choir' }],
+      },
     },
   };
 
   const primeGets = () => {
     (api.get as jest.Mock).mockImplementation((url: string) => {
       if (url.startsWith('/api/sis/parent/context')) return Promise.resolve(parentContext);
-      if (url.startsWith('/api/sis/parent/absences')) return Promise.resolve(absencesPayload);
+      if (url.startsWith('/api/sis/parent/absences')) {
+        const sid = url.split('student_user_id=')[1];
+        return Promise.resolve(absencesByStudent[sid] || { data: {} });
+      }
       return Promise.resolve({ data: {} });
     });
   };
 
-  it('loads guardian context, defaults to the first child, and fetches their absences', async () => {
+  it('loads guardian context, defaults to the first child, and fetches every child', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.students.map((s: any) => s.student_id)).toEqual(['s1', 's2']);
-    expect(result.current.studentId).toBe('s1');
+    expect(result.current.studentIds).toEqual(['s1']);
+    // Only the selected child's absences show, but data is prefetched for both.
     await waitFor(() => expect(result.current.absences).toHaveLength(1));
-    expect(result.current.classes).toHaveLength(1);
+    expect(result.current.classes).toHaveLength(2);
     expect(api.get).toHaveBeenCalledWith(
       '/api/sis/parent/absences?organization_id=org-1&student_user_id=s1',
+    );
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/sis/parent/absences?organization_id=org-1&student_user_id=s2',
     );
   });
 
@@ -305,45 +354,96 @@ describe('useSchoolAbsences', () => {
     expect(result.current.absences).toEqual([]);
   });
 
-  it('report posts the absence and reloads the list', async () => {
+  it('report posts every selected child and reloads the list', async () => {
     primeGets();
-    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
     await waitFor(() => expect(result.current.absences).toHaveLength(1));
 
+    await act(async () => { result.current.toggleStudent('s2'); });
     await act(async () => {
       await result.current.report({ absence_date: '2026-08-20', class_id: null, reason: 'dentist' });
     });
 
     expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences', {
       organization_id: 'org-1',
-      student_user_id: 's1',
+      student_user_ids: ['s1', 's2'],
       absence_date: '2026-08-20',
+      end_date: null,
       class_id: null,
       reason: 'dentist',
     });
   });
 
-  it('cancel deletes the absence', async () => {
+  it('report sends the end date for a range', async () => {
     primeGets();
-    (api.delete as jest.Mock).mockResolvedValue({ data: { success: true } });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => { await result.current.cancel('ab1'); });
-    expect(api.delete).toHaveBeenCalledWith('/api/sis/parent/absences/ab1');
+    await act(async () => {
+      await result.current.report({ absence_date: '2026-08-20', end_date: '2026-08-22', class_id: null, reason: null });
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({ absence_date: '2026-08-20', end_date: '2026-08-22' }));
   });
 
-  it('switching students refetches their absences', async () => {
+  it('cancel posts the whole run in one batch call', async () => {
+    primeGets();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const { result } = renderHook(() => useSchoolAbsences());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.cancel(['ab1', 'ab9']); });
+    expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences/cancel',
+      { absence_ids: ['ab1', 'ab9'] });
+  });
+
+  it('selecting a second child merges absences and narrows classes to shared ones', async () => {
+    primeGets();
+    const { result } = renderHook(() => useSchoolAbsences());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.absences).toHaveLength(1));
+
+    await act(async () => { result.current.toggleStudent('s2'); });
+
+    // Both children's absences, soonest first, labeled by name.
+    await waitFor(() => expect(result.current.absences.map((a: any) => a.id)).toEqual(['ab2', 'ab1']));
+    expect(result.current.absences.map((a: any) => a.student_name)).toEqual(['Milo', 'Jane']);
+    // Only the class both take survives the intersection.
+    expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
+  });
+
+  it('folds a stored range (one row per day) into one display run', async () => {
+    const { groupAbsenceRuns } = require('../useSchool');
+    const runs = groupAbsenceRuns([
+      // Three consecutive whole days + one detached day, same child.
+      { id: 'r1', absence_date: '2026-08-25', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r2', absence_date: '2026-08-26', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r3', absence_date: '2026-08-27', class_id: null, reason: 'trip', student_name: 'Jane' },
+      { id: 'r4', absence_date: '2026-08-31', class_id: null, reason: null, student_name: 'Jane' },
+      // A sibling's overlapping day stays their own row.
+      { id: 'm1', absence_date: '2026-08-26', class_id: null, reason: 'trip', student_name: 'Milo' },
+    ]);
+    expect(runs.map((r: any) => [r.absence_date, r.end_date, r.ids])).toEqual([
+      ['2026-08-25', '2026-08-27', ['r1', 'r2', 'r3']],
+      ['2026-08-26', '2026-08-26', ['m1']],
+      ['2026-08-31', '2026-08-31', ['r4']],
+    ]);
+  });
+
+  it('toggling a child off returns to their sibling alone', async () => {
     primeGets();
     const { result } = renderHook(() => useSchoolAbsences());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => { result.current.setStudentId('s2'); });
+    await act(async () => { result.current.toggleStudent('s2'); });
+    await act(async () => { result.current.toggleStudent('s1'); });
 
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
-      '/api/sis/parent/absences?organization_id=org-1&student_user_id=s2',
-    ));
+    await waitFor(() => expect(result.current.studentIds).toEqual(['s2']));
+    expect(result.current.absences.map((a: any) => a.id)).toEqual(['ab2']);
+    expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
   });
 });

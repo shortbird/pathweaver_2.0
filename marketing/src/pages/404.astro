@@ -1,0 +1,16 @@
+---
+import Marketing from '../layouts/Marketing.astro'
+---
+
+<Marketing title="Page not found | Optio" description="That page doesn't exist." noindex={true}>
+  <section class="bg-white">
+    <div class="max-w-xl mx-auto px-4 sm:px-6 py-24 sm:py-32 text-center">
+      <h1 class="text-5xl font-bold text-neutral-900 mb-4">Page not found</h1>
+      <p class="text-lg text-neutral-500 font-medium mb-8">
+        That page doesn't exist. If you were looking for the Optio app, it lives at
+        <a href="https://app.optioeducation.com" class="text-optio-purple underline">app.optioeducation.com</a>.
+      </p>
+      <a href="/" class="btn-primary btn-lg">Back to the homepage</a>
+    </div>
+  </section>
+</Marketing>

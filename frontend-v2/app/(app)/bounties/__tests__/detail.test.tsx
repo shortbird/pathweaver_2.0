@@ -2,6 +2,14 @@
  * Bounty detail screen tests - rendering, evidence display, status banners.
  */
 
+import React from 'react';
+import { render, waitFor } from '@testing-library/react-native';
+import { useLocalSearchParams } from 'expo-router';
+import BountyDetailPage from '../[id]';
+import api, { bountyAPI } from '@/src/services/api';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { createMockBounty, createMockClaim } from '@/src/__tests__/utils/mockFactories';
+
 jest.mock('@/src/services/api', () => {
   const base = require('@/src/__tests__/utils/mockApi').mockApiModule();
   base.bountyAPI = {
@@ -30,15 +38,6 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
-
-import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
-import { useLocalSearchParams } from 'expo-router';
-import BountyDetailPage from '../[id]';
-import { bountyAPI } from '@/src/services/api';
-import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockBounty, createMockClaim } from '@/src/__tests__/utils/mockFactories';
 
 beforeEach(() => {
   setAuthAsStudent();
@@ -74,8 +73,19 @@ describe('BountyDetailPage', () => {
     });
   });
 
-  it('shows bounty not found on fetch error', async () => {
-    (bountyAPI.get as jest.Mock).mockRejectedValueOnce(new Error('Not found'));
+  it('shows a retry screen on fetch error (an outage is not "not found")', async () => {
+    (bountyAPI.get as jest.Mock).mockRejectedValueOnce(new Error('Network Error'));
+
+    const { getByText } = render(<BountyDetailPage />);
+
+    await waitFor(() => {
+      expect(getByText("Couldn't load this bounty")).toBeTruthy();
+      expect(getByText('Retry')).toBeTruthy();
+    });
+  });
+
+  it('shows bounty not found on a real 404', async () => {
+    (bountyAPI.get as jest.Mock).mockRejectedValueOnce({ response: { status: 404 } });
 
     const { getByText } = render(<BountyDetailPage />);
 

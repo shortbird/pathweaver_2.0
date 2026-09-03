@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import PrivateRoute from './PrivateRoute'
 import { clearRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
-import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
+import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 
 /**
  * The router half of the paperwork hold.
@@ -52,7 +52,7 @@ const respond = ({ blocked = false, registration = null } = {}) => {
 beforeEach(() => {
   vi.clearAllMocks()
   clearRequiredDocumentsGate()
-  clearICreateRegistrationGate()
+  clearRegistrationGate()
   authState = { isAuthenticated: true, loading: false, user: PARENT, effectiveRole: 'parent' }
 })
 

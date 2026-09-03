@@ -4,8 +4,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled } from '../../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled, isClpEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
+import RoleViewSwitcher from './RoleViewSwitcher'
 
 /**
  * SIS console sidebar. Distinct from the web platform's Sidebar — this is the
@@ -40,6 +41,7 @@ const ICONS = {
   community: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2.83-4M9 8a3 3 0 10-2.83 4',
   card: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
   chat: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
+  inbox: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
   clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
   gear: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
 }
@@ -64,7 +66,7 @@ const NAV_SECTIONS = [
       { name: 'Classes', path: '/classes', adminOnly: true, d: ICONS.classes },
       { name: 'My Classes', path: '/my-classes', teacherOnly: true, d: ICONS.classes },
       { name: 'My Schedule', path: '/my-schedule', teacherOnly: true, d: ICONS.calendar },
-      { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc },
+      { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
       { name: 'Submissions', path: '/submissions', d: ICONS.clipboard },
@@ -74,19 +76,20 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    // Things people owe, and the paperwork behind them. Forms and Onboarding
-    // used to sit here as separate entries; both are now reached through My
-    // Tasks (what I owe) and Task Center (what the office is asking of people).
-    // Their own paths still work for deep links and old notifications.
+    // Things people owe, and the paperwork behind them — two entries, one per
+    // side of the desk. Forms, Onboarding, Secure Documents and My Documents
+    // all used to sit here separately; they are now tabs inside My Tasks (what
+    // I owe, and my documents) and Task Center (what the office asks, and the
+    // secure store). Their own paths still work for deep links and old
+    // notifications.
     label: 'Tasks & Documents',
     items: [
-      // hideInPreview: the inbox is always the CALLER's own (routes/sis/tasks.py
-      // takes no ?teacher_id=), so under a teacher preview this link would put
-      // the admin's own tasks behind the teacher's name.
-      { name: 'My Tasks', path: '/my-tasks', hideInPreview: true, d: ICONS.check },
+      // Visible in preview: the page lands a preview on its Documents tab
+      // (which supports ?teacher_id=) and keeps the task inbox — always the
+      // CALLER's own, routes/sis/tasks.py takes no ?teacher_id= — behind a
+      // banner naming whose list it is.
+      { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
-      { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, hrOnly: true, d: ICONS.doc },
-      { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
     ],
   },
   {
@@ -97,7 +100,14 @@ const NAV_SECTIONS = [
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
       { name: 'Training', path: '/training', d: ICONS.check },
-      { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
+      // Messages + announcements in one place (2026-08-31; /messaging merged
+      // in). Admins read the shared "{School Name}" inbox (backend:
+      // ADMIN_ROLES); teachers read their own threads (/api/messages) — the
+      // inbox they didn't have. The Announcements tab is the old Messaging
+      // page; an advisor's send stays scoped to their own classes by the
+      // backend, and it's their email path to a class's families — the class
+      // chat is in-app only (2026-08-23).
+      { name: 'Inbox', path: '/inbox', d: ICONS.inbox },
     ],
   },
   {
@@ -175,6 +185,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
         </button>
       </div>
 
+      <RoleViewSwitcher user={user} orgId={activeOrg?.id || null} />
+
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {NAV_SECTIONS.map((section) => {
           const items = section.items.filter((it) => {
@@ -195,6 +207,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.communityMode && !isCommunityEnabled(activeOrg)) return false
             // Prior Learning is opt-in per org.
             if (it.priorLearningMode && !isPriorLearningEnabled(activeOrg)) return false
+            // CLPs are iCreate's workflow; every other school opts in.
+            if (it.clpMode && !isClpEnabled(activeOrg)) return false
             return true
           })
           if (!items.length) return null

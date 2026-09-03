@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import { range12h } from '../../utils/timeFormat'
 
 /**
@@ -14,77 +14,12 @@ import { range12h } from '../../utils/timeFormat'
  * campus (the endpoint is ADMIN_ROLES).
  */
 
-const RESOLUTION_LABELS = {
-  elsewhere_on_campus: 'Elsewhere on campus',
-  late: 'Arrived late',
-  absent_no_notice: 'Absent without notice',
-  mismarked: 'Marked absent by mistake',
-  other: 'Other',
-}
-
 const Card = ({ title, children, className = '' }) => (
   <div className={`bg-white rounded-xl border border-gray-200 p-4 ${className}`}>
     {title && <h2 className="font-semibold text-neutral-900 mb-3">{title}</h2>}
     {children}
   </div>
 )
-
-const AlertRow = ({ alert, resolutions, orgId, onResolved }) => {
-  const [resolution, setResolution] = useState('')
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const resolve = async () => {
-    if (!resolution) { toast.error('Pick what happened first'); return }
-    setBusy(true)
-    try {
-      await api.post(`/api/sis/attendance/alerts/${alert.id}/resolve`, {
-        organization_id: orgId, resolution, note: note.trim() || undefined,
-      })
-      toast.success('Resolved')
-      onResolved()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not resolve the alert')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <li data-alert-row className="rounded-lg border border-red-200 bg-red-50 p-3">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-semibold text-red-800">{alert.student_name}</span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-red-600">
-          Not accounted for
-        </span>
-        {alert.class_name && (
-          <span className="text-xs text-red-700">{alert.class_name}</span>
-        )}
-        <span className="text-xs text-red-500 ml-auto">{alert.date}</span>
-      </div>
-      <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <label className="text-xs text-red-700 flex items-center gap-1">
-          Outcome
-          <select aria-label="Outcome" value={resolution}
-            onChange={(e) => setResolution(e.target.value)}
-            className="rounded-lg border border-red-300 bg-white px-2 py-1.5 text-sm">
-            <option value="">What happened?</option>
-            {(resolutions || []).map((r) => (
-              <option key={r} value={r}>{RESOLUTION_LABELS[r] || r}</option>
-            ))}
-          </select>
-        </label>
-        <input value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          className="flex-1 min-w-[140px] rounded-lg border border-red-300 bg-white px-2 py-1.5 text-sm" />
-        <button onClick={resolve} disabled={busy}
-          className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-50">
-          Resolve
-        </button>
-      </div>
-    </li>
-  )
-}
 
 const CoordinatorDashboard = ({ userName }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -131,16 +66,8 @@ const CoordinatorDashboard = ({ userName }) => {
         </div>
       )}
 
-      {(att.open_alerts || []).length > 0 && (
-        <Card title={`Students not accounted for (${att.open_alerts.length})`} className="border-red-200">
-          <ul className="space-y-2">
-            {att.open_alerts.map((a) => (
-              <AlertRow key={a.id} alert={a} resolutions={att.resolutions}
-                orgId={orgId} onResolved={load} />
-            ))}
-          </ul>
-        </Card>
-      )}
+      <AttendanceAlerts alerts={att.open_alerts} resolutions={att.resolutions}
+        orgId={orgId} onResolved={load} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card title="Today's schedule" className="lg:col-span-2">

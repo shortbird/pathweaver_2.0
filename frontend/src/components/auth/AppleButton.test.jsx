@@ -81,7 +81,7 @@ describe('AppleButton', () => {
 
   it('stores pending codes in localStorage before redirect', async () => {
     authService.signInWithApple.mockResolvedValue({ success: true, redirecting: true })
-    render(<AppleButton mode="signup" promoCode="PROMO123" invitationCode="INV1" orgInvitationCode="ORG1" />)
+    render(<AppleButton mode="signup" promoCode="PROMO123" invitationCode="INV1" orgInvitationCode="ORG1" registrationCode="optio-academy" />)
 
     fireEvent.click(screen.getByRole('button'))
     await waitFor(() => {
@@ -89,6 +89,9 @@ describe('AppleButton', () => {
     })
     expect(localStorage.getItem('pendingObserverInvitation')).toBe('INV1')
     expect(localStorage.getItem('pendingOrgInvitation')).toBe('ORG1')
+    // The parent registration funnel's code, which /auth/callback spends to
+    // attach a passwordless account to the school (registrationFunnelResume).
+    expect(localStorage.getItem('pendingRegistrationFunnel')).toBe('optio-academy')
   })
 
   it('clears pending codes when the redirect never happens', async () => {

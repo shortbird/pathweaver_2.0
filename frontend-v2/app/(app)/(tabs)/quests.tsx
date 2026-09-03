@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, Alert } from 'react-native';
+import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,14 +16,15 @@ import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
+import { showAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 
 const pillarColors: Record<string, string> = {
-  stem: 'bg-pillar-stem', art: 'bg-pillar-art', communication: 'bg-pillar-communication',
-  civics: 'bg-pillar-civics', wellness: 'bg-pillar-wellness',
+  stem: 'bg-pillar-stem/15', art: 'bg-pillar-art/15', communication: 'bg-pillar-communication/15',
+  civics: 'bg-pillar-civics/15', wellness: 'bg-pillar-wellness/15',
 };
 
 function QuestCard({ quest, forChildName, onAdd, adding }: {
@@ -35,6 +36,7 @@ function QuestCard({ quest, forChildName, onAdd, adding }: {
   adding?: boolean;
 }) {
   const imageUrl = quest.header_image_url || quest.image_url;
+  const c = useThemeColors();
 
   // No h-full / flex-1 here — on mobile (single column, no parent height) those
   // caused each card to stretch to viewport height, so only one card was
@@ -47,7 +49,7 @@ function QuestCard({ quest, forChildName, onAdd, adding }: {
         </View>
       ) : (
         <View className="-mx-3 -mt-3 mb-3 h-36 bg-optio-purple/10 items-center justify-center rounded-t-xl">
-          <Ionicons name="rocket-outline" size={40} color="#6D469B" />
+          <Ionicons name="rocket-outline" size={40} color={c.brand} />
         </View>
       )}
       <VStack space="sm">
@@ -60,7 +62,7 @@ function QuestCard({ quest, forChildName, onAdd, adding }: {
         <HStack className="items-center justify-between">
           <HStack className="items-center gap-2">
             {quest.pillar && (
-              <View className={`px-2 py-0.5 rounded-full ${pillarColors[quest.pillar] || 'bg-surface-200 dark:bg-dark-surface-300'}/15`}>
+              <View className={`px-2 py-0.5 rounded-full ${pillarColors[quest.pillar] || 'bg-surface-200 dark:bg-dark-surface-300'}`}>
                 <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500 capitalize">
                   {quest.pillar === 'stem' ? 'STEM' : quest.pillar}
                 </UIText>
@@ -121,6 +123,12 @@ export default function QuestsScreen() {
   const forChild = forChildId ? { id: forChildId, name: forChildName } : null;
   const [createForChildOpen, setCreateForChildOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refetch(); } finally { setRefreshing(false); }
+  }, [refetch]);
 
   const addQuestForChild = useCallback(async (questId: string) => {
     if (!forChildId) return;
@@ -129,7 +137,7 @@ export default function QuestsScreen() {
       await api.post(`/api/family/quests/${questId}/enroll-children`, { child_ids: [forChildId] });
       router.push(`/parent/quest/${forChildId}/${questId}` as any);
     } catch (e: any) {
-      Alert.alert('Could not add quest', e?.response?.data?.error || 'Failed to add this quest. Try again.');
+      showAlert('Could not add quest', e?.response?.data?.error || 'Failed to add this quest. Try again.');
     } finally {
       setAddingId(null);
     }
@@ -146,7 +154,15 @@ export default function QuestsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title="Quests" />
-      <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-4" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={64}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        contentContainerClassName="pt-2 md:pt-6 pb-4"
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={64}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />}
+      >
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           <VStack space="lg" className="px-5 md:px-8">
@@ -155,7 +171,7 @@ export default function QuestsScreen() {
             <Card variant="filled" size="md" className="bg-optio-purple/10">
               <HStack className="items-center gap-3">
                 <View className="w-9 h-9 rounded-full bg-optio-purple/15 items-center justify-center">
-                  <Ionicons name="people-outline" size={18} color="#6D469B" />
+                  <Ionicons name="people-outline" size={18} color={c.brand} />
                 </View>
                 <VStack className="flex-1 min-w-0">
                   <UIText size="sm" className="font-poppins-semibold text-optio-purple" numberOfLines={1}>
@@ -248,7 +264,7 @@ export default function QuestsScreen() {
               </View>
               {loadingMore && (
                 <View className="items-center py-6">
-                  <ActivityIndicator size="small" color="#6D469B" />
+                  <ActivityIndicator size="small" color={c.brand} />
                 </View>
               )}
               {!hasMore && quests.length > 0 && (

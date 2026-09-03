@@ -386,6 +386,7 @@ const ParentQuestView = () => {
           onAcceptTaskOverride={addTaskForStudent}
           onManualTasksOverride={addManualTasksForStudent}
           skipSubjectXp
+          draftScope={studentId}
         />
       )}
     </div>

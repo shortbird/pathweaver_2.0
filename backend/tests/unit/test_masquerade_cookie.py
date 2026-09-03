@@ -72,3 +72,38 @@ def test_no_masquerade_cookie_means_not_masquerading(app):
         # No need to mock — verify_masquerade_token would just return None
         assert session_manager.is_masquerading() is False
         assert session_manager.get_masquerade_info() is None
+
+
+def test_exit_masquerade_clears_role_view_cookie(app):
+    """Exiting a masquerade drops the role view too.
+
+    The SIS switcher flow is: narrow to a role (role_view_token cookie), then
+    open a specific person (masquerade). "Back to my account" must return the
+    admin's real role — leaving the role_view cookie behind kept them narrowed
+    to the role they picked before masquerading.
+    """
+    from unittest.mock import Mock
+
+    db = Mock()
+    table = Mock()
+    db.table.return_value = table
+    for chained in ('select', 'eq', 'is_', 'order', 'limit', 'update'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(data=[{
+        'id': 'admin-1', 'display_name': 'Admin', 'email': 'a@example.com',
+        'role': 'org_admin', 'avatar_url': None,
+    }])
+
+    mq_info = {'admin_id': 'admin-1', 'target_user_id': 'target-1', 'is_masquerading': True}
+    with patch.object(session_manager, 'get_masquerade_info', return_value=mq_info), \
+         patch('routes.admin.masquerade.get_supabase_admin_client', return_value=db):
+        resp = app.test_client().post('/api/admin/masquerade/exit', json={})
+
+    assert resp.status_code == 200
+    cookies = resp.headers.getlist('Set-Cookie')
+    role_view = [h for h in cookies if h.startswith('role_view_token=')]
+    assert role_view, f"role_view_token not cleared on exit: {cookies}"
+    assert all(h.startswith('role_view_token=;') or h.startswith('role_view_token="";')
+               for h in role_view)
+    assert any(h.startswith('masquerade_token=;') or h.startswith('masquerade_token="";')
+               for h in cookies)

@@ -17,8 +17,10 @@ import { oeaAPI } from '@/src/services/api';
 import { safeOpenURL } from '@/src/utils/linking';
 import { toast } from '@/src/stores/toastStore';
 import type { OEAEnrollment } from '@/src/components/oea/types';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export default function OEAWelcomeScreen() {
+  const c = useThemeColors();
   const { children, loading: childrenLoading } = useMyChildren();
   const [enrollments, setEnrollments] = useState<Record<string, OEAEnrollment>>({});
   const [helpVideoUrl, setHelpVideoUrl] = useState<string | null>(null);
@@ -58,12 +60,13 @@ export default function OEAWelcomeScreen() {
               variant="link"
               size="md"
               onPress={async () => {
+                oeaAPI.markHelpVideoOpened().catch(() => {});
                 const opened = await safeOpenURL(helpVideoUrl);
                 if (!opened) toast.error("Couldn't open the video.");
               }}
             >
               <HStack className="items-center" space="sm">
-                <Ionicons name="play-circle" size={26} color="#6D469B" />
+                <Ionicons name="play-circle" size={26} color={c.brand} />
                 <ButtonText>New here? Watch the getting-started video</ButtonText>
               </HStack>
             </Button>
@@ -73,13 +76,13 @@ export default function OEAWelcomeScreen() {
              Organization -> Settings on the web). */
           <Card variant="outline" size="md">
             <HStack className="items-center" space="sm">
-              <Ionicons name="videocam-outline" size={24} color="#A3A3A3" />
+              <Ionicons name="videocam-outline" size={24} color={c.iconMuted} />
               <View className="flex-1">
                 <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">
                   Getting-started video coming soon
                 </UIText>
                 <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                  Hearthwood Academy will post a short walkthrough of the weekly flow here.
+                  Your school will post a short walkthrough of the weekly flow here.
                 </UIText>
               </View>
             </HStack>
@@ -89,13 +92,13 @@ export default function OEAWelcomeScreen() {
         <Card variant="elevated" size="md">
           <VStack space="sm">
             <HStack className="items-center" space="sm">
-              <Ionicons name="school-outline" size={22} color="#6D469B" />
+              <Ionicons name="school-outline" size={22} color={c.brand} />
               <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">Getting started</UIText>
             </HStack>
-            <UIText size="sm" className="text-typo-600">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               Each student works toward 24 credits on one of three diploma pathways.
             </UIText>
-            <UIText size="sm" className="text-typo-600">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               1. Choose a diploma pathway for each student below — you can change it anytime.{'\n'}
               2. Enter the courses your student is currently working on.{'\n'}
               3. Add work evidence and learning logs to each course every week.
@@ -106,7 +109,7 @@ export default function OEAWelcomeScreen() {
         {children.length === 0 ? (
           <Card variant="outline" size="md">
             <VStack space="md" className="items-center">
-              <Ionicons name="person-add-outline" size={28} color="#6D469B" />
+              <Ionicons name="person-add-outline" size={28} color={c.brand} />
               <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo text-center">
                 Add your first student
               </UIText>
@@ -135,7 +138,7 @@ export default function OEAWelcomeScreen() {
                       <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">
                         {child.display_name || `${child.first_name} ${child.last_name}`.trim()}
                       </UIText>
-                      <UIText size="sm" className={pathwayName ? 'text-typo-600' : 'text-amber-700'}>
+                      <UIText size="sm" className={pathwayName ? 'text-typo-500 dark:text-dark-typo-500' : 'text-amber-700'}>
                         {pathwayName ? pathwayName : 'Get started by choosing a diploma pathway — you can change it anytime.'}
                       </UIText>
                     </View>

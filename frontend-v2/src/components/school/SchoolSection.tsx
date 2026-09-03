@@ -25,12 +25,16 @@ interface SchoolSectionProps {
   icon: keyof typeof Ionicons.glyphMap;
   count?: number;
   intro?: string;
+  /** Open on arrival — for a section that IS the screen (the dedicated
+   *  carpool/documents screens), where closed-by-default would be a click
+   *  for nothing. The hub keeps the closed default. */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
-export function SchoolSection({ title, icon, count, intro, children }: SchoolSectionProps) {
+export function SchoolSection({ title, icon, count, intro, defaultOpen = false, children }: SchoolSectionProps) {
   const c = useThemeColors();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(!defaultOpen);
 
   return (
     <Card className="mb-3 bg-white dark:bg-dark-surface-100">
@@ -43,7 +47,7 @@ export function SchoolSection({ title, icon, count, intro, children }: SchoolSec
       >
         <HStack className={`items-center gap-2.5 ${collapsed ? '' : 'mb-3'}`}>
           <View className="w-8 h-8 rounded-lg bg-optio-purple/10 items-center justify-center">
-            <Ionicons name={icon} size={17} color="#6D469B" />
+            <Ionicons name={icon} size={17} color={c.brand} />
           </View>
           <Heading size="sm" className="flex-1">{title}{count ? ` (${count})` : ''}</Heading>
           <Ionicons

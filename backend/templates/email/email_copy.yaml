@@ -452,6 +452,27 @@ emails:
     closing_paragraph: "If you weren't expecting this change, contact {{ org_name }} or email us at support@optioeducation.com."
     signature: "support"
 
+  # Optio Support handed a member's message to their school. The in-app bell
+  # alone does not reach an admin who isn't logged in, and a forward is Optio
+  # explicitly handing the work over. school_inbox picks the destination the
+  # copy and the button describe: the shared SIS inbox for orgs that run their
+  # front office there, otherwise the admin's own Messages in the web app.
+  school_inbox_forwarded_message:
+    subject: "{{ member_name }} has a message for {{ org_name }}"
+    title: "Message forwarded from Optio Support"
+    salutation: "Hi {{ staff_name }},"
+    paragraphs:
+      - "<strong>{{ member_name }}</strong> wrote to Optio Support, and we've forwarded their message {% if school_inbox %}to the {{ org_name }} inbox so your team can answer it{% else %}to your Optio messages so you can answer it{% endif %}."
+      - "{% if school_inbox %}Reply in the school inbox{% else %}Reply there{% endif %} and it goes straight back to them on Optio."
+    highlight_box:
+      title: "What they wrote"
+      content: "{{ message_excerpt }}"
+    cta:
+      text: "Click here to reply"
+      url: "{{ reply_url }}"
+    closing_paragraph: "You're getting this because you help run {{ org_name }} on Optio."
+    signature: "support"
+
   service_inquiry_notification:
     subject: "We Received Your Inquiry About {{ service_name }}"
     title: "We Received Your Inquiry"

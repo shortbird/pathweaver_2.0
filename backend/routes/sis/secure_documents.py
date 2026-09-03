@@ -16,7 +16,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from services import sis_notifications, sis_secure_docs_service, sis_service
+from services import sis_notifications, sis_onboarding_service, sis_secure_docs_service, sis_service
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import HR_ROLES as STAFF_ROLES
@@ -264,16 +264,41 @@ def list_secure_documents(user_id):
         q = q.eq('student_user_id', student_filter)
     rows = (q.order('created_at', desc=True).execute()).data or []
 
+    # Checklist attachments, so the cabinet shows everything filed about a
+    # person — not just what the office uploaded (see
+    # sis_onboarding_service.checklist_documents). They have no student, so a
+    # student-filtered view has none.
+    if student_filter:
+        extras = []
+    else:
+        extras = sis_onboarding_service.checklist_documents(org_id)
+        if owner_filter:
+            extras = [e for e in extras if e['owner_user_id'] == owner_filter]
+
     ids = []
-    for r in rows:
+    for r in rows + extras:
         ids += [r.get('uploaded_by'), r.get('owner_user_id'), r.get('student_user_id')]
     names = _names_for(ids)
-    for r in rows:
+    # The requires_signature flag is the ask, not the outcome — the signature
+    # itself lives on the checklist item that signed it. Read that evidence
+    # back so a signed contract shows "Signed <date>" instead of an eternal
+    # "Needs signature" (iCreate, 2026-08-31).
+    signatures = (sis_onboarding_service.signatures_by_document(org_id)
+                  if any(r.get('requires_signature') for r in rows) else {})
+    for r in rows + extras:
         r['uploaded_by_name'] = names.get(r.get('uploaded_by'))
         r['owner_name'] = names.get(r.get('owner_user_id'))
         r['student_name'] = names.get(r.get('student_user_id'))
+        sig = signatures.get(r['id'])
+        r['signed_at'] = sig.get('signed_at') if sig else None
+        r['signed_by_name'] = sig.get('signed_by_name') if sig else None
 
-    return jsonify({'success': True, 'documents': rows})
+    # One list, newest first. The two sources write timestamps in different
+    # shapes ('T' vs space separator), so normalize for the sort.
+    merged = sorted(rows + extras,
+                    key=lambda r: (r.get('created_at') or '').replace(' ', 'T'),
+                    reverse=True)
+    return jsonify({'success': True, 'documents': merged})
 
 
 def _doc_or_error(user_id, doc_id):

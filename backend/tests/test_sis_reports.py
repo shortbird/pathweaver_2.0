@@ -506,10 +506,10 @@ class TestMeetingSlot:
         {'label': 'Open studio', 'start': '13:00', 'end': '14:00'},
     ]
 
-    def slot(self, start, end, blocks=None):
+    def slot(self, start, end, blocks=None, **kw):
         return reports._meeting_slot(
             {'start_time': start, 'end_time': end},
-            self.BLOCKS if blocks is None else blocks)
+            self.BLOCKS if blocks is None else blocks, **kw)
 
     def test_one_block(self):
         assert self.slot('10:30', '11:30') == 'Block 2'
@@ -528,6 +528,16 @@ class TestMeetingSlot:
 
     def test_outside_every_block_falls_back_to_times(self):
         assert self.slot('16:00', '17:00') == '4:00pm-5:00pm'
+
+    def test_with_times_appends_the_meeting_times_to_a_block_name(self):
+        """A block name alone means nothing to anyone who hasn't memorized the
+        school's block grid — the master list asks for the times alongside."""
+        assert self.slot('10:30', '11:30', with_times=True) == 'Block 2 (10:30am-11:30am)'
+        assert self.slot('13:00', '14:00', with_times=True) == 'Open studio (1:00pm-2:00pm)'
+        assert self.slot('09:30', '12:30', with_times=True) == 'Blocks 1-3 (9:30am-12:30pm)'
+
+    def test_with_times_does_not_double_up_the_fallback(self):
+        assert self.slot('16:00', '17:00', with_times=True) == '4:00pm-5:00pm'
 
     def test_no_blocks_configured_falls_back_to_times(self):
         assert self.slot('09:30:00', '10:30:00', blocks=[]) == '9:30am-10:30am'
@@ -600,19 +610,22 @@ class TestStudentScheduleReport:
         out = self._run()
         assert [d['label'] for d in out['days']] == ['Tue', 'Wed', 'Thu']
 
-    def test_each_day_cell_names_the_blocks_in_time_order(self):
+    def test_each_day_cell_names_the_blocks_with_times_in_time_order(self):
+        """Cells carry the block name AND the times — iCreate's office reads
+        this list without the block grid in front of them."""
         out = self._run()
         nora = next(r for r in out['rows'] if r['student'] == 'Nora Candland')
-        assert nora['by_day']['2'] == 'Block 1: Pottery; Block 2: Guitar Jam'
+        assert nora['by_day']['2'] == ('Block 1 (9:30am-10:30am): Pottery; '
+                                       'Block 2 (10:30am-11:30am): Guitar Jam')
         assert nora['by_day']['3'] == ''
-        assert nora['by_day']['4'] == 'Block 2: Guitar Jam'
+        assert nora['by_day']['4'] == 'Block 2 (10:30am-11:30am): Guitar Jam'
         assert nora['days'] == 'Tue Thu'
         assert nora['family'] == 'Candland'
 
     def test_a_class_spanning_the_day_reads_as_one_span_skipping_lunch(self):
         out = self._run()
         ryder = next(r for r in out['rows'] if r['student'] == 'Ryder Swenson')
-        assert ryder['by_day']['3'] == 'Blocks 1-5: Full Day'
+        assert ryder['by_day']['3'] == 'Blocks 1-5 (9:30am-3:00pm): Full Day'
         assert ryder['days'] == 'Wed'
 
     def test_an_unscheduled_class_is_reported_not_dropped(self):
@@ -682,7 +695,8 @@ class TestStudentScheduleRoute:
         'has_unscheduled': False,
         'rows': [{'student': 'Nora Candland', 'age': '13', 'family': 'Candland',
                   'days': 'Tue Thu',
-                  'by_day': {'2': 'Block 1: Pottery', '4': 'Block 2: Guitar Jam'},
+                  'by_day': {'2': 'Block 1 (9:30am-10:30am): Pottery',
+                             '4': 'Block 2 (10:30am-11:30am): Guitar Jam'},
                   'unscheduled': ''}],
     }
 
@@ -710,7 +724,9 @@ class TestStudentScheduleRoute:
         assert resp.headers['Content-Disposition'] == 'attachment; filename=student-schedule.csv'
         lines = resp.data.decode().strip().splitlines()
         assert lines[0] == 'Student,Age,Family,Days,Tue,Thu'
-        assert lines[1] == 'Nora Candland,13,Candland,Tue Thu,Block 1: Pottery,Block 2: Guitar Jam'
+        assert lines[1] == ('Nora Candland,13,Candland,Tue Thu,'
+                            'Block 1 (9:30am-10:30am): Pottery,'
+                            'Block 2 (10:30am-11:30am): Guitar Jam')
 
     def test_csv_adds_the_unscheduled_column_only_when_needed(self, client, auth_headers, mock_verify_token):
         rpt = {**self.REPORT, 'has_unscheduled': True,
@@ -838,3 +854,117 @@ class TestDayRostersReport:
         rows = svc.day_rosters_csv_rows(self._report(day=2))
         assert ['Tuesday', 'Block 1', '9:30am-10:25am', 'Choir', 'Hall',
                 'Camille Wood', 'Bo Diddley', 'Diddley'] in rows
+
+
+@pytest.mark.unit
+class TestBlockRostersReport:
+    """iCreate (Marika), 2026-08-24: the day roster pivoted once more — one
+    sheet per block, classes across the page, ages beside the names, "great for
+    Tuesdays and Thursdays Blocks 1-5"."""
+
+    TODAY = date(2026, 8, 24)
+    BLOCKS = {'time_blocks': [
+        {'start': '09:30', 'end': '10:30', 'label': ''},
+        {'start': '10:30', 'end': '11:30', 'label': ''},
+        {'start': '11:30', 'end': '12:30', 'label': ''},
+        {'start': '12:30', 'end': '13:00', 'label': 'Lunch'},
+        {'start': '13:00', 'end': '14:00', 'label': ''},
+    ]}
+    CLASSES = [
+        {'id': 'c1', 'name': 'Pottery', 'location': 'Art room',
+         'primary_instructor': {'name': 'Ana Rogers'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30',
+                       'location': 'Kiln shed'}]},
+        # 9:30-12:30 — the case that sent her to Excel: this spans blocks 1-3,
+        # and its children are in the building at 9:30.
+        {'id': 'c2', 'name': 'Kinder Nature', 'location': 'Story room',
+         'primary_instructor': {'name': 'Camille Wood'},
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '12:30'}]},
+        {'id': 'c3', 'name': 'Retired', 'status': 'archived', 'meetings': [
+            {'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30'}]},
+        # Outside every configured block — must still appear somewhere.
+        {'id': 'c4', 'name': 'Early Birds', 'location': 'The Commons',
+         'meetings': [{'day_of_week': 2, 'start_time': '08:00', 'end_time': '09:00'}]},
+    ]
+    ROSTER = [
+        {'student_id': 's1', 'name': 'Ada Lovelace', 'is_student': True,
+         'date_of_birth': '2013-06-01'},
+        {'student_id': 's2', 'name': 'Bo Diddley', 'is_student': True,
+         'date_of_birth': '2019-12-31'},
+        {'student_id': 'staff1', 'name': 'A Teacher', 'is_student': False},
+    ]
+    ENROLLMENTS = [
+        {'class_id': 'c1', 'student_id': 's1'},
+        {'class_id': 'c2', 'student_id': 's2'},
+        {'class_id': 'c2', 'student_id': 'staff1'},
+    ]
+
+    def _report(self, day=None):
+        from services import sis_reports_service as svc
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
+             patch('services.sis_catalog_service.schedule_settings', return_value=self.BLOCKS), \
+             patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+             patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS), \
+             patch('services.sis_service.get_roster', return_value=self.ROSTER):
+            return svc.block_rosters_report('org-1', day=day)
+
+    def _block(self, label, day=2):
+        days = self._report(day=day)['days']
+        return next(b for b in days[0]['blocks'] if b['label'] == label)
+
+    def test_blocks_are_numbered_past_the_lunch_break(self):
+        """'Block 4' is the fourth TEACHING block, not the fourth row of the
+        org's time_blocks — lunch does not get a number."""
+        labels = [b['label'] for b in self._report(day=2)['days'][0]['blocks']]
+        assert 'Lunch' not in labels
+        assert [l for l in labels if l.startswith('Block')] == ['Block 1', 'Block 2', 'Block 3']
+
+    def test_a_class_appears_under_every_block_it_spans(self):
+        for label in ('Block 1', 'Block 2', 'Block 3'):
+            assert 'Kinder Nature' in {c['name'] for c in self._block(label)['classes']}
+
+    def test_students_carry_their_age(self):
+        pottery = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Pottery')
+        assert pottery['students'] == [{'name': 'Ada Lovelace', 'age': '13'}]
+
+    def test_the_meetings_own_room_wins_over_the_classs(self):
+        pottery = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Pottery')
+        assert pottery['room'] == 'Kiln shed'
+
+    def test_staff_on_a_roster_are_not_counted_as_students(self):
+        kinder = next(c for c in self._block('Block 1')['classes'] if c['name'] == 'Kinder Nature')
+        assert [s['name'] for s in kinder['students']] == ['Bo Diddley']
+
+    def test_archived_classes_are_left_out(self):
+        names = {c['name'] for d in self._report()['days']
+                 for b in d['blocks'] for c in b['classes']}
+        assert 'Retired' not in names
+
+    def test_a_class_outside_every_block_still_gets_a_page(self):
+        """Dropping it would hide children from the sheet that exists to find
+        them, so its own times become a block of one — and it sorts first."""
+        blocks = self._report(day=2)['days'][0]['blocks']
+        assert blocks[0]['label'] == '8:00am-9:00am'
+        assert [c['name'] for c in blocks[0]['classes']] == ['Early Birds']
+
+    def test_a_blocks_student_count_does_not_double_count(self):
+        assert self._block('Block 1')['student_count'] == 2
+
+    def test_the_csv_is_a_grid_of_classes_across_and_students_down(self):
+        from services import sis_reports_service as svc
+        rows = svc.block_rosters_csv_rows(self._report(day=2))
+        assert ['Tuesday - Block 1 (9:30am-10:30am)'] in rows
+        i = rows.index(['Tuesday - Block 1 (9:30am-10:30am)'])
+        assert rows[i + 1] == ['Kinder Nature', '', '', 'Pottery', '', '']
+        assert rows[i + 2] == ['Story room', '', '', 'Kiln shed', '', '']
+        assert rows[i + 3] == ['Student', 'Age', '', 'Student', 'Age', '']
+        assert rows[i + 4] == ['Bo Diddley', '6', '', 'Ada Lovelace', '13', '']
+
+    def test_the_csv_wraps_to_a_new_band_past_three_classes(self):
+        from services import sis_reports_service as svc
+        report = {'days': [{'label': 'Tuesday', 'blocks': [{
+            'label': 'Block 1', 'time': '9:30am-10:30am',
+            'classes': [{'name': f'C{n}', 'room': 'R', 'students': []} for n in range(4)]}]}]}
+        rows = svc.block_rosters_csv_rows(report)
+        assert ['C0', '', '', 'C1', '', '', 'C2', '', ''] in rows
+        assert ['C3', '', ''] in rows

@@ -3,14 +3,14 @@
  * task generation, accept, complete, delete, block normalization.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor, act } from '@testing-library/react-native';
 import { useQuestDetail } from '../useQuestDetail';
 import api from '@/src/services/api';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 const mockQuest = {
   id: 'quest-1',

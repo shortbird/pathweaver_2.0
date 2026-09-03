@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal, findNodeHandle } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Modal, findNodeHandle, RefreshControl } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useBountyDetail, reviewSubmission } from '@/src/hooks/useBounties';
 import { displayImageUrl } from '@/src/services/imageUrl';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge, Divider, Avatar, AvatarFallbackText,
@@ -61,7 +62,7 @@ function EvidenceItem({ item }: { item: any }) {
                     actually readable; tap opens it fullscreen. */}
                 <Image
                   source={{ uri: url }}
-                  style={{ width: '100%', height: 320, borderRadius: 10, backgroundColor: '#F3F4F6' }}
+                  style={{ width: '100%', height: 320, borderRadius: 10, backgroundColor: c.surfaceMuted }}
                   resizeMode="contain"
                 />
               </Pressable>
@@ -97,7 +98,7 @@ function EvidenceItem({ item }: { item: any }) {
     return (
       <Pressable onPress={() => safeOpenURL(videoUrl)}>
         <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
-          <Ionicons name="videocam" size={20} color="#6D469B" />
+          <Ionicons name="videocam" size={20} color={c.brand} />
           <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
             {items[0]?.caption || 'Video evidence'}
           </UIText>
@@ -127,8 +128,8 @@ function EvidenceItem({ item }: { item: any }) {
     return (
       <Pressable onPress={() => url && safeOpenURL(url)}>
         <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
-          <Ionicons name="document-text" size={18} color="#6D469B" />
-          <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1" numberOfLines={1}>{filename}</UIText>
+          <Ionicons name="document-text" size={18} color={c.brand} />
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>{filename}</UIText>
           {url && <Ionicons name="open-outline" size={16} color={c.iconMuted} />}
         </HStack>
       </Pressable>
@@ -167,14 +168,14 @@ function ClaimReviewCard({
     setSubmitting(true);
     try {
       await reviewSubmission(bountyId, claim.id, decision, feedback.trim() || undefined);
-      Alert.alert(
+      showAlert(
         decision === 'approved' ? 'Approved' : decision === 'rejected' ? 'Rejected' : 'Revision Requested',
         decision === 'approved' ? 'XP has been awarded to the student.' : 'The student has been notified.',
       );
       onReviewed();
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Review failed';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setSubmitting(false);
     }
@@ -318,6 +319,11 @@ export default function ReviewBountyPage() {
   // float to the top of the queue, highlight, and scroll into view.
   const { id, claim: highlightClaimId } = useLocalSearchParams<{ id: string; claim?: string }>();
   const { bounty, loading, refetch } = useBountyDetail(id || null);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await refetch(); } finally { setRefreshing(false); }
+  };
   const c = useThemeColors();
 
   const scrollRef = useRef<ScrollView>(null);
@@ -371,7 +377,7 @@ export default function ReviewBountyPage() {
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }
@@ -391,23 +397,34 @@ export default function ReviewBountyPage() {
   const claims = bounty.claims || [];
   // Float the notification-targeted submission to the front of whichever section
   // holds it (usually "awaiting review"; "all claims" if it was already reviewed).
-  const submittedClaims = floatToFront(claims.filter((c: any) => c.status === 'submitted'), highlightClaimId);
+  // Oldest first: the student who has waited longest is reviewed first.
+  const submittedClaims = floatToFront(
+    [...claims.filter((c: any) => c.status === 'submitted')]
+      .sort((a: any, z: any) => new Date(a.submitted_at || 0).getTime() - new Date(z.submitted_at || 0).getTime()),
+    highlightClaimId,
+  );
   const otherClaims = floatToFront(claims.filter((c: any) => c.status !== 'submitted'), highlightClaimId);
   const deliverableMap = buildDeliverableMap(bounty.deliverables);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
-      <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.brand} />}
+      >
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="lg">
 
           {/* Back + Edit */}
           <HStack className="items-center justify-between">
             <Pressable onPress={() => router.back()} className="flex-row items-center gap-2">
-              <Ionicons name="arrow-back" size={22} color="#6D469B" />
+              <Ionicons name="arrow-back" size={22} color={c.brand} />
               <UIText size="sm" className="text-optio-purple font-poppins-medium">Bounties</UIText>
             </Pressable>
             <Pressable onPress={() => router.push(`/bounties/create?edit=${id}`)} className="flex-row items-center gap-1">
-              <Ionicons name="create-outline" size={18} color="#6D469B" />
+              <Ionicons name="create-outline" size={18} color={c.brand} />
               <UIText size="sm" className="text-optio-purple font-poppins-medium">Edit</UIText>
             </Pressable>
           </HStack>
@@ -431,7 +448,7 @@ export default function ReviewBountyPage() {
                       <View className="w-5 h-5 rounded-full bg-optio-purple/10 items-center justify-center">
                         <UIText size="xs" className="text-optio-purple font-poppins-bold">{i + 1}</UIText>
                       </View>
-                      <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600">{d.text}</UIText>
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{d.text}</UIText>
                     </HStack>
                   ))}
                 </VStack>

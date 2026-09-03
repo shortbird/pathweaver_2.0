@@ -6,6 +6,7 @@ import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
 import { getPostLoginPath } from '../../utils/postLoginPath'
+import { exitRoleView } from '../sis/RoleViewSwitcher'
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navRef = useRef(null)
@@ -76,6 +77,13 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
     : effectiveRole === 'parent'
       ? { label: 'Family Dashboard', path: '/parent/dashboard' }
       : { label: 'Profile', path: '/overview' }
+
+  // Parents have no /overview, so "where do I change my name" had no answer in
+  // this menu — the one place people look for it. Deep-link straight into the
+  // Family Settings "You" tab rather than leaving them to find the modal.
+  const accountItem = effectiveRole === 'parent'
+    ? { label: 'Your account', path: '/parent/dashboard?settings=you' }
+    : null
 
   return (
     <nav ref={navRef} className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
@@ -210,6 +218,31 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                       >
                         {profileItem.label}
                       </Link>
+                      {accountItem && (
+                        <Link
+                          role="menuitem"
+                          to={accountItem.path}
+                          onClick={() => setMenuOpen(false)}
+                          className="block px-4 py-2 text-sm font-poppins text-neutral-700 hover:bg-neutral-50 hover:text-optio-purple transition-colors"
+                        >
+                          {accountItem.label}
+                        </Link>
+                      )}
+                      {/* Way back from "view as parent/student": that view
+                          lands here on the learning app, where the SIS
+                          sidebar's switcher isn't visible. */}
+                      {user?.role_view?.active_role && (
+                        <button
+                          role="menuitem"
+                          onClick={async () => {
+                            setMenuOpen(false)
+                            try { await exitRoleView() } catch { /* reload anyway */ }
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm font-poppins text-optio-purple hover:bg-neutral-50 transition-colors"
+                        >
+                          Exit “{user.role_view.active_role === 'advisor' ? 'teacher' : user.role_view.active_role.replace('_', ' ')}” view
+                        </button>
+                      )}
                       <button
                         role="menuitem"
                         onClick={handleLogout}

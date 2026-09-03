@@ -1,10 +1,12 @@
 import React, { useState, memo } from 'react';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
+import useHidePillars from '../../../hooks/useHidePillars';
 import SubjectBadges from '../../common/SubjectBadges';
 
 const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const hidePillars = useHidePillars();
   
   // Get pillar data safely
   const pillarData = getPillarData(task.pillar);
@@ -70,11 +72,15 @@ const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCo
         {/* XP and Skill Badge Row */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            {/* Skill Pillar Badge */}
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${style.bg} ${style.text} text-sm font-medium`}>
-              <span>{style.icon}</span>
-              <span className="capitalize">{task.pillar.replace('_', ' ')}</span>
-            </div>
+            {/* Skill Pillar Badge. The card keeps the pillar's colours either
+                way — what a school switching pillars off is removing is the
+                second name for the work, not the palette. */}
+            {!hidePillars && (
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${style.bg} ${style.text} text-sm font-medium`}>
+                <span>{style.icon}</span>
+                <span className="capitalize">{task.pillar.replace('_', ' ')}</span>
+              </div>
+            )}
 
             {/* Subject XP Distribution */}
             {(task.subject_xp_distribution || task.school_subjects) && (

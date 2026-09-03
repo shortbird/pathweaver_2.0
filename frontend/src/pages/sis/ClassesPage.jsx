@@ -21,7 +21,7 @@ import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 import { fmt12ap } from '../../components/sis/classFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useAuth } from '../../contexts/AuthContext'
-import { canSeeFinance } from './sisRole'
+import { canSeeFinance, isSisAdmin } from './sisRole'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -74,6 +74,7 @@ const stripHtml = (html) => {
 const ClassesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
+  const isAdmin = isSisAdmin(user)
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
@@ -125,8 +126,16 @@ const ClassesPage = () => {
     Promise.all([
       api.get(withOrg(`/api/sis/classes${showArchived ? '?include_archived=true' : ''}`, orgId)),
       api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
+      // Both are ADMIN_ROLES-gated, and this page is open to teachers too. The
+      // .catch kept the page working but every teacher who opened /classes
+      // still fired two guaranteed 403s (Sentry OPTIO-WEB-4/5). Neither answer
+      // is used outside the admin-only editor, so teachers simply don't ask.
+      isAdmin
+        ? api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} }))
+        : Promise.resolve({ data: {} }),
+      isAdmin
+        ? api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} }))
+        : Promise.resolve({ data: {} }),
       // Rooms + school-day blocks. Deliberately NOT /api/admin/organizations/:id:
       // that endpoint is org_admin-gated, so a campus coordinator got a 403 here
       // and the editor silently degraded to a free-text classroom box and raw
@@ -150,7 +159,7 @@ const ClassesPage = () => {
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
-  }, [orgId, showArchived])
+  }, [orgId, showArchived, isAdmin])
 
   useEffect(() => { load() }, [load])
 
@@ -994,7 +1003,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
             </div>
           )}
 
-          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} />}
+          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />}
           {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>
@@ -1010,7 +1019,11 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
 // sibling sections — the same class at a different time, which is what "she is
 // in the wrong one" nearly always means, and the only move that cannot change
 // what the family is charged.
-const ClassRoster = ({ classId, className, orgId }) => {
+// onChanged refreshes the parent's class list. Without it the roster panel's own
+// count moved but the "X / Y enrolled" column, the Full chip and spots_left kept
+// their stale values until the page was reopened (iCreate, 2026-08-26: "it
+// doesn't update the enrolled number ... on a bunch of classes").
+const ClassRoster = ({ classId, className, orgId, onChanged }) => {
   const confirm = useConfirm()
   const [roster, setRoster] = useState(null)
   const [dropping, setDropping] = useState(null)
@@ -1045,6 +1058,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
       toast.success(`Dropped ${s.name}`)
       reload()
+      onChanged?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not drop the student') }
     finally { setDropping(null) }
   }
@@ -1061,6 +1075,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       toast.success(r.data?.already_enrolled ? 'Already on this roster' : 'Added to the class')
       setAdding('')
       reload()
+      onChanged?.()
     } catch (e) {
       if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
         setBusy(false)
@@ -1085,6 +1100,7 @@ const ClassRoster = ({ classId, className, orgId }) => {
       await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
       toast.success(`Moved ${s.name} to ${section.name}`)
       reload()
+      onChanged?.()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not move the student')
     } finally { setDropping(null) }
@@ -1210,6 +1226,9 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   // they want exists, just at another time (iCreate, 2026-07-31).
   const [sections, setSections] = useState([])
   const [movingId, setMovingId] = useState(null)   // entry whose section picker is open
+  const [people, setPeople] = useState([])         // org students, for the add picker
+  const [adding, setAdding] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
 
   const reload = useCallback(() => {
     api.get(`/api/sis/classes/${classId}/waitlist?organization_id=${orgId}`)
@@ -1224,7 +1243,35 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     api.get(withOrg(`/api/sis/classes/${classId}/sibling-sections`, orgId))
       .then((r) => setSections(r.data?.sections || []))
       .catch(() => setSections([]))
+    api.get(withOrg('/api/sis/roster', orgId))
+      .then((r) => setPeople((r.data?.roster || []).filter((p) => p.is_student)))
+      .catch(() => setPeople([]))
   }, [classId, orgId])
+
+  // Put a student on this waitlist by hand. Families join it themselves in the
+  // Schedule Builder, but the office takes the ask on the phone and at the desk
+  // and had nowhere to record it (iCreate, 2026-09-02). Same 409-then-confirm
+  // shape as the roster's Add: a student still waiting for a place at the
+  // SCHOOL is a warning, not a wall.
+  const addToWaitlist = async (force = false) => {
+    if (!adding) return
+    setAddBusy(true)
+    try {
+      await api.post(`/api/sis/classes/${classId}/waitlist`,
+        { organization_id: orgId, student_user_id: adding, force })
+      toast.success('Added to the waitlist')
+      setAdding('')
+      reload()
+      onChanged?.()
+    } catch (e) {
+      if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
+        setAddBusy(false)
+        if (await confirm(`${e.response.data.error}\n\nAdd them anyway?`)) return addToWaitlist(true)
+        return
+      }
+      toast.error(e?.response?.data?.error || 'Could not add the student')
+    } finally { setAddBusy(false) }
+  }
 
   // A seat can only be offered when one is actually open. Offering into a full
   // class enrolls someone over capacity, so the button is disabled until a seat
@@ -1290,6 +1337,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       })
       toast.success(`${section.name} offered to ${e.student_name}`)
       reload()
+      onChanged?.()   // an offer holds a seat, so spots_left and Full move too
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not offer that section')
     } finally { setBusy(null) }
@@ -1329,6 +1377,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       await api.post(`/api/sis/waitlist/${e.id}/offer`, { organization_id: orgId })
       toast.success(`Seat offered to ${e.student_name}`)
       reload()
+      onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not offer the seat')
     } finally { setBusy(null) }
@@ -1345,8 +1394,36 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     } catch { toast.error('Could not remove the entry') } finally { setBusy(null) }
   }
 
+  const queuedIds = new Set(entries.filter((e) => e.status === 'waiting' || e.status === 'offered')
+    .map((e) => e.student_user_id))
+  const addRow = (
+    <div className="flex items-end gap-2 mb-3">
+      <div className="flex-1 min-w-0">
+        <label className="block text-xs text-neutral-500 mb-1" htmlFor={`wl-add-${classId}`}>
+          Add a student to the waitlist
+        </label>
+        <SearchSelect
+          value={adding}
+          onChange={setAdding}
+          options={people.filter((p) => !queuedIds.has(p.student_id))}
+          getId={(p) => p.student_id}
+          getLabel={(p) => (p.age != null ? `${p.name} (age ${p.age})` : p.name)}
+          placeholder="Search students…"
+        />
+      </div>
+      <Button size="sm" disabled={!adding || addBusy} onClick={() => addToWaitlist()}>
+        {addBusy ? 'Adding…' : 'Add'}
+      </Button>
+    </div>
+  )
+
   if (loaded && !entries.length) {
-    return <div className="border-t border-gray-100 mt-3 pt-3 text-sm text-neutral-400">No one on the waitlist.</div>
+    return (
+      <div className="border-t border-gray-100 mt-3 pt-3">
+        {addRow}
+        <p className="text-sm text-neutral-400">No one on the waitlist.</p>
+      </div>
+    )
   }
 
   return (
@@ -1372,6 +1449,7 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
           Class is full ({enrolled}/{capacity}). Drop a student or raise the capacity to offer a seat.
         </p>
       )}
+      {addRow}
       <div className="space-y-1">
         {entries.map((e) => {
           const meta = WAITLIST_STATUS[e.status] || { label: e.status, tone: 'text-neutral-400' }

@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView, Platform } from 'react-native';
+import { Pressable, View, TextInput, Share, Modal, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import api from '@/src/services/api';
@@ -26,6 +26,7 @@ import {
   Avatar, AvatarImage, AvatarFallbackText,
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 
 interface InviteObserverSheetProps {
   visible: boolean;
@@ -157,7 +158,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       setActiveInviteId(data?.invitation_id || null);
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to create invitation link';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setLoading(false);
     }
@@ -228,7 +229,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     if (!email) return;
     const code = extractInvitationCode(link);
     if (!code) {
-      Alert.alert('No link yet', 'Wait for the family link to finish generating, then try again.');
+      showAlert('No link yet', 'Wait for the family link to finish generating, then try again.');
       return;
     }
     setEmailSending(true);
@@ -243,7 +244,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     } catch (err: any) {
       haptic.error();
       const msg = err?.response?.data?.error || 'We couldn’t send that invitation. Double-check the email and try again.';
-      Alert.alert('Could not send invitation', msg);
+      showAlert('Could not send invitation', msg);
     } finally {
       setEmailSending(false);
     }
@@ -271,7 +272,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
           : obs
       ));
       const msg = err?.response?.data?.error || 'Failed to update access';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     }
   };
 
@@ -279,71 +280,59 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
   // parent is actually added — invite them as an observer, then promote — and
   // it existed only on the web until 2026-08-18, so a parent who started on
   // their phone got stuck halfway.
-  const promoteObserver = (observer: Observer) => {
+  const promoteObserver = async (observer: Observer) => {
     const name = observer.observer_name || observer.observer_email || 'this observer';
-    Alert.alert(
-      'Make a parent?',
-      `${name} will get full parent access to your children's accounts — the same as you. This cannot be undone from here.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Make a parent',
-          onPress: async () => {
-            try {
-              const { data } = await api.post('/api/parents/promote-observer', {
-                observer_id: observer.observer_id,
-              });
-              haptic.success();
-              Alert.alert('Done', data?.message || `${name} is now a parent in your family`);
-              // They stop being an observer, so the list has to be re-read
-              // rather than patched.
-              await refreshObservers();
-            } catch (err: any) {
-              haptic.error();
-              Alert.alert('Error', err?.response?.data?.error || 'Could not make this person a parent');
-            }
-          },
-        },
-      ],
-    );
+    const confirmed = await confirmAlert({
+      title: 'Make a parent?',
+      message: `${name} will get full parent access to your children's accounts — the same as you. This cannot be undone from here.`,
+      confirmText: 'Make a parent',
+    });
+    if (!confirmed) return;
+    try {
+      const { data } = await api.post('/api/parents/promote-observer', {
+        observer_id: observer.observer_id,
+      });
+      haptic.success();
+      showAlert('Done', data?.message || `${name} is now a parent in your family`);
+      // They stop being an observer, so the list has to be re-read
+      // rather than patched.
+      await refreshObservers();
+    } catch (err: any) {
+      haptic.error();
+      showAlert('Error', err?.response?.data?.error || 'Could not make this person a parent');
+    }
   };
 
-  const removeObserver = (observer: Observer) => {
+  const removeObserver = async (observer: Observer) => {
     const isPending = observer.status === 'pending';
     const name = observer.observer_name || observer.observer_email || (isPending ? 'this pending invite' : 'this observer');
-    Alert.alert(
-      isPending ? 'Revoke invitation' : 'Remove observer',
-      isPending ? `Revoke ${name}? The link will stop working.` : `Remove ${name} from all kids?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isPending ? 'Revoke' : 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (isPending) {
-                // Pending invite isn't an accepted observer link — revoke it via
-                // the invitation endpoint, not the accepted-observer delete.
-                await api.delete(`/api/observers/family-pending-invites/${observer.invitation_id}`);
-                setObservers((prev) => prev.filter((o) => o.invitation_id !== observer.invitation_id));
-                // If we just revoked the active family link, refresh it so the
-                // link section regenerates rather than pointing at a dead URL.
-                if (observer.invitation_id === activeInviteId) {
-                  setLink(null);
-                  setActiveInviteId(null);
-                  await generateLink();
-                }
-              } else {
-                await api.delete(`/api/observers/family-observers/${observer.observer_id}`);
-                setObservers((prev) => prev.filter((o) => o.observer_id !== observer.observer_id));
-              }
-            } catch {
-              Alert.alert('Error', isPending ? 'Failed to revoke invitation' : 'Failed to remove observer');
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmAlert({
+      title: isPending ? 'Revoke invitation' : 'Remove observer',
+      message: isPending ? `Revoke ${name}? The link will stop working.` : `Remove ${name} from all kids?`,
+      confirmText: isPending ? 'Revoke' : 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      if (isPending) {
+        // Pending invite isn't an accepted observer link — revoke it via
+        // the invitation endpoint, not the accepted-observer delete.
+        await api.delete(`/api/observers/family-pending-invites/${observer.invitation_id}`);
+        setObservers((prev) => prev.filter((o) => o.invitation_id !== observer.invitation_id));
+        // If we just revoked the active family link, refresh it so the
+        // link section regenerates rather than pointing at a dead URL.
+        if (observer.invitation_id === activeInviteId) {
+          setLink(null);
+          setActiveInviteId(null);
+          await generateLink();
+        }
+      } else {
+        await api.delete(`/api/observers/family-observers/${observer.observer_id}`);
+        setObservers((prev) => prev.filter((o) => o.observer_id !== observer.observer_id));
+      }
+    } catch {
+      showAlert('Error', isPending ? 'Failed to revoke invitation' : 'Failed to remove observer');
+    }
   };
 
   const daysLeft = expiresAt
@@ -370,6 +359,8 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
@@ -383,11 +374,11 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
           <VStack space="xs" className="mt-2">
             <HStack className="items-center gap-2">
               <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-              <UIText size="xs" className="text-typo-600">Completed quests &amp; learning moments</UIText>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Completed quests &amp; learning moments</UIText>
             </HStack>
             <HStack className="items-center gap-2">
               <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-              <UIText size="xs" className="text-typo-600">XP totals and pillar progress</UIText>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">XP totals and pillar progress</UIText>
             </HStack>
             <HStack className="items-center gap-2">
               <Ionicons name="close-circle" size={14} color={c.iconMuted} />
@@ -422,7 +413,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
             </Button>
             <Button size="md" variant="outline" onPress={() => setQrVisible(true)} disabled={!link} className="flex-1">
               <HStack className="items-center gap-2">
-                <Ionicons name="qr-code-outline" size={16} color="#6D469B" />
+                <Ionicons name="qr-code-outline" size={16} color={c.brand} />
                 <ButtonText>QR code</ButtonText>
               </HStack>
             </Button>
@@ -535,6 +526,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                       </VStack>
                       <Pressable
                         onPress={() => removeObserver(obs)}
+                        accessibilityRole="button"
                         accessibilityLabel={isPending ? `Revoke invitation for ${name}` : `Remove ${name}`}
                         hitSlop={8}
                         style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
@@ -548,10 +540,11 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                     {!isPending && obs.observer_id && (
                       <Pressable
                         onPress={() => promoteObserver(obs)}
+                        accessibilityRole="button"
                         accessibilityLabel={`Make ${name} a parent`}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 10 }}
                       >
-                        <Ionicons name="people-outline" size={14} color="#6D469B" />
+                        <Ionicons name="people-outline" size={14} color={c.brand} />
                         <UIText size="xs" className="text-optio-purple font-poppins-semibold">
                           Make a parent
                         </UIText>
@@ -574,7 +567,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                               paddingHorizontal: 10,
                               paddingVertical: 4,
                               borderRadius: 999,
-                              backgroundColor: kid.enabled ? '#6D469B' : c.surfaceMuted,
+                              backgroundColor: kid.enabled ? c.brand : c.surfaceMuted,
                               borderWidth: kid.enabled ? 0 : 1,
                               borderColor: c.border,
                             }}

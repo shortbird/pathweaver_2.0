@@ -20,6 +20,7 @@ import { getPillarData } from '../../utils/pillarMappings';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
 import EvidenceDisplay from '../evidence/EvidenceDisplay';
+import CreditFeedbackThread from '../credit/CreditFeedbackThread';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
@@ -28,6 +29,7 @@ import { SparklesIcon, AcademicCapIcon, PencilSquareIcon, BookmarkIcon } from '@
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
+import useHidePillars from '../../hooks/useHidePillars';
 
 // optio-purple. Stands in for the pillar colour where pillars are hidden.
 const BRAND_PURPLE = '#6d469b';
@@ -36,6 +38,7 @@ import { Spinner, ButtonSpinner } from '../ui';
 
 // Sortable Task Item for the collapsible list
 const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) => {
+  const hidePillars = useHidePillars();
   const {
     attributes,
     listeners,
@@ -131,7 +134,7 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMov
           ) : (
             <span
               className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
-              style={{ backgroundColor: pillarData.color }}
+              style={{ backgroundColor: hidePillars ? BRAND_PURPLE : pillarData.color }}
             >
               {task.xp_amount || task.xp_value} XP
             </span>
@@ -171,6 +174,11 @@ const TaskWorkspace = ({
 }) => {
   const { canUseTaskGeneration } = useAIAccess();
   const { effectiveRole } = useAuth();
+  // The prop is the per-quest rule (training quests hide pillars); the hook is
+  // the per-school one. Either hiding wins, so callers get the org's setting
+  // without every one of them having to pass it.
+  const orgHidesPillars = useHidePillars();
+  const pillarsVisible = showPillars && !orgHidesPillars;
   // Diploma credit is a student's. A guardian works through the quest their
   // school set for families on their own account, and requesting credit for it
   // would file "A student requested diploma credit…" into the org's review
@@ -903,7 +911,7 @@ const TaskWorkspace = ({
                     <button
                       onClick={() => setIsEditModalOpen(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                      title="Edit pillar, XP, and diploma credit"
+                      title={pillarsVisible ? 'Edit pillar, XP, and diploma credit' : 'Edit XP and diploma credit'}
                     >
                       <PencilSquareIcon className="w-4 h-4" />
                       Edit
@@ -959,8 +967,9 @@ const TaskWorkspace = ({
                 {/* Task metadata cards */}
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Pillar badge. Hidden for school training, where which of
-                      the five pillars an onboarding task grew is noise. */}
-                  {showPillars && (
+                      the five pillars an onboarding task grew is noise, and for
+                      schools that have switched the pillars off entirely. */}
+                  {pillarsVisible && (
                     <div
                       className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
                       style={{ backgroundColor: pillarData?.color }}
@@ -975,8 +984,8 @@ const TaskWorkspace = ({
                   <div
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
                     style={{
-                      backgroundColor: `${showPillars ? pillarData?.color : BRAND_PURPLE}15`,
-                      color: showPillars ? pillarData?.color : BRAND_PURPLE
+                      backgroundColor: `${pillarsVisible ? pillarData?.color : BRAND_PURPLE}15`,
+                      color: pillarsVisible ? pillarData?.color : BRAND_PURPLE
                     }}
                   >
                     <TrophyIcon className="w-4 h-4" />
@@ -1151,6 +1160,20 @@ const TaskWorkspace = ({
                     onEdit={handleEditEvidence}
                     emptyMessage="No evidence yet. Click 'Add Evidence' to show your work."
                   />
+                )}
+
+                {/* A teacher's feedback on submitted work, where the student is
+                    already standing. The thread existed and was written to from
+                    the SIS submissions inbox, but the student's only view of it
+                    was folded inside the Diploma page's credit tracker, so
+                    feedback landed somewhere they never looked -- and the
+                    notification pointed here, at a page that showed none of it
+                    (Gryffin, 2026-08-31: "I submitted feedback on one of the
+                    submissions, and the student doesn't see it anywhere").
+                    completionId comes from loadPortfolioPick, already fetched
+                    for every completed task. */}
+                {task.is_completed && portfolioPick?.completionId && (
+                  <CreditFeedbackThread completionId={portfolioPick.completionId} />
                 )}
               </div>
             </div>

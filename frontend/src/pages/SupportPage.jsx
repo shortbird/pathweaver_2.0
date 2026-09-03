@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { marketingUrl } from '../utils/marketingUrl'
 
 const SUPPORT_EMAIL = 'support@optioeducation.com'
 
@@ -106,9 +107,9 @@ const SupportPage = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/how-it-works" className="text-optio-purple underline">
+                <a href={marketingUrl('/academy#how-it-works')} className="text-optio-purple underline">
                   How Optio works
-                </Link>
+                </a>
               </li>
               <li>
                 <Link to="/" className="text-optio-purple underline">

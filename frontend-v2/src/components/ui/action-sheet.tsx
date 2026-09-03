@@ -53,7 +53,7 @@ export function ActionSheet({ visible, onClose, title, actions }: ActionSheetPro
       accessibilityRole="button"
       accessibilityLabel={a.label}
     >
-      <Ionicons name={a.icon} size={20} color={a.destructive ? '#EF4444' : '#6D469B'} />
+      <Ionicons name={a.icon} size={20} color={a.destructive ? '#EF4444' : c.brand} />
       <UIText
         size="md"
         className={a.destructive ? 'text-red-500 font-poppins-medium' : 'font-poppins-medium'}

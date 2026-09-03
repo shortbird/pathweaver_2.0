@@ -9,6 +9,12 @@ Two callers, two authorization models, one store:
           is also what answers "which of my kids is this for".
   Staff   routes/sis/prior_learning.py — ADMIN_ROLES, org-scoped.
 
+Both callers can FILE a record, and `source` says which did. The office receives
+transcripts straight from a student's previous school — mailed, emailed, handed
+over at enrollment — and those never pass through a guardian's hands. A staff
+record skips `draft` and opens at `under_review`: the office is not waiting for
+anyone to submit it, it is already looking at it.
+
 Neither may act on an org that hasn't turned the feature on; `enabled_for_org`
 is checked at the top of both route modules rather than here on every call, so
 one disabled-org read doesn't cost a flag lookup per row.
@@ -42,6 +48,11 @@ EVIDENCE_TYPES = ('text', 'link', 'video', 'image', 'document')
 # Statuses a guardian may still edit or withdraw in. Once the office has picked
 # the record up (under_review and later), the family's copy is frozen.
 FAMILY_EDITABLE = ('draft', 'submitted')
+
+# Where a record came from. See the migration: stored, not derived from the
+# submitter's role, which can change under an old record.
+SOURCE_FAMILY = 'family'
+SOURCE_STAFF = 'staff'
 
 REVIEW_STATUSES = ('under_review', 'accepted', 'rejected')
 
@@ -291,6 +302,28 @@ def accepted_credit_totals(student_id: str) -> Dict[str, float]:
     return totals
 
 
+def student_options(org_id: str) -> List[Dict[str, Any]]:
+    """The students the office may file a record for, for the picker.
+
+    Every student in the org, not just actively enrolled ones: a final
+    transcript from a previous school routinely arrives after a student has
+    graduated or withdrawn, and that credit still belongs on their record. The
+    enrollment status rides along so the picker can say so.
+
+    This same list is what `staff_create_record` validates against, so a student
+    that cannot be chosen cannot be filed for either.
+    """
+    from services import sis_service
+    students = [{
+        'student_id': r['student_id'],
+        'name': r['name'],
+        'grade_level': r.get('grade_level'),
+        'enrollment_status': r.get('enrollment_status') or 'unassigned',
+    } for r in sis_service.get_roster(org_id) if r.get('is_student')]
+    students.sort(key=lambda s: (s.get('name') or '').lower())
+    return students
+
+
 # ── Family writes ─────────────────────────────────────────────────────────────
 def create_record(org_id: str, guardian_id: str, student_id: str,
                   data: Dict[str, Any]) -> Dict[str, Any]:
@@ -302,6 +335,7 @@ def create_record(org_id: str, guardian_id: str, student_id: str,
         'organization_id': org_id,
         'student_user_id': student_id,
         'submitted_by': guardian_id,
+        'source': SOURCE_FAMILY,
         'status': 'draft',
     }
     created = _admin().table('prior_learning_records').insert(row).execute().data
@@ -366,11 +400,18 @@ def add_evidence(record_id: str, org_id: str, guardian_id: str,
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
         return {'error': 'The school is reviewing this record, so it can no longer be changed'}
+    return _insert_evidence(record, guardian_id, evidence)
+
+
+def _insert_evidence(record: Dict[str, Any], uploader_id: str,
+                     evidence: Dict[str, Any]) -> Dict[str, Any]:
+    """The write both surfaces share, once their own authorization has passed:
+    ordering, the per-record cap, and signing the pointer back."""
     existing = record.get('evidence', [])
     if len(existing) >= MAX_EVIDENCE_PER_RECORD:
         return {'error': f'A record can hold {MAX_EVIDENCE_PER_RECORD} pieces of evidence'}
     row = {
-        'record_id': record_id,
+        'record_id': record['id'],
         'evidence_type': evidence['evidence_type'],
         'content': _clean_text(evidence.get('content')),
         'url': _clean_text(evidence.get('url'), 2000),
@@ -379,7 +420,7 @@ def add_evidence(record_id: str, org_id: str, guardian_id: str,
         'file_size': evidence.get('file_size'),
         'content_type': _clean_text(evidence.get('content_type'), 120),
         'sequence_order': len(existing),
-        'uploaded_by': guardian_id,
+        'uploaded_by': uploader_id,
     }
     created = _admin().table('prior_learning_evidence').insert(row).execute().data
     if not created:
@@ -446,6 +487,118 @@ def staff_delete_evidence(evidence_id: str, record_id: str,
     if not record:
         return {'error': 'Record not found', 'status': 404}
     return _delete_evidence_row(evidence_id, record_id)
+
+
+# ── Posted evidence ───────────────────────────────────────────────────────────
+def build_evidence(body: Dict[str, Any], file: Any, *,
+                   uploader_id: str, record_id: str) -> tuple:
+    """One posted piece of evidence, validated and (for a file) uploaded.
+
+    Returns (evidence, error). Shared by the family and staff routes so a
+    document the office received and a document a parent sent land in the
+    portfolio as the same artifact, validated the same way — the two surfaces
+    drifting apart here is how one of them quietly starts accepting a file type
+    the other refuses.
+
+    Files are written to storage before this returns, so a caller must have
+    already established that the record exists and is theirs.
+    """
+    evidence_type = (body.get('evidence_type') or '').strip()
+    if evidence_type not in EVIDENCE_TYPES:
+        return None, {'error': 'Unsupported evidence type', 'status': 400}
+
+    evidence = {'evidence_type': evidence_type, 'title': body.get('title')}
+
+    if evidence_type == 'text':
+        content = (body.get('content') or body.get('text_content') or '').strip()
+        if not content:
+            return None, {'error': 'Write something first', 'status': 400}
+        evidence['content'] = content
+        return evidence, None
+
+    if evidence_type in ('link', 'video'):
+        url = (body.get('url') or body.get('text_content') or '').strip()
+        if not url.startswith(('http://', 'https://')):
+            return None, {'error': 'Enter a full link, starting with https://', 'status': 400}
+        evidence['url'] = url
+        return evidence, None
+
+    # image | document
+    if not file or not file.filename:
+        return None, {'error': 'Choose a file to upload', 'status': 400}
+    from services.media_upload_service import MediaUploadService
+    # admin client justified: the upload pipeline writes to storage on behalf of
+    # a caller the route has already authorized for this record.
+    result = MediaUploadService(_admin()).upload_evidence_file(
+        file,
+        user_id=uploader_id,
+        context_type='prior_learning',
+        context_id=record_id,
+        block_type=evidence_type,
+    )
+    if not result.success:
+        return None, {'error': result.error_message or 'Upload failed', 'status': 400}
+    evidence.update({
+        # Canonical pointer to persist, plus the signed twin for the immediate
+        # preview (the bucket is private).
+        'url': result.file_url,
+        'display_url': result.display_url,
+        'title': body.get('title') or result.filename,
+        'file_name': result.filename,
+        'file_size': result.file_size,
+        'content_type': result.content_type,
+        'content': (body.get('note') or body.get('content') or '').strip() or None,
+    })
+    return evidence, None
+
+
+# ── Staff writes ──────────────────────────────────────────────────────────────
+def staff_create_record(org_id: str, staff_id: str, student_id: str,
+                        data: Dict[str, Any]) -> Dict[str, Any]:
+    """The office files a record for a document it received itself.
+
+    Opens at `under_review`, not `draft`: draft exists so a family can assemble
+    a submission out of the office's sight, and a record the office is typing in
+    is already in the office's sight. It also means the record is visible in the
+    queue the moment it exists — a staff record parked in `draft` would vanish
+    from the only page that can see it (list_for_org excludes drafts).
+
+    The student is checked against `student_options`, the same list the picker
+    offers, so a student who cannot be chosen cannot be filed for either.
+    """
+    if not student_id or not any(s['student_id'] == student_id
+                                 for s in student_options(org_id)):
+        return {'error': 'Choose a student in this school', 'status': 400}
+    fields = _record_fields(data)
+    if not fields['title']:
+        return {'error': 'Give this record a title'}
+    row = {
+        **fields,
+        'organization_id': org_id,
+        'student_user_id': student_id,
+        'submitted_by': staff_id,
+        'source': SOURCE_STAFF,
+        'status': 'under_review',
+    }
+    created = _admin().table('prior_learning_records').insert(row).execute().data
+    if not created:
+        return {'error': 'Could not save this record'}
+    return {'record': {**created[0], 'evidence': []}}
+
+
+def staff_add_evidence(record_id: str, org_id: str, staff_id: str,
+                       evidence: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach a document to a record the office is holding.
+
+    Not bound by FAMILY_EDITABLE, for the same reason staff_delete_evidence
+    isn't: the office adds paperwork DURING review — the record it just created
+    is already `under_review`, and a second transcript page that arrives a week
+    later belongs on the record it belongs on, not on a new one.
+    """
+    record = get_record(record_id, org_id)
+    if not record:
+        return {'error': 'Record not found', 'status': 404}
+    return _insert_evidence(record, staff_id, evidence)
 
 
 # ── Staff review ──────────────────────────────────────────────────────────────

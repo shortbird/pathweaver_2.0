@@ -7,6 +7,12 @@ enrolled student, it raises two alert types into sis_engagement_alerts:
 
   - 'unfinished_next_released': a later class quest has released (publish_at <= now,
     or no schedule) while an earlier released quest is still untouched by the student.
+    Raised only on the school's LAST teaching day of the week — see
+    _is_last_school_day. Quests tend to publish at the start of the week, so this
+    condition first becomes true the same morning the work is handed out, and it
+    named students for not having finished tasks they had barely received
+    (iCreate, 2026-09-02, Nicole in ALD). The week's work is judged at the end of
+    the week.
   - 'inactive_two_weeks': the class has released quests the student hasn't finished,
     and the student has made NO task completions in any of the class's quests for 14+
     days (never-started students count once the class has been running 14 days).
@@ -93,6 +99,39 @@ def _class_teacher_ids(class_row: Dict[str, Any], advisors_by_class: Dict[str, s
     if class_row.get('primary_instructor_id'):
         ids.add(class_row['primary_instructor_id'])
     return ids
+
+
+def _last_school_weekday(admin, class_ids: List[str]) -> int:
+    """The latest weekday this school actually teaches, as class_meetings counts
+    them (0=Sun .. 6=Sat). Weekend meetings never define the end of the week for
+    a school that also meets on weekdays, and a school with no weekly meetings on
+    file falls back to Friday."""
+    days = set()
+    for chunk in _chunks(class_ids):
+        rows = (admin.table('class_meetings').select('day_of_week')
+                .in_('class_id', chunk).execute()).data or []
+        days.update(r['day_of_week'] for r in rows if r.get('day_of_week') is not None)
+    weekdays = {d for d in days if 1 <= d <= 5}
+    if weekdays:
+        return max(weekdays)
+    return max(days) if days else 5
+
+
+def _is_last_school_day(org_id: str, admin, class_ids: List[str]) -> bool:
+    """Is today the school's last teaching day of the week, in ITS timezone?
+
+    The sweep runs daily; the unfinished-work alert only wants the last day.
+    Never blocks the sweep: an unreadable timezone or meeting table means the
+    alert behaves as it did before, which is noisy rather than silent.
+    """
+    try:
+        from services.sis_parent_service import _org_today
+        # class_meetings.day_of_week is 0=Sun..6=Sat; date.weekday() is Mon=0..Sun=6.
+        today_dow = (_org_today(org_id).weekday() + 1) % 7
+        return today_dow == _last_school_weekday(admin, class_ids)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'engagement sweep: last-school-day check failed for {org_id[:8]}: {e}')
+        return True
 
 
 def run_sweep() -> Dict[str, Any]:
@@ -204,6 +243,11 @@ def _sweep_org(org_id: str) -> int:
             if r.get('is_active', True) and r.get('advisor_id'):
                 advisors_by_class.setdefault(r['class_id'], set()).add(r['advisor_id'])
 
+    # Unfinished-work alerts wait for the end of the week (see the docstring).
+    # Inactivity is not gated: two weeks of nothing is worth saying on the day it
+    # becomes true.
+    week_is_ending = _is_last_school_day(org_id, admin, class_ids)
+
     new_by_class: Dict[str, List[Dict[str, Any]]] = {}
     total_new = 0
 
@@ -219,8 +263,9 @@ def _sweep_org(org_id: str) -> int:
             for cq in released
         )
         for sid in students_by_class.get(cid, []):
-            # (a) later quest released while an earlier released quest is untouched
-            for later_idx in range(1, len(released)):
+            # (a) later quest released while an earlier released quest is
+            #     untouched. End of the week only.
+            for later_idx in range(1, len(released)) if week_is_ending else ():
                 later = released[later_idx]
                 for earlier in released[:later_idx]:
                     qid = earlier['quest_id']
@@ -329,7 +374,7 @@ def list_open_alerts(org_id: str, class_ids: Optional[List[str]] = None) -> List
     names: Dict[str, str] = {}
     if student_ids:
         for u in (admin.table('users')
-                  .select('id, display_name, first_name, last_name, username, email')
+                  .select('id, display_name, first_name, last_name, username, email, preferred_name')
                   .in_('id', student_ids).execute()).data or []:
             names[u['id']] = ((u.get('display_name') or
                                f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()

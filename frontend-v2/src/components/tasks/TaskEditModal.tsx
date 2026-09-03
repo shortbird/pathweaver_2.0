@@ -12,8 +12,7 @@ import api from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
 import { PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import {
-  VStack, HStack, Heading, UIText, Button, ButtonText,
+import { HStack, Heading, UIText, Button, ButtonText,
 } from '@/src/components/ui';
 
 const pillarChip: Record<string, { active: string; text: string }> = {

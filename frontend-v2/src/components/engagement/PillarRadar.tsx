@@ -21,7 +21,7 @@ const PILLARS = [
 const LEVELS = 4; // number of concentric rings
 
 interface PillarRadarProps {
-  data: Array<{ pillar: string; xp: number }>;
+  data: { pillar: string; xp: number }[];
   size?: number;
 }
 
@@ -112,8 +112,8 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
         {/* Data polygon */}
         <Polygon
           points={dataPolygonPoints}
-          fill="rgba(109, 70, 155, 0.15)"
-          stroke="#6D469B"
+          fill={`${c.brand}26`}
+          stroke={c.brand}
           strokeWidth={2}
         />
 

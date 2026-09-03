@@ -142,6 +142,7 @@ function ExpandableText({ text }: { text: string }) {
 
 /** Inline evidence display for a single task -- images, videos, docs rendered directly */
 function InlineEvidence({ task }: { task: TaskItem }) {
+  const c = useThemeColors();
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   const blocks = task.evidenceBlocks;
@@ -225,7 +226,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
           <Pressable key={`link-${i}`} onPress={() => safeOpenURL(url)}>
             <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
               <HStack className="items-center gap-2">
-                <Ionicons name="link-outline" size={16} color="#6D469B" />
+                <Ionicons name="link-outline" size={16} color={c.brand} />
                 <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
                   {title || url}
                 </UIText>
@@ -265,7 +266,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
         <Pressable onPress={() => safeOpenURL(task.evidenceUrl!)}>
           <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
             <HStack className="items-center gap-2">
-              <Ionicons name="link-outline" size={16} color="#6D469B" />
+              <Ionicons name="link-outline" size={16} color={c.brand} />
               <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
                 {task.evidenceUrl}
               </UIText>
@@ -328,6 +329,7 @@ function TaskList({ tasks }: { tasks: TaskItem[] }) {
 
 /** Single quest card with expand/collapse */
 function QuestCard({ group }: { group: QuestGroup }) {
+  const c = useThemeColors();
   const [expanded, setExpanded] = useState(false);
   const primaryPillar = group.pillars[0] || 'stem';
   const pillarConfig = getPillar(primaryPillar);
@@ -423,7 +425,7 @@ function QuestCard({ group }: { group: QuestGroup }) {
           </UIText>
           {group.courseTitle && (
             <HStack className="items-center gap-1 mt-0.5">
-              <Ionicons name="school-outline" size={11} color="#6D469B" />
+              <Ionicons name="school-outline" size={11} color={c.brand} />
               <UIText size="xs" className="text-optio-purple">{group.courseTitle}</UIText>
             </HStack>
           )}

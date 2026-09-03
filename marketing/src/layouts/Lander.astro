@@ -1,0 +1,28 @@
+---
+/**
+ * Campaign lander chrome: no nav, no doors, one job. The footer is reduced to
+ * the legal minimum (brand, accreditation disclosure, privacy/terms).
+ */
+import Base from './Base.astro'
+import WascBadge from '../components/WascBadge.astro'
+import { appLink } from '../data/site'
+
+const props = Astro.props
+---
+
+<Base {...props}>
+  <main>
+    <slot />
+  </main>
+  <footer class="bg-neutral-900 text-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-10 flex flex-col items-center gap-6 text-center">
+      <img src="/images/OptioLogo-FullColor.svg" alt="Optio" class="h-7 brightness-0 invert" width="105" height="28" />
+      <WascBadge variant="inline" class="items-center sm:items-center [&_p]:text-center" />
+      <p class="text-neutral-400 text-xs">
+        &copy; {new Date().getFullYear()} Optio, LLC &middot;
+        <a href={appLink('/terms')} class="underline hover:text-neutral-300">Terms</a> &middot;
+        <a href={appLink('/privacy')} class="underline hover:text-neutral-300">Privacy</a>
+      </p>
+    </div>
+  </footer>
+</Base>

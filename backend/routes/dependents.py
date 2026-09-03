@@ -174,6 +174,20 @@ def create_dependent(user_id):
         except ValueError:
             raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
 
+        # Same duplicate guard as /add-child: re-adding a kid who already has
+        # an account creates the orphan double the school then has to clean up.
+        parts = display_name.split()
+        dup = _existing_child_match(user_id, parts[0] if parts else display_name,
+                                    ' '.join(parts[1:]), date_of_birth_str)
+        if dup:
+            return jsonify({
+                'success': False,
+                'code': 'duplicate_child',
+                'error': (f'{display_name} already has an account here.'
+                          ' If something about it looks wrong, ask your school to fix'
+                          ' that account instead of adding a second one.'),
+            }), 409
+
         # Create dependent
         # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
@@ -203,6 +217,46 @@ def create_dependent(user_id):
     except Exception as e:
         logger.error(f"Error creating dependent for user {user_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to create dependent profile'}), 500
+
+
+def _existing_child_match(parent_id, first_name, last_name, dob_str):
+    """An existing account that is almost certainly this same child.
+
+    Two signals, either one decides: a child already managed by THIS parent
+    with the same name, or an account in the parent's org matching name AND
+    birth date (a teen with their own login, or a funnel-created sibling).
+    Name matching is case-insensitive.
+    """
+    try:
+        # admin client justified: read-only duplicate probe over the caller's own
+        # children and org, before creating an account on their behalf
+        admin = get_supabase_admin_client()
+        full = f'{first_name} {last_name}'.strip().lower()
+
+        mine = (admin.table('users')
+                .select('id, display_name, first_name, last_name, date_of_birth')
+                .eq('managed_by_parent_id', parent_id).execute()).data or []
+        for u in mine:
+            name = (u.get('display_name')
+                    or f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip().lower()
+            if name == full:
+                return u
+
+        parent = (admin.table('users').select('organization_id')
+                  .eq('id', parent_id).limit(1).execute()).data
+        org_id = parent[0].get('organization_id') if parent else None
+        if org_id and dob_str:
+            rows = (admin.table('users')
+                    .select('id, display_name, first_name, last_name, is_dependent')
+                    .eq('organization_id', org_id)
+                    .eq('date_of_birth', dob_str)
+                    .ilike('first_name', first_name)
+                    .ilike('last_name', last_name).execute()).data or []
+            if rows:
+                return rows[0]
+    except Exception as e:  # noqa: BLE001 — a failed probe must not block adding a child
+        logger.warning(f'Duplicate-child probe failed for parent {parent_id}: {e}')
+    return None
 
 
 @bp.route('/add-child', methods=['POST'])
@@ -242,6 +296,23 @@ def add_child(user_id):
 
         from services import family_student_service
         age = family_student_service.calculate_age(date_of_birth)
+
+        # A parent who registered through the school funnel and then opens the
+        # portal often re-adds the same kid, which mints a second account that
+        # haunts the school's People page as an orphan duplicate (iCreate,
+        # 2026-08-28: "They're showing up twice but not sure why"). Same name
+        # under the same parent, or same name + birth date in the parent's org,
+        # is that kid.
+        dup = _existing_child_match(user_id, first_name, last_name, dob_str)
+        if dup:
+            return jsonify({
+                'success': False,
+                'code': 'duplicate_child',
+                'error': (f'{first_name} already has an account here'
+                          f' ({dup.get("display_name") or "existing profile"}).'
+                          ' If something about it looks wrong, ask your school to fix'
+                          ' that account instead of adding a second one.'),
+            }), 409
 
         if age >= 13:
             # admin client justified: reads the caller's own org to decide whether
@@ -754,50 +825,59 @@ def add_dependent_login(user_id, dependent_id):
         if existing_email and not existing_email.endswith('@optio-internal-placeholder.local'):
             raise ValidationError("This dependent already has login credentials")
 
-        # Check if email is already in use
+        # Cheap pre-check against the profile table. It cannot be complete --
+        # a dependent's login email lives only in auth.users (see below), and
+        # auth has no indexed lookup exposed here -- so GoTrue's own duplicate
+        # error is translated below rather than left to surface as a 500.
         email_check = supabase.table('users').select('id').eq('email', email).execute()
         if email_check.data:
             raise ValidationError("This email is already in use")
 
-        # Create Supabase Auth account for the dependent
-        auth_response = supabase.auth.admin.create_user({
-            'email': email,
-            'password': password,
-            'email_confirm': True,  # Skip email verification since parent is authorizing
-            'user_metadata': {
-                'display_name': dependent.get('display_name'),
-                'is_dependent': True,
-                'managed_by_parent_id': user_id
-            }
-        })
+        # Update the dependent's EXISTING auth account rather than creating a
+        # second one. create_dependent already made one (a stub with a
+        # placeholder email) whose id IS this profile's id.
+        #
+        # The old code created a new auth user and then tried to repoint
+        # users.id at it, which failed twice over (Sentry OPTIO-BACKEND-7M/7N):
+        #
+        #   * `check_dependent_no_email` is CHECK (NOT is_dependent OR email IS
+        #     NULL) -- a dependent may not carry an email in public.users at
+        #     all, which is the COPPA shape create_dependent deliberately
+        #     writes. Setting one raised 23514 every single time, so this
+        #     endpoint could never once have succeeded.
+        #   * The raise happened before the rollback (which only ran when the
+        #     update returned no rows, not when it threw), so each attempt
+        #     leaked an orphaned auth user holding the address. The parent's
+        #     next try then failed with "A user with this email address has
+        #     already been registered" -- a different error for the same cause.
+        #
+        # Updating in place also avoids rewriting a primary key that ~40 tables
+        # reference.
+        try:
+            supabase.auth.admin.update_user_by_id(dependent_id, {
+                'email': email,
+                'password': password,
+                'email_confirm': True,  # parent is authorizing; skip verification
+            })
+        except Exception as e:
+            message = str(e).lower()
+            if 'already been registered' in message or 'already exists' in message:
+                # Held by another auth account the profile-table check can't see.
+                raise ValidationError("This email is already in use")
+            logger.error(f"Failed to set login credentials for dependent {dependent_id}: {e}")
+            raise ValidationError("Failed to add login credentials")
 
-        if not auth_response.user:
-            raise ValidationError("Failed to create login credentials")
-
-        new_auth_id = auth_response.user.id
-
-        # Update the user record with the new email and auth ID
-        # IMPORTANT: Keep is_dependent=True and managed_by_parent_id set
-        update_result = supabase.table('users').update({
-            'email': email,
-            'id': new_auth_id  # Link to new Supabase Auth account
-        }).eq('id', dependent_id).execute()
-
-        if not update_result.data:
-            # Rollback: delete the auth user if profile update failed
-            try:
-                supabase.auth.admin.delete_user(new_auth_id)
-            except Exception:
-                logger.debug("intentional swallow", exc_info=True)
-            raise ValidationError("Failed to link login credentials to profile")
-
+        # public.users is deliberately NOT given the email: the CHECK constraint
+        # forbids it while is_dependent is true, and the child stays a dependent
+        # under parental oversight. Login resolves the profile by auth id, which
+        # is unchanged, so nothing here needs to move.
         logger.info(f"Parent {user_id} added login credentials for dependent {dependent_id}")
 
         return jsonify({
             'success': True,
             'message': 'Login credentials added successfully',
             'dependent': {
-                'id': new_auth_id,
+                'id': dependent_id,
                 'email': email,
                 'display_name': dependent.get('display_name'),
                 'is_dependent': True

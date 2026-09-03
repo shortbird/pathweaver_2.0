@@ -301,11 +301,11 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                         resizeMode="cover"
                       />
                     ) : (
-                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#6D469B20', alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: `${c.brand}20`, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons
                           name={item.file.type?.startsWith('video/') ? 'videocam' : 'document-attach'}
                           size={18}
-                          color="#6D469B"
+                          color={c.brand}
                         />
                       </View>
                     )}
@@ -342,7 +342,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   borderStyle: 'dashed',
                 }}
               >
-                <Ionicons name="attach-outline" size={18} color="#6D469B" />
+                <Ionicons name="attach-outline" size={18} color={c.brand} />
                 <UIText size="xs" className="text-optio-purple font-poppins-medium">
                   {files.length > 0 ? 'More files' : 'Files'}
                 </UIText>
@@ -362,7 +362,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   borderStyle: 'dashed',
                 }}
               >
-                <Ionicons name="document-text-outline" size={18} color="#6D469B" />
+                <Ionicons name="document-text-outline" size={18} color={c.brand} />
                 <UIText size="xs" className="text-optio-purple font-poppins-medium">Text Note</UIText>
               </Pressable>
               <Pressable
@@ -380,7 +380,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   borderStyle: 'dashed',
                 }}
               >
-                <Ionicons name="link-outline" size={18} color="#6D469B" />
+                <Ionicons name="link-outline" size={18} color={c.brand} />
                 <UIText size="xs" className="text-optio-purple font-poppins-medium">Link</UIText>
               </Pressable>
             </HStack>
@@ -393,7 +393,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                     <Ionicons
                       name={block.type === 'link' ? 'link-outline' : 'document-text-outline'}
                       size={18}
-                      color="#6D469B"
+                      color={c.brand}
                       style={{ marginTop: 4 }}
                     />
                     <TextInput

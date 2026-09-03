@@ -18,14 +18,25 @@ bp = Blueprint('org_setup', __name__, url_prefix='/api/admin/organizations')
 
 
 def _org_role_set(user):
-    """All org roles a member carries (org_roles array plus legacy org_role)"""
+    """All org roles a member carries (org_roles array plus legacy org_role).
+
+    Falls back to users.role for a member who has an organisation but none of
+    the org columns set -- the shape parent-created children used to be written
+    in, which made them invisible to this checklist while other counts saw them.
+    Matches sis_service.is_student().
+    """
     roles = user.get('org_roles')
     if not isinstance(roles, list):
         roles = []
     legacy = user.get('org_role')
     if legacy:
         roles = roles + [legacy]
-    return {r for r in roles if r}
+    resolved = {r for r in roles if r}
+    if not resolved:
+        plain = user.get('role')
+        if plain and plain != 'org_managed':
+            resolved = {plain}
+    return resolved
 
 
 @bp.route('/<org_id>/setup-status', methods=['GET'])
@@ -51,10 +62,13 @@ def get_setup_status(current_user_id, current_org_id, is_superadmin, org_id):
     supabase = get_supabase_admin_client()
 
     try:
-        members = supabase.table('users')\
-            .select('id, org_role, org_roles')\
-            .eq('organization_id', org_id)\
-            .execute().data or []
+        # Paged: student_ids drives the class counts below, so a silently
+        # truncated read here would undercount everything downstream.
+        members = fetch_all_rows(lambda: (
+            supabase.table('users')
+            .select('id, role, org_role, org_roles')
+            .eq('organization_id', org_id)
+        ))
 
         teachers = students = parents = 0
         student_ids = []

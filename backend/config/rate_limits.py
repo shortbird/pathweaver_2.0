@@ -14,9 +14,16 @@ RATE_LIMITS = {
         'production': {'requests': 3, 'window': 900},  # 3 per 15 minutes
         'development': {'requests': 10, 'window': 300},  # 10 per 5 minutes
     },
+    # Registration is anonymous, so this is keyed per IP — and a school front
+    # office (or a registration night on school Wi-Fi) is many humans behind ONE
+    # NAT IP. Tripping the limit blocks that IP for the full window, locking the
+    # whole school out (OPTIO-BACKEND-74, 2026-08-24: Arete Academy throttled at
+    # 5/5min while creating student accounts). Keep this generous: it only needs
+    # to stop scripted floods, not cap human throughput. Real abuse is bounded
+    # downstream by email verification.
     'auth_register': {
-        'production': {'requests': 3, 'window': 900},  # 3 per 15 minutes
-        'development': {'requests': 10, 'window': 300},  # 10 per 5 minutes
+        'production': {'requests': 60, 'window': 300},  # 60 per 5 minutes per IP
+        'development': {'requests': 100, 'window': 300},  # 100 per 5 minutes
     },
     'auth_refresh': {
         'production': {'requests': 10, 'window': 60},  # 10 per minute

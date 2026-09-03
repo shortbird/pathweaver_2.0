@@ -9,10 +9,11 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { View, TextInput, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/src/services/api';
+import { showAlert } from '@/src/utils/alerts';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
@@ -82,7 +83,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
       const msg = err.response?.data?.error?.message
         || err.response?.data?.error
         || 'Could not create class.';
-      Alert.alert('Error', typeof msg === 'string' ? msg : 'Could not create class.');
+      showAlert('Error', typeof msg === 'string' ? msg : 'Could not create class.');
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +114,8 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
@@ -150,7 +153,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
                       key={s.key}
                       testID={`subject-${s.key}`}
                       onPress={() => setSubject(s)}
-                      className={`rounded-xl p-3 border-2 ${selected ? 'border-optio-purple bg-purple-50' : 'border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100'}`}
+                      className={`rounded-xl p-3 border-2 ${selected ? 'border-optio-purple bg-brand-surface-50 dark:bg-dark-brand-surface-50' : 'border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100'}`}
                     >
                       <HStack className="items-center gap-3">
                         <View
@@ -163,7 +166,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
                           <UIText size="md" className="font-poppins-semibold">{s.name}</UIText>
                           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{s.description}</UIText>
                         </VStack>
-                        {selected && <Ionicons name="checkmark-circle" size={22} color="#6D469B" />}
+                        {selected && <Ionicons name="checkmark-circle" size={22} color={c.brand} />}
                       </HStack>
                     </Pressable>
                   );

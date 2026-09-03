@@ -103,34 +103,46 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # gated by an opaque per-registration access_token in the request body
     # (constant-time compared), which a cross-site attacker cannot know, so
     # CSRF exemption is safe.
-    'icreate_registration.start',
-    'icreate_registration.verify_code',
-    'icreate_registration.resend_code',
-    'icreate_registration.login',
-    'icreate_registration.submit_family',
-    'icreate_registration.submit_details',
-    'icreate_registration.submit_paperwork',
-    'icreate_registration.create_checkout',
-    'icreate_registration.preview_checkout',
-    'icreate_registration.confirm_payment',
-    'icreate_registration.record_fee',
+    'registration.start',
+    'registration.verify_code',
+    'registration.resend_code',
+    'registration.login',
+    'registration.submit_family',
+    'registration.submit_details',
+    'registration.submit_records_destination',
+    'registration.submit_paperwork',
+    'registration.create_checkout',
+    'registration.preview_checkout',
+    'registration.confirm_payment',
+    'registration.record_fee',
     # Added 2026-08-01: fee_status shipped without an entry here, so the fee
     # step 403'd for any parent arriving already signed in. Same protection as
     # every sibling above -- it POSTs and checks _authz(reg, access_token).
-    'icreate_registration.fee_status',
-    'icreate_registration.upload_photo',
-    'icreate_registration.schedule_done',
-    'icreate_registration.appointment_done',
+    'registration.fee_status',
+    'registration.upload_photo',
+    'registration.schedule_done',
+    'registration.appointment_done',
     # CRM public/internal endpoints, each with its own proof: unsubscribe is
     # gated by the opaque per-lead token (and must work for a recipient whose
     # browser happens to carry auth cookies — same trap as the iCreate funnel
-    # above); the SendGrid webhook is Ed25519-signature-authenticated; the
+    # above); the SendGrid webhook is ECDSA-signature-authenticated; the
     # sweep/poll triggers require X-Cron-Secret or a superadmin session and
     # only start a run the cron would start anyway within 10 minutes.
     'crm.unsubscribe_perform',
     'crm.sendgrid_events',
     'crm.funnel_sweep',
     'crm.calendar_poll',
+})
+
+# The registration funnel is also served under its DEPRECATED /api/icreate
+# prefix (routes/__init__.py registers the blueprint a second time as
+# 'icreate_registration'), which gives every view a second endpoint name. Mirror
+# the exemptions onto it rather than hand-listing them, so the two prefixes
+# cannot drift while the alias exists. Delete this along with the alias.
+CSRF_ALIAS_PREFIX = 'icreate_registration.'
+CSRF_EXEMPT_ENDPOINTS = frozenset(CSRF_EXEMPT_ENDPOINTS | {
+    CSRF_ALIAS_PREFIX + name.split('.', 1)[1]
+    for name in CSRF_EXEMPT_ENDPOINTS if name.startswith('registration.')
 })
 
 

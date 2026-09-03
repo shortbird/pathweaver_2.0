@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -95,7 +96,7 @@ def list_requests(org_id: str, status: Optional[str] = None) -> List[Dict[str, A
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     }
@@ -189,12 +190,14 @@ def _same_time_conflicts(student_user_id: str, class_id: str) -> List[Dict[str, 
     })
     if not conflict_ids:
         return []
+    # An archived class no longer meets — a stale active enrollment in one must
+    # not count as a conflict (phantom Expressions conflict, iCreate 2026-08-24).
     names = {
         c['id']: c.get('name') or 'Class' for c in (
-            admin.table('org_classes').select('id, name').in_('id', conflict_ids).execute()
-        ).data or []
+            admin.table('org_classes').select('id, name, status').in_('id', conflict_ids).execute()
+        ).data or [] if c.get('status') != 'archived'
     }
-    return [{'class_id': cid, 'class_name': names.get(cid, 'Class')} for cid in conflict_ids]
+    return [{'class_id': cid, 'class_name': name} for cid, name in names.items()]
 
 
 def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
@@ -220,7 +223,7 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         if conflicts and not drop_conflicting:
             return {'conflicts': conflicts}
         if conflicts:
-            _admin().table('class_enrollments').update({'status': 'dropped'}) \
+            _admin().table('class_enrollments').update({'status': 'withdrawn'}) \
                 .eq('student_id', req['student_user_id']) \
                 .in_('class_id', [c['class_id'] for c in conflicts]) \
                 .eq('status', 'active').execute()
@@ -237,6 +240,7 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         }, on_conflict='class_id,student_id').execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(req['class_id'], actor_id=resolved_by)
+        _enroll_in_class_quests(_admin(), req['class_id'], req['student_user_id'])
         # A now-enrolled student shouldn't linger on this or sibling class waitlists.
         from services import sis_waitlist_service
         sis_waitlist_service.clear_entry_for_enrollment(

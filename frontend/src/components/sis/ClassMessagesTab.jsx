@@ -15,14 +15,17 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 /**
  * ClassMessagesTab — the full platform messenger, scoped to one class.
  *
- * Left rail: the class chat (the roster-synced group) and everyone in the class
- * the teacher can message one-to-one. Right pane: the same GroupChatWindow and
- * ChatWindow the Learning app messages page uses, so replies, attachments,
- * reactions, edit/delete, pins and announcement-only all work here with no
- * second implementation to keep in sync.
+ * Left rail: the class's two chats (both roster-synced groups) and everyone in
+ * the class the teacher can message one-to-one. Right pane: the same
+ * GroupChatWindow and ChatWindow the Learning app messages page uses, so
+ * replies, attachments, reactions, edit/delete, pins and announcement-only all
+ * work here with no second implementation to keep in sync.
  *
- * Students reach the same conversations from their own /messages page — the
- * class chat is in their group list and their teachers are messaging contacts.
+ * Two chats, two audiences (2026-08-31, replacing the discussion board):
+ *   - Parent chat — guardians of the enrolled students + teachers. Students
+ *     are deliberately not in it (2026-08-22): the class-wide conversation
+ *     between adults stays between adults.
+ *   - Student chat — the enrolled students + teachers.
  */
 const ClassMessagesTab = ({ classId, orgId, className }) => {
   const { user } = useAuth()
@@ -45,9 +48,10 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
       .then((r) => {
         if (cancelled) return
         setData(r.data)
-        // Open the class chat first — it is what most teachers came for.
-        if (r.data?.group?.id) {
-          setSelected({ kind: 'group', id: r.data.group.id })
+        // Open the parent chat first — it is what most teachers came for.
+        const first = r.data?.group?.id || r.data?.student_group?.id
+        if (first) {
+          setSelected({ kind: 'group', id: first })
         }
       })
       .catch((e) => {
@@ -58,8 +62,10 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
     return () => { cancelled = true }
   }, [classId, orgId])
 
-  const group = data?.group || null
+  const parentGroup = data?.group || null
+  const studentGroup = data?.student_group || null
   const students = data?.students || []
+  const guardians = data?.guardians || []
   const teachers = data?.teachers || []
 
   const unreadByUser = useMemo(() => {
@@ -70,10 +76,11 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
     return map
   }, [conversationsData])
 
-  const groupUnread = useMemo(() => {
-    const groups = groupsData?.groups || []
-    return groups.find((g) => g.id === group?.id)?.unread_count || 0
-  }, [groupsData, group?.id])
+  const unreadByGroup = useMemo(() => {
+    const map = {}
+    for (const g of groupsData?.groups || []) map[g.id] = g.unread_count || 0
+    return map
+  }, [groupsData])
 
   const matches = (person) => {
     const q = search.trim().toLowerCase()
@@ -81,24 +88,32 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
     return `${person.name} ${person.preferred_name || ''}`.toLowerCase().includes(q)
   }
   const shownStudents = students.filter(matches)
+  const shownGuardians = guardians.filter(
+    (g) => matches(g) || (g.subtitle || '').toLowerCase().includes(search.trim().toLowerCase()),
+  )
   const shownTeachers = teachers.filter(matches)
 
   // ChatWindow works off { id, other_user } — the backend accepts a user id in
   // place of a conversation id and opens (or creates) the DM.
   const selectedPerson = selected?.kind === 'dm'
-    ? [...students, ...teachers].find((p) => p.id === selected.id)
+    ? [...students, ...guardians, ...teachers].find((p) => p.id === selected.id)
     : null
 
+  const selectedGroup = selected?.kind === 'group'
+    ? [parentGroup, studentGroup].find((g) => g && g.id === selected.id)
+    : null
+
+  const DM_ROLE = { teacher: 'advisor', parent: 'parent', student: 'student' }
   const conversation = selectedPerson ? {
     id: selectedPerson.id,
-    type: selectedPerson.relationship === 'teacher' ? 'advisor' : 'student',
+    type: DM_ROLE[selectedPerson.relationship] || 'student',
     other_user: {
       id: selectedPerson.id,
       display_name: selectedPerson.name,
       first_name: selectedPerson.name.split(' ')[0],
       last_name: selectedPerson.name.split(' ').slice(1).join(' '),
       avatar_url: selectedPerson.avatar_url,
-      role: selectedPerson.relationship === 'teacher' ? 'advisor' : 'student',
+      role: DM_ROLE[selectedPerson.relationship] || 'student',
     },
   } : null
 
@@ -117,8 +132,9 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
   return (
     <div>
       <p className="text-sm text-neutral-500 mb-3">
-        Message the whole class at once, or a student one-to-one. Students see these in
-        the Optio app under Messages, and parents can see their own student&apos;s messages.
+        The parent chat reaches the parents of everyone enrolled; the student chat reaches
+        the students. Each group only sees its own chat. For a word with one family,
+        message a parent directly from the list.
       </p>
 
       <div className="flex h-[70vh] min-h-[420px] bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -140,11 +156,15 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {group && (
+            {[
+              [parentGroup, 'Parent chat', `Parents and teachers of ${className || 'this class'}`],
+              [studentGroup, 'Student chat', `Students and teachers of ${className || 'this class'}`],
+            ].map(([g, label, who]) => g && (
               <button
-                onClick={() => setSelected({ kind: 'group', id: group.id })}
+                key={g.id}
+                onClick={() => setSelected({ kind: 'group', id: g.id })}
                 className={`w-full px-4 py-3 flex items-center gap-3 border-l-2 transition-colors ${
-                  selected?.kind === 'group'
+                  selected?.kind === 'group' && selected.id === g.id
                     ? 'bg-purple-50 border-optio-purple'
                     : 'border-transparent hover:bg-gray-50'}`}
               >
@@ -152,25 +172,25 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
                     <UsersIcon className="w-5 h-5 text-white" />
                   </div>
-                  {groupUnread > 0 && (
+                  {(unreadByGroup[g.id] || 0) > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-                      {groupUnread > 9 ? '9+' : groupUnread}
+                      {unreadByGroup[g.id] > 9 ? '9+' : unreadByGroup[g.id]}
                     </span>
                   )}
                 </div>
                 <div className="min-w-0 text-left">
-                  <p className="text-sm font-semibold text-neutral-900 truncate">Class chat</p>
+                  <p className="text-sm font-semibold text-neutral-900 truncate">{label}</p>
                   <p className="text-xs text-neutral-500 truncate">
-                    Everyone in {className || 'this class'}
-                    {group.announcement_only ? ' · Announcement-only' : ''}
+                    {who}
+                    {g.announcement_only ? ' · Announcement-only' : ''}
                   </p>
                 </div>
               </button>
-            )}
+            ))}
 
-            {!group && (
+            {!parentGroup && !studentGroup && (
               <p className="px-4 py-3 text-xs text-neutral-500">
-                The class chat starts once a student is enrolled.
+                The class chats start once a student is enrolled.
               </p>
             )}
 
@@ -182,6 +202,17 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
               onSelect={(p) => setSelected({ kind: 'dm', id: p.id })}
               emptyLabel={search ? 'No match.' : 'No students enrolled yet.'}
             />
+
+            {guardians.length > 0 && (
+              <PersonSection
+                title={`Parents (${guardians.length})`}
+                people={shownGuardians}
+                selectedId={selected?.kind === 'dm' ? selected.id : null}
+                unreadByUser={unreadByUser}
+                onSelect={(p) => setSelected({ kind: 'dm', id: p.id })}
+                emptyLabel="No match."
+              />
+            )}
 
             {teachers.length > 0 && (
               <PersonSection
@@ -198,9 +229,9 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
 
         {/* Right pane — the real chat windows */}
         <div className={`flex-1 flex flex-col min-w-0 ${!selected ? 'hidden md:flex' : 'flex'}`}>
-          {selected?.kind === 'group' && group ? (
+          {selectedGroup ? (
             <GroupChatWindow
-              group={{ ...group, name: group.name || `${className} Class Chat` }}
+              group={{ ...selectedGroup, name: selectedGroup.name || `${className} Class Chat` }}
               onBack={() => setSelected(null)}
             />
           ) : conversation ? (
@@ -209,7 +240,7 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
             <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
               <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mb-3" />
               <p className="text-sm text-neutral-500">
-                Pick the class chat or a student to start a conversation.
+                Pick a class chat or a student to start a conversation.
               </p>
             </div>
           )}
@@ -257,6 +288,10 @@ const PersonSection = ({ title, people, selectedId, unreadByUser, onSelect, empt
             </span>
             {p.preferred_name && !p.name.toLowerCase().includes(p.preferred_name.toLowerCase()) && (
               <span className="block text-xs text-neutral-400 truncate">Goes by {p.preferred_name}</span>
+            )}
+            {/* Whose parent — a surname alone doesn't say which child. */}
+            {p.subtitle && (
+              <span className="block text-xs text-neutral-400 truncate">{p.subtitle}</span>
             )}
           </span>
         </button>

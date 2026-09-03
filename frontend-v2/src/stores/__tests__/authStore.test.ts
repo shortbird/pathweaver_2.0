@@ -4,6 +4,10 @@
 
 import { createMockUser } from '@/src/__tests__/utils/mockFactories';
 
+import { useAuthStore } from '../authStore';
+import { authAPI, onSessionExpired } from '@/src/services/api';
+import { tokenStore } from '@/src/services/tokenStore';
+
 // Mock the dependencies
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
@@ -31,10 +35,6 @@ jest.mock('@/src/stores/actingAsStore', () => ({
     })),
   },
 }));
-
-import { useAuthStore } from '../authStore';
-import { authAPI, onSessionExpired } from '@/src/services/api';
-import { tokenStore } from '@/src/services/tokenStore';
 
 // The store subscribes to session expiry once, at module load (i.e. during the
 // imports above). Capture the callback NOW — the per-test clearAllMocks wipes

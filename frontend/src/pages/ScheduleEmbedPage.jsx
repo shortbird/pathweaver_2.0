@@ -38,7 +38,7 @@ const ScheduleEmbedPage = () => {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    api.get(`/api/icreate/schedule-preview/${previewCode}`)
+    api.get(`/api/registration/schedule-preview/${previewCode}`)
       .then((r) => setData(r.data))
       .catch(() => setError(true))
   }, [previewCode])

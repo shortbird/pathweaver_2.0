@@ -113,8 +113,8 @@ export function ParentStartSomethingSheet({
           <Row
             testID="parent-action-capture-moment"
             icon="camera-outline"
-            iconColor="#6D469B"
-            iconBg="#6D469B1A"
+            iconColor={c.brand}
+            iconBg={`${c.brand}1A`}
             title="Capture a moment"
             subtitle="Log what your kid is doing in real life"
             onPress={closeThen(onCaptureMoment)}

@@ -30,4 +30,28 @@ describe('WeeklyScheduleGrid', () => {
     render(<WeeklyScheduleGrid classes={[{ class_id: 'x', name: 'X', meetings: [] }]} />)
     expect(screen.getByText(/No scheduled meeting times/)).toBeInTheDocument()
   })
+
+  // iCreate 2026-08-25: a 9:30 class that runs to 3:00 used to open its own row,
+  // pushing the 9:30–10:30 classes off the 9:30 line entirely.
+  it('puts classes that start at the same time on one row even when they end at different times', () => {
+    const MIXED = [
+      { class_id: 'a', name: 'All Day Studio', meetings: [
+        { day_of_week: 1, start_time: '09:30', end_time: '15:00', location: null },
+      ] },
+      { class_id: 'b', name: 'Choir', meetings: [
+        { day_of_week: 2, start_time: '09:30', end_time: '10:30', location: null },
+      ] },
+    ]
+    render(<WeeklyScheduleGrid classes={MIXED} />)
+    // One row header, showing the shared start only — not two range headers.
+    expect(screen.getByText('9:30am')).toBeInTheDocument()
+    expect(screen.queryByText('9:30am–10:30am')).not.toBeInTheDocument()
+    // Each block says when it actually finishes.
+    expect(screen.getByText('until 3pm')).toBeInTheDocument()
+    expect(screen.getByText('until 10:30am')).toBeInTheDocument()
+    // Both live in the same row.
+    const row = screen.getByText('9:30am').closest('tr')
+    expect(row).toHaveTextContent('All Day Studio')
+    expect(row).toHaveTextContent('Choir')
+  })
 })

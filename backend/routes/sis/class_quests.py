@@ -11,10 +11,11 @@ class endpoints (class_advisors-only) do not. A moderator is:
   - an org_admin/superadmin of the class's org, OR
   - the class's primary instructor (org_classes.primary_instructor_id), OR
   - an active co-teacher (class_advisors row, is_active).
-Students never reach these endpoints; they see assigned quests through the
-existing dashboard "assigned to you" surface and self-start them, at which point
-the quest's template tasks are copied into their user_quest_tasks (unchanged
-enrollment flow).
+Students never reach these endpoints. Since 2026-09-02 they don't need to:
+assigning a quest ENROLLS the class's active students in it (user_quests +
+their copy of the template tasks, via services/class_quest_enrollment), so the
+quest shows up wherever a student's quests show up rather than only in a
+separate "assigned to you, start it" tray. Unassigning does not unenroll.
 
 SAFETY: template-task authoring is allowed ONLY on quests owned by the class's
 organization. Global/Optio-library quests are assigned as-is and their tasks are
@@ -45,6 +46,12 @@ from services.sis_quest_authoring import (
     clean_task as _clean_task,
     create_org_quest,
     norm_pillar as _norm_pillar,
+)
+from services.sis_curriculum_sync import assignable_quest_ids
+from services.class_quest_enrollment import (
+    enroll_class_in_quests,
+    enroll_safe,
+    publish_due_class_quests,
 )
 from database import get_supabase_admin_client
 
@@ -244,7 +251,11 @@ def assign_quest(user_id, class_id):
         'class_id': class_row['id'], 'quest_id': quest_id,
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
-    return jsonify({'success': True})
+    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
+    # An assigned quest is a quest: enroll the class so it lands in each
+    # student's account like any other, not in a separate "assigned" tray.
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
+    return jsonify({'success': True, 'students_enrolled': enrolled['enrolled']})
 
 
 # ── The curriculum round trip ─────────────────────────────────────────────────
@@ -278,24 +289,39 @@ def _linked_curricula(admin, class_id):
             .in_('id', ids).eq('is_active', True).order('title').execute()).data or []
 
 
-def _assignable(admin, quest_ids, org_id):
-    """Of `quest_ids`, the ones this org may actually assign — its own, plus the
-    public Optio library. A curriculum can outlive a quest (deleted, archived, or
-    a school-owned quest whose org changed), so the set is re-checked on every
-    copy rather than trusted from when it was saved."""
-    if not quest_ids:
-        return []
-    rows = (admin.table('quests')
-            .select('id, organization_id, is_public, is_active')
-            .in_('id', list(quest_ids)).execute()).data or []
-    ok = set()
-    for q in rows:
-        if q.get('is_active') is False:
-            continue
-        if q.get('organization_id') == org_id or (
-                q.get('organization_id') is None and q.get('is_public')):
-            ok.add(q['id'])
-    return [qid for qid in quest_ids if qid in ok]
+def _attach_quest_to_class_curricula(admin, class_id, quest_id, user_id):
+    """A quest put on a class also lands on the class's curriculum.
+
+    iCreate, 2026-08-31: teachers add quests (not curriculum), and "the quests
+    they add get attached to the curriculum for the class" — so the durable set
+    the school reuses next year keeps up with what is actually taught, without
+    anyone remembering to press save-to-curriculum. Additive only: nothing is
+    ever removed from a curriculum here (unassigning a quest from one section
+    must not rewrite the school's curriculum); admins prune the set in the
+    library. Best-effort — a failure here must not undo the class assignment.
+    """
+    try:
+        for c in _linked_curricula(admin, class_id):
+            existing = (admin.table('sis_curriculum_quests')
+                        .select('quest_id, sequence_order')
+                        .eq('curriculum_id', c['id']).execute()).data or []
+            if any(r['quest_id'] == quest_id for r in existing):
+                continue
+            next_order = max([r.get('sequence_order') or 0 for r in existing],
+                             default=-1) + 1
+            admin.table('sis_curriculum_quests').upsert(
+                {'curriculum_id': c['id'], 'quest_id': quest_id,
+                 'sequence_order': next_order, 'added_by': user_id},
+                on_conflict='curriculum_id,quest_id').execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Quest {quest_id} assigned but curriculum attach failed: {e}')
+
+
+# Of a set of quest ids, the ones this org may actually assign — its own, plus
+# the public Optio library. Shared with the library's push in the other
+# direction (services/sis_curriculum_sync) so the two can't disagree about what
+# is assignable; a curriculum outliving its quests is the case both must handle.
+_assignable = assignable_quest_ids
 
 
 @bp.route('/classes/<class_id>/curriculum-quests', methods=['GET'])
@@ -378,9 +404,12 @@ def copy_quests_from_curriculum(user_id, class_id):
     if rows:
         admin.table('class_quests').upsert(
             rows, on_conflict='class_id,quest_id').execute()
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'],
+                           [r['quest_id'] for r in rows])
     return jsonify({'success': True, 'added': len(rows),
                     'skipped_already_present': len(wanted) - len(rows),
-                    'skipped_unavailable': len(saved) - len(wanted)})
+                    'skipped_unavailable': len(saved) - len(wanted),
+                    'students_enrolled': enrolled['enrolled']})
 
 
 @bp.route('/classes/<class_id>/quests/to-curriculum', methods=['POST'])
@@ -509,8 +538,11 @@ def create_quest_with_tasks(user_id, class_id):
         'class_id': class_row['id'], 'quest_id': quest_id,
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
+    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
+    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
 
-    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count']})
+    return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count'],
+                    'students_enrolled': enrolled['enrolled']})
 
 
 # ── Preset (template) tasks on an assigned, org-owned quest ────────────────────
@@ -579,7 +611,113 @@ def add_preset_task(user_id, class_id, quest_id):
     row = admin.table('quest_template_tasks').insert(task).execute().data
     if not row:
         return jsonify({'success': False, 'error': 'Could not add the task.'}), 500
+
+    # Students' task lists are copies taken at enrollment, so without this a
+    # task added after anyone started the quest reached nobody already on it
+    # (Gryffin, 2026-08-28: added a second task, "none of the students got that
+    # task"). resync inserts the new task into every enrollment and reopens
+    # enrollments that had already been completed.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task added but enrollment resync failed for {quest_id}: {e}')
+
     return jsonify({'success': True, 'task': _serialize_task(row[0])})
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
+@require_auth
+def update_preset_task(user_id, class_id, quest_id, task_id):
+    """Edit a preset task in place.
+
+    Tasks could only be added and deleted, so correcting a typo, an XP value or
+    the wrong pillar meant deleting the task and writing it again -- and
+    deleting one takes any student work attached to it (Gryffin, 2026-08-27:
+    "There is also no option to edit a quest or a task once its saved. You just
+    have to delete and start over ... if you put in the wrong category you also
+    can't change it").
+    """
+    class_row, admin, quest, err = _authorize_editable_quest(user_id, class_id, quest_id)
+    if err:
+        return err
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': 'A task title is required.'}), 400
+        updates['title'] = title
+    if 'description' in data:
+        updates['description'] = (data.get('description') or '').strip()
+    if 'pillar' in data:
+        updates['pillar'] = _norm_pillar(data.get('pillar'))
+    if 'xp_value' in data:
+        try:
+            xp = int(data.get('xp_value'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'XP must be a number.'}), 400
+        updates['xp_value'] = max(0, xp)
+    if 'is_required' in data:
+        updates['is_required'] = bool(data.get('is_required'))
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    row = (admin.table('quest_template_tasks').update(updates)
+           .eq('id', task_id).eq('quest_id', quest_id).execute()).data
+    if not row:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+
+    # Carry the correction to the students already holding this quest. Their
+    # tasks are copies taken at enrolment, so without this an edit would only
+    # reach whoever starts it next. resync rewrites rows in place and refuses to
+    # touch a task carrying a completion or evidence.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task saved but enrollment resync failed for {quest_id}: {e}')
+
+    return jsonify({'success': True, 'task': _serialize_task(row[0])})
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>', methods=['PATCH'])
+@require_auth
+def update_class_quest(user_id, class_id, quest_id):
+    """Set or clear a quest's due date (and publish schedule) for THIS class.
+
+    class_quests has carried due_date and publish_at all along and the list
+    endpoint returns them, but nothing could write them from the SIS -- so a
+    school with due dates switched on still had no way to set one (Gryffin,
+    2026-08-27: "How do we add due dates to any tasks that we assign?").
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    for field in ('due_date', 'publish_at'):
+        if field in data:
+            value = data.get(field)
+            updates[field] = (str(value).strip() or None) if value else None
+    if not updates:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+    # No updated_at here: class_quests doesn't have that column (only added_at),
+    # and PostgREST rejects the whole PATCH over it (Sentry OPTIO-BACKEND-7B/7C).
+
+    row = (admin.table('class_quests').update(updates)
+           .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
+    if not row:
+        return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+    return jsonify({'success': True,
+                    'due_date': row[0].get('due_date'),
+                    'publish_at': row[0].get('publish_at')})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
@@ -592,10 +730,40 @@ def delete_preset_task(user_id, class_id, quest_id, task_id):
         return jsonify({'success': False, 'error': 'Invalid task id'}), 400
     admin.table('quest_template_tasks').delete() \
         .eq('id', task_id).eq('quest_id', quest_id).execute()
+
+    # Same as add: carry the removal to enrolled students. resync deletes only
+    # rows carrying no completion or evidence — a task somebody already worked
+    # on stays put rather than cascading their work away.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Task removed but enrollment resync failed for {quest_id}: {e}')
+
     return jsonify({'success': True})
 
 
 # ── Student progress ──────────────────────────────────────────────────────────
+
+def _is_done(user_quest, done, total):
+    """Is this student finished with this quest, as a teacher means it?
+
+    `user_quests.completed_at` is NOT the answer on its own. Nothing on the
+    platform sets it automatically: finishing the last task only makes the
+    student's own app offer a celebration modal, and ending the quest there is
+    the student's choice — they are equally free to keep it open and add more
+    tasks ("The Process Is The Goal"). A student who finishes everything and
+    dismisses that modal leaves completed_at NULL forever.
+
+    Read literally, that left this grid saying "1/1" in amber for work that was
+    checked off everywhere else on the platform (Gryffin, 2026-09-02: "why
+    Presley's reading appreciation task doesn't say 'done' in the progress, but
+    is checked off everywhere else"). 35 enrollments across 7 orgs were in that
+    state. A teacher asking "is this student done" means every assigned task is
+    turned in, so answer that question instead.
+    """
+    return bool(user_quest and user_quest.get('completed_at')) or (total > 0 and done >= total)
+
 
 @bp.route('/classes/<class_id>/progress', methods=['GET'])
 @require_auth
@@ -682,7 +850,7 @@ def class_student_progress(user_id, class_id):
             cells.append({
                 'quest_id': q['quest_id'],
                 'started': True,
-                'completed': bool(uq.get('completed_at')),
+                'completed': _is_done(uq, done, len(own)),
                 'done': done,
                 'total': len(own),
                 'started_at': uq.get('started_at'),
@@ -700,3 +868,190 @@ def class_student_progress(user_id, class_id):
     students.sort(key=lambda s: s['name'].lower())
 
     return jsonify({'success': True, 'quests': quests, 'students': students})
+
+
+# ── One student's work, and a nudge about what is left ────────────────────────
+
+def _student_work(admin, class_row, student_id):
+    """This student's assigned quests for the class, task by task.
+
+    The class progress grid answers "how many tasks are done"; this answers
+    "which ones", which is what a teacher needs before saying anything to a
+    family (Gryffin, 2026-08-27: "You should be able to click on a name and see
+    what is done and what isn't").
+    """
+    links = (admin.table('class_quests')
+             .select('quest_id, due_date, quests(title)')
+             .eq('class_id', class_row['id'])
+             .order('sequence_order').execute()).data or []
+    quest_ids = [r['quest_id'] for r in links if r.get('quest_id')]
+    if not quest_ids:
+        return []
+
+    user_quests = (admin.table('user_quests')
+                   .select('id, quest_id, completed_at, started_at')
+                   .eq('user_id', student_id)
+                   .in_('quest_id', quest_ids).execute()).data or []
+    uq_by_quest = {uq['quest_id']: uq for uq in user_quests}
+    uq_ids = [uq['id'] for uq in user_quests]
+
+    tasks, done_ids, completion_by_task = [], set(), {}
+    if uq_ids:
+        tasks = (admin.table('user_quest_tasks')
+                 .select('id, user_quest_id, title, xp_value, order_index')
+                 .in_('user_quest_id', uq_ids).order('order_index').execute()).data or []
+        task_ids = [t['id'] for t in tasks]
+        for start in range(0, len(task_ids), 200):
+            rows = (admin.table('quest_task_completions')
+                    .select('id, task_id, completed_at')
+                    .in_('task_id', task_ids[start:start + 200]).execute()).data or []
+            done_ids.update(r['task_id'] for r in rows)
+            completion_by_task.update({r['task_id']: r['id'] for r in rows})
+
+    by_uq = {}
+    for t in tasks:
+        by_uq.setdefault(t['user_quest_id'], []).append(t)
+
+    out = []
+    for link in links:
+        uq = uq_by_quest.get(link['quest_id'])
+        own = by_uq.get(uq['id'], []) if uq else []
+        out.append({
+            'quest_id': link['quest_id'],
+            'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
+            'due_date': link.get('due_date'),
+            'started': bool(uq),
+            'completed': _is_done(uq, len([t for t in own if t['id'] in done_ids]), len(own)),
+            'tasks': [{
+                'id': t['id'],
+                'title': t.get('title'),
+                'xp_value': t.get('xp_value'),
+                'done': t['id'] in done_ids,
+                # Lets the task row link straight to the submission review
+                # (Gryffin, 2026-08-28: "It would be nice to be able to click
+                # on the task to see their submission").
+                'completion_id': completion_by_task.get(t['id']),
+            } for t in own],
+        })
+    return out
+
+
+@bp.route('/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
+@require_auth
+def student_class_progress(user_id, class_id, student_id):
+    """What one student on this class has finished, and what they have not."""
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(student_id):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+
+    enrolled = (admin.table('class_enrollments').select('id')
+                .eq('class_id', class_row['id']).eq('student_id', student_id)
+                .eq('status', 'active').limit(1).execute()).data
+    if not enrolled:
+        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
+
+    from utils import person_name
+    user = (admin.table('users').select(person_name.USER_NAME_FIELDS)
+            .eq('id', student_id).limit(1).execute()).data
+    return jsonify({
+        'success': True,
+        'student': {
+            'id': student_id,
+            'name': person_name.full_name(user[0], 'Unnamed') if user else 'Unnamed',
+        },
+        'quests': _student_work(admin, class_row, student_id),
+    })
+
+
+@bp.route('/classes/<class_id>/students/<student_id>/remind', methods=['POST'])
+@require_auth
+def remind_student(user_id, class_id, student_id):
+    """Nudge a student, and their guardians, about work that is still open.
+
+    Gryffin, 2026-08-27: "you should be able to send a reminder of what work
+    they haven't completed and that should be sent to the parent and student."
+    Nothing like it existed -- the only nudge on the platform was for unread
+    announcements.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(student_id):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+
+    enrolled = (admin.table('class_enrollments').select('id')
+                .eq('class_id', class_row['id']).eq('student_id', student_id)
+                .eq('status', 'active').limit(1).execute()).data
+    if not enrolled:
+        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
+
+    outstanding = []
+    for q in _student_work(admin, class_row, student_id):
+        if q['completed']:
+            continue
+        left = [t['title'] for t in q['tasks'] if not t['done']]
+        if left or not q['started']:
+            outstanding.append({'quest': q['title'], 'tasks': left, 'started': q['started']})
+    if not outstanding:
+        return jsonify({'success': False,
+                        'error': 'Nothing outstanding — there is nothing to remind them about.'}), 400
+
+    lines = []
+    for item in outstanding[:5]:
+        if not item['started']:
+            lines.append(f"{item['quest']} (not started)")
+        else:
+            shown = ', '.join(item['tasks'][:3])
+            more = len(item['tasks']) - 3
+            lines.append(f"{item['quest']}: {shown}" + (f" and {more} more" if more > 0 else ''))
+    body = f"Still to do in {class_row.get('name') or 'your class'} — " + '; '.join(lines)
+
+    from services.notification_service import NotificationService
+    notifier = NotificationService()
+    sent = 0
+    for recipient in [student_id] + [
+            p['id'] for p in (notifier.get_parents_for_student(student_id) or []) if p.get('id')]:
+        try:
+            notifier.create_notification(
+                user_id=recipient,
+                notification_type='announcement',
+                title='A reminder about unfinished work',
+                message=body,
+                link='/dashboard',
+            )
+            sent += 1
+        except Exception as e:  # noqa: BLE001 — one failed send must not lose the rest
+            logger.warning(f'Reminder to {recipient[:8]} failed: {e}')
+
+    return jsonify({'success': True, 'notified': sent, 'outstanding': len(outstanding)})
+
+
+@bp.route('/internal/publish-class-quests', methods=['POST'])
+def publish_class_quests_sweep():
+    """Cron entrypoint: enroll students in class quests whose publish time passed.
+
+    Assigning a quest enrolls the class, but a quest scheduled for LATER
+    deliberately doesn't -- so this is what enrolls it when its time arrives.
+    Without it a scheduled quest would never reach anyone, now that the
+    dashboard's separate "assigned to you" tray is gone.
+
+    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering --
+    mirrors /api/sis/internal/engagement-sweep exactly. Idempotent, so running it
+    every cycle is safe.
+    """
+    secret = request.headers.get('X-Cron-Secret')
+    from utils.cron_auth import is_valid_cron_secret
+    if not is_valid_cron_secret(secret):
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            # admin client justified: superadmin check for the manual trigger of a cron-only sweep; the role lookup IS the access check
+            row = (get_supabase_admin_client().table('users').select('role')
+                   .eq('id', uid).limit(1).execute()).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **publish_due_class_quests(get_supabase_admin_client())})

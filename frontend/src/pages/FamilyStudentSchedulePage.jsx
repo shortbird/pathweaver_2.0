@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import WeeklySchedule, { formatTime } from '../components/schedule/WeeklySchedule'
+import WeeklySchedule from '../components/schedule/WeeklySchedule'
+import ScheduleByDay from '../components/schedule/ScheduleByDay'
 
 /**
  * A printable copy of one student's class schedule.
@@ -12,30 +14,10 @@ import WeeklySchedule, { formatTime } from '../components/schedule/WeeklySchedul
  * meetings.
  *
  * Two views of the same week, because a printed color grid is not always
- * readable: the weekly picture, then a plain list with teacher and room. The
- * list also catches weekend meetings, which the Mon-Fri grid cannot show.
+ * readable: the weekly picture, then the same meetings day by day in time order
+ * with teacher and room. The day list also catches weekend and one-off dated
+ * meetings, which the Mon-Fri grid cannot show.
  */
-
-const DAY_NAMES = {
-  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
-  4: 'Thursday', 5: 'Friday', 6: 'Saturday',
-}
-const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // Monday-first, the way a school week reads
-
-/** "Mon 9:30am-10:30am; Wed 1pm-2pm", Monday-first. */
-const meetingsText = (meetings) => {
-  const sorted = [...(meetings || [])].sort((a, b) => {
-    const da = DAY_ORDER.indexOf(a.day_of_week)
-    const db = DAY_ORDER.indexOf(b.day_of_week)
-    if (da !== db) return da - db
-    return String(a.start_time || '').localeCompare(String(b.start_time || ''))
-  })
-  return sorted.map((m) => {
-    const day = (DAY_NAMES[m.day_of_week] || '').slice(0, 3)
-    const time = [formatTime(m.start_time), formatTime(m.end_time)].filter(Boolean).join('-')
-    return [day, time].filter(Boolean).join(' ')
-  }).filter(Boolean).join('; ')
-}
 
 const Card = ({ title, children }) => (
   <section className="bg-white rounded-xl border border-gray-200 p-5 mb-5 break-inside-avoid">
@@ -48,6 +30,24 @@ const FamilyStudentSchedulePage = () => {
   const { studentId } = useParams()
   const [state, setState] = useState(null)
   const [error, setError] = useState(null)
+  const [claiming, setClaiming] = useState(null)   // class_id mid-claim
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // A family reading this page is looking at the same waitlist the Schedule
+  // Builder shows, so an offered seat has to be claimable here too — "seat
+  // offered" with no button read as a dead end (iCreate, 2026-09-02).
+  const claimSpot = async (w, orgId) => {
+    setClaiming(w.class_id)
+    try {
+      await api.post(`/api/sis/parent/students/${studentId}/classes/${w.class_id}/claim`,
+        { organization_id: orgId })
+      toast.success(`Enrolled in ${w.class_name}`)
+      setReloadKey((k) => k + 1)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not claim the spot')
+      setReloadKey((k) => k + 1)
+    } finally { setClaiming(null) }
+  }
 
   useEffect(() => {
     let alive = true
@@ -67,6 +67,7 @@ const FamilyStudentSchedulePage = () => {
             schedule: sched.data || {},
             studentName: student?.name || 'Student',
             orgName: org.organization_name || '',
+            orgId: org.organization_id,
           })
         }
       })
@@ -74,12 +75,12 @@ const FamilyStudentSchedulePage = () => {
         if (alive) setError(e?.response?.data?.error || 'Could not load the schedule')
       })
     return () => { alive = false }
-  }, [studentId])
+  }, [studentId, reloadKey])
 
   if (error) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">{error}</div>
   if (!state) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">Loading…</div>
 
-  const { schedule, studentName, orgName } = state
+  const { schedule, studentName, orgName, orgId } = state
   const classes = schedule.classes || []
   const waitlist = schedule.waitlist || []
   const homeCourses = schedule.courses || []
@@ -144,39 +145,34 @@ const FamilyStudentSchedulePage = () => {
             <WeeklySchedule classes={classes} timeBlocks={schedule.time_blocks || []} />
           </Card>
 
-          <Card title="Classes">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                  <th className="py-2 pr-3 font-medium">Class</th>
-                  <th className="py-2 pr-3 font-medium">When</th>
-                  <th className="py-2 pr-3 font-medium">Teacher</th>
-                  <th className="py-2 font-medium">Where</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {classes.map((c) => (
-                  <tr key={c.id}>
-                    <td className="py-2 pr-3 text-gray-800">{c.name}</td>
-                    <td className="py-2 pr-3 text-gray-500">{meetingsText(c.meetings) || 'Not scheduled'}</td>
-                    <td className="py-2 pr-3 text-gray-500">{c.primary_instructor?.name || ''}</td>
-                    <td className="py-2 text-gray-500">{c.location || ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Day by day, in time order — the way a family reads the week.
+              The class-per-row table this replaced made anyone asking "where is
+              she at 10:30 on Tuesday?" scan every row and re-sort mentally. */}
+          <Card title="Day by day">
+            <ScheduleByDay classes={classes} />
           </Card>
         </>
       )}
 
       {waitlist.length > 0 && (
         <Card title="Waitlist">
-          <ul className="text-sm text-gray-800 space-y-1">
+          <ul className="text-sm text-gray-800 space-y-1.5">
             {waitlist.map((w) => (
-              <li key={w.entry_id}>
-                {w.class_name}
-                {w.position ? <span className="text-gray-500"> · #{w.position} in line</span> : null}
-                {w.status === 'offered' ? <span className="text-gray-500"> · seat offered</span> : null}
+              <li key={w.entry_id} className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  {w.class_name}
+                  {w.position ? <span className="text-gray-500"> · #{w.position} in line</span> : null}
+                  {w.status === 'offered'
+                    ? <span className="text-green-700 font-medium"> · a spot is being held</span>
+                    : null}
+                </span>
+                {w.status === 'offered' && (
+                  <button type="button" onClick={() => claimSpot(w, orgId)}
+                    disabled={claiming === w.class_id}
+                    className="shrink-0 print:hidden text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                    {claiming === w.class_id ? 'Claiming…' : 'Claim spot'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

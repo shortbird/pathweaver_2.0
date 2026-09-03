@@ -1,9 +1,10 @@
 import React, { useContext } from 'react'
 import { Link } from 'react-router-dom'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { OrganizationContext } from '../../contexts/OrganizationContext'
 
 /**
- * "← iCreate" — the way back to the school page.
+ * The back button to the school page, top-left of every page /school links to.
  *
  * These pages (billing, absences, calendar, resources, directory, portal,
  * requests, schedule) each had their own sidebar item until 2026-08-06. They
@@ -11,6 +12,10 @@ import { OrganizationContext } from '../../contexts/OrganizationContext'
  * there is nothing pointing back out. iCreate filed exactly that complaint
  * three times in two minutes about the teacher-portal pages (see
  * BackToDashboard), so it is not a hypothetical.
+ *
+ * A BUTTON, not a text link: the "← iCreate" text-link version shipped first
+ * and was reported as the pages having no back button at all (2026-08-23) —
+ * bare purple text at the top of a page does not read as navigation.
  *
  * Named after the school, matching the nav item and the page you land back on.
  */
@@ -22,9 +27,9 @@ const BackToSchool = ({ className = '' }) => {
   return (
     <Link
       to="/school"
-      className={`inline-flex items-center gap-1 text-sm text-optio-purple hover:underline ${className}`}
+      className={`inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:text-optio-purple hover:border-optio-purple/60 hover:shadow-sm transition-all ${className}`}
     >
-      <span aria-hidden="true">←</span>
+      <ArrowLeftIcon aria-hidden="true" className="w-4 h-4" />
       {school?.name || 'My school'}
     </Link>
   )

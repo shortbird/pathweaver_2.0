@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import ConversationList from './ConversationList'
 
 let authState = { user: { id: 'u1', role: 'student' } }
@@ -22,20 +23,23 @@ const groups = [
   { id: 'g1', name: 'Study Group', last_message_at: '2025-01-01T00:00:00Z', unread_count: 0, member_count: 3 }
 ]
 
-function renderList(props = {}) {
+// `route` seeds the URL: the list reads ?user=<id> to open a deep-linked thread.
+function renderList(props = {}, { route = '/messages' } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={client}>
-      <ConversationList
-        conversations={conversations}
-        groupConversations={groups}
-        selectedConversation={null}
-        onSelectConversation={vi.fn()}
-        isLoading={false}
-        onCreateGroup={vi.fn()}
-        {...props}
-      />
-    </QueryClientProvider>
+    <MemoryRouter initialEntries={[route]}>
+      <QueryClientProvider client={client}>
+        <ConversationList
+          conversations={conversations}
+          groupConversations={groups}
+          selectedConversation={null}
+          onSelectConversation={vi.fn()}
+          isLoading={false}
+          onCreateGroup={vi.fn()}
+          {...props}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>
   )
 }
 
@@ -52,14 +56,26 @@ describe('ConversationList', () => {
   it('splits active conversations from the contacts directory', async () => {
     renderList()
     await waitFor(() => expect(screen.getByText('Conversations')).toBeInTheDocument())
-    expect(screen.getByText('Contacts')).toBeInTheDocument()
     // Active thread (Sam) with its preview, plus the group, under Conversations
     expect(screen.getByText('Sam Smith')).toBeInTheDocument()
     expect(screen.getByText('Hi Sam')).toBeInTheDocument()
     expect(screen.getByText('Study Group')).toBeInTheDocument()
-    // Optio Support (no thread) shows in the directory with the Optio logo
-    expect(screen.getByText('Optio Support')).toBeInTheDocument()
-    expect(screen.getByAltText('Optio Support')).toBeInTheDocument()
+  })
+
+  it('pins Optio Support below the list instead of burying it in Contacts', async () => {
+    renderList()
+    await waitFor(() => expect(screen.getByText('Need help? Message Optio')).toBeInTheDocument())
+    // It is the pinned row, not a directory entry: no Contacts section is left
+    // once support is the only contact without a thread.
+    expect(screen.queryByText('Contacts')).not.toBeInTheDocument()
+  })
+
+  it('opens the support thread from the pinned row', async () => {
+    const onSelect = vi.fn()
+    renderList({ onSelectConversation: onSelect })
+    await waitFor(() => expect(screen.getByText('Need help? Message Optio')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Need help? Message Optio'))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'sup' }))
   })
 
   it('does not render relationship pills', () => {
@@ -91,19 +107,101 @@ describe('ConversationList', () => {
     expect(screen.getByText('New group')).toBeInTheDocument()
   })
 
+  // ?user=<id> is how "Message Dana" on the carpool board arrives at Messages:
+  // the board links out instead of composing a one-shot DM of its own.
+  describe('the ?user= deep link', () => {
+    it('opens that person\'s thread on arrival', async () => {
+      mockContacts = [
+        { id: 'p9', first_name: 'Dana', last_name: 'Cole', relationship: 'parent' }
+      ]
+      const onSelectConversation = vi.fn()
+      renderList({ onSelectConversation }, { route: '/messages?user=p9' })
+      await waitFor(() => expect(onSelectConversation).toHaveBeenCalled())
+      expect(onSelectConversation.mock.calls[0][0].other_user.id).toBe('p9')
+    })
+
+    it('stays on the list when that person is not a contact of this account', async () => {
+      mockContacts = []
+      const onSelectConversation = vi.fn()
+      renderList({ onSelectConversation, conversations: [], groupConversations: [] },
+        { route: '/messages?user=stranger' })
+      await waitFor(() => expect(screen.getByText('No conversations yet')).toBeInTheDocument())
+      expect(onSelectConversation).not.toHaveBeenCalled()
+    })
+  })
+
   it('shows an empty state when there is nothing to show', () => {
     mockContacts = []
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <ConversationList
-          conversations={[]}
-          groupConversations={[]}
-          selectedConversation={{ id: 'x' }}
-          onSelectConversation={vi.fn()}
-          isLoading={false}
-        />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ConversationList
+            conversations={[]}
+            groupConversations={[]}
+            selectedConversation={{ id: 'x' }}
+            onSelectConversation={vi.fn()}
+            isLoading={false}
+          />
+        </QueryClientProvider>
+      </MemoryRouter>
     )
     expect(screen.getByText('No conversations yet')).toBeInTheDocument()
+  })
+
+  // The perf regression this list shipped with: ConversationItem was declared
+  // inside ConversationList's body, so every render produced a new component
+  // type and React remounted every row -- <img> included. Typing one character
+  // in the search box tore down and re-fetched every avatar on screen.
+  //
+  // Identity of the DOM node across a keystroke is the observable proof the row
+  // was reused rather than rebuilt. If someone moves these components back
+  // inside the parent, this fails.
+  it('reuses avatar DOM nodes when the search query changes', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/cora.jpg' }
+    ]
+    renderList()
+
+    const before = await screen.findByAltText('Cora Vance')
+    fireEvent.change(
+      screen.getByPlaceholderText('Search people and conversations...'),
+      { target: { value: 'Cor' } }
+    )
+    const after = await screen.findByAltText('Cora Vance')
+
+    expect(after).toBe(before)
+  })
+
+  it('defers offscreen avatar loading', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/cora.jpg' }
+    ]
+    renderList()
+
+    const img = await screen.findByAltText('Cora Vance')
+    expect(img).toHaveAttribute('loading', 'lazy')
+    // Explicit dimensions keep the list from reflowing as avatars arrive.
+    expect(img).toHaveAttribute('width', '40')
+    expect(img).toHaveAttribute('height', '40')
+  })
+
+  // Every one of these URLs fails eventually: a signed storage URL expires after
+  // an hour, Google's CDN throttles a burst of OAuth avatars, an object gets
+  // deleted. The row must degrade to the initial, not Chrome's broken-image
+  // glyph with the alt text spilling out of a 40px circle.
+  it('falls back to the initial when an avatar fails to load', async () => {
+    mockContacts = [
+      { id: 'c9', first_name: 'Cora', last_name: 'Vance', role: 'advisor',
+        relationship: 'advisor', avatar_url: 'https://example.test/gone.jpg' }
+    ]
+    renderList()
+
+    const img = await screen.findByAltText('Cora Vance')
+    fireEvent.error(img)
+
+    expect(screen.queryByAltText('Cora Vance')).not.toBeInTheDocument()
+    expect(await screen.findByText('C')).toBeInTheDocument()
   })
 })

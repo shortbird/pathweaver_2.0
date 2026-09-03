@@ -238,15 +238,24 @@ class LearningAIOrchestrator(BaseAIService):
 
             track = track_response.data
 
-            # Get moments in track
-            moments_response = supabase.table('learning_events') \
-                .select('*') \
-                .eq('track_id', track_id) \
-                .eq('user_id', user_id) \
-                .order('created_at') \
+            # Get moments in track. Membership lives in the learning_event_topics
+            # junction table (topic_type='topic'), not on learning_events.
+            junction_response = supabase.table('learning_event_topics') \
+                .select('learning_event_id') \
+                .eq('topic_type', 'topic') \
+                .eq('topic_id', track_id) \
                 .execute()
+            moment_ids = [j['learning_event_id'] for j in (junction_response.data or [])]
 
-            moments = moments_response.data or []
+            moments = []
+            if moment_ids:
+                moments_response = supabase.table('learning_events') \
+                    .select('*') \
+                    .in_('id', moment_ids) \
+                    .eq('user_id', user_id) \
+                    .order('created_at') \
+                    .execute()
+                moments = moments_response.data or []
 
             if not moments:
                 return {
@@ -418,8 +427,14 @@ Return ONLY the reflection question, nothing else."""
                     }
                 }
 
-            # Get tracks used this week
-            track_ids = list(set(m.get('track_id') for m in moments if m.get('track_id')))
+            # Get tracks used this week (via the learning_event_topics junction —
+            # learning_events has no track_id column)
+            junction_response = supabase.table('learning_event_topics') \
+                .select('topic_id') \
+                .eq('topic_type', 'topic') \
+                .in_('learning_event_id', [m['id'] for m in moments]) \
+                .execute()
+            track_ids = list(set(j['topic_id'] for j in (junction_response.data or [])))
             tracks = []
             if track_ids:
                 tracks_response = supabase.table('interest_tracks') \
@@ -548,9 +563,9 @@ Keep it warm, specific, and growth-focused. No generic platitudes."""
                 for pillar in (m.get('pillars') or []):
                     pillar_counts[pillar] = pillar_counts.get(pillar, 0) + 1
 
-            # Find emerging tracks
-            emerging_result = self.learning_ai.detect_emerging_tracks(moments)
-            emerging_tracks = emerging_result.get('emerging_tracks', []) if emerging_result.get('success') else []
+            # Find emerging tracks (takes the user id, not a moment list)
+            emerging_result = self.learning_ai.detect_emerging_tracks(user_id)
+            emerging_tracks = emerging_result.get('suggested_tracks', []) if emerging_result.get('success') else []
 
             return {
                 'success': True,

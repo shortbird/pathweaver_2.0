@@ -301,3 +301,32 @@ class TestClearingSignatures:
             res = onboarding.update_item(ORG, ASSIGNMENT_ID, 'contract', {'clear_signature': True}, actor_id=SIGNER, is_admin=False)
 
         assert res.get('error') == 'Only an administrator can clear a signature'
+
+
+class TestSignaturesByDocument:
+    """The evidence read back per stored document, so the documents list can
+    say "Signed <date>" instead of showing the requires_signature ask-flag
+    forever (iCreate, 2026-08-31)."""
+
+    def test_maps_each_signed_document_to_its_signature(self):
+        sig = {'name': 'Kate Myers', 'signed_by': SIGNER,
+               'signed_at': '2026-08-25T01:29:36+00:00',
+               'documents': [{'id': 'doc-1', 'title': 'Contract.pdf'}]}
+        rows = [
+            {'id': 'a1', 'items': [_item(status='complete', signature=sig),
+                                   _item(key='w4')]},
+            {'id': 'a2', 'items': None},
+        ]
+        with patch.object(onboarding, 'fetch_all_rows', return_value=rows):
+            out = onboarding.signatures_by_document(ORG)
+        assert out == {'doc-1': {'signed_at': sig['signed_at'],
+                                 'signed_by': SIGNER,
+                                 'signed_by_name': 'Kate Myers'}}
+
+    def test_a_signature_that_signed_no_stored_document_maps_nothing(self):
+        # A link item's signature carries no documents list — nothing to mark.
+        sig = {'name': 'Kate Myers', 'signed_by': SIGNER,
+               'signed_at': '2026-08-25T01:29:36+00:00'}
+        rows = [{'id': 'a1', 'items': [_item(status='complete', signature=sig)]}]
+        with patch.object(onboarding, 'fetch_all_rows', return_value=rows):
+            assert onboarding.signatures_by_document(ORG) == {}

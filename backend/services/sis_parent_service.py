@@ -21,11 +21,13 @@ from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
 from services import sis_service
 from utils.db_fetch import fetch_all_rows
+from utils import person_name
 from utils.org_features import org_has_feature
 from modules.enabled import effective_modules_for_row
 from modules.registry import surface_keys
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
+from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
 
@@ -38,18 +40,10 @@ def _admin():
 
 
 def _student_name(u: Dict[str, Any]) -> str:
-    if not u:
-        return 'Unnamed'
-    pref = (u.get('preferred_name') or '').strip()
-    first = (u.get('first_name') or '').strip()
-    last = (u.get('last_name') or '').strip()
-    if pref:
-        if last and not pref.lower().endswith(last.lower()):
-            return f"{pref} {last}"
-        return pref
-    name = (u.get('display_name') or
-            f"{first} {last}").strip()
-    return name or (u.get('username') or u.get('email') or 'Unnamed')
+    """Delegates to utils.person_name.full_name — one rule for the whole SIS.
+    Ten copies of this function with two different fallback orders is half of
+    why names differed screen to screen (iCreate, 2026-08-25)."""
+    return person_name.full_name(u, 'Unnamed')
 
 
 # ── Authorization: which students may this guardian register? ─────────────────
@@ -138,7 +132,7 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -382,7 +376,7 @@ def list_my_registrations(user_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, preferred_name')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -471,6 +465,61 @@ def _changes_locked(org_id: str) -> bool:
         return False
     try:
         return date.today() >= date.fromisoformat(str(first_day)[:10])
+    except ValueError:
+        return False
+
+
+# ── Add/drop requests (after self-service closes) ────────────────────────────
+# Once the year starts the builder is read-only, and the only way a family could
+# change a schedule was to phone the office. iCreate, 2026-09-01: "on the
+# schedule builder page, have an add/drop button there that sends a request to
+# say what changes they want to make to that child's schedule. Then we get the
+# task in the task center." The window is the school's own add/drop period,
+# which ends on a date they set (theirs is Sept 8) — after it, the button is
+# gone and the school is back to making changes itself.
+SIS_DEFAULT_TZ = 'America/Denver'
+
+
+def _org_today(org_id: str, now=None):
+    """Today's date in the ORG's timezone (`now` overridable for tests).
+
+    A deadline day has to end at the school's midnight. Server-local (UTC in
+    production) would retire the button at 6pm Mountain on the deadline day,
+    while families were still using it.
+    """
+    from datetime import datetime, timezone as _tz
+    from zoneinfo import ZoneInfo
+    row = (
+        _admin().table('organizations').select('timezone')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    name = (row[0].get('timezone') if row else None) or SIS_DEFAULT_TZ
+    moment = now or datetime.now(_tz.utc)
+    try:
+        zone = ZoneInfo(name)
+    except Exception:  # noqa: BLE001 - unknown tz string on the org row
+        zone = ZoneInfo(SIS_DEFAULT_TZ)
+    return moment.astimezone(zone).date()
+
+
+def add_drop_deadline(org_id: str) -> Optional[str]:
+    """ISO date (YYYY-MM-DD) from feature_flags.sis_settings.add_drop_deadline."""
+    return _sis_settings(org_id).get('add_drop_deadline') or None
+
+
+def add_drop_open(org_id: str) -> bool:
+    """May families file an add/drop request right now?
+
+    Only with a deadline configured — no date means the school never opened an
+    add/drop period, and a button that files requests nobody agreed to work is
+    worse than no button. The deadline day itself counts in full.
+    """
+    deadline = add_drop_deadline(org_id)
+    if not deadline:
+        return False
+    from datetime import date as _date
+    try:
+        return _org_today(org_id) <= _date.fromisoformat(str(deadline)[:10])
     except ValueError:
         return False
 
@@ -615,6 +664,44 @@ def drop_course(user_id: str, org_id: str, student_user_id: str, course_id: str)
     return {'ok': True}
 
 
+def _enrolled_classes(org_id: str, student_user_id: str,
+                      all_classes: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """The family-audience class payloads for a student's active enrollments."""
+    enrolled_ids = {
+        r['class_id'] for r in (
+            _admin().table('class_enrollments').select('class_id, status')
+            .eq('student_id', student_user_id).eq('status', 'active').execute()
+        ).data or []
+    }
+    if all_classes is None:
+        all_classes = catalog.list_classes(org_id, audience='family')
+    return [c for c in all_classes if c['id'] in enrolled_ids]
+
+
+def my_schedule(user_id: str) -> Dict[str, Any]:
+    """The caller's OWN schedule — the self-scoped read behind the school hub's
+    schedule section. student_schedule() authorizes guardian→student and its
+    payload carries household money (tuition plan, block pricing, registration
+    holds), so a student could never call it for themselves; this one
+    authorizes by membership (the caller's own users.organization_id) and
+    returns only what a student may see about their own week: each class's
+    name, meetings, teacher and room, plus the org's time blocks."""
+    org_id = sis_service.member_org_id(user_id)
+    if not org_id or not org_has_feature(org_id, 'sis_enabled'):
+        return {'classes': [], 'time_blocks': []}
+    classes = [{
+        'id': c['id'],
+        'name': c.get('name'),
+        'image_url': c.get('image_url'),
+        'location': c.get('location'),
+        'meetings': c.get('meetings') or [],
+        'primary_instructor': c.get('primary_instructor'),
+        'assistant_instructors': c.get('assistant_instructors') or [],
+    } for c in _enrolled_classes(org_id, user_id)]
+    settings = _sis_settings(org_id)
+    return {'classes': classes, 'time_blocks': settings.get('time_blocks') or []}
+
+
 def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
     """The student's current schedule: active class enrollments (with meetings)
     plus live waitlist entries, at-home Optio courses, and whether self-service
@@ -622,14 +709,8 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     if not _can_register(user_id, org_id, student_user_id):
         return {'error': 'Not authorized for this student'}
 
-    enrolled_ids = {
-        r['class_id'] for r in (
-            _admin().table('class_enrollments').select('class_id, status')
-            .eq('student_id', student_user_id).eq('status', 'active').execute()
-        ).data or []
-    }
     all_classes = catalog.list_classes(org_id, audience='family')
-    classes = [c for c in all_classes if c['id'] in enrolled_ids]
+    classes = _enrolled_classes(org_id, student_user_id, all_classes)
 
     waitlist_rows = (
         _admin().table('sis_waitlist_entries').select('*')
@@ -691,6 +772,10 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'optio_courses_enabled': _optio_courses_enabled(org_id),
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
+        # The read-only builder's one remaining action: ask the office to make
+        # the change. Only inside the school's add/drop window.
+        'add_drop_deadline': settings.get('add_drop_deadline') or None,
+        'add_drop_open': add_drop_open(org_id),
         'registration_hold': bool((household or {}).get('registration_hold')),
         'registration_hold_reason': (household or {}).get('registration_hold_reason'),
         'enrollment_waitlist': {
@@ -860,6 +945,7 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
     }, on_conflict='class_id,student_id').execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
+    _enroll_in_class_quests(_admin(), class_id, student_user_id)
     from services import sis_waitlist_service
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_user_id)
     return {'enrolled': True}
@@ -909,7 +995,7 @@ def _alert_admins_blocked_claim(org_id: str, class_id: str, student_user_id: str
         from services import sis_notifications
         stu = (
             _admin().table('users')
-            .select('first_name, last_name, display_name, username')
+            .select('first_name, last_name, display_name, username, preferred_name')
             .eq('id', student_user_id).limit(1).execute()
         ).data or []
         name = 'A student'
@@ -1344,7 +1430,7 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, email')
+            .select('id, display_name, first_name, last_name, email, preferred_name')
             .in_('id', user_ids).execute()
         ).data or []
     } if user_ids else {}
@@ -1400,11 +1486,35 @@ def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, 
 
 
 def create_absence(user_id: str, org_id: str, student_user_id: str, absence_date: str,
-                   class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
+                   class_id: Optional[str] = None, reason: Optional[str] = None,
+                   end_date: Optional[str] = None) -> Dict[str, Any]:
     if not _can_register(user_id, org_id, student_user_id):
         return {'error': 'Not authorized for this student'}
     return absences.create(org_id, student_user_id, reported_by=user_id,
-                           absence_date=absence_date, class_id=class_id, reason=reason)
+                           absence_date=absence_date, class_id=class_id, reason=reason,
+                           end_date=end_date)
+
+
+def create_absences(user_id: str, org_id: str, student_user_ids: List[str], absence_date: str,
+                    class_id: Optional[str] = None, reason: Optional[str] = None,
+                    end_date: Optional[str] = None) -> Dict[str, Any]:
+    """Report the same absence — one day or a date range — for several children
+    at once.
+
+    Each child is authorized and written independently, so a duplicate report
+    for one sibling doesn't block the others. Returns the rows that were
+    created plus per-student errors for the ones that weren't.
+    """
+    created: List[Dict[str, Any]] = []
+    errors: Dict[str, str] = {}
+    for sid in student_user_ids:
+        result = create_absence(user_id, org_id, sid, absence_date,
+                                class_id=class_id, reason=reason, end_date=end_date)
+        if result.get('error'):
+            errors[sid] = result['error']
+        else:
+            created.extend(result.get('absences') or [result['absence']])
+    return {'absences': created, 'errors': errors}
 
 
 def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
@@ -1414,3 +1524,27 @@ def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
     if not _can_register(user_id, row['organization_id'], row['student_user_id']):
         return {'error': 'Not authorized for this student'}
     return {'ok': absences.cancel(absence_id, row['organization_id'])}
+
+
+def cancel_absences(user_id: str, absence_ids: List[str]) -> Dict[str, Any]:
+    """Cancel several reports at once — the UI shows a date range as one row.
+
+    All-or-nothing on authorization: if any id isn't the caller's to cancel,
+    nothing is cancelled. Rows are grouped per (org, student, class) so each
+    group's office notification covers its span, not one per day.
+    """
+    ids = [i for i in dict.fromkeys(absence_ids) if i]
+    rows = absences.get_many(ids)
+    if not rows:
+        return {'error': 'Absence not found'}
+    for row in rows:
+        if not _can_register(user_id, row['organization_id'], row['student_user_id']):
+            return {'error': 'Not authorized for this student'}
+    groups: Dict[tuple, List[str]] = {}
+    for row in rows:
+        key = (row['organization_id'], row['student_user_id'], row.get('class_id'))
+        groups.setdefault(key, []).append(row['id'])
+    cancelled = 0
+    for (org_id, _sid, _cid), group_ids in groups.items():
+        cancelled += absences.cancel_many(group_ids, org_id)
+    return {'cancelled': cancelled}

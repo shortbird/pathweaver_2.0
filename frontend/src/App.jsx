@@ -1,5 +1,5 @@
 import React, { useEffect, useState, lazy, Suspense, startTransition } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
@@ -54,11 +54,20 @@ const CourseWelcomePage = lazy(() => import('./pages/CourseWelcomePage'))
 const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
-const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
+const RegisterFunnelPage = lazy(() => import('./pages/RegisterFunnelPage'))
 const RequiredDocumentsPage = lazy(() => import('./pages/RequiredDocumentsPage'))
 const PhoneVerificationPage = lazy(() => import('./pages/PhoneVerificationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
+
+// /communication is the retired name of /messages. DM notifications and
+// forwarded-support emails link "?user=<id>" to open one thread, so the query
+// string has to survive the redirect — a bare <Navigate to="/messages"> drops
+// it and lands the reader on the list.
+const CommunicationRedirect = () => {
+  const { search } = useLocation()
+  return <Navigate to={`/messages${search}`} replace />
+}
 // RoleHome renders each role's own home at /dashboard (it bundles the student
 // DashboardPage internally) — see pages/home/RoleHome.jsx.
 const RoleHome = lazy(() => import('./pages/home/RoleHome'))
@@ -149,6 +158,7 @@ const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 const SchoolPage = lazy(() => import('./pages/SchoolPage'))
+const CarpoolPage = lazy(() => import('./pages/CarpoolPage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 // Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
@@ -267,8 +277,10 @@ function AppContent() {
       if (result.success) {
         setMasqueradeState(null);
         toast.success('Exited masquerade session');
-        // Full page load required to reinitialize AuthContext with admin token
-        window.location.href = '/admin/users';
+        // Full page load required to reinitialize AuthContext with admin token.
+        // Org admins (who can now view as their own members) have no
+        // /admin/users; they go back to their console home.
+        window.location.href = result.adminUser?.role === 'superadmin' ? '/admin/users' : '/';
       } else {
         toast.error(result.error || 'Failed to exit masquerade');
       }
@@ -629,8 +641,11 @@ function App() {
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />
                 <Route path="connections" element={<Navigate to="/dashboard" replace />} />
                 <Route path="messages" element={<CommunicationPage />} />
-                {/* Old /communication URL retired — redirect to /messages. */}
-                <Route path="communication" element={<Navigate to="/messages" replace />} />
+                {/* Old /communication URL retired — redirect to /messages,
+                    carrying the query string: DM notifications link
+                    "/communication?user=<sender>", and dropping the param
+                    landed the reader on the list instead of the thread. */}
+                <Route path="communication" element={<CommunicationRedirect />} />
                 {/* Personal student journal — parents use the child journal at
                     /parent/child/:childId/journal instead. */}
                 <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
@@ -644,6 +659,8 @@ function App() {
                     notifications sent before the rename link to it. */}
                 <Route path="school" element={<SchoolPage />} />
                 <Route path="announcements" element={<SchoolPage />} />
+                {/* The carpool board's own door — the same board /school holds. */}
+                <Route path="carpool" element={<CarpoolPage />} />
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* Observer pages */}
@@ -767,10 +784,10 @@ function App() {
             {/* Phone verification hold. Standalone and NOT behind PrivateRoute,
                 for the same reason as required-documents directly above. */}
             <Route path="verify-phone" element={<PhoneVerificationPage />} />
-            <Route path="enroll/resume" element={<ICreateRegisterPage />} />
-            <Route path="enroll/:code" element={<ICreateRegisterPage />} />
-            <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />
-            <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
+            <Route path="enroll/resume" element={<RegisterFunnelPage />} />
+            <Route path="enroll/:code" element={<RegisterFunnelPage />} />
+            <Route path="register/icreate/resume" element={<RegisterFunnelPage />} />
+            <Route path="register/icreate/:code" element={<RegisterFunnelPage />} />
             {/* Staff walkthrough of the parent Schedule Builder (nothing saved),
                 reached from the registration funnel preview's final step. */}
             <Route path="schedule-builder/preview/:previewCode" element={<ScheduleBuilderPage />} />

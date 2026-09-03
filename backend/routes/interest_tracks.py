@@ -388,28 +388,46 @@ def preview_evolved_quest(user_id, track_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def _clean_text(value):
+    """Stripped string, or None when the value is missing, blank or not a string."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve', methods=['POST'])
 @require_auth
 def evolve_track_to_quest(user_id, track_id):
-    """Convert an interest track into a private quest using AI-generated structure."""
+    """Convert an interest track into a private quest using AI-generated structure.
+
+    The body is optional. The web app fetches the AI preview first and posts the
+    (possibly edited) title/description/tasks; a client that posts nothing gets
+    the same AI-generated structure without a review step. Insisting on a body
+    here is what the mobile app tripped over: every Evolve tap died with
+    "Request body is required" (2026-08-30).
+    """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
 
-        if not data:
-            return jsonify({'error': 'Request body is required'}), 400
+        title = _clean_text(data.get('title'))
+        description = _clean_text(data.get('description'))
+        tasks = data.get('tasks') or None  # Optional: AI-generated or user-edited tasks
+        if tasks is not None and not isinstance(tasks, list):
+            return jsonify({'error': 'tasks must be a list'}), 400
 
-        title = data.get('title')
-        if not title or not title.strip():
+        # A caller that supplies its own tasks has reviewed the structure and
+        # must name the quest; with no tasks the service generates both.
+        if tasks and not title:
             return jsonify({'error': 'Quest title is required'}), 400
-
-        description = data.get('description')
-        tasks = data.get('tasks')  # Optional: AI-generated or user-edited tasks
 
         result = InterestTracksService.evolve_to_quest(
             user_id=user_id,
             track_id=track_id,
-            title=title.strip(),
-            description=description.strip() if description else None,
+            title=title,
+            description=description,
             tasks=tasks
         )
 
@@ -565,10 +583,16 @@ def convert_moment_to_task(user_id, moment_id):
             return jsonify({'error': 'Request body is required'}), 400
 
         title = data.get('title')
-        pillar = data.get('pillar', 'stem')
         xp_value = data.get('xp_value', InterestTracksService.DEFAULT_PROMOTED_TASK_XP)
         quest_id = data.get('quest_id')
         diploma_subject = data.get('diploma_subject') or None
+
+        # A school that hides the pillars (feature_flags.hide_pillars) sends no
+        # pillar, so it is derived from the credit the student chose rather than
+        # everything landing in 'stem'. user_quest_tasks.pillar is NOT NULL, so
+        # one is always resolved here.
+        from utils.school_subjects import pillar_for_subject
+        pillar = data.get('pillar') or pillar_for_subject(diploma_subject)
 
         valid_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
         if pillar not in valid_pillars:

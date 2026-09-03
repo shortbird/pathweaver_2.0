@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react'
-import { ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import React, { useEffect, useState, useRef } from 'react'
+import { toast } from 'react-hot-toast'
+import { AcademicCapIcon, ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useConversationMessages,
   useSendMessage,
-  useMarkAsRead,
+  useMarkConversationAsRead,
   useToggleMessageReaction,
   useEditMessage,
   useDeleteMessage
@@ -15,7 +18,13 @@ import MessageInput from './MessageInput'
 
 const ChatWindow = ({ conversation, onBack }) => {
   const { user } = useAuth()
+  const confirm = useConfirm()
   const [replyTo, setReplyTo] = useState(null)
+  // The header photo fails the same ways the list rows do — an expired signed
+  // URL, a throttled Google CDN avatar, a deleted object. Fall back to the
+  // initial rather than a broken-image glyph. See the Avatar note in
+  // ConversationList.
+  const [avatarFailed, setAvatarFailed] = useState(false)
 
   // Determine chat type
   const chatType = conversation?.type // 'advisor', 'friend'
@@ -36,7 +45,7 @@ const ChatWindow = ({ conversation, onBack }) => {
   )
 
   const sendMessageMutation = useSendMessage()
-  const markAsReadMutation = useMarkAsRead()
+  const markConversationReadMutation = useMarkConversationAsRead()
   const toggleReactionMutation = useToggleMessageReaction()
   const editMessageMutation = useEditMessage()
   const deleteMessageMutation = useDeleteMessage()
@@ -47,20 +56,35 @@ const ChatWindow = ({ conversation, onBack }) => {
   // Reset reply state when switching conversations
   useEffect(() => {
     setReplyTo(null)
+    setAvatarFailed(false)
   }, [conversation?.id])
 
-  // Mark messages as read when conversation opens
+  // Mark the thread read when it opens, or when a message arrives while it is
+  // open. One request for the whole conversation — this used to fire a PUT per
+  // unread message, each one invalidating the conversation list on the way
+  // back, so a busy thread refetched the heaviest query on the page twenty
+  // times over while the user read it.
+  //
+  // `markedReadRef` keeps that to one call per (conversation, unread state):
+  // the mutation invalidates the message query it is triggered from, so
+  // without it the success handler would re-arm this effect indefinitely.
+  const markedReadRef = useRef(null)
   useEffect(() => {
-    if (messagesData?.messages && messagesData.messages.length > 0) {
-      const unreadMessages = messagesData.messages.filter(
-        m => m.recipient_id === user?.id && !m.read_at
-      )
-
-      unreadMessages.forEach(message => {
-        markAsReadMutation.mutate(message.id)
-      })
-    }
-  }, [messagesData?.messages, user?.id])
+    const messages = messagesData?.messages
+    if (!conversation?.id || !user?.id || !messages?.length) return
+    const unreadCount = messages.filter(
+      m => m.recipient_id === user.id && !m.read_at
+    ).length
+    if (!unreadCount) return
+    const token = `${conversation.id}:${unreadCount}`
+    if (markedReadRef.current === token) return
+    markedReadRef.current = token
+    markConversationReadMutation.mutate(conversation.id, {
+      // Let a failed attempt be retried; otherwise the badge stays lit until
+      // the unread count happens to change.
+      onError: () => { markedReadRef.current = null }
+    })
+  }, [messagesData?.messages, user?.id, conversation?.id])
 
   // Build the small { id, sender_name, content } preview shown while replying
   const buildReplyPreview = (message) => ({
@@ -109,6 +133,31 @@ const ChatWindow = ({ conversation, onBack }) => {
     })
   }
 
+  // Superadmin (Optio Support): hand a member's message off to their school's
+  // org admins — it lands in the admins' own Messages and in their email. The
+  // member gets an automatic note that the school will follow up, so nothing
+  // else is needed here.
+  const canForwardToSchool = user?.role === 'superadmin'
+  const handleForwardToSchool = async (message) => {
+    const ok = await confirm(
+      "Forward this message to the sender's school? Their org admins get it in their Optio messages and by email, and the sender is told the school will follow up."
+    )
+    if (!ok) return
+    try {
+      const r = await api.post(`/api/messages/${message.id}/forward-to-school`, {})
+      const orgName = r.data?.data?.organization?.name
+      const emailed = r.data?.data?.emailed_admins || 0
+      toast.success(
+        emailed
+          ? `Forwarded to ${orgName || 'the school'} and emailed ${emailed} admin${emailed === 1 ? '' : 's'}`
+          : `Forwarded to ${orgName || 'the school'}`
+      )
+      refetchMessages()
+    } catch (error) {
+      toast.error(error?.response?.data?.error || 'Could not forward this message')
+    }
+  }
+
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
@@ -123,11 +172,17 @@ const ChatWindow = ({ conversation, onBack }) => {
     )
   }
 
-  // Render advisor / support / friend chat
+  // Render advisor / support / school / friend chat
   const isAdvisor = chatType === 'advisor'
   const isSupport = chatType === 'support' || conversation?.relationshipTypes?.includes('support')
+  const isSchool = chatType === 'school' || conversation?.relationshipTypes?.includes('school') ||
+    otherUser?.is_school
   const displayName = `${otherUser?.first_name || ''} ${otherUser?.last_name || ''}`.trim() || otherUser?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
+  // Backend-supplied, and only for superadmin viewers: the school this person
+  // belongs to. Optio Support answers members from every org in one inbox, so
+  // the header has to say whose member this is.
+  const memberOrgName = otherUser?.organization_name
   const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
   return (
@@ -150,10 +205,18 @@ const ChatWindow = ({ conversation, onBack }) => {
               alt="Optio Support"
               className="w-10 h-10 rounded-full object-contain bg-white border border-gray-100"
             />
-          ) : otherUser?.avatar_url ? (
+          ) : isSchool ? (
+            <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+              <AcademicCapIcon className="w-5 h-5 text-white" />
+            </div>
+          ) : otherUser?.avatar_url && !avatarFailed ? (
             <img
               src={otherUser.avatar_url}
               alt={displayName}
+              width={40}
+              height={40}
+              decoding="async"
+              onError={() => setAvatarFailed(true)}
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
@@ -164,7 +227,11 @@ const ChatWindow = ({ conversation, onBack }) => {
           <div>
             <h2 className="text-base font-semibold text-gray-900">{displayName}</h2>
             <p className="text-sm text-gray-500">
-              {isAdvisor ? 'Your teacher' : isSupport ? 'We usually reply within a day' : 'Direct message'}
+              {isAdvisor ? 'Your teacher'
+                : isSupport ? 'We usually reply within a day'
+                : isSchool ? "Goes to the school's front office"
+                : memberOrgName ? `Member of ${memberOrgName}`
+                : 'Direct message'}
             </p>
           </div>
         </div>
@@ -192,6 +259,7 @@ const ChatWindow = ({ conversation, onBack }) => {
           onReply={(message) => setReplyTo(buildReplyPreview(message))}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          onForward={canForwardToSchool ? handleForwardToSchool : undefined}
         />
       )}
 

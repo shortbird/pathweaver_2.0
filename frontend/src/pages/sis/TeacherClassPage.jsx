@@ -40,7 +40,21 @@ const today = () => new Date().toISOString().slice(0, 10)
 // 'gradebook' stays accepted so old links and bookmarks land on the tab that
 // replaced it rather than silently falling back to the roster.
 const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages']
-const TAB_ALIASES = { gradebook: 'progress' }
+
+// "Next" is only useful with a room and a time on it — the point is a teacher
+// pointing a student down the right hallway (iCreate, 2026-08-25).
+const fmtTime = (hhmm) => {
+  if (!hhmm) return ''
+  const [h, m] = String(hhmm).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
+}
+
+// The discussion board folded into Messages (its student chat, 2026-08-31);
+// old ?tab=discussion links land there.
+const TAB_ALIASES = { gradebook: 'progress', discussion: 'messages' }
 
 const TeacherClassPage = () => {
   const { classId } = useParams()
@@ -57,10 +71,6 @@ const TeacherClassPage = () => {
   // Which student's health alert is expanded. Hover-only tooltips were
   // unreadable on touch and unreliable on desktop, so the badge is a button.
   const [alertFor, setAlertFor] = useState(null)
-  // Curriculum tab: the class materials list is owned here so "Your curriculum"
-  // can know what's already shared and refresh the materials column after a share.
-  const [classMaterials, setClassMaterials] = useState([])
-  const [materialsRefresh, setMaterialsRefresh] = useState(0)
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
   const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
@@ -145,7 +155,9 @@ const TeacherClassPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
-        {[['roster', 'Roster & Attendance'], ['quests', 'Quests'], ['curriculum', 'Curriculum'], ['progress', 'Student Progress'], ['messages', 'Messages']].map(([key, label]) => (
+        {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
+            then the two only some classes use. */}
+        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -165,16 +177,8 @@ const TeacherClassPage = () => {
         // one side, the materials shared with students on the other — different
         // audiences, side by side so the split reads at a glance.
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          <ClassCurriculumLibrary
-            classId={classId}
-            sharedUrls={new Set(classMaterials.map((m) => m.url))}
-            onSharedToClass={() => setMaterialsRefresh((n) => n + 1)}
-          />
-          <ClassCurriculum
-            classId={classId}
-            refreshSignal={materialsRefresh}
-            onMaterialsLoaded={setClassMaterials}
-          />
+          <ClassCurriculumLibrary classId={classId} />
+          <ClassCurriculum classId={classId} />
         </div>
       )}
 
@@ -256,6 +260,13 @@ const TeacherClassPage = () => {
                           {s.name}
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
                         </span>
+                        {s.next_class && (
+                          <span className="block text-xs text-neutral-500 truncate">
+                            Next: {s.next_class.name}
+                            {s.next_class.location ? ` · ${s.next_class.location}` : ''}
+                            {s.next_class.start_time ? ` · ${fmtTime(s.next_class.start_time)}` : ''}
+                          </span>
+                        )}
                         {s.has_alert && (
                           <HealthAlert student={s}
                             open={alertFor === s.student_id}

@@ -1,0 +1,65 @@
+---
+/**
+ * ACS WASC accreditation mark. Logo-forward treatment: big unaltered logo with
+ * the full commission identity block (name, address, website) in small text
+ * beneath, per the logo-use guidelines. Renders nothing when the kill-switch
+ * is off.
+ */
+import {
+  ACCREDITATION_ACTIVE,
+  WASC_LOGO_SRC,
+  WASC_LOGO_ALT,
+  COMMISSION_NAME,
+  COMMISSION_ADDRESS,
+  COMMISSION_WEBSITE,
+  COMMISSION_WEBSITE_URL,
+} from '../data/accreditation'
+
+export interface Props {
+  variant?: 'card' | 'large' | 'inline'
+  class?: string
+}
+const { variant = 'card', class: className = '' } = Astro.props
+---
+
+{ACCREDITATION_ACTIVE && variant === 'inline' && (
+  <div class={`flex flex-col items-center sm:items-start gap-3 ${className}`}>
+    <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} class="w-44 h-auto bg-white rounded-lg p-1.5" loading="lazy" />
+    <p class="text-neutral-400 text-[11px] leading-relaxed text-center sm:text-left">
+      {COMMISSION_NAME}
+      <br />
+      {COMMISSION_ADDRESS} &middot;{' '}
+      <a href={COMMISSION_WEBSITE_URL} target="_blank" rel="noopener noreferrer" class="underline hover:opacity-80">
+        {COMMISSION_WEBSITE}
+      </a>
+    </p>
+  </div>
+)}
+
+{ACCREDITATION_ACTIVE && variant === 'large' && (
+  <div class={`flex flex-col items-center gap-4 ${className}`}>
+    <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} class="w-full max-w-sm h-auto" loading="lazy" />
+    <p class="text-center text-[11px] text-neutral-500 leading-relaxed max-w-sm">
+      {COMMISSION_NAME}
+      <br />
+      {COMMISSION_ADDRESS} &middot;{' '}
+      <a href={COMMISSION_WEBSITE_URL} target="_blank" rel="noopener noreferrer" class="underline">
+        {COMMISSION_WEBSITE}
+      </a>
+    </p>
+  </div>
+)}
+
+{ACCREDITATION_ACTIVE && variant === 'card' && (
+  <div class={`flex flex-col items-center gap-4 rounded-2xl border border-neutral-100 bg-white p-8 shadow-sm ${className}`}>
+    <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} class="w-full max-w-xs h-auto" loading="lazy" />
+    <p class="text-center text-[11px] text-neutral-500 leading-relaxed max-w-xs">
+      {COMMISSION_NAME}
+      <br />
+      {COMMISSION_ADDRESS} &middot;{' '}
+      <a href={COMMISSION_WEBSITE_URL} target="_blank" rel="noopener noreferrer" class="underline">
+        {COMMISSION_WEBSITE}
+      </a>
+    </p>
+  </div>
+)}

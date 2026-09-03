@@ -4,9 +4,11 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import useHidePillars from '../../hooks/useHidePillars';
 
 const EvidenceHeader = ({ context, blockCount }) => {
   const { taskTitle, questTitle, pillar, completedAt, xpAwarded } = context;
+  const hidePillars = useHidePillars();
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -34,7 +36,7 @@ const EvidenceHeader = ({ context, blockCount }) => {
           )}
 
           <div className="flex items-center gap-3 flex-wrap">
-            {pillar && (
+            {!hidePillars && pillar && (
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-optio-purple/10 text-optio-purple-dark">
                 {pillar}
               </span>

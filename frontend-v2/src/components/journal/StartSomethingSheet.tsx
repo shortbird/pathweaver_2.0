@@ -109,8 +109,8 @@ export function StartSomethingSheet({
           <Row
             testID="start-something-capture-moment"
             icon="camera-outline"
-            iconColor="#6D469B"
-            iconBg="#6D469B1A"
+            iconColor={c.brand}
+            iconBg={`${c.brand}1A`}
             title="Capture a moment"
             subtitle="Snap a photo, record audio, or note what you're working on"
             onPress={closeThen(onCaptureMoment)}
@@ -118,8 +118,8 @@ export function StartSomethingSheet({
           <Row
             testID="start-something-browse-quests"
             icon="compass-outline"
-            iconColor="#6D469B"
-            iconBg="#6D469B1A"
+            iconColor={c.brand}
+            iconBg={`${c.brand}1A`}
             title="Browse quests"
             subtitle="Find a quest from the Optio catalog"
             onPress={() => {

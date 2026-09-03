@@ -73,6 +73,8 @@ export interface CarpoolPost {
   area: string | null;
   days: string | null;
   author_name: string | null;
+  /** The author's account, so "Message them" can deep-link into Messages. */
+  author_id: string | null;
   created_at: string;
   mine?: boolean;
 }
@@ -104,6 +106,8 @@ export interface Absence {
   class_id: string | null;
   class_name?: string | null;
   reason: string | null;
+  /** Hydrated client-side so a multi-child list can say whose absence it is. */
+  student_name?: string;
 }
 
 export interface AbsenceClass {
@@ -111,11 +115,57 @@ export interface AbsenceClass {
   name: string;
 }
 
+/** One display row: a run of consecutive reported days for one child. */
+export interface AbsenceRun extends Absence {
+  end_date: string;
+  ids: string[];
+}
+
+// Timezone-safe day increment for YYYY-MM-DD strings (Date('YYYY-MM-DD') is UTC).
+const nextDay = (iso: string): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(y, m - 1, d + 1);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * A range report is stored one row per day; fold consecutive days with the
+ * same child, class, and reason back into one display row so a two-week trip
+ * is one line with one Cancel, not fourteen.
+ */
+export const groupAbsenceRuns = (list: Absence[]): AbsenceRun[] => {
+  const sorted = [...list].sort((a, b) => (
+    (a.student_name || '').localeCompare(b.student_name || '')
+    || a.absence_date.localeCompare(b.absence_date)
+  ));
+  const runs: AbsenceRun[] = [];
+  for (const a of sorted) {
+    const prev = runs[runs.length - 1];
+    if (prev && prev.student_name === a.student_name
+        && (prev.class_id || null) === (a.class_id || null)
+        && (prev.reason || null) === (a.reason || null)
+        && nextDay(prev.end_date) === a.absence_date) {
+      prev.end_date = a.absence_date;
+      prev.ids.push(a.id);
+    } else {
+      runs.push({ ...a, end_date: a.absence_date, ids: [a.id] });
+    }
+  }
+  return runs.sort((x, y) => x.absence_date.localeCompare(y.absence_date));
+};
+
 /** True when the board holds anything a family can see. */
 export const hasCommunityContent = (feed: SchoolFeed | null): boolean => Boolean(
   feed && (['announcements', 'lost_found', 'recognition', 'events', 'carpool'] as const)
     .some((k) => (feed[k] || []).length > 0),
 );
+
+/** True when the school page has anything to show — board content OR sent
+ *  messages (the unified feed draws on both). */
+export const hasSchoolContent = (
+  feed: SchoolFeed | null,
+  messages: ArchivedMessage[],
+): boolean => hasCommunityContent(feed) || messages.length > 0;
 
 // ── The gate ──
 
@@ -171,10 +221,20 @@ export function useSchool() {
 
 // ── The hub: school context + community feed + carpool actions ──
 
-export function useSchoolHub() {
+/**
+ * `markRead` — only the hub screen itself reports read receipts (the feed is
+ * on that screen); the carpool screen reuses this hook for the board and must
+ * not mark messages nobody looked at.
+ */
+export function useSchoolHub(opts?: { markRead?: boolean }) {
+  const markRead = Boolean(opts?.markRead);
   const [org, setOrg] = useState<SchoolOrg | null>(null);
   const [feed, setFeed] = useState<SchoolFeed | null>(null);
+  const [messages, setMessages] = useState<ArchivedMessage[]>([]);
   const [orgName, setOrgName] = useState<string | null>(null);
+  // Archive ids already reported as read this mount — read receipts are
+  // per-person facts, so nothing is reported from the superadmin preview.
+  const markedRef = useRef<Set<string>>(new Set());
   const [canPost, setCanPost] = useState(false);
   const [canModerate, setCanModerate] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -216,6 +276,33 @@ export function useSchoolHub() {
     }
   }, []);
 
+  // The most recent sent messages, folded into the unified feed alongside the
+  // board. First page only — the archive screen owns search and older pages.
+  const fetchMessages = useCallback(async (params?: Record<string, string> | null) => {
+    try {
+      const { data } = await api.get('/api/announcements/archive', {
+        params: { limit: 20, offset: 0, ...(params || {}) },
+      });
+      if (data?.success) {
+        const items: ArchivedMessage[] = data.announcements || [];
+        setMessages(items);
+        if (data.organization_name) setOrgName(data.organization_name);
+        // Read receipts: report what reached this member's screen, once.
+        // Never from the superadmin preview (params names a previewed org).
+        if (markRead && !params) {
+          const ids = items.map((m) => m.id).filter((id) => !markedRef.current.has(id));
+          if (ids.length) {
+            ids.forEach((id) => markedRef.current.add(id));
+            api.post('/api/announcements/mark-read', { announcement_ids: ids.slice(0, 50) })
+              .catch(() => { /* receipts are best-effort */ });
+          }
+        }
+      }
+    } catch {
+      // The board still stands without the archive.
+    }
+  }, [markRead]);
+
   const loadAll = useCallback(async () => {
     if (isSuperadmin) {
       // Sequential on purpose: the feed read can't be issued until the
@@ -224,11 +311,16 @@ export function useSchoolHub() {
       feedParamsRef.current = first
         ? { organization_id: first.organization_id, view_as: 'parent' }
         : null;
-      if (first) await fetchFeed(feedParamsRef.current);
+      if (first) {
+        await Promise.all([
+          fetchFeed(feedParamsRef.current),
+          fetchMessages(feedParamsRef.current),
+        ]);
+      }
     } else {
-      await Promise.all([fetchContext(), fetchFeed()]);
+      await Promise.all([fetchContext(), fetchFeed(), fetchMessages()]);
     }
-  }, [isSuperadmin, fetchContext, fetchFeed]);
+  }, [isSuperadmin, fetchContext, fetchFeed, fetchMessages]);
 
   useEffect(() => {
     let active = true;
@@ -258,24 +350,20 @@ export function useSchoolHub() {
     await fetchFeed(feedParamsRef.current);
   }, [fetchFeed]);
 
-  const messageCarpool = useCallback(async (id: string, message: string) => {
-    await api.post(`/api/sis/community/feed/carpool/${id}/message`, { message });
-  }, []);
-
   const carpool = useMemo(() => ({
     posts: feed?.carpool || [],
     canPost,
     canModerate,
     post: postCarpool,
     remove: removeCarpool,
-    message: messageCarpool,
-  }), [feed?.carpool, canPost, canModerate, postCarpool, removeCarpool, messageCarpool]);
+  }), [feed?.carpool, canPost, canModerate, postCarpool, removeCarpool]);
 
   useRefetchOnForeground(refresh);
 
   return {
     org,
     feed,
+    messages,
     carpool,
     loading,
     refreshing,
@@ -360,9 +448,10 @@ export function useSchoolArchive(options?: { organizationId?: string }) {
 export function useSchoolAbsences() {
   const [orgs, setOrgs] = useState<any[]>([]);
   const [orgId, setOrgId] = useState<string>('');
-  const [studentId, setStudentId] = useState<string>('');
-  const [absences, setAbsences] = useState<Absence[]>([]);
-  const [classes, setClasses] = useState<AbsenceClass[]>([]);
+  const [studentIds, setStudentIds] = useState<string[]>([]);
+  // Per-child data for every child in the org, so toggling a chip never waits
+  // on a fetch. {student_id: {absences, classes}}.
+  const [byStudent, setByStudent] = useState<Record<string, { absences: Absence[]; classes: AbsenceClass[] }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -375,7 +464,7 @@ export function useSchoolAbsences() {
         setOrgs(list);
         if (list.length) {
           setOrgId(list[0].organization_id);
-          if (list[0].students?.length) setStudentId(list[0].students[0].student_id);
+          if (list[0].students?.length) setStudentIds([list[0].students[0].student_id]);
         }
       })
       .catch(() => { if (active) setError('Could not load absences'); })
@@ -384,40 +473,85 @@ export function useSchoolAbsences() {
   }, []);
 
   const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId]);
-  const students: AbsenceStudent[] = org?.students || [];
+  // Memoized: loadAbsences depends on this, and a fresh [] every render would
+  // re-run its effect (and setState) in a loop.
+  const students: AbsenceStudent[] = useMemo(() => org?.students || [], [org]);
+
+  // Keep the selection valid when the org changes.
+  useEffect(() => {
+    if (!students.length) return;
+    setStudentIds((prev) => {
+      const valid = prev.filter((sid) => students.some((s) => s.student_id === sid));
+      return valid.length ? valid : [students[0].student_id];
+    });
+  }, [students]);
 
   const loadAbsences = useCallback(async () => {
-    if (!orgId || !studentId) { setAbsences([]); setClasses([]); return; }
+    if (!orgId || !students.length) { setByStudent({}); return; }
     try {
-      const r = await api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${studentId}`);
-      setAbsences(r.data?.absences || []);
-      setClasses(r.data?.classes || []);
+      const entries = await Promise.all(students.map(async (s) => {
+        const r = await api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${s.student_id}`);
+        return [s.student_id, {
+          absences: r.data?.absences || [],
+          classes: r.data?.classes || [],
+        }] as const;
+      }));
+      setByStudent(Object.fromEntries(entries));
     } catch {
       setError('Could not load absences');
     }
-  }, [orgId, studentId]);
+  }, [orgId, students]);
 
   useEffect(() => { loadAbsences(); }, [loadAbsences]);
 
-  const report = useCallback(async (form: { absence_date: string; class_id: string | null; reason: string | null }) => {
-    await api.post('/api/sis/parent/absences', {
+  const toggleStudent = useCallback((sid: string) => {
+    setStudentIds((prev) => (
+      prev.includes(sid) ? prev.filter((id) => id !== sid) : [...prev, sid]
+    ));
+  }, []);
+
+  // Classes every selected child is enrolled in — a class-specific absence for
+  // several children only makes sense when they share the class.
+  const classes = useMemo(() => {
+    const lists = studentIds.map((sid) => byStudent[sid]?.classes || []);
+    if (!lists.length) return [];
+    return lists[0].filter((c) => lists.every((l) => l.some((x) => x.class_id === c.class_id)));
+  }, [studentIds, byStudent]);
+
+  // Upcoming absences across every selected child, consecutive days folded
+  // into one range row, soonest first.
+  const absences = useMemo(() => groupAbsenceRuns(
+    studentIds.flatMap((sid) => (byStudent[sid]?.absences || []).map((a) => ({
+      ...a,
+      student_name: students.find((s) => s.student_id === sid)?.name,
+    }))),
+  ), [studentIds, byStudent, students]);
+
+  const report = useCallback(async (form: {
+    absence_date: string; end_date?: string | null; class_id: string | null; reason: string | null;
+  }) => {
+    const r = await api.post('/api/sis/parent/absences', {
       organization_id: orgId,
-      student_user_id: studentId,
+      student_user_ids: studentIds,
       absence_date: form.absence_date,
+      end_date: form.end_date && form.end_date !== form.absence_date ? form.end_date : null,
       class_id: form.class_id || null,
       reason: form.reason || null,
     });
     await loadAbsences();
-  }, [orgId, studentId, loadAbsences]);
+    return r.data;
+  }, [orgId, studentIds, loadAbsences]);
 
-  const cancel = useCallback(async (id: string) => {
-    await api.delete(`/api/sis/parent/absences/${id}`);
+  // One call for the whole run — a cancelled two-week trip is one office
+  // notification, not fourteen.
+  const cancel = useCallback(async (ids: string[]) => {
+    await api.post('/api/sis/parent/absences/cancel', { absence_ids: ids });
     await loadAbsences();
   }, [loadAbsences]);
 
   return {
     orgs, orgId, setOrgId,
-    students, studentId, setStudentId,
+    students, studentIds, toggleStudent,
     absences, classes,
     orgName: org?.organization_name || null,
     loading, error,

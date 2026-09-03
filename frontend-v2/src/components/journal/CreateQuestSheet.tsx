@@ -10,7 +10,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, Pressable, Alert } from 'react-native';
+import { TextInput, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/src/services/api';
@@ -18,6 +18,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert } from '@/src/utils/alerts';
 
 interface CreateQuestSheetProps {
   visible: boolean;
@@ -78,7 +79,7 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild }: Crea
       const msg = err.response?.data?.error?.message
         || err.response?.data?.error
         || 'Could not create that quest. Try a different title.';
-      Alert.alert('Error', typeof msg === 'string' ? msg : 'Could not create quest.');
+      showAlert('Error', typeof msg === 'string' ? msg : 'Could not create quest.');
     } finally {
       setSaving(false);
     }
@@ -93,6 +94,8 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild }: Crea
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>

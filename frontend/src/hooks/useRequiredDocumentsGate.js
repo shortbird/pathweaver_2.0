@@ -12,7 +12,7 @@ import { isMasquerading } from '../services/masqueradeService'
 // console). The two must agree, so this hook asks the backend rather than
 // deciding anything itself.
 //
-// Modelled on useICreateRegistrationGate, deliberately: one cached lookup per
+// Modelled on useRegistrationGate, deliberately: one cached lookup per
 // user for the session, only org users are eligible, and a failed lookup means
 // NOT blocked. A network error must never be the thing that locks a family out
 // of their school — the backend still holds the real line, so failing open

@@ -5,7 +5,7 @@
  * Validates invitation code, shows org details, handles registration or quick-join.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, KeyboardAvoidingView, Platform, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -176,7 +176,7 @@ export default function AcceptInvitationScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <VStack className="items-center gap-3">
-          <ActivityIndicator size="large" color="#6D469B" />
+          <ActivityIndicator size="large" color={c.brand} />
           <UIText className="text-typo-400 dark:text-dark-typo-400">Verifying invitation...</UIText>
         </VStack>
       </SafeAreaView>

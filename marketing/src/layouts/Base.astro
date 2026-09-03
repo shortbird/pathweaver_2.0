@@ -1,0 +1,191 @@
+---
+import { SITE, ANALYTICS } from '../data/site'
+import AuthHandoff from '../components/AuthHandoff.astro'
+import '../styles/global.css'
+
+export interface Props {
+  title: string
+  description: string
+  ogImage?: string
+  ogType?: string
+  canonical?: string
+  /** Extra ld+json blocks for this page */
+  schema?: object[]
+  noindex?: boolean
+}
+
+const {
+  title,
+  description,
+  ogImage = '/images/og/default.png',
+  ogType = 'website',
+  canonical,
+  schema = [],
+  noindex = false,
+} = Astro.props
+
+const canonicalUrl = canonical || new URL(Astro.url.pathname, SITE.url).href
+const ogImageUrl = new URL(ogImage, SITE.url).href
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- First thing in the document: a Supabase OAuth landing that missed the
+         app subdomain has to be handed on before anything else runs. -->
+    <AuthHandoff />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="Optio" />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <meta name="theme-color" content="#6D469B" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="icon" type="image/svg+xml" href="/images/optio-icon.svg" />
+    <link rel="icon" type="image/png" href="/images/optio-icon.png" />
+    <link rel="apple-touch-icon" href="/images/optio-icon.png" />
+    <link rel="alternate" type="application/rss+xml" title="Optio Blog" href="/rss.xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Poppins is self-hosted (see global.css); preload the weights used above the fold -->
+    <link rel="preload" href="/fonts/poppins-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin />
+
+    {schema.map((block) => (
+      <script type="application/ld+json" set:html={JSON.stringify(block)} />
+    ))}
+
+    <!-- Analytics. GA4 + Meta Pixel are gated to the production hosts so dev
+         and preview traffic never pollutes prod properties (same policy as the
+         app). The pixel loads for every visitor on this pre-auth surface
+         (decision 2026-08-30); no PII is ever sent to any of these. PostHog
+         inits only when a key is provided at build time. -->
+    <script
+      is:inline
+      define:vars={{
+        gaId: ANALYTICS.gaMeasurementId,
+        pixelId: ANALYTICS.metaPixelId,
+        posthogKey: ANALYTICS.posthogKey,
+        posthogHost: ANALYTICS.posthogHost,
+        prodHosts: ANALYTICS.prodHosts,
+      }}
+    >
+      (function () {
+        var isProd = prodHosts.indexOf(window.location.hostname) !== -1;
+
+        // ---- GA4 (prod only; Consent Mode v2, all ad usage denied: K-12 audience)
+        if (isProd && gaId) {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() { window.dataLayer.push(arguments); }
+          window.gtag = gtag;
+          gtag('consent', 'default', {
+            ad_storage: 'denied',
+            ad_user_data: 'denied',
+            ad_personalization: 'denied',
+            analytics_storage: 'granted',
+          });
+          gtag('js', new Date());
+          gtag('config', gaId);
+          var g = document.createElement('script');
+          g.async = true;
+          g.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+          document.head.appendChild(g);
+        }
+
+        // ---- Meta Pixel (prod only)
+        if (isProd && pixelId) {
+          !(function (f, b, e, v, n, t, s) {
+            if (f.fbq) return; n = f.fbq = function () {
+              n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+            };
+            if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+            n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
+            s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+          })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', pixelId);
+          fbq('track', 'PageView');
+        }
+
+        // ---- PostHog (any host, only when a key was provided at build)
+        if (posthogKey) {
+          !(function (t, e) {
+            var o, n, p, r; e.__SV || ((window.posthog = e), (e._i = []),
+            (e.init = function (i, s, a) {
+              function g(t, e) { var o = e.split('.'); 2 == o.length && ((t = t[o[0]]), (e = o[1])),
+                (t[e] = function () { t.push([e].concat(Array.prototype.slice.call(arguments, 0))); }); }
+              ((p = t.createElement('script')).type = 'text/javascript'), (p.async = !0),
+              (p.src = s.api_host.replace('.i.posthog.com', '-assets.i.posthog.com') + '/static/array.js'),
+              (r = t.getElementsByTagName('script')[0]).parentNode.insertBefore(p, r);
+              var u = e; for (void 0 !== a ? (u = e[a] = []) : (a = 'posthog'), u.people = u.people || [],
+              (u.toString = function (t) { var e = 'posthog'; return 'posthog' !== a && (e += '.' + a), t || (e += ' (stub)'), e; }),
+              (u.people.toString = function () { return u.toString(1) + '.people (stub)'; }),
+              o = 'init capture register register_once unregister opt_out_capturing opt_in_capturing'.split(' '),
+              n = 0; n < o.length; n++) g(u, o[n]); e._i.push([i, s, a]);
+            }), (e.__SV = 1));
+          })(document, window.posthog || []);
+          posthog.init(posthogKey, { api_host: posthogHost, autocapture: false, respect_dnt: true });
+        }
+
+        // ---- Shared event helper: same event names the SPA used, so PostHog
+        //      dashboards keep working across the migration.
+        window.optioTrack = function (name, props) {
+          try { if (window.posthog && window.posthog.capture) posthog.capture(name, props || {}); } catch (e) {}
+        };
+        window.optioTrack('marketing_page_view', {
+          path: window.location.pathname,
+          referrer: document.referrer || null,
+        });
+
+        // CTA clicks via data attributes: <a data-track="cta_name">
+        document.addEventListener('click', function (e) {
+          var el = e.target && e.target.closest && e.target.closest('[data-track]');
+          if (!el) return;
+          window.optioTrack('marketing_cta_click', {
+            page: window.location.pathname,
+            cta: el.getAttribute('data-track'),
+          });
+        });
+
+        // Scroll depth (25/50/75/100), matching the SPA's events
+        var fired = {};
+        window.addEventListener('scroll', function () {
+          var docH = document.documentElement.scrollHeight - window.innerHeight;
+          if (docH <= 0) return;
+          var pct = Math.round((window.scrollY / docH) * 100);
+          [25, 50, 75, 100].forEach(function (t) {
+            if (pct >= t && !fired[t]) {
+              fired[t] = true;
+              window.optioTrack('marketing_scroll_depth', {
+                path: window.location.pathname,
+                depth_percent: t,
+              });
+            }
+          });
+        }, { passive: true });
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

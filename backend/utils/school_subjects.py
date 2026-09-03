@@ -72,6 +72,37 @@ PILLAR_TO_SUBJECTS = {
     'cultural_literacy': ['social_studies']
 }
 
+# Reverse of PILLAR_TO_SUBJECTS: the pillar a school subject belongs to.
+# Needed by schools that have switched the pillars off
+# (organizations.feature_flags.hide_pillars): user_quest_tasks.pillar is NOT
+# NULL, so a task created without a pillar picker still needs one, and deriving
+# it from the credit the family DID choose beats defaulting everything to
+# 'stem'. Built from PILLAR_TO_SUBJECTS so the two can never drift; only the
+# current (non-legacy) pillar keys contribute, and the first pillar listed for a
+# subject wins.
+SUBJECT_TO_PILLAR = {}
+for _pillar in ('art', 'stem', 'wellness', 'communication', 'civics'):
+    for _subject in PILLAR_TO_SUBJECTS.get(_pillar, []):
+        SUBJECT_TO_PILLAR.setdefault(_subject, _pillar)
+# Subjects no pillar claims. Mapped by what the work actually is rather than
+# left to fall through to the default.
+SUBJECT_TO_PILLAR.setdefault('financial_literacy', 'wellness')
+SUBJECT_TO_PILLAR.setdefault('cte', 'wellness')
+SUBJECT_TO_PILLAR.setdefault('digital_literacy', 'stem')
+SUBJECT_TO_PILLAR.setdefault('electives', 'stem')
+
+
+def pillar_for_subject(subject, default='stem'):
+    """The pillar a school subject rolls up to.
+
+    Accepts a subject key ('language_arts') or a display name ('Language Arts');
+    anything unrecognized returns `default`. Used when a task is created without
+    a pillar because the school hides them.
+    """
+    key = normalize_subject_key(subject) if subject else None
+    return SUBJECT_TO_PILLAR.get(key, default)
+
+
 def validate_school_subjects(subjects):
     """
     Validate that all provided school subjects are valid.

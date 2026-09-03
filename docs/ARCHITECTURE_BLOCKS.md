@@ -255,7 +255,7 @@ staff; `backend/tests/test_secret_exposure_guard.py` scans every route.
 
 ### 3.6 Org-specific hardcoding (severity order)
 
-1. **`icreate_registrations`** — a customer-named table load-bearing for generic features (38 refs): `reports.py` reads it for medications/allergies reports, `sis_clp_service` for payment intent, `sis_enrollment_waitlist_service` for Stripe fee-deferred flow; and `routes/sis/__init__.py` imports `_finish_fee_step`/`_org_config` **from another route module** (`routes.icreate_registration`).
+1. ~~**`icreate_registrations`**~~ — **DONE 2026-08-25.** Renamed to `registrations` (expand/contract, compat view behind it); `routes/icreate_registration.py` → `routes/registration_funnel.py`, blueprint `registration`, served at `/api/registration/*` with `/api/icreate/*` as a deprecated alias. `routes/sis/__init__.py` still imports `_finish_fee_step`/`_org_config` **from another route module** — now `routes.registration_funnel`. That route→route import is the remaining smell here.
 2. **`frontend/src/config/optioAcademy.js`** — a hardcoded org UUID consumed by `postLoginPath.js`, `FamilyHome.jsx`, `SchoolPage.jsx`. Its own comment says "promote to feature_flags if a second school wants this shape."
 3. **`registration_config.py`** dual-key: reads `registration` with fallback to `icreate_registration`, writes both.
 4. **URL naming**: `/api/icreate/*`; `register/icreate/*` — Gryffin's live registration link is literally `register/icreate/gryffin-family-2026`.
@@ -549,9 +549,9 @@ solo-founder-plus-agents pace with the iCreate backlog interleaved.
 
 **P4 — De-hardcoding (M/L, 4–6 days; nothing before ~09-01)**
 - `optioAcademy.js` UUID → org config (the promotion its own comment promised); `partnerOrgs.js` → a `simplified_partner_dashboard` flag; `treehouse.py` → the program registry; the one-off slug switches → flags.
-- `icreate_registrations`: **repository wrapper, no physical rename** — `backend/repositories/registration_repository.py` owns the table name in one constant; the 38 refs migrate opportunistically; the route→route import in `routes/sis/__init__.py` breaks by moving `_finish_fee_step`/`_org_config` into a service both routes call.
+- ~~`icreate_registrations`: repository wrapper, no physical rename~~ — **superseded 2026-08-25.** The physical rename happened instead (see 3.6): the judgement below that it carried "zero user value" undercounted the cost of a client's name on a table three orgs write to. Still outstanding: the route→route import in `routes/sis/__init__.py`, which wants `_finish_fee_step`/`_org_config` moved into a service both routes call.
 - Dual-key collapse: verify prod is past the deploy that read only the legacy key, drop the mirror + fallback, scrub `icreate_registration` keys from org rows.
-- URLs: `/api/icreate/*` API paths **stay** (backend-internal). The frontend funnel gains a neutral `register/<org-slug>/*` alias; `register/icreate/*` redirects **forever** — Gryffin's live link must never 404.
+- URLs: ~~`/api/icreate/*` API paths **stay**~~ — renamed 2026-08-25 to `/api/registration/*`, with `/api/icreate/*` kept as a deprecated alias (the two frontends deploy separately, so the old prefix has to outlive the deploy gap). `register/icreate/*` still redirects **forever** — Gryffin's live link (`register/icreate/gryffin-family-2026`) must never 404.
 
 **P5 — Cleanup (M, 3–5 days)**
 - Converge the other four CSV/export paths onto the roster engine **after** the backlog agent lands it.
@@ -593,7 +593,7 @@ value — by ~2026-09-08; P3 through September; P4+P5 by mid-to-late October.
 | Course→class attachment | no data model exists and course authoring is locked to one user — a product decision, not a refactor step |
 | Campus/location entity | blocked on iCreate's 14 unanswered client questions; inventing the model first guarantees rework |
 | Per-block billing / entitlements-as-product | tiers were deliberately removed; selling blocks needs zero code until a second paying school asks |
-| `icreate_registrations` physical rename | 38 refs, live funnel, RLS/FK surface, zero user value; the repository wrapper captures the abstraction |
+| ~~`icreate_registrations` physical rename~~ | **Reversed and done 2026-08-25** — see 3.6. The surface turned out to be smaller than feared (no RLS policies, no triggers, no dependent views) and an expand/contract with a compat view carried it with no downtime. |
 | Renaming `/api/icreate/*` or any family-bookmarked URL | live links are promises; aliases forward, originals live forever |
 | `sis_service.py` god-module split | the file every parallel agent touches; ratchet rule instead |
 | `routes/sis/` physical directory move / `core/` split | the CORE_AND_PROGRAMS Phase 5 verdict applies verbatim: high churn, no value once the logical seam exists |

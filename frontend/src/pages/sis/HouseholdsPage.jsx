@@ -8,6 +8,7 @@ import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { matchesPersonSearch } from '../../utils/personSearch'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -189,13 +190,15 @@ const HouseholdsPage = ({ embedded = false }) => {
   }
 
   // Search matches the family name AND every member's name, so a kid whose
-  // last name differs from the household name is still findable. The payment
-  // filter narrows it further — "show me the Utah Fits All families" is how the
-  // office decides who to invoice next.
+  // last name differs from the household name is still findable. Every name the
+  // record holds counts, not just the one on screen: a student on file as Monroe
+  // shows as "Montie Adams", and typing the legal name off a form used to return
+  // nothing (iCreate, 2026-08-28). The payment filter narrows it further — "show
+  // me the Utah Fits All families" is how the office decides who to invoice next.
   const q = search.trim().toLowerCase()
   const visibleHouseholds = households.filter((h) => {
     if (q && !((h.name || '').toLowerCase().includes(q)
-      || (h.members || []).some((m) => (m.name || '').toLowerCase().includes(q)))) return false
+      || (h.members || []).some((m) => matchesPersonSearch(m, q)))) return false
     return matchesPaymentFilter(h, payFilter)
   })
 

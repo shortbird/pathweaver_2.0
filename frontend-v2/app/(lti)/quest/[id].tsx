@@ -48,10 +48,10 @@ export default function LtiQuestDetail() {
       {submitted ? (
         <Card variant="elevated" size="md">
           <VStack space="sm">
-            <UIText size="md" className="font-poppins-semibold text-typo-900">
+            <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">
               Submitted to your teacher
             </UIText>
-            <UIText size="sm" className="text-typo-600">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               Your teacher will see your evidence in Canvas SpeedGrader. You
               can keep adding to your portfolio in Optio anytime.
             </UIText>
@@ -79,7 +79,7 @@ export default function LtiQuestDetail() {
                 <HStack className="items-center justify-between">
                   <UIText
                     size="md"
-                    className="font-poppins-semibold text-typo-900 flex-1"
+                    className="font-poppins-semibold text-typo dark:text-dark-typo flex-1"
                   >
                     {task.title}
                   </UIText>
@@ -88,7 +88,7 @@ export default function LtiQuestDetail() {
                   </Badge>
                 </HStack>
                 {task.description ? (
-                  <UIText size="sm" className="text-typo-600">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                     {task.description}
                   </UIText>
                 ) : null}
@@ -110,7 +110,7 @@ export default function LtiQuestDetail() {
           ))}
           {allDone && !submitted && (
             <Card variant="outline" size="sm">
-              <UIText size="sm" className="text-typo-600">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                 All tasks complete — your submission is on its way to Canvas.
               </UIText>
             </Card>
@@ -134,10 +134,10 @@ function PersonalizeCta({
     <Card variant="elevated" size="md">
       <VStack space="md">
         <VStack space="xs">
-          <UIText size="md" className="font-poppins-semibold text-typo-900">
+          <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">
             Plan your approach
           </UIText>
-          <UIText size="sm" className="text-typo-600">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
             Tell Optio what you're into — sports, music, video games, code,
             cooking, anything — and we'll generate tasks that connect this
             assignment to it.

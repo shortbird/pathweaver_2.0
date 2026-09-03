@@ -122,7 +122,10 @@ def _checklist_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str,
                 'id': f"onb:{a['id']}:{item.get('key')}",
                 'type': task_type,
                 'title': item.get('title') or 'Checklist item',
-                'context': a.get('template_name'),
+                # A one-off task's assignment is named after its single item —
+                # repeating the title as context just says everything twice.
+                'context': (None if a.get('template_name') == item.get('title')
+                            else a.get('template_name')),
                 'status': status,
                 'native_status': native,
                 'due_date': item.get('due_date'),

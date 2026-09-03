@@ -144,6 +144,7 @@ def register_all(app):
         masquerade,
         course_import,
         organization_management,
+        organization_courses,
         observer_audit,
         ferpa_compliance,
         bulk_import,
@@ -163,6 +164,7 @@ def register_all(app):
         ai_quest_review,
         ai_prompts,
         ai_costs,
+        platform_metrics,
         audit_logs,
         crm as admin_crm,
     )
@@ -176,17 +178,22 @@ def register_all(app):
     app.register_blueprint(advisor_management.bp)
     app.register_blueprint(parent_connections.bp)
     app.register_blueprint(masquerade.masquerade_bp)
+    from routes.role_view import role_view_bp
+    app.register_blueprint(role_view_bp)
     app.register_blueprint(course_import.bp)
     app.register_blueprint(curriculum_upload.bp)
     app.register_blueprint(curriculum_generate.bp)
     app.register_blueprint(course_refine.bp)
     app.register_blueprint(plan_mode.bp)
     app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')
-    # The Blocks panel API (building-block toggles) — its own file so the
-    # organization_management route file stays under its size cap.
+    # Same prefix, more blueprints: each was split out of organization_management
+    # to get that file back under its size cap. Paths do not overlap, so the URLs
+    # are unchanged.
+    app.register_blueprint(organization_courses.bp, url_prefix='/api/admin/organizations')
+    # The Blocks panel API (building-block toggles).
     from routes.admin import org_modules
     app.register_blueprint(org_modules.bp, url_prefix='/api/admin/organizations')
-    # Org-scoped account enable/disable (blocks P2) — same size-cap reasoning.
+    # Org-scoped account enable/disable (blocks P2).
     from routes.admin import org_member_status
     app.register_blueprint(org_member_status.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
@@ -204,6 +211,7 @@ def register_all(app):
     app.register_blueprint(ai_quest_review.ai_quest_review_bp, url_prefix='/api/admin/ai-quest-review')
     app.register_blueprint(ai_prompts.ai_prompts_bp, url_prefix='/api/admin/ai')
     app.register_blueprint(ai_costs.ai_costs_bp, url_prefix='/api/admin/ai')
+    app.register_blueprint(platform_metrics.platform_metrics_bp, url_prefix='/api/admin')
     app.register_blueprint(audit_logs.bp, url_prefix='/api/admin/audit-logs')
     app.register_blueprint(admin_crm.bp)
 
@@ -278,6 +286,10 @@ def register_all(app):
     app.register_blueprint(direct_messages.bp)
     app.register_blueprint(group_messages.bp)
 
+    # ── School inbox (staff side of the "{School Name}" contact) ──────────────
+    from routes import school_inbox
+    app.register_blueprint(school_inbox.bp)
+
     from routes import student_ai_assistance
     app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')
 
@@ -311,9 +323,17 @@ def register_all(app):
     from routes import announcements
     app.register_blueprint(announcements.bp)
 
-    # ── iCreate branded parent registration funnel (iCreate org only) ──────────
-    from routes import icreate_registration
-    app.register_blueprint(icreate_registration.bp)
+    # ── Branded parent registration funnel (any org that turns it on) ─────────
+    # Registered twice on purpose. /api/registration is canonical; /api/icreate
+    # is the DEPRECATED alias it was served under until 2026-08-25, kept alive
+    # because the web frontend deploys as its own Render service — without it,
+    # whichever of the two deploys second breaks the funnel for the families
+    # mid-registration at that moment. Delete the alias (and its CSRF_ALIAS_*
+    # entries) once prod has been on the new build for a release or two.
+    from routes import registration_funnel
+    app.register_blueprint(registration_funnel.bp)
+    app.register_blueprint(registration_funnel.bp,
+                           name='icreate_registration', url_prefix='/api/icreate')
 
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp

@@ -35,9 +35,14 @@ import ClassMessagesTab from './ClassMessagesTab'
 const PAYLOAD = {
   class: { id: 'c1', name: 'Musical Theater' },
   group: { id: 'g1', name: 'Musical Theater Class Chat', announcement_only: false },
+  student_group: { id: 'g2', name: 'Musical Theater Student Chat', announcement_only: false },
   students: [
     { id: 's1', name: 'Ada Byron', preferred_name: null, avatar_url: null, relationship: 'student' },
     { id: 's2', name: 'Blaise Pascal', preferred_name: null, avatar_url: null, relationship: 'student' },
+  ],
+  guardians: [
+    { id: 'p1', name: 'Mary Byron', preferred_name: null, avatar_url: null,
+      relationship: 'parent', subtitle: 'Parent of Ada' },
   ],
   teachers: [
     { id: 't2', name: 'Grace Hopper', preferred_name: null, avatar_url: null, relationship: 'teacher' },
@@ -59,10 +64,20 @@ describe('ClassMessagesTab', () => {
         '/api/sis/teacher/classes/c1/messaging?organization_id=org1'))
   })
 
-  it('opens the class chat first', async () => {
+  it('opens the parent chat first', async () => {
     api.get.mockResolvedValue({ data: PAYLOAD })
     render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
     expect(await screen.findByTestId('group-chat')).toHaveTextContent('group:g1')
+  })
+
+  it('switches to the student chat', async () => {
+    api.get.mockResolvedValue({ data: PAYLOAD })
+    render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
+    await screen.findByTestId('group-chat')
+
+    await userEvent.click(screen.getByText('Student chat'))
+
+    expect(await screen.findByTestId('group-chat')).toHaveTextContent('group:g2')
   })
 
   it('switches to a one-to-one conversation with a student', async () => {
@@ -81,6 +96,19 @@ describe('ClassMessagesTab', () => {
     render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument()
     expect(screen.getByText('Students (2)')).toBeInTheDocument()
+  })
+
+  // iCreate, 2026-09-02: "Could we have a way to message the individual parents
+  // here?" The rail had the whole-class parent chat and nothing narrower.
+  it('opens a one-to-one conversation with a parent, labelled by their child', async () => {
+    api.get.mockResolvedValue({ data: PAYLOAD })
+    render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
+    expect(await screen.findByText('Parents (1)')).toBeInTheDocument()
+    expect(screen.getByText('Parent of Ada')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('Mary Byron'))
+
+    expect(await screen.findByTestId('dm-chat')).toHaveTextContent('dm:p1')
   })
 
   it('filters the people list by search', async () => {
@@ -107,9 +135,11 @@ describe('ClassMessagesTab', () => {
   })
 
   it('explains an empty class instead of rendering a dead chat', async () => {
-    api.get.mockResolvedValue({ data: { ...PAYLOAD, group: null, students: [], teachers: [] } })
+    api.get.mockResolvedValue({
+      data: { ...PAYLOAD, group: null, student_group: null, students: [], teachers: [] },
+    })
     render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
-    expect(await screen.findByText('The class chat starts once a student is enrolled.')).toBeInTheDocument()
+    expect(await screen.findByText('The class chats start once a student is enrolled.')).toBeInTheDocument()
     expect(screen.getByText('No students enrolled yet.')).toBeInTheDocument()
   })
 

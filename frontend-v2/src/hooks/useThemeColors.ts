@@ -34,10 +34,13 @@ export interface ThemeColors {
   icon: string;
   /** Muted icon tint (chevrons, placeholders) */
   iconMuted: string;
-  /** Brand purple — identical in both themes */
+  /** Brand purple — lightened in dark mode for contrast (#6D469B / #8058AC) */
   brand: string;
   /** Brand pink — identical in both themes */
   brandPink: string;
+  /** Brand-tinted surface for active/highlighted chips and banners
+   *  (brand-surface-100 / dark-brand-surface-100 in tailwind.config.js) */
+  brandSurface: string;
   /** True when dark mode is active */
   isDark: boolean;
 }
@@ -54,6 +57,7 @@ const LIGHT: ThemeColors = {
   iconMuted: '#9A93A8',
   brand: '#6D469B',
   brandPink: '#EF597B',
+  brandSurface: '#EBE4F2',
   isDark: false,
 };
 
@@ -69,6 +73,7 @@ const DARK: ThemeColors = {
   iconMuted: '#6B6280',
   brand: '#8058AC',
   brandPink: '#EF597B',
+  brandSurface: '#2C2440',
   isDark: true,
 };
 

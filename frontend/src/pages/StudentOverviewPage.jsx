@@ -325,6 +325,7 @@ const StudentOverviewPage = () => {
           studentId={effectiveUser?.id}
           showJournal
           journalViewMode="student"
+          viewerMode="student"
           journalMoments={learningEvents}
           visibilityStatus={visibilityStatus}
           onPrivacyToggle={handlePrivacyToggle}

@@ -1,7 +1,74 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import api from '../../services/api';
 import useCanEditXp from '../../hooks/useCanEditXp';
+import useHidePillars from '../../hooks/useHidePillars';
+
+// Draft autosave.
+//
+// Tasks lived only in React state until the student pressed Finish, and nothing
+// reached the server before that one batch POST. A crash, a reload, a session
+// that expired mid-write or a stray back-navigation took every task they had
+// typed. From a student's bug bounty report, 2026-08-27:
+//
+//   "every time I work on quest tasks and it crashes, all of my tasks are
+//    deleted. I was hoping you could add an autosave feature kinda inbetween
+//    making tasks."
+//
+// So the list AND the half-typed form are mirrored to localStorage on every
+// change, and restored on mount. Deliberately local rather than a server draft:
+// this has to survive the cases where the server is exactly what went away.
+const DRAFT_PREFIX = 'optio:manual-tasks:';
+// Long enough to come back after a bad day, short enough that a draft cannot
+// surprise someone months later with tasks they have forgotten writing.
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Scoped by quest AND author: a parent authoring for two children on the same
+// quest must not inherit the other child's unsubmitted list.
+const draftKey = (scope, questId) => `${DRAFT_PREFIX}${scope || 'self'}:${questId}`;
+
+const readDraft = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    if (!draft || !Array.isArray(draft.addedTasks) ||
+        !Number.isFinite(draft.savedAt) || Date.now() - draft.savedAt > DRAFT_TTL_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return draft;
+  } catch {
+    // Private mode, a disabled store, or a draft written by an older shape.
+    // A draft we cannot read is the same as no draft.
+    return null;
+  }
+};
+
+const writeDraft = (key, payload) => {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...payload, savedAt: Date.now() }));
+  } catch {
+    // Quota or private mode. Losing the safety net must never block the work
+    // it exists to protect.
+  }
+};
+
+const clearDraft = (key) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Nothing useful to do; the TTL will collect it.
+  }
+};
+
+const EMPTY_TASK = {
+  title: '',
+  description: '',
+  pillar: '',
+  xp_value: 100,
+  diploma_subject: ''
+};
 
 /**
  * ManualTaskCreator Component
@@ -11,20 +78,47 @@ import useCanEditXp from '../../hooks/useCanEditXp';
  * - Clean, simple form focused on creativity
  * - Manual task entry with title, description, and pillar selection
  * - No AI assistance - pure student-driven task creation
+ *
+ * Schools that have switched the pillars off (feature_flags.hide_pillars) get a
+ * form with one classification instead of two: the credit is picked directly
+ * and the pillar is derived from it server-side.
  */
-const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSubmitOverride = null }) => {
+const ManualTaskCreator = ({
+  questId, sessionId, onTasksCreated, onCancel, onSubmitOverride = null, draftScope = null
+}) => {
   const canEditXp = useCanEditXp();
-  const [currentTask, setCurrentTask] = useState({
-    title: '',
-    description: '',
-    pillar: '',
-    xp_value: 100,
-    diploma_subject: ''
-  });
+  const hidePillars = useHidePillars();
 
-  const [addedTasks, setAddedTasks] = useState([]);
+  const storageKey = draftKey(draftScope, questId);
+  // Read once, before first paint, so restored tasks are simply there rather
+  // than appearing a frame later.
+  const [restored] = useState(() => readDraft(storageKey));
+  const [currentTask, setCurrentTask] = useState(() => ({ ...EMPTY_TASK, ...(restored?.currentTask || {}) }));
+
+  const [addedTasks, setAddedTasks] = useState(() => restored?.addedTasks || []);
+  const [showRestoredNotice, setShowRestoredNotice] = useState(() => (restored?.addedTasks?.length || 0) > 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Save on every change to either the list or the form in progress. Clearing
+  // the last task also clears the draft, so an emptied form does not leave a
+  // stale one behind to restore.
+  useEffect(() => {
+    const hasWork = addedTasks.length > 0 ||
+      currentTask.title.trim() !== '' || currentTask.description.trim() !== '';
+    if (hasWork) {
+      writeDraft(storageKey, { addedTasks, currentTask });
+    } else {
+      clearDraft(storageKey);
+    }
+  }, [addedTasks, currentTask, storageKey]);
+
+  const discardDraft = () => {
+    setAddedTasks([]);
+    setCurrentTask({ ...EMPTY_TASK });
+    setShowRestoredNotice(false);
+    clearDraft(storageKey);
+  };
 
   const pillars = [
     { key: 'stem', label: 'STEM' },
@@ -91,25 +185,32 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
       return;
     }
 
-    if (!currentTask.pillar) {
+    if (!hidePillars && !currentTask.pillar) {
       setError('Please select a pillar for this task');
       return;
     }
 
+    if (hidePillars && !currentTask.diploma_subject) {
+      setError('Please choose the credit this task counts toward');
+      return;
+    }
+
     // Add to tasks list. 100% of the XP counts toward the chosen credit.
+    // With pillars hidden the pillar is omitted entirely rather than guessed
+    // here — the server derives it from this credit (school_subjects.py).
     const chosenSubject = resolveSubject(currentTask);
     const taskData = {
       title: currentTask.title,
       description: currentTask.description,
-      pillar: currentTask.pillar,
       xp_value: currentTask.xp_value || 100,
       diploma_subjects: { [chosenSubject]: 100 }
     };
+    if (!hidePillars) taskData.pillar = currentTask.pillar;
 
     setAddedTasks(prev => [...prev, taskData]);
 
     // Reset form
-    setCurrentTask({ title: '', description: '', pillar: '', xp_value: 100, diploma_subject: '' });
+    setCurrentTask({ ...EMPTY_TASK });
     setError('');
   };
 
@@ -132,6 +233,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
       // validation — only the write target differs.
       if (onSubmitOverride) {
         await onSubmitOverride(addedTasks);
+        // Only now are the tasks somewhere other than this browser.
+        clearDraft(storageKey);
         onTasksCreated({ success: true, tasks: addedTasks });
         return;
       }
@@ -141,6 +244,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
       });
 
       if (response.data.success) {
+        clearDraft(storageKey);
         onTasksCreated(response.data);
       } else {
         setError(response.data.error || 'Failed to add tasks');
@@ -172,7 +276,9 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
                 <div className="flex items-center gap-2">
                   <h5 className="font-semibold text-gray-900">{task.title}</h5>
                   <span className="text-sm text-optio-purple font-bold">{task.xp_value || 100} XP</span>
-                  <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
+                  {!hidePillars && (
+                    <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
+                  )}
                   <span className="text-xs font-medium text-optio-pink">
                     {Object.keys(task.diploma_subjects || {})[0] || 'Electives'}
                   </span>
@@ -201,6 +307,22 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
           Design custom tasks that match your interests and learning goals.
         </p>
       </div>
+
+      {showRestoredNotice && (
+        <div className="mb-6 p-4 bg-purple-50 border border-optio-purple/30 rounded-lg flex items-start justify-between gap-4">
+          <p className="text-sm text-gray-700">
+            Picked up where you left off — {addedTasks.length} task{addedTasks.length !== 1 ? 's' : ''} you
+            wrote but never submitted {addedTasks.length !== 1 ? 'are' : 'is'} still here.
+          </p>
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="shrink-0 text-sm font-semibold text-optio-purple hover:underline"
+          >
+            Start over
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -245,27 +367,31 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
           </div>
 
           {/* Pillar Selection */}
-          <div>
-            <label htmlFor="task-pillar" className="block text-sm font-semibold text-gray-700 mb-2">
-              Pillar *
-            </label>
-            <select
-              id="task-pillar"
-              value={currentTask.pillar}
-              onChange={(e) => handleInputChange('pillar', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            >
-              <option value="">Select a pillar...</option>
-              {pillars.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
-          </div>
+          {!hidePillars && (
+            <div>
+              <label htmlFor="task-pillar" className="block text-sm font-semibold text-gray-700 mb-2">
+                Pillar *
+              </label>
+              <select
+                id="task-pillar"
+                value={currentTask.pillar}
+                onChange={(e) => handleInputChange('pillar', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              >
+                <option value="">Select a pillar...</option>
+                {pillars.map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Diploma Credit (Subject) Selection */}
+          {/* Diploma Credit (Subject) Selection. With pillars hidden this is the
+              only classification on the form, so it is required rather than
+              defaulted off a pillar that was never chosen. */}
           <div>
             <label htmlFor="task-subject" className="block text-sm font-semibold text-gray-700 mb-2">
-              Counts toward credit
+              {hidePillars ? 'Counts toward credit *' : 'Counts toward credit'}
             </label>
             <select
               id="task-subject"
@@ -274,9 +400,11 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
             >
               <option value="">
-                {currentTask.pillar
-                  ? `Auto (${pillarDefaultSubject[currentTask.pillar] || 'Electives'})`
-                  : 'Auto (based on pillar)'}
+                {hidePillars
+                  ? 'Select a subject...'
+                  : currentTask.pillar
+                    ? `Auto (${pillarDefaultSubject[currentTask.pillar] || 'Electives'})`
+                    : 'Auto (based on pillar)'}
               </option>
               {subjects.map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -310,7 +438,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel, onSub
           {/* Add Task Button */}
           <button
             onClick={handleAddTask}
-            disabled={!currentTask.title || !currentTask.description || !currentTask.pillar}
+            disabled={!currentTask.title || !currentTask.description ||
+              (hidePillars ? !currentTask.diploma_subject : !currentTask.pillar)}
             className="w-full px-6 py-3 bg-optio-purple hover:bg-optio-purple-dark disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
             Add This Task
@@ -347,7 +476,11 @@ ManualTaskCreator.propTypes = {
   onTasksCreated: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
   // Parent-authoring mode: receives the finished batch instead of POSTing it.
-  onSubmitOverride: PropTypes.func
+  onSubmitOverride: PropTypes.func,
+  // Who the tasks are being written for. Keys the local draft, so a parent
+  // authoring for two children on one quest keeps two separate drafts.
+  // Omitted means the signed-in student writing for themselves.
+  draftScope: PropTypes.string
 };
 
 export default ManualTaskCreator;

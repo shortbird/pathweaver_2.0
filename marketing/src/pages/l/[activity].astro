@@ -1,0 +1,58 @@
+---
+import Lander from '../../layouts/Lander.astro'
+import Receipt from '../../components/Receipt.astro'
+import FreeClassForm from '../../components/FreeClassForm.astro'
+import { landers } from '../../data/landers'
+import { OFFER } from '../../data/site'
+
+export function getStaticPaths() {
+  return landers.map((lander) => ({
+    params: { activity: lander.slug },
+    props: { lander },
+  }))
+}
+
+const { lander } = Astro.props
+---
+
+<Lander
+  title={`${lander.headline} | Optio`}
+  description={lander.description}
+  ogImage={`/images/og/l-${lander.slug}.png`}
+>
+  <section class="min-h-screen bg-gradient-to-br from-optio-purple/5 via-white to-optio-pink/5 flex flex-col">
+    <div class="max-w-xl mx-auto px-4 sm:px-6 pt-10 sm:pt-16 pb-16 flex-1 w-full">
+      <img src="/images/OptioLogo-FullColor.svg" alt="Optio" class="h-8 mb-10" width="120" height="32" />
+
+      <h1 class="text-4xl sm:text-5xl font-bold text-neutral-900 leading-tight mb-4">
+        {lander.headline}
+      </h1>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed mb-8">
+        Optio turns the {lander.activity} you already do into official, WASC-accredited high school
+        credit. Capture what you do, and it counts.
+      </p>
+
+      <div class="mb-8">
+        <Receipt {...lander.receipt} />
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-8">
+        <div class="rounded-xl border border-neutral-100 bg-neutral-50 p-4">
+          <p class="text-sm font-bold text-neutral-900 mb-1">What does it cost?</p>
+          <p class="text-sm text-neutral-500 font-medium">{OFFER.freeClassLine}</p>
+        </div>
+        <div class="rounded-xl border border-neutral-100 bg-neutral-50 p-4">
+          <p class="text-sm font-bold text-neutral-900 mb-1">Will my school accept it?</p>
+          <p class="text-sm text-neutral-500 font-medium">Transfer Guarantee: full refund if they don't.</p>
+        </div>
+      </div>
+
+      <FreeClassForm source={`lander_${lander.slug}`} />
+
+      <p class="text-xs text-neutral-500 font-medium mt-6">
+        {OFFER.classPriceDetail} Credit is issued through Optio Academy, a WASC-accredited online
+        private school.
+      </p>
+    </div>
+  </section>
+</Lander>

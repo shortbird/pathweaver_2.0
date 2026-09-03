@@ -53,11 +53,31 @@ describe('SisSidebar module gating for the active org', () => {
   it('shows every non-goals module when the active org hides none', () => {
     activeOrg = withHidden([])
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('CLP')).toBeInTheDocument()
     // Forms and Onboarding are reached through the unified task surfaces now;
     // their own paths still work, they are just not separate nav items.
     expect(screen.getByText('My Tasks')).toBeInTheDocument()
     expect(screen.getByText('Task Center')).toBeInTheDocument()
     expect(screen.getByText('Billing')).toBeInTheDocument()
+  })
+
+  // CLP is OPT-IN, not opt-out: it is iCreate's workflow, and a school that
+  // never runs a CLP meeting should not be told to finish one.
+  it('hides CLP for an org that has not opted in', () => {
+    activeOrg = withHidden([])
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.queryByText('CLP')).not.toBeInTheDocument()
+  })
+
+  it('shows CLP once the org opts in', () => {
+    activeOrg = withHidden([], { clp_enabled: true })
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getByText('CLP')).toBeInTheDocument()
+  })
+
+  it('keeps CLP hidden for an org that opted in but also hid the module', () => {
+    // hidden_modules is a promise already made; opting in must not override it.
+    activeOrg = withHidden(['clp'], { clp_enabled: true })
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.queryByText('CLP')).not.toBeInTheDocument()
   })
 })

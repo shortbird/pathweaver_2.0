@@ -10,10 +10,11 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
+import { View, Pressable, TextInput, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
+import { showAlert } from '@/src/utils/alerts';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { captureException, captureMessage } from '@/src/services/sentry';
@@ -151,7 +152,7 @@ export function TaskEvidenceSheet({
     } catch (err) {
       recordAction('evidence:process-threw', { error: String(err).slice(0, 200) });
       captureException(err, { stage: 'task-evidence-process' });
-      Alert.alert('Something went wrong', "That file couldn't be added. Please try again.");
+      showAlert('Something went wrong', "That file couldn't be added. Please try again.");
     }
   };
 
@@ -169,7 +170,7 @@ export function TaskEvidenceSheet({
         } catch (err) {
           recordAction('evidence:picker-threw', { source: label, error: String(err).slice(0, 200) });
           captureException(err, { stage: 'task-evidence-picker-launch' });
-          Alert.alert('Something went wrong', "That didn't work. Please try again.");
+          showAlert('Something went wrong', "That didn't work. Please try again.");
           return;
         }
         recordAction('evidence:picker-returned', { source: label, assetCount: assets ? assets.length : 0 });
@@ -194,7 +195,7 @@ export function TaskEvidenceSheet({
       } catch (err) {
         recordAction('evidence:picker-threw', { error: String(err).slice(0, 200) });
         captureException(err, { stage: 'task-evidence-picker-launch' });
-        Alert.alert('Something went wrong', "That didn't work. Please try again.");
+        showAlert('Something went wrong', "That didn't work. Please try again.");
       } finally {
         // Re-present the sheet BEFORE the (possibly slow) video transcode, so
         // the "Optimizing video…" progress is visible instead of the popup
@@ -217,7 +218,7 @@ export function TaskEvidenceSheet({
         captureMessage('Evidence media rejected: over size limit', {
           surface: 'task-evidence', type: a.type, fileSize: a.fileSize, limit: max,
         });
-        Alert.alert('File too large', `${a.fileName || 'File'} is ${mb}MB. Max is ${maxMB}MB.`);
+        showAlert('File too large', `${a.fileName || 'File'} is ${mb}MB. Max is ${maxMB}MB.`);
         continue;
       }
       next.push({
@@ -242,7 +243,7 @@ export function TaskEvidenceSheet({
         captureMessage('Evidence video rejected: over duration limit', {
           surface: 'task-evidence', durationMs: a.duration, fileSize: a.fileSize, limitMs: MAX_VIDEO_DURATION_MS,
         });
-        Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
+        showAlert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
         return false;
       }
       return true;
@@ -264,7 +265,7 @@ export function TaskEvidenceSheet({
   const openCamera = async (): Promise<ImagePicker.ImagePickerAsset[] | void> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required.');
+      showAlert('Permission needed', 'Camera permission is required.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -310,7 +311,7 @@ export function TaskEvidenceSheet({
   // Scan pages with the OS document scanner and attach as a single PDF.
   const scanDocument = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
+      showAlert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
       return;
     }
     try {
@@ -318,7 +319,7 @@ export function TaskEvidenceSheet({
       if (!doc) return; // user cancelled / no pages
       setMedia((prev) => [...prev, { uri: doc.uri, type: 'document', name: doc.name, pageCount: doc.pageCount }]);
     } catch (err: any) {
-      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
+      showAlert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
     }
   };
 
@@ -412,7 +413,7 @@ export function TaskEvidenceSheet({
       if (newBlocks.length === 0) {
         // Nothing actually saved. Distinguish "user added nothing" from "every
         // upload failed" so a failed upload doesn't read as an empty form.
-        Alert.alert(
+        showAlert(
           failedUploads > 0 ? 'Upload failed' : 'Nothing to save',
           failedUploads > 0
             ? "Your evidence couldn't be uploaded. Check your connection and try again."
@@ -440,7 +441,7 @@ export function TaskEvidenceSheet({
       }
       if (failedUploads > 0) {
         // Partial success: the rest saved, but tell the user some files didn't.
-        Alert.alert(
+        showAlert(
           'Some files not saved',
           `${failedUploads} file${failedUploads > 1 ? 's' : ''} couldn't be uploaded. The rest of your evidence was saved.`,
         );
@@ -452,7 +453,7 @@ export function TaskEvidenceSheet({
     } catch (err: any) {
       haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save evidence';
-      Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to save evidence');
+      showAlert('Error', typeof msg === 'string' ? msg : 'Failed to save evidence');
     } finally {
       setSaving(false);
     }
@@ -473,6 +474,8 @@ export function TaskEvidenceSheet({
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
@@ -523,7 +526,7 @@ export function TaskEvidenceSheet({
                         resizeMode="cover"
                       />
                     ) : item.type === 'document' ? (
-                      <View style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                      <View style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center', padding: 6 }}>
                         <Ionicons name="document-text" size={32} color="#FFFFFF" />
                         <UIText size="xs" className="text-white font-poppins-medium mt-1">
                           PDF{item.pageCount ? ` · ${item.pageCount}p` : ''}
@@ -537,7 +540,9 @@ export function TaskEvidenceSheet({
                     )}
                     <Pressable
                       onPress={() => removeMedia(index)}
-                      hitSlop={6}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove attachment"
                       style={{
                         position: 'absolute', top: -6, right: -6,
                         width: 24, height: 24, borderRadius: 12,
@@ -574,7 +579,7 @@ export function TaskEvidenceSheet({
             onRecorded={(clip: RecordedClip) => {
               if (clip.fileSize > MAX_AUDIO_SIZE) {
                 const mb = (clip.fileSize / (1024 * 1024)).toFixed(1);
-                Alert.alert('Recording too long', `That clip is ${mb}MB. Voice notes are limited to ${MAX_AUDIO_SIZE / (1024 * 1024)}MB.`);
+                showAlert('Recording too long', `That clip is ${mb}MB. Voice notes are limited to ${MAX_AUDIO_SIZE / (1024 * 1024)}MB.`);
               } else {
                 setMedia((prev) => [
                   ...prev,
@@ -593,13 +598,13 @@ export function TaskEvidenceSheet({
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
-            <Ionicons name="camera-outline" size={26} color="#6D469B" />
+            <Ionicons name="camera-outline" size={26} color={c.brand} />
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Camera</UIText>
           </Pressable>
           <Pressable
             onPress={() => {
               if (Platform.OS === 'web') {
-                Alert.alert('Voice notes', 'Voice recording works in the mobile app.');
+                showAlert('Voice notes', 'Voice recording works in the mobile app.');
                 return;
               }
               setRecording(true);
@@ -608,7 +613,7 @@ export function TaskEvidenceSheet({
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44, opacity: recording ? 0.4 : 1 }}
           >
-            <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color="#6D469B" />
+            <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color={c.brand} />
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
           </Pressable>
           <Pressable
@@ -616,7 +621,7 @@ export function TaskEvidenceSheet({
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
-            <Ionicons name="images-outline" size={26} color="#6D469B" />
+            <Ionicons name="images-outline" size={26} color={c.brand} />
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
           </Pressable>
           <Pressable
@@ -624,7 +629,7 @@ export function TaskEvidenceSheet({
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
-            <Ionicons name="scan-outline" size={26} color="#6D469B" />
+            <Ionicons name="scan-outline" size={26} color={c.brand} />
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Scan</UIText>
           </Pressable>
         </HStack>
@@ -635,7 +640,7 @@ export function TaskEvidenceSheet({
             Add a link (optional)
           </UIText>
           <View className="flex-row items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 rounded-xl px-3">
-            <Ionicons name="link-outline" size={16} color="#6D469B" />
+            <Ionicons name="link-outline" size={16} color={c.brand} />
             <TextInput
               value={linkUrl}
               onChangeText={setLinkUrl}

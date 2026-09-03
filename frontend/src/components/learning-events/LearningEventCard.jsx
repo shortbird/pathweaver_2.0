@@ -16,6 +16,7 @@ import {
 import LearningEventDetailModal from './LearningEventDetailModal';
 import AddToQuestModal from './PromoteToTaskModal';
 import { getPillarData } from '../../utils/pillarMappings';
+import useHidePillars from '../../hooks/useHidePillars';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -24,6 +25,7 @@ const filterTopics = (topics) => (topics || []).filter((t) => t.type === 'topic'
 
 const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAssigned, studentId = null }) => {
   const navigate = useNavigate();
+  const hidePillars = useHidePillars();
   const [localEvent, setLocalEvent] = useState(event);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -386,7 +388,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                 <CalendarIcon className="w-3.5 h-3.5" />
                 <span>{formatDate(displayDate)}</span>
               </div>
-              {localEvent.pillars && localEvent.pillars.length > 0 && (
+              {!hidePillars && localEvent.pillars && localEvent.pillars.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {localEvent.pillars.slice(0, 2).map((pillar) => {
                     const pillarData = getPillarData(pillar);

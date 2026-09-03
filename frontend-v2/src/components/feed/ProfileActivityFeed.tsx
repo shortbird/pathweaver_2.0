@@ -15,7 +15,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { VStack, HStack, UIText, Card, Button, ButtonText } from '@/src/components/ui';
+import { VStack, UIText, Card, Button, ButtonText } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useFeed, type FeedItem } from '@/src/hooks/useFeed';
 import { FeedCard } from '@/src/components/feed/FeedCard';
@@ -68,7 +68,7 @@ export function ProfileActivityFeed({
     return (
       <Card variant="elevated" size="md">
         <View className="items-center py-8">
-          <ActivityIndicator color="#6D469B" />
+          <ActivityIndicator color={c.brand} />
         </View>
       </Card>
     );
@@ -157,7 +157,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
     >
       <UIText
         size="xs"
-        className={`font-poppins-medium ${active ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}
+        className={`font-poppins-medium ${active ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}
         numberOfLines={1}
       >
         {label}

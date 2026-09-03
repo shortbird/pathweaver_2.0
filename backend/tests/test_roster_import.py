@@ -136,7 +136,10 @@ def test_parses_the_same_roster_saved_as_comma_separated():
 
 def test_missing_student_columns_is_refused_by_name():
     _, error = ris.parse_roster_csv('Parent Email\nmhennessy@opened.co\n')
-    assert 'Student First Name' in error and 'Student Email' in error
+    assert 'Student First Name' in error and 'Student Last Name' in error
+    # Student Email is NOT required at the column level: rows without one
+    # become parent-managed dependent profiles.
+    assert 'Student Email' not in error
 
 
 @pytest.mark.parametrize('text', ['', '   ', 'Student First Name,Student Last Name,Student Email\n'])
@@ -157,8 +160,8 @@ def test_oversized_roster_is_refused_rather_than_timing_out():
 def test_siblings_collapse_to_one_parent_with_two_links():
     plan = plan_for(ROSTER)
     assert plan['counts'] == {'rows': 3, 'students_new': 3, 'students_existing': 0,
-                              'parents_new': 2, 'parents_existing': 0, 'adopted': 0,
-                              'links': 3, 'invalid_rows': 0}
+                              'parents_new': 2, 'parents_existing': 0, 'dependents_new': 0,
+                              'adopted': 0, 'links': 3, 'invalid_rows': 0}
     megan = next(p for p in plan['parents'] if p['email'] == 'mhennessy@opened.co')
     assert megan['student_emails'] == ['27nhennessy@dsdmail.net', '29ahennessy@dsdmail.net']
 
@@ -384,6 +387,116 @@ def test_the_audit_row_uses_columns_admin_audit_logs_actually_has():
     assert set(entry) <= columns
     assert entry['action_type'] == 'roster_import'
     assert entry['changes'] == {'created': 5, 'failed': 0, 'send_emails': True}
+
+
+# ── Students without emails (parent-managed dependents) ──
+
+# Hearthwood's real roster: every parent has an email, not every student does.
+DEPENDENT_ROSTER = (
+    'Student Last Name,Student First Name,Student Email,'
+    'Parent Last Name,Parent First Name,Parent Email\n'
+    'Hennessy,Noah,,Hennessy,Megan,mhennessy@opened.co\n'
+    'Okafor,Lena,lokafor@dsdmail.net,Okafor,Tunde,tokafor@opened.co\n'
+)
+
+
+def test_a_student_with_no_email_is_planned_as_a_managed_dependent():
+    plan = plan_for(DEPENDENT_ROSTER)
+
+    noah = next(s for s in plan['students'] if s['first_name'] == 'Noah')
+    assert noah['email'] is None
+    assert noah['dependent'] is True and noah['status'] == 'create'
+    assert noah['parent_email'] == 'mhennessy@opened.co'
+    assert plan['counts']['dependents_new'] == 1
+    assert plan['counts']['students_new'] == 2
+    # Said up front: no invite is coming for this student.
+    assert any('parent-managed' in w for w in plan['warnings'])
+
+
+def test_a_student_with_neither_email_is_refused():
+    text = ('Student Last Name,Student First Name,Student Email,Parent Email\n'
+            'Solo,Sam,,\n')
+    plan = plan_for(text)
+    assert 'Student email or parent email is required' in plan['row_errors'][0]['errors']
+    assert plan['students'] == []
+
+
+def test_the_same_dependent_twice_under_one_parent_is_a_duplicate():
+    text = ('Student Last Name,Student First Name,Student Email,'
+            'Parent Last Name,Parent First Name,Parent Email\n'
+            'Hennessy,Noah,,Hennessy,Megan,mhennessy@opened.co\n'
+            'Hennessy,Noah,,Hennessy,Megan,mhennessy@opened.co\n')
+    plan = plan_for(text)
+    assert any('Duplicate student' in ' '.join(e['errors']) for e in plan['row_errors'])
+    assert len(plan['students']) == 1
+
+
+def test_import_creates_a_dependent_profile_under_the_parent():
+    admin = FakeAdmin()
+    outcome, invite = _execute(admin, plan_for(DEPENDENT_ROSTER, admin))
+
+    profiles = {(p['first_name'], p['last_name']): p for p in admin.written('users')}
+    megan = profiles[('Megan', 'Hennessy')]
+    noah = profiles[('Noah', 'Hennessy')]
+    assert noah['is_dependent'] is True
+    assert noah['managed_by_parent_id'] == megan['id']
+    assert noah['email'] is None
+    assert noah['role'] == 'org_managed' and noah['org_role'] == 'student'
+    assert noah['organization_id'] == ORG
+
+    # The auth stub lives on a placeholder address nobody can log in with, and
+    # no invite goes to a student who has no inbox.
+    noah_auth = next(a for a in admin.created_auth
+                     if a['email'].endswith('@optio-internal-placeholder.local'))
+    assert noah_auth['email_confirm'] is False
+    assert {call.args[2] for call in invite.call_args_list} == {
+        'mhennessy@opened.co', 'tokafor@opened.co', 'lokafor@dsdmail.net'}
+
+    # managed_by_parent_id IS the relationship: no parent_student_links row.
+    links = admin.written('parent_student_links')
+    assert len(links) == 1 and links[0]['student_user_id'] != noah['id']
+
+    assert outcome['counts'] == {'created': 4, 'existing': 0, 'adopted': 0,
+                                 'failed': 0, 'invited': 3, 'linked': 2}
+    noah_result = next(r for r in outcome['results'] if r['name'] == 'Noah Hennessy')
+    assert noah_result['dependent'] is True
+    assert noah_result['linked_to'] == 'mhennessy@opened.co'
+    assert noah_result['invited'] is False
+
+
+def test_rerunning_a_dependent_roster_reuses_the_profile_instead_of_duplicating():
+    """No email to match on, so a re-run matches on the parent plus the
+    student's name -- case-insensitively, since the school's sheet and the
+    first import need not agree on capitalization."""
+    admin = FakeAdmin({'users': [
+        {'id': 'p1', 'email': 'mhennessy@opened.co', 'organization_id': ORG},
+        {'id': 'dep1', 'first_name': 'NOAH', 'last_name': 'hennessy',
+         'is_dependent': True, 'managed_by_parent_id': 'p1', 'organization_id': ORG},
+    ]})
+    plan = plan_for(DEPENDENT_ROSTER, admin)
+
+    noah = next(s for s in plan['students'] if s['first_name'] == 'Noah')
+    assert noah['status'] == 'existing' and noah['existing_user_id'] == 'dep1'
+
+    outcome, _ = _execute(admin, plan)
+    assert outcome['counts']['created'] == 2  # Tunde and Lena only
+    assert outcome['counts']['existing'] == 2
+    assert not any(a['email'].endswith('@optio-internal-placeholder.local')
+                   for a in admin.created_auth)
+
+
+def test_a_dependent_row_fails_when_its_parent_fails():
+    """A managed profile with no manager would be unreachable by anyone."""
+    admin = FakeAdmin(auth_failures={'mhennessy@opened.co'})
+    outcome, _ = _execute(admin, plan_for(DEPENDENT_ROSTER, admin))
+
+    noah = next(r for r in outcome['results'] if r['name'] == 'Noah Hennessy')
+    assert noah['status'] == 'failed' and 'parent account failed' in noah['error']
+    assert not any(a['email'].endswith('@optio-internal-placeholder.local')
+                   for a in admin.created_auth)
+    # The Okafors still landed.
+    assert outcome['counts']['created'] == 2
+    assert outcome['counts']['failed'] == 2
 
 
 def test_a_failed_link_is_reported_without_losing_the_created_accounts():

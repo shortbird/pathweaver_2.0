@@ -117,7 +117,7 @@ export function NotificationPreferences() {
     return (
       <Card variant="elevated" size="md">
         <View className="py-8 items-center">
-          <ActivityIndicator size="small" color="#6D469B" />
+          <ActivityIndicator size="small" color={c.brand} />
         </View>
       </Card>
     );
@@ -137,7 +137,7 @@ export function NotificationPreferences() {
               <HStack className="items-center justify-between py-1">
                 <HStack className="items-center gap-3 flex-1">
                   <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
-                    <Ionicons name={row.icon} size={18} color="#6D469B" />
+                    <Ionicons name={row.icon} size={18} color={c.brand} />
                   </View>
                   <VStack className="flex-1">
                     <UIText size="sm" className="font-poppins-medium">{row.label}</UIText>
@@ -148,7 +148,7 @@ export function NotificationPreferences() {
                   value={enabled}
                   onValueChange={() => toggle(row.type, enabled)}
                   disabled={saving === row.type}
-                  trackColor={{ false: c.border, true: '#6D469B' }}
+                  trackColor={{ false: c.border, true: c.brand }}
                   thumbColor="#FFFFFF"
                 />
               </HStack>

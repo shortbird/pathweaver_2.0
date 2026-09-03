@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TextInput, TextInputProps, ViewProps, Pressable, PressableProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 type InputVariant = 'outline' | 'underlined' | 'rounded';
 type InputSize = 'sm' | 'md' | 'lg';
@@ -71,13 +72,14 @@ interface InputFieldProps extends TextInputProps {
 }
 
 export function InputField({ className = '', onFocus, onBlur, ...props }: InputFieldProps) {
+  const c = useThemeColors();
   const { isDisabled, isReadOnly, setFocused } = React.useContext(InputContext);
 
   return (
     <TextInput
       className={`flex-1 px-3 py-2 font-poppins text-sm text-typo dark:text-dark-typo web:outline-none ${className}`}
       editable={!isDisabled && !isReadOnly}
-      placeholderTextColor="#9CA3AF"
+      placeholderTextColor={c.textFaint}
       onFocus={(e) => { setFocused(true); onFocus?.(e); }}
       onBlur={(e) => { setFocused(false); onBlur?.(e); }}
       {...props}
@@ -104,6 +106,7 @@ interface InputIconProps {
   color?: string;
 }
 
-export function InputIcon({ as: iconName, size = 20, color = '#9CA3AF' }: InputIconProps) {
-  return <Ionicons name={iconName} size={size} color={color} />;
+export function InputIcon({ as: iconName, size = 20, color }: InputIconProps) {
+  const c = useThemeColors();
+  return <Ionicons name={iconName} size={size} color={color ?? c.iconMuted} />;
 }

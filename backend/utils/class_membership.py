@@ -157,6 +157,52 @@ def teachers_of_student(student_id: str) -> Set[str]:
     return out
 
 
+def teachers_of_students(student_ids: Iterable[str]) -> Set[str]:
+    """Every teacher of a class ANY of these students is enrolled in.
+
+    The batch form of :func:`teachers_of_student`. Calling the singular one in
+    a loop costs three queries per child; this costs three in total, because
+    the class ids collapse into one `in_` before any of the teacher lookups
+    run. Messages builds a parent's contact list this way.
+    """
+    ids = [sid for sid in dict.fromkeys(student_ids) if sid]
+    if not ids:
+        return set()
+    class_ids: Set[str] = set()
+    try:
+        admin = _admin()
+        for chunk in _chunks(ids):
+            rows = (admin.table('class_enrollments').select('class_id')
+                    .in_('student_id', chunk).eq('status', 'active').execute()).data or []
+            class_ids.update(r['class_id'] for r in rows if r.get('class_id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'teachers_of_students enrollment lookup failed: {e}')
+        return set()
+
+    out: Set[str] = set()
+    if not class_ids:
+        return out
+    try:
+        admin = _admin()
+        for chunk in _chunks(list(class_ids)):
+            classes = (admin.table('org_classes')
+                       .select('id, primary_instructor_id, assistant_instructor_ids')
+                       .in_('id', chunk).execute()).data or []
+            for row in classes:
+                if row.get('primary_instructor_id'):
+                    out.add(row['primary_instructor_id'])
+                for aid in (row.get('assistant_instructor_ids') or []):
+                    if aid:
+                        out.add(aid)
+            advisors = (admin.table('class_advisors').select('advisor_id')
+                        .in_('class_id', chunk).eq('is_active', True).execute()).data or []
+            out.update(r['advisor_id'] for r in advisors if r.get('advisor_id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'teachers_of_students teacher lookup failed: {e}')
+    out.difference_update(ids)
+    return out
+
+
 def shares_class(teacher_id: str, student_id: str) -> bool:
     """True when `student_id` is actively enrolled in a class `teacher_id`
     teaches. The relationship that lets a teacher and a student DM each other."""
@@ -176,13 +222,15 @@ def shares_class(teacher_id: str, student_id: str) -> bool:
     return False
 
 
-def parents_of_students(student_ids) -> Set[str]:
-    """Every guardian of these students, through both link types the platform
-    has: users.managed_by_parent_id (dependent accounts) and an approved
-    parent_student_links row (independent accounts). Best-effort like the rest
-    of this module — a lookup failure returns what was found so far."""
+def guardians_by_student(student_ids) -> Dict[str, Set[str]]:
+    """{student_id: {guardian_id, ...}} for these students, through both link
+    types the platform has: users.managed_by_parent_id (dependent accounts) and
+    an approved parent_student_links row (independent accounts). Best-effort
+    like the rest of this module — a lookup failure returns what was found so
+    far. Two queries per chunk however many students are asked for, so callers
+    that need the mapping never loop children_of_parent."""
     wanted = [sid for sid in set(student_ids or []) if sid]
-    out: Set[str] = set()
+    out: Dict[str, Set[str]] = {}
     if not wanted:
         return out
     try:
@@ -190,15 +238,26 @@ def parents_of_students(student_ids) -> Set[str]:
         for chunk in _chunks(wanted):
             rows = (admin.table('users').select('id, managed_by_parent_id')
                     .in_('id', chunk).execute()).data or []
-            out.update(r['managed_by_parent_id'] for r in rows
-                       if r.get('managed_by_parent_id'))
+            for r in rows:
+                if r.get('managed_by_parent_id'):
+                    out.setdefault(r['id'], set()).add(r['managed_by_parent_id'])
             links = (admin.table('parent_student_links')
                      .select('parent_user_id, student_user_id')
                      .in_('student_user_id', chunk)
                      .eq('status', 'approved').execute()).data or []
-            out.update(l['parent_user_id'] for l in links if l.get('parent_user_id'))
+            for l in links:
+                if l.get('parent_user_id') and l.get('student_user_id'):
+                    out.setdefault(l['student_user_id'], set()).add(l['parent_user_id'])
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'parents_of_students failed: {e}')
+        logger.warning(f'guardians_by_student failed: {e}')
+    return out
+
+
+def parents_of_students(student_ids) -> Set[str]:
+    """Every guardian of these students (see guardians_by_student)."""
+    out: Set[str] = set()
+    for guardians in guardians_by_student(student_ids).values():
+        out |= guardians
     return out
 
 

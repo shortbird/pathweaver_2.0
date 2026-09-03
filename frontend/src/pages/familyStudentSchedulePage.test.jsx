@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 const { api, contextPayload, schedulePayload } = vi.hoisted(() => {
@@ -35,7 +35,7 @@ const { api, contextPayload, schedulePayload } = vi.hoisted(() => {
   return {
     contextPayload,
     schedulePayload,
-    api: { get: vi.fn() },
+    api: { get: vi.fn(), post: vi.fn() },
   }
 })
 vi.mock('../services/api', () => ({ default: api }))
@@ -69,19 +69,39 @@ describe('FamilyStudentSchedulePage', () => {
       '/api/sis/parent/students/s1/schedule?organization_id=org-1')
   })
 
-  it('lists every class with when, teacher and room', async () => {
+  it('lists each meeting under its day with time, teacher and room', async () => {
     renderPage()
-    // The grid renders class names too, so scope the assertions to the list row.
-    const row = (await screen.findAllByText('Pottery')).at(-1).closest('tr')
-    expect(row).toHaveTextContent('Tue 9:30am-10:30am')
+    // The grid renders class names too, so scope the assertions to the day list.
+    const row = (await screen.findAllByText('Pottery')).at(-1).closest('li')
+    expect(row).toHaveTextContent('9:30am–10:30am')
     expect(row).toHaveTextContent('Molly C')
     expect(row).toHaveTextContent('Studio B')
   })
 
-  it('reads a multi-day class Monday-first', async () => {
+  it('splits a multi-day class across its days rather than cramming one cell', async () => {
+    /**
+     * Guitar Jam meets Tuesday AND Thursday. It used to occupy a single row
+     * reading "Tue 10:30am-11:30am; Thu 10:30am-11:30am", which a parent had to
+     * parse to answer "is she in class Thursday morning?".
+     */
     renderPage()
-    const row = (await screen.findAllByText('Guitar Jam')).at(-1).closest('tr')
-    expect(row).toHaveTextContent('Tue 10:30am-11:30am; Thu 10:30am-11:30am')
+    const rows = (await screen.findAllByText('Guitar Jam')).map((n) => n.closest('li'))
+    expect(rows.filter(Boolean)).toHaveLength(2)
+
+    const tuesday = screen.getByText('Tuesday').parentElement
+    const thursday = screen.getByText('Thursday').parentElement
+    expect(within(tuesday).getByText('Guitar Jam')).toBeInTheDocument()
+    expect(within(thursday).getByText('Guitar Jam')).toBeInTheDocument()
+  })
+
+  it('orders a day by start time', async () => {
+    // Pottery 9:30 must sit above Guitar Jam 10:30 on Tuesday — the whole point
+    // of the 2026-08-25 change ("ideeeeeally in schedule order").
+    renderPage()
+    await screen.findByText('Tuesday')
+    const rows = within(screen.getByText('Tuesday').parentElement).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('Pottery')
+    expect(rows[1]).toHaveTextContent('Guitar Jam')
   })
 
   it('keeps a class with no meetings on the sheet', async () => {
@@ -91,8 +111,9 @@ describe('FamilyStudentSchedulePage', () => {
      * signed up for.
      */
     renderPage()
-    const row = (await screen.findByText('Chess Club')).closest('tr')
-    expect(row).toHaveTextContent('Not scheduled')
+    expect(await screen.findByText('Not scheduled yet')).toBeInTheDocument()
+    const row = (await screen.findAllByText('Chess Club')).at(-1).closest('li')
+    expect(row).toBeInTheDocument()
   })
 
   it('shows the waitlist and at-home courses', async () => {
@@ -117,6 +138,29 @@ describe('FamilyStudentSchedulePage', () => {
     })
     renderPage()
     expect(await screen.findByText(/not enrolled at a school/i)).toBeInTheDocument()
+  })
+
+  // An offered seat has to be claimable from here — "seat offered" with no
+  // button was a dead end for an iCreate family on 2026-09-02.
+  it('claims an offered waitlist seat', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/parent/context')) return Promise.resolve({ data: contextPayload })
+      return Promise.resolve({ data: {
+        ...schedulePayload,
+        waitlist: [{ entry_id: 'w2', class_id: 'c9', class_name: 'Miniatures', status: 'offered' }],
+      } })
+    })
+    api.post.mockResolvedValue({ data: { success: true, enrolled: true } })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Claim spot' }))
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/classes/c9/claim', { organization_id: 'org-1' })
+  })
+
+  it('shows no claim button for a seat that is only queued', async () => {
+    renderPage()
+    expect(await screen.findByText(/Ceramics II/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Claim spot' })).not.toBeInTheDocument()
   })
 
   it('does not offer a week to print when there are no classes', async () => {

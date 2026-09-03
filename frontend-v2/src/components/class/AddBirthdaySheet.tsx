@@ -10,9 +10,10 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Platform, Pressable, Alert } from 'react-native';
+import { Platform, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
+import { showAlert } from '@/src/utils/alerts';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
@@ -75,7 +76,7 @@ export function AddBirthdaySheet({ visible, onClose, onSaved }: AddBirthdaySheet
       const msg = err.response?.data?.error?.message
         || err.response?.data?.error
         || 'Could not save your birthday.';
-      Alert.alert('Could not save', typeof msg === 'string' ? msg : 'Could not save your birthday.');
+      showAlert('Could not save', typeof msg === 'string' ? msg : 'Could not save your birthday.');
     } finally {
       setSaving(false);
     }
@@ -94,6 +95,8 @@ export function AddBirthdaySheet({ visible, onClose, onSaved }: AddBirthdaySheet
             onPress={handleClose}
             className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>

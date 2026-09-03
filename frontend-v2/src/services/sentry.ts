@@ -45,7 +45,7 @@ export function initSentry(): void {
 
   try {
     // Dynamic require so the app builds cleanly without @sentry/react-native installed.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const Sentry = require('@sentry/react-native');
     const release =
       (Constants.expoConfig?.version as string | undefined) ||
@@ -109,7 +109,7 @@ export function initSentry(): void {
  */
 function tagOtaContext(Sentry: any): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const Updates = require('expo-updates');
     const tags: Record<string, string> = {
       ota_enabled: String(!!Updates.isEnabled),
@@ -162,7 +162,7 @@ function tagOtaContext(Sentry: any): void {
  */
 export function wrapWithSentry<T>(Component: T): T {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const Sentry = require('@sentry/react-native');
     if (typeof Sentry.wrap === 'function') {
       return Sentry.wrap(Component as any) as T;

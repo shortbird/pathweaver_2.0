@@ -22,13 +22,20 @@ from flask import current_app
 
 from database import get_supabase_admin_client
 from utils import rich_text
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, get_effective_roles
 
 logger = get_logger(__name__)
 
 # The audiences an announcement can be aimed at.
 ROLE_AUDIENCES = {'students', 'parents', 'advisors'}
+
+# Rows per insert when snapshotting recipients (well under PostgREST limits).
+RECIPIENT_SNAPSHOT_CHUNK = 500
+
+# A message can be nudged at most once per this window.
+NUDGE_COOLDOWN_HOURS = 24
 
 
 def _admin():
@@ -124,12 +131,43 @@ def recipients_for(org_id: str, audiences: Iterable[str],
     Parents are resolved per student, so a platform parent (no organization_id
     of their own) still gets their child's school announcements.
     """
-    members = (
+    by_role = recipients_by_role(org_id, audiences, exclude_user_id,
+                                 student_ids, advisor_ids)
+    return set().union(*by_role.values()) if by_role else set()
+
+
+def recipients_by_role(org_id: str, audiences: Iterable[str],
+                       exclude_user_id: Optional[str] = None,
+                       student_ids: Optional[Set[str]] = None,
+                       advisor_ids: Optional[Set[str]] = None
+                       ) -> Dict[str, Set[str]]:
+    """The same resolution as recipients_for, split by the audience each person
+    is reached through.
+
+    Exists so the composer can show who a send is about to reach BEFORE it goes
+    out. The picker offers two overlapping ways to narrow a send and gave no
+    feedback about the result, so it was possible to believe a message had gone
+    to families when it had gone to students (iCreate, 2026-08-26: "I love that
+    we can narrow it down, but it's still confusing"). A preview is only worth
+    trusting if it cannot disagree with the send, so the send is built on this.
+    """
+    # Paged: this is every account in the school and it grows with every family
+    # that joins, and a truncated read here silently drops recipients.
+    members = fetch_all_rows(lambda: (
         _admin().table('users').select('id, role, org_role, org_roles')
-        .eq('organization_id', org_id).execute()
-    ).data or []
-    students = [m for m in members if get_effective_role(m) == 'student']
-    advisors = [m for m in members if get_effective_role(m) == 'advisor']
+        .eq('organization_id', org_id)
+    ))
+
+    def _roles_of(m):
+        # EVERY role the person holds, not just the primary. get_effective_role
+        # collapses ['campus_coordinator', 'advisor'] to whichever the array
+        # leads with, so anyone whose advisor role was not primary silently
+        # dropped out of teacher sends and the preview count (iCreate,
+        # 2026-08-28: "I selected 6 teachers ... it says 'goes to 5 people'").
+        return set(get_effective_roles(m))
+
+    students = [m for m in members if 'student' in _roles_of(m)]
+    advisors = [m for m in members if 'advisor' in _roles_of(m)]
     # A targeted send narrows to these students; their parents follow from them,
     # so "the parents of the Tuesday choir" needs no separate parent query.
     if student_ids is not None:
@@ -139,26 +177,65 @@ def recipients_for(org_id: str, audiences: Iterable[str],
     # narrowed students (iCreate, 2026-08-22: "sent a message to just the
     # teachers ... it came through to the parents too" — three of the org's
     # advisors are also parents, and all thirty advisors were messaged).
+    # Somebody the sender picked BY NAME is included even when they hold no
+    # advisor role at all: the staff picker offers coordinators and admins, and
+    # an explicit selection is not a role query (Katrine, 2026-08-28).
     if advisor_ids is not None:
-        advisors = [m for m in advisors if m['id'] in advisor_ids]
+        by_id = {m['id']: m for m in members}
+        advisors = [by_id[i] for i in advisor_ids if i in by_id]
 
-    recipient_ids: Set[str] = set()
+    by_role: Dict[str, Set[str]] = {}
     if 'students' in audiences:
-        recipient_ids.update(m['id'] for m in students)
+        by_role['students'] = {m['id'] for m in students}
     if 'advisors' in audiences:
-        recipient_ids.update(m['id'] for m in advisors)
+        by_role['advisors'] = {m['id'] for m in advisors}
     if 'parents' in audiences:
         from services.notification_service import NotificationService
         notifier = NotificationService()
+        parents: Set[str] = set()
         for s in students:
             try:
                 for p in (notifier.get_parents_for_student(s['id']) or []):
                     if p.get('id'):
-                        recipient_ids.add(p['id'])
+                        parents.add(p['id'])
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Could not resolve parents for student {s['id']}: {e}")
-    recipient_ids.discard(exclude_user_id)
-    return recipient_ids
+        # The SIS's third parent link: household guardians. A second guardian in
+        # the household of a dependent child has no parent_student_links row and
+        # managed_by_parent_id already names guardian #1, so resolving parents
+        # per student alone skipped them (iCreate, 2026-08-26: "Marika didn't
+        # get it (seems like she should have as a parent?)").
+        parents |= _household_guardians_of([s['id'] for s in students])
+        by_role['parents'] = parents
+    for role, ids in by_role.items():
+        # The author does not notify themselves — unless they were picked by
+        # name, which is an explicit request to be included.
+        if role == 'advisors' and advisor_ids is not None and exclude_user_id in advisor_ids:
+            continue
+        ids.discard(exclude_user_id)
+    return by_role
+
+
+def _household_guardians_of(student_ids: List[str]) -> Set[str]:
+    """Guardians who share a household with any of these students."""
+    if not student_ids:
+        return set()
+    try:
+        member_rows = fetch_all_rows(lambda: (
+            _admin().table('household_members').select('household_id, user_id')
+            .in_('user_id', student_ids)
+        ))
+        household_ids = list({r['household_id'] for r in member_rows})
+        if not household_ids:
+            return set()
+        guardian_rows = fetch_all_rows(lambda: (
+            _admin().table('household_members').select('user_id, relationship')
+            .in_('household_id', household_ids).eq('relationship', 'guardian')
+        ))
+        return {r['user_id'] for r in guardian_rows if r.get('user_id')}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not resolve household guardians: {e}")
+        return set()
 
 
 def targeted_advisor_ids(org_id: str, class_ids: Optional[List[str]] = None,
@@ -207,16 +284,25 @@ def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
 
 def publish(org_id: str, author_id: str, title: str, content: str,
             audiences: List[str], student_ids: Optional[Set[str]] = None,
-            send_email: bool = True, target_label: Optional[str] = None,
-            advisor_ids: Optional[Set[str]] = None) -> Dict[str, Any]:
+            send_email: bool = True, send_app: bool = True,
+            target_label: Optional[str] = None,
+            advisor_ids: Optional[Set[str]] = None,
+            source_announcement_id: Optional[str] = None,
+            attachments: Optional[List[dict]] = None) -> Dict[str, Any]:
     """Store the announcement and fan it out (notifications + optional email).
 
     `send_email` defaults to True so every existing caller keeps behaving
-    exactly as it did. The SIS Messaging page passes False for a targeted send:
+    exactly as it did. The SIS composer passes False for a targeted send:
     iCreate found that an in-app note to one class was also 300 emails, and
     asked for the email to be the deliberate half ("maybe we keep announcements
     within the community dashboard only and have the ability to check the box
     only if we want it emailed too" — 857b5f70).
+
+    `send_app` (default True, same reasoning) is the other half of the channel
+    choice (iCreate, 2026-08-31: email OR app message OR both): False skips the
+    notification/push fan-out and marks the row in_app=false, which keeps it
+    off the family-facing announcements surfaces — it exists as staff history
+    and as email. The route refuses a send with both flags off.
 
     `student_ids` narrows delivery to a set of students and their parents; see
     targeted_student_ids.
@@ -228,7 +314,18 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     A body written with the editor is stored as sanitized HTML; everything that
     reads it as text (the notification preview, the plain half of the email)
     flattens it first. See utils/rich_text.py.
+
+    `source_announcement_id` links the row back to the Community Hub board post
+    that spawned it, so revise()/retract_for_source() can keep the two halves
+    in step.
+
+    `attachments` (iCreate, 2026-08-31) is the same pre-uploaded
+    {url, type, name, size} list a message send carries; it is cleaned with the
+    same helper, stored on the row (readers sign the private URLs per read),
+    and linked at the bottom of the email.
     """
+    from services import messaging_extras_service as msg_extras
+    attachments = msg_extras.clean_attachments(attachments)
     content = rich_text.sanitize(content)
     announcement_id = None
     try:
@@ -237,11 +334,23 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             'author_id': author_id,
             'title': title,
             'message': content,
+            # The board post this send came from, when there is one. Without it
+            # the family feed had to guess the two rows were the same notice by
+            # matching title + day, and an edit to the title made them two.
+            'source_announcement_id': source_announcement_id,
             # A targeted send records WHO it went to, not just which roles, so
             # the archive does not read as school-wide six months later.
             'target_audience': (target_label if target_label
                                 else 'everyone' if set(audiences) == ROLE_AUDIENCES
                                 else ','.join(sorted(audiences))),
+            # Targeted rows are visible in the archive only to their snapshot
+            # recipients — the role token in the label must not widen them to
+            # the whole role (see announcements_archive).
+            'is_targeted': bool(target_label),
+            # Email-only sends stay off the family-facing surfaces (the
+            # announcements list and archive both filter on this).
+            'in_app': send_app,
+            'attachments': attachments or None,
         }).execute()
         announcement_id = ins.data[0]['id'] if ins.data else None
     except Exception as e:  # noqa: BLE001
@@ -250,12 +359,13 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     recipient_ids = recipients_for(org_id, audiences, exclude_user_id=author_id,
                                    student_ids=student_ids,
                                    advisor_ids=advisor_ids)
+    _snapshot_recipients(announcement_id, recipient_ids)
 
     from services.notification_service import NotificationService
     notifier = NotificationService()
     preview = rich_text.preview(content)
     sent = 0
-    for rid in recipient_ids:
+    for rid in (recipient_ids if send_app else []):
         try:
             notifier.create_notification(
                 user_id=rid,
@@ -281,16 +391,230 @@ def publish(org_id: str, author_id: str, title: str, content: str,
             logger.warning(f"Announcement notify failed for {rid}: {e}")
 
     if send_email:
-        _email_fanout(org_id, title, content, list(recipient_ids))
+        _email_fanout(org_id, title, content, list(recipient_ids),
+                      attachments=attachments)
     logger.info(f"Announcement '{title[:40]}' by {author_id[:8]} sent to {sent} "
-                f"({','.join(audiences)}; email={'yes' if send_email else 'no'})")
+                f"({','.join(audiences)}; app={'yes' if send_app else 'no'}; "
+                f"email={'yes' if send_email else 'no'})")
     return {'sent': sent, 'announcement_id': announcement_id,
             'recipients': len(recipient_ids), 'emailed': bool(send_email)}
 
 
-def _email_fanout(org_id: str, title: str, content: str, recipients: List[str]) -> None:
+def retract(announcement_id: str) -> None:
+    """Take a sent announcement down: delete the durable row and the bell
+    notifications that point at it.
+
+    Deleting the row alone is not enough — the notification survives it and the
+    message reappears when the bell is opened. Best-effort on the sweep: the
+    announcement is gone either way.
+    """
+    _admin().table('announcements').delete().eq('id', announcement_id).execute()
+    try:
+        _admin().table('notifications').delete()\
+            .eq('notification_type', 'announcement')\
+            .filter('metadata->>announcement_id', 'eq', announcement_id).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Announcement {announcement_id} deleted but notifications "
+                       f"not swept: {e}")
+
+
+def retract_for_source(source_announcement_id: str) -> int:
+    """Retract every send that came from this Community Hub board post.
+
+    Deleting the board post used to leave the fan-out row alive, so a notice the
+    admin had taken down stayed on the family archive and the parent dashboard
+    for good (iCreate, 2026-08-28: "Summit Program Info" was gone from the admin
+    side and still on the parent page). Returns how many sends were pulled.
+    """
+    try:
+        rows = (_admin().table('announcements').select('id')
+                .eq('source_announcement_id', source_announcement_id)
+                .execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not find sends for board post "
+                       f"{source_announcement_id}: {e}")
+        return 0
+    for row in rows:
+        try:
+            retract(row['id'])
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not retract announcement {row['id']}: {e}")
+    return len(rows)
+
+
+def revise_for_source(source_announcement_id: str, title: Optional[str] = None,
+                      content: Optional[str] = None) -> int:
+    """Carry an edit of a board post through to the send it spawned.
+
+    The two rows are one notice to a family. Left unsynced, editing the board
+    post's title made the family feed stop recognising them as the same thing
+    and show both (iCreate, 2026-08-27: "The announcements show two
+    announcements on a family portal even though I only edited the original").
+    Returns how many sends were updated.
+    """
+    fields: Dict[str, Any] = {}
+    if title is not None:
+        fields['title'] = title
+    if content is not None:
+        fields['message'] = rich_text.sanitize(content)
+    if not fields:
+        return 0
+    try:
+        rows = (_admin().table('announcements').update(fields)
+                .eq('source_announcement_id', source_announcement_id)
+                .execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not revise sends for board post "
+                       f"{source_announcement_id}: {e}")
+        return 0
+    # The bell notification carries its own copy of the words, so an edit that
+    # stops at the announcements row leaves the old text in everyone's list.
+    for row in rows:
+        try:
+            patch: Dict[str, Any] = {}
+            if title is not None:
+                patch['title'] = title
+            if content is not None:
+                patch['message'] = rich_text.preview(fields['message'])
+            if patch:
+                (_admin().table('notifications').update(patch)
+                 .eq('notification_type', 'announcement')
+                 .filter('metadata->>announcement_id', 'eq', row['id']).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Revised announcement {row['id']} but its "
+                           f"notifications were not updated: {e}")
+    return len(rows)
+
+
+def _snapshot_recipients(announcement_id: Optional[str],
+                         recipient_ids: Set[str]) -> None:
+    """Record who this send was aimed at, so read stats and nudges have a
+    denominator. Recipient resolution is dynamic (parents come via their
+    children), so without a snapshot "who was sent this" cannot be answered
+    later. Chunked inserts; best-effort — a snapshot failure must never stop
+    delivery, it only turns this message's read stats into "no data"."""
+    if not announcement_id or not recipient_ids:
+        return
+    ids = sorted(recipient_ids)
+    try:
+        for i in range(0, len(ids), RECIPIENT_SNAPSHOT_CHUNK):
+            _admin().table('announcement_recipients').insert([
+                {'announcement_id': announcement_id, 'user_id': uid}
+                for uid in ids[i:i + RECIPIENT_SNAPSHOT_CHUNK]
+            ]).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Recipient snapshot failed for announcement "
+                       f"{announcement_id}: {e}")
+
+
+def nudge(announcement: Dict[str, Any]) -> Dict[str, Any]:
+    """Re-notify everyone this announcement was sent to who hasn't read it.
+
+    `announcement` is the announcements row (id, organization_id, title,
+    message, last_nudged_at) — the route fetches it for its own auth checks and
+    hands it over. Returns {'notified': n} on success, otherwise
+    {'error': msg, 'status': http_code}:
+
+    - 409 when nudged within the last NUDGE_COOLDOWN_HOURS — a reminder that
+      can be spammed stops being a reminder;
+    - 409 when no recipient snapshot exists (messages sent before read
+      receipts): re-resolving recipients now could nudge people the original
+      send never reached.
+
+    In-app only, no email — the nudge is a tap on the shoulder, not a resend.
+    """
+    from datetime import datetime, timedelta, timezone
+    from utils.db_fetch import fetch_all_rows
+
+    announcement_id = announcement['id']
+    org_id = announcement.get('organization_id')
+
+    last = announcement.get('last_nudged_at')
+    if last:
+        try:
+            last_dt = datetime.fromisoformat(str(last).replace('Z', '+00:00'))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - last_dt < timedelta(hours=NUDGE_COOLDOWN_HOURS):
+                return {'error': 'This message was already nudged in the last '
+                                 '24 hours. Try again tomorrow.',
+                        'status': 409}
+        except ValueError:
+            logger.warning(f"Unparseable last_nudged_at on {announcement_id}: {last!r}")
+
+    # Paged: an org-wide send is one row per recipient, which is exactly the
+    # read that truncates at the PostgREST cap. PK is (announcement_id,
+    # user_id), so user_id is the unique paging key within one announcement.
+    recipients = {r['user_id'] for r in fetch_all_rows(lambda: (
+        _admin().table('announcement_recipients').select('user_id')
+        .eq('announcement_id', announcement_id)), order_by='user_id')}
+    if not recipients:
+        return {'error': 'This message predates read receipts, so there is no '
+                         'record of who it was sent to. Only newer messages '
+                         'can be nudged.',
+                'status': 409}
+
+    readers = {r['user_id'] for r in fetch_all_rows(lambda: (
+        _admin().table('announcement_reads').select('user_id')
+        .eq('announcement_id', announcement_id)), order_by='user_id')}
+    unread = recipients - readers
+
+    org_name = None
+    try:
+        org = _admin().table('organizations').select('name')\
+            .eq('id', org_id).single().execute().data
+        org_name = (org or {}).get('name')
+    except Exception:  # noqa: BLE001
+        pass
+
+    title = announcement.get('title') or ''
+    nudge_title = (f'Reminder from {org_name}: {title}' if org_name
+                   else f'Reminder: {title}')
+    body = announcement.get('message') or ''
+
+    from services.notification_service import NotificationService
+    notifier = NotificationService()
+    notified = 0
+    for uid in unread:
+        try:
+            notifier.create_notification(
+                user_id=uid,
+                # Same type as the original send, so it renders on the bell and
+                # gets mobile push without any frontend change.
+                notification_type='announcement',
+                title=nudge_title,
+                message=rich_text.preview(body),
+                # The message itself lives on the school page's archive — same
+                # link the original notification carried.
+                link='/school',
+                metadata={'announcement_id': announcement_id, 'nudge': True,
+                          'full_content': rich_text.to_text(body)},
+                organization_id=org_id,
+            )
+            notified += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Nudge notify failed for {uid}: {e}")
+
+    try:
+        _admin().table('announcements').update(
+            {'last_nudged_at': datetime.now(timezone.utc).isoformat()}
+        ).eq('id', announcement_id).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not stamp last_nudged_at on {announcement_id}: {e}")
+
+    logger.info(f"Announcement {announcement_id} nudged: {notified} of "
+                f"{len(recipients)} recipients still unread")
+    return {'notified': notified}
+
+
+def _email_fanout(org_id: str, title: str, content: str, recipients: List[str],
+                  attachments: Optional[List[dict]] = None) -> None:
     """Email the announcement in a daemon thread — parents who never open the
-    app still get it, and a slow SMTP hop never holds up the request."""
+    app still get it, and a slow SMTP hop never holds up the request.
+
+    Attachments arrive as a linked list at the bottom of the body, signed for a
+    week: the bucket is private, and an email is often read days later. The app
+    surfaces never see these signed twins — they re-sign per read."""
     if not recipients:
         return
     try:
@@ -303,7 +627,20 @@ def _email_fanout(org_id: str, title: str, content: str, recipients: List[str]) 
         with app.app_context():
             try:
                 from services.announcement_email_service import send_announcement_emails
-                send_announcement_emails(org_id, title, content, recipients)
+                body = content
+                if attachments:
+                    import html as _html
+                    from services.messaging_extras_service import ATTACHMENT_BUCKET
+                    from utils.storage_urls import sign_stored_urls
+                    mapping = sign_stored_urls(
+                        [a['url'] for a in attachments],
+                        ATTACHMENT_BUCKET, expires_in=7 * 24 * 3600)
+                    items = ''.join(
+                        f'<li><a href="{mapping.get(a["url"]) or a["url"]}">'
+                        f'{_html.escape(a.get("name") or "attachment")}</a></li>'
+                        for a in attachments)
+                    body = f'{content}<p><strong>Attachments</strong></p><ul>{items}</ul>'
+                send_announcement_emails(org_id, title, body, recipients)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Announcement email fan-out failed: {e}", exc_info=True)
 

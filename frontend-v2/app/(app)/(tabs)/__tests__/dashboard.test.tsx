@@ -7,6 +7,13 @@
  * - Browse All / Browse Quests buttons had no onPress handlers
  */
 
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react-native';
+import DashboardScreen from '../dashboard';
+import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
+import api from '@/src/services/api';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -35,13 +42,6 @@ jest.mock('@/src/components/capture/CaptureModal', () => ({
 jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
   DiplomaCreditTracker: () => null,
 }));
-
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
-import DashboardScreen from '../dashboard';
-import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
-import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 const mockRouter = require('expo-router').router;
 

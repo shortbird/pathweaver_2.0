@@ -10,9 +10,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Modal, Pressable, TextInput, ScrollView, Alert, Platform } from 'react-native';
+import { View, Modal, Pressable, TextInput, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
+import { showAlert } from '@/src/utils/alerts';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
@@ -223,7 +224,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
   const handleSubmit = async () => {
     if (!validate()) {
-      Alert.alert('Validation Error', 'Please fix all errors before submitting');
+      showAlert('Validation Error', 'Please fix all errors before submitting');
       return;
     }
     setSaving(true);
@@ -254,11 +255,11 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
         await api.put(`/api/admin/quests/${questId}/template-tasks`, { tasks: tasksPayload });
       }
 
-      Alert.alert('Success', 'Quest created successfully');
+      showAlert('Success', 'Quest created successfully');
       handleClose();
       onCreated?.();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to create quest');
+      showAlert('Error', err.response?.data?.error || 'Failed to create quest');
     } finally {
       setSaving(false);
     }
@@ -304,7 +305,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
               {/* Description */}
               <VStack space="xs">
-                <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Big Idea / Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
+                <UIText size="sm" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Big Idea / Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
                 <TextInput
                   value={form.big_idea}
                   onChangeText={(v) => setForm((p) => ({ ...p, big_idea: v }))}
@@ -319,7 +320,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
               {/* Status */}
               <VStack space="xs">
-                <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Status</UIText>
+                <UIText size="sm" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Status</UIText>
                 <HStack space="xs">
                   <Pressable
                     onPress={() => setForm((p) => ({ ...p, is_active: true }))}
@@ -355,9 +356,9 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                         <UIText size="sm" className="font-poppins-semibold">Task {idx + 1}</UIText>
                         <Pressable
                           onPress={() => updateTask(idx, 'is_required', !task.is_required)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: task.is_required ? '#6D469B15' : c.surfaceMuted, borderWidth: 1, borderColor: task.is_required ? '#6D469B' : c.border }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: task.is_required ? `${c.brand}15` : c.surfaceMuted, borderWidth: 1, borderColor: task.is_required ? c.brand : c.border }}
                         >
-                          <Ionicons name={task.is_required ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={task.is_required ? '#6D469B' : c.iconMuted} />
+                          <Ionicons name={task.is_required ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={task.is_required ? c.brand : c.iconMuted} />
                           <UIText size="xs" className={`font-poppins-medium ${task.is_required ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}`}>
                             {task.is_required ? 'Required' : 'Optional'}
                           </UIText>
@@ -370,7 +371,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
                     {/* Task title */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Title <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Title <UIText size="xs" className="text-red-500">*</UIText></UIText>
                       <TextInput
                         value={task.title}
                         onChangeText={(v) => updateTask(idx, 'title', v)}
@@ -383,7 +384,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
                     {/* Task description */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
                       <TextInput
                         value={task.description}
                         onChangeText={(v) => updateTask(idx, 'description', v)}
@@ -399,7 +400,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                     {/* Pillar + XP row */}
                     <HStack space="md">
                       <VStack space="xs" className="flex-1">
-                        <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Pillar <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                        <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Pillar <UIText size="xs" className="text-red-500">*</UIText></UIText>
                         <HStack className="flex-wrap gap-1.5">
                           {pillarKeys.map((key) => {
                             const p = getPillar(key);
@@ -419,7 +420,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                         {errors[`task_${idx}_pillar`] && <UIText size="xs" className="text-red-500">{errors[`task_${idx}_pillar`]}</UIText>}
                       </VStack>
                       <VStack space="xs" style={{ width: 100 }}>
-                        <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">XP <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                        <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">XP <UIText size="xs" className="text-red-500">*</UIText></UIText>
                         <TextInput
                           value={String(task.xp_value)}
                           onChangeText={(v) => updateTaskXP(idx, parseInt(v) || 0)}
@@ -431,7 +432,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
                     {/* School subjects */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">School Subjects (Diploma Credit) <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">School Subjects (Diploma Credit) <UIText size="xs" className="text-red-500">*</UIText></UIText>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                         {subjects.map((s) => {
                           const selected = task.school_subjects?.includes(s.key);
@@ -439,7 +440,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                             <Pressable
                               key={s.key}
                               onPress={() => toggleSubject(idx, s.key)}
-                              style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: selected ? '#6D469B' : c.border, backgroundColor: selected ? '#6D469B15' : c.card }}
+                              style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: selected ? c.brand : c.border, backgroundColor: selected ? `${c.brand}15` : c.card }}
                             >
                               <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}`}>{s.name}</UIText>
                             </Pressable>
@@ -482,7 +483,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               <Pressable
                 onPress={addTask}
                 className="self-center flex-row items-center gap-2 px-6 py-3 rounded-xl active:opacity-80"
-                style={{ backgroundColor: '#6D469B' }}
+                style={{ backgroundColor: c.brand }}
               >
                 <Ionicons name="add" size={18} color="white" />
                 <UIText size="sm" className="text-white font-poppins-medium">{form.tasks.length === 0 ? 'Add a Template Task' : 'Add Another Task'}</UIText>
@@ -496,13 +497,13 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
               {/* Location type */}
               <VStack space="xs">
-                <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Location Type</UIText>
+                <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Location Type</UIText>
                 <HStack className="flex-wrap gap-1.5">
                   {LOCATION_TYPES.map((lt) => (
                     <Pressable
                       key={lt.value}
                       onPress={() => setForm((p) => ({ ...p, metadata: { ...p.metadata, location_type: lt.value } }))}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: form.metadata.location_type === lt.value ? '#6D469B' : c.border, backgroundColor: form.metadata.location_type === lt.value ? '#6D469B15' : c.card }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: form.metadata.location_type === lt.value ? c.brand : c.border, backgroundColor: form.metadata.location_type === lt.value ? `${c.brand}15` : c.card }}
                     >
                       <UIText size="xs" className={`font-poppins-medium ${form.metadata.location_type === lt.value ? 'text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}`}>{lt.label}</UIText>
                     </Pressable>
@@ -513,7 +514,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               {form.metadata.location_type === 'specific_location' && (
                 <HStack space="md">
                   <VStack space="xs" className="flex-1">
-                    <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Venue Name</UIText>
+                    <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Venue Name</UIText>
                     <TextInput
                       value={form.metadata.venue_name}
                       onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, venue_name: v } }))}
@@ -523,7 +524,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                     />
                   </VStack>
                   <VStack space="xs" className="flex-1">
-                    <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Address</UIText>
+                    <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Address</UIText>
                     <TextInput
                       value={form.metadata.location_address}
                       onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, location_address: v } }))}
@@ -538,7 +539,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               {/* Seasonal dates */}
               <HStack space="md">
                 <VStack space="xs" className="flex-1">
-                  <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Seasonal Start</UIText>
+                  <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Seasonal Start</UIText>
                   <TextInput
                     value={form.metadata.seasonal_start}
                     onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, seasonal_start: v } }))}
@@ -548,7 +549,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                   />
                 </VStack>
                 <VStack space="xs" className="flex-1">
-                  <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Seasonal End</UIText>
+                  <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">Seasonal End</UIText>
                   <TextInput
                     value={form.metadata.seasonal_end}
                     onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, seasonal_end: v } }))}

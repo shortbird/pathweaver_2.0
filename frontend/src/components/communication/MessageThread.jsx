@@ -28,7 +28,10 @@ const MessageThread = ({
   onToggleReaction,
   onReply,
   onEditMessage,
-  onDeleteMessage
+  onDeleteMessage,
+  // Set only for superadmin support threads: forward a received message to the
+  // sender's school inbox.
+  onForward
 }) => {
   const confirm = useConfirm()
   const { user } = useAuth()
@@ -119,10 +122,12 @@ const MessageThread = ({
                   isOwn={isSender}
                   canEdit={isSender}
                   canDelete={isSender}
+                  canForward={!!onForward && !isSender}
                   onReact={(emoji) => onToggleReaction?.(message, emoji)}
                   onReply={() => onReply?.(message)}
                   onEdit={() => setEditingId(message.id)}
                   onDelete={() => handleDelete(message)}
+                  onForward={() => onForward?.(message)}
                 />
               )}
 

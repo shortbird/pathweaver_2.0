@@ -1,8 +1,8 @@
 import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
-import { goToLearningSurface } from '../utils/appSurface'
-import { isPathHidden } from '../pages/sis/sisModules'
+import { goToLearningSurface, LEARNING_SURFACE_PATHS } from '../utils/appSurface'
+import { isPathHidden, isClpEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
@@ -19,6 +19,17 @@ import { useAuth } from '../contexts/AuthContext'
 const ModuleGate = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
   if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
+// CLPs are iCreate's workflow, so the page is opt-in rather than opt-out, and
+// isClpEnabled asks for more than the module map can: an explicit
+// sis_settings.clp_enabled on top of the 'clp' module being on. Kept alongside
+// ModuleGate rather than folded into it — Community Hub and Prior Learning did
+// fold in, because for those two the evaluator now answers the same question.
+const ClpRoute = ({ children }) => {
+  const { activeOrg } = useSisOrg()
+  if (!isClpEnabled(activeOrg)) return <Navigate to="/" replace />
   return children
 }
 
@@ -58,7 +69,7 @@ const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
-const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
+const SchoolInboxPage = lazy(() => import('../pages/sis/SchoolInboxPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
 const ResourcesPage = lazy(() => import('../pages/sis/ResourcesPage'))
@@ -124,7 +135,7 @@ const SisRoutes = () => (
       <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
       <Route path="classes" element={<ModuleGate path="/classes"><ClassesPage /></ModuleGate>} />
-      <Route path="clp" element={<ModuleGate path="/clp"><ClpPage /></ModuleGate>} />
+      <Route path="clp" element={<ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
       <Route path="tuition" element={<FinanceRoute><ModuleGate path="/tuition"><TuitionApprovalPage /></ModuleGate></FinanceRoute>} />
       <Route path="attendance" element={<ModuleGate path="/attendance"><AttendancePage /></ModuleGate>} />
@@ -133,7 +144,10 @@ const SisRoutes = () => (
       <Route path="prior-learning" element={<ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate>} />
       <Route path="reports" element={<ModuleGate path="/reports"><ReportsPage /></ModuleGate>} />
       <Route path="secure-documents" element={<HrRoute><ModuleGate path="/secure-documents"><SecureDocumentsPage /></ModuleGate></HrRoute>} />
-      <Route path="messaging" element={<FamilyMessagingPage />} />
+      {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
+          working for bookmarks and old notification links. */}
+      <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />
+      <Route path="inbox" element={<SchoolInboxPage />} />
       <Route path="registration" element={<ModuleGate path="/registration"><RegistrationPage /></ModuleGate>} />
       <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
       <Route path="resources" element={<ModuleGate path="/resources"><ResourcesPage /></ModuleGate>} />
@@ -168,6 +182,18 @@ const SisRoutes = () => (
       <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
       <Route path="admin/*" element={<AdminPage />} />
 
+      {/* Anything this surface doesn't own, but the learning app does, is
+          handed over rather than swallowed. Notification links are written for
+          the learning app -- every announcement carries "/school" -- and staff
+          who have ever pressed "SIS" render this router even on www, so those
+          links hit this catch-all and dumped the reader on the SIS dashboard
+          with no idea what they had been sent (iCreate, 2026-08-26: "when I
+          click on a notification, it doesn't open anythign. Instead it just
+          sends me to the SIS dashboard"). Listed explicitly, so a genuine typo
+          still lands on the dashboard instead of bouncing between surfaces. */}
+      {LEARNING_SURFACE_PATHS.map((p) => (
+        <Route key={p} path={`${p}/*`} element={<LearningRedirect />} />
+      ))}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>
   </Routes>

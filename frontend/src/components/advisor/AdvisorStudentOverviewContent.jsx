@@ -76,6 +76,7 @@ const AdvisorStudentOverviewContent = ({ studentId, canEdit = false, orgId }) =>
         data={data}
         studentId={studentId}
         portfolioReadOnly={!canEdit}
+        viewerMode="advisor"
       />
 
       {/* Edit User Modal */}

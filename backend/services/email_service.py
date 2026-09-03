@@ -1214,6 +1214,47 @@ class EmailService(BaseService):
             }
         )
 
+    def send_forwarded_support_message_email(
+        self,
+        to_email: str,
+        staff_name: str,
+        org_name: str,
+        member_name: str,
+        message_text: str,
+        reply_url: str,
+        school_inbox: bool = False
+    ) -> bool:
+        """Tell an admin that Optio Support forwarded a member's message to
+        their school, with a button that opens it.
+
+        `school_inbox` says which destination the copy and the button describe:
+        the shared SIS inbox (iCreate) or the admin's own Messages in the web
+        app (Hearthwood and every other non-SIS org).
+
+        Sent alongside the in-app notification, not instead of it: a forward is
+        Optio handing work over to the school, and the bell alone never reaches
+        an admin who isn't logged in that day.
+        """
+        excerpt = ' '.join((message_text or '').split())
+        if len(excerpt) > 600:
+            excerpt = excerpt[:600].rstrip() + '...'
+        return self.send_templated_email(
+            to_email=to_email,
+            subject=f"{member_name} has a message for {org_name}",
+            template_name='school_inbox_forwarded_message',
+            context={
+                'staff_name': staff_name,
+                'org_name': org_name,
+                'member_name': member_name,
+                'reply_url': reply_url,
+                'school_inbox': school_inbox,
+                'message_excerpt': excerpt or '(attachment only - open the message to see it)',
+            },
+            # Quotes a family's own words, which routinely name their student
+            # and their situation. Never copy it to the support inbox.
+            contains_student_records=True
+        )
+
     def send_service_inquiry_notification(
         self,
         user_name: str,

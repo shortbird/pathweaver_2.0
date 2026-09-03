@@ -1,0 +1,37 @@
+---
+/**
+ * A single testimonial as a full-width row: attribution rail on the left,
+ * quote behind an accent rule. Ported from the app's TestimonialRow.
+ */
+export interface Props {
+  quote: string
+  name: string
+  context: string
+  class?: string
+}
+const { quote, name, context, class: className = 'bg-white border border-neutral-100 shadow-sm' } = Astro.props
+const initials = name
+  .split(' ')
+  .map((part) => part[0])
+  .join('')
+  .replace(/\./g, '')
+  .toUpperCase()
+---
+
+<figure class={`rounded-2xl p-6 sm:p-8 sm:flex sm:items-start sm:gap-8 ${className}`}>
+  <figcaption class="flex items-center gap-4 mb-5 sm:mb-0 sm:block sm:w-40 sm:flex-shrink-0">
+    <div
+      aria-hidden="true"
+      class="w-12 h-12 rounded-full bg-optio-purple/10 text-optio-purple flex items-center justify-center text-base font-bold flex-shrink-0 sm:mb-3"
+    >
+      {initials}
+    </div>
+    <div>
+      <div class="font-semibold text-neutral-900">{name}</div>
+      <div class="text-sm text-neutral-500">{context}</div>
+    </div>
+  </figcaption>
+  <blockquote class="flex-1 border-l-2 border-optio-pink/30 pl-5 sm:pl-8 text-neutral-700 text-base sm:text-lg leading-relaxed">
+    "{quote}"
+  </blockquote>
+</figure>

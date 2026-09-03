@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import {
   FaceSmileIcon,
   ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
   PencilIcon,
   TrashIcon,
   MapPinIcon,
@@ -135,11 +136,13 @@ export const MessageActionBar = ({
   canEdit = false,
   canDelete = false,
   canPin = false,
+  canForward = false,
   onReact,
   onReply,
   onEdit,
   onDelete,
-  onPin
+  onPin,
+  onForward
 }) => {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerBelow, setPickerBelow] = useState(false)
@@ -192,6 +195,17 @@ export const MessageActionBar = ({
         <button type="button" title="Reply" aria-label="Reply" onClick={onReply} className={itemClass}>
           <ArrowUturnLeftIcon className="w-4 h-4" />
         </button>
+        {canForward && (
+          <button
+            type="button"
+            title="Forward to the school's admins"
+            aria-label="Forward to the school's admins"
+            onClick={onForward}
+            className={itemClass}
+          >
+            <ArrowUturnRightIcon className="w-4 h-4" />
+          </button>
+        )}
         {canPin && (
           <button type="button" title="Pin" aria-label="Pin message" onClick={onPin} className={itemClass}>
             <MapPinIcon className="w-4 h-4" />

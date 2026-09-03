@@ -9,10 +9,12 @@ import { View, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { supabase } from '@/src/services/supabaseClient';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { UIText } from '@/src/components/ui';
 
 export default function AuthCallbackScreen() {
   const { handleGoogleCallback, handleAppleCallback } = useAuthStore();
+  const c = useThemeColors();
   const [status, setStatus] = useState<'processing' | 'error'>('processing');
   const [error, setError] = useState('');
   // Guard against React 18 strict-mode double-fire: each OAuth callback must
@@ -29,7 +31,13 @@ export default function AuthCallbackScreen() {
       // authStore.googleLogin), so this route only mounts if the optio:// deep
       // link re-enters it. Route by auth state instead of dumping the user back
       // on a login screen they've already passed.
-      const authed = useAuthStore.getState().isAuthenticated;
+      const { isAuthenticated: authed, pendingTosToken } = useAuthStore.getState();
+      if (pendingTosToken) {
+        // A first-time OAuth user is mid-consent — don't yank them off the
+        // accept-terms screen.
+        router.replace('/(auth)/accept-terms' as any);
+        return;
+      }
       router.replace(authed ? '/(app)/(tabs)/dashboard' : '/(auth)/login');
       return;
     }
@@ -85,6 +93,10 @@ export default function AuthCallbackScreen() {
           await handleGoogleCallback(accessToken, refreshToken || '');
         }
 
+        // First-time OAuth users are routed to the accept-terms consent screen
+        // by the store; don't override that navigation.
+        if (useAuthStore.getState().pendingTosToken) return;
+
         // Land on the universal Home (dashboard). Role-specific routing (e.g.
         // observer → feed) is handled by their own layout shell.
         router.replace('/(app)/(tabs)/dashboard');
@@ -103,7 +115,7 @@ export default function AuthCallbackScreen() {
     <View className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
       {status === 'processing' && (
         <View className="items-center">
-          <ActivityIndicator size="large" color="#7C3AED" />
+          <ActivityIndicator size="large" color={c.brand} />
           <UIText className="mt-4 text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
             Completing sign in...
           </UIText>

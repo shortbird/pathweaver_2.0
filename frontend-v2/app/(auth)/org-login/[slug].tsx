@@ -13,8 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import api from '@/src/services/api';
 import {
-  VStack, HStack, Heading, UIText, Button, ButtonText,
-  Card, Input, InputField, InputSlot, InputIcon,
+  VStack, Heading, UIText, Button, ButtonText,
+  Card, Input, InputField, InputSlot,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
@@ -110,7 +110,7 @@ export default function OrgLoginScreen() {
   if (orgLoading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={c.brand} />
       </SafeAreaView>
     );
   }

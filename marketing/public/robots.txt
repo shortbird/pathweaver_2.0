@@ -1,0 +1,5 @@
+# Optio marketing site
+User-agent: *
+Allow: /
+
+Sitemap: https://www.optioeducation.com/sitemap-index.xml

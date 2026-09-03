@@ -33,18 +33,6 @@ vi.mock('../../services/dependentAPI', () => ({
   getMyDependents: vi.fn(),
 }))
 
-// The card list comes from SchoolPage's cardsFor; mocking the module keeps
-// this test off SchoolPage's heavy dependency graph while still exercising
-// the guardian/non-guardian filtering contract (org null -> no cards).
-vi.mock('../SchoolPage', () => ({
-  cardsFor: (org) => (org
-    ? [
-      { name: 'Billing', path: '/family/billing', description: 'Your balance.', Icon: (props) => <svg {...props} /> },
-      { name: 'Calendar', path: '/school-calendar', description: 'Field trips.', Icon: (props) => <svg {...props} /> },
-    ]
-    : []),
-}))
-
 import api, { parentAPI } from '../../services/api'
 import { getMyDependents } from '../../services/dependentAPI'
 
@@ -242,17 +230,28 @@ describe('FamilyHome', () => {
       },
     }
 
-    it('renders the school cards and latest announcements when the user is in a school', async () => {
+    it('renders the latest announcements when the user is in a school', async () => {
       orgState = { school: { id: 'org-1', name: 'iCreate', homepage: false }, loading: false }
       mockApiRoutes(schoolRoutes)
       renderFamilyHome()
 
       expect(await screen.findByText('From iCreate')).toBeInTheDocument()
-      const billingCard = await screen.findByRole('link', { name: /Billing/ })
-      expect(billingCard).toHaveAttribute('href', '/family/billing')
       expect(screen.getByText('Spring showcase')).toBeInTheDocument()
       expect(screen.getByText('Join us Friday')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute('href', '/school')
+    })
+
+    it('does not duplicate the school-page card grid on home', async () => {
+      // The same eight buttons used to render on home AND on /school, back to
+      // back for exactly the orgs that render this section first. The cards
+      // live on /school now; home keeps the messages.
+      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
+      mockApiRoutes(schoolRoutes)
+      renderFamilyHome()
+
+      await screen.findByText('From iCreate')
+      expect(screen.queryByRole('link', { name: /Billing/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('navigation', { name: 'School surfaces' })).not.toBeInTheDocument()
     })
 
     it('renders the school section above the child cards for school-homepage orgs', async () => {

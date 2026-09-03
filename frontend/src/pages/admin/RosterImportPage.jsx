@@ -181,10 +181,14 @@ export default function RosterImportPage() {
   }
 
   const addRow = () => { setRows(prev => [...prev, blankRow()]); clearPlan() }
-  const removeRow = (key) => {
-    setRows(prev => (prev.length > 1 ? prev.filter(row => row.key !== key) : [blankRow()]))
+  const removeRows = (keys) => {
+    setRows(prev => {
+      const kept = prev.filter(row => !keys.includes(row.key))
+      return kept.length ? kept : [blankRow()]
+    })
     clearPlan()
   }
+  const removeRow = key => removeRows([key])
   const clearGrid = () => { setRows([blankRow(), blankRow(), blankRow()]); clearPlan() }
 
   const run = async (step) => {
@@ -214,6 +218,14 @@ export default function RosterImportPage() {
   const parentFor = email =>
     preview?.parents?.find(p => p.email === (email || '').trim().toLowerCase())
 
+  // Grid rows the server rejected. Dropping them is the quick way through a
+  // roster where a few rows are hopeless (no emails at all, half a family),
+  // instead of hunting each red row down the sheet.
+  const errorRowKeys = (preview?.row_errors || []).map(e => keyForServerRow(e.row)).filter(Boolean)
+  const removeErrorRows = () => removeRows(errorRowKeys)
+  const deleteErrorsLabel =
+    `Delete ${errorRowKeys.length} row${errorRowKeys.length === 1 ? '' : 's'} with errors`
+
   const counts = preview?.counts
   const totalAccounts = counts ? counts.students_new + counts.parents_new : 0
 
@@ -224,7 +236,9 @@ export default function RosterImportPage() {
         For schools that enroll families offline and send a roster instead of using the signup
         links. Each row creates a student account and a parent account, links them together, and
         emails each new account a link to set their own password. Anyone who already has an Optio
-        account is linked, not recreated, and is not emailed.
+        account is linked, not recreated, and is not emailed. A student with no email of their own
+        is created as a parent-managed profile instead: the parent signs in and manages them, and
+        no invite is sent for the student.
       </p>
 
       <div>
@@ -251,10 +265,19 @@ export default function RosterImportPage() {
             <p className="text-xs text-gray-500 mt-0.5">
               Paste straight from the spreadsheet into any cell and the whole roster fills in.
               Header rows and extra columns such as User ID are handled. Cells stay editable, so a
-              typo gets fixed here rather than back in the sheet.
+              typo gets fixed here rather than back in the sheet. Student email may be left blank
+              when the row has a parent email — that student becomes a parent-managed profile.
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
+            {errorRowKeys.length > 0 && (
+              <button
+                onClick={removeErrorRows}
+                className="text-sm px-3 py-1.5 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+              >
+                {deleteErrorsLabel}
+              </button>
+            )}
             <button onClick={addRow} className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg">
               Add row
             </button>
@@ -268,12 +291,12 @@ export default function RosterImportPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-gray-600">
+                <th className="w-8" />
                 <th className="w-10 py-2 px-2 font-medium text-xs">#</th>
                 {COLUMNS.map(column => (
                   <th key={column.field} className="py-2 px-2 font-medium text-xs">{column.label}</th>
                 ))}
                 {preview && <th className="py-2 px-2 font-medium text-xs">Status</th>}
-                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -284,6 +307,23 @@ export default function RosterImportPage() {
                 return (
                   <React.Fragment key={row.key}>
                     <tr className={rowError ? 'bg-red-50' : ''}>
+                      {/* Leading, not trailing: the trailing column scrolls off on a
+                          narrow screen and the delete control goes with it. */}
+                      <td className="py-1 pl-2 pr-0">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.key)}
+                          aria-label={`Remove row ${index + 1}`}
+                          title="Delete row"
+                          className={`flex items-center justify-center w-5 h-5 rounded text-sm leading-none ${
+                            rowError
+                              ? 'text-red-600 hover:bg-red-100'
+                              : 'text-gray-400 hover:text-red-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          &times;
+                        </button>
+                      </td>
                       <td className="py-1 px-2 text-xs text-gray-400">{index + 1}</td>
                       {COLUMNS.map((column, columnIndex) => (
                         <td key={column.field} className="py-1 px-1">
@@ -302,6 +342,9 @@ export default function RosterImportPage() {
                       {preview && (
                         <td className="py-1 px-2 whitespace-nowrap space-x-1">
                           {student && <StatusPill status={student.status} />}
+                          {student?.dependent && (
+                            <span className="text-xs text-gray-500">managed profile</span>
+                          )}
                           {parent && student && (
                             <span className="text-xs text-gray-500">
                               parent: {{ create: 'new', adopt: 'joins org' }[parent.status] || 'exists'}
@@ -309,20 +352,11 @@ export default function RosterImportPage() {
                           )}
                         </td>
                       )}
-                      <td className="py-1 px-2">
-                        <button
-                          onClick={() => removeRow(row.key)}
-                          aria-label={`Remove row ${index + 1}`}
-                          className="text-gray-400 hover:text-red-600 px-1"
-                        >
-                          &times;
-                        </button>
-                      </td>
                     </tr>
                     {rowError && (
                       <tr className="bg-red-50">
-                        <td />
-                        <td colSpan={COLUMNS.length + (preview ? 2 : 1)}
+                        <td colSpan={2} />
+                        <td colSpan={COLUMNS.length + (preview ? 1 : 0)}
                             className="pb-2 px-2 text-xs text-red-800">
                           {rowError.errors.join('; ')}
                         </td>
@@ -356,6 +390,9 @@ export default function RosterImportPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Count label="New students" value={counts.students_new} />
             <Count label="New parents" value={counts.parents_new} />
+            {counts.dependents_new > 0 && (
+              <Count label="Managed profiles" value={counts.dependents_new} />
+            )}
             <Count label="Already exist" value={counts.students_existing + counts.parents_existing} />
             <Count label="Joining this org" value={counts.adopted} />
             <Count label="Parent links" value={counts.links} />
@@ -369,9 +406,19 @@ export default function RosterImportPage() {
           ))}
 
           {preview.row_errors?.length > 0 && (
-            <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
-              Fix the {preview.row_errors.length} highlighted row
-              {preview.row_errors.length === 1 ? '' : 's'} above, then preview again.
+            <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm flex items-center justify-between gap-4 flex-wrap">
+              <span>
+                Fix the {preview.row_errors.length} highlighted row
+                {preview.row_errors.length === 1 ? '' : 's'} above, then preview again.
+              </span>
+              {errorRowKeys.length > 0 && (
+                <button
+                  onClick={removeErrorRows}
+                  className="shrink-0 px-3 py-1.5 border border-red-300 text-red-700 bg-white rounded-lg hover:bg-red-100"
+                >
+                  {deleteErrorsLabel}
+                </button>
+              )}
             </div>
           )}
 
@@ -440,10 +487,14 @@ export default function RosterImportPage() {
             </thead>
             <tbody>
               {outcome.results.map(result => (
-                <tr key={`${result.kind}-${result.email}`} className="border-b last:border-0">
+                <tr key={`${result.kind}-${result.row}-${result.email || result.name}`}
+                    className="border-b last:border-0">
                   <td className="py-2">
                     {result.name} <span className="text-xs text-gray-500">({result.kind})</span>
-                    <div className="text-xs text-gray-500">{result.email}</div>
+                    <div className="text-xs text-gray-500">
+                      {result.email
+                        || (result.dependent ? 'managed profile — no email, parent signs in' : '')}
+                    </div>
                   </td>
                   <td className="py-2 space-x-2">
                     <StatusPill status={result.status} />

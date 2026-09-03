@@ -91,7 +91,8 @@ class Config:
             'https://optio-dev-frontend-r3v8.onrender.com',
             'https://optio-dev-v2-frontend-x1dk.onrender.com',
             'https://optio-prod-frontend-ch7c.onrender.com',
-            'https://www.optioeducation.com',
+            'https://app.optioeducation.com',  # the web app since the www -> app cutover
+            'https://www.optioeducation.com',  # marketing site (POST /api/contact)
             'https://optioeducation.com',
             'https://sis.optioeducation.com',  # SIS console (shares api.optioeducation.com)
         ],
@@ -462,6 +463,13 @@ class Config:
     # case sends without it are rejected (and every push silently fails).
     EXPO_ACCESS_TOKEN = os.getenv('EXPO_ACCESS_TOKEN')
 
+    # POE 2026 pilot showcase. The read-only summary of the summer's evidence at
+    # /poe/showcase is shared with AGO/POE leadership, who have no Optio account,
+    # so it cannot sit behind a login. Instead it takes an unguessable key in the
+    # URL. Unset => the endpoint 404s, which is the correct default everywhere
+    # except the one deploy that is meant to serve the link. Rotate the value to
+    # revoke every link already sent.
+    POE_SHOWCASE_KEY = os.getenv('POE_SHOWCASE_KEY')
 
     @classmethod
     def validate(cls) -> None:

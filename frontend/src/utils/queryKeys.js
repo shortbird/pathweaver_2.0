@@ -112,7 +112,6 @@ export const mutationKeys = {
 
   // Bounty mutations
   claimBounty: 'claimBounty',
-  submitBountyEvidence: 'submitBountyEvidence',
   createBounty: 'createBounty',
   reviewBounty: 'reviewBounty',
   moderateBounty: 'moderateBounty',

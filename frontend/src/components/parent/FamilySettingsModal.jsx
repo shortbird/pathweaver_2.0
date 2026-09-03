@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Modal, Alert, Spinner } from '../ui';
-import { observerAPI, parentAPI } from '../../services/api';
+import api, { observerAPI, parentAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardDocumentIcon,
@@ -11,6 +11,7 @@ import {
   TrashIcon,
   UserPlusIcon,
   UserIcon,
+  IdentificationIcon,
   Cog6ToothIcon,
   PlusIcon,
   LockClosedIcon,
@@ -22,9 +23,14 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * FamilySettingsModal - Unified family management modal.
- * Combines: Children, Family Observers, and Parents/Guardians management.
+ * Combines: You, Children, Family Observers, and Parents/Guardians management.
  * Per-child settings (profile, login, AI features) live in the child's own
  * settings modal, reached from the Children tab -- not duplicated here.
+ *
+ * The "You" tab exists because a parent had nowhere else: /overview is the
+ * student portfolio and is blocked for parents, and the account menu sends them
+ * here to the Family Dashboard instead. So a parent whose own name was entered
+ * wrong at enrolment could not fix it anywhere in the product (2026-08-25).
  */
 const FamilySettingsModal = ({
   isOpen,
@@ -33,11 +39,17 @@ const FamilySettingsModal = ({
   dependents = [],
   onAddChild,
   onChildSettingsClick,
-  onRefresh
+  onRefresh,
+  initialTab = 'children'
 }) => {
   const confirm = useConfirm()
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('children');
+  const { user, refreshUser } = useAuth();
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Your own name.
+  const [myFirstName, setMyFirstName] = useState('');
+  const [myLastName, setMyLastName] = useState('');
+  const [savingMyName, setSavingMyName] = useState(false);
 
   // Observers state
   const [observers, setObservers] = useState([]);
@@ -68,6 +80,43 @@ const FamilySettingsModal = ({
       type: 'linked'
     }))
   ];
+
+  // Honour the caller's tab each time the modal opens (the account menu deep
+  // links to 'you'), without stranding the user there if they switch tabs.
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
+
+  // Seed your own name from the signed-in user each time the modal opens, so a
+  // half-typed correction never survives a close.
+  useEffect(() => {
+    if (!isOpen) return;
+    setMyFirstName(user?.first_name || '');
+    setMyLastName(user?.last_name || '');
+  }, [isOpen, user?.first_name, user?.last_name]);
+
+  const handleSaveMyName = async () => {
+    if (!myFirstName.trim() || !myLastName.trim()) {
+      toast.error('First and last name are both required');
+      return;
+    }
+    setSavingMyName(true);
+    try {
+      // display_name is derived server-side from first + last, so it can never
+      // disagree with the two fields shown here.
+      await api.put('/api/users/profile', {
+        first_name: myFirstName.trim(),
+        last_name: myLastName.trim(),
+      });
+      await refreshUser?.();
+      toast.success('Your name has been updated');
+      onRefresh?.();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update your name');
+    } finally {
+      setSavingMyName(false);
+    }
+  };
 
   // Load data when modal opens
   useEffect(() => {
@@ -215,6 +264,7 @@ const FamilySettingsModal = ({
   };
 
   const tabs = [
+    { id: 'you', label: 'You', icon: IdentificationIcon },
     { id: 'children', label: 'Children', icon: UserIcon, count: allChildren.length },
     { id: 'privacy', label: 'Privacy', icon: LockClosedIcon },
     { id: 'observers', label: 'Observers', icon: UserGroupIcon, count: observers.length },
@@ -254,6 +304,73 @@ const FamilySettingsModal = ({
             </button>
           ))}
         </div>
+
+        {/* Your own account. Name only — email and password changes go through
+            their own flows, and a guardian's role is not theirs to edit. */}
+        {activeTab === 'you' && (
+          <div className="space-y-4 max-w-md">
+            <div className="flex items-center gap-3">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+              ) : (
+                <div className="w-12 h-12 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
+                  {(myFirstName || user?.email || 'Y').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 truncate">
+                  {`${myFirstName} ${myLastName}`.trim() || 'Your account'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="my-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  First name
+                </label>
+                <input
+                  id="my-first-name"
+                  type="text"
+                  value={myFirstName}
+                  onChange={(e) => setMyFirstName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <label htmlFor="my-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Last name
+                </label>
+                <input
+                  id="my-last-name"
+                  type="text"
+                  value={myLastName}
+                  onChange={(e) => setMyLastName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              This is how your school and your children&apos;s teachers see you. If your
+              names were entered the wrong way round, swap them here.
+            </p>
+
+            <button
+              onClick={handleSaveMyName}
+              disabled={savingMyName || !myFirstName.trim() || !myLastName.trim()}
+              className="btn-primary w-full"
+            >
+              {savingMyName ? 'Saving...' : 'Save name'}
+            </button>
+
+            <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+              To correct a child&apos;s name, open their settings from the Children tab.
+            </p>
+          </div>
+        )}
 
         {/* Children Tab */}
         {activeTab === 'children' && (
@@ -616,7 +733,8 @@ FamilySettingsModal.propTypes = {
   dependents: PropTypes.array,
   onAddChild: PropTypes.func,
   onChildSettingsClick: PropTypes.func,
-  onRefresh: PropTypes.func
+  onRefresh: PropTypes.func,
+  initialTab: PropTypes.string
 };
 
 export default FamilySettingsModal;

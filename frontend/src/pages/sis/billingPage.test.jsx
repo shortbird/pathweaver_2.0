@@ -84,6 +84,15 @@ const { api } = vi.hoisted(() => {
                   by_kind: { supply: 5000, tuition: 10000 } },
       } } }
     }
+    if (url.includes('/api/sis/tuition/recurring')) {
+      return { data: { schedules: [{
+        id: 'r1', student_user_id: 's1', student_name: 'Banks Hanna',
+        household_id: 'hh2', household_name: 'Hanna', monthly_cents: 100000,
+        status: 'active', next_charge_on: null, card: null,
+        billing_contact: { name: 'Paige Hanna', email: 'p@x.com' },
+        setup_link_sent_at: null,
+      }], active_monthly_cents: 100000 } }
+    }
     if (url.includes('/api/sis/households')) {
       return { data: { households: [{
         id: 'hh1', name: 'Bowman Family',
@@ -187,6 +196,38 @@ describe('BillingPage', () => {
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/billing/outstanding'))
   })
 
+  /**
+   * iCreate, 2026-08-25: "Can we get these in alphabetical order? on the
+   * outstanding billing page?" — asked after the sort dropdown already shipped,
+   * because it reset to "most overdue" on every visit. Outstanding is read as a
+   * list of families to chase, so it opens A-Z and the choice is remembered.
+   */
+  it('opens the outstanding report alphabetically and remembers a change', async () => {
+    localStorage.clear()
+    const { unmount } = render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    await screen.findByText('Bowman Family')
+    const sort = screen.getByLabelText('Sort')
+    expect(sort.value).toBe('family')
+
+    fireEvent.change(sort, { target: { value: 'default' } })
+    expect(sort.value).toBe('default')
+    unmount()
+
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    await screen.findByText('Bowman Family')
+    expect(screen.getByLabelText('Sort').value).toBe('default')
+    localStorage.clear()
+  })
+
+  it('leaves the charges ledger in the server order by default', async () => {
+    localStorage.clear()
+    render(<BillingPage />)
+    await screen.findByText('Fall tuition')
+    expect(screen.getByLabelText('Sort').value).toBe('default')
+  })
+
   it('sends payment reminders and reports counts', async () => {
     const { toast } = await import('react-hot-toast')
     render(<BillingPage />)
@@ -236,6 +277,30 @@ describe('opening the invoice a family was sent', () => {
     fireEvent.click(await screen.findByText('Record payment'))
     // The payment modal opened; the invoice document was never fetched.
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/document'))
+  })
+
+  // iCreate, 2026-09-02: "when invoices are very long we are unable to scroll
+  // to the top of them." The card had no height cap, and the overlay centres
+  // its child -- so an invoice taller than the screen overflowed above the
+  // scroll origin, where the header and the first line items were unreachable.
+  it('keeps a long invoice scrollable inside the modal', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const number = await screen.findByText('INV-2026-3B3796')
+    const card = number.closest('.max-h-\\[calc\\(100vh-2rem\\)\\]')
+    expect(card).not.toBeNull()
+    // The body scrolls; the title bar it is next to does not move.
+    expect(card.querySelector('.overflow-y-auto')).not.toBeNull()
+  })
+
+  // Editing runs through the same card, and an invoice with many lines is
+  // exactly when the Save button ends up below the fold.
+  it('keeps the edit form scrollable too', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const save = await screen.findByRole('button', { name: 'Save invoice' })
+    expect(save.closest('.overflow-y-auto')).not.toBeNull()
   })
 })
 
@@ -426,5 +491,24 @@ describe('charge detail', () => {
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/sis/payments/pay1',
       expect.objectContaining({ method: 'check' })))
+  })
+
+  // A school that bills a monthly rate has no invoice until the first month is
+  // charged, so Charges and Outstanding are both empty while real money is
+  // scheduled. Optio Academy read that as "nothing was saved" (2026-09-02).
+  describe('monthly tuition', () => {
+    it('counts the schedules on the tab', async () => {
+      render(<BillingPage />)
+      expect(await screen.findByRole('button', { name: /Monthly tuition \(1\)/ })).toBeInTheDocument()
+    })
+
+    it('shows the schedule and why it is not billing yet', async () => {
+      render(<BillingPage />)
+      fireEvent.click(await screen.findByRole('button', { name: /Monthly tuition/ }))
+      expect(await screen.findByText('Banks Hanna')).toBeInTheDocument()
+      expect(screen.getAllByText(/\$1000\.00\/month/).length).toBeGreaterThan(0)
+      expect(screen.getByText(/setup link not sent yet/)).toBeInTheDocument()
+      expect(screen.getByText(/a month across this school/)).toBeInTheDocument()
+    })
   })
 })

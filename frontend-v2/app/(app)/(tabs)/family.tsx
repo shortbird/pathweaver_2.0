@@ -12,9 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
 import { useDashboard } from '@/src/hooks/useDashboard';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
-import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
@@ -26,7 +26,6 @@ import { onUploadComplete } from '@/src/services/uploadQueue';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
-  Badge, BadgeText, BottomSheet,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
@@ -101,7 +100,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
                   padding: 2,
                   borderRadius: 999,
                   borderWidth: 2,
-                  borderColor: isSelected ? '#6D469B' : 'transparent',
+                  borderColor: isSelected ? tc.brand : 'transparent',
                 }}
               >
                 <Avatar size="md">
@@ -126,7 +125,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
                 size="xs"
                 style={{
                   marginTop: 4,
-                  color: isSelected ? '#6D469B' : tc.text,
+                  color: isSelected ? tc.brand : tc.text,
                   fontFamily: isSelected ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
                 }}
                 numberOfLines={1}
@@ -173,7 +172,7 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
             style={{
               position: 'absolute', bottom: -2, right: -2,
               width: 22, height: 22, borderRadius: 11,
-              backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center',
               borderWidth: 2, borderColor: '#FFFFFF',
             }}
           >
@@ -258,8 +257,8 @@ function QuestsList({
                   resizeMode="cover"
                 />
               ) : (
-                <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="rocket-outline" size={22} color="#6D469B" />
+                <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: `${c.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="rocket-outline" size={22} color={c.brand} />
                 </View>
               )}
               <VStack className="flex-1 min-w-0">
@@ -340,8 +339,8 @@ function MyOwnQuests() {
                     resizeMode="cover"
                   />
                 ) : (
-                  <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="school-outline" size={22} color="#6D469B" />
+                  <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: `${c.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="school-outline" size={22} color={c.brand} />
                   </View>
                 )}
                 <VStack className="flex-1 min-w-0">
@@ -375,7 +374,7 @@ function OpenEdAcademyEntry() {
       <Card variant="outline" size="md">
         <HStack className="items-center gap-3">
           <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="school-outline" size={18} color="#6D469B" />
+            <Ionicons name="school-outline" size={18} color={c.brand} />
           </View>
           <VStack className="flex-1 min-w-0">
             <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>Hearthwood Academy</UIText>
@@ -464,57 +463,54 @@ export default function ParentDashboardPage() {
         name: asset.fileName || 'avatar.jpg',
         type: asset.mimeType || 'image/jpeg',
       });
-      Alert.alert('Updated', 'Profile picture updated.');
+      showAlert('Updated', 'Profile picture updated.');
       refetch();
       // Also refresh the children list so the new avatar shows in the hero/header.
       useAddKidStore.getState().refreshChildren();
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.response?.data?.message || 'Failed to upload picture';
-      Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to upload picture');
+      showAlert('Error', typeof msg === 'string' ? msg : 'Failed to upload picture');
     }
   };
 
-  const handlePromote = () => {
+  const handlePromote = async () => {
     if (!selectedId || !selectedChild) return;
-    Alert.prompt
-      ? Alert.prompt('Give Login Access', `Enter an email for ${selectedChild.first_name}:`, [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Create Login', onPress: async (email: string | undefined) => {
-              if (!email?.trim()) return;
-              try {
-                await api.post(`/api/dependents/${selectedId}/promote`, {
-                  email: email.trim(),
-                  password: 'TempPass123!',
-                });
-                Alert.alert('Success', `Login created for ${selectedChild.first_name}. They can sign in with ${email.trim()}.`);
-              } catch (err: any) {
-                Alert.alert('Error', err.response?.data?.error || 'Failed to create login');
-              }
-            },
+    if (Alert.prompt) {
+      Alert.prompt('Give Login Access', `Enter an email for ${selectedChild.first_name}:`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Create Login', onPress: async (email: string | undefined) => {
+            if (!email?.trim()) return;
+            try {
+              await api.post(`/api/dependents/${selectedId}/promote`, {
+                email: email.trim(),
+                password: 'TempPass123!',
+              });
+              showAlert('Success', `Login created for ${selectedChild.first_name}. They can sign in with ${email.trim()}.`);
+            } catch (err: any) {
+              showAlert('Error', err.response?.data?.error || 'Failed to create login');
+            }
           },
-        ])
-      : // Fallback for Android (no Alert.prompt)
-        Alert.alert(
-          'Give Login Access',
-          `This will create a login for ${selectedChild.first_name}. Contact support to set their email.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Create Login', onPress: async () => {
-                try {
-                  await api.post(`/api/dependents/${selectedId}/promote`, {
-                    email: `${selectedChild.first_name.toLowerCase()}@family.optio.com`,
-                    password: 'TempPass123!',
-                  });
-                  Alert.alert('Success', `Login created for ${selectedChild.first_name}.`);
-                } catch (err: any) {
-                  Alert.alert('Error', err.response?.data?.error || 'Failed to create login');
-                }
-              },
-            },
-          ],
-        );
+        },
+      ]);
+      return;
+    }
+    // Fallback for platforms without Alert.prompt (Android, web)
+    const ok = await confirmAlert({
+      title: 'Give Login Access',
+      message: `This will create a login for ${selectedChild.first_name}. Contact support to set their email.`,
+      confirmText: 'Create Login',
+    });
+    if (!ok) return;
+    try {
+      await api.post(`/api/dependents/${selectedId}/promote`, {
+        email: `${selectedChild.first_name.toLowerCase()}@family.optio.com`,
+        password: 'TempPass123!',
+      });
+      showAlert('Success', `Login created for ${selectedChild.first_name}.`);
+    } catch (err: any) {
+      showAlert('Error', err.response?.data?.error || 'Failed to create login');
+    }
   };
 
   const onRefresh = async () => {
@@ -527,7 +523,7 @@ export default function ParentDashboardPage() {
   if (childrenLoading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
-        <ActivityIndicator size="large" color="#6D469B" />
+        <ActivityIndicator size="large" color={tc.brand} />
       </SafeAreaView>
     );
   }
@@ -563,7 +559,7 @@ export default function ParentDashboardPage() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc.brand} />}
       >
         <PageHeader title="Family" />
         <VStack className="max-w-5xl w-full md:mx-auto px-5 md:px-8" space="lg">
@@ -671,8 +667,8 @@ export default function ParentDashboardPage() {
               >
                 <Card variant="outline" size="md">
                   <HStack className="items-center gap-3">
-                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="rocket-outline" size={18} color="#6D469B" />
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${tc.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="rocket-outline" size={18} color={tc.brand} />
                     </View>
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
@@ -701,7 +697,7 @@ export default function ParentDashboardPage() {
                 <Card variant="outline" size="md">
                   <HStack className="items-center gap-3">
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: tc.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="book-outline" size={18} color="#6D469B" />
+                      <Ionicons name="book-outline" size={18} color={tc.brand} />
                     </View>
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>

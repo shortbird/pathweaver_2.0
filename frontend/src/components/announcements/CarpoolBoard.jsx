@@ -7,10 +7,14 @@ import { FeedSection } from './SchoolCommunity'
 
 /**
  * Carpool board (iCreate, 2026-08-06) — families post ride offers and needs,
- * then arrange between themselves over IN-APP messaging: every post has
- * "Message {name}", addressed by POST id (the author's account id never
- * reaches the client), and the reply lands in Messages on web or the mobile
- * app. No phone numbers on the board, on purpose.
+ * then arrange between themselves over IN-APP messaging. No phone numbers on
+ * the board, on purpose.
+ *
+ * "Message {name}" is a link into Messages, not a composer (2026-08-27): the
+ * board's own one-shot box sent a first message into a thread the sender then
+ * had to go somewhere else to read, and a parent wrote in saying the board
+ * "doesn't let me send messages". Every adult in a school is now a contact of
+ * every other, so the thread starts where it lives.
  *
  * Students see the board (it may explain their own ride) but cannot post or
  * message — the backend enforces both; `canPost` only hides the buttons.
@@ -33,10 +37,6 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [composerFor, setComposerFor] = useState(null) // post id with the message box open
-  const [messageText, setMessageText] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sentFor, setSentFor] = useState(() => new Set()) // posts already messaged this visit
 
   if (!posts.length && !canPost) return null
 
@@ -67,28 +67,13 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
     }
   }
 
-  const sendMessage = async (id) => {
-    if (!messageText.trim()) { toast.error('Write a message first'); return }
-    setSending(true)
-    try {
-      await api.post(`/api/sis/community/feed/carpool/${id}/message`, { content: messageText.trim() })
-      setSentFor((prev) => new Set(prev).add(id))
-      setComposerFor(null)
-      setMessageText('')
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not send the message')
-    } finally {
-      setSending(false)
-    }
-  }
-
   const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
   return (
     <FeedSection
       id="board-carpool" title="Carpool" Icon={TruckIcon}
       defaultOpen={defaultOpen}
-      intro="Offer seats or find a ride with other families. Arranging happens over Messages — right here or in the mobile app."
+      intro="Offer seats or find a ride with other families. Arranging happens over Messages, where every family in the school is a contact."
     >
       {canPost && !showForm && (
         <button
@@ -169,19 +154,13 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
                 )}
 
                 <div className="flex items-center gap-3 mt-3">
-                  {!p.mine && canPost && !sentFor.has(p.id) && composerFor !== p.id && (
-                    <button
-                      onClick={() => { setComposerFor(p.id); setMessageText('') }}
+                  {!p.mine && canPost && p.author_id && (
+                    <Link
+                      to={`/messages?user=${p.author_id}`}
                       className="text-sm font-medium text-optio-purple hover:underline"
                     >
                       Message {firstName}
-                    </button>
-                  )}
-                  {sentFor.has(p.id) && (
-                    <span className="text-sm text-gray-500">
-                      Sent — replies land in{' '}
-                      <Link to="/messages" className="text-optio-purple hover:underline">Messages</Link>.
-                    </span>
+                    </Link>
                   )}
                   {(p.mine || canModerate) && (
                     <button
@@ -193,32 +172,6 @@ export default function CarpoolBoard({ posts = [], canPost = false, canModerate 
                   )}
                 </div>
 
-                {composerFor === p.id && (
-                  <div className="mt-3 space-y-2">
-                    <textarea
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      rows={2} maxLength={2000} autoFocus
-                      placeholder={`Write to ${firstName} about this ride…`}
-                      aria-label={`Message ${firstName}`}
-                      className={inputCls}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => sendMessage(p.id)} disabled={sending}
-                        className="btn-primary"
-                      >
-                        {sending ? 'Sending…' : 'Send'}
-                      </button>
-                      <button
-                        onClick={() => setComposerFor(null)}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
               </article>
             )
           })}

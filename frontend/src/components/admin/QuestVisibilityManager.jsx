@@ -259,6 +259,17 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
     return matchesSearch && (!quest.organization_id || isOrgQuest);
   });
 
+  // The org's own quests come first. They are the only editable rows here, and
+  // under 'all_optio' there are ~170 Optio quests: appended at the end of an
+  // unsorted list, an admin's freshly created quest landed on the last page and
+  // was effectively unreachable (Arete feedback, Sept 2026).
+  filteredQuests.sort((a, b) => {
+    const aOrg = a.organization_id === orgId ? 0 : 1;
+    const bOrg = b.organization_id === orgId ? 0 : 1;
+    if (aOrg !== bOrg) return aOrg - bOrg;
+    return 0;
+  });
+
   // Pagination
   const totalPages = Math.ceil(filteredQuests.length / questsPerPage);
   const startIndex = (currentPage - 1) * questsPerPage;
@@ -405,7 +416,19 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900 text-sm">{quest.title}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900 text-sm">{quest.title}</span>
+                        {isOrgQuest && (
+                          <span className="text-xs font-medium text-optio-purple underline">
+                            Edit tasks
+                          </span>
+                        )}
+                        {isOrgQuest && quest.template_task_count === 0 && (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                            No tasks yet
+                          </span>
+                        )}
+                      </div>
                       {quest.pillar_primary && (
                         <div className="text-xs text-gray-500 mt-0.5">{quest.pillar_primary}</div>
                       )}

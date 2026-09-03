@@ -2,15 +2,15 @@
  * useParent hook tests - children, dashboard, engagement, parent actions.
  */
 
-jest.mock('@/src/services/api', () =>
-  require('@/src/__tests__/utils/mockApi').mockApiModule()
-);
-
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '../useParent';
 import api from '@/src/services/api';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createMockChild, createMockChild13Plus, createMockChildUnder13 } from '@/src/__tests__/utils/mockFactories';
+import { createMockChild13Plus, createMockChildUnder13 } from '@/src/__tests__/utils/mockFactories';
+
+jest.mock('@/src/services/api', () =>
+  require('@/src/__tests__/utils/mockApi').mockApiModule()
+);
 
 beforeEach(() => {
   setAuthAsParent();

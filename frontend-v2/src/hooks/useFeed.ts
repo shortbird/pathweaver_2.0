@@ -26,7 +26,7 @@ export interface FeedEvidence {
   // (backend/routes/observer/feed.py). Both are real, and omitting the latter
   // made the isDocument branch look unreachable to tsc.
   type: 'document_blocks' | 'document' | 'link' | 'text' | 'image' | 'video' | 'audio';
-  blocks?: Array<{ type: string; content?: string; url?: string; title?: string }>;
+  blocks?: { type: string; content?: string; url?: string; title?: string }[];
   url?: string;
   preview_text?: string;
   title?: string;
@@ -315,7 +315,7 @@ export function useFeed(options: UseFeedOptions = {}) {
   return { items, loading, loadingMore, hasMore, error, loadMore, refetch, removeByLearningEventId, setHighlighted };
 }
 
-export async function recordViews(items: Array<{ type: string; id: string }>) {
+export async function recordViews(items: { type: string; id: string }[]) {
   const { data } = await api.post('/api/observers/feed/record-views', { items });
   return data;
 }
@@ -341,7 +341,7 @@ export async function getViewers(type: 'task_completed' | 'learning_moment', id:
   const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
   const targetType = type === 'task_completed' ? 'completion' : 'learning_event';
   const { data } = await api.get(`/api/observers/views/${targetType}/${dbId}`);
-  return data as { viewers: Array<{ id: string; display_name: string; avatar_url: string | null; is_platform?: boolean; viewed_at: string }>; total: number };
+  return data as { viewers: { id: string; display_name: string; avatar_url: string | null; is_platform?: boolean; viewed_at: string }[]; total: number };
 }
 
 export async function postComment(args: {

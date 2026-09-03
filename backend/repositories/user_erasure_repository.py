@@ -23,7 +23,10 @@ What a full erasure covers
    are nulled out, which anonymizes the record without destroying content other
    people depend on. The NOT NULL ones on shared/staff content are deliberately
    NOT force-deleted: the delete fails loudly and a human decides, rather than
-   this job quietly deleting a school's curriculum.
+   this job quietly deleting a school's curriculum. They are enumerated in
+   `BLOCKING_REFS` so that failure can say WHICH one blocked -- the auth API
+   reports all of them as the same unattributable "Database error deleting
+   user".
 4. **The auth user** — deleted last, which cascades `public.users` and everything
    hanging off it.
 
@@ -122,7 +125,24 @@ OWNED_ROWS: Tuple[Tuple[str, str], ...] = (
 # Verified against the live schema (2026-08-15).
 ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('advisor_student_assignments', 'assigned_by'),
+    # These three reference auth.users DIRECTLY rather than public.users, on
+    # ON DELETE NO ACTION, and were in neither list -- so a staff member who had
+    # reviewed an AI quest, run a generation job or written a docs article would
+    # have blocked at the auth delete with GoTrue's unattributable "Database
+    # error deleting user", and _blocking_refs could not have named the holder
+    # either. All three are nullable, so the authorship trail anonymizes rather
+    # than blocking. (Audited against the live schema 2026-09-01: these were the
+    # only non-cascading FKs to auth.users besides lesson_reflections, which is
+    # already deleted in OWNED_ROWS.)
+    ('ai_generated_quests', 'reviewer_id'),
+    ('ai_generation_jobs', 'created_by'),
+    ('docs_articles', 'created_by'),
     ('ai_prompt_components', 'modified_by'),
+    # Self-service family registration stamps the PARENT here
+    # (sis_parent_service.register_for_class), so this is the one actor column a
+    # departing family populates themselves. NOT NULL until the 20260825
+    # migration, which is why it blocked every such parent's erasure.
+    ('class_enrollments', 'enrolled_by'),
     ('curriculum_attachments', 'deleted_by'),
     ('curriculum_lessons', 'last_edited_by'),
     ('curriculum_uploads', 'reviewed_by'),
@@ -149,11 +169,49 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('sis_staff_assignments', 'created_by'),
     ('sis_time_entries', 'approved_by'),
     ('sis_time_entries', 'edited_by'),
+    # The FERPA disclosure trail on OTHER students' records. The row belongs to
+    # the student who was looked at (`student_id`, deleted above), so only "who
+    # looked" goes blank. The FK is ON DELETE SET NULL and would do this by
+    # itself -- it is here because the column was NOT NULL until 20260827100000,
+    # which made SET NULL throw 23502 and blocked the erasure of every parent,
+    # advisor, observer and admin on the platform (Sentry OPTIO-BACKEND-75/76).
+    # Nulling it explicitly means that failure surfaces as a named line in
+    # `errors` instead of GoTrue's opaque "Database error deleting user".
+    ('student_access_logs', 'accessor_id'),
     ('transcript_overrides', 'updated_by'),
     ('transcript_share_tokens', 'revoked_by'),
     ('transfer_credits', 'created_by'),
     ('users', 'ai_features_enabled_by'),
     ('users', 'parental_consent_verified_by'),
+)
+
+# NOT NULL references from OTHER people's records to this user, on FKs that do
+# not cascade. Nothing can be done to these automatically: the column cannot be
+# nulled and the row is a school's content, not the departing person's, so
+# force-deleting it would quietly destroy a curriculum or a credit review over
+# one account closure. They block the erasure on purpose.
+#
+# They are listed here only so the block can NAME ITSELF. GoTrue reports every
+# one of them as the same opaque "Database error deleting user", which in
+# Sentry OPTIO-BACKEND-75/76 cost a full schema investigation to attribute to a
+# single column. Checked before the auth delete, they become one readable line.
+#
+# Verified against the live schema (2026-08-25).
+BLOCKING_REFS: Tuple[Tuple[str, str], ...] = (
+    ('class_advisors', 'assigned_by'),
+    ('class_quests', 'added_by'),
+    ('courses', 'created_by'),
+    ('credit_review_messages', 'author_id'),
+    ('curriculum_attachments', 'uploaded_by'),
+    ('curriculum_lessons', 'created_by'),
+    ('curriculum_uploads', 'uploaded_by'),
+    ('org_classes', 'created_by'),
+    ('prior_learning_evidence', 'uploaded_by'),
+    ('prior_learning_records', 'submitted_by'),
+    ('sis_secure_documents', 'uploaded_by'),
+    ('student_weekly_xp_goals', 'set_by'),
+    ('task_feedback', 'reviewer_id'),
+    ('transcript_share_tokens', 'issued_by'),
 )
 
 # Storage prefixes that are keyed by user id. `{uid}` is substituted; every
@@ -278,6 +336,29 @@ def _null_refs(client, table: str, column: str, user_id: str,
         errors.append(f'anonymize {table}.{column}: {e}')
 
 
+def _blocking_refs(client, user_id: str) -> List[str]:
+    """Rows on NOT NULL non-cascading FKs that will stop the auth delete.
+
+    Read-only. Returns one `table.column (n rows)` string per blocker, so the
+    failure says what is holding the account instead of GoTrue's "Database error
+    deleting user" -- which names nothing and is identical for all fourteen.
+
+    A lookup that itself fails is skipped, not reported as a blocker: this exists
+    to explain a failure, and must never invent one.
+    """
+    found: List[str] = []
+    for table, column in BLOCKING_REFS:
+        try:
+            n = (client.table(table).select('id', count='exact')
+                 .eq(column, user_id).limit(1).execute()).count or 0
+        except Exception as e:  # noqa: BLE001 - diagnostics only
+            logger.debug(f'[ACCOUNT_DELETE] blocker probe {table}.{column} failed: {e}')
+            continue
+        if n:
+            found.append(f'{table}.{column} ({n} row{"s" if n != 1 else ""})')
+    return found
+
+
 def purge_user(user_id: str, admin=None, reason: str = '',
                deletion_type: str = 'scheduled') -> Dict[str, Any]:
     """Permanently erase a user: storage, rows, auth account.
@@ -353,7 +434,15 @@ def purge_user(user_id: str, admin=None, reason: str = '',
         if 'not found' in str(e).lower() or 'does not exist' in str(e).lower():
             auth_deleted = True
         else:
-            errors.append(f'delete auth user: {e}')
+            # GoTrue collapses every blocking foreign key into one opaque
+            # "Database error deleting user". Name the actual holder, or the
+            # operator has nothing to act on. (Sentry OPTIO-BACKEND-75/76.)
+            blockers = _blocking_refs(client, user_id)
+            detail = f'{e}'
+            if blockers:
+                detail += f" -- blocked by {', '.join(blockers)}; these are " \
+                          f"school records that cannot be reassigned automatically"
+            errors.append(f'delete auth user: {detail}')
     counts['auth_user_deleted'] = 1 if auth_deleted else 0
 
     # 5. Verify the profile row is actually gone; delete it directly if the auth

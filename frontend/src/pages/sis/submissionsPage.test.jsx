@@ -149,6 +149,62 @@ describe('SubmissionsPage', () => {
     await waitFor(() => expect(screen.queryByText('Adjust XP')).not.toBeInTheDocument())
   })
 
+  // Gryffin, 2026-09-02: a photo pasted into the Link picker rendered as its
+  // raw storage URL, and the URL was long enough to carry Accept off-screen.
+  it('renders a photo attached to a link block as a picture, not a URL', async () => {
+    const url = 'https://auth.optioeducation.com/storage/v1/object/public/quest-evidence/'
+      + 'evidence-tasks/4506b212/117195ae-2ef4-4475-b235-7ab9161c251e_20260827_183541_IMG_20260827_123518.jpg'
+    api.get.mockImplementation((u) =>
+      u.includes('/api/sis/submissions')
+        ? Promise.resolve({ data: { success: true, counts: { new: 1, reviewed: 0 }, total: 1,
+            submissions: [{
+              completion_id: 'c9', completed_at: '2026-08-30T15:20:47Z',
+              student: { id: 's9', name: 'Todd Huntzinger', avatar_url: null },
+              class_id: 'cl1', class_name: 'Biology', quest_id: 'q1', quest_title: 'Poems',
+              task: { id: 't9', title: 'Upload a picture of your poem', xp_value: 25, pillar: 'creativity' },
+              evidence_blocks: [{ id: 'b9', block_type: 'link', content: { items: [{ url, title: '' }] } }],
+              review: null,
+            }] } })
+        : Promise.resolve(apiData(u)))
+    render(<SubmissionsPage />)
+    const img = await screen.findByRole('img', { name: 'IMG_20260827_123518.jpg' })
+    expect(img).toHaveAttribute('src', url)
+    // The raw URL is never printed as link text.
+    expect(screen.queryByText(url)).not.toBeInTheDocument()
+    // Accept stays reachable.
+    expect(screen.getByText('Accept')).toBeInTheDocument()
+  })
+
+  it('labels a non-image link by its filename rather than the raw URL', async () => {
+    const url = 'https://auth.optioeducation.com/storage/v1/object/public/quest-evidence/'
+      + 'evidence-tasks/fb2abd74/ff6f977b-682b-4a93-8b92-0f970f0101db_20260827_155556_pass_checker.txt'
+    api.get.mockImplementation((u) =>
+      u.includes('/api/sis/submissions')
+        ? Promise.resolve({ data: { success: true, counts: { new: 1, reviewed: 0 }, total: 1,
+            submissions: [{
+              completion_id: 'c8', completed_at: '2026-08-27T15:56:08Z',
+              student: { id: 's8', name: 'Truman Goates', avatar_url: null },
+              class_id: 'cl1', class_name: 'Biology', quest_id: 'q1', quest_title: 'Code',
+              task: { id: 't8', title: 'Password checker', xp_value: 25, pillar: 'stem_logic' },
+              evidence_blocks: [{ id: 'b8', block_type: 'document', content: { items: [{ url }] } }],
+              review: null,
+            }] } })
+        : Promise.resolve(apiData(u)))
+    render(<SubmissionsPage />)
+    expect(await screen.findByText('pass_checker.txt')).toBeInTheDocument()
+    expect(screen.queryByText(url)).not.toBeInTheDocument()
+  })
+
+  it('offers a way back when opened from a class Student Progress tab', async () => {
+    rtlRender(
+      <MemoryRouter initialEntries={['/submissions?class_id=cl1&from=progress']}>
+        <SubmissionsPage />
+      </MemoryRouter>,
+    )
+    const back = await screen.findByText('Back to student progress')
+    expect(back.closest('a')).toHaveAttribute('href', '/my-classes/cl1?tab=progress')
+  })
+
   it('shows the all-caught-up empty state when there is nothing new', async () => {
     api.get.mockImplementation((url) =>
       url.includes('/api/sis/submissions')

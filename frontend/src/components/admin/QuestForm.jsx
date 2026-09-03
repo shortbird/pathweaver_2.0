@@ -415,6 +415,7 @@ const QuestForm = ({
   canDelete = false,
   onDelete = null,
   createEndpoint = '/api/admin/quests/create',
+  // A URL, or a (questId) => url builder. Defaults to the admin route.
   templateTasksEndpoint = null
 }) => {
   const confirm = useConfirm()
@@ -668,9 +669,14 @@ const QuestForm = ({
           })
         };
 
-        const templateUrl = templateTasksEndpoint
+        // Callers pass this either as a builder or as an already-built URL.
+        // It used to be called unconditionally, so a string prop threw
+        // "is not a function" *after* the quest itself had saved -- the
+        // teacher saw "Failed to save quest" while their tasks were the only
+        // thing actually lost (Perch 1fd7a872).
+        const templateUrl = typeof templateTasksEndpoint === 'function'
           ? templateTasksEndpoint(questId)
-          : `/api/admin/quests/${questId}/template-tasks`;
+          : templateTasksEndpoint || `/api/admin/quests/${questId}/template-tasks`;
         await api.put(templateUrl, tasksPayload);
       }
 
@@ -871,6 +877,18 @@ const QuestForm = ({
             </div>
           ) : (
             <>
+              {/* Tasks live below the fold in this modal. Creators have saved
+                  quests without ever scrolling to them and reported that the
+                  form "never prompted" for tasks (Arete feedback, Sept 2026),
+                  so say up front that the task list is part of this form. */}
+              {formData.tasks.length === 0 && (
+                <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  <strong>Scroll down to add tasks.</strong> Tasks are what students
+                  actually do and where XP is earned. Save without any and students
+                  build their own task list instead.
+                </div>
+              )}
+
               {/* Quest Details */}
               <div className="space-y-6 mb-8">
                 <div>

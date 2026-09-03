@@ -16,6 +16,13 @@ can be wrong in the same ways as the commit is worth more than a faster path.
 Re-running the same CSV is safe: an email that already has an account is reused
 and linked, never recreated and never re-invited (that account already has a
 password its owner chose).
+
+A row can name a student with no email, as long as it has a parent email: that
+student becomes a parent-managed dependent profile (the same shape
+repositories/dependent_repository.py creates) instead of an invited account.
+The parent signs in and acts for them; nobody emails a student who has no
+address to email. Re-run safety for these rows matches on the parent plus the
+student's name, since there is no email to match on.
 """
 
 import csv
@@ -53,7 +60,9 @@ FIELD_ALIASES = {
                      'parentemail', 'parent e mail'),
 }
 
-REQUIRED_FIELDS = ('student_first', 'student_last', 'student_email')
+# Student email is deliberately not required: a row without one becomes a
+# parent-managed dependent profile, provided it carries a parent email.
+REQUIRED_FIELDS = ('student_first', 'student_last')
 
 PILLARS = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
            'Language & Communication', 'Society & Culture']
@@ -111,8 +120,7 @@ def parse_roster_csv(text: str) -> Tuple[Optional[List[Dict[str, Any]]], Optiona
     missing = [f for f in REQUIRED_FIELDS if f not in mapping.values()]
     if missing:
         readable = {'student_first': 'Student First Name',
-                    'student_last': 'Student Last Name',
-                    'student_email': 'Student Email'}
+                    'student_last': 'Student Last Name'}
         return None, ('Missing required columns: '
                       + ', '.join(readable[f] for f in missing)
                       + '. Include the header row from the spreadsheet.')
@@ -160,6 +168,37 @@ def _existing_accounts(admin, emails: List[str]) -> Dict[str, Dict[str, Any]]:
     return found
 
 
+def _normalize_name(value: Optional[str]) -> str:
+    return (value or '').strip().lower()
+
+
+def _existing_dependents(admin, parent_ids) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
+    """Dependent profiles already managed by this roster's parents, keyed by
+    (parent_id, first, last) lowercased.
+
+    Dependents have no email, so re-run safety has to match on the only stable
+    thing a roster row carries for them: whose child they are and what they are
+    called. Chunked for the same URL-length reason as _existing_accounts.
+    """
+    found: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    ids = sorted({i for i in parent_ids if i})
+    for start in range(0, len(ids), 50):
+        chunk = ids[start:start + 50]
+        try:
+            res = (admin.table('users')
+                   .select('id, first_name, last_name, organization_id, managed_by_parent_id')
+                   .eq('is_dependent', True).in_('managed_by_parent_id', chunk).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'roster_import: existing-dependent lookup failed: {e}')
+            raise
+        for user in res.data or []:
+            key = (user.get('managed_by_parent_id'),
+                   _normalize_name(user.get('first_name')),
+                   _normalize_name(user.get('last_name')))
+            found[key] = user
+    return found
+
+
 def _org_names(admin, org_ids) -> Dict[str, str]:
     """Names for the orgs a roster email already belongs to, so the refusal can
     say which school rather than printing a uuid at the superadmin."""
@@ -204,13 +243,25 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
     parents: Dict[str, Dict[str, Any]] = {}
     row_errors: List[Dict[str, Any]] = []
     seen_student_emails: Dict[str, int] = {}
+    seen_dependents: Dict[Tuple[str, str, str], int] = {}
 
     all_emails: List[str] = []
     for row in rows:
         all_emails.append(_clean_email(row.get('student_email')))
         all_emails.append(_clean_email(row.get('parent_email')))
     existing = _existing_accounts(admin, all_emails)
-    org_names = _org_names(admin, {user.get('organization_id') for user in existing.values()
+
+    # For rows with no student email, the student may already exist as a
+    # dependent under an already-existing parent (a re-run of this roster).
+    dependent_parent_ids = {existing[_clean_email(row.get('parent_email'))]['id']
+                            for row in rows
+                            if not _clean_email(row.get('student_email'))
+                            and _clean_email(row.get('parent_email')) in existing}
+    known_dependents = (_existing_dependents(admin, dependent_parent_ids)
+                        if dependent_parent_ids else {})
+
+    org_names = _org_names(admin, {user.get('organization_id')
+                                   for user in list(existing.values()) + list(known_dependents.values())
                                    if user.get('organization_id') != org_id})
 
     def foreign_error(email, account):
@@ -228,14 +279,18 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
         parent_last = (row.get('parent_last') or '').strip()
 
         errors: List[str] = []
+        is_dependent_row = not student_email
         if not student_first or not student_last:
             errors.append('Student first and last name are required')
-        if not student_email:
-            errors.append('Student email is required')
-        elif not EMAIL_PATTERN.match(student_email):
-            errors.append(f'"{student_email}" is not a valid email address')
-        elif student_email in seen_student_emails:
-            errors.append(f'Duplicate student email (also on row {seen_student_emails[student_email]})')
+        if student_email:
+            if not EMAIL_PATTERN.match(student_email):
+                errors.append(f'"{student_email}" is not a valid email address')
+            elif student_email in seen_student_emails:
+                errors.append(f'Duplicate student email (also on row {seen_student_emails[student_email]})')
+        elif not parent_email:
+            # No student email means a parent-managed profile, and a managed
+            # profile with nobody to manage it is an account no one can reach.
+            errors.append('Student email or parent email is required')
 
         if parent_email:
             if not EMAIL_PATTERN.match(parent_email):
@@ -247,17 +302,35 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
             elif not parent_first or not parent_last:
                 errors.append('Parent first and last name are required when a parent email is given')
 
-        # An account at another school blocks its row rather than being moved or
-        # quietly linked from outside the org.
-        student_account = existing.get(student_email)
-        student_state = _account_state(student_account, org_id)
-        if student_state == 'foreign':
-            errors.append(foreign_error(student_email, student_account))
-
         parent_account = existing.get(parent_email) if parent_email else None
         parent_state = _account_state(parent_account, org_id) if parent_email else None
         if parent_state == 'foreign':
             errors.append(foreign_error(parent_email, parent_account))
+
+        # An account at another school blocks its row rather than being moved or
+        # quietly linked from outside the org.
+        dependent_key = None
+        if is_dependent_row:
+            # Duplicates dedupe on parent email (the parent may not exist yet);
+            # existing-profile matching needs the parent's actual id.
+            dependent_key = (parent_email,
+                             _normalize_name(student_first), _normalize_name(student_last))
+            student_account = (known_dependents.get(
+                (parent_account['id'], dependent_key[1], dependent_key[2]))
+                if parent_account else None)
+            student_state = _account_state(student_account, org_id)
+            if student_state == 'foreign':
+                name = org_names.get(student_account.get('organization_id'), 'another organization')
+                errors.append(f'{student_first} {student_last} is already a managed profile '
+                              f'under {parent_email} at {name}. Remove the row, or move that '
+                              'account into this organization first.')
+            elif dependent_key in seen_dependents:
+                errors.append(f'Duplicate student (also on row {seen_dependents[dependent_key]})')
+        else:
+            student_account = existing.get(student_email)
+            student_state = _account_state(student_account, org_id)
+            if student_state == 'foreign':
+                errors.append(foreign_error(student_email, student_account))
 
         if errors:
             row_errors.append({
@@ -267,15 +340,19 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
             })
             continue
 
-        seen_student_emails[student_email] = line
+        if is_dependent_row:
+            seen_dependents[dependent_key] = line
+        else:
+            seen_student_emails[student_email] = line
         students.append({
             'row': line,
-            'email': student_email,
+            'email': student_email or None,
             'first_name': student_first,
             'last_name': student_last,
             'parent_email': parent_email or None,
             'status': student_state,
             'existing_user_id': (student_account or {}).get('id'),
+            'dependent': is_dependent_row,
         })
 
         if not parent_email:
@@ -293,21 +370,34 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
                 'student_emails': [],
             }
             parents[parent_email] = parent
-        parent['student_emails'].append(student_email)
+        # Dependents have no email; the parent's roster entry names them instead.
+        parent['student_emails'].append(
+            student_email or f'{student_first} {student_last}'.strip())
 
     parent_list = list(parents.values())
     unlinked = [s['email'] for s in students if not s['parent_email']]
     adopting = [p for p in students + parent_list if p['status'] == 'adopt']
+    dependents_new = [s for s in students if s['dependent'] and s['status'] == 'create']
 
     warnings = []
     if unlinked:
         warnings.append(f'{len(unlinked)} student(s) have no parent email and will not be '
                         'linked to anyone')
+    if dependents_new:
+        # A managed profile is a different thing than an account: no invite, no
+        # login of their own. Said up front so nobody waits on an email that
+        # was never going to come.
+        warnings.append(f'{len(dependents_new)} student(s) have no email and will be created '
+                        'as parent-managed profiles. They will not get an invite email; their '
+                        'parent signs in and manages them.')
     if adopting:
         # Joining an org is a real change to an account somebody else already
         # uses, so it is stated up front rather than discovered afterwards.
         warnings.append(f'{len(adopting)} existing Optio account(s) will be added to this '
-                        'organization: ' + ', '.join(p['email'] for p in adopting))
+                        'organization: '
+                        + ', '.join(p.get('email')
+                                    or f"{p['first_name']} {p['last_name']}".strip()
+                                    for p in adopting))
 
     return {
         'students': students,
@@ -320,6 +410,7 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
             'students_existing': sum(1 for s in students if s['status'] != 'create'),
             'parents_new': sum(1 for p in parent_list if p['status'] == 'create'),
             'parents_existing': sum(1 for p in parent_list if p['status'] != 'create'),
+            'dependents_new': len(dependents_new),
             'adopted': len(adopting),
             'links': sum(len(p['student_emails']) for p in parent_list),
             'invalid_rows': len(row_errors),
@@ -375,7 +466,11 @@ def _create_account(admin, email: str, first_name: str, last_name: str,
         'org_roles': [org_role],
         'organization_id': org_id,
     })
+    _init_skill_xp(admin, user_id)
+    return user_id
 
+
+def _init_skill_xp(admin, user_id: str) -> None:
     try:
         admin.table('user_skill_xp').upsert(
             [{'user_id': user_id, 'pillar': p, 'xp_amount': 0} for p in PILLARS],
@@ -383,6 +478,47 @@ def _create_account(admin, email: str, first_name: str, last_name: str,
     except Exception as e:  # noqa: BLE001 -- cosmetic setup, never fail the create
         logger.warning(f'roster_import: skill init failed for {user_id[:8]}: {e}')
 
+
+def _create_dependent(admin, first_name: str, last_name: str,
+                      parent_id: str, org_id: str) -> str:
+    """Create a parent-managed dependent profile for a student with no email.
+
+    Same shape as repositories/dependent_repository.py: a stub auth user on a
+    placeholder address nobody can log in with, a users row with no email, and
+    managed_by_parent_id carrying the relationship (no parent_student_links row
+    -- that table is for students with their own accounts). No date of birth:
+    the roster doesn't carry one, and dependents without one already exist.
+    """
+    placeholder = f'dependent_{secrets.token_hex(16)}@optio-internal-placeholder.local'
+    auth_user = admin.auth.admin.create_user({
+        'email': placeholder,
+        'email_confirm': False,
+        'user_metadata': {
+            'is_dependent': True,
+            'managed_by_parent_id': parent_id,
+            'display_name': f'{first_name} {last_name}'.strip(),
+            'created_as_dependent': True,
+        },
+        'app_metadata': {'provider': 'dependent', 'providers': ['dependent']},
+    })
+    if not auth_user or not auth_user.user:
+        raise RuntimeError('Supabase did not return a user')
+
+    user_id = auth_user.user.id
+    _insert_profile_with_retry(admin, {
+        'id': user_id,
+        'email': None,  # the placeholder stays in auth; no visible email
+        'first_name': first_name,
+        'last_name': last_name,
+        'display_name': f'{first_name} {last_name}'.strip(),
+        'role': 'org_managed',
+        'org_role': 'student',
+        'org_roles': ['student'],
+        'organization_id': org_id,
+        'is_dependent': True,
+        'managed_by_parent_id': parent_id,
+    })
+    _init_skill_xp(admin, user_id)
     return user_id
 
 
@@ -503,15 +639,30 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
         results.append(entry)
 
     for student in plan['students']:
+        is_dependent = student.get('dependent')
+        label = student['email'] or f"{student['first_name']} {student['last_name']}".strip()
         entry = {'row': student['row'], 'kind': 'student', 'email': student['email'],
                  'name': f"{student['first_name']} {student['last_name']}".strip()}
+        if is_dependent:
+            entry['dependent'] = True
+        parent_id = parent_ids.get(student['parent_email']) if student['parent_email'] else None
         try:
+            if is_dependent and not student['existing_user_id'] and not parent_id:
+                # The plan guarantees a parent email; no id means that parent's
+                # account failed above. A managed profile with no manager would
+                # be unreachable by anyone, so this row fails with them.
+                raise RuntimeError('their parent account failed, so this managed '
+                                   'profile was not created')
             if student['existing_user_id']:
                 student_id = student['existing_user_id']
                 if student['status'] == 'adopt':
                     _adopt(admin, student_id, 'student', org_id)
                 entry.update(status='adopted' if student['status'] == 'adopt' else 'existing',
                              invited=False)
+            elif is_dependent:
+                student_id = _create_dependent(admin, student['first_name'],
+                                               student['last_name'], parent_id, org_id)
+                entry.update(status='created', user_id=student_id, invited=False)
             else:
                 student_id = _create_account(admin, student['email'], student['first_name'],
                                              student['last_name'], 'student', org_id)
@@ -520,19 +671,23 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
                                  admin, student_id, student['email'], student['first_name'],
                                  org_name, is_parent=False)))
         except Exception as e:  # noqa: BLE001
-            logger.error(f"roster_import: student {student['email']} failed: {e}")
+            logger.error(f'roster_import: student {label} failed: {e}')
             results.append({**entry, 'status': 'failed', 'error': str(e)[:200]})
             continue
 
-        parent_id = parent_ids.get(student['parent_email']) if student['parent_email'] else None
         if parent_id:
-            try:
-                _link(admin, parent_id, student_id)
+            if is_dependent:
+                # managed_by_parent_id IS the relationship for dependents;
+                # parent_student_links is for students with their own accounts.
                 entry['linked_to'] = student['parent_email']
-            except Exception as e:  # noqa: BLE001 -- the accounts exist; report the
-                # missing link rather than pretending the whole row failed.
-                logger.error(f"roster_import: link {student['email']} failed: {e}")
-                entry['link_error'] = str(e)[:200]
+            else:
+                try:
+                    _link(admin, parent_id, student_id)
+                    entry['linked_to'] = student['parent_email']
+                except Exception as e:  # noqa: BLE001 -- the accounts exist; report the
+                    # missing link rather than pretending the whole row failed.
+                    logger.error(f'roster_import: link {label} failed: {e}')
+                    entry['link_error'] = str(e)[:200]
         results.append(entry)
 
     created = sum(1 for r in results if r.get('status') == 'created')

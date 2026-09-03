@@ -26,6 +26,20 @@ def _org(req):
     return req.args.get('organization_id') or body.get('organization_id')
 
 
+def _available_form_types(org_id):
+    """The family form picker's options for THIS org.
+
+    'schedule_change' is the school's add/drop window, not a standing option:
+    outside it the office is not taking add/drop requests, so the type is not
+    offered (and create_form rejects it) rather than filing work nobody will
+    pick up.
+    """
+    types = dict(forms.PARENT_FORM_TYPES)
+    if not parent.add_drop_open(org_id):
+        types.pop('schedule_change', None)
+    return types
+
+
 @bp.route('/forms', methods=['GET'])
 @require_auth
 def list_forms(user_id):
@@ -38,7 +52,7 @@ def list_forms(user_id):
         return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
     return jsonify({'success': True,
                     'submissions': forms.list_mine(org_id, user_id),
-                    'form_types': forms.PARENT_FORM_TYPES})
+                    'form_types': _available_form_types(org_id)})
 
 
 @bp.route('/forms', methods=['POST'])
@@ -58,6 +72,9 @@ def create_form(user_id):
     form_type = data.get('form_type')
     if form_type not in forms.PARENT_FORM_TYPES:
         return jsonify({'success': False, 'error': 'Unknown form type'}), 400
+    if form_type == 'schedule_change' and not parent.add_drop_open(org_id):
+        return jsonify({'success': False,
+                        'error': 'The add/drop window is closed — contact the school office'}), 400
 
     body = (data.get('body') or data.get('details') or '').strip()
     if not body:

@@ -29,7 +29,9 @@ def _client(insert_returns=None):
     client = Mock()
     table = Mock()
     client.table.return_value = table
-    for chained in ('select', 'eq', 'insert', 'limit'):
+    # 'range' because the org-members read is paged: it is every account in the
+    # school, and an unpaged read silently drops recipients past the cap.
+    for chained in ('select', 'eq', 'insert', 'limit', 'range', 'order'):
         getattr(table, chained).return_value = table
     table.execute.return_value = Mock(data=insert_returns if insert_returns is not None else MEMBERS)
     return client, table
@@ -102,8 +104,9 @@ class TestPublish:
                               ['parents'])
         assert out['sent'] == 2
         assert out['announcement_id'] == 'ann-1'
-        # The durable row is what the family-facing page reads.
-        payload = table.insert.call_args[0][0]
+        # The durable row is what the family-facing page reads. First insert:
+        # the recipient snapshot lands on the same mock table afterwards.
+        payload = table.insert.call_args_list[0][0][0]
         assert payload['title'] == 'Early dismissal'
         assert payload['message'] == 'Friday at noon'
         assert payload['target_audience'] == 'parents'
@@ -177,7 +180,9 @@ class TestCommunityPostCanReachFamilies:
         client = Mock()
         table = Mock()
         client.table.return_value = table
-        for chained in ('select', 'eq', 'insert', 'limit'):
+        # 'range' because the org-members read is paged: it is every account in
+        # the school, and an unpaged read silently drops recipients past the cap.
+        for chained in ('select', 'eq', 'insert', 'limit', 'range', 'order'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=[{'id': 'a1', 'title': 'Early dismissal'}])
         return client
@@ -257,9 +262,36 @@ class TestTargetedSend:
             admin.return_value.table.return_value = table
             table.select.return_value = table
             table.eq.return_value = table
+            table.order.return_value = table   # the org-members read is paged
+            table.range.return_value = table
             table.execute.return_value = Mock(data=members)
             got = svc.recipients_for('org-1', ['students'], student_ids={'s1'})
         assert got == {'s1'}
+
+    def test_the_preview_breakdown_matches_what_would_be_sent(self):
+        """The composer shows who a send will reach before it goes out, and it
+        is only worth trusting if it cannot disagree with the send — so both are
+        built on the same resolution (iCreate, 2026-08-26: "I love that we can
+        narrow it down, but it's still confusing")."""
+        from services import announcement_service as svc
+        members = [
+            {'id': 's1', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 's2', 'role': 'org_managed', 'org_role': 'student'},
+            {'id': 'a1', 'role': 'org_managed', 'org_role': 'advisor'},
+        ]
+        with patch.object(svc, '_admin') as admin:
+            table = Mock()
+            admin.return_value.table.return_value = table
+            table.select.return_value = table
+            table.eq.return_value = table
+            table.order.return_value = table
+            table.range.return_value = table
+            table.execute.return_value = Mock(data=members)
+            by_role = svc.recipients_by_role('org-1', ['students', 'advisors'])
+            everyone = svc.recipients_for('org-1', ['students', 'advisors'])
+        assert by_role['students'] == {'s1', 's2'}
+        assert by_role['advisors'] == {'a1'}
+        assert set().union(*by_role.values()) == everyone
 
     def test_target_label_records_who_it_went_to(self):
         from services import announcement_service as svc
@@ -297,6 +329,53 @@ class TestEmailIsOptional:
         email.assert_not_called()
         assert out['emailed'] is False
 
+    def test_an_email_only_send_skips_the_app_entirely(self):
+        """iCreate, 2026-08-31: email OR app message OR both. send_app=False
+        fans out no notifications and marks the row in_app=false, which keeps
+        it off the family-facing surfaces — the email is the whole delivery."""
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        notifier = Mock()
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a', 'b'}), \
+             patch('services.notification_service.NotificationService', return_value=notifier), \
+             patch('services.announcement_service._email_fanout') as email:
+            out = svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
+                              send_app=False)
+        assert out['sent'] == 0
+        assert out['recipients'] == 2
+        notifier.create_notification.assert_not_called()
+        email.assert_called_once()
+        assert table.insert.call_args_list[0][0][0]['in_app'] is False
+
+    def test_attachments_are_cleaned_stored_and_handed_to_the_email(self):
+        """iCreate, 2026-08-31: announcements can carry files. The client list
+        is cleaned to known fields (signed display twins and garbage dropped),
+        stored on the row, and passed to the email fan-out for linking."""
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=Mock()), \
+             patch('services.announcement_service._email_fanout') as email:
+            svc.publish('org-1', 'admin-1', 'T', 'B', ['parents'], attachments=[
+                {'url': 'https://x.supabase.co/storage/v1/object/public/user-uploads/messages/u1/f.pdf',
+                 'name': 'f.pdf', 'type': 'file', 'size': 10, 'display_url': 'signed-twin'},
+                'garbage',
+            ])
+        stored = table.insert.call_args_list[0][0][0]['attachments']
+        assert len(stored) == 1
+        assert stored[0]['name'] == 'f.pdf'
+        assert 'display_url' not in stored[0]
+        assert email.call_args.kwargs['attachments'] == stored
+
+    def test_a_default_send_is_marked_in_app(self):
+        client, table = _client(insert_returns=[{'id': 'ann-1'}])
+        with patch('services.announcement_service._admin', return_value=client), \
+             patch('services.announcement_service.recipients_for', return_value={'a'}), \
+             patch('services.notification_service.NotificationService', return_value=Mock()), \
+             patch('services.announcement_service._email_fanout'):
+            svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'])
+        assert table.insert.call_args_list[0][0][0]['in_app'] is True
+
     def test_a_targeted_send_records_who_it_reached(self):
         client, table = _client(insert_returns=[{'id': 'ann-1'}])
         with patch('services.announcement_service._admin', return_value=client), \
@@ -305,4 +384,5 @@ class TestEmailIsOptional:
              patch('services.announcement_service._email_fanout'):
             svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
                         target_label='parents (2 classes)')
-        assert table.insert.call_args[0][0]['target_audience'] == 'parents (2 classes)'
+        # First insert is the announcements row; the recipient snapshot follows.
+        assert table.insert.call_args_list[0][0][0]['target_audience'] == 'parents (2 classes)'

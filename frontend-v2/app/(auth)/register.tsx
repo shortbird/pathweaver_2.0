@@ -254,7 +254,7 @@ export default function RegisterScreen() {
                 <UIText size="sm" className="font-poppins-semibold text-optio-purple">
                   Hearthwood Academy
                 </UIText>
-                <UIText size="xs" className="text-typo-600 mt-1">
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1">
                   Create your parent account to enroll your family. After signup you'll
                   choose a diploma pathway and start tracking credits toward a Hearthwood Academy diploma.
                 </UIText>

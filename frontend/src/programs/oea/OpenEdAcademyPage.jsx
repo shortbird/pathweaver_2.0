@@ -112,6 +112,7 @@ function ParentView() {
           href={helpVideoUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => { oeaAPI.markHelpVideoOpened().catch(() => {}) }}
           className="flex items-center gap-3 rounded-2xl border border-optio-purple/30 bg-[#F3EFF4] p-4 mb-4 hover:border-optio-purple"
         >
           <span className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink shrink-0">

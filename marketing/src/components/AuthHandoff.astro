@@ -1,0 +1,60 @@
+---
+/**
+ * Supabase drops OAuth sign-ins on the root domain, which is now us.
+ *
+ * The app asks Supabase to come back to
+ * `https://app.optioeducation.com/auth/callback`. Supabase only honours a
+ * redirect that matches its allow-list; anything else is silently replaced
+ * with the project's Site URL. The www -> app cutover moved the app to a
+ * subdomain that was never added to either setting, so every Google and Apple
+ * sign-in from the web lands on the marketing home page with the session in
+ * the URL fragment and no code to do anything with it.
+ *
+ * The allow-list is the real fix and lives in the Supabase dashboard (see
+ * marketing/DEPLOYMENT.md, "Supabase auth settings"). This is the safety net
+ * underneath it: the same handoff the `/auth/*` redirect rule performs, for a
+ * landing on a path that has no rule because Supabase chose the path, not the
+ * user. It keeps sign-in working through any future fallback -- a Site URL
+ * change, a link mailed before the allow-list was fixed, a new app host that
+ * gets missed again.
+ *
+ * Runs before analytics so no pageview or pixel ever sees a URL carrying a
+ * token, and uses replace() so the fragment does not sit in session history.
+ */
+import { SITE } from '../data/site'
+---
+
+<script is:inline define:vars={{ appUrl: SITE.appUrl }}>
+  (function () {
+    var fragment = window.location.hash.replace(/^#/, '');
+    if (!fragment) return;
+
+    var params;
+    try {
+      params = new URLSearchParams(fragment);
+    } catch (e) {
+      return;
+    }
+
+    // Only a Supabase auth fragment, never a plain in-page anchor. Two shapes
+    // reach us: an implicit-flow session, and the error GoTrue emits when a
+    // link is expired or already spent.
+    var isAuthLanding =
+      params.has('access_token') || params.has('error') || params.has('error_code');
+    if (!isAuthLanding) return;
+
+    var target;
+    try {
+      target = new URL('/auth/callback', appUrl);
+    } catch (e) {
+      return;
+    }
+    // Before the cutover PUBLIC_APP_URL is this same origin; forwarding then
+    // would be an endless reload.
+    if (target.origin === window.location.origin) return;
+
+    target.search = window.location.search;
+    target.hash = window.location.hash;
+    window.location.replace(target.href);
+  })();
+</script>

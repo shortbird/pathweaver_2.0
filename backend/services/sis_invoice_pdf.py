@@ -233,9 +233,8 @@ def render_invoice_pdf(document: Dict[str, Any], pay_url: Optional[str] = None) 
     if document.get('discount_cents'):
         total_rows.append([Paragraph('Discount', small),
                            Paragraph(f"-{_money(document['discount_cents'])}", right)])
-    if document.get('processing_fee_cents'):
-        total_rows.append([Paragraph('Card processing fee', small),
-                           Paragraph(_money(document['processing_fee_cents']), right)])
+    # No fee row here: the card fee is one of the line items above, and inside
+    # subtotal. Printing it again would bill the family twice on paper.
     total_rows.append([Paragraph('<b>Total</b>', base),
                        Paragraph(f"<b>{_money(document.get('total_cents'))}</b>", right)])
     if document.get('amount_paid_cents'):

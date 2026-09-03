@@ -2,6 +2,14 @@
  * Profile screen tests - renders user info, XP breakdown, sign out.
  */
 
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import ProfileScreen from '../profile';
+import { useProfile } from '@/src/hooks/useProfile';
+import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
+import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import api from '@/src/services/api';
+
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
@@ -37,14 +45,6 @@ jest.mock('@/src/components/layouts/MobileHeader', () => ({
 jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
   DiplomaCreditTracker: () => null,
 }));
-
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import ProfileScreen from '../profile';
-import { useProfile } from '@/src/hooks/useProfile';
-import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import api from '@/src/services/api';
 
 beforeEach(() => {
   setAuthAsStudent();

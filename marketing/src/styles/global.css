@@ -1,0 +1,106 @@
+/* Poppins is self-hosted (public/fonts) so first paint never waits on a
+   third-party CSS request chain. 500/600/700 only, per the design system. */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/poppins-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/poppins-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/poppins-700.woff2') format('woff2');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply font-sans text-neutral-900 bg-white antialiased;
+  }
+  /* Anchored sections land below the sticky nav */
+  [id] {
+    scroll-margin-top: 5rem;
+  }
+}
+
+@layer components {
+  /* Button system ported from frontend/src/index.css (docs/design/DESIGN_SYSTEM.md section 4).
+     One primary action per view; everything else is quiet. */
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 font-semibold
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn-base bg-gradient-primary text-white px-5 py-2.5 text-sm rounded-full
+           shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)]
+           hover:-translate-y-0.5;
+  }
+
+  .btn-secondary {
+    @apply btn-base bg-white text-optio-purple px-5 py-2.5 text-sm rounded-full
+           border-2 border-optio-purple hover:bg-optio-purple/5;
+  }
+
+  /* For dark / brand-gradient bands (heroes, CTA sections) */
+  .btn-inverse {
+    @apply btn-base bg-white text-optio-purple px-5 py-2.5 text-sm rounded-full
+           shadow-lg hover:shadow-xl hover:-translate-y-0.5;
+  }
+
+  .btn-ghost-inverse {
+    @apply btn-base bg-transparent border-2 border-white text-white px-5 py-2.5 text-sm
+           rounded-full hover:bg-white/10 hover:-translate-y-0.5;
+  }
+
+  .btn-lg {
+    @apply px-8 py-3 text-lg;
+  }
+
+  /* Prose defaults for the philosophy page and blog posts.
+     Hand-rolled (no typography plugin) so we control exactly what ships. */
+  .prose-optio {
+    @apply text-neutral-700 leading-relaxed;
+  }
+  .prose-optio p {
+    @apply mb-5;
+  }
+  .prose-optio h2 {
+    @apply text-2xl sm:text-3xl font-bold text-neutral-900 mt-12 mb-4;
+  }
+  .prose-optio h3 {
+    @apply text-xl font-bold text-neutral-900 mt-8 mb-3;
+  }
+  .prose-optio ul {
+    @apply list-disc pl-6 mb-5 space-y-1;
+  }
+  .prose-optio ol {
+    @apply list-decimal pl-6 mb-5 space-y-1;
+  }
+  .prose-optio a {
+    @apply text-optio-purple underline underline-offset-2 hover:text-optio-pink;
+  }
+  .prose-optio blockquote {
+    @apply border-l-4 border-optio-purple/30 pl-5 italic text-neutral-500 my-6;
+  }
+  .prose-optio strong {
+    @apply font-semibold text-neutral-900;
+  }
+}

@@ -5,7 +5,7 @@ Handles quest detail views and enrollment status checking.
 Part of the quests.py refactoring (P2-ARCH-1).
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
@@ -16,6 +16,34 @@ from utils.storage_urls import sign_in_place
 logger = get_logger(__name__)
 
 bp = Blueprint('quest_detail', __name__, url_prefix='/api/quests')
+
+# Long enough for a descriptive title, short enough to stay a title.
+MAX_QUEST_TITLE_LEN = 200
+
+
+def _may_rename(supabase, user_id, quest):
+    """None if `user_id` may rename `quest`, else (code, message, status).
+
+    Deliberately narrow. A personal quest is the creator's to name; once it is
+    public, or once anyone else has enrolled in it, the title is shared and an
+    admin owns it.
+    """
+    if quest.get('created_by') != user_id:
+        return ('FORBIDDEN', 'Only the person who created this quest can rename it', 403)
+    if quest.get('is_public'):
+        return ('QUEST_IS_PUBLIC',
+                'This quest is in the shared library. Ask an admin to rename it.', 409)
+    # count='exact' -- never fetch rows to tally them (PostgREST truncates at 1000).
+    others = (supabase.table('user_quests')
+              .select('id', count='exact')
+              .eq('quest_id', quest['id'])
+              .neq('user_id', user_id)
+              .execute().count or 0)
+    if others:
+        return ('QUEST_SHARED',
+                'Someone else is working on this quest, so its title is shared. '
+                'Ask an admin to rename it.', 409)
+    return None
 
 
 @bp.route('/<quest_id>', methods=['GET'])
@@ -41,7 +69,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 class_review_status, class_review_submitted_at, class_review_notes,
                 approach_examples, is_active, metadata, allow_custom_tasks,
                 organization_id, lms_course_id, lms_platform, xp_threshold,
-                created_at,
+                created_at, created_by, is_public,
                 course_quests(course_id, courses(id, cover_image_url))
             ''')\
             .eq('id', quest_id)\
@@ -56,9 +84,15 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         quest_data = quest.data
 
-        # Badge: creator is a student, or manually flagged in metadata
+        # Badge: creator is a student, or manually flagged in metadata.
+        # (This needs created_by, which the select above used to omit -- so the
+        # badge fell back to the metadata-only signal on this endpoint.)
         from utils.student_created import annotate_student_created
         annotate_student_created([quest_data])
+
+        # Whether to offer the rename control. The PATCH below is the authority;
+        # this only decides if the UI draws a pencil.
+        quest_data['can_rename'] = _may_rename(supabase, user_id, quest_data) is None
 
         # Get all enrollments for this user and quest (select only needed columns)
         all_enrollments = supabase.table('user_quests')\
@@ -452,3 +486,61 @@ def check_enrollment_status(user_id: str, quest_id: str):
         return jsonify({
             'error': 'Failed to check enrollment status'
         }), 500
+@bp.route('/<quest_id>', methods=['PATCH'])
+@require_auth
+def rename_quest(user_id: str, quest_id: str):
+    """Rename a quest you created.
+
+    Gryffin, 2026-08-31: a quest for replacing a van's brake light was titled
+    "Change van battery life" by a typo, and there was no way to correct it --
+    every quest UPDATE path in the app is admin- or SIS-gated, so the person who
+    created the quest could not fix their own title. The tasks underneath were
+    right; only the name was wrong, and the name is what everyone reads.
+
+    Title only, creator only, and only while the quest is still theirs alone
+    (see _may_rename). Anything broader belongs in the admin quest editor.
+    """
+    try:
+        # admin client justified: reads quests.created_by/is_public for the ownership
+        # check in _may_rename, then writes the title on a quest the caller owns
+        # (students have no RLS write path on quests).
+        supabase = get_supabase_admin_client()
+
+        data = request.get_json(silent=True) or {}
+        if 'title' not in data:
+            return jsonify({'success': False, 'error': 'Title is required'}), 400
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': 'Title cannot be empty'}), 400
+        if len(title) > MAX_QUEST_TITLE_LEN:
+            return jsonify({
+                'success': False,
+                'error': f'Title must be {MAX_QUEST_TITLE_LEN} characters or fewer'
+            }), 400
+
+        quest = supabase.table('quests') \
+            .select('id, title, created_by, is_public') \
+            .eq('id', quest_id) \
+            .limit(1) \
+            .execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        denied = _may_rename(supabase, user_id, quest.data[0])
+        if denied:
+            code, message, status = denied
+            return jsonify({'success': False, 'code': code, 'error': message}), status
+
+        updated = supabase.table('quests') \
+            .update({'title': title}) \
+            .eq('id', quest_id) \
+            .execute()
+        if not updated.data:
+            return jsonify({'success': False, 'error': 'Failed to rename quest'}), 500
+
+        logger.info(f"User {user_id[:8]} renamed quest {quest_id[:8]}")
+        return jsonify({'success': True, 'quest': {'id': quest_id, 'title': title}})
+
+    except Exception as e:
+        logger.error(f"Error renaming quest {quest_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to rename quest'}), 500

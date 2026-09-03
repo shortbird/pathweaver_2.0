@@ -8,6 +8,9 @@
  * collapse into one unactionable bucket.
  */
 
+import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
+import { captureException, captureMessage } from '@/src/services/sentry';
+
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -25,9 +28,6 @@ jest.mock('@/src/services/sentry', () => ({
   setSentryUser: jest.fn(),
   wrapWithSentry: (c: unknown) => c,
 }));
-
-import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
-import { captureException, captureMessage } from '@/src/services/sentry';
 
 function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get') {
   return {
@@ -65,6 +65,18 @@ describe('reportApiError', () => {
     expect(captureException).toHaveBeenCalledTimes(1);
     const opts = (captureException as jest.Mock).mock.calls[0][1];
     expect(opts.fingerprint).toEqual(['api-error', 'GET', '/api/quests/:id', 'network']);
+  });
+
+  it('ignores a rejection with no config — not a failed request (OPTIO-MOBILE-6)', () => {
+    // The transient-retry interceptor re-issues via api(cfg), so when the
+    // retried request 401s and the refresh interceptor throws "No refresh
+    // token" (an ordinary expired session), that plain Error comes back out
+    // through this reporter with no config and no response. Filing it as a
+    // network exception turned every logout on a flaky connection into a
+    // Sentry error.
+    reportApiError(new Error('No refresh token') as never, null);
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).not.toHaveBeenCalled();
   });
 
   it('sends non-silenced 4xx to captureMessage, fingerprinted per endpoint (not one bucket)', () => {

@@ -2,7 +2,7 @@
  * Journal hooks - fetches learning events, interest tracks, and unified topics.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
@@ -35,7 +35,7 @@ export interface LearningEvent {
   /** Display name of the capturer when it wasn't the student (parent view). */
   captured_by_name?: string;
   evidence_blocks: EvidenceBlock[];
-  topics: Array<{ type: string; id: string; name: string; color?: string }>;
+  topics: { type: string; id: string; name: string; color?: string }[];
   track_id?: string;
   quest_id?: string;
   attached_task_id?: string | null;
@@ -228,7 +228,7 @@ export async function updateLearningEvent(eventId: string, updates: {
   description?: string;
   pillars?: string[];
   track_id?: string | null;
-  topics?: Array<{ type: string; id: string }>;
+  topics?: { type: string; id: string }[];
   event_date?: string | null;
 }) {
   const { data } = await api.put(`/api/learning-events/${eventId}`, updates);
@@ -274,7 +274,7 @@ export async function updateChildLearningEvent(childId: string, eventId: string,
   title?: string | null;
   description?: string;
   event_date?: string | null;
-  topics?: Array<{ type: string; id: string }>;
+  topics?: { type: string; id: string }[];
 }) {
   const { data } = await api.put(`/api/parent/children/${childId}/learning-moments/${eventId}`, updates);
   return data;
@@ -307,12 +307,58 @@ export async function updateInterestTrack(trackId: string, updates: { name?: str
   return data;
 }
 
-export async function evolveTrackToQuest(trackId: string) {
-  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, {});
+// ── Evolve a topic into a quest ──
+//
+// The backend needs a quest title (plus optional description and tasks) to
+// evolve a track. Posting an empty body 400'd with "Request body is required"
+// on every Evolve tap. The flow mirrors the web app: fetch the AI preview, let
+// the student review and edit it, then post what they approved.
+
+export interface EvolvePreviewTask {
+  title: string;
+  description?: string;
+  pillar?: string;
+  xp_value?: number;
+}
+
+export interface EvolvePreview {
+  title: string;
+  description: string;
+  tasks: EvolvePreviewTask[];
+  total_xp?: number;
+  primary_pillar?: string;
+  learning_outcomes?: string[];
+}
+
+export interface EvolvePreviewResponse {
+  success: boolean;
+  preview?: EvolvePreview;
+  moment_count?: number;
+  track_name?: string;
+  error?: string;
+}
+
+export interface EvolvePayload {
+  title: string;
+  description?: string | null;
+  tasks?: EvolvePreviewTask[];
+}
+
+export interface EvolveResult {
+  success: boolean;
+  quest_id?: string;
+  quest?: { id: string; title: string };
+  tasks_created?: number;
+  message?: string;
+  error?: string;
+}
+
+export async function evolveTrackToQuest(trackId: string, payload: EvolvePayload): Promise<EvolveResult> {
+  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, payload);
   return data;
 }
 
-export async function previewEvolvedQuest(trackId: string) {
+export async function previewEvolvedQuest(trackId: string): Promise<EvolvePreviewResponse> {
   const { data } = await api.get(`/api/interest-tracks/${trackId}/evolve/preview`);
   return data;
 }
@@ -358,7 +404,7 @@ export function useQuestTasks(questId: string | null) {
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   // Personalization session management
-  const sessionRef = { current: null as string | null };
+  const sessionRef = useRef<string | null>(null);
 
   const ensureSession = async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current;

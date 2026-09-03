@@ -79,24 +79,33 @@ class TestCreateBounty:
             service.create_bounty(str(uuid.uuid4()), data)
 
     def test_create_bounty_invalid_type(self):
-        """bounty_type is no longer validated -- it is stored as given.
-
-        create_bounty does `data.get('bounty_type', 'open')` with no allowlist,
-        so an unknown type is accepted rather than rejected. Asserting the real
-        behaviour here so the gap is visible; add validation to the service if
-        rejecting unknown types is wanted.
-        """
+        """An unknown bounty_type is rejected as a readable 400, not passed
+        through to die on the Postgres CHECK as an opaque 500."""
         service = _make_service()
         data = _valid_bounty_data()
         data['bounty_type'] = 'invalid'
-        service.repository.create_bounty.return_value = {
-            'id': str(uuid.uuid4()), 'title': data['title'], 'status': 'active',
-        }
 
-        service.create_bounty(str(uuid.uuid4()), data)
+        with pytest.raises(ValidationError, match="bounty type"):
+            service.create_bounty(str(uuid.uuid4()), data)
 
-        stored = service.repository.create_bounty.call_args.args[0]
-        assert stored['bounty_type'] == 'invalid' 
+    def test_create_bounty_past_deadline_rejected(self):
+        service = _make_service()
+        data = _valid_bounty_data()
+        data['deadline'] = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+
+        with pytest.raises(ValidationError, match="future"):
+            service.create_bounty(str(uuid.uuid4()), data)
+
+    def test_create_bounty_total_xp_capped(self):
+        """Per-reward XP is capped at 200, but the stored xp_reward is the SUM —
+        which the DB CHECKs at 500. The service must reject the total, or three
+        200-XP rewards become a Postgres error."""
+        service = _make_service()
+        data = _valid_bounty_data()
+        data['rewards'] = [{'type': 'xp', 'value': 200, 'pillar': 'stem'}] * 3
+
+        with pytest.raises(ValidationError, match="Total XP"):
+            service.create_bounty(str(uuid.uuid4()), data)
 
     def test_create_bounty_xp_too_low(self):
         service = _make_service()
@@ -137,6 +146,7 @@ class TestClaimBounty:
             'status': 'active',
             'max_participants': 10,
         }
+        service.repository.get_claim_by_bounty_and_student.return_value = None
         service.repository.count_bounty_claims.return_value = 3
         service.repository.create_claim.return_value = {
             'id': str(uuid.uuid4()),
@@ -145,6 +155,48 @@ class TestClaimBounty:
 
         claim = service.claim_bounty(bounty_id, student_id)
         assert claim['status'] == 'claimed'
+
+    def test_claim_already_claimed(self):
+        service = _make_service()
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'claimed',
+        }
+
+        with pytest.raises(ValidationError, match="already claimed"):
+            service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+
+    def test_claim_reopens_rejected_claim(self):
+        """A rejected claim is no longer a dead end: re-claiming re-opens it
+        instead of tripping the (bounty_id, student_id) unique constraint."""
+        service = _make_service()
+        existing_id = str(uuid.uuid4())
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = {
+            'id': existing_id, 'status': 'rejected',
+        }
+        service.repository.update_claim_status.return_value = {
+            'id': existing_id, 'status': 'claimed',
+        }
+
+        claim = service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+        assert claim['status'] == 'claimed'
+        service.repository.update_claim_status.assert_called_once_with(existing_id, 'claimed')
+        service.repository.create_claim.assert_not_called()
+
+    def test_claim_past_deadline_rejected(self):
+        service = _make_service()
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+            'deadline': (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        }
+
+        with pytest.raises(ValidationError, match="deadline"):
+            service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
 
     def test_claim_inactive_bounty(self):
         service = _make_service()
@@ -163,6 +215,7 @@ class TestClaimBounty:
             'status': 'active',
             'max_participants': 5,
         }
+        service.repository.get_claim_by_bounty_and_student.return_value = None
         service.repository.count_bounty_claims.return_value = 5
 
         with pytest.raises(ValidationError, match="maximum"):
@@ -178,29 +231,35 @@ class TestClaimBounty:
 
 @pytest.mark.unit
 @pytest.mark.critical
-class TestSubmitEvidence:
+class TestTurnInBounty:
+    """turn_in_bounty is the submission path (the old submit_evidence service
+    method had no route and was removed)."""
 
-    def test_submit_success(self):
+    def test_turn_in_success(self):
         service = _make_service()
         claim_id = str(uuid.uuid4())
         student_id = str(uuid.uuid4())
-        evidence = {'text': 'I read 5 books', 'media_urls': []}
+        bounty_id = str(uuid.uuid4())
+        d_id = str(uuid.uuid4())
 
         service.repository.get_claim.return_value = {
             'id': claim_id,
             'student_id': student_id,
             'status': 'claimed',
+            'evidence': {'completed_deliverables': [d_id]},
         }
-        service.repository.submit_evidence.return_value = {
-            'id': claim_id,
-            'status': 'submitted',
-            'evidence': evidence,
+        service.repository.get_bounty_by_id.return_value = {
+            'id': bounty_id,
+            'poster_id': str(uuid.uuid4()),
+            'title': 'Read 5 Books',
+            'deliverables': [{'id': d_id, 'text': 'Write-up'}],
         }
+        service.repository.submit_evidence.return_value = {'status': 'submitted'}
 
-        result = service.submit_evidence(claim_id, student_id, evidence)
+        result = service.turn_in_bounty(claim_id, student_id, bounty_id)
         assert result['status'] == 'submitted'
 
-    def test_submit_wrong_student(self):
+    def test_turn_in_wrong_student(self):
         service = _make_service()
         service.repository.get_claim.return_value = {
             'id': str(uuid.uuid4()),
@@ -209,34 +268,24 @@ class TestSubmitEvidence:
         }
 
         with pytest.raises(ValidationError, match="own claims"):
-            service.submit_evidence(str(uuid.uuid4()), str(uuid.uuid4()), {})
+            service.turn_in_bounty(str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()))
 
-    def test_submit_already_approved(self):
+    def test_turn_in_incomplete_deliverables(self):
         service = _make_service()
         student_id = str(uuid.uuid4())
         service.repository.get_claim.return_value = {
             'id': str(uuid.uuid4()),
             'student_id': student_id,
-            'status': 'approved',
+            'status': 'claimed',
+            'evidence': {'completed_deliverables': []},
+        }
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()),
+            'deliverables': [{'id': str(uuid.uuid4()), 'text': 'Write-up'}],
         }
 
-        with pytest.raises(ValidationError, match="Cannot submit"):
-            service.submit_evidence(str(uuid.uuid4()), student_id, {})
-
-    def test_submit_after_revision_request(self):
-        service = _make_service()
-        claim_id = str(uuid.uuid4())
-        student_id = str(uuid.uuid4())
-
-        service.repository.get_claim.return_value = {
-            'id': claim_id,
-            'student_id': student_id,
-            'status': 'revision_requested',
-        }
-        service.repository.submit_evidence.return_value = {'status': 'submitted'}
-
-        result = service.submit_evidence(claim_id, student_id, {'text': 'Updated'})
-        assert result['status'] == 'submitted'
+        with pytest.raises(ValidationError, match="completed"):
+            service.turn_in_bounty(str(uuid.uuid4()), student_id, str(uuid.uuid4()))
 
 
 @pytest.mark.unit
@@ -272,8 +321,11 @@ class TestReviewSubmission:
                 result = service.review_submission(claim_id, reviewer_id, 'approved', 'Great work!')
 
         assert result['status'] == 'approved'
-        # Spendable XP should be awarded
-        service.wallet_repository.add.assert_called_once_with(student_id, 100)
+        # The student's feedback is attached to the returned claim
+        assert result['latest_review']['decision'] == 'approved'
+        # The wallet is credited by XPService.award_xp, NOT here — crediting in
+        # both places paid every bounty out twice in spendable coin.
+        service.wallet_repository.add.assert_not_called()
 
     def test_reject_no_xp(self):
         service = _make_service()
@@ -334,7 +386,10 @@ class TestModerateBounty:
         result = service.moderate_bounty(bounty_id, 'manually_approved', 'Looks good')
         assert result['status'] == 'active'
 
-    def test_reject_does_not_activate(self):
+    def test_reject_deactivates(self):
+        """Rejection must take the bounty down. Bounties are created
+        status='active', so writing only moderation_status left a rejected
+        bounty live on every board."""
         service = _make_service()
         bounty_id = str(uuid.uuid4())
 
@@ -342,9 +397,15 @@ class TestModerateBounty:
             'id': bounty_id,
             'moderation_status': 'rejected',
         }
+        service.repository.update_bounty_status.return_value = {
+            'id': bounty_id,
+            'status': 'rejected',
+            'moderation_status': 'rejected',
+        }
 
         result = service.moderate_bounty(bounty_id, 'rejected', 'Not appropriate')
-        service.repository.update_bounty_status.assert_not_called()
+        service.repository.update_bounty_status.assert_called_once_with(bounty_id, 'rejected')
+        assert result['status'] == 'rejected'
 
     def test_invalid_moderation_status(self):
         service = _make_service()
