@@ -747,12 +747,19 @@ Accept: eslint step enforcing; zero console.log in v1 src.
 Log:
 - 2026-08-31: Plan created.
 
-### CI-04 — No dependabot/renovate `[TODO]`
+### CI-04 — No dependabot/renovate `[DONE]`
 Add `.github/dependabot.yml`: pip (root requirements), npm (frontend,
 frontend-v2), github-actions. Weekly, grouped minor/patch.
 Accept: config merged; first PRs triaged by user later.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: `.github/dependabot.yml` added — pip (root AND backend), npm
+  (frontend, frontend-v2), github-actions. Weekly, minor/patch grouped into one
+  PR per ecosystem so the thing does not open a dozen a week and teach everyone
+  to ignore it; majors come individually because those need reading.
+  Both requirements.txt files are watched deliberately: Render installs the ROOT
+  one (the DEP-H1 lesson, where pip-audit was pointed at the wrong file), and a
+  new backend dep has to be added to both.
 
 ### CI-05 — Integration tests and E2E do not hold the deploy `[NEEDS-USER]`
 `release.yml` deploy is `needs: [backend, web]` only — documented as intentional.
