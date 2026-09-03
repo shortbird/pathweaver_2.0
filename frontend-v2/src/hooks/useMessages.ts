@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { messageAPI, groupAPI, type MessageAttachment, type SendMessageExtras } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
-import { useAppActive } from './useAppActive';
+import { usePolling } from './usePolling';
 
 // ── Types ──
 
@@ -129,7 +129,6 @@ export interface Group {
 /** Fetch all DM conversations for the current user */
 export function useConversations() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const appActive = useAppActive();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -142,8 +141,12 @@ export function useConversations() {
       const { data } = await messageAPI.conversations();
       const d = data.data || data;
       setConversations(d.conversations || []);
+      return true;
     } catch {
-      // non-critical
+      // Still swallowed -- a failed background poll must not surface as an
+      // unhandled rejection -- but reported, so usePolling can back off
+      // instead of hammering a server that is already struggling.
+      return false;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -151,12 +154,7 @@ export function useConversations() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // P1: poll every 30s ONLY while app is foregrounded (silent — no spinner).
-  useEffect(() => {
-    if (!isAuthenticated || !appActive) return;
-    const interval = setInterval(() => fetch(true), 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, appActive, fetch]);
+  usePolling(() => fetch(true), 30000, { enabled: isAuthenticated });
 
   return { conversations, loading, refetch: () => fetch(true) };
 }
@@ -164,7 +162,6 @@ export function useConversations() {
 /** Fetch messages for a specific conversation */
 export function useConversationMessages(conversationId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const appActive = useAppActive();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -175,8 +172,12 @@ export function useConversationMessages(conversationId: string | null) {
       const { data } = await messageAPI.messages(conversationId);
       const d = data.data || data;
       setMessages(d.messages || []);
+      return true;
     } catch {
-      // non-critical
+      // Still swallowed -- a failed background poll must not surface as an
+      // unhandled rejection -- but reported, so usePolling can back off
+      // instead of hammering a server that is already struggling.
+      return false;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -184,12 +185,7 @@ export function useConversationMessages(conversationId: string | null) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // P1: poll every 15s ONLY while app is foregrounded (silent — no spinner flash).
-  useEffect(() => {
-    if (!isAuthenticated || !conversationId || !appActive) return;
-    const interval = setInterval(() => fetch(true), 15000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, conversationId, appActive, fetch]);
+  usePolling(() => fetch(true), 15000, { enabled: isAuthenticated && !!conversationId });
 
   return { messages, loading, refetch: () => fetch(true), setMessages };
 }
@@ -226,7 +222,6 @@ export function useContacts(enabled: boolean = true) {
 /** Fetch unread message count */
 export function useUnreadCount() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const appActive = useAppActive();
   const [count, setCount] = useState(0);
 
   const fetch = useCallback(async () => {
@@ -235,18 +230,15 @@ export function useUnreadCount() {
       const { data } = await messageAPI.unreadCount();
       const d = data.data || data;
       setCount(d.unread_count || 0);
+      return true;
     } catch {
-      // non-critical
+      return false;
     }
   }, [isAuthenticated]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  useEffect(() => {
-    if (!isAuthenticated || !appActive) return;
-    const interval = setInterval(fetch, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, appActive, fetch]);
+  usePolling(fetch, 30000, { enabled: isAuthenticated });
 
   return { count, refetch: fetch };
 }
@@ -324,7 +316,6 @@ export async function setGroupAnnouncementOnly(groupId: string, enabled: boolean
 /** Fetch all groups for the current user */
 export function useGroups() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const appActive = useAppActive();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -335,8 +326,12 @@ export function useGroups() {
       const { data } = await groupAPI.list();
       const d = data.data || data;
       setGroups(d.groups || []);
+      return true;
     } catch {
-      // non-critical
+      // Still swallowed -- a failed background poll must not surface as an
+      // unhandled rejection -- but reported, so usePolling can back off
+      // instead of hammering a server that is already struggling.
+      return false;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -344,11 +339,7 @@ export function useGroups() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  useEffect(() => {
-    if (!isAuthenticated || !appActive) return;
-    const interval = setInterval(() => fetch(true), 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, appActive, fetch]);
+  usePolling(() => fetch(true), 30000, { enabled: isAuthenticated });
 
   return { groups, loading, refetch: () => fetch(true) };
 }
@@ -381,7 +372,6 @@ export function useGroupDetail(groupId: string | null) {
 /** Fetch messages for a group */
 export function useGroupMessages(groupId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const appActive = useAppActive();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -392,8 +382,12 @@ export function useGroupMessages(groupId: string | null) {
       const { data } = await groupAPI.messages(groupId);
       const d = data.data || data;
       setMessages(d.messages || []);
+      return true;
     } catch {
-      // non-critical
+      // Still swallowed -- a failed background poll must not surface as an
+      // unhandled rejection -- but reported, so usePolling can back off
+      // instead of hammering a server that is already struggling.
+      return false;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -401,11 +395,7 @@ export function useGroupMessages(groupId: string | null) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  useEffect(() => {
-    if (!isAuthenticated || !groupId || !appActive) return;
-    const interval = setInterval(() => fetch(true), 15000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, groupId, appActive, fetch]);
+  usePolling(() => fetch(true), 15000, { enabled: isAuthenticated && !!groupId });
 
   return { messages, loading, refetch: () => fetch(true), setMessages };
 }

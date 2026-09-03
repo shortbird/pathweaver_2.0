@@ -1751,13 +1751,47 @@ Log:
 Log:
 - 2026-08-31: Plan created.
 
-### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[TODO]`
+### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval
 polls at 15-30s (battery + backend load). Either adopt react-query with sensible
 refetch intervals/backoff for messaging, or drop the dep and centralize polling
 with visibility-aware backoff. Decide in-item; log the choice.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: DECISION — dropped the dependency, centralised the loops. Half
+  the finding was already stale, which changed what was worth doing.
+
+  `@tanstack/react-query`: zero imports, confirmed, removed from package.json
+  and the lockfile. Adopting it would have meant rewriting five working hooks
+  to gain a cache nothing else in the app uses; the other hooks
+  (useFeed, useNotifications, useSchool) are all bespoke useState too, so
+  react-query would have been a second paradigm rather than the paradigm.
+  useSchool's comment saying "react-query is not wired up" now says it was
+  dropped, so the next reader does not go looking for it.
+
+  THE STALE HALF: the five `setInterval` loops were ALREADY visibility-aware —
+  every one was gated on `useAppActive`, so a backgrounded app has never
+  polled. "Battery + backend load" from unconditional polling is not what the
+  code did.
+
+  What was actually missing is BACKOFF. A conversation endpoint that started
+  failing was retried every 15 seconds forever, on phones, on cellular — the
+  shape that turns one server problem into a self-inflicted load spike. New
+  `usePolling(task, ms, {enabled})` doubles the interval on each consecutive
+  failure to a ceiling of 10x and resets on the first success.
+
+  For backoff to mean anything the fetchers had to STOP SWALLOWING SILENTLY.
+  They still catch — a failed background poll must not surface as an unhandled
+  rejection — but they now return true/false, and `usePolling` reads a `false`
+  resolution as a failure. That is the smallest change that makes the loop able
+  to tell "nothing new" from "the server is down", and it is a piece of QF-05's
+  silent-partial-failure pattern paid off in passing.
+
+  One subtlety the tests pin: the task ref is held in a `useRef` so a new
+  inline arrow on every render does not tear down and rebuild the interval,
+  which would reset its phase and poll far more often than asked.
+
+  Mobile suite 96 files / 715 passed; tsc clean.
 
 ### QF-05 — Silent partial-failure pattern `[TODO]`
 `DiplomaPage.jsx:366-411` and elsewhere: parallel fetches whose failures go to

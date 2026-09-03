@@ -6,8 +6,9 @@
  * here is offered only when that is set. Data comes from the same endpoints
  * the web /school hub uses; all of them accept Bearer auth.
  *
- * Bespoke useState hooks, matching useFeed/useNotifications — react-query is
- * not wired up in this app.
+ * Bespoke useState hooks, matching useFeed/useNotifications. react-query was a
+ * dependency of this app for months with zero imports; it was dropped on
+ * 2026-09-03 (QF-04) rather than adopted, so there is nothing to migrate to.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
