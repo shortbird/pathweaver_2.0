@@ -91,7 +91,8 @@ class Config:
             'https://optio-dev-frontend-r3v8.onrender.com',
             'https://optio-dev-v2-frontend-x1dk.onrender.com',
             'https://optio-prod-frontend-ch7c.onrender.com',
-            'https://www.optioeducation.com',
+            'https://app.optioeducation.com',  # the web app since the www -> app cutover
+            'https://www.optioeducation.com',  # marketing site (POST /api/contact)
             'https://optioeducation.com',
             'https://sis.optioeducation.com',  # SIS console (shares api.optioeducation.com)
         ],

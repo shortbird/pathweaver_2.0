@@ -1,5 +1,6 @@
 ---
 import { SITE, ANALYTICS } from '../data/site'
+import AuthHandoff from '../components/AuthHandoff.astro'
 import '../styles/global.css'
 
 export interface Props {
@@ -32,6 +33,11 @@ const ogImageUrl = new URL(ogImage, SITE.url).href
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- First thing in the document: a Supabase OAuth landing that missed the
+         app subdomain has to be handed on before anything else runs. -->
+    <AuthHandoff />
+
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />

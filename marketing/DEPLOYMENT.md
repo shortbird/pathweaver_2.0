@@ -40,8 +40,10 @@ ever dead.
      cookies are scoped to `.optioeducation.com`, sessions survive the move.
      If scoped to the exact host, users re-log-in once on the new domain.
 4. Supabase auth (project `vvfgxcykxjybtvpfzwyx`): add
-   `https://app.optioeducation.com/*` to the redirect URL allowlist
-   (OAuth/AuthCallback flows).
+   `https://app.optioeducation.com/**` to the redirect URL allowlist and move
+   the Site URL to the app. **This step was missed at cutover and broke Google
+   and Apple sign-in for two days** -- see "Supabase auth settings" below
+   before doing it.
 5. Stripe, LTI (Canvas), and any OAuth apps that carry a `www.optioeducation.com`
    redirect/return URL: add the `app.` equivalents.
 6. App frontend env (Render prod frontend): set
@@ -184,6 +186,49 @@ Notes:
 
   Note `PUT /routes` **replaces the entire list**. Always build the new body from
   a fresh GET (`--emit` does), never from the table above.
+
+## Supabase auth settings
+
+Supabase never rejects a redirect it does not recognise. It substitutes the
+project's **Site URL** and carries on, so an unlisted callback is
+indistinguishable from a working one until the user lands somewhere with no
+code to read the session out of the URL fragment.
+
+That is the 2026-09-03 incident. The app moved to `app.optioeducation.com`;
+the allowlist still named `optioeducation.com`, `www.optioeducation.com` and
+`localhost:3000`. Every web Google and Apple sign-in went out to the provider,
+came back, was silently rewritten to the Site URL (`https://optioeducation.com`),
+and dropped the user on the marketing home page with `#access_token=...` in the
+address bar and no session. Nothing logged an error anywhere. The mobile app was
+fine throughout -- its `optio://auth/callback` was on the list.
+
+Required settings (Authentication -> URL Configuration):
+
+| Setting | Value |
+|---|---|
+| Site URL | `https://app.optioeducation.com` |
+| Redirect URLs | `https://app.optioeducation.com/**` |
+| | `https://www.optioeducation.com/**` (old links still in inboxes) |
+| | `https://optioeducation.com/**` (ditto) |
+| | `optio://auth/callback` (mobile native) |
+| | `http://localhost:3000/**`, `http://localhost:8081/**` (local dev) |
+
+Audit them -- no credentials needed, it probes the live GoTrue instance:
+
+```bash
+python3 scripts/audit_auth_redirects.py          # prod
+python3 scripts/audit_auth_redirects.py --dev    # + dev and localhost
+```
+
+Two things keep this from being a single point of failure:
+
+- The list in that script is the record of every redirect a client asks for.
+  Adding a client, a host or an auth entry point means adding a line to it.
+- `marketing/src/components/AuthHandoff.astro` runs first on every marketing
+  page: an auth fragment that lands on the root domain anyway is forwarded to
+  `app.optioeducation.com/auth/callback` with query and fragment intact. It is
+  the safety net, not the fix -- a fallback landing still costs a round trip
+  and puts a token in the marketing site's address bar.
 
 ## Rollback
 
