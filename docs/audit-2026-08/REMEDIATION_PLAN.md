@@ -1597,6 +1597,23 @@ Log:
 
 ## Open questions for the user (rolling)
 
+- **URGENT — SEC-10(a) is a live production bug and the fix is sitting on this
+  branch.** `origin/main` @ `89560e28` shipped `@require_relationship_to` with
+  the view call inside the predicate loop's `try`, and release `e4df8fef`
+  deployed it at 20:54 UTC on 2026-09-03. On the 37 collapsed parent-dashboard
+  routes it is the only gate. Measured exposure: 7 of the 37 have no blanket
+  `except Exception` of their own, so any error inside them reaches the parent
+  as 403 "Not authorized to access this student" and reaches neither
+  middleware/error_handler nor Sentry — `get_child_overview` and
+  `get_parent_dashboard` among them. The other 30 catch their own exceptions
+  and are unaffected. Fix is commit `d7fc7780`; its two code files cherry-pick
+  onto main cleanly (only this plan file conflicts, because main's copy is
+  older). Push?
+- Two migrations are written and NOT applied to prod:
+  `20260903200000_qualify_tables_in_empty_search_path_functions.sql` (fixes
+  SECURITY DEFINER functions that raise 42P01 on every call) and
+  `20260903210000_drop_dead_get_human_quest_performance.sql`. See OPS-03 —
+  nothing in the pipeline applies them.
 - SEC-14: DONE, verified, and `FLASK_SECRET_KEY_OLD` confirmed set by the user
   on 2026-09-03. One dated action remains: do NOT remove FLASK_SECRET_KEY_OLD
   before 2027-03-02 — LTI evidence tokens run 180 days and are stateless.
