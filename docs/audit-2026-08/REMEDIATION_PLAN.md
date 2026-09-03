@@ -648,6 +648,28 @@ Log:
   mechanism.
 
   ruff clean, mypy clean. Tests: 4781 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — the 10 SIS STAFF routes the widening had just
+  made visible are migrated, in the commit straight after the one that revealed
+  them. Declared 67 -> 77, allowlist 124 -> 114, superadmin 26. 217 accounted.
+
+  `allow=('org_staff',)` on `staff_id`: edit the profile, set which roles they
+  hold, upload their photo, archive or delete them, restore them, re-send the
+  invite that claims their login, and the two employment-profile routes that
+  carry pay (already redacted per-field for coordinators by
+  sis_staff_service.PAY_FIELDS — the decorator adds tenancy, not a pay tier).
+  In-view org checks kept, same reason as the student routes.
+
+  CHECKED BEFORE ADDING THE GATE, because `org_staff` would otherwise have been
+  a silent lockout on the two routes that exist for exactly these people:
+  archiving a staff member does not clear `users.organization_id` (it flips
+  `sis_staff_profiles.is_active`), and placeholder staff rows carry an
+  organization_id too. So restore_staff and link_staff still resolve.
+
+  tests/unit/test_sis_student_org_gate.py -> test_sis_org_gates.py, now
+  covering both sets: declarations for all 18, an accounted-for check per set,
+  and the two behavioral cases through the real client.
+
+  Tests: 4792 passed, 160 skipped, 0 failed. ruff clean, mypy clean.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

@@ -18,6 +18,7 @@ import io
 from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from modules.gate import require_module
 from utils.logger import get_logger
 from services import sis_service
@@ -55,6 +56,7 @@ def _org_or_error(user_id):
 
 @bp.route('/profiles/<staff_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def get_profile(user_id, staff_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -67,6 +69,7 @@ def get_profile(user_id, staff_id):
 
 @bp.route('/profiles/<staff_id>', methods=['PUT'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def put_profile(user_id, staff_id):
     org_id, err = _org_or_error(user_id)
     if err:

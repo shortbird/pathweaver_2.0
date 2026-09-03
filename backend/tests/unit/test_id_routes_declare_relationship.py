@@ -203,20 +203,17 @@ _reviewed(
 # legitimate admins or invent a permission. They stay allowlisted on purpose,
 # and a future reader should not read them as "not got round to yet".
 
-_reviewed(
-    'ADMIN_ROLES gate + org_id resolved from the CALLER, and the service '
-    'refuses a staff row whose organization_id is not that org',
-    'sis.link_staff',
-    'sis.remove_staff',
-    'sis.resend_staff_invite',
-    'sis.restore_staff',
-    'sis.set_staff_roles',
-    'sis.staff_removal_preview',
-    'sis.update_staff',
-    'sis.upload_staff_photo',
-    'sis_staff_admin.get_profile',
-    'sis_staff_admin.put_profile',
-)
+# MIGRATED 2026-09-03, in the commit after the one that made them visible: the
+# ten SIS staff routes declare @require_relationship_to('staff_id',
+# allow=('org_staff',)). Same shape as the SIS student routes, and kept
+# alongside the in-view org checks for the same reason -- org_id is a parameter
+# of the work there, not only of the check.
+#
+# Archiving a staff member does not touch users.organization_id (it flips
+# sis_staff_profiles.is_active), and placeholder rows carry an organization_id
+# too, so restore_staff and link_staff still resolve for the people they are
+# for. Checked before adding the gate, because "org_staff" would have been a
+# quiet lockout otherwise.
 _reviewed(
     'ADMIN_ROLES gate + org_id resolved from the CALLER, and the person lookup '
     'is filtered by it, so a target outside the caller\'s school 404s',

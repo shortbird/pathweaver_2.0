@@ -1,4 +1,4 @@
-"""Org scoping on the SIS routes that name a student.
+"""Org scoping on the SIS routes that name a person.
 
 Eight routes in routes/sis/__init__.py take a student id in the URL: read and
 edit the profile, list the enrolled classes, change the enrollment, message the
@@ -11,12 +11,17 @@ What says they are front-office staff of THIS student's school is
 2026-09-03 (SEC-10 step c). Roles and tenancy are separate questions and each
 decorator answers exactly one of them.
 
-The in-view checks stayed. In routes/admin/transcript_generator.py the same
-migration removed them, because there `caller_can_access_user` was purely a
-check. Here `org_id` is a parameter of the WORK: `_org_or_error` resolves it,
-every sis_service query filters on it, and for a superadmin it is the `org`
-they asked for rather than one derived from the student. Removing that would
-take the queries' scope with it, not just a redundant test.
+Ten more routes name a STAFF member -- edit the profile, set which roles they
+hold, upload their photo, archive or delete them, restore them, or re-send the
+invite that claims their login. Same declaration, same reasoning, added a
+commit later once the guard's ID_PARAMS was widened enough to see them at all.
+
+The in-view checks stayed on both sets. In routes/admin/transcript_generator.py
+the same migration removed them, because there `caller_can_access_user` was
+purely a check. Here `org_id` is a parameter of the WORK: `_org_or_error`
+resolves it, every sis_service query filters on it, and for a superadmin it is
+the `org` they asked for rather than one derived from the target. Removing that
+would take the queries' scope with it, not just a redundant test.
 """
 
 from unittest.mock import Mock, patch
@@ -125,3 +130,48 @@ def test_an_admin_of_the_student_s_own_school_still_gets_the_contacts(
     resp = _get_contacts(client, auth_headers, can_access=True)
     assert resp.status_code == 200
     assert resp.get_json()['contacts'] == []
+
+
+# --- staff -------------------------------------------------------------------
+
+#: The routes naming a staff member. Archiving a staff member does not clear
+#: users.organization_id -- it flips sis_staff_profiles.is_active -- and
+#: placeholder rows carry an organization_id too, so `org_staff` resolves for
+#: archived staff and unclaimed placeholders alike. That was checked before the
+#: gate went on; it would otherwise have locked restore_staff and link_staff,
+#: the two routes that exist precisely for those people.
+SIS_STAFF_ROUTES = (
+    'sis.link_staff',
+    'sis.remove_staff',
+    'sis.resend_staff_invite',
+    'sis.restore_staff',
+    'sis.set_staff_roles',
+    'sis.staff_removal_preview',
+    'sis.update_staff',
+    'sis.upload_staff_photo',
+    'sis_staff_admin.get_profile',
+    'sis_staff_admin.put_profile',
+)
+
+
+@pytest.fixture(scope='module')
+def staff_declarations():
+    from app import app
+
+    return {endpoint: getattr(view, ENFORCED_ATTR, None)
+            for endpoint, view in app.view_functions.items()
+            if endpoint in SIS_STAFF_ROUTES}
+
+
+def test_every_sis_staff_route_is_accounted_for(staff_declarations):
+    assert set(staff_declarations) == set(SIS_STAFF_ROUTES), (
+        'the SIS staff surface gained or lost a route naming a person. Give it '
+        'a policy and list it here. Missing: '
+        f'{sorted(set(SIS_STAFF_ROUTES) - set(staff_declarations))}')
+
+
+@pytest.mark.parametrize('endpoint', sorted(SIS_STAFF_ROUTES))
+def test_staff_route_declares_org_staff(staff_declarations, endpoint):
+    assert staff_declarations[endpoint] == ('staff_id', ('org_staff',)), (
+        f'{endpoint} declares {staff_declarations[endpoint]}. Setting somebody '
+        "else's roles or deleting their account is scoped to one's own school.")

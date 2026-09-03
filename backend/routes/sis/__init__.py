@@ -216,6 +216,7 @@ def grant_staff_role(user_id):
 
 @bp.route('/staff/<staff_id>/roles', methods=['PUT'])
 @require_role(*ROLE_GRANT_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def set_staff_roles(user_id, staff_id):
     """Set a staff member's roles (teacher / campus coordinator / admin).
 
@@ -236,6 +237,7 @@ def set_staff_roles(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>/link', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def link_staff(user_id, staff_id):
     """Connect a placeholder staff row to the teacher's real email. Claims the
     account in place (new email + set-password invite) or, when the email
@@ -252,6 +254,7 @@ def link_staff(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>/resend-invite', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def resend_staff_invite(user_id, staff_id):
     """Re-send the account-setup email to a teacher who hasn't finished
     setting up their login. Refuses for already-active accounts."""
@@ -266,6 +269,7 @@ def resend_staff_invite(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def update_staff(user_id, staff_id):
     """Edit a staff member's profile (name, email, bio)."""
     org_id, err = _org_or_error(user_id)
@@ -279,6 +283,7 @@ def update_staff(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>/removal-preview', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def staff_removal_preview(user_id, staff_id):
     """What removing this person would affect — which classes lose their teacher,
     and whether they carry history that rules out deleting them outright."""
@@ -293,6 +298,7 @@ def staff_removal_preview(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def remove_staff(user_id, staff_id):
     """Archive a staff member, or delete them outright with ?mode=delete.
 
@@ -319,6 +325,7 @@ def remove_staff(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>/restore', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def restore_staff(user_id, staff_id):
     """Bring an archived staff member back. Their classes stay unassigned."""
     org_id, err = _org_or_error(user_id)
@@ -332,6 +339,7 @@ def restore_staff(user_id, staff_id):
 
 @bp.route('/staff/<staff_id>/photo', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('staff_id', allow=('org_staff',))
 def upload_staff_photo(user_id, staff_id):
     """Upload (or replace) a staff member's photo. Stores avatar_url on the user."""
     import uuid as _uuid
