@@ -4,9 +4,15 @@ Source: third-party-style technical audit of 2026-08-31 (four specialist reviews
 security, backend architecture, frontends, testing/ops). Full report:
 https://claude.ai/code/artifact/65c96cc7-21fc-48a5-8dd7-ac63abdb1c7f
 
-Branch: `audit/remediation-2026-08` (based on main @ 8f4863ce).
-Worktree: `.claude/worktrees/audit-remediation` — this work stays isolated from the
-shared tree at `~/pathweaver_2.0`, where other agents hold uncommitted work.
+Branch: `audit/remediation-2026-08`. Worktree: `.claude/worktrees/audit-remediation`
+— this work stays isolated from the shared tree at `~/pathweaver_2.0`, where other
+agents hold uncommitted work.
+
+History: Phase 0 (SEC-01..SEC-08) and the SEC-14 prerequisites landed on `main` in
+merge `f3de2bc6`, after which the branch and worktree were deleted. Both were
+recreated on 2026-09-03 from `origin/main` @ `5535cd90` to continue with Phase 1.
+If the worktree is missing again at session start, recreate it the same way:
+`git worktree add -b audit/remediation-2026-08 .claude/worktrees/audit-remediation origin/main`.
 
 ## Working protocol (instructions to the agent running this plan)
 
@@ -274,7 +280,7 @@ Log:
 
 ## Phase 1 — High-severity security
 
-### SEC-10 — No structural ownership enforcement on ~138 id-parameter routes `[TODO]`
+### SEC-10 — No structural ownership enforcement on ~138 id-parameter routes `[IN PROGRESS]`
 Audit sampled a dozen high-risk handlers and all had correct hand-written checks,
 but nothing fails when a new route forgets one. Fix in three steps:
 (a) build a relationship-checking decorator (e.g. `@require_relationship_to
@@ -288,6 +294,72 @@ admin/) in sub-batches with a Log line each.
 Accept: guard test enforcing in CI config; migrated modules listed in Log.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: (a) and (b) done, (c) started — 1 module of 52 migrated.
+
+  VERIFIED FIRST, and the finding is narrower than "138 routes unprotected".
+  Censused the live url_map: 187 rules take a person-id path param (user_id,
+  student_id, target_user_id, child_id, dependent_id) across 56 modules, not
+  138. Then checked each for a gate at the route AND one hop into
+  services/utils/repositories. Twelve had neither; eleven of those are
+  @require_admin, which is superadmin-only (so there is no other org to leak
+  to), and the twelfth
+  (GET /api/sis/classes/<id>/students/<id>/progress) proves class-moderator
+  rights via `_authorize` and then requires an active class_enrollments row.
+  So: ZERO routes are missing a check. The audit's own framing was right —
+  the checks are correct and the enforcement of their existence is what does
+  not exist. Nothing here is a live vulnerability; do not report it as one.
+
+  (a) `utils/auth/relationships.py` — `@require_relationship_to(param,
+  allow=(...))`. The predicates are NOT new: it composes the ones
+  utils/portfolio_access already owns (is_parent_of, is_advisor_of,
+  is_observer_of, teaches_student, is_peer_of) plus `self` and an `org_staff`
+  that delegates to org_scope.caller_can_access_user — re-deriving them would
+  recreate the four-divergent-copies bug that module was written to end.
+  `allow` is required (a default would be a policy nobody chose), unknown
+  relationship names raise at decoration time (the SEC-01 lesson), and every
+  failure mode denies: no target, empty target, unknown caller, failed staff
+  lookup, and a predicate that raises. It authorizes the masquerade target,
+  like the rest of the family. It does NOT inject user_id, so it is meant to
+  stack under @require_auth — noted in test_no_stacked_auth_decorators so
+  nobody adds it to that regex and bans the pattern.
+
+  (b) `tests/unit/test_id_routes_declare_relationship.py`. A route passes by
+  declaring the decorator, by being superadmin-only, or by an allowlist entry
+  naming where its check lives. The superadmin tier is VERIFIED, not trusted:
+  require_admin/require_superadmin/require_admin_identity now set
+  `_superadmin_only`, so loosening a route to a narrower decorator drops the
+  marker and the route lands back in the failing set. Three companion tests
+  keep the allowlist honest — no stale entries, no placeholder reasons, and
+  no entry left behind after a route migrates. Confirmed it has teeth by
+  registering a probe route and watching it fail. 21 superadmin-verified +
+  166 allowlisted = 187, fully accounted.
+
+  WHAT THE ALLOWLIST IS AND IS NOT: per module, the gate mechanism was read
+  and named (verify_parent_access, verify_advisor_access,
+  caller_can_access_user, _can_register, _student_in_org, _authorize,
+  can_view_portfolio, org-scoped SIS queries, ...). It is NOT a line-by-line
+  proof that each of the 166 enforces the right relationship for its payload.
+  The test says so in its docstring. Migrating an entry to the decorator is
+  what converts it into an enforced claim.
+
+  (c) First module migrated: `routes/parent/quests_view.py` (3 read routes) ->
+  `allow=('parent', 'observer')`, which is exactly what verify_parent_access
+  grants with allow_observer=True. The inner call stays as the precise check;
+  the decorator is the structural outer gate, so the migration cannot narrow
+  access for anyone who works today. Allowlist is now 163.
+  Remaining, in descending size: parent/learning_moments (16), dependents
+  (12), admin/transcript_generator (10), sis/__init__ (8), sis/parent (8),
+  advisor/learning_moments (7), parent/communications (7), portfolio (7),
+  oea (6), then a long tail of 1-5.
+
+  Also fixed here: the new module's `from middleware.error_handler import ...`
+  tripped test_import_layers (utils -> middleware, baseline 12 -> 13). Did not
+  raise the baseline — that file says not to. The exceptions now come through
+  the sibling utils/auth/decorators, which already carries that edge, so the
+  coupling stays in one file and the eventual fix is one site, not a set.
+
+  Tests: 4713 passed, 160 skipped, 0 failed (full backend suite, CI env).
+  pyflakes undefined-name gate clean.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[TODO]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

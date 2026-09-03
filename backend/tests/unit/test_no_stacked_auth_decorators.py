@@ -18,6 +18,10 @@ ROUTES_DIR = REPO_ROOT / 'backend' / 'routes'
 
 # Decorators from utils.auth.decorators that inject user_id positionally.
 # require_parental_consent is deliberately absent: it calls f(*args, **kwargs).
+# require_relationship_to is absent for the same reason -- it re-resolves the
+# caller itself and passes the view's arguments through untouched, so it is
+# MEANT to stack under one of these. Adding it here would ban the SEC-10
+# pattern outright.
 INJECTING_DECORATORS = re.compile(
     r'@require_('
     r'auth|admin|role|advisor|advisor_for_student|'

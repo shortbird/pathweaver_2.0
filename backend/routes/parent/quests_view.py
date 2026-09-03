@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify
 from datetime import datetime, date
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
@@ -112,6 +113,7 @@ def sign_blocks_for_response(items: List[Dict[str, Any]], key: str = 'evidence_b
 
 @bp.route('/calendar/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_student_calendar(user_id, student_id):
     """
     Get student's calendar view with tasks and deadlines.
@@ -209,6 +211,7 @@ def get_student_calendar(user_id, student_id):
 
 @bp.route('/completed-quests/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_completed_quests(user_id, student_id):
     """
     Get all completed quests for a student.
@@ -304,6 +307,7 @@ def get_completed_quests(user_id, student_id):
 
 @bp.route('/quest/<student_id>/<quest_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_student_quest_view(user_id, student_id, quest_id):
     """
     Get read-only quest view for parents.

@@ -229,6 +229,12 @@ def require_admin(f):
 
         return f(user_id, *args, **kwargs)
 
+    # Marks this decorator as superadmin-only for
+    # tests/unit/test_id_routes_declare_relationship.py: a route gated here
+    # needs no per-target relationship check, because the role is global.
+    # If the route is ever loosened to a narrower decorator, the marker
+    # disappears with it and the guard test starts demanding a declaration.
+    decorated_function._superadmin_only = True
     return decorated_function
 
 def require_role(*allowed_roles):
@@ -404,6 +410,8 @@ def require_admin_identity(f):
 
         return f(user_id, *args, **kwargs)
 
+    # Superadmin-only; see require_admin for what this marker is for.
+    decorated_function._superadmin_only = True
     return decorated_function
 
 
@@ -610,6 +618,8 @@ def require_superadmin(f):
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, *args, **kwargs)
 
+    # Superadmin-only; see require_admin for what this marker is for.
+    decorated_function._superadmin_only = True
     return decorated_function
 
 
