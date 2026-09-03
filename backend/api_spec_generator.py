@@ -9,6 +9,8 @@ This generates a complete OpenAPI 3.0 specification from all
 registered Flask routes, which can be validated at swagger.io.
 """
 
+from app_config import Config
+
 def generate_endpoint_specs(app):
     """
     Auto-generate OpenAPI specs for all Flask routes
@@ -447,7 +449,7 @@ def generate_openapi_spec(app):
             "version": "3.0.0",
             "contact": {
                 "name": "Optio Education Support",
-                "email": "tannerbowman@gmail.com",
+                "email": Config.SUPPORT_EMAIL,
                 "url": "https://www.optioeducation.com"
             },
             "license": {

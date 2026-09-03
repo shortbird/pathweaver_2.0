@@ -576,7 +576,8 @@ def require_superadmin(f):
     """
     Decorator to require superadmin role.
     Superadmin is defined as role='superadmin'.
-    Only tannerbowman@gmail.com should have this role.
+    Exactly one platform account holds it; who that is belongs in configuration
+    (Config.SUPERADMIN_EMAIL), not in a docstring that goes stale silently.
 
     Uses httpOnly cookies exclusively for enhanced security.
     When masquerading, this checks the TARGET, not the admin behind them.

@@ -24,6 +24,7 @@ from utils.api_response import success_response, error_response
 from utils.storage_urls import (
     public_object_url, sign_stored_url, sign_thumbs_in_place,
 )
+from app_config import Config
 
 bp = Blueprint('direct_messages', __name__, url_prefix='/api/messages')
 
@@ -37,7 +38,14 @@ message_service = DirectMessageService()
 # routed to the superadmin account below (product owner decision). We resolve the
 # id at request time (by email + role) rather than hardcoding it, since there can
 # be more than one superadmin on the platform.
-SUPPORT_EMAIL = 'tannerbowman@gmail.com'
+#
+# The address itself comes from Config now (OPS-07): it was the same personal
+# Gmail that was hardcoded in three other files. Note this is NOT
+# Config.SUPPORT_EMAIL -- that is support@optioeducation.com, an inbox nobody
+# has an Optio ACCOUNT for, so routing student support DMs there would send
+# them to a user id that does not exist.
+SUPPORT_EMAIL = (Config.PLATFORM_STAFF_EMAILS[0] if Config.PLATFORM_STAFF_EMAILS
+                 else Config.ADMIN_EMAIL)
 
 
 def _get_support_user(supabase):

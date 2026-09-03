@@ -14,10 +14,21 @@ full superadmin (which would also grant user management, quest admin, etc.).
 # canonical superadmin email is kept here too so this set is the single source
 # of "who is Optio" for feed surfaces (also used to hide these accounts'
 # personal details from students in the my-observers viewers list).
-OPTIO_STAFF_EMAILS = frozenset({
-    'tannerbowman@gmail.com',   # superadmin
-    'tyler@zionforge.com',      # Tyler Tiberius, cofounder (feed access only)
-})
+def _staff_emails() -> frozenset:
+    """Read the list from Config at CALL time, not import time.
+
+    Import time would freeze whatever the environment held when the first
+    module imported this one, which in tests is whatever the previous test
+    left behind. Config reads os.getenv once at class-definition time, so this
+    is one attribute lookup, not a syscall per call.
+    """
+    from app_config import Config
+    return frozenset(Config.PLATFORM_STAFF_EMAILS)
+
+
+# Kept as a module attribute because several call sites and tests read it
+# directly. Prefer _staff_emails() in new code.
+OPTIO_STAFF_EMAILS = _staff_emails()
 
 
 def is_optio_platform_user(user) -> bool:
@@ -34,4 +45,4 @@ def is_optio_platform_user(user) -> bool:
     if user.get('role') == 'superadmin':
         return True
     email = (user.get('email') or '').strip().lower()
-    return email in OPTIO_STAFF_EMAILS
+    return email in _staff_emails()

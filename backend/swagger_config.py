@@ -4,6 +4,7 @@ Provides interactive API documentation at /api/docs
 """
 
 from flasgger import Swagger
+from app_config import Config
 
 # Swagger UI configuration
 SWAGGER_CONFIG = {
@@ -111,7 +112,7 @@ Critical endpoints have rate limiting:
         "version": "3.0.0",
         "termsOfService": "https://www.optioeducation.com/terms",
         "contact": {
-            "email": "tannerbowman@gmail.com",
+            "email": Config.SUPPORT_EMAIL,
             "name": "Optio Education Support",
             "url": "https://www.optioeducation.com"
         },

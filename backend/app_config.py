@@ -484,6 +484,26 @@ class Config:
     if not SUPERADMIN_EMAIL and FLASK_ENV == 'production':
         raise ValueError("SUPERADMIN_EMAIL must be set in production")
 
+    # Who is presented and treated as "Optio" on feed surfaces: superadmin by
+    # role, plus these addresses. Comma-separated, case-insensitive.
+    #
+    # The default preserves the two addresses that were hardcoded in
+    # utils/platform_staff.py until 2026-09-03 (OPS-07), so behaviour does not
+    # change when the env var is unset. Set PLATFORM_STAFF_EMAILS to override.
+    #
+    # This is a PRESENTATION and feed-access list, not a role. Being here does
+    # not make someone a superadmin -- see the module docstring in
+    # utils/platform_staff.py -- but @require_relationship_to does honour it as
+    # a bypass, so it is not cosmetic either. Keep it short.
+    PLATFORM_STAFF_EMAILS = tuple(
+        e.strip().lower()
+        for e in os.getenv(
+            'PLATFORM_STAFF_EMAILS',
+            'tannerbowman@gmail.com,tyler@zionforge.com',
+        ).split(',')
+        if e.strip()
+    )
+
     # D6 — PostHog backend error tracking.
     # POSTHOG_API_KEY is the *project* key (phc_...), NOT the personal API key.
     # When unset the error handler silently no-ops — safe default for dev.

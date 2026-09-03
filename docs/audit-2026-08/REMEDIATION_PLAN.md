@@ -1838,12 +1838,48 @@ user to have the owning session commit them.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### OPS-07 — Superadmin identity hardcoded in ≥4 source files `[TODO]`
+### OPS-07 — Superadmin identity hardcoded in ≥4 source files `[DONE]`
 `utils/platform_staff.py:18`, `utils/auth/decorators.py:561`, `swagger_config.py`,
 `api_spec_generator.py` name a personal email. Move to `Config`
 (e.g. `SUPERADMIN_EMAILS`), default preserving current behavior.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Five sites, not four, and they were not all the same KIND of
+  problem — which is why they did not all get the same fix.
+
+  An access decision, moved to config:
+    - `utils/platform_staff.OPTIO_STAFF_EMAILS` -> `Config.PLATFORM_STAFF_EMAILS`
+      (comma-separated env var, default unchanged so nobody's access moved).
+      Read at CALL time, not import time: import-time capture freezes whatever
+      the environment held when the first module imported it, which in a test
+      run is whatever the previous test left behind.
+    - `routes/direct_messages.SUPPORT_EMAIL`, the "Optio Support" DM alias,
+      which resolves a real account by email. NOT switched to
+      `Config.SUPPORT_EMAIL` — that is support@optioeducation.com, an inbox with
+      no Optio ACCOUNT behind it, so routing student support DMs there would
+      address a user id that does not exist. It reads the staff list instead.
+
+  Simply wrong, and fixed rather than parameterised:
+    - `swagger_config.py` and `api_spec_generator.py` published a personal
+      Gmail as the API's public support contact. Now `Config.SUPPORT_EMAIL`.
+
+  A docstring:
+    - `utils/auth/decorators.py` said "Only tannerbowman@gmail.com should have
+      this role". Now points at `Config.SUPERADMIN_EMAIL` — a docstring naming
+      a person goes stale silently.
+
+  NOT covered, deliberately, and the guard test says so: `backend/scripts/`.
+  Nineteen one-off operational scripts look this account up by email. That is
+  OPS-08 and it wants a `--user-email` argument, not a config constant — a
+  script hardcoding whose data to repair is a different bug from an application
+  hardcoding who is staff.
+
+  Guard: tests/unit/test_no_hardcoded_superadmin_identity.py — no personal
+  email in application code, the default list is unchanged (moving a list to
+  config must not quietly change who is on it), the check reads config at call
+  time, and the superadmin ROLE still qualifies even with the list emptied.
+
+  ruff clean, mypy clean. Tests: 4856 passed, 160 skipped, 0 failed.
 
 ### OPS-08 — ~70 hand-run prod-repair scripts, 19 keyed to one personal account `[TODO]`
 `backend/scripts/`. Parameterize the hardcoded email lookups (`--user-email`
