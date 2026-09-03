@@ -383,6 +383,69 @@ Log:
       ownership checks and let SEC-10 be the actual control. No prod change, no
       session churn, and new code stops trusting a backstop that is not there.
   Either way SEC-10 stops being defense-in-depth and becomes load-bearing.
+- 2026-09-03: User chose (A) — make RLS real — and asked for a regression audit
+  before the cutover. Audit done; two prerequisites found and shipped
+  (SEC-14a, SEC-14b). Remaining step is the prod env change, which is the
+  user's.
+
+  BLOCKER FOUND AND FIXED (SEC-14a, commit 9fd8b1ba). Three app-signed token
+  types verify outside session_manager and had no previous-key fallback, so the
+  rotation would have voided them instantly: LTI OIDC state (10 min), Google TOS
+  acceptance (15 min), and LTI SpeedGrader evidence tokens — 180 days, stateless,
+  and prod has 2 live LTI registrations with 435 pending launches. Teachers
+  would have hit dead links in a live gradebook with no way to reissue. All
+  three now go through utils/jwt_keys.decode_app_jwt (current key, then
+  FLASK_SECRET_KEY_OLD), with a guard test against new hand-rolled decodes.
+  Also fixed there: google_oauth captured the signing key in a module constant
+  at import, freezing whichever value the process started with.
+
+  SECOND PREREQUISITE (SEC-14b, commit 5abfccb8). Tokens carried `sub` but no
+  `role`, so PostgREST would have run them as `anon` even after the rotation and
+  the 16 policies written TO authenticated would silently never match. Added
+  `role: authenticated` to the access, masquerade and acting-as tokens (the
+  three that can reach postgrest.auth()). Inert until the rotation.
+
+  DATABASE AUDIT — what starts being enforced. Verified against prod:
+    - All 237 public tables have RLS ENABLED. No table is exposed by grants
+      alone.
+    - No policy grants more to `authenticated` than `anon` already has. Every
+      wide-open policy (qual `true`, or `is_published`/`is_visible`/`is_active`)
+      is TO public, so it is already reachable with the anon key that ships in
+      the frontend bundle. The rotation exposes nothing new.
+    - Write-side broad policies are only `is_admin()` or already-anon INSERTs
+      (contact form, promo interest). `public.is_admin()` checks
+      `role = 'admin'` — a role CLAUDE.md lists as invalid and that no user has
+      — so those policies are dead, fail-closed. Same class as SEC-01.
+    - `private.is_superadmin / is_org_admin_user / is_advisor_user /
+      get_user_org_id` are all SECURITY DEFINER with pinned search_path, so the
+      users policies that call them cannot recurse. This was the biggest latent
+      risk in switching RLS on and it is clear.
+    - Own-row policies on users, user_quests, user_quest_tasks,
+      quest_task_completions, evidence documents and observer_invitations are
+      correctly keyed on auth.uid().
+    - PostgREST here does not enforce an audience: the anon key itself carries
+      no `aud` claim and is accepted, so our tokens do not need one.
+  KNOWN BEHAVIOR CHANGE, not a regression: 117 tables have RLS on and NO
+  policies (deny-all), `bug_reports` among them. Its triage endpoints go from
+  erroring to returning an empty list — quieter, still broken. They are
+  superadmin-gated at the route, so the honest fix is to give
+  BugReportRepository the admin client. Worth its own item; 356 rows exist.
+
+  CUTOVER RUNBOOK (user runs steps 1-2; both are Render env changes on
+  srv-d9sjl1f10e5c73a14610):
+    1. Set FLASK_SECRET_KEY_OLD = the CURRENT value of JWT_SECRET_KEY
+       (sha256 259794b5...). Do this FIRST and deploy, so the previous-key
+       fallback is live before the key moves.
+    2. Set JWT_SECRET_KEY = the Supabase JWT secret (Dashboard -> Project
+       Settings -> API -> JWT Settings -> JWT Secret). Deploy.
+       Do NOT touch FLASK_SECRET_KEY — sis_pay_links signs with that one and it
+       is unrelated.
+    3. Verify: GET /api/users/transcript as a logged-in user returns data
+       instead of erroring. Watch Sentry for PGRST301 (expect none).
+    4. After ~31 days (REFRESH_TOKEN_EXPIRY_DAYS=30), remove
+       FLASK_SECRET_KEY_OLD to finish the rotation.
+  Rollback is symmetric: put the old value back in JWT_SECRET_KEY. Any token
+  minted during the window verifies under either key.
 
 ### SEC-15 — FERPA disclosure logging covers only observer/advisor reads `[TODO]`
 `utils/access_logger.py` is written to from only ~5 route modules. Extend to
