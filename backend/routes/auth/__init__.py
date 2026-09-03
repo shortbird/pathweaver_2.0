@@ -30,7 +30,7 @@ def register_auth_routes(app: Flask):
     - /api/auth/register, /api/auth/resend-verification
     - /api/auth/forgot-password, /api/auth/reset-password
     - /api/auth/csrf-token
-    - /api/auth/token-health, /api/auth/cookie-debug
+    - /api/auth/token-health
     - /api/auth/google/callback (Google OAuth)
 
     Args:

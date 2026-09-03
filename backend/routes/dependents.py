@@ -1163,8 +1163,12 @@ def stop_acting_as():
         500: Server error
     """
     try:
-        # Get the parent's ID from the acting-as token (not the dependent's ID)
-        user_id = session_manager.get_actual_admin_id()
+        # Get the parent's ID from the acting-as token (not the dependent's ID).
+        # De-escalation resolver: acting-as tokens expire after 24h, and a
+        # parent whose token died still has their own session cookie and still
+        # needs the way out. This endpoint only ever hands someone back their
+        # own identity.
+        user_id = session_manager.get_deescalation_user_id()
 
         if not user_id:
             return jsonify({'success': False, 'error': 'Authentication required'}), 401

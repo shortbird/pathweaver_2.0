@@ -103,6 +103,38 @@ def mask_email(email: Optional[str]) -> str:
     return f"{masked_local}@{domain}"
 
 
+# Compiled once: every log record the app emits runs through the first two.
+#
+# EMAIL and JWT are always sensitive -- an address identifies a student or a
+# parent, and a JWT in a log line is a live credential.
+#
+# UUID is deliberately NOT scrubbed automatically. Every quest, class, task and
+# organization id in this system is a UUID, and masking them platform-wide
+# would leave the logs unable to answer "what happened to this class" while
+# doing nothing for privacy that masking the email does not already do. Call
+# mask_user_id() at the site where the UUID is known to be a person.
+_EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+_JWT_RE = re.compile(r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
+_UUID_RE = re.compile(
+    r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b')
+
+
+def scrub_log_text(text: str) -> str:
+    """Mask the PII that must never reach a log sink, whoever wrote the line.
+
+    Emails and JWTs only -- see the note on _UUID_RE above for why ids are left
+    readable. This is what utils/logger.py applies to every record; mask_pii()
+    below is the stricter version for callers that want ids masked too.
+    """
+    if not text or not isinstance(text, str):
+        return text
+    if '@' in text:
+        text = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), text)
+    if 'eyJ' in text:
+        text = _JWT_RE.sub(lambda m: mask_token(m.group(0)), text)
+    return text
+
+
 def mask_pii(text: str) -> str:
     """
     Auto-detect and mask PII in log messages
@@ -124,17 +156,9 @@ def mask_pii(text: str) -> str:
         >>> mask_pii('Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature')
         'Token: eyJhbGci...'
     """
-    # Email pattern
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    text = re.sub(email_pattern, lambda m: mask_email(m.group(0)), text)
-
-    # UUID pattern (potential user IDs)
-    uuid_pattern = r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
-    text = re.sub(uuid_pattern, lambda m: mask_user_id(m.group(0)), text)
-
-    # JWT token pattern (starts with 'eyJ')
-    jwt_pattern = r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'
-    text = re.sub(jwt_pattern, lambda m: mask_token(m.group(0)), text)
+    text = _EMAIL_RE.sub(lambda m: mask_email(m.group(0)), text)
+    text = _UUID_RE.sub(lambda m: mask_user_id(m.group(0)), text)
+    text = _JWT_RE.sub(lambda m: mask_token(m.group(0)), text)
 
     return text
 

@@ -52,7 +52,14 @@ export const startMasquerade = async (userId, reason = '', apiCall, redirectTo =
 
     // Swap the active token to the masquerade JWT. Preserve the admin refresh
     // token so /exit can mint a fresh admin access token server-side.
-    await tokenStore.setTokens(masquerade_token, currentRefreshToken || '');
+    //
+    // Cookie-capable browsers get no token in the body (token_delivery.py):
+    // the masquerade JWT rides the httpOnly masquerade_token cookie, and the
+    // reload below would drop an in-memory copy a moment later regardless.
+    // Only Safari/iOS/Firefox and the mobile app are handed one.
+    if (masquerade_token) {
+      await tokenStore.setTokens(masquerade_token, currentRefreshToken || '');
+    }
 
     const masqueradeState = {
       is_masquerading: true,
@@ -96,7 +103,15 @@ export const exitMasquerade = async (apiCall) => {
 
     const { access_token, refresh_token, user: adminUser } = response.data;
 
-    await tokenStore.setTokens(access_token, refresh_token);
+    // No body tokens for cookie clients. The response restored the admin's
+    // httpOnly cookies, so clear memory instead of leaving the masquerade JWT
+    // in it -- a stale one would keep going out as a Bearer and outrank the
+    // cookies we were just given.
+    if (access_token) {
+      await tokenStore.setTokens(access_token, refresh_token);
+    } else {
+      tokenStore.clearTokens();
+    }
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
     logger.debug('[Masquerade] Exited masquerade session, returned to admin identity');
 

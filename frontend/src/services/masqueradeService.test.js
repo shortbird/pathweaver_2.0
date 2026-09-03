@@ -4,7 +4,8 @@ vi.mock('./api.js', () => ({
   tokenStore: {
     getAccessToken: vi.fn().mockReturnValue('admin-access-token'),
     getRefreshToken: vi.fn().mockReturnValue('admin-refresh-token'),
-    setTokens: vi.fn().mockResolvedValue(undefined)
+    setTokens: vi.fn().mockResolvedValue(undefined),
+    clearTokens: vi.fn()
   }
 }))
 
@@ -74,6 +75,41 @@ describe('masqueradeService — no tokens in localStorage (C1 regression)', () =
     for (const key of FORBIDDEN_KEYS) {
       expect(localStorage.getItem(key)).toBeNull()
     }
+  })
+
+  // SEC-03: a cookie-capable browser is sent no tokens in the body at all --
+  // the masquerade rides the httpOnly cookie, and the admin's own cookies are
+  // restored on exit. These two pin that the client copes with their absence
+  // instead of writing `undefined` over its own session.
+  it('startMasquerade leaves tokenStore alone when the body carries no token', async () => {
+    const api = makeApi({
+      log_id: 'log-1',
+      target_user: { id: 'u1', role: 'student', email: 'x@y.z' }
+    })
+
+    const result = await startMasquerade('u1', 'debug', api)
+
+    expect(result.success).toBe(true)
+    expect(tokenStore.setTokens).not.toHaveBeenCalled()
+    expect(JSON.parse(localStorage.getItem('masquerade_state'))).toMatchObject({
+      is_masquerading: true,
+      log_id: 'log-1'
+    })
+  })
+
+  it('exitMasquerade clears in-memory tokens when the body carries none', async () => {
+    localStorage.setItem('masquerade_state', JSON.stringify({ is_masquerading: true }))
+
+    const api = makeApi({ user: { id: 'admin1', role: 'superadmin' } })
+
+    const result = await exitMasquerade(api)
+
+    expect(result.success).toBe(true)
+    expect(tokenStore.setTokens).not.toHaveBeenCalled()
+    // A leftover masquerade JWT would keep going out as a Bearer and outrank
+    // the admin cookies the response just set.
+    expect(tokenStore.clearTokens).toHaveBeenCalled()
+    expect(localStorage.getItem('masquerade_state')).toBeNull()
   })
 
   it('clearMasqueradeData removes only masquerade_state (no token keys touched)', () => {

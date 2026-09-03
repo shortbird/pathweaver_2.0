@@ -24,19 +24,24 @@ def verify_token(token):
     if not token:
         return None
 
-    # First try to verify as custom JWT token (for incognito mode fallback)
+    # First try to verify as an app-issued access token (incognito fallback).
+    #
+    # This used to decode the JWT here and accept `type in ('access',
+    # 'refresh')` -- so a 30-day refresh token authenticated the three read
+    # paths that call this, including the one in routes/public.py that decides
+    # whether to show an unpublished course to its creator. It also re-rolled
+    # the verification by hand, which meant no session-timeout check and no
+    # previous-key fallback during a secret rotation.
+    #
+    # session_manager owns that logic for every other caller; there is no
+    # reason for a second implementation to exist and drift. (SEC-07)
     try:
-        secret_key = Config.JWT_SECRET_KEY
-        if secret_key:
-            payload = jwt.decode(token, secret_key, algorithms=['HS256'])
-            # Check if this is our custom token format
-            if payload.get('user_id') and payload.get('type') in ['access', 'refresh']:
-                return payload['user_id']
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        # Not a valid custom JWT, try Supabase verification
-        logger.debug("intentional swallow", exc_info=True)
+        from utils.session_manager import session_manager
+        payload = session_manager.verify_access_token(token)
+        if payload and payload.get('user_id'):
+            return payload['user_id']
     except Exception:
-        # Any other error, continue to Supabase verification
+        # Not one of ours; fall through to Supabase verification.
         logger.debug("intentional swallow", exc_info=True)
 
     # Fallback to Supabase token verification (for regular mode)

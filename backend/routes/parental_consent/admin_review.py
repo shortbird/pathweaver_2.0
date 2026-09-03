@@ -42,7 +42,7 @@ from repositories import (
 )
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
-from utils.auth.decorators import require_auth, require_role
+from utils.auth.decorators import require_auth, require_superadmin
 from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
 from services.email_service import email_service
 from werkzeug.utils import secure_filename
@@ -64,7 +64,7 @@ from routes.parental_consent import bp
 
 
 @bp.route('/admin/parental-consent/pending', methods=['GET'])
-@require_role('admin')
+@require_superadmin
 def get_pending_consent_reviews(user_id: str):
     """
     Admin endpoint: Get all pending parent identity verification reviews
@@ -121,7 +121,7 @@ def get_pending_consent_reviews(user_id: str):
         return jsonify({'error': 'Failed to fetch pending reviews'}), 500
 
 @bp.route('/admin/parental-consent/approve/<parent_id>', methods=['POST'])
-@require_role('admin')
+@require_superadmin
 def approve_parental_consent(user_id: str, parent_id):
     """
     Admin endpoint: Approve parent identity verification after reviewing ID documents
@@ -202,7 +202,7 @@ def approve_parental_consent(user_id: str, parent_id):
         return jsonify({'error': 'Failed to approve parent identity verification'}), 500
 
 @bp.route('/admin/parental-consent/reject/<parent_id>', methods=['POST'])
-@require_role('admin')
+@require_superadmin
 def reject_parental_consent(user_id: str, parent_id):
     """
     Admin endpoint: Reject parent identity verification (e.g., unclear documents, fraudulent)

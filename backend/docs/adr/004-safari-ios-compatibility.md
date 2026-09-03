@@ -220,58 +220,19 @@ def create_session(request, user_id):
 
 ---
 
-## Rule 5: Debug Endpoint for Diagnostics
+## Rule 5: Debug Endpoint for Diagnostics — SUPERSEDED (2026-09-03)
 
-**Provide /api/auth/cookie-debug endpoint for Safari troubleshooting.**
+**Superseded.** This ADR originally specified an unauthenticated
+`/api/auth/cookie-debug` endpoint. What shipped also returned `FLASK_ENV`, the
+cookie secure/samesite/domain settings, `FRONTEND_URL` and the backend host to
+any anonymous caller — and no code path ever called it. It was deleted in the
+2026-08 audit remediation (SEC-02);
+`backend/tests/unit/test_no_config_disclosure_routes.py` keeps it gone.
 
-```python
-@app.route('/api/auth/cookie-debug', methods=['GET'])
-def cookie_debug():
-    """
-    Debug endpoint to diagnose cookie/token issues.
-    Returns comprehensive diagnostics WITHOUT exposing token values.
-    """
-    cookies = request.cookies
-    headers = dict(request.headers)
-    user_agent = request.headers.get('User-Agent', 'unknown')
-
-    # Detect browser
-    is_safari = is_safari_or_ios(request)
-    browser_info = {
-        'is_safari': is_safari,
-        'is_ios': any(d in user_agent.lower() for d in ['iphone', 'ipad', 'ipod']),
-        'user_agent': user_agent
-    }
-
-    # Check tokens (metadata only, not values)
-    access_token = cookies.get('access_token')
-    auth_header = headers.get('Authorization', '')
-
-    token_info = {
-        'has_cookie': bool(access_token),
-        'has_auth_header': bool(auth_header),
-        'cookie_count': len(cookies),
-        'auth_method': 'cookie' if access_token else ('header' if auth_header else 'none')
-    }
-
-    # Generate recommendations
-    recommendations = []
-    if is_safari and access_token:
-        recommendations.append('Safari using cookies (unexpected - ITP may not be blocking)')
-    elif is_safari and not access_token and not auth_header:
-        recommendations.append('Safari without auth - cookies blocked by ITP, tokens not stored')
-    elif not is_safari and not access_token:
-        recommendations.append('Non-Safari browser without cookies - check CORS/domain settings')
-
-    return jsonify({
-        'browser': browser_info,
-        'tokens': token_info,
-        'recommendations': recommendations,
-        'summary': f"Auth method: {token_info['auth_method']}, Browser: {'Safari/iOS' if is_safari else 'Other'}"
-    })
-```
-
-**Why**: Helps users and support staff diagnose auth issues without exposing secrets.
+Use `GET /api/auth/token-health` instead. It is unauthenticated by design, reads
+the token from either transport (Authorization header or `access_token` cookie),
+and reports compatibility plus `auth_method` without disclosing any server
+configuration.
 
 ---
 
@@ -500,7 +461,7 @@ response.set_cookie('access_token', token, partitioned=True, ...)
 
 If Safari login fails:
 
-1. Check `/api/auth/cookie-debug` endpoint
+1. Check `/api/auth/token-health` - `auth_method` names the transport that carried the token
 2. Verify `access_token` in response body (Safari should have it)
 3. Check browser console for localStorage tokens
 4. Check Network tab for Authorization headers

@@ -14,6 +14,17 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# PostgREST reads this claim and runs the query as that Postgres role. With no
+# `role` claim it falls back to its default, which on Supabase is `anon`, so
+# every policy written TO authenticated silently never matches.
+#
+# It must name a role Postgres actually has -- PostgREST issues SET LOCAL ROLE
+# and errors if it does not exist. That is why role-view tokens, whose narrowed
+# platform role ('advisor', 'parent', ...) is NOT a Postgres role, keep theirs
+# under `act_as_role` and are never handed to postgrest.auth().
+POSTGREST_ROLE = 'authenticated'
+
+
 class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     
@@ -244,6 +255,7 @@ class SessionManager:
             'sub': user_id,  # CRITICAL: Supabase RLS expects 'sub' claim for auth.uid()
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'access',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'dfp2': self._get_device_fingerprint(),  # Version-insensitive device binding
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
@@ -289,6 +301,7 @@ class SessionManager:
             'user_id': admin_id,  # Keep admin ID for audit trail
             'masquerade_as': target_user_id,
             'type': 'masquerade',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.masquerade_token_expiry,
             'iat': datetime.now(timezone.utc)
@@ -387,6 +400,7 @@ class SessionManager:
             'user_id': parent_id,  # Keep parent ID for audit trail
             'acting_as': dependent_id,
             'type': 'acting_as_dependent',
+            'role': POSTGREST_ROLE,
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.acting_as_token_expiry,
             'iat': datetime.now(timezone.utc)
@@ -803,6 +817,25 @@ class SessionManager:
                 logger.debug(f"[SessionManager] Acting-as token auth for parent {parent_id[:8]}...")
                 return parent_id
 
+            # A Bearer that verifies as nothing ends the request here, exactly
+            # as it does in get_effective_user_id(). Falling through to the
+            # cookies used to give one request two answers -- @require_auth
+            # (effective) rejected it while @require_admin and
+            # @require_admin_identity (actual, via get_actual_admin_id) accepted
+            # it off the cookie. The divergence ran in the accepting direction,
+            # and its sharpest form was an EXPIRED masquerade token: the admin's
+            # own access_token cookie is still sitting there, so the admin
+            # silently got their own authority back while the UI still showed
+            # them inside the target's account. (SEC-08)
+            #
+            # Anything that must survive a dead Bearer -- logging out, stepping
+            # out of an acting-as session -- goes through
+            # get_deescalation_user_id() and says so.
+            logger.warning(
+                "[SessionManager] Authorization header present but token "
+                "verification failed")
+            return None
+
         # Cookie fallback. Check masquerade cookie first so an active masquerade
         # session takes precedence over the admin's own access cookie.
         masquerade_cookie = request.cookies.get('masquerade_token')
@@ -879,6 +912,39 @@ class SessionManager:
             payload = self.verify_access_token(access_token)
             if payload:
                 return payload.get('user_id')
+
+        return None
+
+    def get_deescalation_user_id(self) -> Optional[str]:
+        """Whoever this request can prove it is, by ANY credential it carries.
+
+        The deliberate exception to the fail-closed rule in
+        get_current_user_id(). Use it ONLY where the outcome can exclusively
+        REMOVE access -- logging out, stepping out of an acting-as session.
+
+        There, refusing to identify the caller is the unsafe answer: a logout
+        that cannot name the user does not write last_logout_at and does not
+        revoke the refresh families, so the session it claims to have ended
+        keeps working. Nothing here grants anything, so trying every credential
+        costs nothing; on a route that grants, it would be the whole bug.
+        """
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+            for verify in (self.verify_access_token,
+                           self.verify_masquerade_token,
+                           self.verify_acting_as_token):
+                payload = verify(token)
+                if payload and payload.get('user_id'):
+                    return payload['user_id']
+
+        for cookie_name, verify in (('masquerade_token', self.verify_masquerade_token),
+                                    ('access_token', self.verify_access_token)):
+            cookie = request.cookies.get(cookie_name)
+            if cookie:
+                payload = verify(cookie)
+                if payload and payload.get('user_id'):
+                    return payload['user_id']
 
         return None
 

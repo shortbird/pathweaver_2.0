@@ -20,7 +20,7 @@ notes_bp = Blueprint('advisor_notes', __name__)
 
 
 @notes_bp.route('/api/advisor/notes/<subject_id>', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_subject_notes(user_id, subject_id):
     """
     Get all notes for a specific subject (student or parent).
@@ -69,7 +69,7 @@ def get_subject_notes(user_id, subject_id):
 
 
 @notes_bp.route('/api/advisor/notes', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def create_note(user_id):
     """
     Create a new advisor note.
@@ -160,7 +160,7 @@ def create_note(user_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['PUT', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def update_note(user_id, note_id):
     """
     Update an advisor note.
@@ -214,7 +214,7 @@ def update_note(user_id, note_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def delete_note(user_id, note_id):
     """
     Delete an advisor note.

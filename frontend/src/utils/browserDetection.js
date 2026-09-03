@@ -121,36 +121,6 @@ export const isPrivateMode = async () => {
 }
 
 /**
- * Test if cookies are being sent to the server
- * Makes a test request and checks if cookies were received
- */
-export const testCookieSupport = async (apiInstance) => {
-  try {
-    const response = await apiInstance.get('/api/auth/cookie-debug')
-    const data = response.data
-
-    return {
-      cookiesWorking: data.cookies_received?.has_access_token || false,
-      authHeaderWorking: data.headers?.has_authorization || false,
-      isAuthenticated: data.authentication?.is_authenticated || false,
-      authMethod: data.authentication?.auth_method || null,
-      browserInfo: data.browser || {},
-      recommendations: data.recommendations || []
-    }
-  } catch (error) {
-    logger.error('[BrowserDetection] Failed to test cookie support:', error)
-    return {
-      cookiesWorking: false,
-      authHeaderWorking: false,
-      isAuthenticated: false,
-      authMethod: null,
-      browserInfo: {},
-      recommendations: []
-    }
-  }
-}
-
-/**
  * Determine if we should use Authorization headers instead of cookies
  * Returns true if:
  * - Browser is Safari
