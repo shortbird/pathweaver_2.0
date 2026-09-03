@@ -17,7 +17,7 @@
 9. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
 10. **Never count rows in Python** - PostgREST silently truncates every response at 1000 rows (`Config.POSTGREST_MAX_ROWS`), so fetching rows to tally them returns a number that is quietly wrong once an org gets big enough. Use `count='exact'` for one number, or `utils.db_fetch.fetch_all_rows()` when you genuinely need every row. See [Row Limits](#row-limits-postgrests-silent-truncation).
 11. **You are not the only agent in this repo** - see [Working alongside other agents](#working-alongside-other-agents). Never run `git checkout -- <tracked file>`, `git reset --hard`, `git stash`, or `git clean` to tidy up: another agent's uncommitted work is in the same tree and those commands destroy it with no undo. Never kill or restart the dev servers unless the user asks.
-12. **"Commit" means commit YOUR work** - stage the files you changed this session and commit them. Do not sweep in unrelated modified files, and do not "clean up" changes you don't recognize — they belong to somebody else. Overrides the "stage ALL outstanding changes" instruction under Git Configuration, which predates parallel agents.
+12. **"Commit" means commit YOUR work** - stage the files you changed this session and commit them. Do not sweep in unrelated modified files, and do not "clean up" changes you don't recognize — they belong to somebody else. The Git Configuration section says the same thing; it used to say the opposite.
 
 ### Working alongside other agents
 
@@ -71,7 +71,7 @@ Rules:
 
 **Never write `users.is_org_admin`.** It is derived from `role`/`org_role`/`org_roles`
 by the `sync_is_org_admin` trigger
-([20260807](supabase/migrations/20260807_campus_coordinator_org_role_constraints.sql)).
+([20260807](supabase/migrations-archive/20260807_campus_coordinator_org_role_constraints.sql)).
 Write the role columns and read the flag back. The flag alone grants org admin access
 in `require_school_admin`, `require_org_admin`, `require_advisor` and
 `PrivateRoute.jsx` — before the trigger, the ~11 paths that set roles without it left
@@ -260,9 +260,14 @@ Render auto-deploy is OFF for both prod services — CI is the only prod deploy
 trigger. Bad code can land on `main` but won't deploy or OTA. So the prod ship is:
 `git push origin main` → watch `Release (main)`. History/why: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md).
 
-**IMPORTANT: When the user says "push", always stage and commit ALL outstanding
-changes (staged, unstaged, and untracked relevant files) before pushing. Never
-selectively unstage files — push everything.**
+**When the user says "push", commit the files YOU changed this session, then
+push.** See Critical Rule 12. This used to say "stage and commit ALL outstanding
+changes… push everything", which was written when one agent worked in this tree
+at a time. It is now wrong and dangerous: several agents share this checkout, so
+`git add -A` sweeps somebody else's half-finished work into your commit and onto
+`main` under your message. That nearly happened once already.
+
+If you genuinely cannot tell which changes are yours, ask rather than guess.
 
 ---
 
@@ -341,7 +346,7 @@ read is truncated — fix the call site.
 ### Data API Grants
 
 New tables in `public` inherit Data API grants automatically via
-[20260527_restore_default_data_api_grants.sql](supabase/migrations/20260527_restore_default_data_api_grants.sql)
+[20260527_restore_default_data_api_grants.sql](supabase/migrations-archive/20260527_restore_default_data_api_grants.sql)
 (`ALTER DEFAULT PRIVILEGES`). **No per-table GRANT statements needed in new
 migrations.** RLS remains the access-control mechanism. If you create a table
 outside the normal migration flow, verify it's reachable and add grants if not.

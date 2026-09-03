@@ -792,18 +792,34 @@ Run the suite, confirm which is true, fix the stale three.
 Log:
 - 2026-08-31: Plan created.
 
-### DOC-03 — `LOCAL_DEVELOPMENT.md` does not exist but is linked `[TODO]`
+### DOC-03 — `LOCAL_DEVELOPMENT.md` does not exist but is linked `[DONE]`
 CLAUDE.md links it twice. Either create it (extract the inline section) or fix
 the links.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Created it rather than removing the links — the content was
+  worth having in one place. It carries the CLAUDE.md quick-reference plus what
+  is only learned by hitting it: the backend runs with no reloader so backend
+  edits need a kill-and-relaunch, the exact env the backend suite needs (missing
+  vars look like broken code), Node 25 breaking v1 vitest, the CRLF trap, and
+  the Android/iOS API-URL routing.
+  While verifying, swept every markdown link in CLAUDE.md: two more were broken,
+  pointing at migrations the 2026-08-13 baseline squash moved to
+  supabase/migrations-archive/. Relinked. CLAUDE.md now has zero broken links.
 
-### DOC-04 — CLAUDE.md self-contradicts on commit scope `[TODO]`
+### DOC-04 — CLAUDE.md self-contradicts on commit scope `[DONE]`
 Rule 12 overrides the "stage ALL outstanding changes" instruction, but the
 superseded bold text still stands at the Git Configuration section. Remove or
 rewrite the stale instruction so the file gives one answer.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: The Git Configuration section said "always stage and commit ALL
+  outstanding changes… Never selectively unstage files — push everything", which
+  Critical Rule 12 flatly contradicts. Rule 12 is the correct one and the old
+  text is actively dangerous now that several agents share this checkout: `git
+  add -A` sweeps someone else's half-finished work into your commit. Rewrote the
+  section to agree with Rule 12 and say why it changed, and dropped Rule 12's
+  "overrides…" clause, which now referred to text that no longer exists.
 
 ### DOC-05 — ~20 planning/audit docs clutter the repo root `[TODO]` (low)
 Move to `docs/` (or `docs/archive/`), updating inbound links (CLAUDE.md references
