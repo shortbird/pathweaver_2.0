@@ -8,8 +8,9 @@ account settings were the only editor for their first/last name — which is not
 somewhere a guardian can go. Hearthwood Academy, 2026-08-25.
 
 What these tests pin:
-  - the route is gated by verify_parent_access with allow_observer=False
-    (observers are view-only and this WRITES to a minor's record);
+  - the route declares @require_relationship_to('student_id', allow=('parent',))
+    — observers are view-only and this WRITES to a minor's record — and that
+    gate actually refuses a non-guardian before the view runs;
   - it writes first_name, last_name and a display_name derived from them, and
     nothing else — no role, email, or organization can ride along.
 
@@ -33,6 +34,7 @@ from flask import Flask
 import app  # noqa: F401 — import graph ordering
 from middleware.error_handler import AuthorizationError
 from routes.parent import child_profile
+from utils.auth.relationships import ENFORCED_ATTR
 
 
 PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -70,23 +72,21 @@ def _supabase_capturing_update(captured):
     return supabase
 
 
-def _call(body, *, verify_side_effect=None):
-    """Run the view against `body`. Returns (payload, status, captured, verify)."""
+def _call(body):
+    """Run the undecorated view against `body`. Returns (payload, status, captured)."""
     captured = {}
     supabase = _supabase_capturing_update(captured)
     flask_app = Flask(__name__)
     with flask_app.test_request_context(
         f'/api/parent/children/{CHILD}/name', method='PUT',
         data=json.dumps(body), content_type='application/json',
-    ), patch.object(child_profile, 'get_supabase_admin_client', return_value=supabase), \
-            patch.object(child_profile, 'verify_parent_access',
-                         side_effect=verify_side_effect) as verify:
+    ), patch.object(child_profile, 'get_supabase_admin_client', return_value=supabase):
         response, status = view(PARENT, CHILD)
-    return response.get_json(), status, captured, verify
+    return response.get_json(), status, captured
 
 
 def test_derives_display_name_from_first_and_last():
-    payload, status, captured, _ = _call({'first_name': ' Nathan ', 'last_name': ' Hanna '})
+    payload, status, captured = _call({'first_name': ' Nathan ', 'last_name': ' Hanna '})
 
     assert status == 200
     assert captured['payload'] == {
@@ -99,7 +99,7 @@ def test_derives_display_name_from_first_and_last():
 
 def test_swapping_the_two_is_the_whole_point():
     """The reported case: "Hanna Nathan" corrected to "Nathan Hanna"."""
-    _, status, captured, _ = _call({'first_name': 'Nathan', 'last_name': 'Hanna'})
+    _, status, captured = _call({'first_name': 'Nathan', 'last_name': 'Hanna'})
     assert status == 200
     assert captured['payload']['first_name'] == 'Nathan'
     assert captured['payload']['last_name'] == 'Hanna'
@@ -107,7 +107,7 @@ def test_swapping_the_two_is_the_whole_point():
 
 def test_writes_nothing_but_the_name():
     """Mass-assignment guard: extra keys in the body must not reach the update."""
-    _, status, captured, _ = _call({
+    _, status, captured = _call({
         'first_name': 'Nathan', 'last_name': 'Hanna',
         'role': 'superadmin', 'email': 'attacker@example.com',
         'organization_id': 'someone-elses-org', 'total_xp': 999999,
@@ -126,7 +126,7 @@ def test_writes_nothing_but_the_name():
     {},
 ])
 def test_both_names_are_required(body):
-    payload, status, captured, _ = _call(body)
+    payload, status, captured = _call(body)
 
     assert status == 400
     assert 'payload' not in captured
@@ -134,28 +134,59 @@ def test_both_names_are_required(body):
 
 
 def test_overlong_names_are_rejected():
-    _, status, captured, _ = _call({'first_name': 'N' * 200, 'last_name': 'Hanna'})
+    _, status, captured = _call({'first_name': 'N' * 200, 'last_name': 'Hanna'})
     assert status == 400
     assert 'payload' not in captured
 
 
-def test_access_is_checked_without_observers():
-    """Observers may read a student's work; they may not rewrite their name."""
-    _, status, _, verify = _call({'first_name': 'Nathan', 'last_name': 'Hanna'})
+def test_the_route_admits_guardians_only():
+    """Observers may read a student's work; they may not rewrite their name.
 
-    assert status == 200
-    verify.assert_called_once()
-    assert verify.call_args.kwargs.get('allow_observer') is False
-    # Gate is on the caller and the child, in that order.
-    assert verify.call_args.args[1:] == (PARENT, CHILD)
+    SEC-10 moved this from an allow_observer=False argument inside the body to a
+    declaration on the route, so it is now asserted where it is stated.
+    """
+    param, allow = getattr(child_profile.update_child_name, ENFORCED_ATTR)
+    assert param == 'student_id'
+    assert allow == ('parent',), \
+        "a write to a minor's record must not admit observers"
+
+
+def _run_gated(is_parent):
+    """Drive the route THROUGH the relationship gate. Returns (result, captured)."""
+    captured = {}
+    supabase = _supabase_capturing_update(captured)
+    flask_app = Flask(__name__)
+    # Past @require_auth (which needs a real session); @validate_uuid_param and
+    # the relationship gate beneath it both still run.
+    gated = child_profile.update_child_name.__wrapped__
+
+    with flask_app.test_request_context(
+        f'/api/parent/children/{CHILD}/name', method='PUT',
+        data=json.dumps({'first_name': 'Nathan', 'last_name': 'Hanna'}),
+        content_type='application/json',
+    ), patch.object(child_profile, 'get_supabase_admin_client', return_value=supabase), \
+            patch('utils.auth.relationships.authorizing_user_id', return_value=PARENT), \
+            patch('utils.auth.relationships._is_platform_staff', return_value=False), \
+            patch('utils.portfolio_access.is_parent_of', return_value=is_parent):
+        if not is_parent:
+            with pytest.raises(AuthorizationError):
+                gated(PARENT, student_id=CHILD)
+            return None, captured
+        return gated(PARENT, student_id=CHILD), captured
 
 
 def test_denied_when_not_a_guardian():
-    payload, status, captured, _ = _call(
-        {'first_name': 'Nathan', 'last_name': 'Hanna'},
-        verify_side_effect=AuthorizationError('Access denied'),
-    )
+    """The gate refuses before the view runs, so nothing reaches the update.
 
-    assert status == 403
+    Exercised through the real decorator rather than a patched helper: the
+    caller resolves, is not the child's guardian, and is not Optio staff.
+    """
+    _, captured = _run_gated(is_parent=False)
     assert 'payload' not in captured, "the update must not run when access is refused"
-    assert payload['success'] is False
+
+
+def test_a_guardian_gets_through_the_gate():
+    """The mirror of the above -- the gate is not simply refusing everyone."""
+    (_response, status), captured = _run_gated(is_parent=True)
+    assert status == 200
+    assert captured['payload']['display_name'] == 'Nathan Hanna'

@@ -11,7 +11,6 @@ from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
-from .dashboard_overview import verify_parent_access
 from collections import defaultdict
 import logging
 
@@ -33,7 +32,6 @@ def get_student_progress(user_id, student_id):
     try:
         # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp').select('''
@@ -115,7 +113,6 @@ def get_learning_insights(user_id, student_id):
     try:
         # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Get completions from last 60 days for pattern analysis
         sixty_days_ago = (date.today() - timedelta(days=60)).isoformat()
@@ -289,7 +286,6 @@ def get_student_communications(user_id, student_id):
     try:
         # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private tutor messages + safety-report text, guardians only
 
         # Get tutor conversations
         conversations_response = supabase.table('tutor_conversations').select('''
@@ -368,7 +364,6 @@ def get_encouragement_tips(user_id, student_id):
     try:
         # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Get learning rhythm
         rhythm_response = supabase.rpc('get_learning_rhythm_status', {

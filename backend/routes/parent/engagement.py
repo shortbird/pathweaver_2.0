@@ -9,7 +9,6 @@ from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from datetime import datetime, timedelta, date as date_type
-from .dashboard_overview import verify_parent_access
 from middleware.error_handler import AuthorizationError
 
 logger = get_logger(__name__)
@@ -142,8 +141,6 @@ def get_student_engagement(user_id: str, student_id: str):
         # admin client justified: rhythm/engagement metrics for a child; cross-user read gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
-        # Verify parent has access to this student
-        verify_parent_access(supabase, user_id, student_id)
 
         quest_id = request.args.get('quest_id') or None
 

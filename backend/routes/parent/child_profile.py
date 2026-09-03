@@ -15,8 +15,9 @@ name only, with display_name recomputed from them, the same derivation
 `PUT /api/users/profile` uses. Nothing else about the account is reachable here,
 so a guardian correcting a spelling cannot touch a role, an email, or a password.
 
-`verify_parent_access(..., allow_observer=False)`: observers are view-only, and
-this writes to a minor's record.
+`@require_relationship_to('student_id', allow=('parent',))`: observers are
+view-only and this writes to a minor's record, so the gate names guardians only.
+SEC-10 moved that decision out of the body and onto the route.
 """
 
 from flask import Blueprint, jsonify, request
@@ -28,7 +29,6 @@ from middleware.error_handler import AuthorizationError, ValidationError
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
 
-from .dashboard_overview import verify_parent_access
 
 logger = get_logger(__name__)
 
@@ -61,10 +61,10 @@ def update_child_name(user_id: str, student_id: str):
                 f'Names must be {MAX_NAME_LENGTH} characters or fewer'
             )
 
-        # admin client justified: verify_parent_access below is the gate; the
-        # write targets another user's row, which RLS deliberately forbids.
+        # admin client justified: @require_relationship_to on this route is the
+        # gate; the write targets another user's row, which RLS deliberately
+        # forbids.
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)
 
         updated = supabase.table('users').update({
             'first_name': first_name,

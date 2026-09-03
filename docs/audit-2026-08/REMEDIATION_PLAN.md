@@ -399,17 +399,42 @@ Log:
       layer. They deliberately test view logic rather than gates, and the gate
       has its own tests.
 
-  OPEN QUESTION FOR THE USER — should migration REMOVE the inner check? Right
-  now each migrated route runs both, which is redundant on the evidence above
-  and costs 2-4 extra queries per request. Collapsing to the decorator alone
-  would make it genuinely load-bearing (a gate that guards nothing is the SEC-01
-  failure mode), halve the auth queries on the parent dashboard, and remove the
-  two-grant test friction. It is not done here because deleting a working check
-  from 34 security-sensitive routes is a decision to take deliberately, not to
-  fold into a migration commit. Recommendation: yes, collapse — but as its own
-  reviewed change, per module, after the migration has covered more ground.
+  ANSWERED, same day: the user said collapse. Done in the next commit — the
+  decorator is now the ONLY gate on all 37 migrated parent routes. See below.
 
   Tests: 4713 passed, 160 skipped, 0 failed. pyflakes clean.
+- 2026-09-03: COLLAPSED to one gate on the user's instruction. All 37 inner
+  verify_parent_access calls removed from routes/parent/*; @require_relationship_to
+  is now the only thing standing between a caller and another family's child.
+
+  Checked before removing, not after: every one of the 37 call sites is inside a
+  function that carries the decorator, and the decorator's allow set matches the
+  call's allow_observer on every one (a script asserted the pairing rather than
+  eyeballing it). Re-asserted afterwards that zero id-bearing routes in
+  routes/parent/ are left ungated. Removal was scoped by AST to functions with
+  the decorator, so a route that had not been migrated could not lose its check.
+
+  verify_parent_access itself STAYS. Nine call sites outside routes/parent/ still
+  use it — routes/observer/activity.py, routes/quest/enrollment.py and
+  routes/learning_events/crud.py — and routes/helper_evidence.py has its own
+  same-named function with a different signature, which is worth knowing before
+  anyone greps for callers and concludes it is dead.
+
+  Stale comments fixed rather than left lying: child_profile's module docstring
+  and, more importantly, its admin-client justification, which said
+  "verify_parent_access below is the gate" and pointed at a line that no longer
+  exists. An admin-client justification that names the wrong gate is worse than
+  none — it reads as reviewed.
+
+  Tests reworked, not just repaired. test_parent_child_name's two gate tests
+  asserted against a helper that no longer runs on that route, so they now test
+  the real thing: one reads the declaration off the route
+  (allow == ('parent',), i.e. observers excluded), and two drive the actual
+  decorator with is_parent_of stubbed True and False, proving it lets a guardian
+  through and refuses everyone else BEFORE the view runs. That is strictly
+  stronger than the mock-call assertion it replaces.
+
+  Tests: 4714 passed, 160 skipped, 0 failed. pyflakes clean.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[TODO]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

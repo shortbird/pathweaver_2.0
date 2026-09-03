@@ -12,7 +12,6 @@ from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
-from .dashboard_overview import verify_parent_access
 import logging
 import re
 from typing import Optional, List, Dict, Any
@@ -123,7 +122,6 @@ def get_student_calendar(user_id, student_id):
     try:
         # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Get active quests
         user_quests_response = supabase.table('user_quests').select(
@@ -220,7 +218,6 @@ def get_completed_quests(user_id, student_id):
     try:
         # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Get completed quests with quest details
         completed_quests_response = supabase.table('user_quests').select('''
@@ -316,7 +313,6 @@ def get_student_quest_view(user_id, student_id, quest_id):
     try:
         # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id)
 
         # Check if student is a dependent (managed by this parent)
         student_check = supabase.table('users').select('managed_by_parent_id').eq('id', student_id).single().execute()
@@ -516,8 +512,8 @@ def get_student_quest_view(user_id, student_id, quest_id):
             # Whether this parent may author tasks onto the student's quest via
             # the personalization wizard. True for every child the parent is
             # verified against — managed dependents AND approved
-            # parent_student_links — which is exactly what verify_parent_access
-            # above already enforced. Kept as its own flag rather than reusing
+            # parent_student_links — which is exactly what the route's
+            # @require_relationship_to gate already enforced. Kept as its own flag rather than reusing
             # is_dependent because that one still gates the destructive controls
             # (delete task, mark complete), which stay dependent-only.
             'can_add_tasks': True,

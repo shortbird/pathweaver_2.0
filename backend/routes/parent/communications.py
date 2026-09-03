@@ -9,7 +9,6 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.logger import get_logger
-from .dashboard_overview import verify_parent_access
 from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
@@ -30,7 +29,6 @@ def get_all_student_conversations(user_id, student_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         conversations = []
 
@@ -127,7 +125,6 @@ def get_student_dm_conversations(user_id, student_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         # Get DM conversations
         dm_convos_p1 = supabase.table('message_conversations').select('''
@@ -180,7 +177,6 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         # Verify student is a participant in this conversation
         conversation = supabase.table('message_conversations').select('*').eq('id', conversation_id).single().execute()
@@ -230,7 +226,6 @@ def get_student_group_conversations(user_id, student_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         group_memberships = supabase.table('group_members').select('''
             group_id, joined_at,
@@ -270,7 +265,6 @@ def get_student_group_messages(user_id, student_id, group_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         # Verify student is a member of this group
         membership = supabase.table('group_members').select('id').eq('group_id', group_id).eq('user_id', student_id).execute()
@@ -318,7 +312,6 @@ def get_student_tutor_conversations(user_id, student_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         conversations = supabase.table('tutor_conversations').select('''
             id, title, conversation_mode, quest_id, task_id, created_at, updated_at, last_message_at, message_count
@@ -346,7 +339,6 @@ def get_student_tutor_messages(user_id, student_id, conversation_id):
     try:
         # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H4: private messages, guardians only
 
         # Verify the conversation belongs to this student
         conversation = supabase.table('tutor_conversations').select('id, user_id, title, conversation_mode').eq('id', conversation_id).single().execute()
