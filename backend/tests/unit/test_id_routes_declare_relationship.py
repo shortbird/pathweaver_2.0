@@ -63,49 +63,14 @@ def _reviewed(reason, *endpoints):
         REVIEWED_2026_09_03[ep] = reason
 
 
-# --- parent -> child: one shared helper, and it distinguishes read from write -
-_reviewed(
-    'verify_parent_access(supabase, caller, student) in routes/parent/_shared; '
-    'the write and private-message paths pass allow_observer=False (IDOR-H4/H5)',
-    'parent_analytics_insights.get_encouragement_tips',
-    'parent_analytics_insights.get_learning_insights',
-    'parent_analytics_insights.get_student_communications',
-    'parent_analytics_insights.get_student_progress',
-    'parent_child_overview.get_child_overview',
-    'parent_child_overview.upload_child_avatar',
-    'parent_child_profile.update_child_name',
-    'parent_communications.get_all_student_conversations',
-    'parent_communications.get_student_dm_conversations',
-    'parent_communications.get_student_dm_messages',
-    'parent_communications.get_student_group_conversations',
-    'parent_communications.get_student_group_messages',
-    'parent_communications.get_student_tutor_conversations',
-    'parent_communications.get_student_tutor_messages',
-    'parent_dashboard_overview.get_parent_dashboard',
-    'parent_evidence_view.get_recent_completions',
-    'parent_evidence_view.get_task_details',
-    'parent_student_engagement.get_student_engagement',
-)
-_reviewed(
-    'verify_parent_access(..., child_id) in routes/parent/_shared; write paths '
-    'pass allow_observer=False, read paths admit linked observers',
-    'parent_learning_moments.assign_child_moment_to_topic',
-    'parent_learning_moments.create_child_learning_moment',
-    'parent_learning_moments.create_child_topic',
-    'parent_learning_moments.delete_child_learning_moment',
-    'parent_learning_moments.finalize_moment_block_signed_upload',
-    'parent_learning_moments.finalize_moment_signed_upload',
-    'parent_learning_moments.get_child_learning_moments',
-    'parent_learning_moments.get_child_topic_detail',
-    'parent_learning_moments.get_child_topic_suggestions',
-    'parent_learning_moments.get_child_topics',
-    'parent_learning_moments.init_moment_block_signed_upload',
-    'parent_learning_moments.init_moment_signed_upload',
-    'parent_learning_moments.save_child_moment_evidence',
-    'parent_learning_moments.update_child_learning_moment',
-    'parent_learning_moments.upload_child_moment_file',
-    'parent_learning_moments.upload_moment_media',
-)
+# --- parent -> child ---------------------------------------------------------
+# MIGRATED 2026-09-03: routes/parent/* (34 routes, 8 modules) now declare
+# @require_relationship_to. Read paths allow ('parent', 'observer'); write and
+# private-message paths allow ('parent',) alone -- exactly the split
+# verify_parent_access already made via allow_observer (IDOR-H4/H5). The helper
+# stays as the precise inner check; the decorator is the structural declaration.
+# dependents.* below is NOT migrated: it checks managed_by_parent_id directly
+# rather than going through verify_parent_access.
 _reviewed(
     'parent ownership of the dependent is checked in the view against '
     'users.managed_by_parent_id before any read or write',

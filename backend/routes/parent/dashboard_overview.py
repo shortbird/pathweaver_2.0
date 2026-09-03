@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify
 from datetime import date, timedelta
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
@@ -115,6 +116,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
 
 @bp.route('/dashboard/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_parent_dashboard(user_id, student_id):
     """
     Get main parent dashboard data including learning rhythm, active quests, and summary.

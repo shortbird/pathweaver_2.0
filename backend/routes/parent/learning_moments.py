@@ -6,6 +6,7 @@ Also handles topic management (interest tracks) for children.
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, ValidationError
 from routes.parent.dashboard_overview import verify_parent_access
 from services.file_upload_service import FileUploadService
@@ -23,6 +24,7 @@ bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 
 @bp.route('/children/<child_id>/learning-moments', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def create_child_learning_moment(user_id, child_id):
     """
     Parent captures a learning moment for their child.
@@ -187,6 +189,7 @@ def create_child_learning_moment(user_id, child_id):
 
 @bp.route('/children/<child_id>/learning-moments/upload', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def upload_moment_media(user_id, child_id):
     """
     Upload photo or document for a learning moment.
@@ -240,6 +243,7 @@ def upload_moment_media(user_id, child_id):
 
 @bp.route('/children/<child_id>/learning-moments/upload-init', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def init_moment_signed_upload(user_id, child_id):
     """Begin a signed upload for a learning-moment media file (parent capturing for child)."""
     try:
@@ -279,6 +283,7 @@ def init_moment_signed_upload(user_id, child_id):
 
 @bp.route('/children/<child_id>/learning-moments/upload-finalize', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def finalize_moment_signed_upload(user_id, child_id):
     """Finalize a signed upload for a learning-moment media file."""
     try:
@@ -336,6 +341,7 @@ def finalize_moment_signed_upload(user_id, child_id):
 
 @bp.route('/children/<child_id>/learning-moments', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent', 'observer'))
 def get_child_learning_moments(user_id, child_id):
     """
     Get learning moments for a child (parent view).
@@ -433,6 +439,7 @@ def get_child_learning_moments(user_id, child_id):
 
 @bp.route('/children/<child_id>/topics', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent', 'observer'))
 def get_child_topics(user_id, child_id):
     """
     Get unified topics (interest tracks + active quests) for a child.
@@ -478,6 +485,7 @@ def get_child_topics(user_id, child_id):
 
 @bp.route('/children/<child_id>/topics', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def create_child_topic(user_id, child_id):
     """
     Parent creates an interest track (topic) for their child.
@@ -570,6 +578,7 @@ def create_child_topic(user_id, child_id):
 
 @bp.route('/children/<child_id>/topics/suggestions', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent', 'observer'))
 def get_child_topic_suggestions(user_id, child_id):
     """
     Get AI-suggested topics based on child's unassigned moments.
@@ -611,6 +620,7 @@ def get_child_topic_suggestions(user_id, child_id):
 
 @bp.route('/children/<child_id>/topics/<track_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent', 'observer'))
 def get_child_topic_detail(user_id, child_id, track_id):
     """
     Get a specific topic (interest track) with its moments for a child.
@@ -664,6 +674,7 @@ def get_child_topic_detail(user_id, child_id, track_id):
 
 @bp.route('/children/<child_id>/learning-events/<moment_id>/assign-topic', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def assign_child_moment_to_topic(user_id, child_id, moment_id):
     """
     Parent assigns a child's learning moment to a track or quest.
@@ -736,6 +747,7 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>', methods=['PUT'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def update_child_learning_moment(user_id, child_id, moment_id):
     """
     Parent updates a learning moment for their child.
@@ -879,6 +891,7 @@ def update_child_learning_moment(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>', methods=['DELETE'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def delete_child_learning_moment(user_id, child_id, moment_id):
     """
     Parent deletes a learning moment they captured for their child.
@@ -966,6 +979,7 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>/evidence', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def save_child_moment_evidence(user_id, child_id, moment_id):
     """
     Parent saves evidence blocks for a learning moment they captured.
@@ -1089,6 +1103,7 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>/upload', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def upload_child_moment_file(user_id, child_id, moment_id):
     """
     Parent uploads a file for a learning moment evidence block.
@@ -1168,6 +1183,7 @@ def upload_child_moment_file(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>/upload-init', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def init_moment_block_signed_upload(user_id, child_id, moment_id):
     """Begin a signed upload for a file attached to a specific learning moment."""
     try:
@@ -1219,6 +1235,7 @@ def init_moment_block_signed_upload(user_id, child_id, moment_id):
 
 @bp.route('/children/<child_id>/learning-moments/<moment_id>/upload-finalize', methods=['POST'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def finalize_moment_block_signed_upload(user_id, child_id, moment_id):
     """Finalize a signed upload for a file attached to a specific learning moment."""
     try:

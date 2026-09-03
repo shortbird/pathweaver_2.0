@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, request
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, ValidationError
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
@@ -39,6 +40,7 @@ MAX_NAME_LENGTH = 100
 @bp.route('/children/<student_id>/name', methods=['PUT'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def update_child_name(user_id: str, student_id: str):
     """Correct a child's first and last name.
 

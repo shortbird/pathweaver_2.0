@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify
 from datetime import datetime, date, timedelta
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
@@ -22,6 +23,7 @@ bp = Blueprint('parent_analytics_insights', __name__, url_prefix='/api/parent')
 
 @bp.route('/progress/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_student_progress(user_id, student_id):
     """
     Get student's XP breakdown by pillar, achievements, and streak.
@@ -103,6 +105,7 @@ def get_student_progress(user_id, student_id):
 
 @bp.route('/insights/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_learning_insights(user_id, student_id):
     """
     Get learning insights: time patterns, pillar preferences, completion velocity.
@@ -277,6 +280,7 @@ def get_learning_insights(user_id, student_id):
 
 @bp.route('/communications/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_communications(user_id, student_id):
     """
     Get student's tutor conversations with safety monitoring.
@@ -356,6 +360,7 @@ def get_student_communications(user_id, student_id):
 
 @bp.route('/encouragement-tips/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_encouragement_tips(user_id, student_id):
     """
     Get context-aware process-focused encouragement tips for parents.

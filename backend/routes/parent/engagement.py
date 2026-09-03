@@ -6,6 +6,7 @@ Provides rhythm/engagement metrics for a student, viewable by their parent.
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from datetime import datetime, timedelta, date as date_type
 from .dashboard_overview import verify_parent_access
@@ -128,6 +129,7 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
 
 @bp.route('/<student_id>/engagement', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_student_engagement(user_id: str, student_id: str):
     """
     Get engagement metrics for a student, viewable by their parent.

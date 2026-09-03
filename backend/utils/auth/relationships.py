@@ -182,9 +182,6 @@ def require_relationship_to(param: str, allow: Sequence[str]):
                              'not receive it', request.path, param)
                 raise AuthorizationError('Not authorized')
 
-            if _is_platform_staff(caller_id):
-                return f(*args, **kwargs)
-
             for name in allow:
                 try:
                     if RELATIONSHIPS[name](caller_id, target_id):
@@ -195,6 +192,15 @@ def require_relationship_to(param: str, allow: Sequence[str]):
                     # become an allow.
                     logger.exception('relationship gate: %r check failed on %s',
                                      name, request.path)
+
+            # Staff last, not first. It is an OR, so the order cannot change
+            # the answer -- only the cost. Checking it first spent a users
+            # lookup on every request from the parent or teacher who makes up
+            # essentially all of this traffic, to answer a question that is
+            # False for all of them. Now only a caller who has already failed
+            # every declared relationship pays for it.
+            if _is_platform_staff(caller_id):
+                return f(*args, **kwargs)
 
             raise AuthorizationError('Not authorized to access this student')
 

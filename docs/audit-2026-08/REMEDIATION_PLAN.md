@@ -347,10 +347,10 @@ Log:
   grants with allow_observer=True. The inner call stays as the precise check;
   the decorator is the structural outer gate, so the migration cannot narrow
   access for anyone who works today. Allowlist is now 163.
-  Remaining, in descending size: parent/learning_moments (16), dependents
-  (12), admin/transcript_generator (10), sis/__init__ (8), sis/parent (8),
-  advisor/learning_moments (7), parent/communications (7), portfolio (7),
-  oea (6), then a long tail of 1-5.
+  Remaining after the parent cluster, in descending size: dependents (12),
+  admin/transcript_generator (10), sis/__init__ (8), sis/parent (8),
+  advisor/learning_moments (7), portfolio (7), oea (6), admin/transfer_credits
+  (5), then a long tail of 1-4.
 
   Also fixed here: the new module's `from middleware.error_handler import ...`
   tripped test_import_layers (utils -> middleware, baseline 12 -> 13). Did not
@@ -360,6 +360,56 @@ Log:
 
   Tests: 4713 passed, 160 skipped, 0 failed (full backend suite, CI env).
   pyflakes undefined-name gate clean.
+- 2026-09-03: (c) continues — the whole `routes/parent/*` cluster migrated, 34
+  routes across 8 modules. Allowlist 163 -> 129; declared 3 -> 37.
+
+  The mapping is verify_parent_access's own allow_observer split, made
+  declarative: read paths get `allow=('parent', 'observer')` (15 routes), write
+  and private-message paths get `allow=('parent',)` (22 routes) — the IDOR-H4/H5
+  distinction, which was previously a keyword argument buried in the body.
+
+  EQUIVALENCE CHECKED AGAINST PRODUCTION, not assumed. The decorator is an
+  OUTER gate over a helper that still runs, so it may not be narrower than
+  verify_parent_access anywhere. Three places where it is wider on paper:
+    - is_parent_of accepts parent_student_links status in ('approved','active'),
+      verify_parent_access only 'approved'. Prod has 131 links, ALL 'approved' —
+      no divergence exists.
+    - is_parent_of matches managed_by_parent_id without also requiring
+      is_dependent. Prod: 238 rows carry managed_by_parent_id and every one has
+      is_dependent = true, so no divergence. promote_dependent_to_independent
+      clears BOTH fields together, which is why.
+    - platform staff qualify by designated email as well as superadmin role.
+      Deliberate, and matches can_view_portfolio.
+  So on real data the two gates are exactly equivalent today.
+
+  PERF, found while doing this: _is_platform_staff ran FIRST, spending a users
+  lookup on every request to answer a question that is False for the parents and
+  teachers who are essentially all of this traffic. It is an OR, so order cannot
+  change the answer — only the cost. Moved to the deny path: a caller who
+  matched a declared relationship never pays for it now.
+
+  TEST PATTERN, which will recur across the remaining 129. Two gates means two
+  grants, and 14 tests failed because they satisfied only the inner one. Fixed
+  two ways, both of which keep the tests' intent:
+    - Full-stack tests through the Flask client (test_signed_upload_routes):
+      patch `utils.portfolio_access.is_parent_of` alongside the existing
+      verify_parent_access patch. The gate genuinely applies there.
+    - Tests that call the view directly through `__wrapped__` to bypass auth
+      (test_parent_child_name): unwrap the whole stack in a loop instead of one
+      layer. They deliberately test view logic rather than gates, and the gate
+      has its own tests.
+
+  OPEN QUESTION FOR THE USER — should migration REMOVE the inner check? Right
+  now each migrated route runs both, which is redundant on the evidence above
+  and costs 2-4 extra queries per request. Collapsing to the decorator alone
+  would make it genuinely load-bearing (a gate that guards nothing is the SEC-01
+  failure mode), halve the auth queries on the parent dashboard, and remove the
+  two-grant test friction. It is not done here because deleting a working check
+  from 34 security-sensitive routes is a decision to take deliberately, not to
+  fold into a migration commit. Recommendation: yes, collapse — but as its own
+  reviewed change, per module, after the migration has covered more ground.
+
+  Tests: 4713 passed, 160 skipped, 0 failed. pyflakes clean.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[TODO]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

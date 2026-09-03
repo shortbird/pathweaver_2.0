@@ -13,9 +13,15 @@ What these tests pin:
   - it writes first_name, last_name and a display_name derived from them, and
     nothing else — no role, email, or organization can ride along.
 
-The view is called through its undecorated __wrapped__ with an explicit
-user_id, which is what @require_auth would have injected; a real Flask request
-context supplies the body.
+The view is called fully undecorated, with an explicit user_id -- which is what
+@require_auth would have injected; a real Flask request context supplies the
+body. Unwrapping is a loop rather than a single __wrapped__ because SEC-10 added
+@require_relationship_to('student_id', allow=('parent',)) to this route, so the
+stack is three deep now. That gate resolves the guardian link against the
+database for real, which no unit test should need a connection for; it has its
+own tests in tests/unit/test_require_relationship_to.py, and
+tests/unit/test_id_routes_declare_relationship.py proves this route still
+declares it. What is pinned HERE is the inner check and the write payload.
 """
 
 import json
@@ -32,8 +38,15 @@ from routes.parent import child_profile
 PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 CHILD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
-# The view under test, without @require_auth / @validate_uuid_param.
-view = child_profile.update_child_name.__wrapped__
+# The view under test, without @require_auth / @validate_uuid_param /
+# @require_relationship_to.
+def _undecorated(fn):
+    while hasattr(fn, '__wrapped__'):
+        fn = fn.__wrapped__
+    return fn
+
+
+view = _undecorated(child_profile.update_child_name)
 
 
 def _supabase_capturing_update(captured):

@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify
 from datetime import datetime, date, timedelta
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
@@ -28,6 +29,7 @@ bp = Blueprint('parent_evidence_view', __name__, url_prefix='/api/parent')
 
 @bp.route('/task/<student_id>/<task_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_task_details(user_id, student_id, task_id):
     """
     Get detailed task information including evidence for parent viewing.
@@ -136,6 +138,7 @@ def get_task_details(user_id, student_id, task_id):
 
 @bp.route('/completions/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_recent_completions(user_id, student_id):
     """
     Get recent task completions with evidence for parent viewing.

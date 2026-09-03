@@ -6,6 +6,7 @@ Part of org feedback features (February 2026).
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.logger import get_logger
 from .dashboard_overview import verify_parent_access
@@ -19,6 +20,7 @@ bp = Blueprint('parent_communications', __name__, url_prefix='/api/parent')
 @bp.route('/student/<student_id>/conversations/all', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_all_student_conversations(user_id, student_id):
     """
     Get unified list of all conversation types for a student.
@@ -119,6 +121,7 @@ def get_all_student_conversations(user_id, student_id):
 @bp.route('/student/<student_id>/dm-conversations', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_dm_conversations(user_id, student_id):
     """Get all DM conversations for a student (read-only for parent)."""
     try:
@@ -171,6 +174,7 @@ def get_student_dm_conversations(user_id, student_id):
 @bp.route('/student/<student_id>/dm-conversations/<conversation_id>/messages', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id', 'conversation_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_dm_messages(user_id, student_id, conversation_id):
     """Get messages for a specific DM conversation (read-only for parent)."""
     try:
@@ -220,6 +224,7 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
 @bp.route('/student/<student_id>/group-conversations', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_group_conversations(user_id, student_id):
     """Get all group conversations for a student (read-only for parent)."""
     try:
@@ -259,6 +264,7 @@ def get_student_group_conversations(user_id, student_id):
 @bp.route('/student/<student_id>/group-conversations/<group_id>/messages', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id', 'group_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_group_messages(user_id, student_id, group_id):
     """Get messages for a specific group conversation (read-only for parent)."""
     try:
@@ -306,6 +312,7 @@ def get_student_group_messages(user_id, student_id, group_id):
 @bp.route('/student/<student_id>/tutor-conversations', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_tutor_conversations(user_id, student_id):
     """Get all AI tutor conversations for a student (read-only for parent)."""
     try:
@@ -333,6 +340,7 @@ def get_student_tutor_conversations(user_id, student_id):
 @bp.route('/student/<student_id>/tutor-conversations/<conversation_id>/messages', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id', 'conversation_id')
+@require_relationship_to('student_id', allow=('parent',))
 def get_student_tutor_messages(user_id, student_id, conversation_id):
     """Get messages for a specific AI tutor conversation (read-only for parent)."""
     try:

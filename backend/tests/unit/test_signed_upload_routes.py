@@ -121,6 +121,13 @@ def mock_parent_admin():
     ), patch(
         "routes.parent.learning_moments.verify_parent_access",
         return_value=None,
+    ), patch(
+        # These routes also carry @require_relationship_to('child_id',
+        # allow=('parent',)) since SEC-10, and it resolves the guardian link for
+        # real rather than through the helper above. Same grant, stated twice
+        # because there are now two gates.
+        "utils.portfolio_access.is_parent_of",
+        return_value=True,
     ):
         yield admin
 

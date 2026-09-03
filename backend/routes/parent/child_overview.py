@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError, ValidationError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
@@ -52,6 +53,7 @@ def map_pillar_name_to_id(pillar_name):
 
 @bp.route('/child-overview/<student_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'observer'))
 def get_child_overview(user_id, student_id):
     """
     Get consolidated overview data for a child, matching StudentOverviewPage format.
@@ -790,6 +792,7 @@ def get_child_overview(user_id, student_id):
 @bp.route('/child/<child_id>/avatar', methods=['POST'])
 @require_auth
 @validate_uuid_param('child_id')
+@require_relationship_to('child_id', allow=('parent',))
 def upload_child_avatar(user_id, child_id):
     """
     Upload avatar image for a child (works for both dependents AND linked students).
