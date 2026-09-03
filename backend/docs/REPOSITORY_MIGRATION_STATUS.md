@@ -1,17 +1,53 @@
 # Repository Pattern Migration Status
 
-## Overview
-This document tracks the progress of migrating route files from direct database access to the repository pattern, as part of Phase 3 architecture consolidation (January 2025).
+## Where this actually stands (measured 2026-09-03)
 
-**Status**: ✅ **MIGRATION COMPLETE** (December 18, 2025)
+**Status: NOT complete, and deliberately fenced rather than finished.**
 
-The repository migration is now **complete** with a pragmatic approach:
-- 4 files fully migrated to repository pattern (tasks.py, settings.py, helper_evidence.py, community.py)
-- 32 files use service layer pattern (no migration needed)
-- Remaining files correctly use direct DB access for valid architectural reasons (pagination, aggregation, complex queries)
-- Repository pattern established and enforced for all NEW code going forward
+This document said "✅ MIGRATION COMPLETE (December 18, 2025)" and claimed 25.4%
+"final pattern adherence" — a number that described 4 migrated files plus 32
+that use a service layer, counted as if a service layer were the same thing.
+Anyone reading it would conclude the work was done. It is not, and the gap is
+large enough that saying so matters more than the history below.
 
-**Final Pattern Adherence**: 25.4% (5.4% direct repository migration + 20% service layer)
+Counted from the tree, not estimated:
+
+| | Count |
+|---|---|
+| Route files | 267 |
+| …that import or instantiate a repository | 32 |
+| …that make a direct `.table(...)` call | 196 |
+| …that do **both** | 26 |
+| Repositories on disk | 33 |
+| Direct `.table(...)` calls in `routes/` | 2339 |
+| Direct `.table(...)` calls in `services/` | 1779 |
+
+So roughly 12% of route files touch a repository at all, and 26 of those 32 also
+still query directly — the pattern is present in a file far more often than it
+owns that file's data access.
+
+## What is being done about it
+
+Finishing the migration is a real project and it has not been funded. The
+decision is open as **QB-06** in the 2026-08 audit remediation plan: fence the
+pattern where it is, or fund the full migration.
+
+Until that is answered, the debt is **fenced, not fixed**:
+
+- `backend/tests/unit/test_direct_db_calls_do_not_grow.py` (CI-02) holds a
+  per-layer baseline of direct `.table(...)` calls and fails the build when
+  `routes/` or `services/` climbs. New code has to go through a repository, or a
+  reviewer has to be told why not. Existing debt is untouched.
+- The baselines ratchet DOWN as code migrates. They are never raised for
+  `routes/` or `services/`.
+
+**For new code the rule is unchanged and is now enforced:** reach the database
+through a repository. See `backend/docs/REPOSITORY_PATTERN.md`.
+
+---
+
+The per-file history below is kept as a record of what was migrated and when. It
+is accurate about those files; it was the summary above it that was not.
 
 ## Completed Migrations
 

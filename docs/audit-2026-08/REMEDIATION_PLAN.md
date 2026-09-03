@@ -766,7 +766,7 @@ Accept: both steps enforcing in the reusable workflow (gates PR and release).
 Log:
 - 2026-08-31: Plan created.
 
-### CI-02 — Stop the layering bleed: ratchet direct DB calls in `routes/` `[TODO]`
+### CI-02 — Stop the layering bleed: ratchet direct DB calls in `routes/` `[DONE]`
 ~2,317 `.table(` calls in routes today. Add a guard test that counts direct
 Supabase table calls per layer and fails on *increase* over a checked-in baseline
 (ratchet down as migrations happen). This fences the repository-pattern debt
@@ -774,6 +774,16 @@ without funding the full migration (see QB-06).
 Accept: ratchet test enforcing; baseline file committed.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: `tests/unit/test_direct_db_calls_do_not_grow.py`. Per-LAYER
+  baselines rather than one total, because the layers mean different things: a
+  `.table(...)` in routes/ or services/ is the violation, in repositories/ it is
+  the design. Measured 2026-09-03: routes 2339, services 1779, repositories 406,
+  utils 128, jobs 7, middleware 3, modules 1 (4663 total — the plan's ~2317 was
+  routes/ alone).
+  It asks nobody to migrate anything; it asks that the number stop climbing
+  while QB-06 is open. Verified with a planted route: "grew from 2339 to 2340",
+  build red. Carries a floor assertion so a broken scan cannot pass as a clean
+  codebase.
 
 ### CI-03 — `no-console` is configured but not enforced; 33 console.logs live `[TODO]`
 Run eslint in `tests-web.yml` (enforcing), remove the 33 `console.log` calls in
@@ -813,11 +823,21 @@ Log:
 
 ## Phase 3 — Documentation truth reconciliation
 
-### DOC-01 — `REPOSITORY_MIGRATION_STATUS.md` claims complete at ~9% adherence `[TODO]`
+### DOC-01 — `REPOSITORY_MIGRATION_STATUS.md` claims complete at ~9% adherence `[DONE]`
 Rewrite to state measured reality (counts from the audit; re-measure), the
 fencing strategy (CI-02), and what "done" now means.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: The doc led with "✅ MIGRATION COMPLETE (December 18, 2025)" and
+  "Final Pattern Adherence: 25.4%" — a figure built from 4 migrated files plus 32
+  that use a service layer, counted as though a service layer were the same
+  thing. Replaced the summary with counts taken from the tree: 267 route files,
+  32 touching a repository at all, 196 making direct `.table(...)` calls, and 26
+  doing both — so the pattern is present in a file far more often than it owns
+  that file's data access. Also records that the debt is FENCED by CI-02 rather
+  than fixed, and that QB-06 is the open decision. The per-file history below
+  the summary is kept; it was accurate about those files, and it was the
+  headline above it that was not.
 
 ### DOC-02 — Integration-test status drift in three artifacts `[DONE]`
 `ci.yml` comment ("44 tests… quarantined"), `backend/pytest.ini` marker doc
