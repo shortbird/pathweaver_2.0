@@ -1,3 +1,19 @@
+# ⚠ NOT INSTALLED BY ANYTHING. Render installs the ROOT requirements.txt
+# (render.yaml rootDir "" + `pip install -r requirements.txt`), CI installs the
+# root file, and pip-audit audits the root file. This one is a leftover of the
+# pre-2026 layout and it has DIVERGED: it carries bare `>=` floors for supabase,
+# openai, stripe, lxml, pillow and others where root pins exact versions, and it
+# omits Pillow, WTForms and StrEnum entirely.
+#
+# Following CLAUDE.md's local-setup path and installing THIS file gets you a
+# resolved set that CI never audits and prod never runs (AUDIT.md L1). On this
+# machine that is not hypothetical: it resolved openai 2.36, stripe 15.1 and
+# supabase 2.30 against prod's 1.101, 9.12 and 2.18.
+#
+# It is kept rather than deleted only because deleting a file two years of docs
+# point at is its own kind of surprise. Add new backend dependencies to the ROOT
+# file. If you install anything, install the root file.
+#
 # H8: pinned versions clear CVEs across Flask/Flask-Cors/Werkzeug/gunicorn +
 # transport/crypto libs (requests, PyJWT, cryptography). Crypto libs pinned
 # exactly (== not >=) for reproducible prod builds.

@@ -1,3 +1,16 @@
+# THE DEPLOYED MANIFEST. Render installs this file (render.yaml rootDir "" +
+# `pip install -r requirements.txt`), CI installs this file, and pip-audit
+# audits this file. backend/requirements.txt is installed by NOBODY -- see the
+# note at the top of it.
+#
+# EVERY SPEC IS BOUNDED ABOVE (SEC-17). A bare `>=` floor means the next `pip
+# install` can resolve a major version nobody has run, on a build that has no
+# lockfile to fall back to -- and the first place that shows up is production,
+# because Render resolves at build time. Upper bounds were added 2026-09-03 at
+# the next major above what the deploy already resolves, so nothing moved.
+# tests/unit/test_requirements_are_bounded.py fails the build on a new
+# unbounded spec.
+
 # Flask and Web Server
 # DEP-H1/H2/M1/M4: these versions are aligned with the CI-tested
 # backend/requirements.txt so the DEPLOYED set matches the AUDITED set.
@@ -38,15 +51,15 @@ stripe==9.12.0
 # NOTE: this ROOT requirements.txt is what the Render build installs
 # (startCommand: cd backend && gunicorn ...) — backend/requirements.txt is
 # NOT used by the deploy. New backend deps must be added HERE.
-sentry-sdk[flask]>=2.0.0
+sentry-sdk[flask]>=2.0.0,<3
 
 # Web Push Notifications
-pywebpush>=1.14.0
+pywebpush>=1.14.0,<3
 
 # Product analytics — DEP-M4: the backend imports `posthog`, but it was missing
 # from this DEPLOYED requirements file, so PostHog tracking was silently dead in
 # prod. Matches backend/requirements.txt.
-posthog>=3.5.0
+posthog>=3.5.0,<8
 
 # Utilities
 python-dateutil==2.9.0.post0
@@ -57,13 +70,13 @@ psutil==6.1.0
 PyYAML==6.0.1  # Email copy configuration
 beautifulsoup4==4.12.3  # HTML parsing for Khan Academy scraper
 lxml==6.1.0  # Fast XML/HTML parser for BeautifulSoup
-Pillow>=10.0.0  # Image processing for curriculum images
-pillow-heif>=0.18.0  # HEIF/HEIC support for Pillow (iPhone photos)
+Pillow>=10.0.0,<13  # Image processing for curriculum images
+pillow-heif>=0.18.0,<2  # HEIF/HEIC support for Pillow (iPhone photos)
 
 # Document Parsing (AI Curriculum Upload)
-pdfplumber>=0.10.0  # PDF parsing with layout awareness
-python-docx>=1.1.0  # Word document parsing
-PyMuPDF>=1.23.0  # PDF image stripping for large curriculum files
+pdfplumber>=0.10.0,<1  # PDF parsing with layout awareness
+python-docx>=1.1.0,<2  # Word document parsing
+PyMuPDF>=1.23.0,<2  # PDF image stripping for large curriculum files
 
 # Testing
 pytest==8.3.4

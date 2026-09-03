@@ -1244,7 +1244,7 @@ Log:
 
   ruff clean, mypy clean. Tests: 4834 passed, 160 skipped, 0 failed.
 
-### SEC-17 — 27 unbounded backend deps, no lockfile `[TODO]`
+### SEC-17 — 27 unbounded backend deps, no lockfile `[DONE(bounds + guard; a real lock is still open)]`
 `backend/requirements.txt`. Fix: introduce a compiled lock/constraints file
 (pip-compile), point CI installs at it, and document how Render's build uses it
 (root requirements.txt is what Render installs — keep it, add constraints).
@@ -1253,6 +1253,45 @@ Upper-bound the risky unbounded specs (`supabase`, `stripe`, `lxml`, `pillow`,
 Accept: reproducible install in CI; pip-audit still green.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Bounded the DEPLOYED manifest and fenced it. A compiled lock is
+  NOT done — see the honest limit at the end.
+
+  Verified where the risk actually is first, and the finding needed correcting.
+  The 27 unbounded specs are in `backend/requirements.txt`, which **nothing
+  installs**: Render installs the ROOT `requirements.txt` (render.yaml rootDir
+  "" ), CI installs the root file, and pip-audit audits the root file. So those
+  27 do not reach production at all. The root file had 8 unbounded specs, and
+  those are the ones that could move under a deploy.
+
+  All 8 now carry an upper bound at the next major above what the deploy
+  already resolves — sentry-sdk<3, pywebpush<3, posthog<8, Pillow<13,
+  pillow-heif<2, pdfplumber<1, python-docx<2, PyMuPDF<2. Checked each against
+  the current release on PyPI so the bound is a ceiling, not a downgrade, and
+  confirmed the file still resolves. Nothing moves today.
+
+  WHY THIS MATTERS MORE THAN IT LOOKS: Render resolves at BUILD time and there
+  is no lockfile, so an unbounded spec is a major-version upgrade that happens
+  on a deploy nobody connected to it, and production is where it first runs.
+
+  The stale manifest keeps its divergence but stops being a trap: a header now
+  says NOT INSTALLED BY ANYTHING and names the failure (AUDIT.md L1 — a
+  developer following CLAUDE.md's setup path installs a set CI never audits and
+  prod never runs). On this machine that is not hypothetical: it resolved
+  openai 2.36, stripe 15.1 and supabase 2.30 against prod's 1.101, 9.12 and
+  2.18. Kept rather than deleted only because deleting a file two years of docs
+  point at is its own surprise; a test asserts the header stays.
+
+  Guard: tests/unit/test_requirements_are_bounded.py, with an EMPTY allowlist
+  so the first future exception has to be argued for rather than inherited.
+
+  STILL OPEN, and the test says so rather than implying otherwise: an upper
+  bound is not a lockfile. The blast radius of an unattended resolve is now a
+  minor rather than a major, which is the difference between a bump and an
+  outage — but reproducible-to-the-hash needs `pip-compile` against Python
+  3.11, and this machine runs 3.13, so a lock generated here would pin
+  resolutions the deploy cannot use. That wants doing in CI.
+
+  ruff clean, mypy clean. Tests: 4843 passed, 160 skipped, 0 failed.
 
 ### SEC-18 — CSRF exemption list is a hand-edited name list `[TODO]` (low)
 `middleware/csrf_protection.py:72-145`, ~30 exempt endpoints, two prior outages
