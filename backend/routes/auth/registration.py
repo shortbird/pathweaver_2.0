@@ -9,6 +9,7 @@ Handles:
 """
 
 from flask import Blueprint, request, jsonify, make_response
+from app_config import Config
 from database import get_supabase_admin_client
 from utils.validation import (
     validate_registration_data,
@@ -192,8 +193,6 @@ def register():
         supabase = get_supabase_admin_client()
 
         # Sign up with Supabase Auth
-        from app_config import Config
-
         # Use standard redirect URL for email confirmation
         redirect_url = f"{Config.FRONTEND_URL}/login"
 

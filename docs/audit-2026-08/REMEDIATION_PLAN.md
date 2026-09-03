@@ -481,6 +481,8 @@ Log:
   because the planted offender failed to trip it. It now carries a floor
   assertion for exactly that failure, as SEC-13's does.
   Tests: 4718 passed, 0 failed. ruff clean, mypy clean.
+- 2026-09-03: The registration.py `Config` note above is now FU-01, and its
+  "unreachable again now" read was wrong — see that item. Fixed there.
 
 ### SEC-12 — OAuth provider mints full-privilege session tokens, scope decorative `[TODO]`
 `routes/auth/oauth.py:302,372` issue first-party session tokens; no consent UI;
@@ -1155,6 +1157,80 @@ Three carried ignores (flask-cors, pyjwt, pytest) — re-check whether fixed
 versions now exist; drop stale suppressions.
 Log:
 - 2026-08-31: Plan created.
+
+---
+
+## Phase 8 — Follow-ups found while doing the remediation
+
+Not from the 2026-08-31 audit. Each was found by a session working an item above,
+recorded in that item's Log, and left alone at the time to keep one item to one
+commit. They are tracked here so they do not evaporate.
+
+### FU-01 — `registration.py` reads `Config` from a scope that may not be bound `[DONE]`
+Found by SEC-11. `routes/auth/registration.py` imported `Config` inside
+`register()` and read it from that function's `except Exception` handler. A
+function-local import makes the name local for the whole function, so any path
+raising before the import reached the handler unbound.
+Accept: import hoisted; guard test bans the shape.
+Log:
+- 2026-09-03: Verified still live. `register()` is one try spanning lines
+  119-570; the import sat at line 195 and the handler read `Config.FLASK_ENV`
+  at 568. Reachable: the handler's known-error branches all `raise`, so any
+  early exception whose message matched none of them fell through to that line
+  and raised UnboundLocalError instead — the caller gets a 500 from the wrong
+  place and Sentry groups on the UnboundLocalError, losing the real cause. The
+  earlier note that it was "unreachable again now" was wrong; the reachable
+  window is every unexpected failure in the ~75 lines of validation before the
+  import.
+  Fix: hoisted `from app_config import Config` to module scope, which is what
+  password.py, token_delivery.py, google_oauth.py and login/security.py already
+  do. Guard: tests/unit/test_lazy_import_not_used_in_handler.py — a function-
+  local import in a try body, read from that try's handler or finally. Proven
+  against the real pre-fix file (it reports Config, 195, 568), and it correctly
+  passes password.py's two handlers that import `traceback` for themselves and
+  an `else:` branch, which is guaranteed-bound.
+  NOT guarded, deliberately: ordinary assignments made in a try and read from
+  its handler. Safety there depends on where the first raising statement is,
+  which needs flow analysis. Measured anyway — 11 sites — and triaged each:
+  all bind before anything can raise, except
+  services/student_ai_assistant_service.py which guards with
+  `if 'response_text' in locals()`. The test's docstring says so.
+  ruff/mypy clean; 4733 passed, 160 skipped, 0 failed.
+
+### FU-02 — `public.get_human_quest_performance` reads two dropped tables `[TODO]`
+The function body references `quest_ratings` and `quest_tasks_archived`, neither
+of which exists any more, so it cannot run. Decide between deleting it and
+rewriting it against the current schema — check for callers (backend, RPC from
+either frontend, Supabase dashboard saved queries) before either.
+Log:
+- 2026-09-03: Carried in from a prior session's notes. Not yet verified.
+
+### FU-03 — `public.bug_reports` is deny-all RLS with 356 rows `[TODO]`
+Found by SEC-14. RLS is on with zero policies, so the superadmin triage
+endpoints return an empty list rather than the reports. Route-level gating is
+already superadmin-only, so the honest fix is to give `BugReportRepository` the
+admin client (with the justification comment SEC-13's gate requires), not to add
+a policy that widens reach.
+Log:
+- 2026-09-03: Carried in from SEC-14's Log. Not yet verified against the current
+  repository code.
+
+### FU-04 — `[DIPLOMA]` and `[DEBUG]` traces log at WARNING in hot paths `[TODO]`
+Trace-level breadcrumbs emitted at WARNING, which is the level Sentry and the
+Render log filters treat as "someone should look". Drop them to DEBUG, or delete
+the ones that were scaffolding.
+Log:
+- 2026-09-03: Carried in from a prior session's notes. Not yet verified.
+
+### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[TODO]`
+Found by SEC-03. Parent -> dependent acting-as (`routes/dependents.py`
+`/<id>/act-as`, `/stop-acting-as`) has no cookie of its own: the token is
+returned in the body to every client and replayed as a Bearer. Masquerade was
+fixed by routing through `token_delivery`; this one cannot be until it has a
+cookie the way masquerade does. Allowlisted in `test_token_delivery.py` with
+that reason.
+Log:
+- 2026-09-03: Carried in from SEC-03's Log.
 
 ---
 
