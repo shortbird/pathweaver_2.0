@@ -14,7 +14,6 @@ from utils.auth.decorators import require_auth, require_admin
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 from utils.ai_access import require_ai_access
 from middleware.rate_limiter import rate_limit
-import json
 
 from utils.logger import get_logger
 
@@ -121,7 +120,6 @@ def generate_quest_from_topic(user_id: str):
 
     except Exception as e:
         logger.error(f"Error generating quest: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': 'Failed to generate quest'

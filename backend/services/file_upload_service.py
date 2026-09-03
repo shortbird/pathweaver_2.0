@@ -31,10 +31,10 @@ Usage:
 
 import io
 import uuid
-from typing import Optional, Dict, Any, Set, Tuple
+from typing import Optional, Set, Tuple
 from dataclasses import dataclass
 from werkzeug.utils import secure_filename
-from services.base_service import BaseService, ValidationError
+from services.base_service import BaseService
 from utils.logger import get_logger
 from utils.storage_urls import (
     PRIVATE_MEDIA_BUCKETS,

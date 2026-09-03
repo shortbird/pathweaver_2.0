@@ -12,7 +12,7 @@ org timezone and calls these.
   absent for a later class whose start time has already passed.
 """
 
-from datetime import time as dtime, timedelta, datetime, date
+from datetime import time as dtime, datetime, date
 from typing import Dict, List, Any, Optional
 
 

@@ -25,13 +25,11 @@ Once linked, connections are permanent.
 NOTE: Admin client usage justified throughout this file for parent-student linking operations.
 Managing parent-student relationships requires cross-user operations and elevated privileges.
 """
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from repositories import ParentRepository
-from utils.auth.decorators import require_auth, require_admin
-from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
-import logging
+from utils.auth.decorators import require_admin
+from middleware.error_handler import ValidationError, NotFoundError
 
 from utils.logger import get_logger
 

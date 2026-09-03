@@ -4,7 +4,6 @@ Evidence Document Repository - Database operations for multi-format evidence sys
 Handles user_task_evidence_documents and evidence_document_blocks tables.
 """
 
-import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError

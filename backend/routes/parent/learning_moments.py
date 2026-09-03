@@ -8,7 +8,6 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, ValidationError
-from services.file_upload_service import FileUploadService
 from services.interest_tracks_service import InterestTracksService
 from services.learning_events_service import LearningEventsService
 from services.portfolio_service import PortfolioService

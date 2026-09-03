@@ -4,7 +4,7 @@ Observer Module - Student Invitation Endpoints
 Endpoints for students to send, view, and manage observer invitations.
 """
 
-from flask import request, jsonify
+from flask import jsonify
 from datetime import datetime, timedelta
 import secrets
 import logging

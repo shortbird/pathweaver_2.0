@@ -8,7 +8,6 @@ Used to display friendly link titles instead of raw URLs.
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-import re
 from utils.logger import get_logger
 from utils.ssrf import safe_get, SSRFError
 

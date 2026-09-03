@@ -416,8 +416,6 @@ def backfill_quest_topics():
     Requires superadmin role.
     """
     try:
-        from utils.auth.decorators import require_role
-        from functools import wraps
 
         # Check for superadmin
         from utils.session_manager import session_manager

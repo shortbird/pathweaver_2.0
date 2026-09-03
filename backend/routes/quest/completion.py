@@ -6,9 +6,9 @@ Part of the quests.py refactoring (P2-ARCH-1).
 """
 
 import uuid
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify
 from datetime import datetime
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
@@ -664,7 +664,6 @@ def end_quest(user_id: str, quest_id: str):
 
     except Exception as e:
         logger.error(f"Error ending quest: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': str(e)

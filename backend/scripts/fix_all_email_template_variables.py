@@ -135,7 +135,7 @@ for template in result.data:
         print(f"✗ ERROR updating {template_key}: {e}")
 
 print(f"\n{'='*60}")
-print(f"SUMMARY:")
+print("SUMMARY:")
 print(f"  Updated: {updated_count} templates")
 print(f"  Skipped: {skipped_count} templates (already correct)")
 print(f"  Total: {len(result.data)} templates")

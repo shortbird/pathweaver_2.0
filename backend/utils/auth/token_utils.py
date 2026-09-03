@@ -54,7 +54,7 @@ def verify_token(token):
     try:
         user = get_user()
         return user.user.id if user.user else None
-    except Exception as e:
+    except Exception:
         # Token verification failed - log internally only
         return None
 
@@ -96,7 +96,7 @@ def decode_token(token: str) -> dict:
         # Decode without verification for debugging purposes
         payload = jwt.decode(token, options={"verify_signature": False})
         return payload
-    except Exception as e:
+    except Exception:
         # Token decode error - return None
         return None
 

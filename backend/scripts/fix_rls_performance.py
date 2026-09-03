@@ -24,8 +24,6 @@ logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_supabase_admin_client
-from supabase import create_client
-import json
 
 def main():
     """Fix RLS performance issues identified in supabase_warnings.json"""
@@ -156,16 +154,16 @@ def main():
             error_count += 1
             continue
 
-    logger.info(f"\nRLS Optimization Results:")
+    logger.info("\nRLS Optimization Results:")
     logger.info(f"   Successful optimizations: {success_count}")
     logger.error(f"   Failed optimizations: {error_count}")
 
     if error_count == 0:
-        logger.info(f"\nAll RLS policies have been optimized for performance!")
-        logger.info(f"   Auth function calls are now cached instead of re-evaluated per row.")
-        logger.info(f"   This should significantly improve query performance at scale.")
+        logger.info("\nAll RLS policies have been optimized for performance!")
+        logger.info("   Auth function calls are now cached instead of re-evaluated per row.")
+        logger.info("   This should significantly improve query performance at scale.")
     else:
-        logger.error(f"\nSome optimizations failed. Please review the errors above.")
+        logger.error("\nSome optimizations failed. Please review the errors above.")
 
     return success_count > 0
 

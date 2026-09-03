@@ -7,7 +7,6 @@ Students work with AI to create custom quests aligned with their interests.
 """
 
 import hashlib
-import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from app_config import Config
@@ -390,7 +389,7 @@ class PersonalizationService(BaseService):
                                               challenge_level=challenge_level)
 
             # Debug: Log pillar values AFTER validation
-            logger.info(f"[PERSONALIZATION] After validation:")
+            logger.info("[PERSONALIZATION] After validation:")
             for i, task in enumerate(tasks_data):
                 logger.info(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
@@ -421,7 +420,6 @@ class PersonalizationService(BaseService):
 
         except Exception as e:
             logger.error(f"Error generating task suggestions: {e}")
-            import traceback
             return {
                 'success': False,
                 'error': str(e)
@@ -866,7 +864,6 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
 
         except Exception as e:
             logger.error(f"Error finalizing personalization: {e}")
-            import traceback
             return {
                 'success': False,
                 'error': str(e)

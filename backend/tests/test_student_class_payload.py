@@ -10,7 +10,6 @@ endpoint simply never used it, and now does.
 Found 2026-08-18 while auditing what the new mobile class schedule sends.
 """
 
-import pytest
 
 import app  # noqa: F401 — import graph ordering
 from services.class_service import ClassService

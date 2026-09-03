@@ -103,7 +103,7 @@ def setup_e2e_test_data():
             print(f"   ✓ Selected quest: {quest_for_enrollment['title'][:50]} (personalization required)")
 
         # 4. Enroll user in one quest
-        print(f"\n3. Enrolling in quest...")
+        print("\n3. Enrolling in quest...")
         enrollment_data = {
             'user_id': user_id,
             'quest_id': quest_for_enrollment['id'],
@@ -120,7 +120,7 @@ def setup_e2e_test_data():
         print(f"   ✓ Enrolled in: {quest_for_enrollment['title'][:50]}")
 
         # 5. Copy preset tasks to user_quest_tasks (if course quest with tasks)
-        print(f"\n4. Setting up tasks for enrolled quest...")
+        print("\n4. Setting up tasks for enrolled quest...")
         tasks_created = 0
 
         if preset_tasks:
@@ -145,7 +145,7 @@ def setup_e2e_test_data():
                 tasks_created = len(user_tasks_data)
                 print(f"   ✓ Created {tasks_created} user tasks from preset tasks")
         else:
-            print(f"   ℹ Optio quest - tasks created via personalization")
+            print("   ℹ Optio quest - tasks created via personalization")
 
         # 6. Summary
         print("\n" + "=" * 60)
@@ -157,11 +157,11 @@ def setup_e2e_test_data():
         print(f"  - Quest type: {quest_for_enrollment.get('quest_type', 'optio')}")
         print(f"  - Tasks created: {tasks_created}")
         print(f"  - Unenrolled quests: {len(quests.data) - 1}")
-        print(f"  - Total XP: 0")
-        print(f"\nTests can now:")
-        print(f"  ✓ Display quest hub (unenrolled quests visible)")
-        print(f"  ✓ Navigate to quest details")
-        print(f"  ✓ Pick up new quests (unenrolled quests available)")
+        print("  - Total XP: 0")
+        print("\nTests can now:")
+        print("  ✓ Display quest hub (unenrolled quests visible)")
+        print("  ✓ Navigate to quest details")
+        print("  ✓ Pick up new quests (unenrolled quests available)")
 
         return True
 

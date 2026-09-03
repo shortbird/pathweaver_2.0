@@ -8,8 +8,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 - Service layer is the preferred pattern over direct repository usage
 """
 
-from flask import Blueprint, request, jsonify
-from typing import Dict, List, Optional, Any
+from flask import Blueprint, request
 import logging
 
 from utils.logger import get_logger
@@ -20,7 +19,7 @@ from utils.auth.decorators import require_auth
 from utils import class_membership
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
-from utils.validation.validators import validate_required_fields, validate_string_length
+from utils.validation.validators import validate_string_length
 from utils.api_response import success_response, error_response
 from utils.storage_urls import (
     public_object_url, sign_stored_url, sign_thumbs_in_place,

@@ -26,7 +26,6 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from services.course_generation_service import CourseGenerationService
-from services.base_ai_service import AIGenerationError
 
 from utils.logger import get_logger
 

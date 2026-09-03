@@ -723,7 +723,7 @@ def validate_import_file(current_user_id, current_org_id, is_superadmin, org_id)
         file_content = file.read()
         if len(file_content) > 1024 * 1024:
             return jsonify({'error': 'File too large. Maximum size is 1MB'}), 400
-    except Exception as e:
+    except Exception:
         return jsonify({'error': 'Failed to read file'}), 400
 
     # Parse CSV
@@ -743,7 +743,7 @@ def validate_import_file(current_user_id, current_org_id, is_superadmin, org_id)
     try:
         existing_result = supabase.table('users').select('email').execute()
         existing_emails_db = {u['email'].lower() for u in existing_result.data if u.get('email')}
-    except Exception as e:
+    except Exception:
         return jsonify({'error': 'Failed to check existing users'}), 500
 
     # Validate all rows

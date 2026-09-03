@@ -527,7 +527,7 @@ def send_checkin_email(user_id):
                 math_notes=''
             )
 
-        log_target = f"self (test)" if is_test else parent_email
+        log_target = "self (test)" if is_test else parent_email
         logger.info(f"Advisor {user_id} sent {'test ' if is_test else ''}check-in recap email to {log_target} for student {student_id}")
 
         return jsonify({

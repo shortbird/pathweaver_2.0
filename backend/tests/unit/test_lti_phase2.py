@@ -15,7 +15,6 @@ test_lti_endpoints.py-style integration where appropriate.
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest

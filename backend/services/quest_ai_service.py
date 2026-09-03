@@ -7,7 +7,6 @@ and uses shared prompt components from prompts.components.
 """
 
 import json
-import re
 import time
 from typing import Dict, List, Optional, Any
 
@@ -20,7 +19,6 @@ from utils.logger import get_logger
 from prompts.components import (
     CORE_PHILOSOPHY,
     TONE_LEVELS,
-    PILLAR_DEFINITIONS,
     VALID_PILLARS,
     JSON_OUTPUT_INSTRUCTIONS,
     SCHOOL_SUBJECTS,
@@ -497,7 +495,6 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
         Returns:
             Dict containing success status, tasks list, and any errors
         """
-        import time
 
         # Validate inputs
         if not lesson_content or not lesson_content.strip():
@@ -694,7 +691,6 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
     def _get_active_prompt_version(self) -> str:
         """Get the currently active prompt version for quest generation"""
         try:
-            from services.base_service import BaseService
             from database import get_supabase_admin_client
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()

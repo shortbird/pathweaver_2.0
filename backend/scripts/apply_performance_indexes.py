@@ -109,16 +109,16 @@ def main():
                 error_count += 1
             continue
 
-    logger.info(f"\nPerformance Index Migration Results:")
+    logger.info("\nPerformance Index Migration Results:")
     logger.info(f"   Successful indexes: {success_count}")
     logger.error(f"   Failed indexes: {error_count}")
 
     if error_count == 0:
-        logger.info(f"\nAll performance indexes have been created!")
-        logger.info(f"   Expected performance improvement: 30-50% query time reduction")
-        logger.info(f"   Tables optimized: user_quest_tasks, quest_task_completions, user_badges, evidence_document_blocks, user_quests")
+        logger.info("\nAll performance indexes have been created!")
+        logger.info("   Expected performance improvement: 30-50% query time reduction")
+        logger.info("   Tables optimized: user_quest_tasks, quest_task_completions, user_badges, evidence_document_blocks, user_quests")
     else:
-        logger.error(f"\nSome indexes failed to create. Please review the errors above.")
+        logger.error("\nSome indexes failed to create. Please review the errors above.")
 
     return success_count > 0
 

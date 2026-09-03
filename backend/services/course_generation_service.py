@@ -29,10 +29,7 @@ Usage:
     service.finalize_course(course_id)
 """
 
-import uuid
-import random
-import string
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from services.base_ai_service import BaseAIService, AIGenerationError
 from database import get_supabase_admin_client
 
@@ -70,7 +67,7 @@ class CourseGenerationService(BaseAIService):
         small_words = {
             'a', 'an', 'the',  # articles
             'and', 'but', 'or', 'nor', 'for', 'yet', 'so',  # conjunctions
-            'at', 'by', 'for', 'in', 'of', 'on', 'to', 'up', 'with', 'as'  # prepositions
+            'at', 'by', 'in', 'of', 'on', 'to', 'up', 'with', 'as'  # prepositions
         }
 
         words = title.split()
@@ -160,7 +157,7 @@ class CourseGenerationService(BaseAIService):
 
         if previous_outlines:
             previous_titles = [o.get('title', '') for o in previous_outlines]
-            prompt += f"\n\nIMPORTANT: Generate DIFFERENT alternatives than these previous options:\n"
+            prompt += "\n\nIMPORTANT: Generate DIFFERENT alternatives than these previous options:\n"
             for title in previous_titles:
                 prompt += f"- {title}\n"
             prompt += "\nProvide fresh, creative alternatives."

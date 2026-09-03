@@ -195,7 +195,7 @@ def get_supabase_admin_client() -> Client:
             Config.SUPABASE_URL,
             Config.SUPABASE_SERVICE_ROLE_KEY,
         ))
-        _get_logger().debug(f"[DATABASE] Created request-scoped admin client with connection pool")
+        _get_logger().debug("[DATABASE] Created request-scoped admin client with connection pool")
 
     return g._admin_client
 
@@ -223,7 +223,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
             if not request or not hasattr(request, 'headers'):
                 _get_logger().warning("WARNING: get_user_client called outside request context or with invalid request object")
                 client = get_supabase_client()
-                setattr(g, f'_user_client_anon', client)
+                g._user_client_anon = client
                 return client
 
             # First, try to get token from httpOnly cookie (primary auth method)
@@ -247,7 +247,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # Handle cases where request context is invalid or request is a dict
             _get_logger().warning(f"WARNING: Cannot access request context: {e}")
             client = get_supabase_client()
-            setattr(g, f'_user_client_anon', client)
+            g._user_client_anon = client
             return client
 
     # Create a cache key based on the token
@@ -287,7 +287,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # IMPORTANT: ClientOptions headers don't work for auth context in supabase-py
             # We must use postgrest.auth() to set the token for RLS policies
             # P1-SEC-4: Move sensitive logging to DEBUG level
-            _get_logger().debug(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
+            _get_logger().debug("[GET_USER_CLIENT] Creating client with JWT token for RLS")
             client = _with_truncation_canary(create_client(
                 Config.SUPABASE_URL,
                 Config.SUPABASE_ANON_KEY,
@@ -295,7 +295,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # Set auth token on postgrest client for RLS to work with auth.uid()
             # This is the correct way to enable RLS in supabase-py
             client.postgrest.auth(token)
-            _get_logger().debug(f"[GET_USER_CLIENT] Client created with postgrest.auth() and connection pool for RLS")
+            _get_logger().debug("[GET_USER_CLIENT] Client created with postgrest.auth() and connection pool for RLS")
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client

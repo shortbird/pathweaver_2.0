@@ -4,7 +4,7 @@ Site Settings Repository - Database operations for site configuration
 Handles site-wide configuration like logo, site name, favicon.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from repositories.base_repository import BaseRepository, DatabaseError
 from postgrest.exceptions import APIError
 from datetime import datetime
@@ -106,7 +106,7 @@ class SiteSettingsRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error upserting site settings: {e}")
-            raise DatabaseError(f"Failed to save site settings") from e
+            raise DatabaseError("Failed to save site settings") from e
 
     def update_logo_url(self, logo_url: str) -> Dict[str, Any]:
         """

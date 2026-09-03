@@ -1,6 +1,6 @@
 """Field validators and validation schemas"""
 
-from typing import Any, Dict, List, Optional, Callable, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 import re
 

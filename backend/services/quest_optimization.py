@@ -5,7 +5,7 @@ This service provides optimized quest listing with batch queries
 to eliminate the N+1 problem identified in quest_v3.py.
 """
 
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_utils import normalize_pillar_name

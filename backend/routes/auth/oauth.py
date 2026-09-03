@@ -19,14 +19,12 @@ Endpoints:
     POST /oauth/clients - Create OAuth client (admin only)
 """
 
-from flask import Blueprint, request, jsonify, redirect, render_template_string
+from flask import Blueprint, request, jsonify, redirect
 from datetime import datetime, timedelta
 import secrets
 import hashlib
-import base64
-from typing import Dict, Optional
 
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_admin
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.session_manager import session_manager

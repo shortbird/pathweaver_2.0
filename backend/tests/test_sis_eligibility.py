@@ -8,7 +8,6 @@ meeting comparison), so coverage here is deliberately exhaustive.
 
 from datetime import date
 
-import pytest
 
 from services import sis_eligibility as elig
 

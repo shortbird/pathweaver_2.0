@@ -45,7 +45,6 @@ class NotificationService(BaseService):
         super().__init__()
         # Always create a fresh client to avoid Flask g context issues
         from supabase import create_client
-        from app_config import Config
         self.supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
         # Setup Realtime broadcast endpoint
@@ -581,7 +580,7 @@ class NotificationService(BaseService):
             notification_type='quest_invitation',
             title='Quest Invitation',
             message=f'{advisor_name} invited you to "{quest_title}"',
-            link=f'/invitations',
+            link='/invitations',
             metadata={'quest_id': quest_id, 'advisor_name': advisor_name},
             organization_id=organization_id
         )
@@ -600,7 +599,7 @@ class NotificationService(BaseService):
             notification_type='task_approved',
             title='Task Approved!',
             message=f'Your task "{task_title}" was approved! +{xp_awarded} XP',
-            link=f'/quests',
+            link='/quests',
             metadata={'task_id': task_id, 'xp_awarded': xp_awarded},
             organization_id=organization_id
         )
@@ -618,7 +617,7 @@ class NotificationService(BaseService):
             notification_type='task_revision_requested',
             title='Revision Requested',
             message=f'Your teacher requested revisions on "{task_title}"',
-            link=f'/quests',
+            link='/quests',
             metadata={'task_id': task_id},
             organization_id=organization_id
         )
@@ -662,7 +661,7 @@ class NotificationService(BaseService):
             notification_type='observer_comment',
             title=f'Comment from {observer_name}',
             message=comment_preview[:100],
-            link=f'/connections',
+            link='/connections',
             organization_id=organization_id
         )
 
@@ -790,7 +789,7 @@ class NotificationService(BaseService):
                 if parent.data:
                     parents.append(parent.data)
                     parent_ids_found.add(parent_id)
-                    logger.info(f"[get_parents_for_student] Added managing parent to list")
+                    logger.info("[get_parents_for_student] Added managing parent to list")
 
             # Method 2: Check parent_student_links for linked parents (13+ students)
             parent_repo = ParentRepository(client=admin_client)

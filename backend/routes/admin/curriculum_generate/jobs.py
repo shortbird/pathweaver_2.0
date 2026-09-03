@@ -29,15 +29,10 @@ Endpoints:
 - DELETE /api/admin/curriculum/generate/<id> - Delete draft course
 """
 
-import threading
-import time
 
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
-from services.course_generation_service import CourseGenerationService
-from services.course_generation_job_service import CourseGenerationJobService
-from services.base_ai_service import AIGenerationError
 
 from utils.logger import get_logger
 

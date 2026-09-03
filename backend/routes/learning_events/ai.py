@@ -1,7 +1,6 @@
 """AI-assisted captures: snap-to-learn, voice journal."""
 from flask import request, jsonify
 from utils.auth.decorators import require_auth
-from services.learning_events_service import LearningEventsService
 
 from utils.logger import get_logger
 

@@ -456,7 +456,7 @@ class VideoProcessingService:
                         thumb_bytes = f.read()
                     if thumb_bytes:
                         metadata.thumbnail_url = storage_upload_fn(thumb_bytes, 'thumbnail.jpg')
-                        logger.info(f"[VideoProcessing] Thumbnail generated and uploaded")
+                        logger.info("[VideoProcessing] Thumbnail generated and uploaded")
             else:
                 logger.warning(f"[VideoProcessing] Thumbnail generation failed: {thumb_result.stderr[:200]}")
 

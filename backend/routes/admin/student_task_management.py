@@ -13,24 +13,14 @@ Supports both creating custom tasks and copying from existing task templates.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_admin, require_role
 from utils.roles import get_effective_role
 from utils.auth.org_scope import caller_can_access_user
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_utils import normalize_pillar_name
-from utils.school_subjects import validate_school_subjects
 from utils.storage_urls import sign_in_place
 from services.subject_classification_service import SubjectClassificationService
 from datetime import datetime
-import json
 
 from utils.logger import get_logger
 
@@ -284,7 +274,6 @@ def create_student_task(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error creating student task: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to create task: {str(e)}'
@@ -417,7 +406,6 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error batch copying tasks: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to copy tasks: {str(e)}'
@@ -504,7 +492,6 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error getting student quest tasks: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to get tasks: {str(e)}'
@@ -627,7 +614,6 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error updating student task: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to update task: {str(e)}'
@@ -697,7 +683,6 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
 
     except Exception as e:
         logger.error(f"Error deleting student task: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to delete task: {str(e)}'
@@ -771,7 +756,6 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error reordering student tasks: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': f'Failed to reorder tasks: {str(e)}'

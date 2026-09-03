@@ -10,7 +10,7 @@ by design — there is no campus entity yet (see the gap analysis), so "the
 campus" currently means "the organization".
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from database import get_supabase_admin_client
 from services import sis_service

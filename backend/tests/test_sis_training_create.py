@@ -124,14 +124,23 @@ class TestTheQuestRules:
         _, _, log = _create({'title': 'Q', 'tasks': [{'title': 'T', 'pillar': 'critical_thinking'}]})
         assert _inserted(log, 'quest_template_tasks')[0][0]['pillar'] == 'stem'
 
-    def test_the_limits_match_the_class_builder(self):
+    def test_the_limits_match_the_shared_authoring_rules(self):
         """Two screens build quests. Different limits between them would mean a
-        quest you can make on one and not the other."""
-        import routes.sis.class_quests as cq
-        assert training._MAX_TITLE_LEN == cq._MAX_TITLE_LEN
-        assert training._MAX_TASKS == cq._MAX_TASKS
-        assert training._MIN_XP == cq._MIN_XP
-        assert training._PILLAR_ALIASES == cq._PILLAR_ALIASES
+        quest you can make on one and not the other.
+
+        staff_training holds its OWN copies of these constants; the class
+        builder delegates to services.sis_quest_authoring, which owns them.
+        This compares the duplicate against that source directly. It used to
+        compare it against routes.sis.class_quests, which merely re-imported
+        the same constants without using them -- so the check passed through a
+        module that had no stake in it, and broke the moment an unused-import
+        sweep removed the re-export (CI-01, 2026-09-03).
+        """
+        from services import sis_quest_authoring as shared
+        assert training._MAX_TITLE_LEN == shared.MAX_TITLE_LEN
+        assert training._MAX_TASKS == shared.MAX_TASKS
+        assert training._MIN_XP == shared.MIN_XP
+        assert training._PILLAR_ALIASES == shared.PILLAR_ALIASES
 
 
 @pytest.mark.unit

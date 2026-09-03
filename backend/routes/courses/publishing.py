@@ -4,19 +4,12 @@ Courses Module - Publishing
 Course publishing workflow.
 """
 
-from datetime import datetime
-from flask import request, jsonify
-from utils.auth.decorators import require_auth, require_admin
-from database import get_user_client, get_supabase_admin_client
+from flask import jsonify
+from utils.auth.decorators import require_auth
+from database import get_supabase_admin_client
 from utils.session_manager import session_manager
-from middleware.error_handler import ValidationError
-from repositories.base_repository import NotFoundError
-from services.course_progress_service import CourseProgressService
-from services.file_upload_service import FileUploadService
-from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.roles import get_effective_role
-from utils.slug_utils import generate_slug, ensure_unique_slug
 from routes.courses import can_manage_course
 
 logger = get_logger(__name__)

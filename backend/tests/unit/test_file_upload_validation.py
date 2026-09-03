@@ -13,7 +13,7 @@ Run with: pytest backend/tests/test_file_upload_validation.py -v
 """
 
 import pytest
-from utils.file_validator import FileValidator, validate_file, ALLOWED_MIME_TYPES
+from utils.file_validator import FileValidator, validate_file
 
 
 class TestFileValidator:

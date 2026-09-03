@@ -26,7 +26,6 @@ Endpoints:
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from services.interest_tracks_service import InterestTracksService
-import logging
 
 from utils.logger import get_logger
 

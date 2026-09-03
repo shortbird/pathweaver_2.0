@@ -4,8 +4,6 @@ Enhanced with AI-powered educational search term generation.
 """
 import requests
 from typing import Optional, Dict, List, Set
-from services.base_service import BaseService
-import re
 from services.api_usage_tracker import pexels_tracker
 from app_config import Config
 
@@ -186,7 +184,7 @@ def search_quest_image(
 
         # Check API limit before making request
         if not pexels_tracker.can_make_request():
-            logger.info(f"Pexels API rate limit reached. Skipping image fetch.")
+            logger.info("Pexels API rate limit reached. Skipping image fetch.")
             return None
 
         try:

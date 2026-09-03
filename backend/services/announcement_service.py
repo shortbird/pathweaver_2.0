@@ -24,7 +24,7 @@ from database import get_supabase_admin_client
 from utils import rich_text
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
-from utils.roles import get_effective_role, get_effective_roles
+from utils.roles import get_effective_roles
 
 logger = get_logger(__name__)
 

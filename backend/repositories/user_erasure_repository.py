@@ -39,9 +39,8 @@ intact, retryable account rather than a half-deleted one.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
-from app_config import Config
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 

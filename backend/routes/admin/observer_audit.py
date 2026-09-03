@@ -5,8 +5,7 @@ Admin interface for viewing observer access audit logs.
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin

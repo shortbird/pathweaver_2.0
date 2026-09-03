@@ -8,7 +8,7 @@ links, while creation targeting (_get_posters_student_ids) included parent
 links. The two sides must stay symmetric.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 

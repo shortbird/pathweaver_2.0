@@ -5,7 +5,7 @@ Tests lesson CRUD operations, iframe URL validation, progress tracking, and reor
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from services.curriculum_lesson_service import CurriculumLessonService
 from services.curriculum_service import CurriculumService
 # The services raise middleware.error_handler.ValidationError, which is a

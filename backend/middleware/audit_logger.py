@@ -6,7 +6,7 @@ Use on admin routes that modify data to maintain compliance audit trail.
 """
 
 from functools import wraps
-from flask import request, g
+from flask import request
 from typing import Optional, Dict, Any
 from services.admin_audit_service import AdminAuditService
 from utils.logger import get_logger

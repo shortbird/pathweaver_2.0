@@ -12,7 +12,6 @@ without it a payment chase is the office and the family naming the same invoice
 two different ways.
 """
 
-from datetime import date
 from unittest.mock import Mock, patch
 
 import pytest

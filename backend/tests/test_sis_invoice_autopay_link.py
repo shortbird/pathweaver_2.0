@@ -13,7 +13,6 @@ Stripe and the DB are mocked; what is under test is the token signing, the
 guardian resolution a tokenless flow has to do for itself, and route wiring.
 """
 
-import json
 from contextlib import contextmanager
 from unittest.mock import Mock, patch
 

@@ -22,7 +22,7 @@ missing mirror, an unknown parent/requires target, or a gated blueprint whose
 role tier disagrees with `min_tier`.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 CATEGORIES = ('learning', 'credentials', 'ai', 'people', 'operations', 'community')

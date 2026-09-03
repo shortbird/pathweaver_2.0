@@ -608,7 +608,7 @@ if __name__ == '__main__':
 
         # Print stats to stderr so they don't get mixed with JSON output
         print(f"\nGenerated OpenAPI spec with {spec['info']['x-route-count']} endpoints", file=sys.stderr)
-        print(f"Validate at: https://editor.swagger.io/", file=sys.stderr)
+        print("Validate at: https://editor.swagger.io/", file=sys.stderr)
 
     except Exception as e:
         print(f"Error generating spec: {e}", file=sys.stderr)

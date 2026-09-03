@@ -1271,7 +1271,6 @@ def accept_invitation(invitation_code):
 
         # Create new user
         try:
-            from app_config import Config
 
             # Create auth user - requires email verification
             auth_response = supabase.auth.admin.create_user({

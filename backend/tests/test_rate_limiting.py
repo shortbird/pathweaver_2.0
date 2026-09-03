@@ -10,7 +10,6 @@ Tests the enhanced rate_limit decorator with:
 from unittest.mock import patch
 
 import pytest
-import time
 import os
 from flask import Flask, jsonify
 from middleware.rate_limiter import rate_limit, rate_limiter, add_rate_limit_headers

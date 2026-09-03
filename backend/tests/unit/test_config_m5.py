@@ -9,7 +9,6 @@ The lint half is the analog of H1's `test_admin_client_justified.py` —
 both lock in audit work so a future commit can't silently undo it.
 """
 import ast
-import os
 import sys
 from pathlib import Path
 

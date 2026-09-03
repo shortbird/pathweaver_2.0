@@ -16,7 +16,6 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from services.sample_task_generator import generate_sample_tasks, validate_sample_tasks_quality
 from datetime import datetime
-import json
 
 from utils.logger import get_logger
 

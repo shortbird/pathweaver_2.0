@@ -1,7 +1,7 @@
 """Standardized API response utilities"""
 
 from flask import jsonify
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from utils.logger import get_logger
 

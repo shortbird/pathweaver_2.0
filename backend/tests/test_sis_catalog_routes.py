@@ -7,7 +7,6 @@ mocked: the admin client serves the require_role lookup; repositories/services a
 patched so no network is touched.
 """
 
-import json
 from contextlib import contextmanager
 from unittest.mock import Mock, patch
 

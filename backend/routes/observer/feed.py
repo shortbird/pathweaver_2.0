@@ -5,13 +5,11 @@ Aggregated feed for observers across all linked students.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta
 import logging
 
-from database import get_supabase_admin_client, get_user_client
-from utils.auth.decorators import require_auth, validate_uuid_param
+from database import get_supabase_admin_client
+from utils.auth.decorators import require_auth
 from utils.platform_staff import is_optio_platform_user
-from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
 
 logger = logging.getLogger(__name__)

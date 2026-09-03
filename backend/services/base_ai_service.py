@@ -26,7 +26,6 @@ Features:
     - Optional response caching
 """
 
-import os
 import re
 import json
 import time
@@ -894,7 +893,7 @@ class BaseAIService(BaseService):
                 error_preview = text[:200].replace('\n', '\\n') if text else '(empty)'
                 raise AIParsingError(f"Failed to parse JSON: {issue_summary}. Preview: {error_preview}...")
 
-            logger.warning(f"Failed to parse JSON, returning empty dict.")
+            logger.warning("Failed to parse JSON, returning empty dict.")
             del text
             gc.collect()
             return {}
@@ -922,7 +921,7 @@ class BaseAIService(BaseService):
 
         # First, strip markdown code block markers if present
         # This is more robust than regex for handling truncated responses
-        logger.debug(f"extract_json: about to call _strip_markdown_code_blocks")
+        logger.debug("extract_json: about to call _strip_markdown_code_blocks")
         text = self._strip_markdown_code_blocks(text)
         logger.debug(f"extract_json: after stripping, text starts with: {repr(text[:50]) if text else '(empty)'}")
 
@@ -1021,7 +1020,7 @@ class BaseAIService(BaseService):
             except json.JSONDecodeError as e:
                 logger.debug(f"Aggressive repair parse failed: {e}")
 
-        logger.warning(f"All JSON extraction methods failed")
+        logger.warning("All JSON extraction methods failed")
         return None
 
     def _strip_markdown_code_blocks(self, text: str) -> str:
@@ -1307,7 +1306,7 @@ class BaseAIService(BaseService):
             )
 
             if fixed_context != context:
-                logger.warning(f"Fixed unescaped quotes in context (pattern matching)")
+                logger.warning("Fixed unescaped quotes in context (pattern matching)")
                 fixed_text = text[:search_start] + fixed_context + text[search_end:]
                 return fixed_text
 
@@ -1339,7 +1338,7 @@ class BaseAIService(BaseService):
 
             if fixed_any:
                 fixed_context = ''.join(new_context)
-                logger.warning(f"Fixed unescaped quotes in context (character scan)")
+                logger.warning("Fixed unescaped quotes in context (character scan)")
                 fixed_text = text[:search_start] + fixed_context + text[search_end:]
                 return fixed_text
 

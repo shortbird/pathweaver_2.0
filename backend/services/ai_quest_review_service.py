@@ -90,7 +90,6 @@ class AIQuestReviewService(BaseService):
         except Exception as e:
             logger.error(f"DEBUG: Exception in submit_for_review: {str(e)}")
             logger.error(f"DEBUG: Exception type: {type(e).__name__}")
-            import traceback
             return {
                 'success': False,
                 'error': f"Failed to submit for review: {str(e)}"

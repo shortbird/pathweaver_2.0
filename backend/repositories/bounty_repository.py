@@ -92,7 +92,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Bounty {bounty_id} not found")
             return response.data[0]
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error updating bounty {bounty_id} status: {e}")
@@ -108,7 +108,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Bounty {bounty_id} not found")
             return response.data[0]
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error updating moderation for bounty {bounty_id}: {e}")
@@ -122,7 +122,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Bounty {bounty_id} not found")
             return True
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error deleting bounty {bounty_id}: {e}")
@@ -231,7 +231,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Claim {claim_id} not found")
             return response.data[0]
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error submitting evidence for claim {claim_id}: {e}")
@@ -249,7 +249,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Claim {claim_id} not found")
             return response.data[0]
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error updating evidence for claim {claim_id}: {e}")
@@ -265,7 +265,7 @@ class BountyRepository(BaseRepository):
             if not response.data:
                 raise NotFoundError(f"Claim {claim_id} not found")
             return response.data[0]
-        except (NotFoundError,):
+        except NotFoundError:
             raise
         except APIError as e:
             logger.error(f"Error updating claim {claim_id}: {e}")

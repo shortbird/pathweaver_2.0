@@ -4,7 +4,7 @@ Evidence Repository
 Handles all database operations related to evidence uploads and evidence document blocks.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 from repositories.base_repository import BaseRepository, NotFoundError
 from utils.logger import get_logger
 

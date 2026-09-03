@@ -2,7 +2,6 @@
 Upload email assets (logo) to Supabase storage
 Run this script once to upload assets for email templates
 """
-import os
 import sys
 from pathlib import Path
 
@@ -40,7 +39,7 @@ def upload_email_assets():
         # Get public URL
         url = supabase.storage.from_('site-assets').get_public_url('email/optio-logo.png')
 
-        print(f"✓ Logo uploaded successfully!")
+        print("✓ Logo uploaded successfully!")
         print(f"Public URL: {url}")
 
         return url
@@ -52,7 +51,7 @@ def upload_email_assets():
 if __name__ == '__main__':
     url = upload_email_assets()
     if url:
-        print(f"\nAdd this URL to your email templates:")
+        print("\nAdd this URL to your email templates:")
         print(f"LOGO_URL = '{url}'")
     else:
         print("\nUpload failed!")

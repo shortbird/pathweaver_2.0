@@ -58,7 +58,7 @@ def backfill_subjects(batch_size=50, dry_run=False):
     without_count = without_result.count
     with_count = total_count - without_count
 
-    print(f"\nCurrent Status:")
+    print("\nCurrent Status:")
     print(f"  Total tasks: {total_count}")
     print(f"  With subject distribution: {with_count} ({(with_count/total_count*100):.1f}%)")
     print(f"  Without subject distribution: {without_count} ({(without_count/total_count*100):.1f}%)")
@@ -179,7 +179,7 @@ def backfill_subjects(batch_size=50, dry_run=False):
         .execute()
 
     final_with_count = final_result.count
-    print(f"\nFinal Status:")
+    print("\nFinal Status:")
     print(f"  Total tasks: {total_count}")
     print(f"  With subject distribution: {final_with_count} ({(final_with_count/total_count*100):.1f}%)")
 

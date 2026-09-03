@@ -7,7 +7,7 @@ Handles:
 """
 
 from datetime import datetime
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from middleware.csrf_protection import get_csrf_token
 from utils.auth.decorators import require_auth
 from utils.session_manager import session_manager

@@ -203,7 +203,6 @@ def get_student_calendar(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting student calendar: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get student calendar'}), 500
 
 
@@ -298,7 +297,6 @@ def get_completed_quests(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting completed quests: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get completed quests'}), 500
 
 
@@ -526,5 +524,4 @@ def get_student_quest_view(user_id, student_id, quest_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"Error getting student quest view: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get quest details'}), 500

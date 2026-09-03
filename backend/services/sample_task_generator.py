@@ -8,7 +8,6 @@ Aligned with core philosophy: process-focused, real-world application, present-t
 Refactored (Jan 2026): Now uses shared prompt components and BaseAIService.
 """
 
-import json
 from typing import List, Dict, Optional
 from utils.logger import get_logger
 
@@ -210,11 +209,11 @@ def _validate_task(task: Dict) -> Optional[Dict]:
 
     # Required fields
     if not task.get('title') or not isinstance(task['title'], str):
-        logger.warning(f"Invalid task: missing or invalid title")
+        logger.warning("Invalid task: missing or invalid title")
         return None
 
     if not task.get('pillar') or not isinstance(task['pillar'], str):
-        logger.warning(f"Invalid task: missing or invalid pillar")
+        logger.warning("Invalid task: missing or invalid pillar")
         return None
 
     # Normalize pillar to lowercase

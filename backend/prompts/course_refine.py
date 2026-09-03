@@ -15,7 +15,6 @@ Flow:
 """
 
 import json
-from typing import List, Dict, Optional
 
 # =============================================================================
 # SUGGESTED REFINEMENT CATEGORIES

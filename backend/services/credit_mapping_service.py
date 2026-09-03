@@ -7,7 +7,7 @@ Handles conversion of XP to academic credits and transcript generation.
 from typing import Dict, List, Optional
 from datetime import datetime
 from services.base_service import BaseService
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 

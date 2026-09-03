@@ -913,7 +913,7 @@ def main():
               "Course Builder and re-run.", file=sys.stderr)
         raise
 
-    print(f"\nReview at:")
+    print("\nReview at:")
     print(f"  https://www.optioeducation.com/admin/courses/{course_id}/builder")
     print(f"  https://optio-dev-frontend-r3v8.onrender.com/admin/courses/{course_id}/builder")
     print(f"  http://localhost:3000/admin/courses/{course_id}/builder")

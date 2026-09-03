@@ -2081,7 +2081,6 @@ def appointment_done(reg_id):
 def upload_photo(reg_id):
     """Required photo for a family member (the parent or one of this
     registration's kids). Multipart form: file, target_user_id, access_token."""
-    import uuid as _uuid
     reg = _load_registration(reg_id)
     if not _authz(reg, request.form.get('access_token')):
         return jsonify({'error': 'Not authorized'}), 403

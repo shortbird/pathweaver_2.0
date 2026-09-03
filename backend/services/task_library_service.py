@@ -5,7 +5,6 @@ and reused across users. Handles usage tracking and flagging system.
 """
 
 from typing import List, Dict, Optional
-from uuid import UUID
 from datetime import datetime
 import logging
 from database import get_supabase_admin_client

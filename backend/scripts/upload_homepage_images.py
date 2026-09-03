@@ -129,7 +129,7 @@ def download_image(url: str, filepath: str):
         url: Image URL
         filepath: Local file path to save to
     """
-    print(f"  Downloading from Pexels...")
+    print("  Downloading from Pexels...")
     response = requests.get(url, timeout=30)
     response.raise_for_status()
 
@@ -151,7 +151,7 @@ def upload_to_supabase(filepath: str, filename: str) -> str:
     Returns:
         Public URL of uploaded image
     """
-    print(f"  Uploading to Supabase...")
+    print("  Uploading to Supabase...")
 
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")

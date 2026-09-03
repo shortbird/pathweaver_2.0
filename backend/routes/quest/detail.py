@@ -8,7 +8,6 @@ Part of the quests.py refactoring (P2-ARCH-1).
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
-from utils.source_utils import get_quest_header_image
 from utils.pillar_utils import normalize_pillar_name
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -205,7 +204,7 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             # Prioritize active enrollment over completed (fixes restart bug)
             if active_enrollment:
-                logger.info(f"[QUEST DETAIL] Using active enrollment")
+                logger.info("[QUEST DETAIL] Using active enrollment")
                 quest_data['user_enrollment'] = active_enrollment
                 quest_data['completed_enrollment'] = None
                 quest_data['progress'] = {
@@ -214,7 +213,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                     'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
                 }
             elif completed_enrollment:
-                logger.info(f"[QUEST DETAIL] Using completed enrollment")
+                logger.info("[QUEST DETAIL] Using completed enrollment")
                 quest_data['completed_enrollment'] = completed_enrollment
                 quest_data['user_enrollment'] = completed_enrollment
                 quest_data['progress'] = {
@@ -224,7 +223,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 }
         else:
             # Not enrolled - show empty quest (personalization required)
-            logger.info(f"[QUEST DETAIL] User not enrolled or personalization not completed")
+            logger.info("[QUEST DETAIL] User not enrolled or personalization not completed")
             quest_data['quest_tasks'] = []
             quest_data['user_enrollment'] = None
             quest_data['completed_enrollment'] = None

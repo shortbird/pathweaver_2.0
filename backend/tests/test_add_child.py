@@ -107,7 +107,7 @@ class TestResendInvite:
              patch('utils.session_manager.session_manager.get_effective_user_id',
                    return_value='parent-1'):
             return client.post(
-                f'/api/dependents/00000000-0000-4000-8000-000000000001/resend-invite',
+                '/api/dependents/00000000-0000-4000-8000-000000000001/resend-invite',
                 json={}, headers=auth_headers)
 
     def test_parent_can_resend(self, client, auth_headers, mock_verify_token):

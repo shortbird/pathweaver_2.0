@@ -10,7 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from supabase import create_client
-from utils.school_subjects import normalize_subject_key, SCHOOL_SUBJECTS
+from utils.school_subjects import normalize_subject_key
 
 dry_run = '--live' not in sys.argv
 client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
@@ -65,12 +65,12 @@ for c in (completions.data or []):
                 else:
                     unmapped_subjects[subject] = unmapped_subjects.get(subject, 0) + per_subject_xp
 
-print(f"\n=== Subject XP from all completions (normalized) ===")
+print("\n=== Subject XP from all completions (normalized) ===")
 for subject, xp in sorted(subject_xp_totals.items()):
     print(f"  {subject}: {xp} XP")
 
 if unmapped_subjects:
-    print(f"\n=== Unmapped subjects (need to add to normalize_subject_key) ===")
+    print("\n=== Unmapped subjects (need to add to normalize_subject_key) ===")
     for subject, xp in sorted(unmapped_subjects.items()):
         print(f"  {subject}: {xp} XP")
 
@@ -78,13 +78,13 @@ if unmapped_subjects:
 current_records = client.table('user_subject_xp').select('*').eq('user_id', user_id).execute()
 current_by_subject = {r['school_subject']: r for r in (current_records.data or [])}
 
-print(f"\n=== Current user_subject_xp records ===")
+print("\n=== Current user_subject_xp records ===")
 for subject in sorted(current_by_subject.keys()):
     record = current_by_subject[subject]
     print(f"  {subject}: {record['xp_amount']} XP (updated: {record.get('updated_at', 'N/A')[:16] if record.get('updated_at') else 'N/A'})")
 
 # Calculate differences
-print(f"\n=== Differences ===")
+print("\n=== Differences ===")
 changes_needed = {}
 for subject, expected_xp in subject_xp_totals.items():
     current = current_by_subject.get(subject, {}).get('xp_amount', 0)

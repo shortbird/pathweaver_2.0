@@ -15,8 +15,8 @@ from flask import request, jsonify
 from datetime import datetime, timedelta, timezone
 import logging
 
-from database import get_supabase_admin_client, get_user_client
-from utils.auth.decorators import require_auth, validate_uuid_param
+from database import get_supabase_admin_client
+from utils.auth.decorators import require_auth
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
 from services.notification_service import NotificationService
@@ -329,7 +329,7 @@ def register_routes(bp):
             elif inv.get('student_id'):
                 # This is a single-student invitation
                 student_ids = [inv['student_id']]
-                logger.info(f"Single-student invitation detected")
+                logger.info("Single-student invitation detected")
             else:
                 logger.error(f"Invitation {inv['id']} has no associated students")
                 # The code is already consumed at this point. Releasing it

@@ -54,7 +54,7 @@ def _call_remind(work, parents=(), enrolled=True):
 
     from flask import Flask
     flask_app = Flask(__name__)
-    with flask_app.test_request_context(f'/remind', method='POST', json={}), \
+    with flask_app.test_request_context('/remind', method='POST', json={}), \
          patch.object(cq, '_authorize', return_value=(CLASS_ROW, admin, None)), \
          patch.object(cq, '_student_work', return_value=work), \
          patch('services.notification_service.NotificationService', return_value=notifier):

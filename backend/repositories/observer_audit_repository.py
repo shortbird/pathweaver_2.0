@@ -4,7 +4,6 @@ Observer Audit Repository - COPPA/FERPA compliance audit logging
 Tracks all observer access to student data for compliance and security.
 """
 
-import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from postgrest.exceptions import APIError
@@ -139,7 +138,7 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error fetching observer logs for {observer_id}: {e}")
-            raise DatabaseError(f"Failed to fetch observer logs") from e
+            raise DatabaseError("Failed to fetch observer logs") from e
 
     def get_student_logs(
         self,
@@ -185,7 +184,7 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error fetching student logs for {student_id}: {e}")
-            raise DatabaseError(f"Failed to fetch student logs") from e
+            raise DatabaseError("Failed to fetch student logs") from e
 
     def get_logs_by_action(
         self,
@@ -231,7 +230,7 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error fetching logs by action {action_type}: {e}")
-            raise DatabaseError(f"Failed to fetch logs by action") from e
+            raise DatabaseError("Failed to fetch logs by action") from e
 
     def get_recent_logs(
         self,
@@ -270,7 +269,7 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error fetching recent logs: {e}")
-            raise DatabaseError(f"Failed to fetch recent logs") from e
+            raise DatabaseError("Failed to fetch recent logs") from e
 
     def count_observer_access(
         self,
@@ -310,7 +309,7 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error counting observer access for {observer_id}: {e}")
-            raise DatabaseError(f"Failed to count observer access") from e
+            raise DatabaseError("Failed to count observer access") from e
 
     def get_all_logs_paginated(
         self,
@@ -354,4 +353,4 @@ class ObserverAuditRepository(BaseRepository):
 
         except APIError as e:
             logger.error(f"Error fetching paginated logs: {e}")
-            raise DatabaseError(f"Failed to fetch paginated logs") from e
+            raise DatabaseError("Failed to fetch paginated logs") from e

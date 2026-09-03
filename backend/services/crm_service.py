@@ -15,7 +15,7 @@ crm_funnel_engine's cron sweep — entering a funnel here only positions the
 lead.
 """
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from postgrest.exceptions import APIError
 

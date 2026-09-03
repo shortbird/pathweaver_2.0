@@ -4,7 +4,7 @@ Curriculum Parsing Utilities
 Handles source content parsing and IMSCC conversion.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List
 
 from utils.logger import get_logger
 

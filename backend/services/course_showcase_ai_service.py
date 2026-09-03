@@ -9,7 +9,7 @@ Usage:
     result = service.generate_showcase_fields(course_data, projects, lessons)
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 from services.base_ai_service import BaseAIService
 from utils.logger import get_logger

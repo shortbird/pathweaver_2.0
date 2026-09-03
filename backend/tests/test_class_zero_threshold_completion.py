@@ -13,7 +13,6 @@ with xp_threshold=0 and the class kept reading "0 students".
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 import app  # noqa: F401 — import graph ordering
 from services.class_service import ClassService

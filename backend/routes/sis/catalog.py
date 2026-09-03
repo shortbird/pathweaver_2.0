@@ -16,7 +16,7 @@ from services import sis_catalog_service as catalog
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
-from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
+from utils.storage_urls import public_object_url, sign_stored_url
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)

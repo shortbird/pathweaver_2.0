@@ -14,7 +14,6 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from database import get_supabase_admin_client
-from middleware.error_handler import ValidationError
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth, require_role
 from utils.logger import get_logger

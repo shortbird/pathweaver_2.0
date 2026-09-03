@@ -70,13 +70,13 @@ class DirectMessageService(BaseService):
             from utils.roles import get_effective_role
             sender = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
             if sender.data and sender.data.get('role') == 'superadmin':
-                print(f"[can_message_user] ALLOWED: Superadmin can message anyone", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Superadmin can message anyone", file=sys.stderr, flush=True)
                 return True
 
             # Check if target is superadmin - anyone can message superadmin
             target = supabase.table('users').select('role, org_role, organization_id').eq('id', target_id).single().execute()
             if target.data and target.data.get('role') == 'superadmin':
-                print(f"[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
                 return True
 
             # School inbox (2026-08-24): a member may DM their own org's
@@ -86,7 +86,7 @@ class DirectMessageService(BaseService):
             # of the org/relationship rules below would ever match it.
             from services import school_inbox_service
             if school_inbox_service.can_message_school(user_id, target_id):
-                print(f"[can_message_user] ALLOWED: School inbox <-> org member", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: School inbox <-> org member", file=sys.stderr, flush=True)
                 return True
 
             # ORG_ADMIN: Can message anyone in the same organization
@@ -98,12 +98,12 @@ class DirectMessageService(BaseService):
             # coordinator tier withholds).
             ORG_OFFICE_ROLES = ('org_admin', 'campus_coordinator')
             if sender_effective_role in ORG_OFFICE_ROLES and sender_org_id and sender_org_id == target_org_id:
-                print(f"[can_message_user] ALLOWED: Org office role can message anyone in their org", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Org office role can message anyone in their org", file=sys.stderr, flush=True)
                 return True
             # Anyone in the same org can reply to their org_admin
             target_effective_role = get_effective_role(target.data) if target.data else None
             if target_effective_role in ORG_OFFICE_ROLES and target_org_id and sender_org_id == target_org_id:
-                print(f"[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
                 return True
 
             # Check for advisor-student relationship via advisor_student_assignments table
@@ -121,7 +121,7 @@ class DirectMessageService(BaseService):
 
             if (advisor_assignment1.data and len(advisor_assignment1.data) > 0) or \
                (advisor_assignment2.data and len(advisor_assignment2.data) > 0):
-                print(f"[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
                 return True
 
             # SIS class roster (bidirectional): a class's teacher and the students
@@ -132,7 +132,7 @@ class DirectMessageService(BaseService):
             from utils import class_membership
             if class_membership.shares_class(user_id, target_id) or \
                class_membership.shares_class(target_id, user_id):
-                print(f"[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)
                 return True
 
             # Class families (2026-08-22): the class chat holds guardians and
@@ -140,7 +140,7 @@ class DirectMessageService(BaseService):
             # of a student they teach can DM each other.
             if class_membership.teaches_child_of(user_id, target_id) or \
                class_membership.teaches_child_of(target_id, user_id):
-                print(f"[can_message_user] ALLOWED: Teacher-guardian via class roster", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Teacher-guardian via class roster", file=sys.stderr, flush=True)
                 return True
 
             # Friendship check removed (March 2026 - Feature pruning)
@@ -159,7 +159,7 @@ class DirectMessageService(BaseService):
 
             if (parent_link1.data and len(parent_link1.data) > 0) or \
                (parent_link2.data and len(parent_link2.data) > 0):
-                print(f"[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
                 return True
 
             # Check for observer-student link (bidirectional)
@@ -175,7 +175,7 @@ class DirectMessageService(BaseService):
 
             if (observer_link1.data and len(observer_link1.data) > 0) or \
                (observer_link2.data and len(observer_link2.data) > 0):
-                print(f"[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
                 return True
 
             # A school's adults are contacts of each other (2026-08-27): every
@@ -188,15 +188,14 @@ class DirectMessageService(BaseService):
             if self._org_adult_connection(user_id, target_id,
                                           sender_role=sender_effective_role,
                                           target_role=target_effective_role):
-                print(f"[can_message_user] ALLOWED: Adults of the same school", file=sys.stderr, flush=True)
+                print("[can_message_user] ALLOWED: Adults of the same school", file=sys.stderr, flush=True)
                 return True
 
-            print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
+            print("[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
             return False
 
         except Exception as e:
             print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
-            import traceback
             return False
 
     def _org_adult_connection(self, user_id: str, target_id: str,

@@ -9,13 +9,12 @@ Authorization header fallback removed to prevent XSS token theft via localStorag
 import sys
 from functools import wraps
 from flask import request, jsonify
-from database import get_authenticated_supabase_client
 from middleware.error_handler import AuthenticationError, AuthorizationError, ValidationError
 from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
 from utils.logger import get_logger
-from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole, apply_role_view, VALID_ROLES, VALID_ORG_ROLES
+from utils.roles import get_effective_roles, has_any_role, apply_role_view, VALID_ROLES, VALID_ORG_ROLES
 
 logger = get_logger(__name__)
 

@@ -13,7 +13,7 @@ r = c.table('user_skill_xp').select('id, xp_amount').eq('user_id', user_id).eq('
 current = r.data[0]['xp_amount']
 new = current + 75
 
-print(f"Adding 75 wellness XP from today's task")
+print("Adding 75 wellness XP from today's task")
 print(f"Wellness: {current} -> {new}")
 
 c.table('user_skill_xp').update({

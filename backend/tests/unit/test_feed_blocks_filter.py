@@ -1,6 +1,5 @@
 """Unit test: observer feed endpoint must exclude blocked users' content."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 

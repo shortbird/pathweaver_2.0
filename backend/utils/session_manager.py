@@ -466,7 +466,7 @@ class SessionManager:
             if payload.get('type') == 'access':
                 # Check session timeout
                 if self.is_session_expired(payload):
-                    logger.info(f"[SessionManager] Access token rejected: session timeout exceeded")
+                    logger.info("[SessionManager] Access token rejected: session timeout exceeded")
                     return None
                 # Observed, not enforced: a stolen access token dies in
                 # minutes on its own, and rejecting here would turn any
@@ -483,7 +483,7 @@ class SessionManager:
                 if payload.get('type') == 'access':
                     # Check session timeout
                     if self.is_session_expired(payload):
-                        logger.info(f"[SessionManager] Access token (old key) rejected: session timeout exceeded")
+                        logger.info("[SessionManager] Access token (old key) rejected: session timeout exceeded")
                         return None
                     self._check_device_fingerprint(payload, 'access', enforce=False)
                     logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
@@ -501,7 +501,7 @@ class SessionManager:
             if payload.get('type') == 'refresh':
                 # Check session timeout
                 if self.is_session_expired(payload):
-                    logger.info(f"[SessionManager] Refresh token rejected: session timeout exceeded")
+                    logger.info("[SessionManager] Refresh token rejected: session timeout exceeded")
                     return None
                 # A refresh token is the long-lived one, so it is the one worth
                 # binding to a device. Legacy `dfp`-only tokens are exempt
@@ -520,7 +520,7 @@ class SessionManager:
                 if payload.get('type') == 'refresh':
                     # Check session timeout
                     if self.is_session_expired(payload):
-                        logger.info(f"[SessionManager] Refresh token (old key) rejected: session timeout exceeded")
+                        logger.info("[SessionManager] Refresh token (old key) rejected: session timeout exceeded")
                         return None
                     if not self._check_device_fingerprint(payload, 'refresh', enforce=True):
                         logger.warning("[SessionManager] Refresh token (old key) rejected: device fingerprint mismatch")
@@ -540,7 +540,7 @@ class SessionManager:
             if payload.get('type') == 'masquerade':
                 # Check session timeout
                 if self.is_session_expired(payload):
-                    logger.info(f"[SessionManager] Masquerade token rejected: session timeout exceeded")
+                    logger.info("[SessionManager] Masquerade token rejected: session timeout exceeded")
                     return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -553,7 +553,7 @@ class SessionManager:
                 if payload.get('type') == 'masquerade':
                     # Check session timeout
                     if self.is_session_expired(payload):
-                        logger.info(f"[SessionManager] Masquerade token (old key) rejected: session timeout exceeded")
+                        logger.info("[SessionManager] Masquerade token (old key) rejected: session timeout exceeded")
                         return None
                     logger.info(f"[SessionManager] Masquerade token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
@@ -570,7 +570,7 @@ class SessionManager:
             if payload.get('type') == 'acting_as_dependent':
                 # Check session timeout
                 if self.is_session_expired(payload):
-                    logger.info(f"[SessionManager] Acting-as token rejected: session timeout exceeded")
+                    logger.info("[SessionManager] Acting-as token rejected: session timeout exceeded")
                     return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -583,7 +583,7 @@ class SessionManager:
                 if payload.get('type') == 'acting_as_dependent':
                     # Check session timeout
                     if self.is_session_expired(payload):
-                        logger.info(f"[SessionManager] Acting-as token (old key) rejected: session timeout exceeded")
+                        logger.info("[SessionManager] Acting-as token (old key) rejected: session timeout exceeded")
                         return None
                     logger.info(f"[SessionManager] Acting-as token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
@@ -683,8 +683,8 @@ class SessionManager:
         # Safari-specific warning if domain not set in production
         if self.is_cross_origin and not self.cookie_domain:
             logger.warning(
-                f"[SessionManager] SAFARI WARNING: Cross-origin mode enabled but cookie_domain not set. "
-                f"Safari/iOS users may experience cookie blocking. Check FRONTEND_URL environment variable."
+                "[SessionManager] SAFARI WARNING: Cross-origin mode enabled but cookie_domain not set. "
+                "Safari/iOS users may experience cookie blocking. Check FRONTEND_URL environment variable."
             )
 
         return response
@@ -897,7 +897,7 @@ class SessionManager:
             # CRITICAL FIX: If Authorization header is present but verification failed,
             # do NOT fall back to cookies. This prevents masquerade bypass where the
             # cookie still contains the admin's token.
-            logger.warning(f"[SessionManager] Authorization header present but token verification failed")
+            logger.warning("[SessionManager] Authorization header present but token verification failed")
             return None
 
         # Cookie fallback. Masquerade cookie wins so the effective user is the target.

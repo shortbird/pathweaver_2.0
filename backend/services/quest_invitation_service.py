@@ -11,7 +11,7 @@ from services.notification_service import NotificationService
 from repositories.quest_invitation_repository import QuestInvitationRepository
 from repositories.user_repository import UserRepository
 from repositories.quest_repository import QuestRepository
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 from utils.roles import has_any_role
 

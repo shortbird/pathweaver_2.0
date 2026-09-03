@@ -4,7 +4,6 @@ Handles all database operations for advisor check-ins.
 """
 
 from typing import Dict, List, Optional
-from uuid import UUID
 from datetime import datetime, timedelta, timezone
 from database import get_supabase_admin_client
 

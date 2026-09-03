@@ -8,13 +8,13 @@ Part of the quests.py refactoring (P2-ARCH-1).
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from database import get_supabase_admin_client
-from repositories.quest_repository import QuestRepository, QuestTaskRepository
+from repositories.quest_repository import QuestRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
 from utils.roles import get_effective_role
 from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
-from utils.api_response_v1 import success_response, error_response, created_response
+from utils.api_response_v1 import error_response
 
 logger = get_logger(__name__)
 
@@ -191,7 +191,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     .execute()
                 logger.info(f"[START_FRESH] Deleted {len(incomplete_ids)} incomplete tasks, keeping {len(completed_template_ids)} completed ones")
             else:
-                logger.info(f"[START_FRESH] No incomplete tasks to delete")
+                logger.info("[START_FRESH] No incomplete tasks to delete")
 
             if completed_template_ids:
                 logger.info(f"[START_FRESH] Preserving {len(completed_template_ids)} completed template tasks")
@@ -211,7 +211,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 .eq('id', enrollment['id'])\
                 .execute()
 
-            logger.info(f"[START_FRESH] Reset enrollment metadata")
+            logger.info("[START_FRESH] Reset enrollment metadata")
 
         # Check if we should load tasks from previous enrollment
         if load_previous_tasks and existing.data:
@@ -259,7 +259,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                             most_recent_completed_enrollment = enr
 
                 if not most_recent_completed_enrollment:
-                    logger.warning(f"[QUEST_RESTART] No previous completed enrollment found (only current one exists)")
+                    logger.warning("[QUEST_RESTART] No previous completed enrollment found (only current one exists)")
                     # Just mark as personalized and continue - no tasks to copy
                     # IMPORTANT: Update last_picked_up_at to mark this as a restart
                     # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
@@ -425,13 +425,13 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     .update({'personalization_completed': True})\
                     .eq('id', enrollment['id'])\
                     .execute()
-                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (template tasks loaded)")
+                logger.info("[UNIFIED_ENROLL] Personalization auto-completed (template tasks loaded)")
             except Exception as e:
                 logger.warning(f"[UNIFIED_ENROLL] Failed to mark personalization complete: {e}")
         elif allow_custom:
             # No template tasks but custom tasks allowed - show wizard
             skip_wizard = False
-            logger.info(f"[UNIFIED_ENROLL] Wizard enabled: no template tasks, custom tasks allowed")
+            logger.info("[UNIFIED_ENROLL] Wizard enabled: no template tasks, custom tasks allowed")
         else:
             # No template tasks and custom tasks disabled - skip wizard
             skip_wizard = True
@@ -443,7 +443,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     .update({'personalization_completed': True})\
                     .eq('id', enrollment['id'])\
                     .execute()
-                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (no customization available)")
+                logger.info("[UNIFIED_ENROLL] Personalization auto-completed (no customization available)")
             except Exception as e:
                 logger.warning(f"[UNIFIED_ENROLL] Failed to mark personalization complete: {e}")
 
@@ -477,7 +477,6 @@ def enroll_in_quest(user_id: str, quest_id: str):
         )
     except Exception as e:
         logger.error(f"Unexpected error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
-        import traceback
         return error_response(
             code='ENROLLMENT_FAILED',
             message='Failed to enroll in quest',

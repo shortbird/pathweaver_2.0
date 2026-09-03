@@ -6,8 +6,7 @@ Handles course management, enrollment, progress tracking, and course-badge relat
 from typing import List, Dict, Optional
 from datetime import datetime
 from services.base_service import BaseService, ValidationError, NotFoundError, PermissionError
-from database import get_supabase_admin_client, get_user_client
-from flask import current_app
+from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 

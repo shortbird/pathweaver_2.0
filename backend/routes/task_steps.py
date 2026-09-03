@@ -13,8 +13,11 @@ from utils.logger import get_logger
 from services.task_steps_service import (
     task_steps_service,
     AIGenerationError,
-    AIServiceOverloadedError,
 )
+# Straight from where it is defined. It used to come via task_steps_service,
+# which imported it without ever using it -- an accidental re-export that broke
+# the moment an unused-import sweep touched that file.
+from services.base_ai_service import AIServiceOverloadedError
 
 logger = get_logger(__name__)
 

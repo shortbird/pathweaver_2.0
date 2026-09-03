@@ -23,7 +23,6 @@ insert, these fail.
 
 from unittest.mock import Mock
 
-import pytest
 
 import app  # noqa: F401 — import graph ordering
 from utils.template_tasks import resync_enrollments_to_template

@@ -32,12 +32,11 @@ Endpoints:
 import threading
 import time
 
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
 from services.course_generation_service import CourseGenerationService
 from services.course_generation_job_service import CourseGenerationJobService
-from services.base_ai_service import AIGenerationError
 
 from utils.logger import get_logger
 
@@ -354,7 +353,7 @@ def fix_images(user_id):
                         needs_cover = not course.get('cover_image_url')
 
                         if not needs_cover and not projects_needing_images:
-                            log(f"  Skipped (nothing to fix)")
+                            log("  Skipped (nothing to fix)")
                             progress['completed'] += 1
                             continue
 
@@ -371,7 +370,7 @@ def fix_images(user_id):
                                     'cover_image_url': cover_url
                                 }).eq('id', cid).execute()
                                 existing_urls.add(cover_url)
-                                log(f"  Set cover image")
+                                log("  Set cover image")
 
                         # Fetch project images one by one to maintain uniqueness
                         imgs_set = 0

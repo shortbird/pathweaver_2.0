@@ -4,7 +4,6 @@ Automatically migrates all Python files in the backend directory
 """
 
 import re
-import sys
 from pathlib import Path
 from typing import Tuple, List
 
@@ -35,7 +34,7 @@ def migrate_file(file_path: Path) -> Tuple[int, List[str]]:
 
     if import_match:
         # Add logger import after other imports
-        logger_import = f"\nfrom utils.logger import get_logger\n\nlogger = get_logger(__name__)\n"
+        logger_import = "\nfrom utils.logger import get_logger\n\nlogger = get_logger(__name__)\n"
         insert_pos = import_match.end()
         content = content[:insert_pos] + logger_import + content[insert_pos:]
         changes += 1
@@ -46,7 +45,7 @@ def migrate_file(file_path: Path) -> Tuple[int, List[str]]:
             insert_pos = docstring_match.end()
         else:
             insert_pos = 0
-        logger_import = f"from utils.logger import get_logger\n\nlogger = get_logger(__name__)\n\n"
+        logger_import = "from utils.logger import get_logger\n\nlogger = get_logger(__name__)\n\n"
         content = content[:insert_pos] + logger_import + content[insert_pos:]
         changes += 1
 
@@ -135,7 +134,7 @@ def main():
             total_warnings.extend([f"{py_file.relative_to(backend_dir)}: {w}" for w in warnings])
 
     print("=" * 80)
-    print(f"\n[SUCCESS] Migration complete!")
+    print("\n[SUCCESS] Migration complete!")
     print(f"   Files modified: {files_modified}/{len(python_files)}")
     print(f"   Total changes: {total_changes}")
 

@@ -14,14 +14,6 @@ User transcript routes
 
 from flask import Blueprint, jsonify
 from database import get_user_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from datetime import datetime

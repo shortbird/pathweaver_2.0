@@ -5,7 +5,7 @@ Part of Phase 2: Teacher verification workflow for diploma subject alignment.
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_advisor
 from middleware.error_handler import ValidationError, NotFoundError
 from datetime import datetime

@@ -15,7 +15,6 @@ already set it down or finished it.
 
 from unittest.mock import Mock, patch
 
-import pytest
 
 import routes.sis.staff_training as training
 from utils.quest_assignment import assign_quest_to_users

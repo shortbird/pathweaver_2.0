@@ -13,7 +13,7 @@ counts survive a capped server.
 """
 
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

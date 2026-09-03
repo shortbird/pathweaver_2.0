@@ -155,7 +155,7 @@ def main():
     print(f"Login:    {PARENT_EMAIL}")
     print(f"Password: {PARENT_PASSWORD}")
     print(f"Child:    {CHILD_FIRST} {CHILD_LAST}")
-    print(f"Open class: Self-Signup Demo Class ($100.00)")
+    print("Open class: Self-Signup Demo Class ($100.00)")
 
 
 if __name__ == '__main__':

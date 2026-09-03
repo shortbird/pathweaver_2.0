@@ -341,5 +341,4 @@ def get_parent_dashboard(user_id, student_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"Error getting parent dashboard: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get parent dashboard'}), 500

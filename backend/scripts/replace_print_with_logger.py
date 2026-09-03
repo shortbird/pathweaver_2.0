@@ -11,7 +11,6 @@ Replacements:
 """
 
 import re
-import os
 from pathlib import Path
 
 def replace_print_in_file(file_path: str, dry_run: bool = True) -> int:

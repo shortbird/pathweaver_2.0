@@ -13,7 +13,7 @@ Refactored (Jan 2026): Now uses shared prompt components for consistency.
 """
 
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from datetime import datetime
@@ -26,9 +26,7 @@ from utils.logger import get_logger
 from prompts.components import (
     OPTIO_AI_PERSONA,
     CORE_PHILOSOPHY,
-    LANGUAGE_GUIDELINES,
     TONE_LEVELS,
-    PILLAR_DEFINITIONS,
     PILLAR_DISPLAY_NAMES,
 )
 
@@ -158,7 +156,7 @@ GUIDELINES:
                 "generated_at": datetime.utcnow().isoformat()
             }
 
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # Fallback if JSON parsing fails
             return {
                 "success": False,
@@ -278,7 +276,7 @@ Return the {limit} most relevant quests.
         """
         tasks_str = ""
         if suggested_tasks:
-            tasks_str = f"\nSuggested Tasks:\n" + "\n".join([f"- {task}" for task in suggested_tasks])
+            tasks_str = "\nSuggested Tasks:\n" + "\n".join([f"- {task}" for task in suggested_tasks])
 
         prompt = f"""{OPTIO_AI_PERSONA}
 

@@ -5,7 +5,7 @@ Uses Google Gemini to extract topics from quest title and big_idea.
 
 import json
 import re
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from app_config import Config
 
 from services.base_service import BaseService

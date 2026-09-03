@@ -11,11 +11,10 @@ Tests atomic quest completion operations including:
 
 import pytest
 import uuid
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
 
 from services.atomic_quest_service import AtomicQuestService
-from services.base_service import DatabaseError, ValidationError
 
 from utils.logger import get_logger
 

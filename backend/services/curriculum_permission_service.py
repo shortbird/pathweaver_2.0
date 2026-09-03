@@ -24,7 +24,7 @@ Usage:
         quest = result.data
 """
 
-from typing import Optional, Dict, Any, NamedTuple
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from services.base_service import BaseService, ValidationError, NotFoundError, PermissionError
 from utils.logger import get_logger

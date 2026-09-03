@@ -8,7 +8,7 @@ Services should use repositories for database operations, not direct client acce
 See SERVICE_CLASSIFICATION.md for migration guide.
 """
 
-from typing import Optional, Callable, Any, Dict
+from typing import Callable, Any
 from functools import wraps
 import time
 from flask import current_app

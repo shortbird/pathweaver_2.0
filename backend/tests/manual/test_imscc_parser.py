@@ -4,7 +4,6 @@ Quick test script to parse IMSCC file locally
 """
 
 from services.imscc_parser_service import IMSCCParserService
-import json
 
 @pytest.mark.skip(
     reason="Manual test: reads a .imscc export from a hardcoded local path "
@@ -34,14 +33,14 @@ def test_parse():
         print(f"Resources: {len(result['course'].get('resources', {}))}")
         print()
 
-        print(f"\nBadge preview:")
+        print("\nBadge preview:")
         print(f"  Name: {result['badge_preview']['name']}")
         print(f"  Min quests: {result['badge_preview']['min_quests']}")
         print(f"  Min XP: {result['badge_preview']['min_xp']} XP (sum of all assignment Canvas points)")
         print(f"  Total Canvas points: {result['badge_preview']['total_canvas_points']}")
         print(f"  Total assignments: {result['badge_preview']['metadata']['total_assignments']}")
 
-        print(f"\nQuest preview:")
+        print("\nQuest preview:")
         print(f"  Title: {result['quest_preview']['title']}")
         print(f"  Type: {result['quest_preview']['quest_type']}")
         print(f"  Platform: {result['quest_preview']['lms_platform']}")

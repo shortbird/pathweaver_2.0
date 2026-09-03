@@ -140,7 +140,7 @@ def get_public_diploma_by_user_id(user_id):
                 return jsonify({'error': 'Portfolio not found or private'}), 404
 
         logger.info(f"[FERPA] Access GRANTED: viewer={viewer_user_id}, owner={user_id}")
-        logger.info(f"=== RETURNING DIPLOMA DATA ===")
+        logger.info("=== RETURNING DIPLOMA DATA ===")
         logger.info(f"Student: {result.get('student')}")
         logger.info(f"Achievements: {len(result.get('achievements', []))}")
         logger.info(f"Total XP: {result.get('total_xp')}")
@@ -149,7 +149,7 @@ def get_public_diploma_by_user_id(user_id):
 
     except Exception as e:
         import traceback
-        logger.error(f"=== ERROR IN DIPLOMA ENDPOINT ===")
+        logger.error("=== ERROR IN DIPLOMA ENDPOINT ===")
         logger.error(f"Error fetching diploma: {str(e)}")
         logger.info(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch diploma'}), 500

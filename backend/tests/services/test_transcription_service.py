@@ -6,7 +6,7 @@ Tests Google Cloud STT integration and pillar suggestion from text.
 
 import sys
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 
 @pytest.mark.unit

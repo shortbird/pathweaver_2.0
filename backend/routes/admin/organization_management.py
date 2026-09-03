@@ -19,8 +19,7 @@ from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.validation.password_validator import validate_password_strength
-from datetime import datetime, date
-from urllib.parse import quote
+from datetime import datetime
 import re
 import secrets
 

@@ -10,24 +10,11 @@ from typing import Optional
 
 # Import centralized constants (relative imports for production compatibility)
 from config.constants import (
-    MAX_FILE_SIZE,
     MAX_CONTENT_LENGTH,
-    MIN_PASSWORD_LENGTH,
-    MAX_PASSWORD_LENGTH,
     PASSWORD_REQUIREMENTS,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
-    DEFAULT_QUEST_XP,
-    MAX_QUEST_XP,
-    MIN_QUEST_TITLE_LENGTH,
-    MAX_QUEST_TITLE_LENGTH,
-    MIN_QUEST_DESCRIPTION_LENGTH,
-    MAX_QUEST_DESCRIPTION_LENGTH,
-    SESSION_TIMEOUT,
-    ACCESS_TOKEN_EXPIRY,
-    REFRESH_TOKEN_EXPIRY,
     MIN_SECRET_KEY_LENGTH,
-    ALLOWED_EXTENSIONS,
 )
 
 # Load from current directory's .env file (backend/.env)

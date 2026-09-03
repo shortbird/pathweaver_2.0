@@ -16,7 +16,7 @@ completions = client.table('quest_task_completions').select(
     'id, task_id, user_quest_tasks(id, title, pillar, xp_value, diploma_subjects)'
 ).eq('user_id', user_id).limit(10).execute()
 
-print(f"=== Completed tasks for tannerbowman ===\n")
+print("=== Completed tasks for tannerbowman ===\n")
 
 tasks_with_subjects = 0
 tasks_without_subjects = 0
@@ -37,7 +37,7 @@ for c in (completions.data or []):
         tasks_without_subjects += 1
         print(f"  {title}")
         print(f"    Pillar: {pillar}, XP: {xp}")
-        print(f"    Diploma subjects: NONE")
+        print("    Diploma subjects: NONE")
     print()
 
 print(f"Summary: {tasks_with_subjects} with diploma_subjects, {tasks_without_subjects} without")

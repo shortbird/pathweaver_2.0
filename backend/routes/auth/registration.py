@@ -9,7 +9,7 @@ Handles:
 """
 
 from flask import Blueprint, request, jsonify, make_response
-from database import get_supabase_client, get_supabase_admin_client
+from database import get_supabase_admin_client
 from utils.validation import (
     validate_registration_data,
     sanitize_input,
@@ -20,11 +20,10 @@ from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, should_log_sensitive_data
 from middleware.error_handler import ValidationError, ExternalServiceError, ConflictError
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
-from utils.api_response_v1 import success_response, error_response, created_response
+from utils.api_response_v1 import error_response
 import re
 from datetime import datetime, date
 
-from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -118,7 +117,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 @rate_limit('auth_register')
 def register():
     try:
-        logger.info(f"[REGISTRATION] Starting registration process")
+        logger.info("[REGISTRATION] Starting registration process")
         data = request.json
 
         # Validate input data
@@ -180,7 +179,7 @@ def register():
 
                 # Block all under-13 self-registration - parent must create account first
                 if requires_parental_consent:
-                    logger.info(f"[REGISTRATION] User under 13 - blocking self-registration (COPPA)")
+                    logger.info("[REGISTRATION] User under 13 - blocking self-registration (COPPA)")
                     return jsonify({
                         'error': 'under_13_registration_blocked',
                         'message': 'Users under 13 cannot create their own account. A parent or guardian must create an account first, then add you as a child profile.',
@@ -316,9 +315,9 @@ def register():
                     # Valid invitation - set role to observer
                     user_data['role'] = 'observer'
                     is_observer_registration = True
-                    logger.info(f"[REGISTRATION] Observer registration via invitation code")
+                    logger.info("[REGISTRATION] Observer registration via invitation code")
                 else:
-                    logger.warning(f"[REGISTRATION] Invalid or expired invitation code provided")
+                    logger.warning("[REGISTRATION] Invalid or expired invitation code provided")
 
             # Check for promo code (first month free, etc.)
             promo_code = data.get('promo_code')
@@ -369,7 +368,7 @@ def register():
                 # Platform user - no organization
                 # organization_id stays NULL (not set)
                 # Role is set directly (observer from invitation, or default 'student')
-                logger.info(f"[REGISTRATION] Creating platform user (no organization)")
+                logger.info("[REGISTRATION] Creating platform user (no organization)")
 
             # Partner program tag (e.g. 'opened-academy' for the Hearthwood Academy diploma plan).
             # OEA families are platform users carrying this lightweight flag, not
@@ -538,7 +537,7 @@ def register():
         # Log the full error for debugging
         try:
             logger.error(f"Supabase registration error: {str(e)}")
-        except (TypeError, ValueError, UnicodeEncodeError) as log_error:
+        except (TypeError, ValueError, UnicodeEncodeError):
             # Error converting exception to string for logging
             logger.error(f"Supabase registration error occurred (unable to format: {type(e).__name__})")
 

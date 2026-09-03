@@ -174,7 +174,7 @@ def apple_oauth_callback():
 
         else:
             # Case D: New user - create profile (require TOS acceptance first)
-            logger.info(f"[APPLE_OAUTH] Creating new user profile")
+            logger.info("[APPLE_OAUTH] Creating new user profile")
             is_new_user = True
             requires_tos_acceptance = True
 

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
-from middleware.error_handler import NotFoundError, ValidationError, AuthorizationError
+from middleware.error_handler import NotFoundError, AuthorizationError
 
 from utils.logger import get_logger
 

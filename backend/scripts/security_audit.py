@@ -194,7 +194,7 @@ def main():
                 print(f"\nFILE: {endpoint['file']}")
                 print(f"  Function: {endpoint['function']}")
                 print(f"  Methods: {', '.join(endpoint['methods'])}")
-                logger.info(f"  ACTION REQUIRED: Add @require_auth or similar decorator")
+                logger.info("  ACTION REQUIRED: Add @require_auth or similar decorator")
 
     # Save results to file
     output_file = Path(__file__).parent.parent / 'docs' / 'security_audit_results.json'

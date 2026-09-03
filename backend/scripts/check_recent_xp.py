@@ -19,7 +19,7 @@ recent_completions = client.table('quest_task_completions').select(
     '*, user_quest_tasks!inner(title, pillar, xp_value)'
 ).eq('user_id', user_id).gte('completed_at', thirty_days_ago).order('completed_at', desc=True).execute()
 
-print(f"=== Completions in last 30 days ===\n")
+print("=== Completions in last 30 days ===\n")
 
 recent_xp_by_pillar = {}
 for c in (recent_completions.data or []):
@@ -35,12 +35,12 @@ for c in (recent_completions.data or []):
     print(f"  {completed}: {title}")
     print(f"      {pillar}: {xp} XP")
 
-print(f"\n=== XP that should have been added in last 30 days ===")
+print("\n=== XP that should have been added in last 30 days ===")
 print(f"  {recent_xp_by_pillar}")
 print(f"  Total: {sum(recent_xp_by_pillar.values())} XP")
 
 # Check when user_skill_xp records were last updated
-print(f"\n=== user_skill_xp last updated ===")
+print("\n=== user_skill_xp last updated ===")
 xp_records = client.table('user_skill_xp').select('pillar, xp_amount, updated_at').eq('user_id', user_id).in_('pillar', ['art', 'stem', 'wellness', 'communication', 'civics']).execute()
 
 for r in (xp_records.data or []):

@@ -12,24 +12,13 @@ Handles creating, updating, and retrieving evidence documents with multiple cont
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from middleware.rate_limiter import rate_limit
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
-import mimetypes
 import re
-from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional, List
-import json
 
 from app_config import Config
 from utils.logger import get_logger
@@ -140,7 +129,7 @@ def save_evidence_document(user_id: str, task_id: str):
         blocks = data.get('blocks', [])
         status = data.get('status', 'draft')  # 'draft' or 'completed'
 
-        logger.info(f"[EVIDENCE_DOC] === SAVE REQUEST START ===")
+        logger.info("[EVIDENCE_DOC] === SAVE REQUEST START ===")
         logger.info(f"[EVIDENCE_DOC] task_id={task_id[:8]}, user_id={user_id[:8]}, status='{status}', num_blocks={len(blocks)}")
         logger.info(f"[EVIDENCE_DOC] Full status value: '{status}' (type: {type(status).__name__})")
 
@@ -356,7 +345,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 else:
                     logger.error(f"[EVIDENCE_DOC] FAILED to create completion record for task {task_id[:8]}")
             else:
-                logger.info(f"[EVIDENCE_DOC] Task already completed, skipping XP award")
+                logger.info("[EVIDENCE_DOC] Task already completed, skipping XP award")
 
         # Get the saved blocks to return their IDs
         saved_blocks_response = admin_supabase.table('evidence_document_blocks')\

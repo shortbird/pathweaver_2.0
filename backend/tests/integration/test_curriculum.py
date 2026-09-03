@@ -11,9 +11,7 @@ Tests the curriculum builder system including:
 """
 
 import pytest
-import json
 from datetime import datetime
-import re
 
 from utils.logger import get_logger
 

@@ -5,7 +5,7 @@ Handles smart content chunking for large curriculum files.
 Enables parallel processing of large documents.
 """
 
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.logger import get_logger

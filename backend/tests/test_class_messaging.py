@@ -241,7 +241,6 @@ class TestClassGroupSync:
     students + teachers."""
 
     def test_two_chats_each_holds_only_its_audience(self):
-        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         admin = _FakeAdmin(_rows())
@@ -275,7 +274,6 @@ class TestClassGroupSync:
         assert 'dropped-1' not in stu_members
 
     def test_back_compat_wrapper_returns_the_family_chat(self):
-        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         admin = _FakeAdmin(_rows())
@@ -287,7 +285,6 @@ class TestClassGroupSync:
         assert fam['source_class_id'] == CLASS
 
     def test_existing_family_group_sheds_students_and_gains_the_adults(self):
-        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         rows = _rows(
@@ -308,7 +305,6 @@ class TestClassGroupSync:
         assert _members_of(admin, res['student'])[STUDENT] == 'member'
 
     def test_a_guardian_who_teaches_the_class_is_admin_not_member(self):
-        from utils import class_membership as m
         from services import class_group_sync_service as sync
 
         rows = _rows()

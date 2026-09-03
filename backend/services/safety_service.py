@@ -6,7 +6,7 @@ Ensures all AI interactions are safe, educational, and appropriate for children.
 import re
 import json
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import List, Optional, Tuple
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from dataclasses import dataclass

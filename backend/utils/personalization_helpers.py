@@ -5,7 +5,6 @@ Helper functions for quest personalization.
 from typing import Dict, Any
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from utils.pillar_utils import normalize_pillar_name
 
 logger = get_logger(__name__)
 
@@ -46,7 +45,7 @@ def get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = Non
 
     except RepoPermissionError as e:
         logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
-        raise PermissionError(f"You do not have permission to manage this dependent profile")
+        raise PermissionError("You do not have permission to manage this dependent profile")
     except Exception as e:
         logger.error(f"Error verifying dependent ownership: {str(e)}")
         raise PermissionError("Failed to verify dependent ownership")
@@ -169,7 +168,6 @@ def check_and_complete_personalization(user_id: str, quest_id: str, session_id: 
 
     except Exception as e:
         logger.error(f"Error checking personalization completion: {str(e)}")
-        import traceback
         # Don't fail the request if completion check fails
 
 

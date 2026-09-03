@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import base64
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Optional
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey

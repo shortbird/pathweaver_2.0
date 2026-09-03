@@ -6,10 +6,9 @@ Updated January 2025: Migrated to use BaseService for consistent error handling,
 retry logic, and logging patterns.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from datetime import datetime
-from services.base_service import BaseService, ValidationError, DatabaseError
-from utils.pillar_utils import is_valid_pillar
+from services.base_service import BaseService, ValidationError
 from utils.pillar_utils import normalize_pillar_name
 import json
 
@@ -91,7 +90,7 @@ class XPService(BaseService):
         if not isinstance(xp_amount, int) or xp_amount <= 0:
             raise ValidationError(f"xp_amount must be positive integer, got: {xp_amount}")
 
-        logger.debug(f"=== XP SERVICE AWARD DEBUG ===")
+        logger.debug("=== XP SERVICE AWARD DEBUG ===")
         logger.info(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
 
         # Normalize pillar input (handles display names, old keys, etc.)

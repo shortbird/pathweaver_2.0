@@ -37,4 +37,4 @@ if comp_time > update_time:
     c.table('user_skill_xp').update({'xp_amount': new}).eq('id', r.data[0]['id']).execute()
     print("Done!")
 else:
-    print(f"\nCompletion was BEFORE last update - XP should be included")
+    print("\nCompletion was BEFORE last update - XP should be included")

@@ -6,7 +6,6 @@ When is_visible_to_parents is False:
 - Family/public views (audience='family') filter out the class.
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
 from services import sis_catalog_service as catalog
 

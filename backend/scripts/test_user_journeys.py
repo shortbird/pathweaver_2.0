@@ -32,7 +32,7 @@ def test_new_user_onboarding():
     # 1. Check if users can be created (registration simulation)
     try:
         test_email = generate_test_email()
-        logger.info(f"\n[1/7] Testing user registration capability...")
+        logger.info("\n[1/7] Testing user registration capability...")
         logger.info(f"      Test email: {test_email}")
 
         # Check if email is unique
@@ -67,7 +67,7 @@ def test_new_user_onboarding():
 
     # 3. Test quest detail retrieval
     try:
-        logger.info(f"\n[3/7] Testing quest detail view...")
+        logger.info("\n[3/7] Testing quest detail view...")
         quest_detail = supabase.table('quests').select('*, quest_tasks(*)').eq('id', test_quest_id).single().execute()
         if quest_detail.data and 'quest_tasks' in quest_detail.data:
             task_count = len(quest_detail.data['quest_tasks'])
@@ -98,7 +98,7 @@ def test_new_user_onboarding():
 
             # Check if user_quests table is accessible
             enrollment_check = supabase.table('user_quests').select('user_id, quest_id').eq('user_id', test_user_id).limit(1).execute()
-            logger.info(f"      [OK] Quest enrollment table accessible")
+            logger.info("      [OK] Quest enrollment table accessible")
             results['quest_enrollment'] = True
         else:
             logger.warning("      [WARN] No users in database for enrollment test")
@@ -137,16 +137,16 @@ def test_new_user_onboarding():
         logger.info("\n[7/7] Testing diploma/portfolio capability...")
         users_with_completions = supabase.rpc('get_users_with_completions', {}).execute()
         diplomas = supabase.table('diplomas').select('user_id, is_public').limit(3).execute()
-        logger.info(f"      [OK] Diploma system accessible")
+        logger.info("      [OK] Diploma system accessible")
         results['diploma_access'] = True
     except Exception as e:
         # Diplomas table might not exist, check alternative
         try:
             # Check if we can query user completions (diplomas are generated from this)
             completions = supabase.table('quest_task_completions').select('user_id').limit(1).execute()
-            logger.info(f"      [OK] Portfolio data accessible")
+            logger.info("      [OK] Portfolio data accessible")
             results['diploma_access'] = True
-        except Exception as e2:
+        except Exception:
             logger.error(f"      [FAIL] Diploma access error: {e}")
             results['diploma_access'] = False
 
@@ -192,7 +192,7 @@ def test_returning_user_flow():
         # Get recent completions
         recent_completions = supabase.table('quest_task_completions').select('quest_id, completed_at').eq('user_id', user_id).order('completed_at', desc=True).limit(5).execute()
 
-        logger.info(f"      [OK] Dashboard data retrieved:")
+        logger.info("      [OK] Dashboard data retrieved:")
         logger.info(f"        - Active quests: {len(active_quests.data)}")
         logger.info(f"        - XP records: {len(user_xp.data)}")
         logger.info(f"        - Recent completions: {len(recent_completions.data)}")
@@ -264,7 +264,7 @@ def test_social_features():
         logger.info("\n[1/2] Testing friendships/connections...")
         friendships = supabase.table('friendships').select('id, status').execute()
 
-        logger.info(f"      [OK] Friendships accessible:")
+        logger.info("      [OK] Friendships accessible:")
         logger.info(f"        - Total friendships: {len(friendships.data)} records")
         results['friendships'] = True
     except Exception as e:
@@ -315,7 +315,7 @@ def test_edge_cases():
         completion_counts = supabase.rpc('get_user_completion_counts', {}).execute() if hasattr(supabase, 'rpc') else None
 
         if completion_counts:
-            logger.info(f"      [OK] User completion counts retrieved")
+            logger.info("      [OK] User completion counts retrieved")
         else:
             # Alternative: count directly
             users = supabase.table('users').select('id').limit(5).execute()
@@ -335,7 +335,7 @@ def test_edge_cases():
     try:
         logger.info("\n[3/5] Testing session/token structure...")
         # This is more of a backend JWT config check
-        logger.info(f"      [OK] JWT authentication configured (backend handles expiry)")
+        logger.info("      [OK] JWT authentication configured (backend handles expiry)")
         results['session_timeout'] = True
     except Exception as e:
         logger.error(f"      [FAIL] Session timeout test error: {e}")
@@ -369,7 +369,7 @@ def test_edge_cases():
             logger.info(f"      [OK] Timestamps use timezone-aware format: {sample_timestamp}")
             results['timezone_handling'] = True
         else:
-            logger.warning(f"      [WARN] No users to check timestamps")
+            logger.warning("      [WARN] No users to check timestamps")
             results['timezone_handling'] = False
     except Exception as e:
         logger.error(f"      [FAIL] Timezone handling test error: {e}")

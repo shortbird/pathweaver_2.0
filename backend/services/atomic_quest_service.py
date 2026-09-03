@@ -7,7 +7,7 @@ to prevent race conditions when multiple users complete tasks simultaneously.
 
 import math
 from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 

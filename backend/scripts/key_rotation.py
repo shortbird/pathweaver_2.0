@@ -264,15 +264,15 @@ def cmd_rotate(key_name):
         url = info.get('provider_url', 'N/A')
         print(f'\n  Generate new key at: {url}')
     elif info['category'] == 'reference':
-        print(f'\n  This is a reference value and cannot be rotated.')
+        print('\n  This is a reference value and cannot be rotated.')
         return 0
 
     # Show where to update
-    print(f'\n  Update locations:')
-    print(f'    1. backend/.env (local development)')
+    print('\n  Update locations:')
+    print('    1. backend/.env (local development)')
 
     if info.get('render_services'):
-        print(f'    2. Render dashboard:')
+        print('    2. Render dashboard:')
         for svc in info['render_services']:
             svc_id = RENDER_SERVICES.get(svc, 'unknown')
             print(f'       - {svc}: https://dashboard.render.com/web/{svc_id}/env')

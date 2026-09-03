@@ -8,12 +8,12 @@ audience) — a second call syncs membership instead of creating duplicates.
 This endpoint returns the parent chat's id.
 """
 
-from flask import request, jsonify
+from flask import jsonify
 from . import bp
 from database import get_supabase_admin_client
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import STAFF_ROLES
 from ._caller import get_caller
 from utils.logger import get_logger
 

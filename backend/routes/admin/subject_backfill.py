@@ -78,7 +78,7 @@ def backfill_all_tasks(user_id: str):
 
         return jsonify({
             'success': True,
-            'message': f'Backfill complete',
+            'message': 'Backfill complete',
             'stats': stats
         }), 200
 

@@ -15,7 +15,6 @@ Allows admins to review and approve/reject AI-generated quests
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_admin
 from database import get_supabase_admin_client
-import logging
 
 from utils.logger import get_logger
 

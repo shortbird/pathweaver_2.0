@@ -5,7 +5,6 @@ Generates AI-powered parent recap emails from advisor meeting notes.
 
 from typing import Dict, Any
 from services.base_ai_service import BaseAIService
-from app_config import Config
 
 from utils.logger import get_logger
 

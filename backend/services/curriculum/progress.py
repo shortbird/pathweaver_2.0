@@ -5,7 +5,7 @@ Handles checkpoint saving, progress updates, and upload tracking.
 """
 
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 import json
 
 from database import get_supabase_admin_client

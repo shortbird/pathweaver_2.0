@@ -8,12 +8,11 @@ Orchestrates multiple repositories for portfolio-related operations including:
 """
 
 from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime, date
+from datetime import datetime
 import re
 import logging
 
 from database import get_supabase_admin_client
-from repositories import UserRepository, QuestRepository
 from utils.storage_urls import canonical_stored_url, sign_stored_url, sign_stored_urls
 
 logger = logging.getLogger(__name__)

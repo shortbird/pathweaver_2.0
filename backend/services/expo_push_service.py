@@ -6,7 +6,7 @@ Uses the device_tokens table (shared with FCM service) to store Expo push tokens
 """
 
 import requests
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from services.base_service import BaseService
 from utils.logger import get_logger
 

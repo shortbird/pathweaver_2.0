@@ -4,7 +4,6 @@ Handles all database operations for confidential advisor notes.
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime
 from database import get_supabase_admin_client
 
 

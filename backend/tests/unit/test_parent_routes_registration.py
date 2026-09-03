@@ -59,10 +59,13 @@ class TestParentRoutesImport:
         # If import succeeds, the fix is working
         assert analytics.bp is not None
 
-    def test_parent_analytics_has_verify_parent_access(self):
-        """Test verify_parent_access is imported correctly in analytics module."""
-        from routes.parent.analytics import verify_parent_access
-        assert callable(verify_parent_access)
+    # test_parent_analytics_has_verify_parent_access removed 2026-09-03 (CI-01).
+    # It asserted that routes/parent/analytics.py imports verify_parent_access,
+    # which it never called: the module is vestigial, a registered blueprint
+    # with zero routes. The test was written in Dec 2025 to catch an import
+    # path broken by a rename, and it had decayed into pinning an unused import
+    # in place -- the unused-import sweep removed the import and this failed.
+    # Restoring a dead import to satisfy it would keep the wrong thing alive.
 
     def test_parent_package_imports_cleanly(self):
         """

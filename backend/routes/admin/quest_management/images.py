@@ -15,24 +15,12 @@ REPOSITORY MIGRATION: PARTIALLY COMPLETE
 - Complex CRUD operations remain in routes for readability
 """
 
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
-from utils.auth.decorators import require_admin, require_advisor, get_advisor_assigned_students
-from utils.pillar_utils import is_valid_pillar
-from utils.pillar_utils import normalize_pillar_name
-from utils.school_subjects import validate_school_subjects, normalize_subject_key
+from utils.auth.decorators import require_admin
 from services.image_service import search_quest_image
 from services.api_usage_tracker import pexels_tracker
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 import uuid
 
 from utils.logger import get_logger
@@ -73,7 +61,7 @@ def upload_quest_image(user_id, quest_id):
         if file_extension not in allowed_extensions:
             return jsonify({
                 'success': False,
-                'error': f'Invalid file type. Allowed types: JPG, PNG, GIF, WebP, HEIC'
+                'error': 'Invalid file type. Allowed types: JPG, PNG, GIF, WebP, HEIC'
             }), 400
 
         # Check file size (5MB max for images)

@@ -127,7 +127,7 @@ def check_ai_access(user_id: str, feature: str = None):
                     logger.info(f"AI feature '{feature}' denied for user {user_id}: org has {feature_column}=False")
                     return False, {
                         'error': 'ai_feature_disabled_org',
-                        'message': f'This AI feature is disabled for your organization.',
+                        'message': 'This AI feature is disabled for your organization.',
                         'code': 'ORG_AI_FEATURE_DISABLED',
                         'feature': feature
                     }, 403
@@ -139,7 +139,7 @@ def check_ai_access(user_id: str, feature: str = None):
                     logger.info(f"AI feature '{feature}' denied for dependent {user_id}: {feature_column}=False")
                     return False, {
                         'error': 'ai_feature_disabled',
-                        'message': f'This AI feature is not enabled for your account.',
+                        'message': 'This AI feature is not enabled for your account.',
                         'code': 'DEPENDENT_AI_FEATURE_DISABLED',
                         'feature': feature
                     }, 403

@@ -16,13 +16,12 @@ import re
 from datetime import datetime
 from urllib.parse import quote
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
-from utils.auth.org_scope import caller_can_access_user, user_org, caller_can_access_org
+from utils.auth.org_scope import caller_can_access_user
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
-from services.portfolio_service import PortfolioService
 from utils.accreditation import resolve_transcript_accreditation
 from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
@@ -504,7 +503,7 @@ def check_transcript_exists(admin_user_id, user_id):
             'user_id', user_id
         ).execute()
         return success_response({'exists': len(result.data or []) > 0})
-    except Exception as e:
+    except Exception:
         return success_response({'exists': False})
 
 

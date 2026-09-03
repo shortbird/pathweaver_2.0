@@ -8,9 +8,8 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from repositories import SiteSettingsRepository
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_admin
 import uuid
-from datetime import datetime
 
 from utils.logger import get_logger
 

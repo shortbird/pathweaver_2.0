@@ -461,7 +461,6 @@ def billing_reminders_cron():
     """Cron entrypoint: payment-reminder sweep across ALL orgs.
     Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering
     (mirrors /api/sis/internal/attendance-sweep)."""
-    from app_config import Config
     from database import get_supabase_admin_client
     secret = request.headers.get('X-Cron-Secret')
     from utils.cron_auth import is_valid_cron_secret
@@ -496,7 +495,6 @@ def tuition_autopay_cron():
     """Cron entrypoint: charge every due auto-charge installment across ALL orgs
     (saved-card payment plans). Auth via X-Cron-Secret, or a signed-in superadmin
     for manual triggering (mirrors /api/sis/internal/billing-reminders)."""
-    from app_config import Config
     from database import get_supabase_admin_client
     secret = request.headers.get('X-Cron-Secret')
     from utils.cron_auth import is_valid_cron_secret

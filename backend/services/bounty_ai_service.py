@@ -13,7 +13,7 @@ the single creation path — a human approves every word before it can reach a
 student.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app_config import Config
 from services.base_ai_service import (

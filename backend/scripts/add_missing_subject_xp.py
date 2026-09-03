@@ -33,7 +33,7 @@ for r in (current_records.data or []):
         'updated_at': r['updated_at']
     }
 
-print(f"\n=== Current user_subject_xp records ===")
+print("\n=== Current user_subject_xp records ===")
 for subject, data in sorted(subject_data.items()):
     print(f"  {subject}: {data['current_xp']} XP (updated: {data['updated_at'][:16]})")
 
@@ -76,7 +76,7 @@ for c in (completions.data or []):
                     if completed_at > last_updated:
                         missing_xp[normalized] = missing_xp.get(normalized, 0) + per_subject_xp
 
-print(f"\n=== Missing subject XP (from completions after last update) ===")
+print("\n=== Missing subject XP (from completions after last update) ===")
 total_missing = 0
 for subject, xp in sorted(missing_xp.items()):
     current = subject_data[subject]['current_xp']

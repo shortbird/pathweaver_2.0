@@ -10,7 +10,7 @@ import uuid
 from unittest.mock import Mock
 from datetime import datetime, timezone, timedelta
 
-from repositories.base_repository import NotFoundError, DatabaseError, ValidationError
+from repositories.base_repository import NotFoundError
 
 
 def _make_repo():

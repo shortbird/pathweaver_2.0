@@ -9,15 +9,10 @@ from database import get_supabase_client, get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_user_id, mask_email
-from middleware.error_handler import ValidationError, AuthenticationError
 from datetime import datetime, timedelta, timezone
-import os
-import time
-import random
 
 from utils.logger import get_logger
-from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
-from utils.api_response_v1 import success_response, error_response
+from utils.api_response_v1 import error_response
 from utils.retry_handler import with_connection_retry
 from utils.storage_urls import sign_in_place
 
@@ -950,7 +945,7 @@ def register_routes(bp):
                 response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
                 response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
 
-            logger.info(f"[LOGOUT] User logged out successfully, cookies cleared")
+            logger.info("[LOGOUT] User logged out successfully, cookies cleared")
             return response
         except Exception as e:
             # Even if there's an error, try to clear cookies

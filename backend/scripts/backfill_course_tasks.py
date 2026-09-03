@@ -156,7 +156,7 @@ def backfill_course_tasks():
             print(f"  Total: Created {user_tasks_created} tasks for user {user_id[:8]}")
 
     print(f"\n{'='*50}")
-    print(f"BACKFILL COMPLETE")
+    print("BACKFILL COMPLETE")
     print(f"  Users updated: {users_updated}")
     print(f"  Tasks created: {total_tasks_created}")
     print(f"{'='*50}")

@@ -16,7 +16,7 @@ task = client.table('user_quest_tasks').select(
 
 if task.data:
     t = task.data[0]
-    print(f"=== Feb 15 Task ===")
+    print("=== Feb 15 Task ===")
     print(f"Title: {t['title']}")
     print(f"Pillar: {t['pillar']}")
     print(f"XP Value: {t['xp_value']}")

@@ -8,7 +8,6 @@ table. A moment can be assigned to any number of interest tracks (topic_type =
 """
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import logging
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 

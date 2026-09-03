@@ -8,7 +8,6 @@ and remove entries.
 
 from flask import Blueprint, request, jsonify
 
-from app_config import Config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service

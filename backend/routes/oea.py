@@ -28,7 +28,6 @@ from utils.oea_grades import compute_gpa, compute_progress, GRADE_POINTS
 from utils import oea_rules
 from utils.roles import UserRole
 from utils.sis_roles import ADMIN_ROLES
-from app_config import Config
 from middleware.error_handler import ValidationError, AuthorizationError
 from utils.logger import get_logger
 

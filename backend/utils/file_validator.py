@@ -22,7 +22,7 @@ except ImportError:
     magic = None
 import subprocess
 import hashlib
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Dict, List
 from dataclasses import dataclass
 from pathlib import Path
 import re

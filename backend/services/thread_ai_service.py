@@ -10,9 +10,8 @@ AI-powered features for Curiosity Threads including:
 Uses BaseAIService for Gemini integration.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from services.base_ai_service import BaseAIService
-from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 

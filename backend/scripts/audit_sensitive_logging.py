@@ -16,7 +16,6 @@ Output:
     - Line numbers and context for each finding
 """
 
-import os
 import re
 from pathlib import Path
 from collections import defaultdict

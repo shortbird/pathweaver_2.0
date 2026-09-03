@@ -15,12 +15,6 @@ from typing import Any, Dict, List, Optional
 
 from app_config import Config
 from database import get_supabase_admin_client
-from prompts.components import (
-    CORE_PHILOSOPHY,
-    LANGUAGE_GUIDELINES,
-    OPTIO_AI_PERSONA,
-    TONE_LEVELS,
-)
 from services.ai_gen import generate_with_timeout
 from services.base_service import BaseService
 from utils.logger import get_logger

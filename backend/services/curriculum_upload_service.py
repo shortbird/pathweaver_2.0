@@ -42,9 +42,6 @@ from services.curriculum import (
     CurriculumAIService,
     CurriculumReviewService,
     ProgressTracker,
-    filter_imscc_content,
-    imscc_to_text,
-    imscc_to_sections,
 )
 
 from utils.logger import get_logger
@@ -697,7 +694,7 @@ class CurriculumUploadService:
                 }
 
             # Stage 3: Align philosophy
-            logger.info(f"Stage 3: Aligning to Optio philosophy")
+            logger.info("Stage 3: Aligning to Optio philosophy")
             alignment_result = self.ai_service.align_philosophy(
                 structure_result,
                 transformation_level=transformation_level,

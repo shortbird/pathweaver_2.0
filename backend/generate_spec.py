@@ -38,7 +38,7 @@ try:
 
     # Print stats to stderr
     print(f"\nSUCCESS: Generated OpenAPI spec with {spec['info']['x-route-count']} endpoints", file=sys.stderr)
-    print(f"Validate at: https://editor.swagger.io/", file=sys.stderr)
+    print("Validate at: https://editor.swagger.io/", file=sys.stderr)
 
 except Exception as e:
     print(f"ERROR at current step: {e}", file=sys.stderr)

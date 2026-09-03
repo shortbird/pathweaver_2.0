@@ -3,7 +3,6 @@ Run AI Jobs Tables Migration
 Executes the SQL migration to create scheduled_jobs and quality_action_logs tables
 """
 
-import os
 import sys
 from pathlib import Path
 

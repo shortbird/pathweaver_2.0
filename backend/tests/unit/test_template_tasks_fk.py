@@ -9,7 +9,6 @@ zero tasks. The fix validates candidate ids against quest_template_tasks and
 nulls out any that don't exist (source_task_id, which has no FK, still
 records provenance).
 """
-import pytest
 from unittest.mock import MagicMock
 
 from utils.template_tasks import (

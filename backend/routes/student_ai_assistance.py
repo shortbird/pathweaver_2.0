@@ -22,14 +22,6 @@ from utils.ai_access import require_ai_access
 from middleware.rate_limiter import rate_limit
 from services.student_ai_assistant_service import StudentAIAssistantService
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 import logging
 
 from utils.logger import get_logger

@@ -7,14 +7,6 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from datetime import datetime
 import time
 

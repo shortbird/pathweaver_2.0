@@ -136,7 +136,7 @@ def copy_preset_tasks_to_enrollment(enrollment, preset_tasks, dry_run=True):
             print(f"     [OK] Successfully copied {len(result.data)} tasks")
             return len(result.data)
         else:
-            print(f"     [FAIL] Failed to copy tasks")
+            print("     [FAIL] Failed to copy tasks")
             return 0
 
     except Exception as e:
@@ -184,7 +184,7 @@ def main():
         preset_tasks = get_preset_tasks_for_course(quest_id)
 
         if not preset_tasks:
-            print(f"  [!] Quest has no preset tasks in course_quest_tasks table - skipping")
+            print("  [!] Quest has no preset tasks in course_quest_tasks table - skipping")
             continue
 
         # Copy tasks

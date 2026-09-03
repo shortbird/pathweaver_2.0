@@ -12,7 +12,7 @@ import secrets
 
 from .helpers import get_frontend_url
 
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service

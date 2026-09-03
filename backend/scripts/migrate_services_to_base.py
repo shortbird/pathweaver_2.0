@@ -3,7 +3,6 @@ Script to migrate all service files to inherit from BaseService.
 Part of Phase 3 Architecture Consolidation.
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -158,7 +157,7 @@ def main():
             print(f"[ERROR] Error migrating {filepath.name}: {e}")
 
     print("-" * 60)
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Migrated: {migrated_count}")
     print(f"  Skipped:  {skipped_count}")
     print(f"  Total:    {len(service_files)}")

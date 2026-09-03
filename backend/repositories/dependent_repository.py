@@ -92,7 +92,6 @@ class DependentRepository(BaseRepository):
         try:
             # Step 1: Create a stub auth account (COPPA-compliant, no login)
             # Use a placeholder email that can't be used for login
-            import uuid
             import secrets
 
             # Generate unique placeholder email

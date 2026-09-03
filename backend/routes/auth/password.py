@@ -244,7 +244,7 @@ def forgot_password():
                 auth_user_obj = admin_client.auth.admin.get_user_by_id(user_id)
                 if auth_user_obj and auth_user_obj.user:
                     matching_user = auth_user_obj.user
-                    logger.info(f"[FORGOT_PASSWORD] Successfully retrieved auth user object")
+                    logger.info("[FORGOT_PASSWORD] Successfully retrieved auth user object")
         except Exception as lookup_err:
             logger.error(f"[FORGOT_PASSWORD] Error during user lookup: {str(lookup_err)}")
             matching_user = None
@@ -299,7 +299,7 @@ def forgot_password():
 
                 # Send email to the auth.users email (source of truth)
                 auth_email = matching_user.email
-                logger.info(f"[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
+                logger.info("[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
                 logger.info(f"[FORGOT_PASSWORD] Email params: user_email={auth_email}, user_name={user_name}, expiry_hours={PASSWORD_RESET_TOKEN_EXPIRY_HOURS}")
 
                 email_sent = email_service.send_password_reset_email(
@@ -631,7 +631,7 @@ def reset_password():
                     current_profile_email = profile_check.data[0]['email']
                     if current_profile_email.lower() != auth_email.lower():
                         logger.warning(f"[RESET_PASSWORD] Email mismatch detected: auth={mask_email(auth_email)}, profile={mask_email(current_profile_email)}")
-                        logger.info(f"[RESET_PASSWORD] Syncing profile email to match auth.users")
+                        logger.info("[RESET_PASSWORD] Syncing profile email to match auth.users")
                         admin_client.table('users').update({
                             'email': auth_email
                         }).eq('id', user_id).execute()

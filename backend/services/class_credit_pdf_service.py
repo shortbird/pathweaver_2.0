@@ -22,7 +22,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import fitz  # PyMuPDF
-import requests
 
 from database import get_supabase_admin_client
 from utils.school_subjects import get_display_name

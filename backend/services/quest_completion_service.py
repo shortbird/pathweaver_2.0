@@ -17,8 +17,7 @@ utils/ai_access.check_ai_access on the student's id first.
 """
 
 import json
-import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from services.base_ai_service import BaseAIService
 

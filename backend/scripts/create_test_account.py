@@ -31,7 +31,7 @@ def create_test_account():
         existing = supabase.table('users').select('id, email').eq('email', email).execute()
 
         if existing.data:
-            print(f"✓ Test account already exists in users table")
+            print("✓ Test account already exists in users table")
             print(f"  User ID: {existing.data[0]['id']}")
             print(f"  Email: {existing.data[0]['email']}")
             return
@@ -70,13 +70,13 @@ def create_test_account():
         user_response = supabase.table('users').insert(user_data).execute()
 
         if user_response.data:
-            print(f"✓ Created users table record")
-            print(f"\nTest account created successfully!")
+            print("✓ Created users table record")
+            print("\nTest account created successfully!")
             print(f"  Email: {email}")
             print(f"  Password: {password}")
             print(f"  User ID: {user_id}")
-            print(f"  Role: student")
-            print(f"\nYou can now run E2E tests with these credentials.")
+            print("  Role: student")
+            print("\nYou can now run E2E tests with these credentials.")
         else:
             print("✗ Failed to create users table record")
 

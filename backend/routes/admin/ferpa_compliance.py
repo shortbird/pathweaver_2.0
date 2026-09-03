@@ -7,7 +7,7 @@ Required for educational institutions to track and report on student record acce
 
 from flask import Blueprint, request, jsonify, Response
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import csv
 import io
 

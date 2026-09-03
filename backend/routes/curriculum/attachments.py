@@ -20,18 +20,14 @@ to satisfy the H1 audit; the actual access control lives in the permission helpe
 above.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
-from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from services.curriculum_service import CurriculumService
-from services.curriculum_lesson_service import CurriculumLessonService
-from services.curriculum_permission_service import CurriculumPermissionService
 from services.file_upload_service import FileUploadService
 from utils.logger import get_logger
-from utils.ai_access import require_ai_access
 
 logger = get_logger(__name__)
 
@@ -39,9 +35,7 @@ logger = get_logger(__name__)
 
 from routes.curriculum import (
     bp,
-    _check_read_permission,
     _check_edit_permission,
-    _check_lesson_edit_permission,
 )
 
 

@@ -17,7 +17,6 @@ from utils.auth.decorators import require_admin, require_advisor
 from services.image_service import search_quest_image
 from services.subject_classification_service import SubjectClassificationService
 from datetime import datetime
-import json
 
 from utils.logger import get_logger
 

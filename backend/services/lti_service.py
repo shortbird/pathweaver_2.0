@@ -25,10 +25,9 @@ from __future__ import annotations
 import re
 import secrets
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 import jwt
 import requests

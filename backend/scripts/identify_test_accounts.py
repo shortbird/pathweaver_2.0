@@ -6,7 +6,6 @@ Review the output before proceeding with any cleanup.
 
 import os
 import sys
-from datetime import datetime
 
 from utils.logger import get_logger
 
@@ -51,7 +50,7 @@ def identify_test_accounts():
                 logger.info(f"  Found {len(response.data)} accounts")
                 all_potential_test_accounts.extend(response.data)
             else:
-                logger.info(f"  No accounts found")
+                logger.info("  No accounts found")
         except Exception as e:
             logger.error(f"  Error querying: {e}")
         print()

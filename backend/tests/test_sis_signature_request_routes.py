@@ -11,7 +11,7 @@ tested at the view boundary rather than only in the service.
 """
 
 from io import BytesIO
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 

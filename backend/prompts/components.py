@@ -20,7 +20,7 @@ Usage:
     '''
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 # =============================================================================
 # OPTIO AI PERSONA - The unified AI personality across all student-facing features

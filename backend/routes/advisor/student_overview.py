@@ -15,7 +15,6 @@ from utils.roles import get_effective_role
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
 from utils.access_logger import AccessLogger
-from services.portfolio_service import PortfolioService
 from routes.users.helpers import calculate_subject_xp_from_tasks
 
 logger = get_logger(__name__)

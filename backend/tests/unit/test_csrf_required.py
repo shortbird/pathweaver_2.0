@@ -9,7 +9,6 @@ These tests assert two invariants:
 We don't try to actually break the import of Flask-WTF at runtime — instead
 we patch the `CSRF_AVAILABLE` flag on the app module and flip FLASK_ENV.
 """
-import importlib
 
 import pytest
 

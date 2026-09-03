@@ -2,12 +2,10 @@
 Security middleware for input validation and request sanitization
 """
 import re
-import json
 import secrets
 from flask import request, jsonify, abort, g
 from functools import wraps
-from typing import Dict, List, Any
-from werkzeug.exceptions import BadRequest
+from typing import Dict, Any
 
 from app_config import Config
 from utils.logger import get_logger

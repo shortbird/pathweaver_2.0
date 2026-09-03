@@ -18,7 +18,7 @@ Routes:
 - GET /api/evidence-reports/pending-approvals - Parent's pending approvals
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.api_response_v1 import success_response, error_response
@@ -283,7 +283,7 @@ def get_public_report(access_token: str):
         logger.info(f"[PUBLIC REPORT] Fetching report with token: {access_token[:16]}...")
         service = EvidenceReportService()
         report_data = service.get_public_report(access_token)
-        logger.info(f"[PUBLIC REPORT] Successfully fetched report")
+        logger.info("[PUBLIC REPORT] Successfully fetched report")
 
         return success_response(data=report_data)
 

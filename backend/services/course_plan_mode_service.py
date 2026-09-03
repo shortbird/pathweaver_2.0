@@ -26,10 +26,9 @@ Usage:
 """
 
 import uuid
-import json
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-from services.base_ai_service import BaseAIService, AIGenerationError, AIParsingError
+from typing import Dict, List, Any
+from services.base_ai_service import BaseAIService, AIGenerationError
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger

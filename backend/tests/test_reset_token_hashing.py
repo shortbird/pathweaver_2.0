@@ -11,7 +11,7 @@ The link in the email is unchanged; only the stored form is.
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 

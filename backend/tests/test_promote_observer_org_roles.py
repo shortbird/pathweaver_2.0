@@ -18,7 +18,6 @@ column is worse than one that fails: the account stops reading as a member of
 its school and nobody is told.
 """
 
-import pytest
 
 import app  # noqa: F401 — import graph ordering
 from utils.roles import get_effective_roles

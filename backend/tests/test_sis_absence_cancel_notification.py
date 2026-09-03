@@ -12,7 +12,7 @@ Two gaps in the guardian-reported absence flow:
   notifications exist for.
 """
 
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 

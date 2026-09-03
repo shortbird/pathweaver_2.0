@@ -8,25 +8,13 @@ from flask import request, jsonify, make_response
 from database import get_supabase_client, get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
-from utils.log_scrubber import mask_user_id, mask_email
-from middleware.error_handler import ValidationError, AuthenticationError
-from datetime import datetime, timedelta, timezone
-import os
-import time
-import random
+from utils.log_scrubber import mask_user_id
+from datetime import datetime
 
 from utils.logger import get_logger
-from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
-from utils.api_response_v1 import success_response, error_response
+from utils.api_response_v1 import error_response
 from utils.retry_handler import with_connection_retry
 
-from .security import (
-    constant_time_delay,
-    check_account_lockout,
-    record_failed_login,
-    reset_login_attempts,
-    ensure_user_diploma_and_skills
-)
 from .. import token_delivery
 
 logger = get_logger(__name__)

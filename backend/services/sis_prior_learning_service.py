@@ -36,7 +36,6 @@ from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from utils.org_features import org_has_feature
 from utils.school_subjects import SCHOOL_SUBJECTS
 from utils.storage_urls import parse_object_ref, sign_in_place
 

@@ -97,7 +97,6 @@ def get_student_progress(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting student progress: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get student progress'}), 500
 
 
@@ -271,7 +270,6 @@ def get_learning_insights(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting learning insights: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get learning insights'}), 500
 
 
@@ -350,7 +348,6 @@ def get_student_communications(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting student communications: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get student communications'}), 500
 
 

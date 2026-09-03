@@ -12,7 +12,7 @@ Uses the admin client like the rest of the SIS (tables are RLS-locked to the
 backend); route-level role checks + sis_service.class_scope do authorization.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 

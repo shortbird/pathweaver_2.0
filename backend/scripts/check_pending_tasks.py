@@ -16,7 +16,7 @@ tasks = client.table('user_quest_tasks').select(
     'id, title, pillar, xp_value, approval_status, created_at, updated_at'
 ).eq('user_id', user_id).order('created_at', desc=True).limit(15).execute()
 
-print(f"=== Recent tasks for tannerbowman ===\n")
+print("=== Recent tasks for tannerbowman ===\n")
 
 by_status = {'approved': 0, 'pending': 0, 'rejected': 0, 'other': 0}
 

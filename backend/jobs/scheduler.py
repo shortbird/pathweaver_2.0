@@ -6,7 +6,6 @@ Orchestrates automated content generation and quality monitoring tasks.
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from database import get_supabase_admin_client
-import json
 import traceback
 
 from utils.logger import get_logger

@@ -21,10 +21,9 @@ import json
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import requests
-from flask import current_app
 
 from services.base_service import BaseService
 from utils.logger import get_logger

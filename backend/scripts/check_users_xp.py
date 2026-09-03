@@ -19,7 +19,7 @@ else:
 tanner = client.table('users').select('id, email, total_xp').eq('email', 'tannerbowman@gmail.com').execute()
 if tanner.data:
     user_id = tanner.data[0]['id']
-    print(f"\n=== tannerbowman@gmail.com ===")
+    print("\n=== tannerbowman@gmail.com ===")
     print(f"  users.total_xp: {tanner.data[0].get('total_xp', 'NULL')}")
 
     # Get from user_skill_xp

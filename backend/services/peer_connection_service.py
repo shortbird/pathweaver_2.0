@@ -29,7 +29,7 @@ caller must be a participant (``_require_participant``) or the named approver
 """
 
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import secrets
 
 from database import get_supabase_admin_client

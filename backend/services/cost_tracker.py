@@ -3,8 +3,7 @@ Cost tracking and optimization for AI API usage.
 Tracks token usage and estimated costs for quest generation.
 """
 
-from typing import Dict, Optional
-from datetime import datetime, timedelta
+from typing import Dict
 from services.base_service import BaseService
 from app_config import Config
 from database import get_supabase_admin_client

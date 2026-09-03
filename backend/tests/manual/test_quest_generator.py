@@ -1,8 +1,6 @@
 """
 Test script for quest concept generation
 """
-import os
-import sys
 from services.quest_ai_service import QuestAIService
 
 from utils.logger import get_logger
@@ -45,9 +43,9 @@ def test_quest_concept_generation():
 
         # Check if it avoided the titles
         if quest2['title'] in avoid_titles:
-            logger.warning(f"  ⚠ WARNING: Generated quest was in avoid list!")
+            logger.warning("  ⚠ WARNING: Generated quest was in avoid list!")
         else:
-            logger.info(f"  ✓ Successfully avoided duplicate titles")
+            logger.info("  ✓ Successfully avoided duplicate titles")
     else:
         print(f"✗ Failed: {result2.get('error')}")
 

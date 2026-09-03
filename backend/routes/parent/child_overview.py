@@ -14,7 +14,6 @@ from utils.logger import get_logger
 from utils.access_logger import AccessLogger
 from utils.storage_urls import public_object_url, sign_stored_url
 from routes.users.helpers import calculate_subject_xp_from_tasks
-from services.portfolio_service import PortfolioService
 import logging
 import uuid as uuid_module
 

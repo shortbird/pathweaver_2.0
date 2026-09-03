@@ -8,7 +8,6 @@ XP values, pillars, and diploma subjects. Based on Optio's core philosophy:
 Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
 """
 
-import json
 from typing import Dict, Any, Optional
 
 from services.base_ai_service import BaseAIService

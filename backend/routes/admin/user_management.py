@@ -12,17 +12,11 @@ REPOSITORY MIGRATION: COMPLETE
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
+    UserRepository
 )
 from utils.auth.decorators import require_admin, require_advisor, require_school_admin, get_advisor_assigned_students
 from utils.api_response import success_response, error_response
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 import uuid
 import magic
 from werkzeug.utils import secure_filename
@@ -755,7 +749,7 @@ def upload_user_avatar(user_id, target_user_id):
         # Validate file type using magic bytes (images only)
         try:
             mime_type = magic.from_buffer(file_content[:2048], mime=True)
-        except Exception as e:
+        except Exception:
             return jsonify({'error': 'Failed to detect file type'}), 400
 
         ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'}
@@ -954,7 +948,6 @@ def update_org_user_role(admin_user_id, user_id):
     Valid org_role values: student, parent, advisor, org_admin, observer
     """
     from utils.roles import get_effective_role, VALID_ORG_ROLES
-    import json
 
     try:
         data = request.json

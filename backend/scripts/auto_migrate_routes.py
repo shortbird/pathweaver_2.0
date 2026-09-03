@@ -8,11 +8,10 @@ Usage:
     python backend/scripts/auto_migrate_routes.py [--dry-run] [--route ROUTE_FILE]
 """
 
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent
@@ -99,7 +98,7 @@ def generate_repository_imports(repositories: List[str]) -> str:
     base_repos = {'UserRepository', 'QuestRepository', 'TaskRepository', 'TaskCompletionRepository'}
     all_repos = sorted(base_repos.union(set(repositories)))
 
-    return f"from repositories import (\n    " + ",\n    ".join(all_repos) + "\n)"
+    return "from repositories import (\n    " + ",\n    ".join(all_repos) + "\n)"
 
 
 def add_repository_imports_to_file(filepath: str, repositories: List[str]) -> str:

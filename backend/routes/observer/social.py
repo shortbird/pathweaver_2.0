@@ -5,14 +5,11 @@ Views and completion comments.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta, timezone
 import logging
 
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.platform_staff import is_optio_platform_user
-from middleware.rate_limiter import rate_limit
-from services.notification_service import NotificationService
 from utils.storage_urls import sign_in_place
 
 logger = logging.getLogger(__name__)

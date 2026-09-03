@@ -23,7 +23,7 @@ completions = client.table('quest_task_completions').select(
 
 completion_task_ids = {c['user_quest_task_id'] for c in (completions.data or [])}
 
-print(f"=== Recent approved tasks - completion check ===\n")
+print("=== Recent approved tasks - completion check ===\n")
 print(f"Total completions: {len(completion_task_ids)}")
 print()
 
@@ -42,11 +42,11 @@ for t in (recent_tasks.data or []):
         missing_completions.append(t)
     print()
 
-print(f"\n=== Summary ===")
+print("\n=== Summary ===")
 print(f"Tasks with completions: {len(recent_tasks.data) - len(missing_completions)}")
 print(f"Tasks WITHOUT completions: {len(missing_completions)}")
 
 if missing_completions:
-    print(f"\nThese approved tasks have NO completion record (no XP awarded):")
+    print("\nThese approved tasks have NO completion record (no XP awarded):")
     for t in missing_completions:
         print(f"  - {t['title'][:50]} ({t['xp_value']} XP)")

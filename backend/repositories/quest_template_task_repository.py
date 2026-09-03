@@ -5,8 +5,7 @@ Handles all template task operations for quests. Replaces the separate
 quest_sample_tasks and course_quest_tasks tables with a unified approach.
 """
 
-import logging
-from typing import Optional, Dict, List, Any
+from typing import Dict, List, Any
 from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 

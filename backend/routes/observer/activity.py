@@ -5,13 +5,11 @@ Student activity feed for observers.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta
 import logging
 
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
-from services.observer_audit_service import ObserverAuditService
 from services.activity_feed_service import build_activity_feed
 from utils.access_logger import AccessLogger
 

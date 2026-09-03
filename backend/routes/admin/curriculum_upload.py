@@ -19,7 +19,6 @@ import uuid
 import atexit
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 from flask import Blueprint, request, jsonify, current_app
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
@@ -425,7 +424,7 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
     if not source_type:
         return jsonify({
             'success': False,
-            'error': f'Unsupported file type. Supported: .imscc, .zip, .pdf, .docx, .doc'
+            'error': 'Unsupported file type. Supported: .imscc, .zip, .pdf, .docx, .doc'
         }), 400
 
     # Read file content
@@ -436,7 +435,7 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
     if file_size > MAX_FILE_SIZE:
         return jsonify({
             'success': False,
-            'error': f'File too large. Maximum size is 25MB.'
+            'error': 'File too large. Maximum size is 25MB.'
         }), 400
 
     # PDF-specific size limit (PDFs use ~10-20x memory during AI processing)

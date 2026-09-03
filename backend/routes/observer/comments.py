@@ -5,11 +5,10 @@ Observer comment functionality on student work.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta
 import logging
 import threading
 
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService

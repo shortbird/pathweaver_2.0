@@ -4,20 +4,14 @@ Login Module - Security Helpers
 Account lockout, timing protection, and user initialization.
 """
 
-from flask import request, jsonify, make_response
-from database import get_supabase_client, get_supabase_admin_client
-from utils.session_manager import session_manager
-from middleware.rate_limiter import rate_limit
-from utils.log_scrubber import mask_user_id, mask_email
-from middleware.error_handler import ValidationError, AuthenticationError
-from datetime import datetime, timedelta, timezone
-import os
+from database import get_supabase_admin_client
+from utils.log_scrubber import mask_email
+from datetime import datetime, timedelta
 import time
 import random
 
 from utils.logger import get_logger
 from app_config import Config
-from utils.api_response_v1 import success_response, error_response
 from utils.retry_handler import with_connection_retry
 
 logger = get_logger(__name__)

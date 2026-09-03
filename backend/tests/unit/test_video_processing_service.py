@@ -17,7 +17,6 @@ import os
 import threading
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 # ── probe_from_path ──────────────────────────────────────────────────

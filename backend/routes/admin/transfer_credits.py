@@ -11,7 +11,7 @@ Endpoints:
 - DELETE /api/admin/transfer-credits/<user_id> - Remove all transfer credits
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
 from utils.auth.org_scope import caller_can_access_user

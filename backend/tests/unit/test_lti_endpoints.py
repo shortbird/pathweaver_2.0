@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 
 def test_jwks_endpoint_returns_keys_object_when_unconfigured(client, monkeypatch):
@@ -306,7 +305,6 @@ def test_token_exchange_materializes_user_from_pending_launch(client, monkeypatc
     created at /lti/launch time, so any Canvas-side passive launch left an
     empty row behind."""
     from routes.lti import token as token_mod
-    from services import lti_service
 
     pending_id = "pending-row-uuid"
     auth_code = "test-auth-code-xyz"

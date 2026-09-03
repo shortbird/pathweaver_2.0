@@ -10,7 +10,7 @@ Features:
 - Session tracking with cookie-based session IDs
 """
 
-from flask import request, g, make_response
+from flask import request, g
 import uuid
 import atexit
 from datetime import datetime
@@ -20,7 +20,6 @@ from utils.logger import get_logger
 from utils.retry_handler import is_retryable_error
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
-import json
 import re
 
 logger = get_logger(__name__)

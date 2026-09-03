@@ -52,7 +52,7 @@ for c in (all_completions.data or []):
     if completed_at > last_updated:
         missing_xp[pillar] = missing_xp.get(pillar, 0) + xp
 
-print(f"\n=== Missing XP by pillar ===")
+print("\n=== Missing XP by pillar ===")
 total_missing = 0
 for pillar, xp in missing_xp.items():
     current = pillar_data[pillar]['current_xp']

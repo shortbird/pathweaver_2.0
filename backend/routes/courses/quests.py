@@ -4,19 +4,12 @@ Courses Module - Quest Management
 Managing quests/projects within courses.
 """
 
-from datetime import datetime
 from flask import request, jsonify
-from utils.auth.decorators import require_auth, require_admin
-from database import get_user_client, get_supabase_admin_client
+from utils.auth.decorators import require_auth
+from database import get_supabase_admin_client
 from utils.session_manager import session_manager
-from middleware.error_handler import ValidationError
-from repositories.base_repository import NotFoundError
-from services.course_progress_service import CourseProgressService
-from services.file_upload_service import FileUploadService
-from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.roles import get_effective_role
-from utils.slug_utils import generate_slug, ensure_unique_slug
 from routes.courses import can_manage_course
 
 logger = get_logger(__name__)
@@ -402,9 +395,9 @@ def register_routes(bp):
 
                     # Check if this is the unusual "Route not found" error
                     if 'Route' in error_str and 'not found' in error_str:
-                        logger.error(f"Unusual PostgREST error detected. This may indicate a Supabase configuration issue.")
+                        logger.error("Unusual PostgREST error detected. This may indicate a Supabase configuration issue.")
                         logger.error(f"Quest ID: {quest_id}, Update data keys: {list(updates.keys())}")
-                        logger.error(f"This error typically indicates the Supabase REST API received an unexpected request format.")
+                        logger.error("This error typically indicates the Supabase REST API received an unexpected request format.")
 
                     if attempt < max_retries - 1:
                         time_module.sleep(0.5 * (attempt + 1))  # Exponential backoff

@@ -5,7 +5,7 @@ Handles curriculum content storage, validation, and file management.
 """
 
 from services.base_service import BaseService
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from utils.logger import get_logger
 from middleware.error_handler import ValidationError
 import re
@@ -147,7 +147,7 @@ class CurriculumService(BaseService):
         except Exception as e:
             error_str = str(e).lower()
             if 'curriculum_content' in error_str or 'column' in error_str:
-                logger.error(f"curriculum_content column not found - run migration 019")
+                logger.error("curriculum_content column not found - run migration 019")
                 raise ValidationError(
                     "Curriculum feature not yet enabled. Please run database migration 019.",
                     500

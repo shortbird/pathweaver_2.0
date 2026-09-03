@@ -11,7 +11,7 @@ idempotency keys to prevent accidental duplicate charges, data corruption, etc.
 import json
 from flask import request, jsonify, Response
 from functools import wraps
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 from app_config import Config
 from datetime import datetime, timedelta

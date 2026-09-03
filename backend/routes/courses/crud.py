@@ -7,13 +7,10 @@ Course creation, retrieval, update, delete, and image uploads.
 from datetime import datetime
 from flask import request, jsonify
 from utils.auth.decorators import require_auth
-from database import get_user_client, get_supabase_admin_client
+from database import get_supabase_admin_client
 from utils.session_manager import session_manager
-from middleware.error_handler import ValidationError
-from repositories.base_repository import NotFoundError
 from services.course_progress_service import CourseProgressService
 from services.file_upload_service import FileUploadService
-from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
 from utils.roles import get_effective_role

@@ -230,7 +230,7 @@ def complete_task(user_id: str, task_id: str):
         # Collaboration sharing removed (March 2026 - Feature pruning)
 
         # Award XP to user
-        logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
+        logger.debug("=== TASK COMPLETION XP DEBUG ===")
         logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
         logger.info(f"Task pillar: {task_data.get('pillar')}")
         logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}")

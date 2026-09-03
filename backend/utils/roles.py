@@ -3,7 +3,7 @@ Role management utilities and constants for RBAC system
 """
 
 from enum import Enum
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 
 from utils.logger import get_logger
 

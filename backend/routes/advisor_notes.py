@@ -9,7 +9,6 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime
 from utils.auth.decorators import require_role
 from repositories.advisor_notes_repository import AdvisorNotesRepository
 import logging

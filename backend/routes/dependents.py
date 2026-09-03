@@ -24,7 +24,6 @@ from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
 from utils.validation.password_validator import validate_password_strength
-import logging
 import json
 import csv
 import io

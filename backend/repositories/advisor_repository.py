@@ -67,7 +67,7 @@ class AdvisorRepository(BaseRepository):
             return bool(response.data)
         except Exception as e:
             logger.error(f"Error verifying advisor access: {e}")
-            raise DatabaseError(f"Failed to verify advisor access") from e
+            raise DatabaseError("Failed to verify advisor access") from e
 
     def get_assigned_students(
         self,

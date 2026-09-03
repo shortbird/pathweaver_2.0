@@ -9,7 +9,6 @@ Advisor Routes - API endpoints for advisor functionality
 Handles student monitoring and advisor-student management.
 """
 
-import sys
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role, require_advisor
 from middleware.error_handler import ValidationError, NotFoundError
@@ -173,7 +172,6 @@ def get_student_quests_with_tasks(user_id, student_id):
 
     except Exception as e:
         logger.error(f"Error fetching student quests with tasks: {str(e)}")
-        import traceback
         return jsonify({
             'success': False,
             'error': 'Failed to fetch student quests'

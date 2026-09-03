@@ -12,7 +12,6 @@ student via NotificationService (parents are usually platform users outside the 
 so a plain organization_id filter would miss them).
 """
 
-import re
 import uuid
 
 from flask import Blueprint, request, jsonify

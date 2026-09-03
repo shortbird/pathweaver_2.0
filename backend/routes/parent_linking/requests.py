@@ -25,13 +25,11 @@ Once linked, connections are permanent.
 NOTE: Admin client usage justified throughout this file for parent-student linking operations.
 Managing parent-student relationships requires cross-user operations and elevated privileges.
 """
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from repositories import ParentRepository
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
-import logging
 
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -159,7 +157,7 @@ def submit_connection_requests(user_id):
                 'email': email,
                 'student_name': f"{first_name} {last_name}",
                 'status': 'pending_admin_review',
-                'message': f'Request received. Please contact support@optioeducation.com with your name and the student\'s email to complete the connection.'
+                'message': 'Request received. Please contact support@optioeducation.com with your name and the student\'s email to complete the connection.'
             })
 
         logger.info(f"Parent {user_id} submitted {len(children)} connection requests: {auto_matched} auto-matched, {pending_approval} pending approval")
@@ -177,7 +175,6 @@ def submit_connection_requests(user_id):
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error submitting connection requests: {str(e)}")
-        import traceback
         return jsonify({'success': False, 'error': 'Failed to submit connection requests'}), 500
 
 
@@ -234,7 +231,6 @@ def get_pending_requests(user_id):
 
     except Exception as e:
         logger.error(f"Error getting pending requests: {str(e)}")
-        import traceback
         return jsonify({'success': False, 'error': 'Failed to fetch pending requests'}), 500
 
 
@@ -288,7 +284,6 @@ def approve_connection_request(user_id, link_id):
         return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error approving connection request: {str(e)}")
-        import traceback
         return jsonify({'success': False, 'error': 'Failed to approve connection request'}), 500
 
 
@@ -342,7 +337,6 @@ def reject_connection_request(user_id, link_id):
         return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error rejecting connection request: {str(e)}")
-        import traceback
         return jsonify({'success': False, 'error': 'Failed to reject connection request'}), 500
 
 

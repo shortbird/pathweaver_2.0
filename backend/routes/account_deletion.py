@@ -12,14 +12,6 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from services.account_deletion_service import (
     AccountDeletionError,
     purge_user,
@@ -235,7 +227,7 @@ def export_user_data(user_id):
         logger.info(f"[EXPORT] User ID: {user_id}")
         # admin client justified: GDPR data export reads ~15 tables for the authenticated user; cross-table self-export would need many overlapping RLS policies (parental_consent_log, observer_audit_log, advisor_student_notes, etc.); user_id from @require_auth scopes every query to self
         supabase = get_supabase_admin_client()
-        logger.info(f"[EXPORT] Got supabase client")
+        logger.info("[EXPORT] Got supabase client")
 
         # Lifetime of every download link in this export (see file_references).
         signed_ttl = default_ttl()

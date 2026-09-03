@@ -26,7 +26,6 @@ All DB access uses the service-role admin client; authorization is enforced in
 Python above every read/write.
 """
 
-import uuid as _uuid
 from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
@@ -36,12 +35,6 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from services.sis_quest_authoring import (
-    MAX_TITLE_LEN as _MAX_TITLE_LEN,
-    MAX_TASKS as _MAX_TASKS,
-    PILLAR_ALIASES as _PILLAR_ALIASES,
-    DEFAULT_PILLAR as _DEFAULT_PILLAR,
-    DEFAULT_XP as _DEFAULT_XP,
-    MIN_XP as _MIN_XP,
     QuestAuthoringError,
     clean_task as _clean_task,
     create_org_quest,

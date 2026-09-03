@@ -10,14 +10,6 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError
 

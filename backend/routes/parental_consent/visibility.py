@@ -28,28 +28,11 @@ H1 audit; access control comes from (a) one-time hashed consent tokens,
 on every update. Parental consent and child user records cannot be exposed to
 arbitrary callers from these endpoints.
 """
-from flask import Blueprint, request, jsonify
-from app_config import Config
+from flask import request, jsonify
 from database import get_supabase_admin_client
-from repositories import (
-    UserRepository,
-    QuestRepository,
-    EvidenceRepository,
-    ParentRepository,
-    TutorRepository,
-    AnalyticsRepository
-)
-from middleware.error_handler import ValidationError, NotFoundError
-from middleware.rate_limiter import rate_limit
-from utils.auth.decorators import require_auth, require_role
-from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
-from services.email_service import email_service
-from werkzeug.utils import secure_filename
-import secrets
-import hashlib
-from datetime import datetime, timedelta
+from utils.auth.decorators import require_auth
+from datetime import datetime
 import logging
-import mimetypes
 
 from utils.logger import get_logger
 

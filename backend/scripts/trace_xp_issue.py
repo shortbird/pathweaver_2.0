@@ -15,7 +15,7 @@ print("=== XP Issue Trace ===\n")
 xp_record = client.table('user_skill_xp').select('pillar, xp_amount, updated_at').eq('user_id', user_id).eq('pillar', 'wellness').execute()
 if xp_record.data:
     r = xp_record.data[0]
-    print(f"Wellness XP record:")
+    print("Wellness XP record:")
     print(f"  Amount: {r['xp_amount']}")
     print(f"  Last updated: {r['updated_at']}")
 
@@ -27,13 +27,13 @@ comp = client.table('quest_task_completions').select(
 if comp.data:
     c = comp.data[0]
     t = c.get('user_quest_tasks', {})
-    print(f"\nMost recent completion:")
+    print("\nMost recent completion:")
     print(f"  Task: {t.get('title')}")
     print(f"  Pillar: {t.get('pillar')}, XP: {t.get('xp_value')}")
     print(f"  Completed at: {c['completed_at']}")
 
 # Calculate expected vs actual
-print(f"\n=== Expected vs Actual ===")
+print("\n=== Expected vs Actual ===")
 all_completions = client.table('quest_task_completions').select(
     'user_quest_tasks!inner(pillar, xp_value)'
 ).eq('user_id', user_id).execute()

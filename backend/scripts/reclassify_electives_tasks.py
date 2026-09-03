@@ -118,7 +118,7 @@ def _run_reclassification(batch_size, dry_run):
 
     electives_count = len(electives_only_tasks)
 
-    print(f"\nCurrent Status:")
+    print("\nCurrent Status:")
     print(f"  Total tasks with subject distribution: {total_with_distribution}")
     print(f"  Tasks with electives-only: {electives_count} ({(electives_count/total_with_distribution*100):.1f}%)")
     print()
@@ -149,15 +149,15 @@ def _run_reclassification(batch_size, dry_run):
 
                 if not is_electives_only(new_distribution):
                     changed_count += 1
-                    print(f"   -> IMPROVED (no longer electives-only)")
+                    print("   -> IMPROVED (no longer electives-only)")
                 else:
-                    print(f"   -> Still electives (may be correct)")
+                    print("   -> Still electives (may be correct)")
 
             except Exception as e:
                 print(f"   ERROR: {str(e)}")
             print()
 
-        print(f"\nDRY RUN complete.")
+        print("\nDRY RUN complete.")
         print(f"  Would process {electives_count} tasks total")
         print(f"  Sample shows {changed_count}/{len(sample_tasks)} would be improved")
         return

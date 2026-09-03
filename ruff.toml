@@ -1,0 +1,38 @@
+# Ruff — the backend lint gate (CI-01).
+#
+# The ruleset is deliberately narrow. This repo already learned, with pyflakes,
+# that a gate you have to argue with gets switched off: the existing CI step
+# greps pyflakes for undefined names ONLY, because the other ~1200 findings were
+# style and would have buried the ones that mean "this code is already broken".
+#
+# What is selected here and why:
+#   F     pyflakes — unused imports/variables, f-strings with no placeholders,
+#         redefinitions. Mostly tidiness, but F821 and friends are real bugs.
+#   E9    syntax and IO errors. Never negotiable.
+#   B     flake8-bugbear — the correctness subset: raise-without-from inside an
+#         except (loses the cause), mutable default args, zip() without strict,
+#         loop variables that are silently unused.
+#   S110  try/except/pass  — a swallowed exception with no log and no comment.
+#   S112  try/except/continue — the same, in a loop.
+#
+# S110/S112 are the security-relevant ones: every silent except is a failure the
+# system decided not to tell anyone about. They are NOT auto-fixable on purpose;
+# each needs a human to say whether the right answer is a log line, a re-raise,
+# or a comment explaining why nothing is the correct response.
+line-length = 120
+target-version = "py311"
+
+exclude = [
+    "venv", ".venv", "node_modules",
+    "backend/database_migration",
+    "backend/migrations",
+    "supabase",
+]
+
+[lint]
+select = ["F", "E9", "B", "S110", "S112"]
+
+[lint.per-file-ignores]
+# __init__.py re-exports a package's public surface; an import with no local use
+# IS the point. 84 of them here, and removing any would break an importer.
+"**/__init__.py" = ["F401"]

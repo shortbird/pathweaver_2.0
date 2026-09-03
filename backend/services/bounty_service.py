@@ -1163,7 +1163,7 @@ class BountyService(BaseService):
                     headers={"Authorization": f"Bearer {service_key}"},
                     timeout=5,
                 )
-            except Exception as e:
+            except Exception:
                 # Also try the app's own endpoint
                 try:
                     # Direct storage deletion via supabase client

@@ -5,8 +5,7 @@ Tests CRUD operations, RLS policies, and organization isolation for curriculum l
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-import uuid
+from unittest.mock import Mock
 
 
 class TestCurriculumRepository:

@@ -9,7 +9,6 @@ Uses the standard email template system for consistent branding.
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from markupsafe import Markup
-from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 

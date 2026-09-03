@@ -15,7 +15,7 @@ what a copy SAYS once someone has deliberately enabled it, not about whether
 one gets sent.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

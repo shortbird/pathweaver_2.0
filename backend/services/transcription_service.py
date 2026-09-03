@@ -6,8 +6,7 @@ Uses Google Cloud STT Enhanced model (best for child speech).
 """
 
 from typing import Dict, Any
-from services.base_service import BaseService, ValidationError
-from app_config import Config
+from services.base_service import BaseService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

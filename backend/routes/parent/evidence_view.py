@@ -130,7 +130,6 @@ def get_task_details(user_id, student_id, task_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"Error getting task details: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get task details'}), 500
 
 
@@ -250,5 +249,4 @@ def get_recent_completions(user_id, student_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting recent completions: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get recent completions'}), 500

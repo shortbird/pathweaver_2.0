@@ -7,7 +7,6 @@ onboarding, and their own submissions. Org admins can call these too (the
 scope check passes everything for them).
 """
 
-import io
 import uuid as _uuid
 
 from flask import Blueprint, request, jsonify

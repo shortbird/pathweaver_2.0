@@ -45,7 +45,6 @@ class SnapToLearnAIService(BaseAIService):
                 prompt += f"\n\nThe student also provided this context: {optional_text}"
 
             # Use Gemini multimodal (image + text)
-            import google.generativeai as genai
             image_part = {
                 'mime_type': 'image/jpeg',
                 'data': image_data,

@@ -14,9 +14,8 @@ Features:
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import logging
 from services.base_service import BaseService
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 from utils.quest_status import is_class_credit_awarded

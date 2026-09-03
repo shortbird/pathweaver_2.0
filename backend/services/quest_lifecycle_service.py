@@ -7,7 +7,7 @@ Handles:
 - Pickup history and reflections
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
 

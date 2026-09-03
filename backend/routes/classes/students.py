@@ -8,7 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import STAFF_ROLES
 from utils.roles import get_effective_roles
 from ._caller import get_caller, is_superadmin
 from database import get_supabase_admin_client

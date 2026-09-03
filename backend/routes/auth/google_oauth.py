@@ -14,7 +14,7 @@ from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from middleware.csrf_protection import csrf
 from utils.log_scrubber import mask_email, mask_user_id
-from utils.api_response_v1 import success_response, error_response
+from utils.api_response_v1 import error_response
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 from datetime import datetime, timedelta
 import jwt

@@ -4,7 +4,7 @@ Validates quest content for appropriateness, quality, and educational value
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -182,7 +182,7 @@ class QuestValidator:
         # Check for inappropriate content
         for pattern in self.inappropriate_patterns:
             if re.search(pattern, text_content, re.IGNORECASE):
-                result['errors'].append(f"Content contains potentially inappropriate material")
+                result['errors'].append("Content contains potentially inappropriate material")
                 is_appropriate = False
                 break
         
