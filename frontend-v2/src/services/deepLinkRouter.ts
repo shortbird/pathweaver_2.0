@@ -14,37 +14,71 @@ export type ResolvedRoute = {
   params?: Record<string, string>;
 };
 
-/** Route prefixes that only exist on the web app.
+/** Which web host owns a path that mobile hands off to the browser.
  *
- *  The SIS console entries matter for the same reason the rest do: without
- *  them a notification carrying one of those links fell through to the
- *  unrecognised-link fallback, which pushes the notifications list. Tapping a
- *  notification while already ON the notifications list re-renders and opens
- *  nothing, which is exactly what was reported (iCreate, 2026-08-26: "I can't
- *  open any of them. I click on them and they go refresh, sort of."). Sending
- *  them to the view-on-web screen at least says where the page lives.
+ *  The web build is ONE SPA serving two products on two hosts: the learning app
+ *  on www.optioeducation.com and the SIS console on sis.optioeducation.com.
+ *  A bare notification link ("/inbox", "/attendance") says nothing about which.
+ *  Get it wrong and the reader lands on a host whose router has never heard of
+ *  the path, which renders as a dead page.
+ *
+ *  The web app already hands paths across in both directions
+ *  (frontend/src/utils/appSurface.js). Mobile sent EVERY handoff to www, so an
+ *  iCreate coordinator tapping "iCreate inbox: message from ..." was offered
+ *  www.optioeducation.com/inbox -- a page that does not exist on that host
+ *  (2026-09-03: "cant open the message notification"). Her bell is mostly
+ *  /inbox and /attendance, so this was most of her notifications.
  */
-const WEB_ONLY_PREFIXES = [
+export type WebSurface = 'learning' | 'sis';
+
+/** Web-only prefixes owned by the LEARNING app (www.optioeducation.com).
+ *
+ *  These reach the view-on-web screen for the same reason the SIS ones do:
+ *  without them a notification carrying one of these links fell through to the
+ *  unrecognised-link fallback, which pushes the notifications list. Tapping a
+ *  notification while already ON that list re-renders and opens nothing, which
+ *  is exactly what was reported (iCreate, 2026-08-26: "I can't open any of
+ *  them. I click on them and they go refresh, sort of.").
+ */
+const LEARNING_ONLY_PREFIXES = [
   '/dashboard',
   '/courses',
   // "/quests" and "/quests/<id>" resolve to the mobile quest screens first
   // (REMAP + dynamic match below); this prefix only catches deeper sub-paths.
   '/quests',
   '/admin',
+  // Both hosts serve /advisor/*, but the learning app owns the check-in and
+  // verification pages notifications actually link to.
   '/advisor',
   '/invitations',
   '/credit-dashboard',
   '/credit-review',
-  // SIS console
+  // The family portal ("/family/portal", "/family/required-documents") is the
+  // most common notification link for SIS orgs — onboarding + signatures — and
+  // it is family-facing, so it lives on www, not the staff console.
+  '/family',
+  '/treehouse',
+];
+
+/** Web-only prefixes owned by the SIS CONSOLE (sis.optioeducation.com).
+ *
+ *  Mirrors SIS_SURFACE_PATHS in frontend/src/utils/appSurface.js, which is the
+ *  source of truth — deepLinkRouter.test.ts reads that file and fails if this
+ *  list stops covering it. Kept as a copy rather than a shared module because
+ *  the @legal-style alias costs a metro + jest + tsconfig + vite change.
+ *
+ *  /resources is staff-only despite www having a family page at the same path:
+ *  the only notification linking there is the "Required reading" fan-out to
+ *  staff (backend/routes/sis/resources.py).
+ */
+const SIS_ONLY_PREFIXES = [
   '/attendance',
   '/billing',
   '/classes',
   '/clp',
   '/community',
+  '/curriculum',
   '/directory',
-  // The family portal ("/family/portal", "/family/required-documents") is the
-  // most common notification link for SIS orgs — onboarding + signatures.
-  '/family',
   '/forms',
   '/goals',
   '/inbox',
@@ -56,6 +90,7 @@ const WEB_ONLY_PREFIXES = [
   '/my-time',
   '/onboarding',
   '/people',
+  '/prior-learning',
   '/registration',
   '/reports',
   '/resources',
@@ -66,9 +101,22 @@ const WEB_ONLY_PREFIXES = [
   '/time',
   '/timesheets',
   '/training',
-  '/treehouse',
   '/tuition',
 ];
+
+/** Every prefix that has to leave the app, with the host that owns it. Longest
+ *  first so "/timesheets" is never shadowed by a shorter neighbour. */
+const WEB_ONLY_PREFIXES: [string, WebSurface][] = [
+  ...LEARNING_ONLY_PREFIXES.map((p) => [p, 'learning'] as [string, WebSurface]),
+  ...SIS_ONLY_PREFIXES.map((p) => [p, 'sis'] as [string, WebSurface]),
+].sort((a, b) => b[0].length - a[0].length);
+
+/** True when `path` belongs to the SIS console rather than the learning app.
+ *  Exported for the drift test against the web app's SIS_SURFACE_PATHS. */
+export function isSisSurfacePath(rawPath: string): boolean {
+  const clean = String(rawPath || '').split('?')[0].split('#')[0];
+  return SIS_ONLY_PREFIXES.some((p) => clean === p || clean.startsWith(`${p}/`));
+}
 
 /** Legacy/web paths → mobile equivalents. Matched against the path only (query
  *  string stripped first), so `/bounties?tab=active` still resolves here. */
@@ -197,11 +245,14 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   if (observerStudent) return { target: `/(app)/observers/student/${observerStudent[1]}` };
 
   // Web-only prefixes → "view on web" fallback (carries the full original link).
-  for (const prefix of WEB_ONLY_PREFIXES) {
+  for (const [prefix, surface] of WEB_ONLY_PREFIXES) {
     if (path === prefix || path.startsWith(`${prefix}/`)) {
       return {
         target: '/(app)/view-on-web',
-        params: { path: link, label: labelForPrefix(prefix) },
+        // `surface` decides which host the screen offers. Without it every
+        // handoff went to www, and the SIS-only ones landed on a page that
+        // host has never served.
+        params: { path: link, label: labelForPrefix(prefix), surface },
       };
     }
   }
@@ -240,6 +291,40 @@ function labelForPrefix(prefix: string): string {
     case '/admin': return 'The admin panel';
     case '/advisor': return 'The teacher panel';
     case '/invitations': return 'Quest invitations';
+    case '/treehouse': return 'The Treehouse page';
+    // SIS console. Named individually because "This page isn't available in
+    // the mobile app yet" tells a coordinator nothing about where she was
+    // being sent, and these are the bulk of a staff member's bell.
+    case '/inbox': return 'The school inbox';
+    case '/messaging': return 'School messaging';
+    case '/attendance': return 'Attendance';
+    case '/billing': return 'Billing';
+    case '/tuition': return 'Tuition approvals';
+    case '/timesheets': return 'Timesheets';
+    case '/time': return 'Your time entries';
+    case '/classes': return 'Classes';
+    case '/my-classes': return 'Your classes';
+    case '/my-schedule': return 'Your schedule';
+    case '/my-tasks': return 'Your tasks';
+    case '/my-documents': return 'Your documents';
+    case '/my-time': return 'Your time entries';
+    case '/tasks': return 'The task center';
+    case '/forms': return 'Forms';
+    case '/goals': return 'Goals review';
+    case '/submissions': return 'Submissions';
+    case '/registration': return 'Registration';
+    case '/people': return 'People';
+    case '/directory': return 'The staff directory';
+    case '/community': return 'The community page';
+    case '/curriculum': return 'Curriculum';
+    case '/training': return 'Staff training';
+    case '/onboarding': return 'Onboarding';
+    case '/reports': return 'Reports';
+    case '/resources': return 'School resources';
+    case '/secure-documents': return 'Secure documents';
+    case '/prior-learning': return 'Prior learning';
+    case '/clp': return 'The learning plan';
+    case '/sis': return 'The school console';
     default: return 'This page';
   }
 }

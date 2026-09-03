@@ -1,27 +1,35 @@
 import React from 'react';
-import { View, Linking, Platform, Pressable } from 'react-native';
+import { View, Platform, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Heading, UIText, Button, ButtonText, VStack } from '@/src/components/ui';
+import { Heading, UIText, Button, ButtonText, VStack, toast } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { safeOpenURL } from '@/src/utils/linking';
 
-const WEB_ORIGIN = 'https://www.optioeducation.com';
+/** The web build is one SPA on two hosts: the learning app and the staff SIS
+ *  console. deepLinkRouter says which one owns the path — sending a SIS path to
+ *  www offers a page that host does not serve, which is what an iCreate
+ *  coordinator hit tapping her inbox notifications (2026-09-03). */
+const LEARNING_ORIGIN = 'https://www.optioeducation.com';
+const SIS_ORIGIN = 'https://sis.optioeducation.com';
 
 export default function ViewOnWebScreen() {
   const c = useThemeColors();
-  const params = useLocalSearchParams<{ path?: string; label?: string }>();
+  const params = useLocalSearchParams<{ path?: string; label?: string; surface?: string }>();
   const path = typeof params.path === 'string' ? params.path : '/';
   const label = typeof params.label === 'string' ? params.label : 'this page';
-  const url = `${WEB_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
+  // Default to the learning app: an unknown/absent surface is far more likely
+  // to be a www page, and that was the only behaviour before.
+  const origin = params.surface === 'sis' ? SIS_ORIGIN : LEARNING_ORIGIN;
+  const url = `${origin}${path.startsWith('/') ? path : `/${path}`}`;
 
   const openInBrowser = async () => {
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) await Linking.openURL(url);
-    } catch {
-      /* noop */
-    }
+    // safeOpenURL, not Linking.openURL: it guards the scheme and never throws.
+    // The old catch swallowed failures silently, so a link that refused to open
+    // looked identical to a button that did nothing.
+    const opened = await safeOpenURL(url);
+    if (!opened) toast.error(`Couldn't open the page. You can find it at ${url.replace('https://', '')}.`);
   };
 
   return (
@@ -33,7 +41,7 @@ export default function ViewOnWebScreen() {
           </View>
           <Heading size="lg" className="text-center">Open on the web</Heading>
           <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
-            {label} isn't available in the mobile app yet. Open it on optioeducation.com to continue.
+            {label} isn't available in the mobile app yet. Open it in your browser to continue.
           </UIText>
           <VStack space="sm" className="w-full">
             <Button size="lg" onPress={openInBrowser} className="w-full">

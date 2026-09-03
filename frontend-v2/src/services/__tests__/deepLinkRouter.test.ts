@@ -1,5 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
-import { resolveDeepLink } from '../deepLinkRouter';
+import { resolveDeepLink, isSisSurfacePath } from '../deepLinkRouter';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 describe('resolveDeepLink', () => {
   it('returns null for empty input', () => {
@@ -169,5 +171,52 @@ describe('resolveDeepLink', () => {
     const resolved = resolveDeepLink('/courses/c1?lesson=l1');
     expect(resolved?.target).toBe('/(app)/view-on-web');
     expect(resolved?.params?.path).toBe('/courses/c1?lesson=l1');
+  });
+});
+
+describe('which web host a handoff points at', () => {
+  // An iCreate campus coordinator could not open her message notifications
+  // (2026-09-03). They link "/inbox", which is a SIS console route, but the
+  // view-on-web screen glued every handoff onto www.optioeducation.com — a
+  // host whose router has never served /inbox. Her bell is almost entirely
+  // /inbox and /attendance, so this was most of her notifications.
+  it('sends SIS console paths to the SIS host', () => {
+    const inbox = resolveDeepLink('/inbox');
+    expect(inbox?.target).toBe('/(app)/view-on-web');
+    expect(inbox?.params?.surface).toBe('sis');
+    expect(inbox?.params?.label).toBe('The school inbox');
+
+    expect(resolveDeepLink('/attendance')?.params?.surface).toBe('sis');
+    expect(resolveDeepLink('/timesheets')?.params?.surface).toBe('sis');
+    expect(resolveDeepLink('/people/staff')?.params?.surface).toBe('sis');
+  });
+
+  it('keeps learning-app paths on the www host', () => {
+    expect(resolveDeepLink('/dashboard')?.params?.surface).toBe('learning');
+    expect(resolveDeepLink('/courses')?.params?.surface).toBe('learning');
+    // The family portal is family-facing: it lives on www, not the staff console.
+    expect(resolveDeepLink('/family/portal')?.params?.surface).toBe('learning');
+    expect(resolveDeepLink('/credit-dashboard')?.params?.surface).toBe('learning');
+  });
+
+  it('does not let /time shadow /timesheets', () => {
+    expect(resolveDeepLink('/time')?.params?.label).toBe('Your time entries');
+    expect(resolveDeepLink('/timesheets')?.params?.label).toBe('Timesheets');
+  });
+
+  // The web app owns the definitive split (it hands paths across in both
+  // directions). This list is a copy, so prove the copy still covers it —
+  // a path added there and forgotten here would silently point at www again.
+  it('covers every SIS path the web app hands over', () => {
+    const appSurface = readFileSync(
+      join(__dirname, '..', '..', '..', '..', 'frontend', 'src', 'utils', 'appSurface.js'),
+      'utf8',
+    );
+    const block = appSurface.match(/export const SIS_SURFACE_PATHS = \[([\s\S]*?)\]/);
+    expect(block).toBeTruthy();
+    const webPaths = Array.from(block![1].matchAll(/'([^']+)'/g)).map((m) => m[1]);
+    expect(webPaths.length).toBeGreaterThan(10);
+    const missed = webPaths.filter((p) => !isSisSurfacePath(p));
+    expect(missed).toEqual([]);
   });
 });
