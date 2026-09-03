@@ -127,6 +127,9 @@ def start_refine_session(user_id, course_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
@@ -226,6 +229,9 @@ def process_answers(user_id, course_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
@@ -298,6 +304,9 @@ def apply_changes(user_id, course_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
@@ -369,6 +378,9 @@ def generate_prompt_update(user_id, course_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
@@ -427,6 +439,9 @@ def get_session(user_id, course_id, session_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
@@ -474,6 +489,9 @@ def cancel_session(user_id, course_id, session_id):
         # their own org. Previously course_id + session_id were passed straight
         # to the service (admin client), so any org_admin/advisor could run AI
         # bulk edits on another org's course and hijack unbound sessions.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)

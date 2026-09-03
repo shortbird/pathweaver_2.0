@@ -75,6 +75,9 @@ def generate_tasks(user_id, course_id):
     """
     try:
         # IDOR-H8 fix: only operate on a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)
@@ -137,6 +140,9 @@ def generate_tasks_for_lesson(user_id, course_id, lesson_id):
                 }), 404
 
         # IDOR-H8 fix: only operate on a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)
@@ -203,6 +209,9 @@ def regenerate_tasks(user_id, course_id, lesson_id):
                 }), 404
 
         # IDOR-H8 fix: only operate on a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)
@@ -264,6 +273,9 @@ def save_task(user_id, course_id):
             }), 400
 
         # IDOR-H8 fix: only operate on a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)

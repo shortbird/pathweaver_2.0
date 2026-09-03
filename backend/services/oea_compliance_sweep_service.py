@@ -25,6 +25,8 @@ logger = get_logger(__name__)
 
 
 def _admin():
+    # admin client justified: an admin compliance sweep across every OEA student
+    #   in the org; no single caller can see that set under RLS
     return get_supabase_admin_client()
 
 

@@ -165,6 +165,9 @@ def attendance_sweep():
         uid = session_manager.get_effective_user_id()
         is_super = False
         if uid:
+            # admin client justified: resolves the CALLER's own role to make the access
+            #   decision; under RLS the row the check depends on may be invisible, so the
+            #   check could not run
             row = (
                 get_supabase_admin_client().table('users').select('role')
                 .eq('id', uid).limit(1).execute()

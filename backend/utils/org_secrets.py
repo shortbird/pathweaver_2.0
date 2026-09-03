@@ -58,6 +58,8 @@ def _admin():
     # secret_shaped_keys) can be imported and tested without database config --
     # they are the ones CI enforces on every push.
     from database import get_supabase_admin_client
+    # admin client justified: org credentials are deliberately unreadable by any
+    #   client — that is the point of the table
     return get_supabase_admin_client()
 
 

@@ -66,6 +66,9 @@ class PeerConnectionError(Exception):
 
 
 def _admin():
+    # admin client justified: a connection joins two students in different
+    #   families, so every rule here reads rows on both sides that neither caller
+    #   can see
     return get_supabase_admin_client()
 
 

@@ -28,6 +28,9 @@ MAX_ATTACHMENT_MB = 25
 
 
 def _admin():
+    # admin client justified: messaging spans both sides of a conversation, and
+    #   a sender cannot read the recipient's rows under RLS; membership is checked
+    #   before every use
     return get_supabase_admin_client()
 
 

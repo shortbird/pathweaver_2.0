@@ -124,6 +124,8 @@ MAX_OTP_ATTEMPTS = 5
 
 
 def _admin():
+    # admin client justified: the registration funnel runs pre-session — the
+    #   family has no account yet, so there is no caller for RLS to scope to
     return get_supabase_admin_client()
 
 

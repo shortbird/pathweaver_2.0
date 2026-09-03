@@ -212,6 +212,9 @@ def get_generation_state(user_id, course_id):
     """
     try:
         # IDOR-H8 fix: only read generation state for a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)
@@ -273,6 +276,9 @@ def regenerate_outline(user_id, course_id):
                 }), 400
 
         # IDOR-H8 fix: only regenerate an outline for a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
         organization_id = get_organization_id(user_id)

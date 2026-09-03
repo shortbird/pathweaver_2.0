@@ -180,6 +180,8 @@ def _admin():
     # Imported lazily: database imports Config, and utils are imported from
     # inside Config-consuming modules.
     from database import get_supabase_admin_client
+    # admin client justified: signs URLs for private buckets; the signing
+    #   identity is the service role by construction
     return get_supabase_admin_client()
 
 

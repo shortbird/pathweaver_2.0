@@ -72,6 +72,8 @@ def propose(user_id):
     if sheet_url != stored:
         try:
             csv_export_url(sheet_url)
+            # admin client justified: writes org-level schedule config; org_admin gate
+            #   above
             get_supabase_admin_client().table('organizations').update({
                 'feature_flags': {**feature_flags,
                                   'sis_settings': {**settings, 'master_schedule_url': sheet_url}},

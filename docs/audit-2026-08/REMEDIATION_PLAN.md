@@ -457,7 +457,7 @@ Accept: flag off by default; existing tests updated; full-fix scoped as follow-u
 Log:
 - 2026-08-31: Plan created.
 
-### SEC-13 — Re-arm the admin-client justification gate `[TODO]`
+### SEC-13 — Re-arm the admin-client justification gate `[DONE]`
 `test_admin_client_justified` is deselected from CI; ~93 construction sites (audit
 counts varied 93–195; measure first) lack the required justification comment.
 Fix: add honest justification comments site-by-site (verifying each use is
@@ -466,6 +466,53 @@ re-enable the test in `tests-backend.yml`.
 Accept: test enforcing in CI; zero unjustified sites; suspicious sites logged.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: DONE — but it was not the one-line change it looked like, and the
+  reason matters more than the fix.
+
+  The test PASSED on first run, which looked like the annotation work had
+  already been finished by someone. It had not. The test matched lines
+  textually and skipped any line without an `=`, on the stated reasoning that
+  "only assignments are real call sites". They are not:
+
+      return get_supabase_admin_client()                          # _admin() factory
+      get_supabase_admin_client().table('users').select('role')   # inline
+      if not caller_can_access_course(get_supabase_admin_client(), ...)
+
+  AST census: 1070 real call sites, not the ~195 the plan estimated. 965 are
+  assignments and every one was annotated — which is exactly why the test was
+  green. The other 105 were invisible to it, and 85 of those had no
+  justification. The gate reported success over precisely the population nobody
+  had audited. Re-arming it as-was would have made that permanent and called it
+  enforcement.
+
+  Rewrote it on AST, so a call is a call however it is written. Two subtleties
+  found by getting them wrong first:
+    - Scanning only the contiguous comment block above the statement punished
+      the most careful justifications — utils/portfolio_access.py explains its
+      bypass in five lines, so the marker sat outside a 3-line window and the
+      file read as unjustified.
+    - Scanning only a fixed window punished the common shape where one line of
+      setup sits between the reason and the call (routes/helper_evidence.py,
+      utils/token_authority.py).
+  The rule is now the union of both, and neither shape false-positives.
+
+  Then wrote the 84 missing justifications, authored per module rather than
+  stamped: each says WHY RLS must be bypassed and WHERE authorization actually
+  happens. Every one was a legitimate bypass — SIS services acting for a whole
+  school, messaging spanning both sides of a conversation, pre-session
+  registration and public embeds with no caller at all, org_scope helpers that
+  take a caller-supplied admin client by design, and pre-authorization reads of
+  the caller's own role. Nothing here should have been user-scoped, so no new
+  SEC items came out of it.
+
+  Added test_the_scan_still_finds_call_sites — a guard on the guard. Every
+  previous weakening of this test was invisible because it kept passing; a
+  floor of 500 (against ~1070 real) catches "the scan broke", not churn.
+
+  Deselect removed from tests-backend.yml, so it gates PR and release again.
+  Verified with both shapes the old gate missed: a bare `return` and an inline
+  `.table()` chain each fail the build now.
+  Tests: 4716 passed, 160 skipped, 0 failed. pyflakes clean.
 
 ### SEC-14 — Verify the RLS backstop: does prod `JWT_SECRET_KEY` match Supabase? `[DONE]`
 `app_config.py:302` falls back to the Flask secret; if prod's value is not the

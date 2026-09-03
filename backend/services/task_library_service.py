@@ -31,6 +31,8 @@ class TaskLibraryService(BaseService):
         writable for any authenticated student. All entry points sit behind
         @require_auth routes.
         """
+        # admin client justified: the shared task library spans every user's tasks,
+        #   which no single caller can see under RLS
         return get_supabase_admin_client()
 
     def get_library_tasks(self, quest_id: str, user_id: str = None, limit: int = 20) -> List[Dict]:

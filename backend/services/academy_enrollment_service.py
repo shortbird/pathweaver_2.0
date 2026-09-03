@@ -47,6 +47,8 @@ _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def _admin():
+    # admin client justified: enrolling a student and routing their records
+    #   writes rows for the STUDENT and their receiving school, not the caller
     return get_supabase_admin_client()
 
 

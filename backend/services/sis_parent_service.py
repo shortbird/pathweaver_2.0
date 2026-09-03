@@ -36,6 +36,9 @@ GUARDIAN_RELATIONSHIPS = ('guardian', 'other')
 
 
 def _admin():
+    # admin client justified: a guardian registers a child, so every read and
+    #   write targets the STUDENT's rows rather than the caller's; _can_register()
+    #   proves the household link first
     return get_supabase_admin_client()
 
 

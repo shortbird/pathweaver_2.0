@@ -638,6 +638,8 @@ def staff_roster_csv(user_id):
     if err:
         return err
     rows = sis_service.list_org_staff(org_id)
+    # admin client justified: staff profiles across the whole org, which no one
+    #   teacher can see under RLS
     profiles = {p['user_id']: p for p in (
         get_supabase_admin_client().table('sis_staff_profiles').select('*')
         .eq('organization_id', org_id).execute()

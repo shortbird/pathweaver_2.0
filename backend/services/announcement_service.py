@@ -39,6 +39,8 @@ NUDGE_COOLDOWN_HOURS = 24
 
 
 def _admin():
+    # admin client justified: publishing fans a message out to every recipient
+    #   in the school, which is by definition rows the author cannot see under RLS
     return get_supabase_admin_client()
 
 

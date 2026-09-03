@@ -44,6 +44,8 @@ def _resolve_org_id(org_slug):
     """The org id for an active org matching this slug (case-insensitive), or None."""
     if not org_slug:
         return None
+    # admin client justified: the public embed has no caller at all — it
+    #   resolves an org from a slug in the URL before anyone is authenticated
     rows = (
         get_supabase_admin_client().table('organizations')
         .select('id, is_active')

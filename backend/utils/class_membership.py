@@ -38,6 +38,8 @@ _CHUNK = 100
 
 
 def _admin():
+    # admin client justified: answers a cross-user authorization question and
+    #   must read rows the caller cannot see; returns booleans/ids, not user data
     return get_supabase_admin_client()
 
 

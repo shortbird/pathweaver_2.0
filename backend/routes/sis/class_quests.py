@@ -1054,4 +1054,6 @@ def publish_class_quests_sweep():
             is_super = bool(row and row[0].get('role') == 'superadmin')
         if not is_super:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    # admin client justified: publishes due class quests across the org on a
+    #   schedule, with no caller session
     return jsonify({'success': True, **publish_due_class_quests(get_supabase_admin_client())})

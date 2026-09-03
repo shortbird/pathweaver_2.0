@@ -208,6 +208,8 @@ def update_class(user_id, class_id):
         removed = [i for i in (was - now) if i]
         if removed:
             try:
+                # admin client justified: the class roster spans every family in the org;
+                #   staff role+org gate above
                 get_supabase_admin_client().table('class_advisors')\
                     .update({'is_active': False})\
                     .eq('class_id', class_id).in_('advisor_id', removed).execute()

@@ -184,6 +184,9 @@ class MediaUploadService:
     def _get_client(self):
         if self._client:
             return self._client
+        # admin client justified: a helper (parent/advisor) uploads evidence onto
+        #   the STUDENT's task, so the write targets another user's rows; the caller
+        #   is authorized before this
         return get_supabase_admin_client()
 
     def upload_evidence_file(

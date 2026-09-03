@@ -114,11 +114,13 @@ jobs:
         # skip unless RUN_DB_INTEGRATION_TESTS=1 -- tests-integration.yml runs
         # those against a throwaway local Supabase stack.
         #
-        # test_admin_client_justified is deselected, NOT weakened: it reports
-        # 195 get_supabase_admin_client() calls with no justification comment,
-        # each one an un-audited RLS bypass. Keeping it out of the gate leaves
-        # the finding honest and visible instead of re-baselining it away.
-        # Re-select it once the calls are annotated.
+        # test_admin_client_justified is ENFORCING again as of 2026-09-03
+        # (SEC-13). It was deselected while ~195 get_supabase_admin_client()
+        # calls carried no justification comment -- each an un-audited RLS
+        # bypass -- on the reasoning that keeping it visible beat re-baselining
+        # it away. The calls have since been annotated and the test passes, so
+        # the deselect went with them. Adding an unjustified admin client now
+        # fails the build, which is the whole point.
         env:
           FLASK_ENV: testing
           FLASK_SECRET_KEY: test-secret-key-for-ci-only
@@ -134,5 +136,4 @@ jobs:
           # tests back in.
           python -m pytest tests/ --tb=short -v -p no:cacheprovider \
             --cov=. --cov-report=term-missing --cov-report=xml \
-            --cov-fail-under=${{ inputs.coverage-floor }} \
-            --deselect tests/unit/test_admin_client_justified.py::test_every_admin_client_call_has_justification_comment
+            --cov-fail-under=${{ inputs.coverage-floor }}

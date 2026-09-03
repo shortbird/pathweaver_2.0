@@ -74,6 +74,9 @@ def finalize_course(user_id, course_id):
     """
     try:
         # IDOR-H8 fix: only publish a course in the caller's org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
@@ -110,6 +113,9 @@ def delete_draft(user_id, course_id):
     try:
         # IDOR-C3/H8 fix: only delete a draft in the caller's org. Previously
         # this cascade-deleted another org's course + students' user_quest_tasks.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied admin
+        #   client by design: it must read the target's organization_id, which the
+        #   caller cannot see, and it returns only a boolean
         if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 

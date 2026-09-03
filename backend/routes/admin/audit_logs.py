@@ -305,6 +305,9 @@ def get_admin_statistics(current_user_id, current_org_id, is_superadmin, admin_i
     """
     try:
         # IDOR-H7 fix: org_admins may only view stats for an admin in their org.
+        # admin client justified: utils.auth.org_scope takes a caller-supplied
+        #   admin client by design — it must read the target's organization_id,
+        #   which the caller cannot see, and returns only a boolean.
         if not is_superadmin and not caller_can_access_user(
             get_supabase_admin_client(), current_user_id, admin_id
         ):

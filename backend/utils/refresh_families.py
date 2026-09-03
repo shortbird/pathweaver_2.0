@@ -160,6 +160,9 @@ def _admin():
     # credential table (RLS deny-by-default), read and written from the
     # pre-session token-refresh path.
     from database import get_supabase_admin_client
+    # admin client justified: token-family rows are keyed to sessions, not to
+    #   the caller, and reuse detection must read families the presenter cannot
+    #   see
     return get_supabase_admin_client()
 
 

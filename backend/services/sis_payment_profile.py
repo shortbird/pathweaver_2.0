@@ -43,6 +43,9 @@ PLAN_LABELS = {'in_full': 'Pays in full', 'monthly': 'Monthly payments'}
 
 
 def _admin():
+    # admin client justified: the SIS console acts for the whole school — this
+    #   reads/writes rows belonging to every family in the org, which no single
+    #   caller can see under RLS; the route's role+org gate is the authorization
     return get_supabase_admin_client()
 
 

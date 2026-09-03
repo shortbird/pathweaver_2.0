@@ -37,6 +37,8 @@ CLASS_REMINDER_WINDOW_MINUTES = 10
 
 
 def _admin():
+    # admin client justified: a scheduled sweep with no request behind it —
+    #   there is no caller session for RLS to scope to
     return get_supabase_admin_client()
 
 
