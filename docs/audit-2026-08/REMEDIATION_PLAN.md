@@ -479,12 +479,13 @@ Log:
   hundreds of verification failures a missing previous key would produce), and
   OPTIO-BACKEND-7Q is the row-truncation canary firing on
   announcement_recipients, which is its own bug and wants its own item.
-  NOT VERIFIABLE FROM HERE: whether FLASK_SECRET_KEY_OLD is actually set. The
-  Render MCP writes env vars but cannot read them, and there is no logs tool.
-  Absence of errors is weak evidence for the LTI case specifically: evidence
-  tokens are only presented when a teacher opens SpeedGrader, so a missing
-  previous key would fail silently and late rather than showing up now. User
-  asked to confirm the value is present in the dashboard.
+  FLASK_SECRET_KEY_OLD: could not be read from here (the Render MCP writes env
+  vars but cannot read them, and there is no logs tool), so the user was asked
+  to check the dashboard. They CONFIRMED it is set — 2026-09-03. Step 1 of the
+  runbook was done, the previous-key fallback is live, and pre-rotation tokens
+  (including the 180-day LTI evidence tokens) still verify. The rotation is
+  complete and correctly ordered; all that remains is not removing the old key
+  before 2027-03-02.
 - 2026-09-03: User chose (A) — make RLS real — and asked for a regression audit
   before the cutover. Audit done; two prerequisites found and shipped
   (SEC-14a, SEC-14b). Remaining step is the prod env change, which is the
@@ -888,10 +889,9 @@ Log:
 
 ## Open questions for the user (rolling)
 
-- SEC-14: DONE and verified 2026-09-03. Two follow-ups: (a) confirm
-  `FLASK_SECRET_KEY_OLD` is set on the prod backend — it cannot be read via
-  the API, and a missing value breaks LTI SpeedGrader links silently and
-  late; (b) do NOT remove it before 2027-03-02 (180-day evidence tokens).
+- SEC-14: DONE, verified, and `FLASK_SECRET_KEY_OLD` confirmed set by the user
+  on 2026-09-03. One dated action remains: do NOT remove FLASK_SECRET_KEY_OLD
+  before 2027-03-02 — LTI evidence tokens run 180 days and are stateless.
 - OPS-01: fund/approve a staging Supabase project (the single highest-impact fix).
 - OPS-03: approve a gated migration-apply step in the release pipeline.
 - OPS-05: keep direct-push-to-main, or add a PR gate now that CI is solid?
