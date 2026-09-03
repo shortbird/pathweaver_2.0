@@ -133,6 +133,13 @@ export function BugReportSheet() {
           onChangeText={setMessage}
           placeholder="Describe the problem..."
           placeholderTextColor={c.textFaint}
+          // Explicit rather than inherited. A reporter noted autocorrect was off
+          // while typing here (2026-09-03); nothing in the app switches it off,
+          // so the likely cause is the device's own keyboard setting — but the
+          // app should at least state what it wants for a prose field.
+          autoCorrect
+          spellCheck
+          autoCapitalize="sentences"
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -146,6 +153,9 @@ export function BugReportSheet() {
           onChangeText={setSteps}
           placeholder="Steps to reproduce (optional)"
           placeholderTextColor={c.textFaint}
+          autoCorrect
+          spellCheck
+          autoCapitalize="sentences"
           multiline
           numberOfLines={2}
           textAlignVertical="top"
