@@ -29,8 +29,6 @@ name: Integration Tests (reusable)
 
 on:
   workflow_call:
-    inputs:
-        type: boolean
   workflow_dispatch:
 
 permissions:
