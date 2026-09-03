@@ -291,6 +291,30 @@ describe('ClassesPage', () => {
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/admin/organizations'))
   })
 
+  // iCreate, 2026-09-02: adding the Room column made the table wider than the
+  // screen, and Save — spread to the far right of a justify-between bar — went
+  // with it. "I can't see the SAVE button when I edit."
+  it('keeps Save reachable when the table is wider than the screen', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    const save = await screen.findByRole('button', { name: 'Save' })
+    // Pinned to the left edge of the scroll box rather than the right edge of
+    // the table, so sideways scrolling never takes it off screen.
+    const bar = save.closest('div').parentElement
+    expect(bar.className).toContain('sticky')
+    expect(bar.className).toContain('left-0')
+    expect(bar.className).not.toContain('justify-between')
+  })
+
+  it('shows the room on the compact row and sorts on it', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    expect(await screen.findByRole('button', { name: /Room/ })).toBeInTheDocument()
+  })
+
   it('edits an expanded row inline and saves it from the table view', async () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')

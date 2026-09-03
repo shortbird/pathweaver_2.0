@@ -334,7 +334,13 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], onSave, onT
                         )}
                       />
 
-                      <div className="flex items-center justify-between mt-3">
+                      {/* Pinned to the left edge of the scroll box, not spread
+                          across a table that is now wider than the screen.
+                          Adding the Room column pushed a justify-between Save
+                          off the right-hand side, and it could only be reached
+                          by scrolling sideways (iCreate, 2026-09-02: "I can't
+                          see the SAVE button when I edit"). */}
+                      <div className="sticky left-0 z-10 flex w-max items-center gap-8 mt-3">
                         <div className="flex items-center gap-4">
                           {/* One link, not two. "View roster" and "Full editor"
                               now go to the same place: every field is editable
