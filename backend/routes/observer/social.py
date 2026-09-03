@@ -132,15 +132,23 @@ def register_routes(bp):
             return jsonify({'error': 'Failed to record views'}), 500
 
 
-    @bp.route('/api/observers/views/<target_type>/<target_id>', methods=['GET'])
+    # The path parameter is `feed_item_id`, not `target_id`. It names a
+    # completion or a learning event, never a person, and the SEC-10 guard
+    # (tests/unit/test_id_routes_declare_relationship.py) reads person-shaped
+    # parameter names to decide which routes owe a relationship declaration.
+    # Leaving it as `target_id` would have meant either allowlisting a route
+    # that has no relationship to declare, or teaching the guard that
+    # `target_id` sometimes means a person and sometimes does not -- and a
+    # naming convention the guard cannot trust is not a convention.
+    @bp.route('/api/observers/views/<target_type>/<feed_item_id>', methods=['GET'])
     @require_auth
-    def get_feed_item_viewers(user_id, target_type, target_id):
+    def get_feed_item_viewers(user_id, target_type, feed_item_id):
         """
         Get list of users who have viewed a feed item.
 
         Args:
             target_type: 'completion' or 'learning_event'
-            target_id: UUID of the target
+            feed_item_id: UUID of the completion or learning event
 
         Returns:
             200: { viewers: [...], total: int }
@@ -157,7 +165,7 @@ def register_routes(bp):
             # a completion/learning-event UUID could enumerate who viewed another
             # student's evidence (viewer names + avatars).
             owner_table = 'quest_task_completions' if target_type == 'completion' else 'learning_events'
-            owner = supabase.table(owner_table).select('user_id').eq('id', target_id).single().execute()
+            owner = supabase.table(owner_table).select('user_id').eq('id', feed_item_id).single().execute()
             if not owner.data:
                 return jsonify({'error': 'Not found'}), 404
             if user_id != owner.data['user_id']:
@@ -169,7 +177,7 @@ def register_routes(bp):
 
             views = supabase.table('feed_item_views') \
                 .select('viewer_id, viewed_at, users:viewer_id(id, display_name, first_name, last_name, avatar_url, role, email)') \
-                .eq(col, target_id) \
+                .eq(col, feed_item_id) \
                 .order('viewed_at', desc=True) \
                 .execute()
 

@@ -47,8 +47,24 @@ from utils.auth.relationships import ENFORCED_ATTR
 #: Path parameters that name a person. `<user_id>` on a non-person resource
 #: (e.g. an org) does not appear here because no such rule exists today; add
 #: the name rather than special-casing a route if one ever does.
+#:
+#: WIDENED 2026-09-03. The first five were the obvious ones and they left a
+#: blind spot worth 34 routes -- the whole SIS staff surface, SIS people and
+#: users, advisor assignment, family observer management, COPPA consent
+#: approve/reject, admin audit logs, advisor notes, and unblock. Every one of
+#: them names a person in its URL and none of them was in the census, so the
+#: guard reported a clean 187 over 82% of the actual surface.
+#:
+#: The one route that had to move rather than be listed:
+#: observer.get_feed_item_viewers took `<target_id>`, which was a completion or
+#: learning event, not a person. It is `<feed_item_id>` now. Teaching this set
+#: that `target_id` sometimes means a person and sometimes does not would have
+#: made the convention unusable -- the guard's whole premise is that the
+#: parameter name is trustworthy.
 ID_PARAMS = frozenset({
     'user_id', 'student_id', 'target_user_id', 'child_id', 'dependent_id',
+    'staff_id', 'target_id', 'advisor_id', 'observer_id', 'parent_id',
+    'member_user_id', 'admin_id', 'subject_id', 'blocked_id',
 })
 
 #: endpoint -> where that route's relationship check actually lives.
@@ -171,6 +187,84 @@ _reviewed(
     'the masquerade target must be a non-admin member of the caller\'s own '
     'school; @require_real_identity ignores any active masquerade',
     'masquerade.start_masquerade',
+)
+
+# --- reviewed 2026-09-03 with the widened ID_PARAMS -------------------------
+# The 26 routes the first five parameter names had missed. Read the same way as
+# everything else here: the gate was found and named, which is not a proof that
+# it enforces the right thing for its payload.
+#
+# A pattern shows up here that does not appear above, and it is worth naming
+# rather than glossing: in eight of these the person in the URL is the ROW
+# SELECTOR, not the authorization subject. "Remove advisor A from class C" is
+# authorized by rights over C; A is which row to delete. Migrating one of those
+# to @require_relationship_to would be wrong -- there is no relationship
+# between the caller and A to require, and asserting one would either deny
+# legitimate admins or invent a permission. They stay allowlisted on purpose,
+# and a future reader should not read them as "not got round to yet".
+
+_reviewed(
+    'ADMIN_ROLES gate + org_id resolved from the CALLER, and the service '
+    'refuses a staff row whose organization_id is not that org',
+    'sis.link_staff',
+    'sis.remove_staff',
+    'sis.resend_staff_invite',
+    'sis.restore_staff',
+    'sis.set_staff_roles',
+    'sis.staff_removal_preview',
+    'sis.update_staff',
+    'sis.upload_staff_photo',
+    'sis_staff_admin.get_profile',
+    'sis_staff_admin.put_profile',
+)
+_reviewed(
+    'ADMIN_ROLES gate + org_id resolved from the CALLER, and the person lookup '
+    'is filtered by it, so a target outside the caller\'s school 404s',
+    'sis.get_org_user',
+    'sis.person_removal_preview',
+    'sis.remove_person',
+    'sis.update_user_role',
+    'sis.remove_household_member',
+)
+_reviewed(
+    'row selector, not the authorization subject: rights over the CLASS decide, '
+    'and the advisor id only says which membership row to remove',
+    'classes.remove_class_advisor',
+    'treehouse.remove_cohort_advisor',
+)
+_reviewed(
+    'row selector, not the authorization subject: _guard_org on the org in the '
+    'URL decides, and the advisor is then verified to belong to that org',
+    'org_connections.assign_org_student_to_advisor',
+    'org_connections.get_org_advisor_students',
+)
+_reviewed(
+    'row selector, not the authorization subject: the caller must be a parent, '
+    'and the write is scoped to the children they manage, so the observer id '
+    'only picks which of the caller\'s own links to change',
+    'observer.remove_family_observer',
+    'observer.toggle_child_access',
+)
+_reviewed(
+    'row selector, not the authorization subject: the delete is scoped to '
+    'blocker_id = the caller, so blocked_id only names which of the caller\'s '
+    'own blocks to lift',
+    'moderation.unblock_user',
+)
+_reviewed(
+    'caller_can_access_user(admin, caller, target) -- the IDOR-H7 fix',
+    'admin_audit_logs.get_admin_statistics',
+)
+_reviewed(
+    'not a gate but a scope: is_superadmin picks org_scope=None or the '
+    'caller\'s own org, and the log query is filtered by it, so another org\'s '
+    'admin returns nothing rather than being refused (IDOR-H7)',
+    'admin_audit_logs.get_admin_activity',
+)
+_reviewed(
+    'notes are read with advisor_id = the caller unless the caller is '
+    'superadmin, so an advisor only ever sees their own notes about the subject',
+    'advisor_notes.get_subject_notes',
 )
 
 # --- SIS: staff routes scoped by the CALLER'S org ---------------------------

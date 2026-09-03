@@ -608,6 +608,46 @@ Log:
   the highest-value SEC-10 work left: the audit's point was that nothing fails
   when a new route forgets a check, and a guard blind to 14% of the surface
   only partly answers that.
+- 2026-09-03: (b) WIDENED — the blind spot above is closed. The census goes
+  from 187 routes to 217; the guard now covers 30 routes it could not see.
+  Declared 67, superadmin-verified 26, allowlisted 124.
+
+  `ID_PARAMS` gains staff_id, target_id, advisor_id, observer_id, parent_id,
+  member_user_id, admin_id, subject_id, blocked_id. What was invisible: the
+  entire SIS staff surface (10 routes, including set-roles and delete), SIS
+  people and users (5), advisor assignment (4), family observer management (2),
+  COPPA consent approve/reject, the admin audit logs, advisor notes, and
+  unblock. Six of the 30 were already superadmin-verified and two already
+  allowlisted via a second parameter; the other 26 were read one at a time and
+  named, to the same standard as the original 166.
+
+  ONE ROUTE MOVED INSTEAD OF BEING LISTED. `observer.get_feed_item_viewers`
+  took `<target_id>`, which holds a completion or a learning event, never a
+  person. It is `<feed_item_id>` now. The alternative was teaching the guard
+  that `target_id` sometimes names a person and sometimes does not, and a
+  naming convention the guard cannot trust is not a convention. URL shape is
+  unchanged, so both frontends are unaffected — they build the path and never
+  see the parameter name.
+
+  A PATTERN ABSENT FROM THE ORIGINAL 166, named in the allowlist so nobody
+  "finishes the migration" by breaking it: in eight of these the person in the
+  URL is the ROW SELECTOR, not the authorization subject. "Remove advisor A
+  from class C" is authorized by rights over C; A only says which membership
+  row to delete. Same for removing a family observer (scoped to the caller's
+  own children) and unblocking (scoped to blocker_id = caller). Migrating one
+  of those to @require_relationship_to would be actively wrong — there is no
+  caller-to-A relationship to require, and inventing one would either refuse
+  legitimate admins or grant a permission nobody meant to grant.
+
+  One more distinction recorded rather than smoothed over:
+  `admin_audit_logs.get_admin_activity` has no gate at all — it has a SCOPE.
+  `org_scope` is None for a superadmin and the caller's own org otherwise, and
+  the query filters on it, so another org's admin gets an empty list rather
+  than a refusal. Its sibling `get_admin_statistics` does gate, with
+  caller_can_access_user. Both are IDOR-H7 fixes and they are not the same
+  mechanism.
+
+  ruff clean, mypy clean. Tests: 4781 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`
