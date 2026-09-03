@@ -279,7 +279,7 @@ def decode_cursor(cursor: str) -> Dict[str, Any]:
 
         return cursor_data
     except (base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as e:
-        raise ValueError(f"Invalid cursor format: {str(e)}")
+        raise ValueError(f"Invalid cursor format: {str(e)}") from e
 
 
 def get_cursor_params(

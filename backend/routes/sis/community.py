@@ -182,7 +182,8 @@ def upload_lost_found_image(user_id):
         try:
             supabase.storage.create_bucket(_IMAGE_BUCKET)
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f"{org_id}/lost-found/{_uuid.uuid4().hex}.{ext}"
     try:
         supabase.storage.from_(_IMAGE_BUCKET).upload(

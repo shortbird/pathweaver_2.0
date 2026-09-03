@@ -1332,7 +1332,7 @@ def accept_invitation(invitation_code):
                     elif 'foreign key' in error_str or '23503' in error_str:
                         # Final attempt failed - auth user doesn't exist
                         logger.error(f"Profile creation failed after {max_retries} attempts: {profile_error}")
-                        raise Exception("Registration failed. Please try again in a few moments.")
+                        raise Exception("Registration failed. Please try again in a few moments.") from profile_error
                     else:
                         # Re-raise other errors
                         raise

@@ -207,7 +207,7 @@ class NotificationService(BaseService):
             True if successful
         """
         try:
-            result = self.supabase.table('notifications')\
+            self.supabase.table('notifications')\
                 .update({'is_read': True})\
                 .eq('id', notification_id)\
                 .eq('user_id', user_id)\

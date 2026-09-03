@@ -497,7 +497,7 @@ class CourseRefineService(BaseAIService):
             raise Exception(f"Record not found: {table}.{record_id}")
 
         # Apply the update and request the updated row back
-        result = self.admin_client.table(table).update({
+        self.admin_client.table(table).update({
             db_field: new_value
         }).eq('id', record_id).execute()
 

@@ -682,8 +682,8 @@ class DirectMessageService(BaseService):
         """
         try:
             uuid.UUID(str(conversation_or_user_id))
-        except (ValueError, AttributeError, TypeError):
-            raise ValueError("Conversation not found")
+        except (ValueError, AttributeError, TypeError) as _exc:
+            raise ValueError("Conversation not found") from _exc
 
         supabase = self._get_client()
         rows = (supabase.table('message_conversations')

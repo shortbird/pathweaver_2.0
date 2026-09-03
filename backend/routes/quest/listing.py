@@ -82,7 +82,6 @@ def list_quests():
         # Default (absent) keeps the existing created_at desc ordering so other
         # consumers of this endpoint are unaffected.
         sort = sanitize_search_input(request.args.get('sort', ''), max_length=20)
-        admin_view = request.args.get('admin_view', '').lower() == 'true'
 
         # Log search parameter for debugging
         if search:
@@ -260,7 +259,7 @@ def list_quests():
                     )
                 else:
                     # Re-raise other exceptions
-                    raise e
+                    raise e from e
 
         # Process quest data
         quests = []

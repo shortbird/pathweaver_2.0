@@ -309,8 +309,8 @@ def unsubscribe_by_token(token: str) -> bool:
         db.table('crm_suppressions').insert({
             'email': lead['email'], 'reason': 'unsubscribe', 'source': 'unsubscribe_link',
         }).execute()
-    except APIError:
-        pass  # already suppressed
+    except APIError as _exc:
+        logger.debug("CRM suppression insert failed: %s", _exc, exc_info=True)
     if lead.get('status') != 'converted':
         db.table('crm_leads').update({
             'status': 'unsubscribed',

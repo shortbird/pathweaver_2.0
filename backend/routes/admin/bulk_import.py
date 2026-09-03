@@ -487,9 +487,6 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
     if len(rows) > 100:
         return jsonify({'error': 'Maximum 100 users per import. Please split your file.'}), 400
 
-    # Get option flags
-    send_invites = request.form.get('send_invites', 'false').lower() == 'true'
-
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 

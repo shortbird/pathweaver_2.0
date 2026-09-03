@@ -106,7 +106,7 @@ def register_routes(bp):
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = {**user_result.data[0], 'id': user_id}
-            effective_role = get_effective_role(user_data)
+            get_effective_role(user_data)
 
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403
@@ -261,7 +261,7 @@ def register_routes(bp):
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = {**user_result.data[0], 'id': user_id}
-            effective_role = get_effective_role(user_data)
+            get_effective_role(user_data)
 
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403
@@ -338,7 +338,7 @@ def register_routes(bp):
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = {**user_result.data[0], 'id': user_id}
-            effective_role = get_effective_role(user_data)
+            get_effective_role(user_data)
 
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403
@@ -373,7 +373,7 @@ def register_routes(bp):
             last_error = None
             for attempt in range(max_retries):
                 try:
-                    update_result = client.table('quests').update(updates).eq('id', quest_id).execute()
+                    client.table('quests').update(updates).eq('id', quest_id).execute()
                     logger.info(f"Project {quest_id} updated in course {course_id}")
                     return jsonify({'success': True}), 200
                 except Exception as update_error:
@@ -440,7 +440,7 @@ def register_routes(bp):
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = {**user_result.data[0], 'id': user_id}
-            effective_role = get_effective_role(user_data)
+            get_effective_role(user_data)
 
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403

@@ -409,10 +409,10 @@ def update_course_tasks(user_id, quest_id):
 
         # Update the quest record
         if quest_update_data:
-            quest_result = supabase.table('quests').update(quest_update_data).eq('id', quest_id).execute()
+            supabase.table('quests').update(quest_update_data).eq('id', quest_id).execute()
             logger.info(f"Updated course quest {quest_id} attributes: {list(quest_update_data.keys())}")
         else:
-            quest_result = None
+            pass
 
         # Delete existing tasks
         supabase.table('course_quest_tasks').delete().eq('quest_id', quest_id).execute()
@@ -523,7 +523,7 @@ def delete_course_task(user_id, quest_id, task_id):
             if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
-        result = supabase.table('course_quest_tasks')\
+        supabase.table('course_quest_tasks')\
             .delete()\
             .eq('id', task_id)\
             .eq('quest_id', quest_id)\

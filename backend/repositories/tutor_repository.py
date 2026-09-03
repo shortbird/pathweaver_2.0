@@ -279,7 +279,7 @@ class TutorRepository(BaseRepository):
             True if deactivated successfully
         """
         try:
-            result = self.client.table(self.table_name)\
+            self.client.table(self.table_name)\
                 .update({'is_active': False})\
                 .eq('id', conversation_id)\
                 .execute()

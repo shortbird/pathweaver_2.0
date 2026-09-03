@@ -143,7 +143,7 @@ def authorize():
 
         # Generate authorization code
         auth_code = secrets.token_urlsafe(32)
-        code_challenge = hashlib.sha256(auth_code.encode()).hexdigest()
+        hashlib.sha256(auth_code.encode()).hexdigest()
 
         # Store authorization code in database
         supabase.table('oauth_authorization_codes').insert({

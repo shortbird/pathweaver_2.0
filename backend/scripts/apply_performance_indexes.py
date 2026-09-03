@@ -93,7 +93,7 @@ def main():
 
             # Execute the SQL to create index
             # Use CONCURRENTLY to avoid locking table during index creation
-            result = supabase.rpc('exec_sql', {'sql': index['sql']}).execute()
+            supabase.rpc('exec_sql', {'sql': index['sql']}).execute()
 
             logger.info(f"SUCCESS: {index['name']} created")
             success_count += 1

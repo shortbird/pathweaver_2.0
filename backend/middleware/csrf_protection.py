@@ -279,7 +279,8 @@ def init_csrf(app):
                         level='info' if kind == 'expired' else 'warning',
                     )
             except Exception:
-                pass
+                # telemetry must never break the request
+                ...
             return jsonify({
                 'error': 'CSRF token missing or invalid',
                 'message': 'Refresh the page and try again.',

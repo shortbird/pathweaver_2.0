@@ -106,8 +106,8 @@ def _num_or_none(value, field):
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f'{field} must be a number')
+    except (TypeError, ValueError) as _exc:
+        raise ValueError(f'{field} must be a number') from _exc
 
 
 def _row_percent(row):

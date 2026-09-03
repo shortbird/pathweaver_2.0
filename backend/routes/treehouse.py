@@ -755,8 +755,8 @@ def join_showcase(user_id, event_id):
                 message=f"Project: {participant.get('project_title') or 'TBD'}",
                 link='/treehouse/facilitator', organization_id=ctx['org_id'],
                 metadata={'event_id': event_id, 'student_id': student_id})
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("notification create failed: %s", _exc, exc_info=True)
     return jsonify({'success': True, 'participant': participant}), 201
 
 

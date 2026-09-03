@@ -183,7 +183,7 @@ def test_get_child_conversation_messages_rejects_non_participant_child():
     with patch.object(svc, '_get_client', return_value=supabase):
         try:
             svc.get_child_conversation_messages('conv-1', 'child-1')
-            assert False, "expected ValueError"
+            raise AssertionError("expected ValueError")
         except ValueError as e:
             assert 'does not belong' in str(e)
 

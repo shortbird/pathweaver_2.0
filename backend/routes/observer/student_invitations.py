@@ -60,7 +60,7 @@ def register_routes(bp):
 
             # Get student name for the invitation record
             student = supabase.table('users').select('first_name, last_name, display_name').eq('id', user_id).single().execute()
-            student_name = student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip() or 'Student'
+            student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip() or 'Student'
 
             # Outstanding pending invitations are deliberately left alone.
             # Codes became single-use on 2026-08-15, so one link is one

@@ -179,7 +179,7 @@ class EvidenceReportService(BaseService):
             raise
         except Exception as e:
             logger.error(f"Error fetching report: {str(e)}")
-            raise NotFoundError("Report not found")
+            raise NotFoundError("Report not found") from e
 
     def update_report(
         self,
@@ -309,7 +309,7 @@ class EvidenceReportService(BaseService):
             raise
         except Exception as e:
             logger.error(f"Error fetching public report: {str(e)}")
-            raise NotFoundError("Report not found")
+            raise NotFoundError("Report not found") from e
 
     def _build_report_data(self, report: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -478,7 +478,6 @@ class EvidenceReportService(BaseService):
                     continue
 
                 quest_id = quest['id']
-                user_quest_id = uq['id']
 
                 # Get tasks for this quest
                 quest_tasks = [t for t in (approved_tasks.data or [])
@@ -565,7 +564,7 @@ class EvidenceReportService(BaseService):
 
         for achievement in achievements:
             task_evidence = achievement.get('task_evidence', {})
-            for task_title, evidence in task_evidence.items():
+            for _task_title, evidence in task_evidence.items():
                 xp = evidence.get('xp_awarded', 0) or 0
                 pillar = evidence.get('pillar', 'creativity')
 

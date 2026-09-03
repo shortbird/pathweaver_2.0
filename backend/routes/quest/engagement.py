@@ -77,7 +77,6 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
 
     # Get activity in different time windows
     last_14_days = [d for d in activity_dates if (today - d).days <= 14]
-    last_7_days = [d for d in activity_dates if (today - d).days <= 7]
     previous_14_days = [d for d in activity_dates if 14 < (today - d).days <= 28]
 
     # Fresh return: Activity in last 3 days after 7+ day gap

@@ -23,7 +23,7 @@ def fix_file(file_path: Path) -> bool:
         new_lines = []
         added_conversion = False
 
-        for i, line in enumerate(lines):
+        for _i, line in enumerate(lines):
             # If this line has get_pagination_params and we haven't added conversion yet
             if 'get_pagination_params' in line and not added_conversion:
                 new_lines.append(line)

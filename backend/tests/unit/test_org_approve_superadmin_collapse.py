@@ -89,14 +89,6 @@ def _build_supabase(*, reviewer_role, reviewer_id, reviewer_org=None):
         'org_roles': ['org_admin'] if reviewer_role != 'superadmin' else None,
         'organization_id': reviewer_org,
     }
-    student_user_row = {
-        'id': STUDENT_ID,
-        'organization_id': ORG_ID,
-        'display_name': 'Clare B',
-        'first_name': 'Clare',
-        'last_name': 'Bingham',
-        'email': 'clare@school.edu',
-    }
     completion_row = {
         'id': COMPLETION_ID,
         'user_id': STUDENT_ID,

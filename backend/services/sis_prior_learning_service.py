@@ -138,8 +138,8 @@ def clean_awarded_credits(value: Any) -> Dict[str, float]:
             raise ValueError(f'Unknown subject: {subject}')
         try:
             amount = round(float(credits), 2)
-        except (TypeError, ValueError):
-            raise ValueError(f'Credits for {subject} must be a number')
+        except (TypeError, ValueError) as _exc:
+            raise ValueError(f'Credits for {subject} must be a number') from _exc
         if amount < 0 or amount > MAX_CREDITS_PER_SUBJECT:
             raise ValueError(
                 f'Credits for {subject} must be between 0 and {MAX_CREDITS_PER_SUBJECT}')

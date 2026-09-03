@@ -528,7 +528,7 @@ class CoursePlanModeService(BaseAIService):
         """
         # Ensure projects have IDs
         projects = outline.get('projects', [])
-        for i, project in enumerate(projects):
+        for _i, project in enumerate(projects):
             if 'id' not in project:
                 project['id'] = f'proj_{uuid.uuid4().hex[:8]}'
 

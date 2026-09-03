@@ -193,7 +193,7 @@ class TestTaskRepository:
         with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.insert.side_effect = Exception("Database error")
 
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Database error"):
                 repo.create_task(task_data)
 
     def test_update_task(self):
@@ -254,7 +254,7 @@ class TestTaskRepository:
         with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.delete.side_effect = Exception("Database error")
 
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Database error"):
                 repo.delete_task(task_id)
 
 
@@ -516,7 +516,7 @@ class TestTaskCompletionRepository:
         with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.delete.side_effect = Exception("Database error")
 
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Database error"):
                 repo.delete_completion(completion_id)
 
 

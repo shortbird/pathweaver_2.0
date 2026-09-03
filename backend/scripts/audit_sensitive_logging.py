@@ -178,7 +178,7 @@ def generate_report(all_findings):
     total_files_with_issues = 0
     total_findings = 0
 
-    for file_path, findings in all_findings.items():
+    for _file_path, findings in all_findings.items():
         if findings:
             total_files_with_issues += 1
             total_findings += len(findings)

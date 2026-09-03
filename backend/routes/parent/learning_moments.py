@@ -442,7 +442,7 @@ def get_child_topics(user_id, child_id):
     """
     try:
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
 
         # Use the service with child's user_id
@@ -495,7 +495,7 @@ def create_child_topic(user_id, child_id):
     """
     try:
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
 
         data = request.get_json()
@@ -578,7 +578,7 @@ def get_child_topic_suggestions(user_id, child_id):
         from services.learning_ai_service import LearningAIService
 
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
 
         ai_service = LearningAIService()
@@ -622,7 +622,7 @@ def get_child_topic_detail(user_id, child_id, track_id):
     """
     try:
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
 
         limit = request.args.get('limit', 50, type=int)
@@ -676,7 +676,7 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
     """
     try:
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
 
         data = request.get_json()
@@ -931,7 +931,7 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
                     logger.warning(f"Failed to delete storage file during moment deletion: {e}")
 
         # Delete the moment (evidence blocks and junction rows cascade-delete)
-        delete_response = supabase.table('learning_events') \
+        supabase.table('learning_events') \
             .delete() \
             .eq('id', moment_id) \
             .execute()

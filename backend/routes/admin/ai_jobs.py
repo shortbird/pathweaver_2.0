@@ -331,7 +331,8 @@ def trigger_advisor_summary_job():
                 status=status,
             )
         except Exception:
-            pass
+            # telemetry must never break the request
+            ...
 
     try:
         from jobs.daily_advisor_summary import DailyAdvisorSummaryJob

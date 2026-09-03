@@ -45,10 +45,10 @@ def get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = Non
 
     except RepoPermissionError as e:
         logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
-        raise PermissionError("You do not have permission to manage this dependent profile")
+        raise PermissionError("You do not have permission to manage this dependent profile") from e
     except Exception as e:
         logger.error(f"Error verifying dependent ownership: {str(e)}")
-        raise PermissionError("Failed to verify dependent ownership")
+        raise PermissionError("Failed to verify dependent ownership") from e
 
 
 def check_and_complete_personalization(user_id: str, quest_id: str, session_id: str):
@@ -99,14 +99,13 @@ def check_and_complete_personalization(user_id: str, quest_id: str, session_id: 
             return
 
         # Count how many tasks user has accepted for this quest
-        accepted_tasks = supabase.table('user_quest_tasks')\
+        supabase.table('user_quest_tasks')\
             .select('id', count='exact')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .eq('is_manual', False)\
             .execute()
 
-        accepted_count = accepted_tasks.count if accepted_tasks.count is not None else 0
 
         # Count how many tasks from THIS session are in the library
         # (skipped tasks get saved to library)

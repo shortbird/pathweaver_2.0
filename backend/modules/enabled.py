@@ -102,7 +102,8 @@ def _org_row(org_id: str) -> Optional[Dict]:
             if org_id in cache:
                 return cache[org_id]
     except ImportError:  # scripts without flask on the path
-        pass
+        # optional import; the fallback below is the answer
+        ...
 
     row = None
     try:

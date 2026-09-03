@@ -73,9 +73,7 @@ def test_new_user_onboarding():
             task_count = len(quest_detail.data['quest_tasks'])
             print(f"      [OK] Quest '{test_quest_title}' has {task_count} tasks")
             results['quest_detail'] = True
-            if task_count > 0:
-                test_task_id = quest_detail.data['quest_tasks'][0]['id']
-            else:
+            if task_count == 0:
                 logger.warning("      [WARN] Quest has no tasks (data issue)")
                 return results
         else:
@@ -97,7 +95,7 @@ def test_new_user_onboarding():
             print(f"      Using test user: {users.data[0]['email']}")
 
             # Check if user_quests table is accessible
-            enrollment_check = supabase.table('user_quests').select('user_id, quest_id').eq('user_id', test_user_id).limit(1).execute()
+            supabase.table('user_quests').select('user_id, quest_id').eq('user_id', test_user_id).limit(1).execute()
             logger.info("      [OK] Quest enrollment table accessible")
             results['quest_enrollment'] = True
         else:
@@ -135,8 +133,8 @@ def test_new_user_onboarding():
     # 7. Test diploma/portfolio accessibility
     try:
         logger.info("\n[7/7] Testing diploma/portfolio capability...")
-        users_with_completions = supabase.rpc('get_users_with_completions', {}).execute()
-        diplomas = supabase.table('diplomas').select('user_id, is_public').limit(3).execute()
+        supabase.rpc('get_users_with_completions', {}).execute()
+        supabase.table('diplomas').select('user_id, is_public').limit(3).execute()
         logger.info("      [OK] Diploma system accessible")
         results['diploma_access'] = True
     except Exception as e:

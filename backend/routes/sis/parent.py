@@ -657,7 +657,8 @@ def upload_family_checklist_doc(user_id):
         try:
             supabase.storage.create_bucket(_FAMILY_DOCS_BUCKET, options={'public': False})
         except Exception:  # noqa: BLE001
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f'{org_id}/{user_id}/{uuid.uuid4().hex}.{ext}'
     try:
         supabase.storage.from_(_FAMILY_DOCS_BUCKET).upload(

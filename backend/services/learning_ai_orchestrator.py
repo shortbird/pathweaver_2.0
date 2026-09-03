@@ -116,7 +116,7 @@ class LearningAIOrchestrator(BaseAIService):
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
-            response = supabase.table('users') \
+            supabase.table('users') \
                 .update({'ai_assistance_level': ai_assistance_level}) \
                 .eq('id', user_id) \
                 .execute()

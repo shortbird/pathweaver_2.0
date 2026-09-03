@@ -179,7 +179,7 @@ class CurriculumPermissionService(BaseService):
             raise
         except Exception as e:
             logger.error(f"Error checking curriculum read permission: {str(e)}", exc_info=True)
-            raise PermissionError(f"Permission check failed: {str(e)}")
+            raise PermissionError(f"Permission check failed: {str(e)}") from e
 
     def can_edit_curriculum(self, user_id: str, quest_id: str) -> PermissionResult:
         """

@@ -230,7 +230,8 @@ def _decorate_lost_found(row: Dict[str, Any]) -> Dict[str, Any]:
             days_left = (deadline_d - date.today()).days
             past_deadline = days_left < 0
         except (ValueError, TypeError):
-            pass
+            # unparseable date: skip it
+            ...
     row['donation_deadline'] = deadline
     row['days_until_donation'] = days_left
     # Only unclaimed items that have blown their deadline are donation candidates.
@@ -403,6 +404,7 @@ def upcoming_birthdays(org_id: str, days: int = 7) -> List[Dict[str, Any]]:
         try:
             born = date.fromisoformat(str(dob)[:10])
         except (ValueError, TypeError):
+            # unparseable date of birth: skip it
             continue
         # Next occurrence of month/day, this year or next.
         try:
@@ -578,7 +580,7 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     """
     carpool_rows = list_carpool(org_id)
     carpool = _project(carpool_rows, _FAMILY_CARPOOL)
-    for projected, raw in zip(carpool, carpool_rows):
+    for projected, raw in zip(carpool, carpool_rows, strict=False):
         projected['author_id'] = raw.get('created_by')
         projected['mine'] = bool(viewer_id) and raw.get('created_by') == viewer_id
     return {

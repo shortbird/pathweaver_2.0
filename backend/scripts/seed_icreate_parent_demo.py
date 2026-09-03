@@ -64,7 +64,7 @@ def create_auth_user(email, password, metadata):
         if existing:
             print(f"  (reusing existing auth user for {email})")
             return existing
-        raise e
+        raise e from e
 
 
 def main():

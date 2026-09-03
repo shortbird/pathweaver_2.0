@@ -33,7 +33,7 @@ def run_migration():
     logger.info(f"📄 Migration file: {migration_path}")
 
     try:
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
         # Execute the SQL migration
         # Note: Supabase Python client doesn't have direct SQL execution

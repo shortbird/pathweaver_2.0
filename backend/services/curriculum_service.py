@@ -151,7 +151,7 @@ class CurriculumService(BaseService):
                 raise ValidationError(
                     "Curriculum feature not yet enabled. Please run database migration 019.",
                     500
-                )
+                ) from e
             logger.error(f"Error saving curriculum: {str(e)}", exc_info=True)
             raise
 

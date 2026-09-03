@@ -66,7 +66,6 @@ class ClassRepository(BaseRepository):
 
         if include_counts and classes:
             # Get counts for each class
-            class_ids = [c['id'] for c in classes]
             for cls in classes:
                 cls['student_count'] = self._get_enrollment_count(cls['id'])
                 cls['quest_count'] = self._get_quest_count(cls['id'])

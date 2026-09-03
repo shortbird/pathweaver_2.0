@@ -152,7 +152,7 @@ def get_special_service_title(url: str, parsed) -> str:
     Generate friendly titles for known services without fetching.
     """
     domain = parsed.netloc.lower()
-    path = parsed.path.lower()
+    parsed.path.lower()
 
     # Google services - fetch to get actual document title
     if 'docs.google.com' in domain:

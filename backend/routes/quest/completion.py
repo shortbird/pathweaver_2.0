@@ -570,7 +570,7 @@ def end_quest(user_id: str, quest_id: str):
                     )
 
                 if not eligibility.get('required_tasks_met'):
-                    incomplete = eligibility.get('incomplete_lessons', [])
+                    eligibility.get('incomplete_lessons', [])
                     task_count = eligibility.get('total_required', 0) - eligibility.get('completed_required', 0)
                     error_reasons.append(
                         f"{task_count} required task{'s' if task_count != 1 else ''} incomplete"
@@ -597,7 +597,7 @@ def end_quest(user_id: str, quest_id: str):
         user_quest_id = enrollment.data[0]['id']
 
         # Mark the quest as inactive (ended) and set completed_at timestamp
-        result = supabase.table('user_quests')\
+        supabase.table('user_quests')\
             .update({
                 'is_active': False,
                 'completed_at': datetime.utcnow().isoformat(),

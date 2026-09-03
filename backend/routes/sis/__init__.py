@@ -370,14 +370,16 @@ def upload_staff_photo(user_id, staff_id):
         try:
             supabase.storage.create_bucket(bucket, options={'public': False})
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f"{staff_id}/{_uuid.uuid4().hex}.{ext}"
     old_ref = parse_object_ref(row[0].get('avatar_url'), bucket)
     if old_ref and old_ref[0] == bucket:
         try:
             supabase.storage.from_(bucket).remove([old_ref[1]])
         except Exception:
-            pass
+            # best-effort cleanup of the replaced file
+            ...
     try:
         supabase.storage.from_(bucket).upload(
             path=path, file=file.read(),
@@ -553,14 +555,16 @@ def upload_household_image(user_id, household_id):
         try:
             supabase.storage.create_bucket(bucket, options={'public': False})
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f"{household_id}/{_uuid.uuid4().hex}.{ext}"
     old_ref = parse_object_ref(existing.get('image_url'), bucket)
     if old_ref and old_ref[0] == bucket:
         try:
             supabase.storage.from_(bucket).remove([old_ref[1]])
         except Exception:
-            pass
+            # best-effort cleanup of the replaced file
+            ...
     try:
         supabase.storage.from_(bucket).upload(
             path=path, file=file.read(),

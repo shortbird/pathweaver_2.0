@@ -170,8 +170,8 @@ def create_dependent(user_id):
         # Parse date of birth
         try:
             date_of_birth = datetime.strptime(date_of_birth_str, '%Y-%m-%d').date()
-        except ValueError:
-            raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
+        except ValueError as _exc:
+            raise ValidationError("date_of_birth must be in YYYY-MM-DD format") from _exc
 
         # Same duplicate guard as /add-child: re-adding a kid who already has
         # an account creates the orphan double the school then has to clean up.
@@ -290,8 +290,8 @@ def add_child(user_id):
             raise ValidationError('Date of birth is required')
         try:
             date_of_birth = datetime.strptime(dob_str, '%Y-%m-%d').date()
-        except ValueError:
-            raise ValidationError('date_of_birth must be in YYYY-MM-DD format')
+        except ValueError as _exc:
+            raise ValidationError('date_of_birth must be in YYYY-MM-DD format') from _exc
 
         from services import family_student_service
         age = family_student_service.calculate_age(date_of_birth)
@@ -517,8 +517,8 @@ def update_dependent(user_id, dependent_id):
         if 'date_of_birth' in sanitized_updates:
             try:
                 datetime.strptime(sanitized_updates['date_of_birth'], '%Y-%m-%d')
-            except ValueError:
-                raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
+            except ValueError as _exc:
+                raise ValidationError("date_of_birth must be in YYYY-MM-DD format") from _exc
 
         # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
@@ -862,9 +862,9 @@ def add_dependent_login(user_id, dependent_id):
             message = str(e).lower()
             if 'already been registered' in message or 'already exists' in message:
                 # Held by another auth account the profile-table check can't see.
-                raise ValidationError("This email is already in use")
+                raise ValidationError("This email is already in use") from e
             logger.error(f"Failed to set login credentials for dependent {dependent_id}: {e}")
-            raise ValidationError("Failed to add login credentials")
+            raise ValidationError("Failed to add login credentials") from e
 
         # public.users is deliberately NOT given the email: the CHECK constraint
         # forbids it while is_dependent is true, and the child stays a dependent
@@ -1030,23 +1030,21 @@ def update_child_ai_features(user_id: str, child_id: str):
         dependent_repo = DependentRepository(client=supabase)
 
         # Check if parent owns this child (via managed_by_parent_id or parent_student_links)
-        child = None
         try:
-            child = dependent_repo.get_dependent(child_id, user_id)
-        except NotFoundError:
+            dependent_repo.get_dependent(child_id, user_id)
+        except NotFoundError as _exc:
             # Try linked students
             link_result = supabase.table('parent_student_links').select('*').eq(
                 'parent_user_id', user_id
             ).eq('student_user_id', child_id).eq('status', 'active').execute()
 
             if not link_result.data:
-                raise NotFoundError(f"Child {child_id} not found or not associated with parent")
+                raise NotFoundError(f"Child {child_id} not found or not associated with parent") from _exc
 
             # Get the linked student
             student_result = supabase.table('users').select('*').eq('id', child_id).single().execute()
             if not student_result.data:
-                raise NotFoundError(f"Child {child_id} not found")
-            child = student_result.data
+                raise NotFoundError(f"Child {child_id} not found") from _exc
 
         # Build update dict for granular features
         update_data = {}

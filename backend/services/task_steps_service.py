@@ -99,7 +99,7 @@ class TaskStepsService(BaseAIService):
             response = self.generate_json(prompt, strict=True)
         except AIParsingError as e:
             logger.error(f"Failed to parse step generation response: {e}")
-            raise AIGenerationError("Failed to generate steps. Please try again.")
+            raise AIGenerationError("Failed to generate steps. Please try again.") from e
 
         steps_data = response.get('steps', [])
         if not steps_data:
@@ -172,7 +172,7 @@ class TaskStepsService(BaseAIService):
             response = self.generate_json(prompt, strict=True)
         except AIParsingError as e:
             logger.error(f"Failed to parse drill-down response: {e}")
-            raise AIGenerationError("Failed to generate sub-steps. Please try again.")
+            raise AIGenerationError("Failed to generate sub-steps. Please try again.") from e
 
         steps_data = response.get('steps', [])
         if not steps_data:

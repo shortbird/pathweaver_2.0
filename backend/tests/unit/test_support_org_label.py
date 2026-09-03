@@ -76,7 +76,6 @@ def test_member_orgs_by_user_direct_membership():
 
 
 def test_member_orgs_by_user_parent_through_dependent():
-    calls = {'users': 0}
 
     def rows_for(table, filters):
         if table == 'users' and ('in', 'id') in filters:

@@ -220,7 +220,7 @@ def test_error_handling_on_database_failure():
         mock_client.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("Database error")
 
         # Should handle error gracefully
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Database error"):
             repo.find_by_id(str(uuid.uuid4()))
 
 

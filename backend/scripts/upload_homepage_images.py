@@ -171,7 +171,7 @@ def upload_to_supabase(filepath: str, filename: str) -> str:
         pass  # File doesn't exist, that's fine
 
     # Upload new file
-    result = supabase.storage.from_(SUPABASE_BUCKET).upload(
+    supabase.storage.from_(SUPABASE_BUCKET).upload(
         storage_path,
         file_data,
         file_options={

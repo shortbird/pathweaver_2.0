@@ -114,7 +114,7 @@ class EvidenceRepository(BaseRepository):
             if not existing:
                 raise NotFoundError(f"Evidence document {evidence_id} not found")
 
-            result = self.client.table(self.table_name)\
+            self.client.table(self.table_name)\
                 .delete()\
                 .eq('id', evidence_id)\
                 .execute()

@@ -82,8 +82,8 @@ def validate_subject_credits(subject_credits: Dict[str, Any]) -> Dict[str, int]:
             raise ValueError(f'Invalid subject: {subject}')
         try:
             credits = float(credits)
-        except (TypeError, ValueError):
-            raise ValueError(f'Credit value for {subject} must be a number')
+        except (TypeError, ValueError) as _exc:
+            raise ValueError(f'Credit value for {subject} must be a number') from _exc
         if credits <= 0:
             continue
         if credits > MAX_CREDITS_PER_SUBJECT:
@@ -235,8 +235,8 @@ def clean_course_names(course_names: Dict[str, Any],
                 continue
             try:
                 credits = float((course or {}).get('credits') or 0)
-            except (TypeError, ValueError):
-                raise ValueError(f'Course credit for {subject} must be a number')
+            except (TypeError, ValueError) as _exc:
+                raise ValueError(f'Course credit for {subject} must be a number') from _exc
             cleaned.append({'name': name, 'credits': round(credits, 2)})
         if not cleaned:
             continue

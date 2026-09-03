@@ -875,7 +875,7 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
     documents = stored['documents']
     batch_id = str(_uuid.uuid4())
     rows = []
-    for recipient, doc in zip(unique, documents):
+    for recipient, doc in zip(unique, documents, strict=False):
         is_family = _clean_audience(recipient.get('audience')) == 'family'
         rows.append({
             'organization_id': org_id,

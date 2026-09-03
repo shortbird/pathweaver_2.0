@@ -246,7 +246,7 @@ def _census(db, uid):
         rows = (db.table(table).select('id').eq(col, uid).execute()).data or []
         if rows:
             counts[table] = len(rows)
-    for table, key in XP_SUM_TABLES:
+    for table, _key in XP_SUM_TABLES:
         rows = (db.table(table).select('xp_amount').eq('user_id', uid).execute()).data or []
         if rows:
             counts[table] = f"{len(rows)} rows, {sum(r.get('xp_amount') or 0 for r in rows)} XP"

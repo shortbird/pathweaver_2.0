@@ -324,19 +324,13 @@ def forgot_password():
                 # Still return success to avoid revealing user existence
         else:
             logger.info(f"[FORGOT_PASSWORD] No user found with email: {mask_email(email)}")
-    except Exception as lookup_error:
-        logger.error(f"[FORGOT_PASSWORD] Error looking up user in auth.users: {str(lookup_error)}")
-
-        # Always return success message (don't reveal if email exists or not)
-        logger.info("[FORGOT_PASSWORD] === Returning success response ===")
-        return jsonify({
-            'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
-            'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
-        }), 200
-
-    except Exception as e:
-        logger.error(f"[FORGOT_PASSWORD] ✗ Top-level exception: {str(e)}")
-        logger.error(f"[FORGOT_PASSWORD] Exception type: {type(e).__name__}")
+    # One handler, not two. There used to be a second `except Exception` below
+    # this one as a "top-level" catch; Python never reached it, so its traceback
+    # logging had never once run and every failure in this block -- token
+    # generation, email send, anything -- was logged as "Error looking up user".
+    except Exception as flow_error:
+        logger.error(f"[FORGOT_PASSWORD] Failed: {str(flow_error)}")
+        logger.error(f"[FORGOT_PASSWORD] Exception type: {type(flow_error).__name__}")
         import traceback
         logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
 

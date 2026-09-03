@@ -258,7 +258,6 @@ class CurriculumLessonService(BaseService):
 
             # Fetch linked task IDs for all lessons in this quest
             if lessons:
-                lesson_ids = [lesson['id'] for lesson in lessons]
                 links_result = self.supabase.table('curriculum_lesson_tasks')\
                     .select('lesson_id, task_id')\
                     .eq('quest_id', quest_id)\
@@ -647,7 +646,7 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
             return validated_tasks
         except Exception as e:
             logger.error(f"Error generating AI tasks: {str(e)}")
-            raise ValidationError(f"AI task generation failed: {str(e)}", 500)
+            raise ValidationError(f"AI task generation failed: {str(e)}", 500) from e
 
     def link_task_to_lesson(self, lesson_id: str, task_id: str, quest_id: str) -> Dict[str, Any]:
         """Link an existing quest task to a lesson."""
@@ -695,7 +694,7 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
             raise
         except Exception as e:
             logger.error(f"Error linking task to lesson: {str(e)}", exc_info=True)
-            raise ValidationError(f"Failed to link task: {str(e)}", 500)
+            raise ValidationError(f"Failed to link task: {str(e)}", 500) from e
 
     def unlink_task_from_lesson(self, lesson_id: str, task_id: str) -> bool:
         """Unlink a task from a lesson."""
@@ -826,4 +825,4 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
             raise
         except Exception as e:
             logger.error(f"Error creating curriculum tasks: {str(e)}", exc_info=True)
-            raise ValidationError(f"Failed to create tasks: {str(e)}", 500)
+            raise ValidationError(f"Failed to create tasks: {str(e)}", 500) from e

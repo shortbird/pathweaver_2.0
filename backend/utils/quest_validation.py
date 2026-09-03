@@ -196,7 +196,6 @@ class QuestValidator:
         """Assess educational value of the quest"""
         
         score = 0.0
-        max_score = 100.0
         
         # Check for educational keywords
         text_content = f"{quest.get('title', '')} {quest.get('description', '')} {quest.get('big_idea', '')}"

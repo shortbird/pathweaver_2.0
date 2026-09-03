@@ -135,7 +135,7 @@ def merge_structure_results(results: List[Tuple[int, Dict]]) -> Dict:
         'modules': []
     }
 
-    for chunk_idx, result in sorted_results:
+    for _chunk_idx, result in sorted_results:
         # Take course title from first chunk that has it
         if not merged['course_title'] and result.get('course_title'):
             merged['course_title'] = result['course_title']

@@ -404,8 +404,8 @@ def add_student_credit(user_id, student_id):
             raise ValidationError("course_name is required")
         try:
             credits_value = float(credits_value)
-        except (TypeError, ValueError):
-            raise ValidationError("credits must be a number")
+        except (TypeError, ValueError) as _exc:
+            raise ValidationError("credits must be a number") from _exc
         if credits_value <= 0:
             raise ValidationError("credits must be greater than 0")
         if credit_source not in oea_rules.CREDIT_SOURCES:
@@ -500,8 +500,8 @@ def update_student_credit(user_id, credit_id):
         if 'credits' in data:
             try:
                 cv = float(data['credits'])
-            except (TypeError, ValueError):
-                raise ValidationError("credits must be a number")
+            except (TypeError, ValueError) as _exc:
+                raise ValidationError("credits must be a number") from _exc
             if cv <= 0:
                 raise ValidationError("credits must be greater than 0")
             fields['credits'] = cv
@@ -761,8 +761,8 @@ def set_credit_caps(user_id, student_id):
                 if val is not None:
                     try:
                         val = float(val)
-                    except (TypeError, ValueError):
-                        raise ValidationError(f"{key} must be a number or null")
+                    except (TypeError, ValueError) as _exc:
+                        raise ValidationError(f"{key} must be a number or null") from _exc
                     if val < 0:
                         raise ValidationError(f"{key} cannot be negative")
                 fields[key] = val
@@ -832,8 +832,8 @@ def upsert_credit_period(user_id, credit_id):
         term_type = (data.get('term_type') or '').strip()
         try:
             term_index = int(data.get('term_index'))
-        except (TypeError, ValueError):
-            raise ValidationError("term_index must be an integer")
+        except (TypeError, ValueError) as _exc:
+            raise ValidationError("term_index must be an integer") from _exc
         grade = data.get('grade')
         summary = data.get('summary')
 
@@ -1004,8 +1004,8 @@ def get_progress_report(user_id, student_id):
 
         try:
             term_index = int(request.args.get('term', 1))
-        except (TypeError, ValueError):
-            raise ValidationError("term must be an integer 1-4")
+        except (TypeError, ValueError) as _exc:
+            raise ValidationError("term must be an integer 1-4") from _exc
         if term_index not in (1, 2, 3, 4):
             raise ValidationError("term must be 1-4")
 

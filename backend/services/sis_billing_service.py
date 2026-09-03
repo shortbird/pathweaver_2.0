@@ -61,8 +61,8 @@ def _processing_fee_config(org_id: str) -> Dict[str, Any]:
         if isinstance(cfg, dict):
             return {'percent': float(cfg.get('percent', _DEFAULT_PROCESSING_FEE['percent'])),
                     'flat_cents': int(cfg.get('flat_cents', _DEFAULT_PROCESSING_FEE['flat_cents']))}
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as _exc:  # noqa: BLE001
+        logger.debug("org branding lookup failed: %s", _exc, exc_info=True)
     return dict(_DEFAULT_PROCESSING_FEE)
 
 
@@ -1531,7 +1531,8 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
     for sid in reversed(session_ids):  # newest first
         try:
             sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception:  # noqa: BLE001
+        except Exception as _exc:  # noqa: BLE001
+            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
             continue
         if (sess.get('payment_status') != 'paid'):
             continue
@@ -1789,7 +1790,8 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
     for sid in reversed(session_ids):  # newest first
         try:
             sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception:  # noqa: BLE001
+        except Exception as _exc:  # noqa: BLE001
+            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
             continue
         md = sess.get('metadata') or {}
         if sess.get('payment_status') != 'paid' or md.get('kind') != 'family' \
@@ -2024,7 +2026,8 @@ def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
     for sid in reversed(list(inv.get('stripe_session_ids') or [])):
         try:
             sess = stripe.checkout.Session.retrieve(sid, api_key=secret, expand=['setup_intent'])
-        except Exception:  # noqa: BLE001
+        except Exception as _exc:  # noqa: BLE001
+            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
             continue
         if (sess.get('metadata') or {}).get('kind') == 'autopay_setup' and sess.get('status') == 'complete':
             setup_sess = sess
@@ -2238,6 +2241,7 @@ def _days_overdue(inv: Dict[str, Any], unpaid_installments: List[Dict[str, Any]]
         try:
             dd = date.fromisoformat(str(d)[:10])
         except ValueError:
+            # unparseable date: skip it
             continue
         if dd < today:
             past.append(dd)
@@ -2528,13 +2532,15 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
                     overdue_installment = i
                     break
             except (ValueError, TypeError):
+                # unparseable due date: skip it
                 continue
         invoice_past_due = False
         try:
             invoice_past_due = bool(inv.get('due_date')) and \
                 date.fromisoformat(str(inv['due_date'])[:10]) < today
         except ValueError:
-            pass
+            # unparseable due date: not past due
+            ...
         if not (overdue_installment or invoice_past_due):
             continue
         household = households.get(inv.get('household_id'))

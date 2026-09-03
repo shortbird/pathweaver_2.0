@@ -31,7 +31,7 @@ TOPIC_TAXONOMY = {
 
 # Flat list of all valid topics
 ALL_TOPICS = []
-for category, subtopics in TOPIC_TAXONOMY.items():
+for _category, subtopics in TOPIC_TAXONOMY.items():
     ALL_TOPICS.extend(subtopics)
 
 # Map subtopics to their parent category
@@ -177,7 +177,7 @@ Example for "Build a robot arm":
         valid_topics = []
         for topic in topics:
             # Check if it's a valid subtopic (case-insensitive)
-            for cat, subtopics in TOPIC_TAXONOMY.items():
+            for _cat, subtopics in TOPIC_TAXONOMY.items():
                 for subtopic in subtopics:
                     if subtopic.lower() == topic.lower():
                         valid_topics.append(subtopic)

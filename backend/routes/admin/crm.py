@@ -128,7 +128,6 @@ def overview(user_id):
         for s in f_steps:
             waiting = 0
             if s['is_active']:
-                next_orders = {}
                 for m in f_members:
                     if m['status'] != 'active':
                         continue

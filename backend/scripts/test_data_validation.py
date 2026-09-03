@@ -248,7 +248,6 @@ def test_business_logic():
         if len(completions.data) > 0:
             # Check if XP awarded matches task XP
             sample_completion = completions.data[0]
-            task_xp_sum = 0
 
             # This is a spot check - full validation would require recalculating all XP
             print(f"      Sample completion XP awarded: {sample_completion.get('xp_awarded', 'N/A')}")

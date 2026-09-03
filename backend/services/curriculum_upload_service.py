@@ -942,11 +942,6 @@ class CurriculumUploadService:
 
             self._update_progress(upload_id, 4, 80, "Creating course in database...")
 
-            content_result = {
-                'success': True,
-                'course': course,
-                'projects': projects
-            }
 
             preview = {
                 'course': course,

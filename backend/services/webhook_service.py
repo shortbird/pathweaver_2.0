@@ -402,7 +402,7 @@ class WebhookService(BaseService):
                     continue
 
                 # Attempt delivery
-                success = self._attempt_delivery(
+                self._attempt_delivery(
                     subscription=subscription,
                     payload=delivery['payload'],
                     delivery_id=delivery['id']

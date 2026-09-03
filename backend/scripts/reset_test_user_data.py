@@ -51,17 +51,17 @@ def reset_test_user_data(preserve_enrollments=False):
 
         # 1. Delete task completions
         print("\n1. Deleting task completions...")
-        completions = supabase.table('quest_task_completions').delete().eq('user_id', user_id).execute()
+        supabase.table('quest_task_completions').delete().eq('user_id', user_id).execute()
         print("   ✓ Deleted task completions")
 
         # 2. Delete evidence
         print("\n2. Deleting evidence...")
-        evidence = supabase.table('task_evidence').delete().eq('user_id', user_id).execute()
+        supabase.table('task_evidence').delete().eq('user_id', user_id).execute()
         print("   ✓ Deleted evidence")
 
         # 3. Delete user quest tasks
         print("\n3. Deleting user quest tasks...")
-        tasks = supabase.table('user_quest_tasks').delete().eq('user_id', user_id).execute()
+        supabase.table('user_quest_tasks').delete().eq('user_id', user_id).execute()
         print("   ✓ Deleted user quest tasks")
 
         # 4. Handle quest enrollments

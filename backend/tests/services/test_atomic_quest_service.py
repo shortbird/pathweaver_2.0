@@ -288,7 +288,7 @@ def test_evidence_url_and_text_stored():
         })
         mock_supabase.table.return_value.insert.return_value = mock_insert_chain
 
-        result = service.complete_task_atomically(
+        service.complete_task_atomically(
             user_id=user_id,
             quest_id=quest_id,
             task_id=task_id,

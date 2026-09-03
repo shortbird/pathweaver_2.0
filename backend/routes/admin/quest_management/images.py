@@ -94,7 +94,7 @@ def upload_quest_image(user_id, quest_id):
                 logger.debug("quest-images old file delete failed (non-fatal)", exc_info=True)
 
         # Upload to Supabase Storage
-        response = supabase.storage.from_('quest-images').upload(
+        supabase.storage.from_('quest-images').upload(
             path=unique_filename,
             file=file_content,
             file_options={"content-type": file.content_type or f'image/{file_extension}'}
@@ -110,7 +110,7 @@ def upload_quest_image(user_id, quest_id):
             'updated_at': datetime.utcnow().isoformat()
         }
 
-        result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+        supabase.table('quests').update(update_data).eq('id', quest_id).execute()
 
         return jsonify({
             'success': True,
@@ -154,7 +154,7 @@ def refresh_quest_image(user_id, quest_id):
             'updated_at': datetime.utcnow().isoformat()
         }
 
-        result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+        supabase.table('quests').update(update_data).eq('id', quest_id).execute()
 
         return jsonify({
             'success': True,
@@ -263,7 +263,7 @@ def bulk_generate_images(user_id):
 
                 if image_url:
                     # Update quest with image
-                    update_result = supabase.table('quests').update({
+                    supabase.table('quests').update({
                         'image_url': image_url,
                         'header_image_url': image_url,
                         'image_generated_at': datetime.utcnow().isoformat(),

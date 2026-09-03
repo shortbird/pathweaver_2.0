@@ -585,7 +585,7 @@ def sign_thumb_urls(
         results = list(_thumb_pool().map(
             lambda k: _sign_thumb(k[0], k[1], ttl, transform, client=client), keys
         ))
-        for key, url in zip(keys, results):
+        for key, url in zip(keys, results, strict=False):
             _thumb_cache_put(key, url, ttl)
             for value in pending[key]:
                 out[value] = url

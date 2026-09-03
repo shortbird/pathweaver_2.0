@@ -64,7 +64,7 @@ class _Admin:
 
     def table(self, name):
         if name == 'users':
-            q = _Query([], sink=self.filters)
+            _Query([], sink=self.filters)
             # Resolve rows lazily against whatever org was filtered on
             class _OrgQuery(_Query):
                 def execute(_self):

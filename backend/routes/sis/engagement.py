@@ -114,7 +114,8 @@ def adjust_completion_xp(user_id, completion_id):
             from utils.pillar_utils import normalize_pillar_name
             pillar = normalize_pillar_name(pillar)
         except Exception:  # noqa: BLE001 — keep the stored value if unmappable
-            pass
+            # optional import; the fallback below is the answer
+            ...
         try:
             current = (
                 admin.table('user_skill_xp').select('id, xp_amount')

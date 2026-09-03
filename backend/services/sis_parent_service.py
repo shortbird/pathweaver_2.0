@@ -167,8 +167,8 @@ def context(user_id: str) -> Dict[str, Any]:
         signed = sign_stored_urls(avatar_by_id.values())
         avatar_by_id = {uid: (signed.get(url) if url else None)
                         for uid, url in avatar_by_id.items()}
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as _exc:  # noqa: BLE001
+        logger.debug("avatar lookup failed: %s", _exc, exc_info=True)
     orgs: Dict[str, Dict[str, Any]] = {}
     for s in students:
         o = orgs.setdefault(s['org_id'], {'organization_id': s['org_id'], 'students': []})
@@ -751,8 +751,8 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         prow = (_admin().table('users').select('sis_tuition_plan')
                 .eq('id', student_user_id).limit(1).execute()).data
         tuition_plan = (prow[0] or {}).get('sis_tuition_plan') if prow else None
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as _exc:  # noqa: BLE001
+        logger.debug("tuition-plan lookup failed: %s", _exc, exc_info=True)
     settings = _sis_settings(org_id)
     from services import sis_exception_service as exceptions
     from services import sis_enrollment_waitlist_service as enrollment_waitlist
@@ -1064,7 +1064,8 @@ def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
                 return {'error': 'This offer has expired. Contact the school to ask '
                                  'for the spot again.'}
         except ValueError:
-            pass
+            # unparseable expiry: treat as expired
+            ...
 
     klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
     if not klass:

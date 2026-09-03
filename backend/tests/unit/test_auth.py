@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
+from middleware.error_handler import AuthenticationError, AuthorizationError
 from utils.auth.decorators import require_auth, require_admin, require_role
 from utils.logger import get_logger
 
@@ -41,7 +42,7 @@ def test_require_auth_without_token(client):
         return {'user_id': user_id}, 200
 
     with client.application.test_request_context():
-        with pytest.raises(Exception):  # AuthenticationError
+        with pytest.raises(AuthenticationError):
             protected_route()
 
 
@@ -73,7 +74,7 @@ def test_require_admin_with_student_user(client, mock_verify_token, sample_user)
         with client.application.test_request_context(
             headers={'Authorization': 'Bearer student-token'}
         ):
-            with pytest.raises(Exception):  # AuthorizationError
+            with pytest.raises(AuthorizationError):
                 admin_route()
 
 
@@ -102,7 +103,7 @@ def test_require_role_with_incorrect_role(client, mock_verify_token, sample_user
         with client.application.test_request_context(
             headers={'Authorization': 'Bearer student-token'}
         ):
-            with pytest.raises(Exception):  # AuthorizationError
+            with pytest.raises(AuthorizationError):
                 role_route()
 
 

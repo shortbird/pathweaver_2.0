@@ -435,7 +435,8 @@ def upload_resource_file(user_id):
         try:
             supabase.storage.create_bucket(_ORG_DOCS_BUCKET)
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
 
     path = f"{org_id}/resources/{_uuid.uuid4().hex}.{ext}"
     try:

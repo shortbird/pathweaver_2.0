@@ -109,7 +109,7 @@ class TestPerEndpointRateLimiting:
     def test_explicit_calls_period_limit(self, client):
         """Test explicit calls/period parameters"""
         # Should allow 10 requests
-        for i in range(10):
+        for _i in range(10):
             response = client.get('/api/sensitive')
             assert response.status_code == 200
             assert response.json['message'] == 'Success'
@@ -125,7 +125,7 @@ class TestPerEndpointRateLimiting:
         """Test using config_key parameter"""
         # tutor_chat config: 100 requests per hour in dev (from config/rate_limits.py)
         # Let's just test a few requests work
-        for i in range(5):
+        for _i in range(5):
             response = client.post('/api/tutor/chat')
             assert response.status_code == 200
             assert response.json['message'] == 'Chat response'
@@ -133,7 +133,7 @@ class TestPerEndpointRateLimiting:
     def test_auto_detection_auth_login(self, client):
         """Test auto-detection for auth endpoints"""
         # auth_login config: 10 requests per 5 min in dev
-        for i in range(10):
+        for _i in range(10):
             response = client.post('/api/auth/login')
             assert response.status_code == 200
 
@@ -144,7 +144,7 @@ class TestPerEndpointRateLimiting:
     def test_auto_detection_task_complete(self, client):
         """Test auto-detection for task completion"""
         # task_complete config: 60 requests per minute in dev
-        for i in range(60):
+        for _i in range(60):
             response = client.post('/api/tasks/123/complete')
             assert response.status_code == 200
 
@@ -155,7 +155,7 @@ class TestPerEndpointRateLimiting:
     def test_legacy_parameters(self, client):
         """Test legacy max_requests/window_seconds parameters"""
         # Should allow 5 requests
-        for i in range(5):
+        for _i in range(5):
             response = client.get('/api/legacy')
             assert response.status_code == 200
 
@@ -166,7 +166,7 @@ class TestPerEndpointRateLimiting:
     def test_default_rate_limit(self, client):
         """Test default rate limit when no config matches"""
         # Default: 100 requests per minute in dev (api_default from config)
-        for i in range(100):
+        for _i in range(100):
             response = client.get('/api/default')
             assert response.status_code == 200
 
@@ -191,7 +191,7 @@ class TestPerEndpointRateLimiting:
     def test_different_endpoints_separate_limits(self, client):
         """Test that different endpoints have separate rate limits"""
         # Use up limit on sensitive endpoint
-        for i in range(10):
+        for _i in range(10):
             response = client.get('/api/sensitive')
             assert response.status_code == 200
 
@@ -206,7 +206,7 @@ class TestPerEndpointRateLimiting:
     def test_retry_after_header(self, client):
         """Test Retry-After header is set correctly"""
         # Exceed limit
-        for i in range(10):
+        for _i in range(10):
             client.get('/api/sensitive')
 
         # Get rate limited response
@@ -229,7 +229,7 @@ class TestAutoDetection:
             return jsonify({'message': 'Uploaded'})
 
         # Upload config: 20 requests per hour in dev
-        for i in range(20):
+        for _i in range(20):
             response = client.post('/api/upload')
             assert response.status_code == 200
 
@@ -244,7 +244,7 @@ class TestAutoDetection:
             return jsonify({'message': 'Evidence uploaded'})
 
         # Evidence upload: 20 requests per hour in dev
-        for i in range(20):
+        for _i in range(20):
             response = client.post('/api/evidence/upload')
             assert response.status_code == 200
 
@@ -259,7 +259,7 @@ class TestAutoDetection:
             return jsonify({'message': 'User created'})
 
         # Admin create: 100 requests per minute in dev
-        for i in range(100):
+        for _i in range(100):
             response = client.post('/api/admin/users')
             assert response.status_code == 200
 
@@ -274,7 +274,7 @@ class TestAutoDetection:
             return jsonify({'message': 'User updated'})
 
         # Admin update: 100 requests per minute in dev
-        for i in range(100):
+        for _i in range(100):
             response = client.put('/api/admin/users/123')
             assert response.status_code == 200
 
@@ -289,7 +289,7 @@ class TestAutoDetection:
             return jsonify({'message': 'User deleted'})
 
         # Admin delete: 50 requests per minute in dev
-        for i in range(50):
+        for _i in range(50):
             response = client.delete('/api/admin/users/123')
             assert response.status_code == 200
 
@@ -307,7 +307,7 @@ class TestParameterPriority:
             return jsonify({'message': 'Success'})
 
         # Should use calls=5, not limit=10
-        for i in range(5):
+        for _i in range(5):
             response = client.get('/api/test1')
             assert response.status_code == 200
 
@@ -322,7 +322,7 @@ class TestParameterPriority:
             return jsonify({'message': 'Success'})
 
         # Should use limit=5, not max_requests=10
-        for i in range(5):
+        for _i in range(5):
             response = client.get('/api/test2')
             assert response.status_code == 200
 
@@ -338,7 +338,7 @@ class TestParameterPriority:
             return jsonify({'message': 'Login'})
 
         # Should use api_default (100), not auth_login (10)
-        for i in range(100):
+        for _i in range(100):
             response = client.post('/api/auth/login-special')
             assert response.status_code == 200
 

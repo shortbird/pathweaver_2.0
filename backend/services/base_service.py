@@ -8,7 +8,7 @@ Services should use repositories for database operations, not direct client acce
 See SERVICE_CLASSIFICATION.md for migration guide.
 """
 
-from typing import Callable, Any
+from typing import Any, Callable, Optional
 from functools import wraps
 import time
 from flask import current_app
@@ -94,7 +94,7 @@ class BaseService:
                 )
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize service.
 
@@ -113,10 +113,10 @@ class BaseService:
         self,
         operation: Callable,
         operation_name: str,
-        retries: int = None,
-        retry_delay: float = None,
+        retries: Optional[int] = None,
+        retry_delay: Optional[float] = None,
         log_errors: bool = True,
-        **context
+        **context: Any
     ) -> Any:
         """
         Execute an operation with retry logic and error handling.
@@ -206,7 +206,7 @@ class BaseService:
             f"{operation_name} failed after {retries} attempts: {str(last_error)}"
         )
 
-    def _log_operation(self, operation_name: str, status: str, **context):
+    def _log_operation(self, operation_name: str, status: str, **context: Any) -> None:
         """
         Log service operation with context.
 
@@ -242,7 +242,7 @@ class BaseService:
         if current_app and current_app.debug:
             logger.info(f"[SERVICE] {msg}")
 
-    def validate_required(self, **kwargs):
+    def validate_required(self, **kwargs: Any) -> None:
         """
         Validate that required fields are present and non-empty.
 
@@ -267,7 +267,7 @@ class BaseService:
         if missing:
             raise ValidationError(f"Required fields missing or empty: {', '.join(missing)}")
 
-    def validate_one_of(self, field_name: str, value: Any, allowed_values: list):
+    def validate_one_of(self, field_name: str, value: Any, allowed_values: list) -> None:
         """
         Validate that a value is one of the allowed values.
 
@@ -291,7 +291,7 @@ class BaseService:
     #   - repo.exists(id)
 
 
-def with_retry(retries: int = 3, retry_delay: float = 0.5):
+def with_retry(retries: int = 3, retry_delay: float = 0.5) -> Callable:
     """
     Decorator for adding retry logic to service methods.
 
@@ -307,7 +307,7 @@ def with_retry(retries: int = 3, retry_delay: float = 0.5):
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             if not isinstance(self, BaseService):
                 # If not a BaseService instance, just call the function
                 return func(self, *args, **kwargs)
@@ -322,7 +322,7 @@ def with_retry(retries: int = 3, retry_delay: float = 0.5):
     return decorator
 
 
-def validate_input(**validators):
+def validate_input(**validators: Callable) -> Callable:
     """
     Decorator for validating method inputs.
 
@@ -339,7 +339,7 @@ def validate_input(**validators):
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             # Get function signature to map args to kwargs
             import inspect
             sig = inspect.signature(func)

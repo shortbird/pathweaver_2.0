@@ -93,7 +93,6 @@ def complete_task(user_id: str, task_id: str):
             )
 
         quest_id = task_data['quest_id']
-        user_quest_id = task_data['user_quest_id']
 
         # Verify task is approved (for manual tasks)
         if task_data.get('approval_status') != 'approved':
@@ -295,7 +294,7 @@ def complete_task(user_id: str, task_id: str):
         all_task_ids = {t['id'] for t in all_tasks.data}
         completed_task_ids = {t['user_quest_task_id'] for t in completed_tasks.data}
 
-        all_tasks_completed = all_task_ids.issubset(completed_task_ids)
+        all_task_ids.issubset(completed_task_ids)
 
         # If no required tasks are specified, treat all tasks as required
         if not required_task_ids:

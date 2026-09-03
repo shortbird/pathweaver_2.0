@@ -57,7 +57,7 @@ def merge_tasks(user_id: str):
             return error_response(code='VALIDATION_ERROR', message='All completions must belong to the same student', status=400)
 
         student_id = student_ids.pop()
-        now = datetime.utcnow().isoformat()
+        datetime.utcnow().isoformat()
 
         # Create merge record
         merge_result = admin_supabase.table('task_merges').insert({

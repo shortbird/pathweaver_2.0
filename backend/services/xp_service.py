@@ -102,7 +102,7 @@ class XPService(BaseService):
             db_pillar = normalize_pillar_name(pillar)
             logger.info(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
         except ValueError as e:
-            raise ValidationError(f"Invalid pillar name: {pillar} - {str(e)}")
+            raise ValidationError(f"Invalid pillar name: {pillar} - {str(e)}") from e
 
         # Validate that we have a valid pillar for storage
         self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])

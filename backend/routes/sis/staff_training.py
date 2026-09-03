@@ -1245,14 +1245,14 @@ def training_progress(user_id):
                   'applies': _applies(c, s),
                   **progress.get((s['id'], c['quest_id']), dict(_NOT_STARTED))}
                  for c in catalog]
-        required_done = len([c for c, cell in zip(catalog, cells)
+        required_done = len([c for c, cell in zip(catalog, cells, strict=False)
                              if c['is_required'] and cell['applies'] and cell['completed']])
         rows.append({
             'user_id': s['id'], 'name': s['name'], 'cells': cells,
             'completed': len([c for c in cells if c['completed']]),
             'required_completed': required_done,
             # A person's own denominator: only the required quests aimed at them.
-            'required_total': len([c for c, cell in zip(catalog, cells)
+            'required_total': len([c for c, cell in zip(catalog, cells, strict=False)
                                    if c['is_required'] and cell['applies']]),
         })
     required_total = len([c for c in catalog if c['is_required']])
@@ -1318,8 +1318,8 @@ def _guardians(org_id):
     school_account = None
     try:
         school_account = sis_service.org_messaging_email(org_id)
-    except Exception:  # noqa: BLE001 — worst case the placeholder shows up
-        pass
+    except Exception as _exc:  # noqa: BLE001 — worst case the placeholder shows up
+        logger.debug("school messaging account lookup failed: %s", _exc, exc_info=True)
 
     out = []
     for u in rows:

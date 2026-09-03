@@ -78,7 +78,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error creating course: {str(e)}")
-            raise ValueError(f"Failed to create course: {str(e)}")
+            raise ValueError(f"Failed to create course: {str(e)}") from e
 
     @staticmethod
     def publish_course(course_id: str, user_id: str) -> Dict:
@@ -141,7 +141,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error publishing course: {str(e)}")
-            raise ValueError(f"Failed to publish course: {str(e)}")
+            raise ValueError(f"Failed to publish course: {str(e)}") from e
 
     @staticmethod
     def enroll_student(course_id: str, user_id: str) -> Dict:
@@ -230,7 +230,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error enrolling student: {str(e)}")
-            raise ValueError(f"Failed to enroll student: {str(e)}")
+            raise ValueError(f"Failed to enroll student: {str(e)}") from e
 
     @staticmethod
     def get_student_progress(course_id: str, user_id: str) -> Dict:
@@ -375,7 +375,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error adding quest to course: {str(e)}")
-            raise ValueError(f"Failed to add quest: {str(e)}")
+            raise ValueError(f"Failed to add quest: {str(e)}") from e
 
     @staticmethod
     def remove_quest_from_course(course_id: str, quest_id: str) -> bool:
@@ -417,7 +417,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error removing quest from course: {str(e)}")
-            raise ValueError(f"Failed to remove quest: {str(e)}")
+            raise ValueError(f"Failed to remove quest: {str(e)}") from e
 
     @staticmethod
     def reorder_quests(course_id: str, quest_order: List[str]) -> bool:
@@ -448,7 +448,7 @@ class CourseService(BaseService):
 
         except Exception as e:
             logger.error(f"Error reordering quests: {str(e)}")
-            raise ValueError(f"Failed to reorder quests: {str(e)}")
+            raise ValueError(f"Failed to reorder quests: {str(e)}") from e
 
     @staticmethod
     def get_course_homepage_data(course_id: str, user_id: str) -> Dict:
@@ -513,7 +513,6 @@ class CourseService(BaseService):
 
             # Fetch linked task IDs for lessons
             if lessons:
-                lesson_ids = [lesson['id'] for lesson in lessons]
                 links_result = supabase.table('curriculum_lesson_tasks')\
                     .select('lesson_id, task_id')\
                     .eq('quest_id', quest_id)\
@@ -620,7 +619,6 @@ class CourseService(BaseService):
             completed_required = 0
 
             # Build per-lesson required task tracking
-            lesson_required_map = {}  # lesson_id -> {'total': int, 'completed': int}
             required_template_ids = set()
             completed_ids_set = set()
             source_to_user = {}

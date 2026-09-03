@@ -277,7 +277,7 @@ def request_signed_upload_url(user_id):
             return jsonify({'error': 'Request body required'}), 400
 
         filename = data.get('filename')
-        content_type = data.get('content_type', 'video/mp4')
+        data.get('content_type', 'video/mp4')
         context_type = data.get('context_type')
         context_id = data.get('context_id')
         sub_id = data.get('sub_id')

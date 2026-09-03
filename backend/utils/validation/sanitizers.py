@@ -305,8 +305,8 @@ def pgrst_int(value: Any, field: str = 'value') -> str:
     """Validate an integer bound for a PostgREST filter string."""
     try:
         return str(int(value))
-    except (TypeError, ValueError):
-        raise PostgrestFilterError(f"{field} must be an integer for a PostgREST filter")
+    except (TypeError, ValueError) as _exc:
+        raise PostgrestFilterError(f"{field} must be an integer for a PostgREST filter") from _exc
 
 
 def pgrst_enum(value: Any, allowed, field: str = 'value') -> str:

@@ -727,7 +727,7 @@ class CourseGenerationService(BaseAIService):
 
                 # Save tasks to database
                 for task in tasks:
-                    task_id = self._save_task(quest_id, lesson_id, task)
+                    self._save_task(quest_id, lesson_id, task)
 
                 all_tasks[lesson_id] = tasks
                 logger.info(f"Created {len(tasks)} tasks for {lesson_title}")

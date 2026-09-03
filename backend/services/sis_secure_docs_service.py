@@ -142,7 +142,8 @@ def _ensure_bucket(supabase) -> None:
         try:
             supabase.storage.create_bucket(BUCKET, options={'public': False})
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
 
 
 def remove_blobs(paths: List[str]) -> None:
@@ -243,7 +244,7 @@ def store_document(org_id: str, uploaded_by: str, blob: bytes, filename: str,
         'requires_signature': bool(requires_signature),
         'sensitivity': clean_sensitivity(sensitivity),
     }
-    rows = [{**common, **t, 'storage_path': p} for t, p in zip(targets, paths)]
+    rows = [{**common, **t, 'storage_path': p} for t, p in zip(targets, paths, strict=False)]
     try:
         inserted = (supabase.table('sis_secure_documents').insert(rows).execute()).data
     except Exception as e:

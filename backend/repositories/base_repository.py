@@ -10,7 +10,7 @@ Provides common database operations with:
 """
 
 import logging
-from typing import Optional, Dict, List, Any
+from typing import Any, ClassVar, Dict, List, Optional
 from postgrest.exceptions import APIError
 from database import get_user_client, get_supabase_admin_client
 
@@ -51,10 +51,10 @@ class BaseRepository:
     - id_column: str - Name of the primary key column (default: 'id')
     """
 
-    table_name: str = None
+    table_name: ClassVar[Optional[str]] = None
     id_column: str = 'id'
 
-    def __init__(self, user_id: Optional[str] = None, client=None):
+    def __init__(self, user_id: Optional[str] = None, client: Any = None):
         """
         Initialize repository with optional user context.
 
@@ -73,7 +73,7 @@ class BaseRepository:
         self._client = client
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """
         Get Supabase client with appropriate permissions.
 

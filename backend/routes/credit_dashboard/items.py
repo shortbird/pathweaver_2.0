@@ -109,7 +109,7 @@ def get_dashboard_items(user_id: str):
         # Parse query params
         status_filter = request.args.get('status')
         student_id_filter = request.args.get('student_id')
-        subject_filter = request.args.get('subject')
+        request.args.get('subject')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         org_id_filter = request.args.get('org_id')

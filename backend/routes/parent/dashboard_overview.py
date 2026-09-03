@@ -111,7 +111,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
         raise
     except Exception as e:
         logger.error(f"Error in verify_parent_access: {str(e)}")
-        raise AuthorizationError("Failed to verify access")
+        raise AuthorizationError("Failed to verify access") from e
 
 
 @bp.route('/dashboard/<student_id>', methods=['GET'])

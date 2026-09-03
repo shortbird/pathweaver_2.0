@@ -346,6 +346,7 @@ def weekly_xp(student_id: str, tz: ZoneInfo, week_start: date) -> Tuple[int, int
         try:
             total += int(task.get('xp_value') or 0)
         except (TypeError, ValueError):
+            # non-numeric xp: skip it
             continue
     return total, len(rows)
 

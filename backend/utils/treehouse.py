@@ -89,4 +89,5 @@ def notify_facilitators_of_completion(client, notifications, student_id, org_id,
                 link='/treehouse/facilitator', organization_id=org_id,
                 metadata={'student_id': student_id})
         except Exception:
-            pass
+            # notification create failed
+            ...

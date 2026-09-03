@@ -184,7 +184,7 @@ class TaskRepository(BaseRepository):
             NotFoundError: If task not found
         """
         try:
-            result = self.client.table(self.table_name)\
+            self.client.table(self.table_name)\
                 .delete()\
                 .eq('id', task_id)\
                 .execute()
@@ -369,7 +369,7 @@ class TaskCompletionRepository(BaseRepository):
             NotFoundError: If completion not found
         """
         try:
-            result = self.client.table(self.table_name)\
+            self.client.table(self.table_name)\
                 .delete()\
                 .eq('id', completion_id)\
                 .execute()

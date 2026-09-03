@@ -200,7 +200,7 @@ def test_family_quest_task_without_pillar_is_accepted():
             patch('routes.quest_personalization.persist_accepted_task', side_effect=fake_persist), \
             patch('utils.xp_permissions.get_effective_role_for', return_value='parent'), \
             patch('services.subject_classification_service.SubjectClassificationService', MagicMock()):
-        response, status = view('parent-user', 'q-1'), None
+        response, _status = view('parent-user', 'q-1'), None
         payload = response[0].get_json() if isinstance(response, tuple) else response.get_json()
 
     assert payload['success'] is True, payload

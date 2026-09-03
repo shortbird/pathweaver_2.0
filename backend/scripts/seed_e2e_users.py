@@ -251,7 +251,7 @@ def main():
             pass  # User doesn't exist, create it
 
         try:
-            result = supabase.auth.admin.create_user({
+            supabase.auth.admin.create_user({
                 'uid': user['id'],
                 'email': user['email'],
                 'password': DEFAULT_PASSWORD,

@@ -68,7 +68,7 @@ def main():
 
     # Get all Python files in routes directory recursively
     route_files = []
-    for root, dirs, files in os.walk(ROUTES_DIR):
+    for root, _dirs, files in os.walk(ROUTES_DIR):
         for file in files:
             if file.endswith('.py') and file != '__init__.py':
                 route_files.append(Path(root) / file)

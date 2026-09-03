@@ -428,7 +428,6 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        user_role = user.data['role']
         if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
@@ -514,7 +513,6 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        user_role = user.data['role']
         if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
@@ -637,7 +635,6 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        user_role = user.data['role']
         if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
@@ -671,7 +668,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
             }), 400
 
         # Delete task
-        result = supabase.table('user_quest_tasks')\
+        supabase.table('user_quest_tasks')\
             .delete()\
             .eq('id', task_id)\
             .execute()
@@ -705,7 +702,6 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        user_role = user.data['role']
         if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,

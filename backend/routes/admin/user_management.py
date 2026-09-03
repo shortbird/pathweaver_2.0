@@ -778,7 +778,7 @@ def upload_user_avatar(user_id, target_user_id):
                     logger.debug("avatar old file delete failed (non-fatal)", exc_info=True)
 
         # Upload new avatar
-        upload_response = supabase.storage.from_('user-uploads').upload(
+        supabase.storage.from_('user-uploads').upload(
             path=unique_filename,
             file=file_content,
             file_options={"content-type": mime_type}
@@ -789,7 +789,7 @@ def upload_user_avatar(user_id, target_user_id):
         avatar_url = public_object_url('user-uploads', unique_filename)
 
         # Update user's avatar_url
-        update_result = supabase.table('users').update({
+        supabase.table('users').update({
             'avatar_url': avatar_url
         }).eq('id', target_user_id).execute()
 

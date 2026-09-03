@@ -11,7 +11,7 @@ grant over a child's education record for everybody who ever saw it. The
 redemption is now claimed atomically; see _claim_invitation.
 """
 
-from flask import request, jsonify
+from flask import jsonify
 from datetime import datetime, timedelta, timezone
 import logging
 
@@ -263,7 +263,6 @@ def register_routes(bp):
                 # only adds a write that a rate-limited stranger can trigger.
                 return _invite_error(blocked)
 
-            data = request.json or {}
 
             # Use the logged-in user as the observer
             observer_id = user_id

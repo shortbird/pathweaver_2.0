@@ -111,7 +111,7 @@ class FileUploadService(BaseService):
         """Check if PIL is available for image processing."""
         if self._pil_available is None:
             try:
-                from PIL import Image
+                from PIL import Image  # noqa: F401 - the import IS the probe
                 self._pil_available = True
             except ImportError:
                 self._pil_available = False
@@ -271,9 +271,8 @@ class FileUploadService(BaseService):
             file_url = public_object_url(self.ATTACHMENT_BUCKET, file_path)
 
             # Record attachment in database if service provided
-            attachment = None
             if curriculum_service:
-                attachment = curriculum_service.add_attachment(
+                curriculum_service.add_attachment(
                     quest_id=quest_id,
                     filename=filename,
                     file_url=file_url,

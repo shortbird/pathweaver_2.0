@@ -192,7 +192,7 @@ def confirm_imscc_import(user_id):
 
         # Insert all sample tasks
         if sample_tasks:
-            tasks_result = supabase.table('sample_quest_tasks').insert(sample_tasks).execute()
+            supabase.table('sample_quest_tasks').insert(sample_tasks).execute()
             logger.info(f"Created {len(sample_tasks)} sample tasks for quest {quest_id}")
 
         return jsonify({

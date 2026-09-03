@@ -257,8 +257,8 @@ def list_attachable_tasks(user_id):
                     .single().execute()
                 if deps.data and deps.data.get('managed_by_parent_id') == user_id:
                     allowed = True
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("dependent lookup failed: %s", _exc, exc_info=True)
             if not allowed:
                 try:
                     links = supabase.table('observer_student_links') \
@@ -269,8 +269,8 @@ def list_attachable_tasks(user_id):
                         .limit(1).execute()
                     if links.data:
                         allowed = True
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    logger.debug("observer-link lookup failed: %s", _exc, exc_info=True)
             if not allowed:
                 try:
                     # parent_user_id / student_user_id are the real columns.
@@ -285,8 +285,8 @@ def list_attachable_tasks(user_id):
                         .limit(1).execute()
                     if pl.data:
                         allowed = True
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    logger.debug("parent-link lookup failed: %s", _exc, exc_info=True)
             if allowed:
                 scope_id = requested_student
 

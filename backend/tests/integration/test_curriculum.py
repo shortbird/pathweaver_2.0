@@ -181,7 +181,7 @@ def test_curriculum_version_tracking():
     """Test that curriculum changes are versioned"""
     from services.curriculum_service import CurriculumService
 
-    service = CurriculumService()
+    CurriculumService()
 
     # Create initial version
     version_1 = {

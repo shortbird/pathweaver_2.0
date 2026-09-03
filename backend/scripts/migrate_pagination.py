@@ -87,7 +87,7 @@ class PaginationMigrator:
         offset_pattern = r"offset\s*=\s*(?:max\()?(?:int\()?request\.args\.get\(['\"]offset['\"]\s*,\s*(\d+)(?:\s*,\s*type=int)?\)(?:\))?"
 
         limit_matches = list(re.finditer(limit_pattern, content))
-        offset_matches = list(re.finditer(offset_pattern, content))
+        list(re.finditer(offset_pattern, content))
 
         if limit_matches:
             # Extract default limit value
@@ -169,7 +169,6 @@ class PaginationMigrator:
                 original_content = f.read()
 
             content = original_content
-            file_changes = []
             self.changes = []  # Reset for this file
 
             # Check if file needs migration

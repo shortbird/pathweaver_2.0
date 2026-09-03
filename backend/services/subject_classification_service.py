@@ -256,7 +256,7 @@ Now classify the task above. Return ONLY the JSON object."""
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI response as JSON: {response_text}")
-            raise ValueError(f"Invalid JSON response from AI: {str(e)}")
+            raise ValueError(f"Invalid JSON response from AI: {str(e)}") from e
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
             raise

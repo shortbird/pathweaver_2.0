@@ -104,7 +104,7 @@ def check_module(*keys: str, any_of: bool = False) -> Optional[Tuple]:
     if (any(answers) if any_of else all(answers)):
         return None
 
-    denied = [k for k, ok in zip(keys, answers) if not ok]
+    denied = [k for k, ok in zip(keys, answers, strict=False) if not ok]
     _report(org_id, denied, mode)
     if mode == 'log':
         return None

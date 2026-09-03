@@ -161,7 +161,7 @@ class DependentRepository(BaseRepository):
 
         except Exception as e:
             logger.error(f"Error creating dependent for parent {parent_id}: {e}")
-            raise ValidationError(f"Failed to create dependent: {str(e)}")
+            raise ValidationError(f"Failed to create dependent: {str(e)}") from e
 
     def get_parent_dependents(self, parent_id: str) -> List[Dict[str, Any]]:
         """
@@ -251,7 +251,7 @@ class DependentRepository(BaseRepository):
             if isinstance(e, (NotFoundError, PermissionError)):
                 raise
             logger.error(f"Error fetching dependent {dependent_id}: {e}")
-            raise NotFoundError(f"Dependent {dependent_id} not found")
+            raise NotFoundError(f"Dependent {dependent_id} not found") from e
 
     def update_dependent(
         self,
@@ -311,7 +311,7 @@ class DependentRepository(BaseRepository):
             if isinstance(e, (NotFoundError, ValidationError)):
                 raise
             logger.error(f"Error updating dependent {dependent_id}: {e}")
-            raise ValidationError(f"Failed to update dependent: {str(e)}")
+            raise ValidationError(f"Failed to update dependent: {str(e)}") from e
 
     def delete_dependent(self, dependent_id: str, parent_id: str) -> bool:
         """
@@ -356,12 +356,12 @@ class DependentRepository(BaseRepository):
             raise ValidationError(
                 "Failed to delete dependent: the deletion did not complete and has been "
                 "left for retry"
-            )
+            ) from e
         except Exception as e:
             if isinstance(e, (NotFoundError, PermissionError)):
                 raise
             logger.error(f"Error deleting dependent {dependent_id}: {e}")
-            raise ValidationError(f"Failed to delete dependent: {str(e)}")
+            raise ValidationError(f"Failed to delete dependent: {str(e)}") from e
 
     def promote_dependent_to_independent(
         self,
@@ -443,7 +443,7 @@ class DependentRepository(BaseRepository):
 
         except Exception as e:
             logger.error(f"Error promoting dependent {dependent_id}: {e}")
-            raise ValidationError(f"Failed to promote dependent: {str(e)}")
+            raise ValidationError(f"Failed to promote dependent: {str(e)}") from e
 
     def _calculate_age(self, date_of_birth: date) -> int:
         """

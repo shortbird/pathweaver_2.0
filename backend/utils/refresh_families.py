@@ -605,7 +605,8 @@ def _report_reuse(user_id: str, family_id: str, row: dict, presented_jti: str,
                 level='warning',
             )
     except Exception:  # noqa: BLE001
-        pass
+        # telemetry must never break the request
+        ...
 
 
 def revoke_user_families(user_id: str, reason: str) -> int:

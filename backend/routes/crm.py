@@ -187,8 +187,9 @@ def sendgrid_events():
                 'occurred_at': occurred_iso,
             }).execute()
             stored += 1
-        except APIError:
-            continue  # sg_event_id already seen (webhook redelivery)
+        except APIError as _exc:
+            logger.debug("CRM email-event insert failed: %s", _exc, exc_info=True)
+            continue
 
         reason = SUPPRESSING_EVENTS.get(event_type)
         if reason and email:
@@ -196,8 +197,8 @@ def sendgrid_events():
                 db.table('crm_suppressions').insert({
                     'email': email, 'reason': reason, 'source': 'sendgrid_webhook',
                 }).execute()
-            except APIError:
-                pass  # already suppressed
+            except APIError as _exc:
+                logger.debug("CRM suppression insert failed: %s", _exc, exc_info=True)
             lead_rows = (db.table('crm_leads').select('id, status')
                          .eq('email', email).limit(1).execute()).data
             if lead_rows:

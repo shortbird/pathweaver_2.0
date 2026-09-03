@@ -100,8 +100,8 @@ def update_profile(user_id):
         else:
             try:
                 dob = datetime.strptime(dob_raw, '%Y-%m-%d').date()
-            except (ValueError, TypeError):
-                raise ValidationError('Invalid date of birth format. Use YYYY-MM-DD')
+            except (ValueError, TypeError) as _exc:
+                raise ValidationError('Invalid date of birth format. Use YYYY-MM-DD') from _exc
             today = date.today()
             if dob > today:
                 raise ValidationError('Date of birth cannot be in the future')

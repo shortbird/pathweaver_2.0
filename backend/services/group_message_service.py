@@ -193,7 +193,8 @@ class GroupMessageService(BaseService):
                     q = q.eq(col, val)
                 if q.limit(1).execute().data:
                     return True
-            except Exception:
+            except Exception as _exc:
+                logger.debug("group membership probe failed: %s", _exc, exc_info=True)
                 continue
         return False
 

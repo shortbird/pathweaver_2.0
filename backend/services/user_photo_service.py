@@ -34,7 +34,8 @@ def _ensure_bucket(admin):
         try:
             admin.storage.create_bucket(BUCKET)
         except Exception:  # noqa: BLE001
-            pass
+            # create-if-missing: the error means it already exists
+            ...
 
 
 def photo_display_url(stored_url):

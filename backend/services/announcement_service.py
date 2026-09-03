@@ -566,8 +566,8 @@ def nudge(announcement: Dict[str, Any]) -> Dict[str, Any]:
         org = _admin().table('organizations').select('name')\
             .eq('id', org_id).single().execute().data
         org_name = (org or {}).get('name')
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as _exc:  # noqa: BLE001
+        logger.debug("org name lookup failed: %s", _exc, exc_info=True)
 
     title = announcement.get('title') or ''
     nudge_title = (f'Reminder from {org_name}: {title}' if org_name

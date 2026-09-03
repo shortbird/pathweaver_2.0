@@ -157,7 +157,7 @@ def submit_consent_documents(user_id: str):
             id_document_url = public_object_url(IDENTITY_BUCKET, id_storage_path)
         except Exception as e:
             logger.error(f"Error uploading ID document: {str(e)}")
-            raise ValidationError("Failed to upload ID document")
+            raise ValidationError("Failed to upload ID document") from e
 
         # Upload consent form to storage
         try:
@@ -175,7 +175,7 @@ def submit_consent_documents(user_id: str):
             consent_form_url = public_object_url(IDENTITY_BUCKET, form_storage_path)
         except Exception as e:
             logger.error(f"Error uploading consent form: {str(e)}")
-            raise ValidationError("Failed to upload consent form")
+            raise ValidationError("Failed to upload consent form") from e
 
         # Update parent's user record with documents and status
         supabase.table('users').update({

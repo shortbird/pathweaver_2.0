@@ -390,7 +390,8 @@ def _report_rate_limit_exceeded(identifier: str, endpoint: str, max_req: int, wi
             )
     except Exception:
         # Telemetry must never break a request.
-        pass
+        # telemetry must never break the request
+        ...
 
 
 def rate_limit(config_key: str = None, max_requests: int = None, window_seconds: int = None,

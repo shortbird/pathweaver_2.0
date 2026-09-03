@@ -19,6 +19,17 @@
 # system decided not to tell anyone about. They are NOT auto-fixable on purpose;
 # each needs a human to say whether the right answer is a log line, a re-raise,
 # or a comment explaining why nothing is the correct response.
+#
+# These two REPLACE tests/unit/test_no_silent_excepts.py, deleted 2026-09-03.
+# That test capped silent excepts at a baseline of 58 and asked to be ratcheted
+# down; all 58 are now fixed and the count is 0, so the ratchet has nothing left
+# to do and ruff enforces the same rule at zero over a wider scan (it sees
+# `continue` as well as `pass`). Two gates for one rule is how they drift.
+#
+# The escape hatch both gates share: a handler whose body is `...` rather than
+# `pass` is read as a deliberate no-op. utils/pagination.py set that convention
+# and says why -- "so the no-silent-except lint still distinguishes intentional
+# no-ops from oversights". Use it WITH a comment saying why nothing is correct.
 line-length = 120
 target-version = "py311"
 
@@ -36,3 +47,10 @@ select = ["F", "E9", "B", "S110", "S112"]
 # __init__.py re-exports a package's public surface; an import with no local use
 # IS the point. 84 of them here, and removing any would break an importer.
 "**/__init__.py" = ["F401"]
+
+# scripts/ are one-off operational tools, not the deployed runtime. The
+# hand-rolled guard this rule overlaps with (tests/unit/test_no_silent_excepts)
+# has always scanned routes/services/repositories/middleware/utils and excluded
+# scripts for the same reason; matching that scope keeps ONE definition of where
+# a silent except matters, rather than two that disagree.
+"backend/scripts/**" = ["S110", "S112"]

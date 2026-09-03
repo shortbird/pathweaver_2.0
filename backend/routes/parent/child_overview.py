@@ -241,7 +241,8 @@ def get_child_overview(user_id, student_id):
                             if datetime.fromisoformat(publish_at.replace('Z', '+00:00')) > now_utc:
                                 continue
                         except ValueError:
-                            pass
+                            # unparseable date: treat as not-yet-published
+                            ...
                     class_quests_map.setdefault(cq['class_id'], []).append(cq)
                     container_quest_ids.add(cq['quest_id'])
 
@@ -427,10 +428,9 @@ def get_child_overview(user_id, student_id):
             # Build calendar data
             if all_activity_dates:
                 first_activity = min(all_activity_dates)
-                weeks_active = min(max(1, ((today - first_activity).days + 6) // 7), 12)
+                min(max(1, ((today - first_activity).days + 6) // 7), 12)
             else:
                 first_activity = today
-                weeks_active = 1
 
             calendar_days = []
             current_date = first_activity
@@ -841,7 +841,7 @@ def upload_child_avatar(user_id, child_id):
             logger.info(f"Storage upload response: {upload_response}")
         except Exception as storage_err:
             logger.error(f"Storage upload failed: {storage_err}")
-            raise ValidationError(f"Failed to upload file to storage: {str(storage_err)}")
+            raise ValidationError(f"Failed to upload file to storage: {str(storage_err)}") from storage_err
 
         # A child's photo lives in a PRIVATE bucket. Persist the canonical
         # pointer (stable, not fetchable) and hand the parent's browser a

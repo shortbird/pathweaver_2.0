@@ -116,8 +116,8 @@ def caller_is_superadmin(supabase, effective_user_id: str) -> bool:
             actual = session_manager.get_actual_admin_id()
             if actual:
                 candidate_ids.add(actual)
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("masquerade check failed: %s", _exc, exc_info=True)
     try:
         res = supabase.table('users').select('id, role').in_('id', list(candidate_ids)).execute()
         return any(r.get('role') == 'superadmin' for r in (res.data or []))
@@ -165,7 +165,8 @@ def _set_sentry_user(user_id: str) -> None:
         import sentry_sdk
         sentry_sdk.set_user({'id': user_id})
     except Exception:
-        pass
+        # telemetry must never break the request
+        ...
 
 def require_admin(f):
     """
@@ -224,7 +225,7 @@ def require_admin(f):
                 else:
                     # Final attempt failed
                     print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
-                    raise AuthorizationError('Failed to verify admin status')
+                    raise AuthorizationError('Failed to verify admin status') from e
 
         return f(user_id, *args, **kwargs)
 
@@ -316,7 +317,7 @@ def require_role(*allowed_roles):
                     else:
                         # Final attempt failed
                         print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
-                        raise AuthorizationError('Failed to verify user role')
+                        raise AuthorizationError('Failed to verify user role') from e
 
             return f(user_id, *args, **kwargs)
 
@@ -405,7 +406,7 @@ def require_admin_identity(f):
             raise
         except Exception as e:
             print(f"Error verifying admin identity: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify admin status')
+            raise AuthorizationError('Failed to verify admin status') from e
 
         return f(user_id, *args, **kwargs)
 
@@ -485,7 +486,7 @@ def require_advisor(f):
             raise
         except Exception as e:
             print(f"Error verifying advisor status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify advisor status')
+            raise AuthorizationError('Failed to verify advisor status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(effective_user_id, *args, **kwargs)
@@ -565,7 +566,7 @@ def require_advisor_for_student(f):
             raise
         except Exception as e:
             print(f"Error verifying advisor-student assignment: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify access permissions')
+            raise AuthorizationError('Failed to verify access permissions') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, *args, **kwargs)
@@ -612,7 +613,7 @@ def require_superadmin(f):
             raise
         except Exception as e:
             print(f"Error verifying superadmin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify superadmin status')
+            raise AuthorizationError('Failed to verify superadmin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, *args, **kwargs)
@@ -672,7 +673,7 @@ def require_school_admin(f):
             raise
         except Exception as e:
             print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify org admin status')
+            raise AuthorizationError('Failed to verify org admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, *args, **kwargs)
@@ -748,7 +749,7 @@ def require_org_admin(f):
             raise
         except Exception as e:
             print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify organization admin status')
+            raise AuthorizationError('Failed to verify organization admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
@@ -818,7 +819,7 @@ def require_org_front_office(f):
             raise
         except Exception as e:
             print(f"Error verifying org front-office status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify organization admin status')
+            raise AuthorizationError('Failed to verify organization admin status') from e
 
         # Outside the try so route exceptions aren't masked as 403s
         return f(user_id, organization_id, is_superadmin, *args, **kwargs)

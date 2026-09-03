@@ -109,7 +109,7 @@ class MemoryMonitor:
         try:
             # Clear any module-level caches
             import sys
-            for module_name, module in list(sys.modules.items()):
+            for _module_name, module in list(sys.modules.items()):
                 if hasattr(module, '_cache'):
                     if hasattr(module._cache, 'clear'):
                         module._cache.clear()
@@ -170,7 +170,8 @@ class MemoryMonitor:
                     if key == field:
                         return int(value.strip())
         except Exception:
-            pass
+            # this cgroup path does not exist on every host
+            ...
         return None
 
     def _read_cgroup_memory(self):
@@ -197,11 +198,13 @@ class MemoryMonitor:
                     raw = f.read().strip()
                     limit = None if raw == 'max' else int(raw)
             except Exception:
-                pass
+                # this cgroup path does not exist on every host
+                ...
             inactive = self._read_cgroup_stat_field('/sys/fs/cgroup/memory.stat', 'inactive_file') or 0
             return max(usage - inactive, 0), limit, usage
         except Exception:
-            pass
+            # this cgroup path does not exist on every host
+            ...
         # cgroup v1
         try:
             with open('/sys/fs/cgroup/memory/memory.usage_in_bytes') as f:
@@ -213,7 +216,8 @@ class MemoryMonitor:
                     if limit > (1 << 60):  # v1 sentinel for "unlimited"
                         limit = None
             except Exception:
-                pass
+                # this cgroup path does not exist on every host
+                ...
             inactive = self._read_cgroup_stat_field(
                 '/sys/fs/cgroup/memory/memory.stat', 'total_inactive_file') or 0
             return max(usage - inactive, 0), limit, usage
@@ -292,7 +296,8 @@ class MemoryMonitor:
                 })
                 sentry_sdk.capture_message(f"[memory-watchdog] {msg}", level='warning')
         except Exception:
-            pass
+            # telemetry must never break the request
+            ...
 
 
 # Global instance

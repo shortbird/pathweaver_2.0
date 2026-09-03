@@ -262,7 +262,7 @@ class ParentRepository(BaseRepository):
             True if declined successfully
         """
         try:
-            result = self.client.table('parent_invitations')\
+            self.client.table('parent_invitations')\
                 .update({'status': 'declined'})\
                 .eq('id', invitation_id)\
                 .execute()
@@ -300,7 +300,7 @@ class ParentRepository(BaseRepository):
             if invitation.data['student_id'] != student_id:
                 raise PermissionError("Only the student who sent the invitation can cancel it")
 
-            result = self.client.table('parent_invitations')\
+            self.client.table('parent_invitations')\
                 .delete()\
                 .eq('id', invitation_id)\
                 .execute()

@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 @pytest.mark.critical
 def test_xp_service_initialization():
     """Test XPService can be initialized"""
-    user_id = str(uuid.uuid4())
+    str(uuid.uuid4())
     service = XPService()
 
     assert service is not None

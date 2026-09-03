@@ -158,8 +158,8 @@ def guardians_for_student(student_id: str) -> Set[str]:
         ).data
         if u and u[0].get('managed_by_parent_id'):
             ids.add(u[0]['managed_by_parent_id'])
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("student lookup failed: %s", _exc, exc_info=True)
     # 3) active parent-student links
     try:
         links = (
@@ -168,8 +168,8 @@ def guardians_for_student(student_id: str) -> Set[str]:
         ).data or []
         for l in links:
             ids.add(l['parent_user_id'])
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("guardian-link lookup failed: %s", _exc, exc_info=True)
     return ids
 
 

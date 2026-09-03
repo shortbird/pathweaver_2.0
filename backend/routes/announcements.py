@@ -310,7 +310,8 @@ def mark_announcements_read(user_id):
             try:
                 ids.append(str(uuid.UUID(str(raw))))
             except (TypeError, ValueError, AttributeError):
-                continue  # not a uuid — drop it, don't fail the batch
+                # not a uuid: drop it, do not fail the batch
+                continue
         if not ids:
             return jsonify({'success': False,
                             'error': 'No valid announcement ids'}), 400
@@ -657,8 +658,8 @@ def announcements_archive(user_id):
             org = admin.table('organizations').select('name')\
                 .eq('id', org_id).single().execute().data
             org_name = org.get('name') if org else None
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as _exc:  # noqa: BLE001
+            logger.debug("org name lookup failed: %s", _exc, exc_info=True)
 
         announcements = [
             {**row, 'content': row.get('message')}

@@ -185,8 +185,8 @@ def register():
                         'message': 'Users under 13 cannot create their own account. A parent or guardian must create an account first, then add you as a child profile.',
                         'action_required': 'parent_registration'
                     }), 403
-            except ValueError:
-                raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")
+            except ValueError as _exc:
+                raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD") from _exc
 
         # admin client justified: pre-auth registration; calls supabase.auth.sign_up + writes users/diplomas/user_skill_xp/promo_codes; no session exists yet
         supabase = get_supabase_admin_client()
@@ -422,7 +422,7 @@ def register():
                     elif 'foreign key' in error_str or '23503' in error_str:
                         # Final attempt failed - auth user doesn't exist
                         logger.error(f"Profile creation failed after {max_retries} attempts: {profile_error}")
-                        raise ValidationError("Registration failed. Please try again in a few moments.")
+                        raise ValidationError("Registration failed. Please try again in a few moments.") from profile_error
                     else:
                         # Re-raise other errors
                         raise
@@ -545,30 +545,30 @@ def register():
         error_str = str(e).lower()
 
         if 'already registered' in error_str or 'already exists' in error_str:
-            raise ConflictError('This email is already registered')
+            raise ConflictError('This email is already registered') from e
         elif 'email signups are disabled' in error_str:
-            raise ValidationError('Registration is temporarily disabled. Please contact support.')
+            raise ValidationError('Registration is temporarily disabled. Please contact support.') from e
         elif 'error sending confirmation email' in error_str or 'email' in error_str and 'error' in error_str:
-            raise ValidationError('Registration is temporarily unavailable due to email service issues. Please try again later or contact support.')
+            raise ValidationError('Registration is temporarily unavailable due to email service issues. Please try again later or contact support.') from e
         elif 'invalid' in error_str and 'email' in error_str:
-            raise ValidationError('This email address cannot be used for registration. Please use a different email.')
+            raise ValidationError('This email address cannot be used for registration. Please use a different email.') from e
         elif 'weak' in error_str and 'password' in error_str:
-            raise ValidationError('Password is too common or easy to guess. Please choose a more unique password (6+ characters)')
+            raise ValidationError('Password is too common or easy to guess. Please choose a more unique password (6+ characters)') from e
         elif 'password' in error_str:
-            raise ValidationError('Password must be at least 6 characters long')
+            raise ValidationError('Password must be at least 6 characters long') from e
         elif 'rate limit' in error_str or 'too many requests' in error_str or 'security purposes' in error_str:
             # Extract wait time if available
             wait_match = re.search(r'after (\d+) seconds', str(e))
             if wait_match:
                 wait_time = wait_match.group(1)
-                raise ValidationError(f'Too many registration attempts. Please wait {wait_time} seconds and try again.')
+                raise ValidationError(f'Too many registration attempts. Please wait {wait_time} seconds and try again.') from e
             else:
-                raise ValidationError('Too many registration attempts. Please wait a minute and try again.')
+                raise ValidationError('Too many registration attempts. Please wait a minute and try again.') from e
 
         # Log unexpected errors in development only
         if Config.FLASK_ENV == 'development':
             logger.error(f"Registration error: {str(e)}")
-        raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
+        raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e) from e
 
 
 @bp.route('/verify-email-otp', methods=['POST'])

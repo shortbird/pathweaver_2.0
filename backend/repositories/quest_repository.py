@@ -460,7 +460,7 @@ class QuestRepository(BaseRepository):
                     .execute()
 
                 if not user_response.data:
-                    raise DatabaseError(f"User {user_id} not found")
+                    raise DatabaseError(f"User {user_id} not found") from e
 
                 org_id = user_response.data.get('organization_id')
 
@@ -657,7 +657,7 @@ class QuestRepository(BaseRepository):
                     .execute()
 
                 if not user_response.data:
-                    raise DatabaseError(f"User {user_id} not found")
+                    raise DatabaseError(f"User {user_id} not found") from e
 
                 org_id = user_response.data.get('organization_id')
 

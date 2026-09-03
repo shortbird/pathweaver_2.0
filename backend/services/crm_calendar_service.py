@@ -142,8 +142,9 @@ def run_poll() -> Dict[str, Any]:
                     'gcal_event_id': event_id, 'attendee_email': email,
                     'event_start': start, 'matched_lead_id': lead_rows[0]['id'],
                 }).execute()
-            except APIError:
-                continue  # already recorded this (event, attendee): no re-convert
+            except APIError as _exc:
+                logger.debug("CRM booking insert failed: %s", _exc, exc_info=True)
+                continue
             mark_converted(email, event='video_chat_scheduled')
             try:
                 db.table('crm_events').insert({

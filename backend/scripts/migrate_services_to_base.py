@@ -83,7 +83,7 @@ def migrate_service_file(filepath):
         params = match.group(1)
         indent = match.group(2)
         docstring = match.group(3) or ''
-        next_indent = match.group(4)
+        match.group(4)
 
         # Add user_id parameter if not present
         if 'user_id' not in params:

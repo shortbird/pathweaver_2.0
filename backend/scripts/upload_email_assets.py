@@ -30,7 +30,7 @@ def upload_email_assets():
             logo_content = f.read()
 
         # Upload to site-assets bucket under email/ folder
-        response = supabase.storage.from_('site-assets').upload(
+        supabase.storage.from_('site-assets').upload(
             path='email/optio-logo.png',
             file=logo_content,
             file_options={"content-type": "image/png", "upsert": "true"}

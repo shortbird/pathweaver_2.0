@@ -129,7 +129,7 @@ class AccessLogger:
 
             # Insert log entry
             admin_client = get_supabase_admin_singleton()
-            result = admin_client.table('student_access_logs').insert({
+            admin_client.table('student_access_logs').insert({
                 'student_id': student_id,
                 'accessor_id': accessor_id,
                 'accessor_role': stored_role,
@@ -275,7 +275,7 @@ class AccessLogger:
             List of summaries grouped by accessor with access counts
         """
         try:
-            admin_client = get_supabase_admin_singleton()
+            get_supabase_admin_singleton()
 
             # Get all access logs in date range
             logs = AccessLogger.get_student_access_history(

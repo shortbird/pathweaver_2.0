@@ -234,7 +234,7 @@ class BaseAIService(BaseService):
             cls._api_key = api_key
             logger.info(f"Gemini model initialized: {model_name}")
         except Exception as e:
-            raise AIServiceError(f"Failed to initialize Gemini model: {str(e)}")
+            raise AIServiceError(f"Failed to initialize Gemini model: {str(e)}") from e
 
     @classmethod
     def _ensure_alt_model_initialized(cls, model_name: str):
@@ -256,7 +256,7 @@ class BaseAIService(BaseService):
             cls._alt_models[model_name] = genai.GenerativeModel(model_name)
             logger.info(f"Alternative Gemini model initialized: {model_name}")
         except Exception as e:
-            raise AIServiceError(f"Failed to initialize model {model_name}: {str(e)}")
+            raise AIServiceError(f"Failed to initialize model {model_name}: {str(e)}") from e
 
     @property
     def model(self):
@@ -694,7 +694,7 @@ class BaseAIService(BaseService):
                 # Don't retry on certain errors
                 if any(x in error_str for x in ['api_key', 'authentication', 'quota', 'rate_limit']):
                     logger.error(f"Non-retryable error: {e}")
-                    raise AIGenerationError(f"Gemini API error: {str(e)}")
+                    raise AIGenerationError(f"Gemini API error: {str(e)}") from e
 
                 # Retry with exponential backoff + full jitter
                 if attempt < max_retries - 1:
@@ -1234,7 +1234,7 @@ class BaseAIService(BaseService):
         max_fix_attempts = 10
         for attempt in range(max_fix_attempts):
             try:
-                result = json.loads(json_text)
+                json.loads(json_text)
                 if attempt > 0:
                     logger.info(f"JSON parsed successfully after {attempt} fix(es)")
                 return json_text
@@ -1477,6 +1477,7 @@ class BaseAIService(BaseService):
             try:
                 json.loads(candidate)
             except json.JSONDecodeError:
+                # not valid JSON: try the next candidate
                 continue
             if idx < len(body):
                 logger.info(

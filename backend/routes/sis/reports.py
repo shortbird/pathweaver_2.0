@@ -212,7 +212,7 @@ def student_schedule(user_id):
                 for r in report['rows']]
         if report.get('has_unscheduled'):
             header.append('Unscheduled classes')
-            rows = [row + [r['unscheduled']] for row, r in zip(rows, report['rows'])]
+            rows = [row + [r['unscheduled']] for row, r in zip(rows, report['rows'], strict=False)]
         return _csv_response('student-schedule.csv', header, rows)
     return jsonify({'success': True, 'report': report})
 

@@ -370,7 +370,7 @@ def test_publishing_a_quest_people_opt_into_enrols_nobody():
          patch.object(training, '_assign_item') as assigner, \
          app.test_request_context(json={}):
         fn = getattr(training.publish_training, '__wrapped__', training.publish_training)
-        resp = fn('user-1', TRAINING_ID)
+        fn('user-1', TRAINING_ID)
     assigner.assert_not_called()
 
 

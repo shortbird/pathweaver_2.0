@@ -45,5 +45,6 @@ def decode_app_jwt(token: str, *, require: Optional[List[str]] = None
         try:
             return jwt.decode(token, key, algorithms=['HS256'], options=options)
         except jwt.PyJWTError:
+            # wrong key: try the next one
             continue
     return None

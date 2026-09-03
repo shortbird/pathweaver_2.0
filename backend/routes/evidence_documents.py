@@ -1413,16 +1413,16 @@ def _caller_can_delete_owner(admin_supabase, owner_id, user_id, is_superadmin=Fa
                .limit(1).execute())
         if dep.data:
             return True
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("dependent lookup failed: %s", _exc, exc_info=True)
     try:
         link = (admin_supabase.table('parent_student_links').select('id')
                 .eq('parent_user_id', user_id).eq('student_user_id', owner_id)
                 .eq('status', 'approved').limit(1).execute())
         if link.data:
             return True
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("parent-link lookup failed: %s", _exc, exc_info=True)
     for advisor_id, student_id in ((user_id, owner_id), (owner_id, user_id)):
         try:
             asgn = (admin_supabase.table('advisor_student_assignments').select('id')
@@ -1430,8 +1430,8 @@ def _caller_can_delete_owner(admin_supabase, owner_id, user_id, is_superadmin=Fa
                     .eq('is_active', True).limit(1).execute())
             if asgn.data:
                 return True
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("advisor-assignment lookup failed: %s", _exc, exc_info=True)
     return False
 
 

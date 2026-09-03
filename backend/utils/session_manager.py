@@ -335,6 +335,7 @@ class SessionManager:
                 if payload.get('type') == 'role_view':
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                # wrong key: try the next one
                 continue
         return None
 

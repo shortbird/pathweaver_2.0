@@ -80,6 +80,7 @@ class VideoProcessingService:
                     logger.info(f"[VideoProcessing] FFmpeg/FFprobe available at: {ffprobe_candidate}")
                     return True
             except (subprocess.TimeoutExpired, FileNotFoundError):
+                # probe failed: try the next codec
                 continue
 
         logger.warning("[VideoProcessing] FFmpeg not installed, video processing will be skipped")

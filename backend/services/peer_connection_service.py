@@ -156,8 +156,8 @@ def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
 
     try:
         dob = datetime.strptime((dob_str or '').strip(), '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        raise PeerConnectionError('Please enter a valid date of birth.')
+    except (ValueError, TypeError) as _exc:
+        raise PeerConnectionError('Please enter a valid date of birth.') from _exc
 
     today = date.today()
     if dob > today:
@@ -712,6 +712,7 @@ def pending_approvals(approver_id: str) -> List[Dict[str, Any]]:
         try:
             conn = _get_connection(row['connection_id'])
         except PeerConnectionError:
+            # unreadable connection: skip it
             continue
         if conn['status'] != 'pending_approval':
             continue
@@ -752,6 +753,7 @@ def approved_connections(approver_id: str) -> List[Dict[str, Any]]:
         try:
             conn = _get_connection(row['connection_id'])
         except PeerConnectionError:
+            # unreadable connection: skip it
             continue
         if conn['status'] != 'active':
             continue

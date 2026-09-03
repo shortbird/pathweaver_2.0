@@ -86,7 +86,7 @@ def generate_migration_report():
     all_routes = []
 
     # Scan all route files
-    for root, dirs, files in os.walk(ROUTES_DIR):
+    for root, _dirs, files in os.walk(ROUTES_DIR):
         for file in files:
             if file.endswith('.py') and file != '__init__.py':
                 filepath = Path(root) / file

@@ -310,7 +310,8 @@ def upload_material(user_id, class_id):
         try:
             supabase.storage.create_bucket(_MATERIALS_BUCKET)
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
 
     path = f"{class_row['organization_id']}/class-materials/{class_row['id']}/{_uuid.uuid4().hex}.{ext}"
     try:

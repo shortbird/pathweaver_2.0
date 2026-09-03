@@ -119,10 +119,8 @@ def parse_master_grid(csv_text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
     warnings: List[str] = []
     entries: List[Dict[str, Any]] = []
     day: Optional[int] = None
-    day_name = ''
     # cells[(block, col)] accumulates {title, ages_raw, room} per block group.
     cells: Dict[Tuple[int, int], Dict[str, str]] = {}
-    pending_day_cells: List[Tuple[int, Dict[Tuple[int, int], Dict[str, str]]]] = []
 
     def flush_day():
         nonlocal cells
@@ -148,7 +146,7 @@ def parse_master_grid(csv_text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
         if DAY_ROW_RE.match(first):
             flush_day()
             day = DAY_TO_DOW.get(first.upper())
-            day_name = first.title()
+            first.title()
             continue
         m = BLOCK_ROW_RE.match(first)
         if not m:
@@ -652,7 +650,7 @@ def _match(desired: List[Dict[str, Any]],
                 continue
             if require_unique and (len(ds) > 1 or len(es) > 1):
                 continue
-            for d, e in zip(ds, es):
+            for d, e in zip(ds, es, strict=False):
                 pairs.append((d, e))
                 d_left.remove(d)
                 e_left.remove(e)
@@ -783,6 +781,7 @@ Respond with ONLY JSON: {{"pairs": [{{"i": 0, "j": 2}}]}} (empty list if none)."
             try:
                 out.append((int(p['i']), int(p['j'])))
             except (KeyError, TypeError, ValueError):
+                # malformed cell: skip it
                 continue
         return out
 

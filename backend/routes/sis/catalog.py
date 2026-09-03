@@ -262,8 +262,8 @@ def archive_class(user_id, class_id):
     try:
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
-    except Exception:  # noqa: BLE001 — messaging must never block archiving
-        pass
+    except Exception as _exc:  # noqa: BLE001 — messaging must never block archiving
+        logger.debug("class group sync failed: %s", _exc, exc_info=True)
 
     return jsonify({'success': True, 'class': archived,
                     'enrollments_dropped': len(dropped)})
@@ -634,7 +634,8 @@ def _ensure_bucket(supabase, bucket_name):
         if supabase.storage.get_bucket(bucket_name):
             return
     except Exception:
-        pass  # not found → create below
+        # create-if-missing: the error means it already exists
+        ...
     try:
         supabase.storage.create_bucket(bucket_name)
     except Exception as e:

@@ -107,7 +107,7 @@ def verify_advisor_access(supabase, advisor_user_id, student_user_id):
         raise
     except Exception as e:
         logger.error(f"Error in verify_advisor_access: {str(e)}")
-        raise AuthorizationError("Failed to verify advisor access")
+        raise AuthorizationError("Failed to verify advisor access") from e
 
 
 @bp.route('/student-overview/<student_id>', methods=['GET'])

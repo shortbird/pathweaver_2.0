@@ -138,7 +138,7 @@ def get_lessons(user_id: str, quest_id: str):
         # admin client justified: see file docstring; CurriculumPermissionService gates access
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
-        permission_service = CurriculumPermissionService(supabase)
+        CurriculumPermissionService(supabase)
 
         _check_read_permission(user_id, quest_id, supabase)
 

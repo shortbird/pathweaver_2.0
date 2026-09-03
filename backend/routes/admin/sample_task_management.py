@@ -320,7 +320,7 @@ def delete_sample_task(user_id, quest_id, task_id):
     supabase = get_supabase_admin_client()
 
     try:
-        result = supabase.table('quest_sample_tasks')\
+        supabase.table('quest_sample_tasks')\
             .delete()\
             .eq('id', task_id)\
             .eq('quest_id', quest_id)\

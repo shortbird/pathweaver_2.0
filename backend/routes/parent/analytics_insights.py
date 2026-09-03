@@ -400,7 +400,7 @@ def get_encouragement_tips(user_id, student_id):
 
             if recent_completions.data:
                 recent_task = recent_completions.data[0]
-                pillar = get_pillar_name(recent_task['quest_tasks']['pillar'])
+                get_pillar_name(recent_task['quest_tasks']['pillar'])
                 tips['conversation_starters'].append(
                     f"I saw you completed {recent_task['quest_tasks']['title']}. How did it go?"
                 )

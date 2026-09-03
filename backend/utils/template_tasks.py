@@ -232,7 +232,7 @@ def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
         # Template tasks this person does not already hold as finished work.
         needed = [t for t in template_tasks if _title_key(t['title']) not in keep_titles]
 
-        for row, tmpl in zip(free, needed):
+        for row, tmpl in zip(free, needed, strict=False):
             updates.append((row['id'], tmpl))
         for tmpl in needed[len(free):]:
             inserts.append((enrollment['user_id'], enrollment['id'], tmpl))

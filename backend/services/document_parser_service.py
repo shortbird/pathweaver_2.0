@@ -294,7 +294,7 @@ class DocumentParserService(BaseService):
         """
         try:
             from docx import Document
-            from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+            from docx.enum.text import WD_PARAGRAPH_ALIGNMENT  # noqa: F401 - probes the install
         except ImportError:
             logger.error("python-docx not installed. Install with: pip install python-docx")
             return {

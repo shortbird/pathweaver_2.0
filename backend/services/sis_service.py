@@ -1405,8 +1405,8 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
             logger.error(f"SIS teacher profile insert failed: {e}")
             try:
                 admin.auth.admin.delete_user(auth.user.id)
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("rollback of the new auth user failed: %s", _exc, exc_info=True)
             return {'error': 'Could not create the account'}
     # email_sent lets the UI warn instead of promising an email that never left.
     email_sent = send_staff_invite(auth.user.id, email, first, org_id)

@@ -79,7 +79,7 @@ def upload_logo(current_user):
             logger.debug("intentional swallow", exc_info=True)  # Bucket might already exist
 
         # Upload file
-        response = supabase.storage.from_('site-assets').upload(
+        supabase.storage.from_('site-assets').upload(
             f'logos/{filename}',
             file_data,
             {'content-type': logo_file.content_type}

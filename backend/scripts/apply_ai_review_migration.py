@@ -30,7 +30,7 @@ def apply_migration():
         logger.info(f"Size: {len(migration_sql)} characters\n")
 
         # Get Supabase admin client
-        supabase = get_supabase_admin_client()
+        get_supabase_admin_client()
 
         logger.info("[OK] Connected to Supabase")
 

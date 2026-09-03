@@ -193,7 +193,6 @@ class AtomicQuestService(BaseService):
 
             required_task_ids = {task['id'] for task in required_tasks}
             completed_task_ids = {task['task_id'] for task in completed_tasks}
-            all_task_ids = {task['id'] for task in all_tasks}
 
             # Check if all required tasks are completed
             if not required_task_ids.issubset(completed_task_ids):

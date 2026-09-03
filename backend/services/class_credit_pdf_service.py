@@ -297,7 +297,8 @@ def _normalize_image(data: bytes) -> Optional[Tuple[bytes, int, int]]:
             import pillow_heif
             pillow_heif.register_heif_opener()
         except Exception:  # noqa: BLE001
-            pass
+            # pillow_heif is optional; HEIC just stays unconverted
+            ...
         img = Image.open(io.BytesIO(data))
         # Image.open() is lazy, so the dimensions are known before anything is
         # decoded. A 12MP phone photo costs ~36MB as an RGB raster and every

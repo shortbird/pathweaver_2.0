@@ -396,10 +396,6 @@ def _create_helper_learning_event(supabase, student_id, uploader_id, uploader_ro
     surface as TWO feed items: one from the evidence_document_blocks path,
     plus a duplicate from this learning_event.
     """
-    # Get quest title for the description
-    quest_result = supabase.table('quests').select('title').eq('id', quest_id).execute()
-    quest_title = quest_result.data[0]['title'] if quest_result.data else 'Quest'
-
     source_type = 'parent_captured' if uploader_role == 'parent' else 'advisor_captured'
 
     # Build a description from the evidence content

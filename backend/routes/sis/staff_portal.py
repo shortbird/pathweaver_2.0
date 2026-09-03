@@ -428,7 +428,8 @@ def upload_onboarding_doc(user_id):
         try:
             supabase.storage.create_bucket(_STAFF_DOCS_BUCKET, options={'public': False})
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f"{org_id}/{user_id}/{_uuid.uuid4().hex}.{ext}"
     try:
         supabase.storage.from_(_STAFF_DOCS_BUCKET).upload(
@@ -623,7 +624,8 @@ def upload_my_document(user_id):
         try:
             supabase.storage.create_bucket(_SECURE_DOCS_BUCKET, options={'public': False})
         except Exception:
-            pass
+            # create-if-missing: the error means it already exists
+            ...
     path = f"{org_id}/{_uuid.uuid4().hex}.{ext}"
     try:
         supabase.storage.from_(_SECURE_DOCS_BUCKET).upload(
@@ -658,7 +660,8 @@ def upload_my_document(user_id):
         try:
             supabase.storage.from_(_SECURE_DOCS_BUCKET).remove([path])
         except Exception:
-            pass
+            # best-effort cleanup of the replaced file
+            ...
         return jsonify({'success': False, 'error': 'Failed to save document'}), 500
     return jsonify({'success': True, 'document': (inserted or [row])[0]}), 201
 

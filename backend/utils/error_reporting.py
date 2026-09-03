@@ -31,7 +31,8 @@ def report_error(exc: Exception, message: str, **context) -> None:
     try:
         _logger.error(f"{message}: {exc}", exc_info=True)
     except Exception:
-        pass
+        # the reporter itself must never raise
+        ...
     try:
         import sentry_sdk
         with sentry_sdk.new_scope() as scope:
@@ -46,4 +47,5 @@ def report_error(exc: Exception, message: str, **context) -> None:
             sentry_sdk.capture_exception(exc)
     except Exception:
         # Never let error reporting raise.
-        pass
+        # the reporter itself must never raise
+        ...

@@ -111,7 +111,7 @@ class TestBillHousehold:
     @contextmanager
     def _billing(self, charged=True, card=True):
         hydrate = [dict(r, student_name=n, household_name='Bowman Family', card=None)
-                   for r, n in zip(self.ROWS, ['Robin Bowman', 'Uma Bowman'])]
+                   for r, n in zip(self.ROWS, ['Robin Bowman', 'Uma Bowman'], strict=False)]
         with patch.object(recurring, '_hydrate', return_value=hydrate), \
              patch.object(recurring, '_email_invoice'), \
              patch.object(recurring.billing, 'create_tuition_invoice',

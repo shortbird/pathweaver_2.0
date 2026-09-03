@@ -64,7 +64,7 @@ def assign_student(user_id, student_id):
     """Assign a student to this advisor"""
     try:
         advisor_service = AdvisorService()
-        success = advisor_service.assign_student_to_advisor(student_id, user_id)
+        advisor_service.assign_student_to_advisor(student_id, user_id)
         return jsonify({
             'success': True,
             'message': 'Student assigned successfully'

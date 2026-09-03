@@ -33,7 +33,7 @@ def test_org_course_welcome_email_renders_invite_link_and_courses():
     assert ok is True
     assert mock_send.called
     args, _ = mock_send.call_args
-    to_email, subject, html_body = args[0], args[1], args[2]
+    to_email, _subject, html_body = args[0], args[1], args[2]
 
     assert to_email == 'jordan@example.com'
     assert 'jordan@example.com' in html_body

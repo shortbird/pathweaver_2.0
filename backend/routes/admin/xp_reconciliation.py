@@ -111,6 +111,7 @@ def get_actual_xp(supabase, user_id: str) -> dict:
             try:
                 pillar = normalize_pillar_name(raw_pillar)
             except ValueError:
+                # unknown pillar: skip it
                 continue
 
             if pillar in actual_xp:

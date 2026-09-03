@@ -76,7 +76,7 @@ class BountyService(BaseService):
             return allowed
         except Exception as e:
             logger.warning(f"_get_posters_student_ids failed for {poster_id[:8]}: {e}")
-            raise ValidationError("Could not verify your linked students. Please try again.")
+            raise ValidationError("Could not verify your linked students. Please try again.") from e
 
     @staticmethod
     def _build_rewards(rewards_raw: Any) -> Dict[str, Any]:
@@ -96,8 +96,8 @@ class BountyService(BaseService):
             if r.get('type') == 'xp':
                 try:
                     xp_val = int(r.get('value', 0))
-                except (TypeError, ValueError):
-                    raise ValidationError("XP reward value must be a number")
+                except (TypeError, ValueError) as _exc:
+                    raise ValidationError("XP reward value must be a number") from _exc
                 pillar = r.get('pillar', 'stem')
                 if xp_val < MIN_XP_REWARD or xp_val > MAX_XP_REWARD:
                     raise ValidationError(f"XP reward must be between {MIN_XP_REWARD} and {MAX_XP_REWARD}")
@@ -124,8 +124,8 @@ class BountyService(BaseService):
             return None
         try:
             parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
-        except (TypeError, ValueError):
-            raise ValidationError("Deadline must be a valid date")
+        except (TypeError, ValueError) as _exc:
+            raise ValidationError("Deadline must be a valid date") from _exc
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         if parsed <= datetime.now(timezone.utc):
@@ -147,8 +147,8 @@ class BountyService(BaseService):
             try:
                 row = self.repository.client.table('org_classes') \
                     .select('id, organization_id').eq('id', cohort_class_id).execute()
-            except Exception:
-                raise ValidationError("Could not verify the selected cohort. Please try again.")
+            except Exception as _exc:
+                raise ValidationError("Could not verify the selected cohort. Please try again.") from _exc
             if not row.data or row.data[0].get('organization_id') != poster_org_id:
                 raise ValidationError("That cohort does not belong to your organization")
 
@@ -211,8 +211,8 @@ class BountyService(BaseService):
 
         try:
             max_participants = int(data.get('max_participants', 0))
-        except (TypeError, ValueError):
-            raise ValidationError("Max participants must be a number")
+        except (TypeError, ValueError) as _exc:
+            raise ValidationError("Max participants must be a number") from _exc
         if max_participants < 0 or max_participants > MAX_PARTICIPANTS_CAP:
             raise ValidationError(f"Max participants must be between 0 and {MAX_PARTICIPANTS_CAP}")
 
@@ -349,8 +349,8 @@ class BountyService(BaseService):
         if 'max_participants' in data:
             try:
                 max_p = int(data['max_participants'])
-            except (TypeError, ValueError):
-                raise ValidationError("Max participants must be a number")
+            except (TypeError, ValueError) as _exc:
+                raise ValidationError("Max participants must be a number") from _exc
             updates['max_participants'] = max(0, min(MAX_PARTICIPANTS_CAP, max_p))
 
         if 'deadline' in data:
@@ -516,14 +516,14 @@ class BountyService(BaseService):
             links = client.table('parent_student_links').select('parent_user_id')\
                 .eq('student_user_id', user_id).eq('status', 'approved').execute()
             connected.update(l['parent_user_id'] for l in (links.data or []))
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("parent-link lookup failed: %s", _exc, exc_info=True)
         try:
             obs_links = client.table('observer_student_links')\
                 .select('observer_id').eq('student_id', user_id).execute()
             connected.update(l['observer_id'] for l in (obs_links.data or []))
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("observer-link lookup failed: %s", _exc, exc_info=True)
         return connected
 
     def list_bounties(self, user_id: str, pillar: Optional[str] = None, bounty_type: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -64,7 +64,8 @@ def live_offer_count(class_id: str, exclude_student_id: Optional[str] = None) ->
                 if now > exp_dt:
                     continue  # stale — the sweep cron will mark it expired
             except ValueError:
-                pass
+                # unparseable expiry: treat as expired
+                ...
         n += 1
     return n
 
@@ -853,7 +854,8 @@ def _email_offer(org_id: str, class_name: str, student_id: str,
                          f"<strong>{when}</strong>. After that it may be offered to the "
                          f"next family.</p>")
         except ValueError:
-            pass
+            # unparseable expiry: treat as expired
+            ...
 
     from services.email_service import email_service
     subject = f'{org_name}: a spot opened in {class_name} for {student_name}'

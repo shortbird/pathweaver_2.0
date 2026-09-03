@@ -311,8 +311,8 @@ def _password_ok(email, password):
         ok = bool(c.auth.sign_in_with_password({'email': email, 'password': password}).user)
         try:
             c.auth.sign_out()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as _exc:  # noqa: BLE001
+            logger.debug("sign-out of the temp session failed: %s", _exc, exc_info=True)
         return ok
     except Exception:  # noqa: BLE001
         return False
@@ -1714,7 +1714,7 @@ def create_checkout(reg_id):
         return jsonify({'error': 'This registration is already completed'}), 400
 
     admin = _admin()
-    cfg = _org_config(admin, reg['organization_id'])
+    _org_config(admin, reg['organization_id'])
     secret = _org_stripe_key(reg['organization_id'])
     # A stale tab could still show the card button after the school staged a
     # prepaid credit — never charge a family that already paid.
@@ -1791,7 +1791,6 @@ def preview_checkout():
     if err:
         return err
     org = data['organization']
-    cfg = data['config']
     secret = _org_stripe_key(org.get('id'))
     if not secret:
         return jsonify({'error': 'Card payment is not set up for this school'}), 400
@@ -1896,7 +1895,7 @@ def _find_paid_session(reg, secret, parent_email=None):
         if created_gte:
             params['created'] = {'gte': created_gte}
         listing = stripe.checkout.Session.list(**params)
-        for page in range(3):
+        for _page in range(3):
             for session in listing.get('data') or []:
                 if session.get('payment_status') != 'paid':
                     continue
@@ -1978,7 +1977,7 @@ def fee_status(reg_id):
         return jsonify({'error': 'Not authorized'}), 403
 
     admin = _admin()
-    cfg = _org_config(admin, reg['organization_id'])
+    _org_config(admin, reg['organization_id'])
     completed = reg.get('status') in ('schedule', 'appointment', 'completed')
     reg = _apply_prepaid_directive(admin, reg)
     fee_cents = int(reg.get('fee_cents') or 0)
