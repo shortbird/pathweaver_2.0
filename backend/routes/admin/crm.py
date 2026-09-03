@@ -35,6 +35,11 @@ def _db():
     return get_supabase_admin_client()
 
 
+def _repo():
+    from repositories.crm_repository import CrmRepository
+    return CrmRepository(client=_db())
+
+
 def _audit(user_id, action_type, resource_type, resource_id, metadata=None):
     try:
         from services.admin_audit_service import AdminAuditService
@@ -738,21 +743,13 @@ def add_suppression(user_id):
     email = (data.get('email') or '').lower().strip()
     if not email or '@' not in email:
         return jsonify({'error': 'A valid email is required'}), 400
-    db = _db()
-    try:
-        entry = (db.table('crm_suppressions').insert({
-            'email': email, 'reason': 'manual', 'source': f'admin:{user_id}',
-        }).execute()).data[0]
-    except APIError:
+    repo = _repo()
+    # One shared path with the webhook and the unsubscribe link, so a
+    # hand-added suppression leaves the lead in exactly the same state.
+    if not repo.suppress(email, 'manual', source=f'admin:{user_id}'):
         return jsonify({'error': 'Already suppressed'}), 409
-    for m in (db.table('crm_leads').select('id').eq('email', email)
-              .limit(1).execute()).data or []:
-        for mem in (db.table('crm_funnel_memberships').select('id')
-                    .eq('lead_id', m['id']).eq('status', 'active').execute()).data or []:
-            db.table('crm_funnel_memberships').update({
-                'status': 'exited', 'exit_reason': 'suppressed',
-                'exited_at': _now_iso(),
-            }).eq('id', mem['id']).execute()
+    entry = (_db().table('crm_suppressions').select('*')
+             .eq('email', email).limit(1).execute()).data[0]
     _audit(user_id, 'crm_suppression_added', 'crm_suppression', entry['id'],
            {'email': email})
     return jsonify({'entry': entry}), 201
@@ -761,7 +758,15 @@ def add_suppression(user_id):
 @bp.route('/suppressions/<suppression_id>', methods=['DELETE'])
 @require_superadmin
 def remove_suppression(user_id, suppression_id):
+    repo = _repo()
+    # Reopen the lead too. Without this the row leaves the suppression list
+    # but the lead stays status='suppressed' forever, which every funnel
+    # entry gate reads as "never mail this person" — an un-suppress that
+    # un-suppresses nothing.
+    entry = repo.find_suppression(suppression_id)
     _db().table('crm_suppressions').delete().eq('id', suppression_id).execute()
+    if entry:
+        repo.unsuppress(entry['email'])
     _audit(user_id, 'crm_suppression_removed', 'crm_suppression', suppression_id)
     return '', 204
 

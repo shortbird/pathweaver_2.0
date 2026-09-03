@@ -89,6 +89,76 @@ class TestSendgridWebhook:
         assert lead['status'] == 'suppressed'
         assert world.data['crm_funnel_memberships'][0]['status'] == 'exited'
 
+    def test_blocked_bounce_is_recorded_but_does_not_suppress(self, client, keypair):
+        """SendGrid reports transient failures (bad MX, SMTP timeout) as
+        event 'bounce' with type 'blocked'. Those must not close a mailbox
+        for good — on a cold sending IP they are routine."""
+        private, public_b64 = keypair
+        world = make_world()
+        world.data['crm_leads'].append({
+            'id': 'lead-1', 'email': 'lead@example.com', 'status': 'active',
+            'unsubscribe_token': 't1'})
+        world.data['crm_funnel_memberships'].append({
+            'id': 'm-1', 'lead_id': 'lead-1', 'funnel_id': 'funnel-1',
+            'status': 'active', 'last_step_sent': 1})
+        events = [{'sg_event_id': 'ev-9', 'event': 'bounce', 'type': 'blocked',
+                   'reason': 'unable to get mx info', 'email': 'lead@example.com',
+                   'timestamp': 1724300002}]
+        payload = json.dumps(events).encode()
+        with patch.object(Config, 'SENDGRID_WEBHOOK_PUBLIC_KEY', public_b64), \
+             patch('routes.crm._admin_db', return_value=world):
+            response = client.post(self.URL, data=payload,
+                                   headers=_signed_headers(private, payload))
+        assert response.status_code == 200
+        body = response.get_json()
+        assert body['stored'] == 1        # the event is still on the ledger
+        assert body['suppressed'] == 0
+        assert world.data['crm_suppressions'] == []
+        assert world.data['crm_leads'][0]['status'] == 'active'
+        assert world.data['crm_funnel_memberships'][0]['status'] == 'active'
+
+    def test_repeated_transient_bounces_eventually_suppress(self, client, keypair):
+        """A domain with no MX times out every attempt. Two strikes is bad
+        luck; three is a dead mailbox."""
+        private, public_b64 = keypair
+        world = make_world()
+        world.data['crm_leads'].append({
+            'id': 'lead-1', 'email': 'ghost@nomx.example', 'status': 'active',
+            'unsubscribe_token': 't1'})
+        # Two blocked bounces already on the ledger.
+        for n in (1, 2):
+            world.data['crm_email_events'].append({
+                'id': f'prior-{n}', 'sg_event_id': f'prior-{n}',
+                'email': 'ghost@nomx.example', 'event_type': 'bounce',
+                'payload': {'event': 'bounce', 'type': 'blocked'}})
+        events = [{'sg_event_id': 'ev-11', 'event': 'bounce', 'type': 'blocked',
+                   'email': 'ghost@nomx.example', 'timestamp': 1724300004}]
+        payload = json.dumps(events).encode()
+        with patch.object(Config, 'SENDGRID_WEBHOOK_PUBLIC_KEY', public_b64), \
+             patch('routes.crm._admin_db', return_value=world):
+            response = client.post(self.URL, data=payload,
+                                   headers=_signed_headers(private, payload))
+        assert response.get_json()['suppressed'] == 1
+        assert world.data['crm_suppressions'][0]['reason'] == 'hard_bounce'
+        assert world.data['crm_leads'][0]['status'] == 'suppressed'
+
+    def test_permanent_bounce_still_suppresses(self, client, keypair):
+        private, public_b64 = keypair
+        world = make_world()
+        world.data['crm_leads'].append({
+            'id': 'lead-1', 'email': 'lead@example.com', 'status': 'active',
+            'unsubscribe_token': 't1'})
+        events = [{'sg_event_id': 'ev-10', 'event': 'bounce', 'type': 'bounce',
+                   'reason': '550 5.1.1 no such user',
+                   'email': 'lead@example.com', 'timestamp': 1724300003}]
+        payload = json.dumps(events).encode()
+        with patch.object(Config, 'SENDGRID_WEBHOOK_PUBLIC_KEY', public_b64), \
+             patch('routes.crm._admin_db', return_value=world):
+            response = client.post(self.URL, data=payload,
+                                   headers=_signed_headers(private, payload))
+        assert response.get_json()['suppressed'] == 1
+        assert world.data['crm_leads'][0]['status'] == 'suppressed'
+
 
 @pytest.mark.unit
 class TestUnsubscribeRoutes:
@@ -96,10 +166,25 @@ class TestUnsubscribeRoutes:
         assert client.get('/api/crm/unsubscribe').status_code == 404
 
     def test_get_with_token_shows_confirm_form(self, client):
-        response = client.get('/api/crm/unsubscribe?token=abc')
+        token = '11111111-2222-3333-4444-555555555555'
+        response = client.get(f'/api/crm/unsubscribe?token={token}')
         assert response.status_code == 200
         assert b'Unsubscribe' in response.data
         assert b'form method="POST"' in response.data
+        assert token.encode() in response.data
+
+    def test_get_never_reflects_a_non_uuid_token(self, client):
+        """The token is echoed back into the confirm form, so anything that
+        is not one of our own UUIDs must not reach the page at all.
+
+        The global query-param filter only blocks '<script' and 'javascript:',
+        so this uses a payload that gets past it — the route itself has to be
+        the thing that says no.
+        """
+        response = client.get(
+            '/api/crm/unsubscribe?token="><img src=x onerror=alert(1)>')
+        assert response.status_code == 404
+        assert b'onerror' not in response.data
 
     def test_post_valid_token_unsubscribes(self, client):
         world = make_world()

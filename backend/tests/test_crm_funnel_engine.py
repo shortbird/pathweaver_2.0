@@ -155,6 +155,68 @@ class TestSweepGates:
         assert [l for l in world.data['crm_leads']
                 if l['id'] == lead['id']][0]['status'] == 'converted'
 
+    def test_transient_suppression_lookup_failure_skips_without_exiting(self, world):
+        """A suppression read that errors must not read as "suppressed" —
+        that is a permanent exit, and a DB hiccup would empty the funnels."""
+        lead, membership = _add_lead(world, entered_hours_ago=2)
+        with patch('services.crm_service.suppression_state', return_value=None):
+            result = engine.run_sweep()
+        assert world.sent == []
+        assert result['sent'] == 0
+        assert membership['status'] == 'active'
+        assert membership.get('exit_reason') is None
+
+
+@pytest.mark.unit
+class TestOnboardingFunnels:
+    """An onboarding sequence exists BECAUSE its member converted, so a
+    'converted' lead is the normal case there — not a reason to stop.
+
+    Regression: until 2026-09-03 the sweep exited every membership whose lead
+    was not 'active', which killed all 64 welcome/course-onboarding
+    memberships on their first due step without sending one email.
+    """
+
+    def _make_onboarding(self, world, lead_status='converted'):
+        world.data['crm_funnels'][0].update(
+            {'key': 'new_account_welcome', 'name': 'New Account Welcome',
+             'funnel_type': 'onboarding', 'entry_types': []})
+        return _add_lead(world, entered_hours_ago=2, lead_status=lead_status)
+
+    def test_converted_lead_still_receives_onboarding(self, world):
+        lead, membership = self._make_onboarding(world)
+        result = engine.run_sweep()
+        assert result['sent'] == 1
+        assert world.sent[0]['funnel_key'] == 'new_account_welcome'
+        assert membership['status'] == 'active'
+        assert membership['last_step_sent'] == 1
+
+    def test_account_holder_does_not_short_circuit_onboarding(self, world):
+        """The users-row safety net converts nurture leads. Onboarding
+        members all have a users row by definition."""
+        lead, membership = self._make_onboarding(world)
+        world.data['users'] = [{'id': 'u1', 'email': lead['email']}]
+        assert engine.run_sweep()['sent'] == 1
+        assert membership['status'] == 'active'
+
+    def test_unsubscribed_lead_exits_onboarding(self, world):
+        lead, membership = self._make_onboarding(world, lead_status='unsubscribed')
+        engine.run_sweep()
+        assert world.sent == []
+        assert membership['status'] == 'exited'
+        assert membership['exit_reason'] == 'lead_unsubscribed'
+
+    def test_converted_lead_still_exits_a_nurture_funnel(self, world):
+        lead, membership = _add_lead(world, entered_hours_ago=2,
+                                     lead_status='converted')
+        engine.run_sweep()
+        assert world.sent == []
+        assert membership['status'] == 'exited'
+        assert membership['exit_reason'] == 'lead_converted'
+
+
+@pytest.mark.unit
+class TestSweepClaims:
     def test_stale_sending_claim_fails_and_never_retries(self, world):
         lead, membership = _add_lead(world, entered_hours_ago=2)
         world.data['crm_sends'].append({

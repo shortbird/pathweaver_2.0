@@ -49,12 +49,28 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
         # V3 System: Get XP directly from user_skill_xp table (the source of truth)
         # Note: user_quest_tasks doesn't have completed_at or xp_awarded columns
         # XP is awarded when tasks complete and stored in user_skill_xp table
-        skill_xp = supabase.table('user_skill_xp')\
-            .select('pillar, xp_amount')\
-            .eq('user_id', user_id)\
-            .execute()
+        #
+        # Isolated from the rest of the calculation on purpose. user_skill_xp is
+        # service-role-only (no Data API grant, RLS on with no policies), so a
+        # caller holding a user client is denied it. That used to abort the whole
+        # V3 branch and hand off to the legacy path, which reads the SAME table,
+        # fails the same way and returns zeros -- so the caller got "0 XP"
+        # instead of falling through to the completed-task tally below, which
+        # reads granted tables and is correct. A denial on this one read should
+        # cost us the shortcut, not the answer.
+        try:
+            skill_xp = supabase.table('user_skill_xp')\
+                .select('pillar, xp_amount')\
+                .eq('user_id', user_id)\
+                .execute()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                f"user_skill_xp unreadable for user {user_id} ({e}); "
+                f"falling back to the completed-task tally"
+            )
+            skill_xp = None
 
-        if skill_xp.data:
+        if skill_xp is not None and skill_xp.data:
             for record in skill_xp.data:
                 pillar = record.get('pillar')
                 xp_amount = record.get('xp_amount', 0)
@@ -75,8 +91,9 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     except ValueError:
                         logger.warning(f"Could not normalize pillar '{pillar}' for user {user_id}")
 
-        # If no XP from user_skill_xp, calculate from COMPLETED tasks
-        # This handles org students whose XP isn't synced to user_skill_xp
+        # If no XP from user_skill_xp, calculate from COMPLETED tasks.
+        # This handles org students whose XP isn't synced to user_skill_xp, and
+        # is also where an unreadable user_skill_xp lands.
         if total_xp == 0:
             # Get completed tasks with their XP values
             completed_tasks = supabase.table('quest_task_completions')\

@@ -20,9 +20,11 @@ Provider callback:
         address and exit any active funnel membership.
 """
 import base64
+import uuid
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
+from markupsafe import escape
 from postgrest.exceptions import APIError
 
 from app_config import Config
@@ -34,6 +36,12 @@ logger = get_logger(__name__)
 bp = Blueprint('crm', __name__, url_prefix='/api/crm')
 
 # SendGrid event types that permanently close a mailbox for marketing.
+# 'bounce' is conditional: SendGrid reports BOTH permanent failures
+# (payload type 'bounce' — 550 no such user) and transient ones (type
+# 'blocked' — MX lookup failure, SMTP timeout, greylisting) under the same
+# event name. Suppressing on 'blocked' is how real gmail addresses ended up
+# permanently unmailable during the first weeks on a cold IP; the event is
+# still recorded, it just no longer closes the mailbox.
 SUPPRESSING_EVENTS = {
     'bounce': 'hard_bounce',
     'dropped': 'hard_bounce',
@@ -42,6 +50,17 @@ SUPPRESSING_EVENTS = {
     'group_unsubscribe': 'unsubscribe',
 }
 
+
+def _suppression_reason(repo, event: dict, email: str):
+    """The suppression reason this event earns, or None to leave the mailbox
+    open. Bounce classification (permanent vs transient, and how many
+    transient failures make a dead mailbox) lives in CrmRepository."""
+    reason = SUPPRESSING_EVENTS.get(event.get('event'))
+    if reason == 'hard_bounce' and not repo.bounce_is_permanent(event, email):
+        return None
+    return reason
+
+
 _UNSUB_PAGE = """<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Optio</title></head>
@@ -49,6 +68,14 @@ _UNSUB_PAGE = """<!DOCTYPE html>
 margin:0;padding:48px 16px;text-align:center;color:#111827;">
 <div style="max-width:420px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;
 border-radius:12px;padding:32px;">{body}</div></body></html>"""
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 
 def _admin_db():
@@ -81,13 +108,17 @@ def unsubscribe_confirm():
     """Confirm page. GET never mutates (mail scanners prefetch links); the
     button posts back with the token."""
     token = (request.args.get('token') or '').strip()
-    if not token:
+    # The token goes straight back out in the form, so it is validated as a
+    # UUID (which is all we ever mint) rather than reflected as-is, and
+    # escaped on the way into the HTML. Reflecting it raw was a stored-XSS
+    # hole on the API origin.
+    if not _is_uuid(token):
         return _UNSUB_PAGE.format(body='<p>Invalid unsubscribe link.</p>'), 404
     return _UNSUB_PAGE.format(body=(
         '<h2 style="margin:0 0 12px;">Unsubscribe</h2>'
         '<p style="color:#6b7280;">Stop receiving marketing emails from Optio?</p>'
         f'<form method="POST" action="/api/crm/unsubscribe">'
-        f'<input type="hidden" name="token" value="{token}">'
+        f'<input type="hidden" name="token" value="{escape(token)}">'
         '<button type="submit" style="margin-top:16px;padding:12px 28px;border:0;'
         'border-radius:8px;background:linear-gradient(90deg,#6D469B,#EF597B);'
         'color:#fff;font-size:15px;cursor:pointer;">Unsubscribe</button></form>'
@@ -166,6 +197,8 @@ def sendgrid_events():
         return jsonify({'error': 'expected a JSON array'}), 400
 
     db = _admin_db()
+    from repositories.crm_repository import CrmRepository
+    repo = CrmRepository(client=db)
     stored = suppressed = 0
     for event in events:
         if not isinstance(event, dict):
@@ -191,31 +224,9 @@ def sendgrid_events():
             logger.debug("CRM email-event insert failed: %s", _exc, exc_info=True)
             continue
 
-        reason = SUPPRESSING_EVENTS.get(event_type)
-        if reason and email:
-            try:
-                db.table('crm_suppressions').insert({
-                    'email': email, 'reason': reason, 'source': 'sendgrid_webhook',
-                }).execute()
-            except APIError as _exc:
-                logger.debug("CRM suppression insert failed: %s", _exc, exc_info=True)
-            lead_rows = (db.table('crm_leads').select('id, status')
-                         .eq('email', email).limit(1).execute()).data
-            if lead_rows:
-                lead = lead_rows[0]
-                if lead['status'] == 'active':
-                    db.table('crm_leads').update({
-                        'status': 'suppressed',
-                        'updated_at': datetime.now(timezone.utc).isoformat(),
-                    }).eq('id', lead['id']).execute()
-                memberships = (db.table('crm_funnel_memberships').select('id')
-                               .eq('lead_id', lead['id']).eq('status', 'active')
-                               .execute()).data or []
-                for m in memberships:
-                    db.table('crm_funnel_memberships').update({
-                        'status': 'exited', 'exit_reason': 'suppressed',
-                        'exited_at': datetime.now(timezone.utc).isoformat(),
-                    }).eq('id', m['id']).execute()
+        reason = _suppression_reason(repo, event, email) if email else None
+        if reason:
+            repo.suppress(email, reason, source='sendgrid_webhook')
             suppressed += 1
 
     return jsonify({'success': True, 'stored': stored, 'suppressed': suppressed})

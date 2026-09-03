@@ -54,14 +54,27 @@ def _record_event(db, lead_id: str, event_type: str, detail: Optional[Dict[str, 
         logger.warning(f'CRM event write failed ({event_type}): {e}')
 
 
-def is_suppressed(email: str) -> bool:
+def suppression_state(email: str) -> Optional[bool]:
+    """True/False when the suppression list could be read, None when the
+    lookup itself failed.
+
+    The distinction matters to the sweep: "suppressed" is a permanent exit,
+    so a transient DB error must not be allowed to masquerade as one and
+    evict every lead it touches. Callers that only need a yes/no for a send
+    decision use is_suppressed(), which folds None into "don't send".
+    """
     try:
         rows = (_db().table('crm_suppressions').select('id')
                 .eq('email', email.lower()).limit(1).execute()).data
         return bool(rows)
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CRM suppression lookup failed: {e}')
-        return True  # fail closed for marketing sends
+        return None
+
+
+def is_suppressed(email: str) -> bool:
+    """Fails closed: an unreadable suppression list blocks the marketing send."""
+    return suppression_state(email) is not False
 
 
 def _split_name(name: Optional[str]):

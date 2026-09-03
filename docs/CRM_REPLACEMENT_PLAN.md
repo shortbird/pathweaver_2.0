@@ -2,6 +2,74 @@
 
 ## Status (2026-08-20)
 
+- **AUDIT 2026-09-03.** Live and mostly healthy: 263 leads, 130 sends, all 5 funnels
+  active, nurture cadences on schedule (no overdue memberships), webhook ingesting
+  (3,565 events), postal address set. Four defects found and fixed:
+  1. 🔴 **Onboarding funnels never sent a single email.** The sweep exited any
+     membership whose lead was not `status='active'` — but an onboarding member is
+     `converted` by construction. 55 `new_account_welcome` and 9
+     `course_student_onboarding` memberships were exited `lead_converted` with
+     `last_step_sent=0`, about an hour after entry, since 2026-08-23. Fixed in
+     crm_funnel_engine (`is_onboarding` guard on the status gate and on the
+     users-row safety net); regression tests in TestOnboardingFunnels. The 64
+     already-exited memberships stay exited — re-entry is blocked by design, so a
+     backfill is a deliberate, separate decision.
+  2. **Soft bounces suppressed addresses permanently.** SendGrid reports transient
+     failures as `event='bounce', type='blocked'`; 36 of 38 bounce events were
+     `blocked`, and 8 of 10 hard_bounce suppressions came from them (including live
+     gmail addresses blocked on SMTP timeouts against a cold IP). `_suppression_reason`
+     now ignores `blocked`/`deferred`; the events are still recorded.
+  3. **Reflected XSS on GET /api/crm/unsubscribe** — the `token` query param was
+     interpolated raw into the confirm form. The global query filter only blocks
+     `<script`/`javascript:`, so `onerror=` payloads got through. Token is now
+     UUID-validated and escaped.
+  4. A failed suppression lookup mid-sweep read as "suppressed" and permanently
+     exited the membership. `crm_service.suppression_state()` is now tri-state;
+     the sweep skips on None. Admin add/remove-suppression also now keeps
+     `crm_leads.status` in sync (un-suppress used to leave the lead unmailable).
+  5. 🔴 **The calendar poll has 400'd on every run since 2026-08-23.** The GCP
+     credentials ARE set on prod (owner confirmed), so this was not the missing
+     prerequisite it looked like. `_list_events` sent the full-sync parameter set
+     alongside a `syncToken`, and Google rejects that outright — "it is not allowed
+     to set showDeleted to False" with a syncToken, and `timeMin` likewise. So the
+     very first poll (no token) succeeded and stored a token, and every poll after
+     it 400'd. A 400 is not the documented 410, so the resync path never fired and
+     the token never refreshed: `calendar_sync_token.updated_at` sat frozen at
+     2026-08-23 18:14 and `crm_calendar_bookings` stayed empty for 11 days. Fixed:
+     incremental and full requests now build different parameter sets, cancelled
+     events are filtered in `run_poll` instead, and a 400 on a token request is
+     treated as recoverable so it self-heals. The existing tests mocked
+     `_list_events` wholesale — `TestListEventsParams` now asserts the request
+     Google actually receives.
+  6. The flip side of defect 2: an address that ONLY ever fails transiently (a
+     domain with no MX times out every attempt) would never be suppressed at all,
+     and would be mailed once per step forever. `TRANSIENT_BOUNCE_STRIKES = 3`
+     closes the mailbox after three transient bounces.
+
+### Remediation actions taken (2026-09-03)
+
+- **8 blocked-derived suppressions cleared** from prod. 3 legitimate rows remain
+  (1 spam report, 2 real 550 NoSuchUser). No leads needed reactivating — the four
+  that were leads were already `converted`, which outranks `suppressed`.
+  Worth knowing: none of the 8 domains has an MX record, and five have no DNS at
+  all (`areteacadmeyhr.com`, `gmail.comt`, `example.invalid`, `icreate-demo.com`,
+  `optio-internal-placeholder.local` — typos, test and placeholder addresses).
+  `disruptionschools.org` and `areteacademy.com` resolve but publish no MX, so
+  SendGrid falls back to their web server and times out on port 25. All of them
+  will fail again; the three-strike rule is what now closes them, under the right
+  reason. The four memberships those suppressions exited were deliberately NOT
+  reopened for the same reason.
+- **`backfill_onboarding_memberships.py`** written for defect 1 — reopens the 39
+  eligible dead memberships (of 40; one account was deleted since) so the normal
+  sweep runs them. Dry-run by default, staggered entries, skips
+  suppressed/unsubscribed leads, leads with another active membership,
+  memberships with any send history, and addresses with no users row. The 24
+  Brevo-import memberships (`last_step_sent > 0`, earlier steps genuinely
+  delivered by Brevo) are excluded unless `--include-imported`.
+  **It must not run until the fixed engine is deployed** — the old sweep exits
+  those memberships again on its next pass.
+
+
 - **PR1 — DONE and LIVE.** The contact_type CHECK constraint was widened on the prod DB
   via MCP (verified with an insert round-trip; test row cleaned up). Migration file:
   supabase/migrations/20260820120000_contact_type_allow_course_purchase.sql. Catalog

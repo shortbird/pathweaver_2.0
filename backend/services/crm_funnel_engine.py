@@ -174,7 +174,7 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         .in_('funnel_id', list(funnel_by_id)).eq('status', 'active')
     ))
 
-    from services.crm_service import is_suppressed, mark_converted
+    from services.crm_service import mark_converted, suppression_state
     from services.email_service import email_service
 
     sent = failed = skipped = 0
@@ -203,10 +203,25 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         # Pre-send gates. The users-row check is the safety net that catches
         # any conversion a hook missed: an account holder is a customer, not
         # a lead, whatever the funnel thinks.
-        if lead.get('status') != 'active':
-            _exit_membership(db, membership, f"lead_{lead.get('status')}")
+        #
+        # 'converted' is a STOP for nurture and a PREREQUISITE for onboarding:
+        # a welcome sequence exists because the person signed up, so its
+        # members are converted by construction. Treating that as an exit
+        # (as this did until 2026-09-03) silently killed every onboarding
+        # membership on its first due step, before a single email went out.
+        lead_status = lead.get('status')
+        is_onboarding = funnel.get('funnel_type') == 'onboarding'
+        if lead_status in ('unsubscribed', 'suppressed'):
+            _exit_membership(db, membership, f'lead_{lead_status}')
             continue
-        if is_suppressed(lead['email']):
+        if lead_status != 'active' and not is_onboarding:
+            _exit_membership(db, membership, f'lead_{lead_status}')
+            continue
+        suppressed = suppression_state(lead['email'])
+        if suppressed is None:
+            skipped += 1  # lookup failed; try again next sweep, don't evict
+            continue
+        if suppressed:
             _exit_membership(db, membership, 'suppressed')
             continue
         try:
@@ -214,7 +229,7 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
                                 .ilike('email', lead['email']).limit(1).execute()).data)
         except Exception:  # noqa: BLE001
             has_account = False
-        if has_account and funnel.get('funnel_type') == 'nurture':
+        if has_account and not is_onboarding:
             mark_converted(lead['email'], event='account_signup')
             skipped += 1
             continue
